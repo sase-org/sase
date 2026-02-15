@@ -6,8 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Try to source bugyi.sh from the home directory first, fall back to relative path
 if [[ -f ~/lib/bugyi.sh ]]; then
     source ~/lib/bugyi.sh
-elif [[ -f "${SCRIPT_DIR}/../lib/bugyi.sh" ]]; then
-    source "${SCRIPT_DIR}/../lib/bugyi.sh"
+elif [[ -f "${SCRIPT_DIR}/../lib/bugyi_260215.sh" ]]; then
+    source "${SCRIPT_DIR}/../lib/bugyi_260215.sh"
 else
     echo "Error: Cannot find bugyi.sh library" >&2
     exit 1

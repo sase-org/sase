@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -27,6 +27,19 @@ jobs:
         run: ruff format --check src/ tests/
       - name: Mypy
         run: mypy
+      - name: Pyvision (unused symbol check)
+        run: python bin/pyvision src/sase
+      - name: Pylimit (file line count check)
+        run: bin/pylimit src/sase 1000 850 700
+
+  lint-md:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prettier
+        run: npm install -g prettier
+      - name: Check Markdown formatting
+        run: prettier --check --prose-wrap=always --print-width=120 "**/*.md"
 
   test:
     runs-on: ubuntu-latest
