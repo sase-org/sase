@@ -1,8 +1,9 @@
-# CLAUDE.md — AI Coding Assistant Guidelines for sase
+# Structured Agentic Software Engineering (SASE) - Agent Instructions
 
 ## Project Overview
 
-**sase** (Structured Agentic Software Engineering) is a Python toolkit for building and orchestrating AI agents. It is a migration from the `gai` (Google AI) codebase into a properly packaged Python project.
+**sase** (Structured Agentic Software Engineering) is a Python toolkit for building and orchestrating AI agents. It is a
+migration from the `gai` (Google AI) codebase into a properly packaged Python project.
 
 ## Build & Run Commands
 
@@ -34,4 +35,14 @@ python -m sase     # Alternative CLI invocation
 
 ## Issue Tracking
 
-This project uses **beads** (`bd`) for issue tracking. See `AGENTS.md` for commands.
+This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+
+### Quick Reference
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --status in_progress  # Claim work
+bd close <id>         # Complete work
+bd sync               # Sync with git
+```
