@@ -8,7 +8,7 @@ from sase.ace.saved_queries import load_last_query
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser with subcommands."""
     parser = argparse.ArgumentParser(
-        description="SASE - Google AI LangGraph workflow runner", prog="sase"
+        description="SASE - Structured Agentic Software Engineering", prog="sase"
     )
 
     # Top-level subparsers
