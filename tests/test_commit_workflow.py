@@ -346,15 +346,15 @@ def test_add_changespec_no_parent_placed_at_bottom() -> None:
         Path(project_file).unlink()
 
 
-# --- Tests for _get_cl_description from executable_gai_commit_workflow ---
+# --- Tests for _get_cl_description from executable_sase_commit_workflow ---
 
 
 def _load_commit_workflow_module() -> types.ModuleType:
-    """Load executable_gai_commit_workflow as a Python module."""
+    """Load executable_sase_commit_workflow as a Python module."""
     script_path = str(
         Path(__file__).parent.parent.parent.parent
         / "bin"
-        / "executable_gai_commit_workflow"
+        / "executable_sase_commit_workflow"
     )
     loader = importlib.machinery.SourceFileLoader("sase_commit_workflow", script_path)
     spec = importlib.util.spec_from_loader("sase_commit_workflow", loader)

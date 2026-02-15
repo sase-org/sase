@@ -251,7 +251,7 @@ def test_restore_changespec_hg_import_fails(make_changespec) -> None:  # type: i
     assert "import failed" in error
 
 
-def test_restore_changespec_gai_commit_fails(make_changespec) -> None:  # type: ignore[no-untyped-def]
+def test_restore_changespec_sase_commit_fails(make_changespec) -> None:  # type: ignore[no-untyped-def]
     """Test restore_changespec fails when sase commit fails."""
     changespec = make_changespec.create(
         name="test_project_feature__1", status="Reverted"
