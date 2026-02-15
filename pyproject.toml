@@ -1,0 +1,106 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sase"
+version = "0.1.0"
+description = "Structured Agentic Software Engineering"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "jinja2",
+    "jsonschema",
+    "langgraph",
+    "langchain-core",
+    "rich",
+    "schedule",
+    "textual>=0.45.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "tox",
+]
+
+[project.scripts]
+sase = "sase.main.entry:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sase"]
+
+# --- Ruff ---
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+    "C4",  # flake8-comprehensions
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "PIE", # flake8-pie
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sase"]
+
+# --- Mypy ---
+[tool.mypy]
+files = ["src"]
+mypy_path = ["src"]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict_equality = true
+extra_checks = true
+
+[[tool.mypy.overrides]]
+module = [
+    "langgraph.*",
+    "langchain_core.*",
+    "schedule.*",
+]
+ignore_missing_imports = true
+
+# --- Pytest ---
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--import-mode=importlib --strict-markers --strict-config"
+
+# --- Coverage ---
+[tool.coverage.run]
+source_pkgs = ["sase"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+    "@overload",
+    "raise NotImplementedError",
+]
