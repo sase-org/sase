@@ -11,7 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.chat_history import (  # type: ignore[attr-defined]
+from sase.chat_history import (
     get_chat_file_full_path,
     list_chat_histories,
     load_chat_history,

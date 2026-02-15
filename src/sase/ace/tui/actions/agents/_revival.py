@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ...modals import ChatFileItem  # type: ignore[attr-defined]
+    from ...modals import ChatFileItem
     from ...models import Agent
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
@@ -32,7 +32,7 @@ class AgentRevivalMixin:
         if self.current_tab != "agents":  # type: ignore[attr-defined]
             return
 
-        from ...modals import ChatSelectModal  # type: ignore[attr-defined]
+        from ...modals import ChatSelectModal
 
         def on_dismiss(result: ChatFileItem | None) -> None:
             if result is not None:

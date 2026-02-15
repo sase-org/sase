@@ -6,10 +6,10 @@ import time
 from collections.abc import Callable
 
 from sase.commit_utils import apply_diff_to_workspace, clean_workspace, run_bb_hg_clean
-from sase.running_field import (  # type: ignore[attr-defined]
+from sase.running_field import (
     claim_workspace,
     get_claimed_workspaces,
-    get_first_available_loop_workspace,
+    get_first_available_axe_workspace,
     get_workspace_directory_for_num,
     release_workspace,
 )
@@ -256,7 +256,7 @@ def _start_stale_hooks_for_proposal(
         newly_claimed = False
     else:
         # Claim a single workspace for ALL hooks of this proposal
-        workspace_num = get_first_available_loop_workspace(changespec.file_path)
+        workspace_num = get_first_available_axe_workspace(changespec.file_path)
         newly_claimed = True
 
         if not claim_workspace(
@@ -480,7 +480,7 @@ def _start_stale_hooks_shared_workspace(
         newly_claimed = False
     else:
         # Claim a new workspace >= 100
-        workspace_num = get_first_available_loop_workspace(changespec.file_path)
+        workspace_num = get_first_available_axe_workspace(changespec.file_path)
         newly_claimed = True
 
         if not claim_workspace(

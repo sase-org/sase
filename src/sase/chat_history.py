@@ -79,6 +79,37 @@ def _get_chat_file_path(basename: str) -> str:
     return os.path.join(chats_dir, basename)
 
 
+def get_chat_file_full_path(basename: str) -> str:
+    """Get the full path to a chat history file (public wrapper for _get_chat_file_path)."""
+    return _get_chat_file_path(basename)
+
+
+def parse_chat_filename(basename: str) -> tuple[str | None, str | None, str | None, str | None]:
+    """Parse a chat filename into (branch_or_workspace, workflow, agent, timestamp).
+
+    Format: <branch_or_workspace>-<workflow>[-<agent>]-<timestamp>
+    Timestamp format: YYmmdd_HHMMSS (13 chars with underscore)
+    """
+    # Timestamp is always last, format: YYmmdd_HHMMSS
+    parts = basename.rsplit("-", 1)
+    if len(parts) != 2:
+        return (None, None, None, None)
+
+    prefix, timestamp = parts
+    # Validate timestamp format
+    if len(timestamp) != 13 or timestamp[6] != "_":
+        return (None, None, None, None)
+
+    # Split remaining prefix into parts
+    remaining_parts = prefix.split("-", 2)
+    if len(remaining_parts) == 3:
+        return (remaining_parts[0], remaining_parts[1], remaining_parts[2], timestamp)
+    elif len(remaining_parts) == 2:
+        return (remaining_parts[0], remaining_parts[1], None, timestamp)
+    else:
+        return (remaining_parts[0], None, None, timestamp)
+
+
 def save_chat_history(
     prompt: str,
     response: str,

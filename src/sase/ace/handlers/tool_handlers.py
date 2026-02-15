@@ -13,7 +13,6 @@ from sase.commit_utils import run_bb_hg_clean
 from sase.commit_workflow.editor_utils import get_editor
 
 from ..changespec import ChangeSpec
-from ..mail_ops import escape_for_hg_reword  # type: ignore[attr-defined]
 from ..mail_ops import handle_mail as mail_ops_handle_mail
 from ..operations import update_to_changespec
 
@@ -330,25 +329,18 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
             self.console.print("[red]bb_hg_update command not found[/red]")
             return
 
-        # Run bb_hg_reword with the edited description (non-interactive)
-        self.console.print("[cyan]Running bb_hg_reword...[/cyan]")
-        try:
-            reword_result = subprocess.run(
-                ["bb_hg_reword", escape_for_hg_reword(edited)],
-                cwd=workspace_dir,
-                check=False,
+        # Run reword via VCS provider
+        self.console.print("[cyan]Running reword...[/cyan]")
+        from sase.vcs_provider import get_vcs_provider
+        provider = get_vcs_provider(workspace_dir)
+        success, err = provider.reword(edited, workspace_dir)
+        if not success:
+            self.console.print(
+                f"[red]Failed to reword: {err}[/red]"
             )
-            if reword_result.returncode == 0:
-                self.console.print("[green]CL description updated successfully[/green]")
-                _sync_description_after_reword(workspace_dir, changespec, self.console)
-            else:
-                self.console.print(
-                    f"[yellow]bb_hg_reword exited with code {reword_result.returncode}[/yellow]"
-                )
-        except FileNotFoundError:
-            self.console.print("[red]bb_hg_reword command not found[/red]")
-        except Exception as e:
-            self.console.print(f"[red]Error running bb_hg_reword: {e!s}[/red]")
+        else:
+            self.console.print("[green]CL description updated successfully[/green]")
+            _sync_description_after_reword(workspace_dir, changespec, self.console)
 
     finally:
         # Always release the workspace

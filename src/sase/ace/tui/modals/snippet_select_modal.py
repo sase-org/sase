@@ -7,7 +7,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.snippet_config import get_all_snippets
+from sase.snippet_config import get_all_xprompts
 
 from .base import FilterInput, OptionListNavigationMixin
 
@@ -21,7 +21,7 @@ class SnippetSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
     def __init__(self) -> None:
         """Initialize the snippet modal."""
         super().__init__()
-        self.snippets = get_all_snippets()
+        self.snippets = get_all_xprompts()
         self._filtered_names: list[str] = sorted(self.snippets.keys())
 
     def compose(self) -> ComposeResult:
@@ -120,8 +120,8 @@ class SnippetSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
         """Update preview for a snippet by name."""
         try:
             preview = self.query_one("#snippet-preview", Static)
-            content = self.snippets.get(name, "")
-            preview.update(content)
+            xprompt = self.snippets.get(name)
+            preview.update(xprompt.content if xprompt else "")
         except Exception:
             pass
 

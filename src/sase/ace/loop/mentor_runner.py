@@ -7,9 +7,9 @@ from collections.abc import Callable
 
 from sase.commit_utils import run_bb_hg_clean
 from sase.mentor_config import MentorProfileConfig
-from sase.running_field import (  # type: ignore[attr-defined]
+from sase.running_field import (
     claim_workspace,
-    get_first_available_loop_workspace,
+    get_first_available_axe_workspace,
     get_workspace_directory_for_num,
 )
 from sase.sase_utils import (
@@ -103,7 +103,7 @@ def _start_single_mentor(
     )
 
     # Get workspace info (don't claim yet - need subprocess PID first)
-    workspace_num = get_first_available_loop_workspace(changespec.file_path)
+    workspace_num = get_first_available_axe_workspace(changespec.file_path)
     workflow_name = f"loop(mentor)-{mentor_name}-{timestamp}"
 
     try:

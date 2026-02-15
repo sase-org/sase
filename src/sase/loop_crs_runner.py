@@ -87,17 +87,8 @@ def main() -> int:
         print(f"Reviewer type: {reviewer_type}")
         print()
 
-        # Get project basename for context files
-        project_basename = os.path.splitext(os.path.basename(project_file))[0]
-
-        # Set context file directory
-        context_file_directory = os.path.expanduser(
-            f"~/.sase/projects/{project_basename}/context/"
-        )
-
         # Run the CRS workflow with timestamp for consistent artifacts directory
-        workflow = CrsWorkflow(  # type: ignore[call-arg]
-            context_file_directory=context_file_directory,
+        workflow = CrsWorkflow(
             comments_file=comments_file,
             timestamp=timestamp,
         )

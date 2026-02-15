@@ -10,7 +10,7 @@ from rich.console import Console
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from sase.rich_utils import format_countdown  # type: ignore[attr-defined]
+from sase.rich_utils import format_countdown
 from sase.running_field import (
     get_claimed_workspaces,
     get_workspace_directory,
@@ -27,7 +27,7 @@ from ..changespec import (
     find_all_changespecs,
     get_base_status,
 )
-from ..cl_status import (  # type: ignore[attr-defined]
+from ..cl_status import (
     SYNCABLE_STATUSES,
     is_cl_submitted,
     is_parent_submitted,

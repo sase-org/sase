@@ -131,8 +131,7 @@ def _create_new_changespec(
     """
     import tempfile
 
-    from sase.commit_workflow.branch_info import (  # type: ignore[attr-defined]
-        get_cl_number,
+    from sase.commit_workflow.branch_info import (
         get_parent_branch_name,
     )
     from sase.commit_workflow.changespec_operations import (
@@ -201,8 +200,10 @@ def _create_new_changespec(
 
         # Get CL number
         print("Retrieving CL number...")
-        cl_number = get_cl_number()
-        if not cl_number:
+        from sase.vcs_provider import get_vcs_provider
+        provider = get_vcs_provider(os.getcwd())
+        success, cl_number = provider.get_cl_number(os.getcwd())
+        if not success or not cl_number:
             console.print("[red]Failed to get CL number[/red]")
             return False
         cl_url = f"http://cl/{cl_number}"
@@ -216,7 +217,7 @@ def _create_new_changespec(
         # Format bug as URL for ChangeSpec (use bug or fixed_bug, whichever is set)
         bug_url = f"http://b/{bug}" if bug else None
         fixed_bug_url = f"http://b/{fixed_bug}" if fixed_bug else None
-        success = add_changespec_to_project_file(
+        result = add_changespec_to_project_file(
             project=project_name,
             cl_name=full_cl_name,
             description=description,  # Original, unformatted description
@@ -227,12 +228,12 @@ def _create_new_changespec(
             bug=bug_url or fixed_bug_url,
         )
 
-        if success:
+        if result:
             console.print(f"[green]Created new ChangeSpec: {full_cl_name}[/green]")
         else:
             console.print(f"[red]Failed to create ChangeSpec: {full_cl_name}[/red]")
 
-        return success  # type: ignore[return-value]
+        return result is not None
 
     finally:
         # Clean up temp file

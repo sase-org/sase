@@ -6,9 +6,9 @@ import time
 from collections.abc import Callable
 
 from sase.commit_utils import run_bb_hg_clean
-from sase.running_field import (  # type: ignore[attr-defined]
+from sase.running_field import (
     claim_workspace,
-    get_first_available_loop_workspace,
+    get_first_available_axe_workspace,
     get_workspace_directory_for_num,
 )
 from sase.sase_utils import ensure_sase_directory, make_safe_filename
@@ -130,7 +130,7 @@ def _start_crs_workflow(
     timestamp = generate_timestamp()
 
     # Get workspace info (don't claim yet - need subprocess PID first)
-    workspace_num = get_first_available_loop_workspace(changespec.file_path)
+    workspace_num = get_first_available_axe_workspace(changespec.file_path)
     workflow_name = f"loop(crs)-{comment_entry.reviewer}-{timestamp}"
 
     try:
@@ -294,7 +294,7 @@ def start_fix_hook_workflow(
     timestamp = generate_timestamp()
 
     # Get workspace info (don't claim yet - need subprocess PID first)
-    workspace_num = get_first_available_loop_workspace(changespec.file_path)
+    workspace_num = get_first_available_axe_workspace(changespec.file_path)
     workflow_name = f"loop(fix-hook)-{timestamp}"
 
     try:

@@ -6,7 +6,7 @@ import sys
 from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
 
 from sase.rich_utils import print_status
-from sase.snippet_config import get_all_snippets
+from sase.snippet_config import get_all_xprompts
 
 
 class _SnippetError(Exception):
@@ -326,7 +326,7 @@ def process_snippet_references(prompt: str) -> str:
     Raises:
         SystemExit: If any snippet processing error occurs
     """
-    snippets = get_all_snippets()
+    snippets = {name: xp.content for name, xp in get_all_xprompts().items()}
     if not snippets:
         return prompt  # No snippets defined
 

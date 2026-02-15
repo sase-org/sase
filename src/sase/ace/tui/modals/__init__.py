@@ -1,5 +1,6 @@
 """Modal dialogs for the ace TUI."""
 
+from .chat_select_modal import ChatFileItem, ChatSelectModal
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
 from .confirm_kill_modal import ConfirmKillModal
@@ -24,6 +25,8 @@ from .workspace_input_modal import WorkspaceInputModal
 from .xprompt_select_modal import XPromptSelectModal
 
 __all__ = [
+    "ChatFileItem",
+    "ChatSelectModal",
     "CommandHistoryModal",
     "CommandInputModal",
     "ConfirmKillModal",

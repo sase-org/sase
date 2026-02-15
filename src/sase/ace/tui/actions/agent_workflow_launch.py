@@ -275,14 +275,13 @@ class AgentLaunchMixin:
         else:
             from sase.running_field import claim_workspace
 
-            if not claim_workspace(  # type: ignore[call-arg]
+            if not claim_workspace(
                 project_file,
                 workspace_num,
                 workflow_name,
                 process.pid,
                 cl_name,
                 artifacts_timestamp=timestamp,
-                new_cl_name=new_cl_name,
             ):
                 self.notify(  # type: ignore[attr-defined]
                     "Failed to claim workspace, terminating agent", severity="error"
