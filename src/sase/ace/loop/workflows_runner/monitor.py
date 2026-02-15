@@ -58,7 +58,9 @@ def get_running_crs_workflows(changespec: ChangeSpec) -> list[tuple[str, str]]:
         for entry in changespec.comments:
             if entry.reviewer in ("critique", "critique:me") and entry.suffix:
                 # Check for new format: crs-YYmmdd_HHMMSS
-                if re.match(r"^crs-\d{6}_\d{6}$", entry.suffix) or re.match(r"^\d{6}_\d{6}$", entry.suffix):
+                if re.match(r"^crs-\d{6}_\d{6}$", entry.suffix) or re.match(
+                    r"^\d{6}_\d{6}$", entry.suffix
+                ):
                     running.append((entry.reviewer, entry.suffix))
     return running
 

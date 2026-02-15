@@ -60,7 +60,6 @@ class XPromptValidationError(Exception):
     """Raised when input validation fails."""
 
 
-
 @dataclass
 class InputArg:
     """Definition of an input argument for an XPrompt.

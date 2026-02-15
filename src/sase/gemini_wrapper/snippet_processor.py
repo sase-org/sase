@@ -13,15 +13,12 @@ class _SnippetError(Exception):
     """Base exception for snippet processing errors."""
 
 
-
 class _SnippetNotFoundError(_SnippetError):
     """Raised when a referenced snippet doesn't exist."""
 
 
-
 class _SnippetArgumentError(_SnippetError):
     """Raised when snippet arguments don't match placeholders."""
-
 
 
 # Maximum number of expansion iterations to prevent infinite loops

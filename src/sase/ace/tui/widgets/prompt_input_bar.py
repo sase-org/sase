@@ -91,7 +91,6 @@ class PromptInputBar(Static):
     class Cancelled(Message):
         """Message sent when input is cancelled."""
 
-
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
 
@@ -107,14 +106,11 @@ class PromptInputBar(Static):
     class HistoryRequested(Message):
         """Message sent when user requests prompt history picker ('.')."""
 
-
     class SnippetRequested(Message):
         """Message sent when user requests snippet modal ('##')."""
 
-
     class WorkflowEditorRequested(Message):
         """Message sent when user requests workflow YAML editor (Ctrl+Y)."""
-
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),

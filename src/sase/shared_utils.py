@@ -30,7 +30,6 @@ class _LiteralBlockDumper(yaml.SafeDumper):
     """YAML Dumper that uses literal block style for multi-line strings."""
 
 
-
 _LiteralBlockDumper.add_representer(str, _str_literal_representer)
 
 

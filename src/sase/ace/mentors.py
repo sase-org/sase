@@ -499,7 +499,10 @@ def clear_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
                     for profile in get_all_mentor_profiles():
                         profile_name = profile.profile_name
                         # Include if: matches any commit OR has running mentors
-                        if profile_matches_any_commit(profile, matching_commits) or profile_name in profiles_with_running_mentors:
+                        if (
+                            profile_matches_any_commit(profile, matching_commits)
+                            or profile_name in profiles_with_running_mentors
+                        ):
                             new_profiles.append(profile_name)
 
                     last_wip_entry.profiles = new_profiles

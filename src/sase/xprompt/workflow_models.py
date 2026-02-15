@@ -261,12 +261,9 @@ class WorkflowError(Exception):
     """Base exception for workflow errors."""
 
 
-
 class WorkflowValidationError(WorkflowError):
     """Raised when workflow validation fails."""
 
 
-
 class WorkflowExecutionError(WorkflowError):
     """Raised when workflow execution fails."""
-

@@ -86,7 +86,6 @@ class HintInputBar(Static):
     class Cancelled(Message):
         """Message sent when hint input is cancelled."""
 
-
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
     ]

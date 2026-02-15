@@ -45,4 +45,3 @@ class StepMixin(ScriptStepMixin, EmbeddedWorkflowMixin, PromptStepMixin):
         - _get_step_type(step) -> str
         - _evaluate_condition(condition) -> bool
     """
-

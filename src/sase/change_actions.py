@@ -315,9 +315,7 @@ def prompt_for_change_action(
                 )
                 continue
             # Proposal creation failed earlier, can't accept
-            console.print(
-                "[red]Error: No proposal was created. Cannot accept.[/red]"
-            )
+            console.print("[red]Error: No proposal was created. Cannot accept.[/red]")
             continue
         if user_input == "p":
             # Promote WIP ChangeSpec to Drafted
