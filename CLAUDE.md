@@ -29,7 +29,7 @@ python -m sase     # Alternative CLI invocation
 - Use **absolute imports**: `from sase.foo import bar` (not relative)
 - Target **Python 3.12+** — use modern syntax (type unions with `|`, `match`, etc.)
 - Follow **ruff** rules: E, W, F, I, B, C4, UP
-- Type annotations on all public functions (mypy with chezmoi-aligned settings)
+- Type annotations on all public functions (to pass mypy lint)
 - Line length: 88 characters
 
 ## Issue Tracking
