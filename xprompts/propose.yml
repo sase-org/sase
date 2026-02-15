@@ -31,7 +31,7 @@ steps:
       import json
       prompt = {{ _prompt | tojson }}
       response = {{ _response | tojson }}
-      with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='gai_propose_', delete=False) as f:
+      with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='sase_propose_', delete=False) as f:
           json.dump({"prompt": prompt, "response": response}, f)
           print(f"data_file={f.name}")
     output: { data_file: path }
@@ -39,7 +39,7 @@ steps:
   - name: propose
     if: "{{ check_changes.has_changes }}"
     bash: |
-      gai_propose_workflow --create \
+      sase_propose_workflow --create \
         --who "{{ who }}" \
         --note "{{ note }}" \
         --data-file "{{ save_response.data_file }}" \

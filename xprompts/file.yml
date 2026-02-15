@@ -6,9 +6,9 @@ steps:
   - name: generate_path
     hidden: true
     bash: |
-      mkdir -p bb/gai/file
+      mkdir -p bb/sase/file
       timestamp=$(date +"%y%m%d_%H%M%S")
-      file_path="bb/gai/file/{{ name }}-${timestamp}.md"
+      file_path="bb/sase/file/{{ name }}-${timestamp}.md"
       echo "file_path=$file_path"
     output: { file_path: path }
 
@@ -32,6 +32,6 @@ steps:
         echo "ERROR: File '$file_path' exists but is empty" >&2
         exit 1
       fi
-      ln -sf "$(basename "$file_path")" "bb/gai/file/{{ name }}.md"
+      ln -sf "$(basename "$file_path")" "bb/sase/file/{{ name }}.md"
       echo "file_path=$file_path"
     output: { file_path: path }

@@ -46,8 +46,8 @@ def _git_commit_changespec(project_file: str, commit_message: str) -> None:
     # Only commit files inside ~/.sase
     try:
         project_path = Path(project_file).resolve()
-        gai_path = SASE_DIR.resolve()
-        if not str(project_path).startswith(str(gai_path)):
+        sase_path = SASE_DIR.resolve()
+        if not str(project_path).startswith(str(sase_path)):
             return
     except (OSError, ValueError):
         return

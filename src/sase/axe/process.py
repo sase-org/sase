@@ -61,13 +61,13 @@ def start_axe_daemon(
         return None
 
     # Find sase executable on PATH
-    gai_cmd = shutil.which("sase")
-    if gai_cmd is None:
+    sase_cmd = shutil.which("sase")
+    if sase_cmd is None:
         return None
 
     # Build command
     cmd = [
-        gai_cmd,
+        sase_cmd,
         "axe",
         "--full-check-interval",
         str(full_check_interval),

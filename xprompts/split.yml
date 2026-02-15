@@ -2,7 +2,7 @@ input: { split_desc: { type: line, default: null }, chain: { type: bool, default
 steps:
   # Step 1: Setup - gather metadata from current branch
   - name: setup
-    bash: gai_split_setup
+    bash: sase_split_setup
     output:
       { cl_name: word, diff_path: path, bug: line, workspace_name: word, default_parent: word, has_children: word }
 
@@ -21,7 +21,7 @@ steps:
   # Step 3: Format spec and navigate to parent
   - name: prepare_execute
     bash: |
-      gai_split_prepare_execute --spec '{{ generate_spec | tojson }}' --cl-name "{{ setup.cl_name }}" --default-parent "{{ setup.default_parent }}"
+      sase_split_prepare_execute --spec '{{ generate_spec | tojson }}' --cl-name "{{ setup.cl_name }}" --default-parent "{{ setup.default_parent }}"
     output: { archive_path: path, spec_markdown: text, processing_order: text }
 
   # Step 4: Execute split (prompt)

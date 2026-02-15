@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "GAI XPrompt Workflow",
-  "description": "Schema for gai xprompt workflow YAML files",
+  "title": "SASE XPrompt Workflow",
+  "description": "Schema for sase xprompt workflow YAML files",
   "type": "object",
   "required": ["steps"],
   "additionalProperties": false,

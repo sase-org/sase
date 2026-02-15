@@ -31,7 +31,7 @@ steps:
       import json
       prompt = {{ _prompt | tojson }}
       response = {{ _response | tojson }}
-      with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='gai_amend_', delete=False) as f:
+      with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='sase_amend_', delete=False) as f:
           json.dump({"prompt": prompt, "response": response}, f)
           print(f"data_file={f.name}")
     output: { data_file: path }
@@ -39,7 +39,7 @@ steps:
   - name: amend
     if: "{{ check_changes.has_changes }}"
     bash: |
-      gai_amend_workflow \
+      sase_amend_workflow \
         --who "{{ who }}" \
         --note "{{ note }}" \
         --data-file "{{ save_response.data_file }}"

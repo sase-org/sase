@@ -123,11 +123,11 @@ class SplitWorkflow(BaseWorkflow):
         print_status("Saving diff and gathering metadata...", "progress")
 
         # Create bb/sase directory if needed
-        bb_gai_dir = "bb/sase"
-        Path(bb_gai_dir).mkdir(parents=True, exist_ok=True)
+        bb_sase_dir = "bb/sase"
+        Path(bb_sase_dir).mkdir(parents=True, exist_ok=True)
 
         # Save diff
-        diff_path = f"{bb_gai_dir}/{cl_name}.diff"
+        diff_path = f"{bb_sase_dir}/{cl_name}.diff"
         diff_result = run_shell_command("branch_diff", capture_output=True)
         if diff_result.returncode != 0:
             print_status(f"Failed to get branch diff: {diff_result.stderr}", "error")

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "GAI Project Spec",
-  "description": "Schema for gai project specification YAML files",
+  "title": "SASE Project Spec",
+  "description": "Schema for sase project specification YAML files",
   "type": "object",
   "additionalProperties": false,
   "properties": {

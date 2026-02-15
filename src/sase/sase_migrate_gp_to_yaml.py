@@ -156,19 +156,19 @@ def _git_commit_all(migrated_files: list[Path], removed_files: list[Path]) -> No
         migrated_files: Newly created .yaml files.
         removed_files: Deleted .gp files.
     """
-    gai_dir = Path.home() / ".sase"
+    sase_dir = Path.home() / ".sase"
 
     for f in migrated_files:
         subprocess.run(
             ["git", "add", str(f)],
-            cwd=str(gai_dir),
+            cwd=str(sase_dir),
             check=True,
             capture_output=True,
         )
     for f in removed_files:
         subprocess.run(
             ["git", "rm", "--cached", str(f)],
-            cwd=str(gai_dir),
+            cwd=str(sase_dir),
             check=False,
             capture_output=True,
         )
@@ -177,7 +177,7 @@ def _git_commit_all(migrated_files: list[Path], removed_files: list[Path]) -> No
     msg = f"Migrate {count} project(s) from .gp to .yaml"
     subprocess.run(
         ["git", "commit", "-m", msg],
-        cwd=str(gai_dir),
+        cwd=str(sase_dir),
         check=True,
         capture_output=True,
     )

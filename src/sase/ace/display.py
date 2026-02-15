@@ -31,7 +31,7 @@ def display_changespec(
 ) -> tuple[dict[int, str], dict[int, int]]:
     """Display a ChangeSpec using rich formatting.
 
-    Color scheme from gaiproject.vim:
+    Color scheme from saseproject.vim:
     - Field keys (NAME:, DESCRIPTION:, etc.): bold #87D7FF (cyan)
     - NAME/PARENT values: bold #00D7AF (cyan-green)
     - CL values: bold underline #569CD6 (standard URL blue)
