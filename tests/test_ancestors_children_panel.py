@@ -1,8 +1,8 @@
 """Tests for AncestorsChildrenPanel sibling logic."""
 
-from conftest import _ChangeSpecFactory
 from sase.ace.changespec import ChangeSpec
 from sase.ace.tui.widgets.ancestors_children_panel import AncestorsChildrenPanel
+from conftest import _ChangeSpecFactory
 
 
 def _find_siblings_and_keys(

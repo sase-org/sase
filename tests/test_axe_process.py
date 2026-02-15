@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from sase.axe.process import (
     get_axe_pid,
     get_axe_status,

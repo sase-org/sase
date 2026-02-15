@@ -256,7 +256,7 @@ def test_format_timestamp_display_short() -> None:
     """Test formatting short timestamp."""
     result = format_timestamp_display("2406")
     # Should handle short timestamps gracefully
-    assert result == "[2406]"
+    assert "[2406]" == result
 
 
 # Tests for _format_hooks_field

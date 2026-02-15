@@ -51,9 +51,7 @@ def test_restore_changespec_no_workspace_dir(make_changespec) -> None:  # type: 
         name="test_project_feature__1", status="Reverted"
     )
 
-    with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value=None
-    ):
+    with patch("sase.ace.restore.get_workspace_directory_for_changespec", return_value=None):
         success, error = restore_changespec(changespec)
 
     assert success is False
@@ -89,20 +87,17 @@ def test_restore_changespec_success(make_changespec) -> None:  # type: ignore[no
     mock_provider.checkout.return_value = (True, None)
     mock_provider.apply_patch.return_value = (True, None)
 
-    with (
-        patch(
-            "sase.ace.restore.get_workspace_directory_for_changespec",
-            return_value="/tmp",
-        ),
-        patch("os.path.isdir", return_value=True),
+    with patch(
+        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
     ):
-        with patch("sase.ace.restore.update_changespec_name_atomic") as mock_rename:
-            with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
-                with patch(
-                    "sase.ace.restore.run_workspace_command", return_value=(True, None)
-                ):
-                    with patch("pathlib.Path.exists", return_value=True):
-                        success, error = restore_changespec(changespec, console)
+        with patch("os.path.isdir", return_value=True):
+            with patch("sase.ace.restore.update_changespec_name_atomic") as mock_rename:
+                with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
+                    with patch(
+                        "sase.ace.restore.run_workspace_command", return_value=(True, None)
+                    ):
+                        with patch("pathlib.Path.exists", return_value=True):
+                            success, error = restore_changespec(changespec, console)
 
     assert success is True
     assert error is None
@@ -121,20 +116,17 @@ def test_restore_changespec_with_parent(make_changespec) -> None:  # type: ignor
     mock_provider.checkout.return_value = (True, None)
     mock_provider.apply_patch.return_value = (True, None)
 
-    with (
-        patch(
-            "sase.ace.restore.get_workspace_directory_for_changespec",
-            return_value="/tmp",
-        ),
-        patch("os.path.isdir", return_value=True),
+    with patch(
+        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
     ):
-        with patch("sase.ace.restore.update_changespec_name_atomic"):
-            with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
-                with patch(
-                    "sase.ace.restore.run_workspace_command", return_value=(True, None)
-                ):
-                    with patch("pathlib.Path.exists", return_value=True):
-                        restore_changespec(changespec)
+        with patch("os.path.isdir", return_value=True):
+            with patch("sase.ace.restore.update_changespec_name_atomic"):
+                with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
+                    with patch(
+                        "sase.ace.restore.run_workspace_command", return_value=(True, None)
+                    ):
+                        with patch("pathlib.Path.exists", return_value=True):
+                            restore_changespec(changespec)
 
     # Provider checkout should be called with parent
     mock_provider.checkout.assert_called_once_with("parent_branch", "/tmp")
@@ -153,20 +145,17 @@ def test_restore_changespec_without_parent_uses_provider_default(  # type: ignor
     mock_provider.apply_patch.return_value = (True, None)
     mock_provider.get_default_parent_revision.return_value = "p4head"
 
-    with (
-        patch(
-            "sase.ace.restore.get_workspace_directory_for_changespec",
-            return_value="/tmp",
-        ),
-        patch("os.path.isdir", return_value=True),
+    with patch(
+        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
     ):
-        with patch("sase.ace.restore.update_changespec_name_atomic"):
-            with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
-                with patch(
-                    "sase.ace.restore.run_workspace_command", return_value=(True, None)
-                ):
-                    with patch("pathlib.Path.exists", return_value=True):
-                        restore_changespec(changespec)
+        with patch("os.path.isdir", return_value=True):
+            with patch("sase.ace.restore.update_changespec_name_atomic"):
+                with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
+                    with patch(
+                        "sase.ace.restore.run_workspace_command", return_value=(True, None)
+                    ):
+                        with patch("pathlib.Path.exists", return_value=True):
+                            restore_changespec(changespec)
 
     # Provider get_default_parent_revision should be called
     mock_provider.get_default_parent_revision.assert_called_once_with("/tmp")
@@ -183,16 +172,13 @@ def test_restore_changespec_bb_hg_update_fails(make_changespec) -> None:  # type
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (False, "update failed")
 
-    with (
-        patch(
-            "sase.ace.restore.get_workspace_directory_for_changespec",
-            return_value="/tmp",
-        ),
-        patch("os.path.isdir", return_value=True),
+    with patch(
+        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
     ):
-        with patch("sase.ace.restore.update_changespec_name_atomic"):
-            with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
-                success, error = restore_changespec(changespec)
+        with patch("os.path.isdir", return_value=True):
+            with patch("sase.ace.restore.update_changespec_name_atomic"):
+                with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
+                    success, error = restore_changespec(changespec)
 
     assert success is False
     assert error == "update failed"
@@ -207,17 +193,14 @@ def test_restore_changespec_diff_not_found(make_changespec) -> None:  # type: ig
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
 
-    with (
-        patch(
-            "sase.ace.restore.get_workspace_directory_for_changespec",
-            return_value="/tmp",
-        ),
-        patch("os.path.isdir", return_value=True),
+    with patch(
+        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
     ):
-        with patch("sase.ace.restore.update_changespec_name_atomic"):
-            with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
-                with patch("pathlib.Path.exists", return_value=False):
-                    success, error = restore_changespec(changespec)
+        with patch("os.path.isdir", return_value=True):
+            with patch("sase.ace.restore.update_changespec_name_atomic"):
+                with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
+                    with patch("pathlib.Path.exists", return_value=False):
+                        success, error = restore_changespec(changespec)
 
     assert success is False
     assert error is not None
@@ -234,24 +217,21 @@ def test_restore_changespec_hg_import_fails(make_changespec) -> None:  # type: i
     mock_provider.checkout.return_value = (True, None)
     mock_provider.apply_patch.return_value = (False, "hg failed: import failed")
 
-    with (
-        patch(
-            "sase.ace.restore.get_workspace_directory_for_changespec",
-            return_value="/tmp",
-        ),
-        patch("os.path.isdir", return_value=True),
+    with patch(
+        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
     ):
-        with patch("sase.ace.restore.update_changespec_name_atomic"):
-            with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
-                with patch("pathlib.Path.exists", return_value=True):
-                    success, error = restore_changespec(changespec)
+        with patch("os.path.isdir", return_value=True):
+            with patch("sase.ace.restore.update_changespec_name_atomic"):
+                with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
+                    with patch("pathlib.Path.exists", return_value=True):
+                        success, error = restore_changespec(changespec)
 
     assert success is False
     assert error is not None
     assert "import failed" in error
 
 
-def test_restore_changespec_sase_commit_fails(make_changespec) -> None:  # type: ignore[no-untyped-def]
+def test_restore_changespec_gai_commit_fails(make_changespec) -> None:  # type: ignore[no-untyped-def]
     """Test restore_changespec fails when sase commit fails."""
     changespec = make_changespec.create(
         name="test_project_feature__1", status="Reverted"
@@ -261,21 +241,18 @@ def test_restore_changespec_sase_commit_fails(make_changespec) -> None:  # type:
     mock_provider.checkout.return_value = (True, None)
     mock_provider.apply_patch.return_value = (True, None)
 
-    with (
-        patch(
-            "sase.ace.restore.get_workspace_directory_for_changespec",
-            return_value="/tmp",
-        ),
-        patch("os.path.isdir", return_value=True),
+    with patch(
+        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
     ):
-        with patch("sase.ace.restore.update_changespec_name_atomic"):
-            with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
-                with patch(
-                    "sase.ace.restore.run_workspace_command",
-                    return_value=(False, "sase failed: commit failed"),
-                ):
-                    with patch("pathlib.Path.exists", return_value=True):
-                        success, error = restore_changespec(changespec)
+        with patch("os.path.isdir", return_value=True):
+            with patch("sase.ace.restore.update_changespec_name_atomic"):
+                with patch("sase.ace.restore.get_vcs_provider", return_value=mock_provider):
+                    with patch(
+                        "sase.ace.restore.run_workspace_command",
+                        return_value=(False, "sase failed: commit failed"),
+                    ):
+                        with patch("pathlib.Path.exists", return_value=True):
+                            success, error = restore_changespec(changespec)
 
     assert success is False
     assert error is not None

@@ -4,7 +4,6 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
 from sase.ace.hooks.processes import (
     kill_and_persist_all_running_processes,

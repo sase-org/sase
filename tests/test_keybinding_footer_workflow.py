@@ -92,9 +92,7 @@ def test_keybinding_footer_workflow_binding_single() -> None:
     )
     changespec = _make_changespec(status="Drafted", comments=[comment])
 
-    with patch(
-        "sase.ace.tui.widgets.keybinding_footer.get_available_workflows"
-    ) as mock:
+    with patch("sase.ace.tui.widgets.keybinding_footer.get_available_workflows") as mock:
         mock.return_value = ["fix"]
         bindings = footer._compute_available_bindings(changespec)
 
@@ -108,9 +106,7 @@ def test_keybinding_footer_workflow_binding_multiple() -> None:
     footer = KeybindingFooter()
     changespec = _make_changespec(status="Drafted")
 
-    with patch(
-        "sase.ace.tui.widgets.keybinding_footer.get_available_workflows"
-    ) as mock:
+    with patch("sase.ace.tui.widgets.keybinding_footer.get_available_workflows") as mock:
         mock.return_value = ["fix", "crs"]
         bindings = footer._compute_available_bindings(changespec)
 
@@ -124,9 +120,7 @@ def test_keybinding_footer_workflow_binding_none() -> None:
     footer = KeybindingFooter()
     changespec = _make_changespec(status="Drafted")
 
-    with patch(
-        "sase.ace.tui.widgets.keybinding_footer.get_available_workflows"
-    ) as mock:
+    with patch("sase.ace.tui.widgets.keybinding_footer.get_available_workflows") as mock:
         mock.return_value = []
         bindings = footer._compute_available_bindings(changespec)
 

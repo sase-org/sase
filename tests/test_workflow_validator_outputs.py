@@ -1,7 +1,6 @@
 """Tests for output detection and template refs in workflow_validator."""
 
 import pytest
-
 from sase.xprompt.models import OutputSpec, XPrompt
 from sase.xprompt.workflow_models import (
     ParallelConfig,

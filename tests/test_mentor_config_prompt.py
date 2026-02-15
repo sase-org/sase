@@ -1,7 +1,6 @@
 """Tests for MentorConfig prompt field functionality."""
 
 import pytest
-
 from sase.mentor_config import MentorConfig, _load_mentor_profiles
 from test_utils import mentor_config_from_yaml
 

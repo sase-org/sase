@@ -8,7 +8,6 @@ fix, upload, mail, reword_add_tag.
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from sase.vcs_provider._git import _GitProvider
 
 # === Tests for get_branch_name ===

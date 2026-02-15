@@ -10,7 +10,6 @@ import subprocess
 import tempfile
 
 import pytest
-
 from sase.vcs_provider._git import _GitProvider
 
 _GIT_AVAILABLE = shutil.which("git") is not None
@@ -18,7 +17,7 @@ _GIT_AVAILABLE = shutil.which("git") is not None
 pytestmark = pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
 
 
-@pytest.fixture
+@pytest.fixture()
 def git_repo(tmp_path: object) -> str:
     """Create a temporary git repo with one initial commit."""
     repo = str(tmp_path)

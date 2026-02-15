@@ -4,7 +4,6 @@ import tempfile
 from unittest.mock import MagicMock
 
 import pytest
-
 from sase.xprompt import HITLHandler, HITLResult, WorkflowExecutor
 from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_executor_utils import parse_bash_output
@@ -529,7 +528,6 @@ class TestParentStepContext:
         from io import StringIO
 
         from rich.console import Console
-
         from sase.xprompt.workflow_output import (
             ParentStepContext,
             WorkflowOutputHandler,
@@ -561,7 +559,6 @@ class TestParentStepContext:
         from io import StringIO
 
         from rich.console import Console
-
         from sase.xprompt.workflow_output import WorkflowOutputHandler
 
         output = StringIO()
@@ -585,7 +582,6 @@ class TestParentStepContext:
         from io import StringIO
 
         from rich.console import Console
-
         from sase.xprompt.workflow_output import (
             ParentStepContext,
             WorkflowOutputHandler,

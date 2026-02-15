@@ -30,14 +30,13 @@ def test_load_done_agents_reads_step_output(tmp_path: Path) -> None:
         json.dump(done_data, f)
 
     # Set up the directory structure under .sase/projects/
-    sase_dir = tmp_path / ".sase" / "projects" / "testproj"
-    sase_dir.mkdir(parents=True)
+    gai_dir = tmp_path / ".sase" / "projects" / "testproj"
+    gai_dir.mkdir(parents=True)
     # Symlink artifacts into the expected location
-    (sase_dir / "artifacts").symlink_to(project_dir / "artifacts")
+    (gai_dir / "artifacts").symlink_to(project_dir / "artifacts")
 
     with patch(
-        "sase.ace.tui.models._loaders._artifact_loaders.Path.home",
-        return_value=tmp_path,
+        "sase.ace.tui.models._loaders._artifact_loaders.Path.home", return_value=tmp_path
     ):
         agents = load_done_agents({}, {})
 
@@ -50,8 +49,8 @@ def test_load_done_agents_reads_step_output(tmp_path: Path) -> None:
 
 def test_load_done_agents_without_step_output(tmp_path: Path) -> None:
     """Verify load_done_agents works when step_output is absent from done.json."""
-    sase_dir = tmp_path / ".sase" / "projects" / "testproj"
-    artifact_dir = sase_dir / "artifacts" / "ace-run" / "20260101120000"
+    gai_dir = tmp_path / ".sase" / "projects" / "testproj"
+    artifact_dir = gai_dir / "artifacts" / "ace-run" / "20260101120000"
     artifact_dir.mkdir(parents=True)
 
     done_data = {
@@ -67,8 +66,7 @@ def test_load_done_agents_without_step_output(tmp_path: Path) -> None:
         json.dump(done_data, f)
 
     with patch(
-        "sase.ace.tui.models._loaders._artifact_loaders.Path.home",
-        return_value=tmp_path,
+        "sase.ace.tui.models._loaders._artifact_loaders.Path.home", return_value=tmp_path
     ):
         agents = load_done_agents({}, {})
 

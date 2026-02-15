@@ -4,7 +4,6 @@ import os
 import tempfile
 
 import pytest
-
 from sase.gemini_wrapper.file_references import (
     _parse_file_refs,
     validate_file_references,

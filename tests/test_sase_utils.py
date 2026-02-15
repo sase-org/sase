@@ -1,4 +1,4 @@
-"""Tests for sase_utils module."""
+"""Tests for gai_utils module."""
 
 import os
 import re
@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 from sase.sase_utils import (
     ensure_sase_directory,
     generate_timestamp,
-    get_next_suffix_number,
     get_sase_directory,
+    get_next_suffix_number,
     get_workspace_directory_for_changespec,
     has_suffix,
     make_safe_filename,
@@ -39,14 +39,14 @@ def test_generate_timestamp_regex_pattern() -> None:
     assert re.match(pattern, timestamp) is not None
 
 
-def test_get_sase_directory_returns_correct_path() -> None:
+def test_get_gai_directory_returns_correct_path() -> None:
     """Test that get_sase_directory returns correct path."""
     result = get_sase_directory("hooks")
     expected = os.path.expanduser("~/.sase/hooks")
     assert result == expected
 
 
-def test_get_sase_directory_with_different_subdirs() -> None:
+def test_get_gai_directory_with_different_subdirs() -> None:
     """Test get_sase_directory with various subdirectories."""
     subdirs = ["diffs", "chats", "comments", "workflows", "splits"]
     for subdir in subdirs:
@@ -55,7 +55,7 @@ def test_get_sase_directory_with_different_subdirs() -> None:
         assert result == expected
 
 
-def test_ensure_sase_directory_creates_directory() -> None:
+def test_ensure_gai_directory_creates_directory() -> None:
     """Test that ensure_sase_directory creates the directory."""
     # Use a unique test directory to avoid conflicts
     test_subdir = f"test_dir_{os.getpid()}"
@@ -75,7 +75,7 @@ def test_ensure_sase_directory_creates_directory() -> None:
             os.rmdir(expected_path)
 
 
-def test_ensure_sase_directory_returns_path() -> None:
+def test_ensure_gai_directory_returns_path() -> None:
     """Test that ensure_sase_directory returns the correct path."""
     test_subdir = f"test_dir_return_{os.getpid()}"
     expected_path = os.path.expanduser(f"~/.sase/{test_subdir}")

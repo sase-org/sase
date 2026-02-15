@@ -16,9 +16,7 @@ from sase.ace.query_history import (
 
 def test_load_empty_when_no_file(tmp_path: Path) -> None:
     """Test loading returns empty stacks when no file exists."""
-    with patch(
-        "sase.ace.query_history._QUERY_HISTORY_FILE", tmp_path / "nonexistent.json"
-    ):
+    with patch("sase.ace.query_history._QUERY_HISTORY_FILE", tmp_path / "nonexistent.json"):
         result = load_query_history()
         assert result.prev == []
         assert result.next == []

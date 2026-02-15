@@ -1,7 +1,6 @@
 """Tests for the query language tokenizer."""
 
 import pytest
-
 from sase.ace.query.tokenizer import TokenizerError, TokenType, tokenize
 
 

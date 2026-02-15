@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from sase.sase_utils import run_shell_command
 from sase.shared_utils import (
     _finalize_log_file,
@@ -108,7 +107,7 @@ def test_generate_workflow_tag_uniqueness() -> None:
     assert len(unique_tags) >= 90
 
 
-def test_initialize_sase_log() -> None:
+def test_initialize_gai_log() -> None:
     """Test that sase.md log is initialized correctly."""
     with tempfile.TemporaryDirectory() as tmpdir:
         initialize_sase_log(tmpdir, "crs", "ABC")
@@ -125,7 +124,7 @@ def test_initialize_sase_log() -> None:
         assert tmpdir in content
 
 
-def test_finalize_sase_log() -> None:
+def test_finalize_gai_log() -> None:
     """Test that sase.md log is finalized correctly."""
     with tempfile.TemporaryDirectory() as tmpdir:
         # Initialize first
@@ -144,7 +143,7 @@ def test_finalize_sase_log() -> None:
         assert "XYZ" in content
 
 
-def test_finalize_sase_log_failure() -> None:
+def test_finalize_gai_log_failure() -> None:
     """Test that sase.md log is finalized correctly with failure status."""
     with tempfile.TemporaryDirectory() as tmpdir:
         initialize_sase_log(tmpdir, "add-tests", "DEF")
@@ -222,13 +221,13 @@ def test_create_artifacts_directory_workspace_name_fails(
 
 
 # Tests for get_sase_log_file
-def test_get_sase_log_file() -> None:
+def test_get_gai_log_file() -> None:
     """Test get_sase_log_file returns correct path."""
     result = get_sase_log_file("/path/to/artifacts")
     assert result == "/path/to/artifacts/sase.md"
 
 
-def test_get_sase_log_file_trailing_slash() -> None:
+def test_get_gai_log_file_trailing_slash() -> None:
     """Test get_sase_log_file handles various path formats."""
     result = get_sase_log_file("/artifacts")
     assert result.endswith("sase.md")

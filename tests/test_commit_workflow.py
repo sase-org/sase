@@ -7,14 +7,13 @@ import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.commit_workflow.changespec_operations import (
     _find_changespec_end_line,
     add_changespec_to_project_file,
 )
-from sase.commit_workflow.changespec_queries import (
-    changespec_exists,
-    project_file_exists,
-)
+from sase.commit_workflow.changespec_queries import changespec_exists, project_file_exists
 from sase.commit_workflow.editor_utils import get_editor
 from sase.workflow_utils import get_project_file_path
 
@@ -346,16 +345,19 @@ def test_add_changespec_no_parent_placed_at_bottom() -> None:
         Path(project_file).unlink()
 
 
-# --- Tests for _get_cl_description from executable_sase_commit_workflow ---
+# --- Tests for _get_cl_description from executable_gai_commit_workflow ---
+
+_COMMIT_WORKFLOW_SCRIPT = (
+    Path(__file__).parent.parent.parent.parent
+    / "bin"
+    / "executable_gai_commit_workflow"
+)
+_SKIP_REASON = "executable_gai_commit_workflow script not available in sase"
 
 
 def _load_commit_workflow_module() -> types.ModuleType:
-    """Load executable_sase_commit_workflow as a Python module."""
-    script_path = str(
-        Path(__file__).parent.parent
-        / "bin"
-        / "executable_sase_commit_workflow"
-    )
+    """Load executable_gai_commit_workflow as a Python module."""
+    script_path = str(_COMMIT_WORKFLOW_SCRIPT)
     loader = importlib.machinery.SourceFileLoader("sase_commit_workflow", script_path)
     spec = importlib.util.spec_from_loader("sase_commit_workflow", loader)
     assert spec is not None
@@ -364,6 +366,7 @@ def _load_commit_workflow_module() -> types.ModuleType:
     return mod
 
 
+@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_valid_file() -> None:
     """Test that a valid pre-generated description file is used."""
     mod = _load_commit_workflow_module()
@@ -377,6 +380,7 @@ def test_get_cl_description_valid_file() -> None:
         Path(desc_file).unlink()
 
 
+@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_empty_path_falls_back() -> None:
     """Test that empty string path falls back to get_file_summary."""
     mod = _load_commit_workflow_module()
@@ -387,6 +391,7 @@ def test_get_cl_description_empty_path_falls_back() -> None:
     assert result == "Summarized description"
 
 
+@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_nonexistent_file_falls_back() -> None:
     """Test that a nonexistent file path falls back to get_file_summary."""
     mod = _load_commit_workflow_module()
@@ -397,6 +402,7 @@ def test_get_cl_description_nonexistent_file_falls_back() -> None:
     assert result == "Summarized description"
 
 
+@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_empty_file_falls_back() -> None:
     """Test that an empty file falls back to get_file_summary."""
     mod = _load_commit_workflow_module()
@@ -405,8 +411,7 @@ def test_get_cl_description_empty_file_falls_back() -> None:
         desc_file = f.name
     try:
         with patch(
-            "sase.summarize_utils.get_file_summary",
-            return_value="Summarized description",
+            "sase.summarize_utils.get_file_summary", return_value="Summarized description"
         ):
             result = mod._get_cl_description("some response", desc_file)
         assert result == "Summarized description"

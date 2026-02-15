@@ -206,9 +206,7 @@ def test_add_test_hooks_if_available_restores_directory_on_error() -> None:
 def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
     """Test that function returns False when adding hooks fails."""
     with (
-        patch(
-            "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
-        ),
+        patch("sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"),
         patch("sase.workflow_utils.get_changespec_from_file", return_value=None),
         patch("sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=False),
         patch("sase.rich_utils.print_status"),
@@ -229,8 +227,8 @@ def test_get_initial_hooks_for_changespec_returns_required_hooks() -> None:
     ):
         result = get_initial_hooks_for_changespec()
 
-    assert "!$sase_presubmit" in result
-    assert "$sase_lint" in result
+    assert "!$gai_presubmit" in result
+    assert "$gai_lint" in result
     assert len(result) == 2
 
 
@@ -246,8 +244,8 @@ def test_get_initial_hooks_for_changespec_includes_test_targets() -> None:
         result = get_initial_hooks_for_changespec()
 
     assert result == [
-        "!$sase_presubmit",
-        "$sase_lint",
+        "!$gai_presubmit",
+        "$gai_lint",
         "bb_rabbit_test //foo:test1",
         "bb_rabbit_test //bar:test2",
     ]
@@ -256,16 +254,14 @@ def test_get_initial_hooks_for_changespec_includes_test_targets() -> None:
 def test_get_initial_hooks_for_changespec_preserves_order() -> None:
     """Test that hooks are in correct order: required first, then test targets."""
     with (
-        patch(
-            "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
-        ),
+        patch("sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
     ):
         result = get_initial_hooks_for_changespec()
 
     # Required hooks should be first
-    assert result[0] == "!$sase_presubmit"
-    assert result[1] == "$sase_lint"
+    assert result[0] == "!$gai_presubmit"
+    assert result[1] == "$gai_lint"
     # Test targets should be last
     assert result[2] == "bb_rabbit_test //foo:test1"
 
@@ -281,8 +277,8 @@ def test_get_initial_hooks_for_changespec_handles_empty_test_targets() -> None:
     # Should only have required hooks when test targets is empty string
     # (empty string is falsy, so test targets won't be added)
     assert len(result) == 2
-    assert "!$sase_presubmit" in result
-    assert "$sase_lint" in result
+    assert "!$gai_presubmit" in result
+    assert "$gai_lint" in result
 
 
 # Tests for get_project_file_path

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
-
 from sase.gemini_wrapper.file_references import process_file_references
 
 if TYPE_CHECKING:
@@ -39,9 +38,7 @@ def testprocess_file_references_tilde_expansion() -> None:
             os.chdir(tmpdir)
             try:
                 with patch("sase.gemini_wrapper.file_references.print_status"):
-                    with patch(
-                        "sase.gemini_wrapper.file_references.print_file_operation"
-                    ):
+                    with patch("sase.gemini_wrapper.file_references.print_file_operation"):
                         result = process_file_references(prompt)
 
                 # The tilde path should be replaced with a relative path to bb/sase/context/
@@ -399,9 +396,8 @@ def test_gemini_command_wrapper_model_size_override() -> None:
 
 def test_gemini_command_wrapper_invoke_no_query() -> None:
     """Test invoke returns error message when no HumanMessage found."""
-    from langchain_core.messages import AIMessage
-
     from sase.gemini_wrapper import GeminiCommandWrapper
+    from langchain_core.messages import AIMessage
 
     wrapper = GeminiCommandWrapper()
     # Pass only AIMessage, no HumanMessage

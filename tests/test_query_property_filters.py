@@ -3,7 +3,6 @@
 from typing import Any
 
 import pytest
-
 from sase.ace.query import (
     AndExpr,
     NotExpr,

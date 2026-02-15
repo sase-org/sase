@@ -9,9 +9,7 @@ from sase.ace.tui.models.agent_loader import _get_status_priority, load_all_agen
 def test_load_all_agents_empty() -> None:
     """Test load_all_agents with no project files."""
     with (
-        patch(
-            "sase.ace.tui.models.agent_loader.get_all_project_files", return_value=[]
-        ),
+        patch("sase.ace.tui.models.agent_loader.get_all_project_files", return_value=[]),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
     ):
         agents = load_all_agents()
@@ -364,15 +362,15 @@ def test_workflow_dead_pid_marked_as_failed() -> None:
                 return_value=Path(tmpdir),
             ):
                 # Create the expected directory structure: ~/.sase/projects/<name>
-                sase_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
-                sase_artifacts = (
-                    sase_projects / "artifacts" / "workflow-deploy" / "20260101120000"
+                gai_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
+                gai_artifacts = (
+                    gai_projects / "artifacts" / "workflow-deploy" / "20260101120000"
                 )
-                sase_artifacts.mkdir(parents=True)
-                sase_projects_gp = sase_projects / "myproject.gp"
-                sase_projects_gp.touch()
+                gai_artifacts.mkdir(parents=True)
+                gai_projects_gp = gai_projects / "myproject.gp"
+                gai_projects_gp.touch()
 
-                state_file = sase_artifacts / "workflow_state.json"
+                state_file = gai_artifacts / "workflow_state.json"
                 state_file.write_text(json.dumps(state))
 
                 entries = load_workflow_states()
@@ -388,12 +386,12 @@ def test_workflow_alive_pid_stays_running() -> None:
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        sase_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
-        sase_artifacts = (
-            sase_projects / "artifacts" / "workflow-deploy" / "20260101120000"
+        gai_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
+        gai_artifacts = (
+            gai_projects / "artifacts" / "workflow-deploy" / "20260101120000"
         )
-        sase_artifacts.mkdir(parents=True)
-        (sase_projects / "myproject.gp").touch()
+        gai_artifacts.mkdir(parents=True)
+        (gai_projects / "myproject.gp").touch()
 
         state = {
             "workflow_name": "deploy",
@@ -402,7 +400,7 @@ def test_workflow_alive_pid_stays_running() -> None:
             "context": {"cl_name": "test_cl"},
             "steps": [],
         }
-        (sase_artifacts / "workflow_state.json").write_text(json.dumps(state))
+        (gai_artifacts / "workflow_state.json").write_text(json.dumps(state))
 
         with (
             patch(
@@ -429,12 +427,12 @@ def test_workflow_waiting_hitl_dead_pid_marked_as_failed() -> None:
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        sase_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
-        sase_artifacts = (
-            sase_projects / "artifacts" / "workflow-deploy" / "20260101120000"
+        gai_projects = Path(tmpdir) / ".sase" / "projects" / "myproject"
+        gai_artifacts = (
+            gai_projects / "artifacts" / "workflow-deploy" / "20260101120000"
         )
-        sase_artifacts.mkdir(parents=True)
-        (sase_projects / "myproject.gp").touch()
+        gai_artifacts.mkdir(parents=True)
+        (gai_projects / "myproject.gp").touch()
 
         state = {
             "workflow_name": "deploy",
@@ -443,7 +441,7 @@ def test_workflow_waiting_hitl_dead_pid_marked_as_failed() -> None:
             "context": {"cl_name": "test_cl"},
             "steps": [],
         }
-        (sase_artifacts / "workflow_state.json").write_text(json.dumps(state))
+        (gai_artifacts / "workflow_state.json").write_text(json.dumps(state))
 
         with (
             patch(

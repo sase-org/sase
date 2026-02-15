@@ -22,7 +22,7 @@ def test_hg_commit_success(mock_run: MagicMock) -> None:
     assert error is None
     # commit uses _run_shell, so call_args[0][0] is a string
     cmd_str = mock_run.call_args[0][0]
-    assert cmd_str == 'hg commit --name "feature" --logfile "/tmp/msg.txt"'
+    assert 'hg commit --name "feature" --logfile "/tmp/msg.txt"' == cmd_str
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")

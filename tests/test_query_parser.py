@@ -1,7 +1,6 @@
 """Tests for the query language parser (AST building)."""
 
 import pytest
-
 from sase.ace.query import (
     AndExpr,
     NotExpr,

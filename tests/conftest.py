@@ -1,9 +1,9 @@
 """Pytest configuration for sase tests."""
 
 import tempfile
+from pathlib import Path
 
 import pytest
-
 from sase.ace.changespec import (
     ChangeSpec,
     CommentEntry,

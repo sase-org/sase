@@ -2,9 +2,7 @@
 
 from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_executor_steps_embedded import EmbeddedWorkflowInfo
-from sase.xprompt.workflow_executor_steps_prompt import (
-    _collect_embedded_post_step_outputs,
-)
+from sase.xprompt.workflow_executor_steps_prompt import _collect_embedded_post_step_outputs
 from sase.xprompt.workflow_models import WorkflowStep
 
 

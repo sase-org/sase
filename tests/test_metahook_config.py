@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from sase.metahook_config import (
     MetahookConfig,
     _get_all_metahooks,

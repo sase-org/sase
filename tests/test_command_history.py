@@ -15,9 +15,7 @@ from sase.command_history import (
 
 def test_load_empty_when_no_file(tmp_path: Path) -> None:
     """Test loading returns empty list when no file exists."""
-    with patch(
-        "sase.command_history._COMMAND_HISTORY_FILE", tmp_path / "nonexistent.json"
-    ):
+    with patch("sase.command_history._COMMAND_HISTORY_FILE", tmp_path / "nonexistent.json"):
         result = _load_command_history()
         assert result == []
 
@@ -118,9 +116,7 @@ def test_add_duplicate_replaces_entry(tmp_path: Path) -> None:
         _save_command_history([initial_entry])
 
         # Add the same command again
-        with patch(
-            "sase.command_history.generate_timestamp", return_value="251231_200000"
-        ):
+        with patch("sase.command_history.generate_timestamp", return_value="251231_200000"):
             add_or_update_command("make test", "myproject", "feature")
 
         result = _load_command_history()
@@ -147,9 +143,7 @@ def test_same_command_different_project_not_deduplicated(tmp_path: Path) -> None
         _save_command_history([initial_entry])
 
         # Add same command for different project
-        with patch(
-            "sase.command_history.generate_timestamp", return_value="251231_200000"
-        ):
+        with patch("sase.command_history.generate_timestamp", return_value="251231_200000"):
             add_or_update_command("make test", "project2", None)
 
         result = _load_command_history()
@@ -172,9 +166,7 @@ def test_same_command_different_cl_not_deduplicated(tmp_path: Path) -> None:
         _save_command_history([initial_entry])
 
         # Add same command for different CL
-        with patch(
-            "sase.command_history.generate_timestamp", return_value="251231_200000"
-        ):
+        with patch("sase.command_history.generate_timestamp", return_value="251231_200000"):
             add_or_update_command("make test", "myproject", "feature2")
 
         result = _load_command_history()

@@ -32,9 +32,7 @@ def test_cleanup_removes_dead_process_entries() -> None:
         patch(
             "sase.ace.scheduler.stale_running_cleanup.is_process_running"
         ) as mock_is_running,
-        patch(
-            "sase.ace.scheduler.stale_running_cleanup.release_workspace"
-        ) as mock_release,
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as mock_release,
     ):
         mock_get_files.return_value = [
             "/home/user/.sase/projects/myproject/myproject.gp"
@@ -72,9 +70,7 @@ def test_cleanup_keeps_running_process_entries() -> None:
         patch(
             "sase.ace.scheduler.stale_running_cleanup.is_process_running"
         ) as mock_is_running,
-        patch(
-            "sase.ace.scheduler.stale_running_cleanup.release_workspace"
-        ) as mock_release,
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as mock_release,
     ):
         mock_get_files.return_value = [
             "/home/user/.sase/projects/myproject/myproject.gp"
@@ -107,9 +103,7 @@ def test_cleanup_mixed_alive_and_dead() -> None:
         patch(
             "sase.ace.scheduler.stale_running_cleanup.is_process_running"
         ) as mock_is_running,
-        patch(
-            "sase.ace.scheduler.stale_running_cleanup.release_workspace"
-        ) as mock_release,
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as mock_release,
     ):
         mock_get_files.return_value = ["/home/user/.sase/projects/proj/proj.gp"]
         mock_get_claims.return_value = claims
@@ -224,9 +218,7 @@ def test_cleanup_multiple_projects() -> None:
         patch(
             "sase.ace.scheduler.stale_running_cleanup.is_process_running"
         ) as mock_is_running,
-        patch(
-            "sase.ace.scheduler.stale_running_cleanup.release_workspace"
-        ) as mock_release,
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as mock_release,
     ):
         mock_get_files.return_value = [
             "/home/user/.sase/projects/proj1/proj1.gp",

@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_executor import WorkflowExecutor
 from sase.xprompt.workflow_models import (

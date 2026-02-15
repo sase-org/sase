@@ -1,7 +1,6 @@
 """Tests for xprompt call extraction and validation in workflow_validator."""
 
 import pytest
-
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.workflow_models import (
     Workflow,

@@ -1,7 +1,6 @@
 """Tests for jinja, models, standalone execution, and utilities."""
 
 import pytest
-
 from sase.main.query_handler._query import _evaluate_standalone_condition
 from sase.shared_utils import dump_yaml
 from sase.xprompt._exceptions import XPromptArgumentError

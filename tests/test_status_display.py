@@ -2,12 +2,11 @@
 
 from io import StringIO
 
-from rich.console import Console
-
 from sase.ace.changespec import ChangeSpec
 from sase.ace.display import display_changespec
 from sase.ace.display_helpers import get_status_color
 from sase.ace.status import get_available_statuses
+from rich.console import Console
 
 
 def testget_status_color_mailed() -> None:

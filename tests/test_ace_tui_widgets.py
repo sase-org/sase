@@ -328,9 +328,8 @@ def test_parallel_step_no_output_shows_placeholder() -> None:
 
 async def test_update_display_hides_file_for_done_workflow_without_diff() -> None:
     """Done top-level workflow agents without diff_path should hide the file panel."""
-    from textual.app import App, ComposeResult
-
     from sase.ace.tui.widgets.agent_detail import AgentDetail
+    from textual.app import App, ComposeResult
 
     class _TestApp(App[None]):
         def compose(self) -> ComposeResult:
@@ -363,9 +362,7 @@ async def test_update_display_hides_file_for_done_workflow_without_diff() -> Non
 async def test_tab_bar_integration_tab_key() -> None:
     """Test that pressing TAB key cycles through all tabs."""
     mock_changespecs = [_make_changespec()]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
+    with patch("sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs):
         app = AceApp()
         async with app.run_test() as pilot:
             # Initial state - changespecs tab

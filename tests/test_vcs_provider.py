@@ -5,7 +5,6 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from sase.vcs_provider import (
     VCSOperationError,
     VCSProvider,
@@ -435,14 +434,12 @@ def test_resolve_vcs_name_env_var_auto() -> None:
     """SASE_VCS_PROVIDER=auto bypasses config and auto-detects."""
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, ".git"))
-        with (
-            patch.dict(os.environ, {"SASE_VCS_PROVIDER": "auto"}),
-            patch(
+        with patch.dict(os.environ, {"SASE_VCS_PROVIDER": "auto"}):
+            with patch(
                 "sase.vcs_provider._registry.get_vcs_provider_config",
                 return_value={"provider": "hg"},
-            ),
-        ):
-            assert _resolve_vcs_name(tmpdir) == "git"
+            ):
+                assert _resolve_vcs_name(tmpdir) == "git"
 
 
 def test_resolve_vcs_name_config_override() -> None:
@@ -496,9 +493,8 @@ def test_get_vcs_provider_config_missing_file() -> None:
 
 def test_get_vcs_provider_config_no_section() -> None:
     """Returns empty dict when vcs_provider section is absent."""
-    with (
-        patch("sase.vcs_provider.config.os.path.exists", return_value=True),
-        patch(
+    with patch("sase.vcs_provider.config.os.path.exists", return_value=True):
+        with patch(
             "builtins.open",
             MagicMock(
                 return_value=MagicMock(
@@ -507,20 +503,18 @@ def test_get_vcs_provider_config_no_section() -> None:
                     read=MagicMock(return_value="llm_provider:\n  provider: gemini\n"),
                 )
             ),
-        ),
-        patch(
-            "sase.vcs_provider.config.yaml.safe_load",
-            return_value={"llm_provider": {"provider": "gemini"}},
-        ),
-    ):
-        assert get_vcs_provider_config() == {}
+        ):
+            with patch(
+                "sase.vcs_provider.config.yaml.safe_load",
+                return_value={"llm_provider": {"provider": "gemini"}},
+            ):
+                assert get_vcs_provider_config() == {}
 
 
 def test_get_vcs_provider_config_with_section() -> None:
     """Returns vcs_provider dict when section is present."""
-    with (
-        patch("sase.vcs_provider.config.os.path.exists", return_value=True),
-        patch(
+    with patch("sase.vcs_provider.config.os.path.exists", return_value=True):
+        with patch(
             "builtins.open",
             MagicMock(
                 return_value=MagicMock(
@@ -529,14 +523,13 @@ def test_get_vcs_provider_config_with_section() -> None:
                     read=MagicMock(return_value=""),
                 )
             ),
-        ),
-        patch(
-            "sase.vcs_provider.config.yaml.safe_load",
-            return_value={"vcs_provider": {"provider": "hg"}},
-        ),
-    ):
-        result = get_vcs_provider_config()
-        assert result == {"provider": "hg"}
+        ):
+            with patch(
+                "sase.vcs_provider.config.yaml.safe_load",
+                return_value={"vcs_provider": {"provider": "hg"}},
+            ):
+                result = get_vcs_provider_config()
+                assert result == {"provider": "hg"}
 
 
 # === Tests for get_workspace_root ===
@@ -544,14 +537,12 @@ def test_get_vcs_provider_config_with_section() -> None:
 
 def test_get_workspace_root_env_var() -> None:
     """Env var SASE_WORKSPACE_ROOT takes priority over config."""
-    with (
-        patch.dict(os.environ, {"SASE_WORKSPACE_ROOT": "/tmp/ws"}),
-        patch(
+    with patch.dict(os.environ, {"SASE_WORKSPACE_ROOT": "/tmp/ws"}):
+        with patch(
             "sase.vcs_provider.config.get_vcs_provider_config",
             return_value={"workspace_root": "/other/path"},
-        ),
-    ):
-        assert get_workspace_root() == "/tmp/ws"
+        ):
+            assert get_workspace_root() == "/tmp/ws"
 
 
 def test_get_workspace_root_config() -> None:

@@ -18,7 +18,7 @@ def test_valid_statuses_defined() -> None:
         "Reverted",
         "Archived",
     ]
-    assert expected_statuses == VALID_STATUSES
+    assert VALID_STATUSES == expected_statuses
 
 
 def test_valid_transitions_defined() -> None:

@@ -36,8 +36,7 @@ def test_check_ready_to_mail_adds_suffix_for_drafted_no_errors() -> None:
     all_changespecs = [changespec]
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.add_ready_to_mail_suffix",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.add_ready_to_mail_suffix", return_value=True
     ):
         result = check_ready_to_mail(changespec, all_changespecs)
 
@@ -131,8 +130,7 @@ def test_check_ready_to_mail_allows_parent_submitted() -> None:
     all_changespecs = [parent, child]
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.add_ready_to_mail_suffix",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.add_ready_to_mail_suffix", return_value=True
     ):
         result = check_ready_to_mail(child, all_changespecs)
 
@@ -187,8 +185,7 @@ def test_check_ready_to_mail_removes_suffix_when_error_appears() -> None:
     all_changespecs = [changespec]
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.remove_ready_to_mail_suffix",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.remove_ready_to_mail_suffix", return_value=True
     ):
         result = check_ready_to_mail(changespec, all_changespecs)
 
@@ -218,8 +215,7 @@ def test_check_ready_to_mail_removes_suffix_when_parent_not_ready() -> None:
     all_changespecs = [parent, child]
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.remove_ready_to_mail_suffix",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.remove_ready_to_mail_suffix", return_value=True
     ):
         result = check_ready_to_mail(child, all_changespecs)
 

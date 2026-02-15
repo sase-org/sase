@@ -5,7 +5,6 @@ import tempfile
 
 import pytest
 import yaml  # type: ignore[import-untyped]
-
 from sase.xprompt._step_input_loader import (
     _looks_like_file_path,
     load_step_input_value,

@@ -23,30 +23,27 @@ def testparse_timestamp_from_suffix_new_format() -> None:
 
 
 def testparse_timestamp_from_suffix_legacy_format() -> None:
-    """Test parsing timestamp from legacy format: agent-timestamp."""
+    """Test that legacy format (agent-timestamp, no PID) returns None.
+
+    The function only supports the new format: <agent>-<PID>-YYmmdd_HHMMSS.
+    """
     suffix = "fix_hook-251230_151429"
     result = parse_timestamp_from_suffix(suffix)
-    assert result is not None
-    assert result.year == 2025
-    assert result.month == 12
-    assert result.day == 30
+    assert result is None
 
 
 def testparse_timestamp_from_suffix_bare_timestamp() -> None:
-    """Test parsing bare timestamp format."""
+    """Test that bare timestamp format returns None (no dashes)."""
     suffix = "251230_151429"
     result = parse_timestamp_from_suffix(suffix)
-    assert result is not None
-    assert result.year == 2025
-    assert result.month == 12
+    assert result is None
 
 
 def testparse_timestamp_from_suffix_crs_format() -> None:
-    """Test parsing CRS format: crs-timestamp."""
+    """Test that CRS format (crs-timestamp, no PID) returns None."""
     suffix = "crs-251230_151429"
     result = parse_timestamp_from_suffix(suffix)
-    assert result is not None
-    assert result.year == 2025
+    assert result is None
 
 
 def testparse_timestamp_from_suffix_none() -> None:

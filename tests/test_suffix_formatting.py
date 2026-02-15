@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-from rich.text import Text
-
 from sase.ace.tui.widgets.suffix_formatting import (
     SUFFIX_STYLES,
     _build_suffix_content,
@@ -11,6 +9,7 @@ from sase.ace.tui.widgets.suffix_formatting import (
     append_suffix_to_text,
     should_show_suffix,
 )
+from rich.text import Text
 
 
 # Tests for _build_suffix_content

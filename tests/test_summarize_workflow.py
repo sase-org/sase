@@ -339,7 +339,6 @@ def test_main_success(mock_workflow_class: MagicMock) -> None:
     mock_workflow_class.return_value = mock_workflow
 
     import pytest
-
     from sase.summarize_workflow import main
 
     with pytest.raises(SystemExit) as exc_info:
@@ -358,7 +357,6 @@ def test_main_failure(mock_workflow_class: MagicMock) -> None:
     mock_workflow_class.return_value = mock_workflow
 
     import pytest
-
     from sase.summarize_workflow import main
 
     with pytest.raises(SystemExit) as exc_info:
@@ -371,7 +369,6 @@ def test_main_failure(mock_workflow_class: MagicMock) -> None:
 def test_main_missing_args() -> None:
     """Test main() with missing arguments."""
     import pytest
-
     from sase.summarize_workflow import main
 
     with pytest.raises(SystemExit) as exc_info:
@@ -384,7 +381,6 @@ def test_main_missing_args() -> None:
 def test_main_missing_usage_arg() -> None:
     """Test main() with missing usage argument."""
     import pytest
-
     from sase.summarize_workflow import main
 
     with pytest.raises(SystemExit) as exc_info:

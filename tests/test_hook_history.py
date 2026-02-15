@@ -87,9 +87,7 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
         _save_hook_history([initial_entry])
 
         # Add the same hook again
-        with patch(
-            "sase.hook_history.generate_timestamp", return_value="251231_200000"
-        ):
+        with patch("sase.hook_history.generate_timestamp", return_value="251231_200000"):
             add_or_update_hook("make test")
 
         result = _load_hook_history()
@@ -114,9 +112,7 @@ def test_different_commands_not_deduplicated(tmp_path: Path) -> None:
         _save_hook_history([initial_entry])
 
         # Add a different hook
-        with patch(
-            "sase.hook_history.generate_timestamp", return_value="251231_200000"
-        ):
+        with patch("sase.hook_history.generate_timestamp", return_value="251231_200000"):
             add_or_update_hook("make build")
 
         result = _load_hook_history()

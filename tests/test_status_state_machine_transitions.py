@@ -455,20 +455,18 @@ def test_wip_to_drafted_allowed_when_no_siblings() -> None:
             ),
         ]
 
-        with (
-            patch(
-                "sase.ace.changespec.find_all_changespecs",
-                return_value=mock_changespecs,
-            ),
-            patch("sase.ace.mentors.clear_mentor_wip_flags"),
-            patch(
-                "sase.status_state_machine.transitions._handle_suffix_strip",
-                return_value=[],
-            ),
+        with patch(
+            "sase.ace.changespec.find_all_changespecs",
+            return_value=mock_changespecs,
         ):
-            success, old_status, error, _ = transition_changespec_status(
-                project_file, "foo_bar__1", "Drafted", validate=True
-            )
+            with patch("sase.ace.mentors.clear_mentor_wip_flags"):
+                with patch(
+                    "sase.status_state_machine.transitions._handle_suffix_strip",
+                    return_value=[],
+                ):
+                    success, old_status, error, _ = transition_changespec_status(
+                        project_file, "foo_bar__1", "Drafted", validate=True
+                    )
 
         assert success is True
         assert old_status == "WIP"

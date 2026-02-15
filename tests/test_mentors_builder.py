@@ -3,11 +3,10 @@
 import os
 from unittest.mock import patch
 
-from rich.text import Text
-
 from sase.ace.changespec import ChangeSpec, CommitEntry, MentorEntry, MentorStatusLine
 from sase.ace.tui.widgets.hint_tracker import HintTracker
 from sase.ace.tui.widgets.mentors_builder import build_mentors_section
+from rich.text import Text
 
 
 def _make_changespec(

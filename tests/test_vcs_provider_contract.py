@@ -7,7 +7,6 @@ interface contract using parameterized tests.
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from sase.vcs_provider._base import VCSProvider
 from sase.vcs_provider._git import _GitProvider
 from sase.vcs_provider._hg import _HgProvider

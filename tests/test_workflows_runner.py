@@ -217,16 +217,16 @@ def testcheck_workflow_completion_with_marker_failure() -> None:
 
 
 def testget_running_crs_workflows_with_timestamp_suffix() -> None:
-    """Test detecting running CRS workflows by timestamp suffix."""
+    """Test detecting running CRS workflows by PID-based suffix."""
     comment = CommentEntry(
         reviewer="critique",
         file_path="~/.sase/comments/test.json",
-        suffix="crs-99999-251227_123456",
+        suffix="crs-12345-251227_123456",
     )
     cs = _make_changespec(comments=[comment])
     result = get_running_crs_workflows(cs)
     assert len(result) == 1
-    assert result[0] == ("critique", "crs-99999-251227_123456")
+    assert result[0] == ("critique", "crs-12345-251227_123456")
 
 
 def testget_running_crs_workflows_with_non_timestamp_suffix() -> None:
@@ -249,13 +249,13 @@ def testget_running_crs_workflows_no_comments() -> None:
 
 
 def testget_running_fix_hook_workflows_with_timestamp_suffix() -> None:
-    """Test detecting running fix-hook workflows by timestamp suffix."""
+    """Test detecting running fix-hook workflows by PID-based suffix."""
     status_line = HookStatusLine(
         commit_entry_num="1",
         timestamp="251227_100000",
         status="FAILED",
         duration="5s",
-        suffix="fix_hook-99999-251227_123456",
+        suffix="fix_hook-12345-251227_123456",
         suffix_type="running_agent",
     )
     hook = HookEntry(command="make test", status_lines=[status_line])

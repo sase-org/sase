@@ -91,8 +91,7 @@ def test_strip_terminal_status_markers_processes_submitted() -> None:
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix", return_value=True
     ):
         result = strip_terminal_status_markers(cs)
 
@@ -123,8 +122,7 @@ def test_strip_terminal_status_markers_processes_reverted() -> None:
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix", return_value=True
     ):
         result = strip_terminal_status_markers(cs)
 
@@ -249,8 +247,7 @@ def test_strip_terminal_status_markers_processes_history_running_agent() -> None
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix", return_value=True
     ):
         result = strip_terminal_status_markers(cs)
 
