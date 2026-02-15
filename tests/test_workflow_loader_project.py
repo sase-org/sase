@@ -149,8 +149,13 @@ def test_get_all_workflows_with_project_includes_project_workflows() -> None:
     )
 
     with (
-        patch("sase.xprompt.workflow_loader._load_workflows_from_files", return_value={}),
-        patch("sase.xprompt.workflow_loader._load_workflows_from_internal", return_value={}),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_files", return_value={}
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            return_value={},
+        ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
             return_value={"testproj/proj_workflow": mock_workflow},
@@ -164,8 +169,13 @@ def test_get_all_workflows_with_project_includes_project_workflows() -> None:
 def test_get_all_workflows_without_project_excludes_project_workflows() -> None:
     """Test that get_all_workflows without project param doesn't load project workflows."""
     with (
-        patch("sase.xprompt.workflow_loader._load_workflows_from_files", return_value={}),
-        patch("sase.xprompt.workflow_loader._load_workflows_from_internal", return_value={}),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_files", return_value={}
+        ),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            return_value={},
+        ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project"
         ) as mock_load_project,
@@ -196,7 +206,10 @@ def test_get_all_workflows_file_overrides_project() -> None:
             "sase.xprompt.workflow_loader._load_workflows_from_files",
             return_value={"test": file_workflow},
         ),
-        patch("sase.xprompt.workflow_loader._load_workflows_from_internal", return_value={}),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_internal",
+            return_value={},
+        ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
             return_value={"test": project_workflow},
@@ -224,7 +237,9 @@ def test_get_all_workflows_project_overrides_internal() -> None:
     )
 
     with (
-        patch("sase.xprompt.workflow_loader._load_workflows_from_files", return_value={}),
+        patch(
+            "sase.xprompt.workflow_loader._load_workflows_from_files", return_value={}
+        ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_internal",
             return_value={"test": internal_workflow},

@@ -285,7 +285,9 @@ def test_kill_crs_agent_marks_as_killed() -> None:
     with (
         patch("sase.ace.tui.actions.agents._killing.os.killpg") as mock_killpg,
         patch("sase.ace.changespec.parse_project_file", return_value=[mock_cs]),
-        patch("sase.ace.comments.operations.mark_comment_agents_as_killed") as mock_mark,
+        patch(
+            "sase.ace.comments.operations.mark_comment_agents_as_killed"
+        ) as mock_mark,
         patch("sase.ace.comments.update_changespec_comments_field") as mock_update,
     ):
         mock_mark.return_value = [mock_comment]

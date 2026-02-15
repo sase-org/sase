@@ -129,7 +129,9 @@ def test_archive_changespec_fails_with_non_terminal_children(make_changespec) ->
     mock_provider.archive.return_value = (True, None)
 
     with patch("sase.ace.archive.find_all_changespecs", return_value=[parent, child]):
-        with patch("sase.ace.archive.get_first_available_axe_workspace", return_value=100):
+        with patch(
+            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
+        ):
             with patch(
                 "sase.ace.archive.get_workspace_directory_for_num",
                 return_value=("/tmp", None),
@@ -165,7 +167,9 @@ def test_archive_changespec_succeeds_with_terminal_children(make_changespec) -> 
     with patch(
         "sase.ace.archive.find_all_changespecs", return_value=[parent, archived_child]
     ):
-        with patch("sase.ace.archive.get_first_available_axe_workspace", return_value=100):
+        with patch(
+            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
+        ):
             with patch(
                 "sase.ace.archive.get_workspace_directory_for_num",
                 return_value=("/tmp", None),
@@ -175,9 +179,12 @@ def test_archive_changespec_succeeds_with_terminal_children(make_changespec) -> 
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
                     ):
                         with patch(
-                            "sase.ace.archive.save_diff_to_file", return_value=(True, None)
+                            "sase.ace.archive.save_diff_to_file",
+                            return_value=(True, None),
                         ):
-                            with patch("sase.ace.archive.rename_changespec_with_references"):
+                            with patch(
+                                "sase.ace.archive.rename_changespec_with_references"
+                            ):
                                 with patch(
                                     "sase.ace.archive.transition_changespec_status",
                                     return_value=(True, "Mailed", None, []),
@@ -218,9 +225,12 @@ def test_archive_changespec_claims_workspace_100_plus(make_changespec) -> None: 
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
                     ):
                         with patch(
-                            "sase.ace.archive.save_diff_to_file", return_value=(True, None)
+                            "sase.ace.archive.save_diff_to_file",
+                            return_value=(True, None),
                         ):
-                            with patch("sase.ace.archive.rename_changespec_with_references"):
+                            with patch(
+                                "sase.ace.archive.rename_changespec_with_references"
+                            ):
                                 with patch(
                                     "sase.ace.archive.transition_changespec_status",
                                     return_value=(True, "Mailed", None, []),
@@ -249,7 +259,9 @@ def test_archive_changespec_fails_on_archive_error(make_changespec) -> None:  # 
     mock_provider.archive.return_value = (False, "archive failed")
 
     with patch("sase.ace.archive.find_all_changespecs", return_value=[changespec]):
-        with patch("sase.ace.archive.get_first_available_axe_workspace", return_value=100):
+        with patch(
+            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
+        ):
             with patch(
                 "sase.ace.archive.get_workspace_directory_for_num",
                 return_value=("/tmp", None),
@@ -259,7 +271,8 @@ def test_archive_changespec_fails_on_archive_error(make_changespec) -> None:  # 
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
                     ):
                         with patch(
-                            "sase.ace.archive.save_diff_to_file", return_value=(True, None)
+                            "sase.ace.archive.save_diff_to_file",
+                            return_value=(True, None),
                         ):
                             with patch("sase.ace.archive.release_workspace"):
                                 success, error = archive_changespec(changespec)
@@ -279,7 +292,9 @@ def test_archive_changespec_releases_workspace_on_failure(make_changespec) -> No
     mock_provider.checkout.return_value = (False, "update failed")
 
     with patch("sase.ace.archive.find_all_changespecs", return_value=[changespec]):
-        with patch("sase.ace.archive.get_first_available_axe_workspace", return_value=100):
+        with patch(
+            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
+        ):
             with patch(
                 "sase.ace.archive.get_workspace_directory_for_num",
                 return_value=("/tmp", None),
@@ -288,7 +303,9 @@ def test_archive_changespec_releases_workspace_on_failure(make_changespec) -> No
                     with patch(
                         "sase.ace.archive.get_vcs_provider", return_value=mock_provider
                     ):
-                        with patch("sase.ace.archive.release_workspace") as mock_release:
+                        with patch(
+                            "sase.ace.archive.release_workspace"
+                        ) as mock_release:
                             success, error = archive_changespec(changespec)
 
     assert success is False

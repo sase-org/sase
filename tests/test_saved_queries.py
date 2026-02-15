@@ -21,7 +21,9 @@ def test_key_order() -> None:
 
 def test_load_empty_when_no_file(tmp_path: Path) -> None:
     """Test loading returns empty dict when no file exists."""
-    with patch("sase.ace.saved_queries._SAVED_QUERIES_FILE", tmp_path / "nonexistent.json"):
+    with patch(
+        "sase.ace.saved_queries._SAVED_QUERIES_FILE", tmp_path / "nonexistent.json"
+    ):
         result = load_saved_queries()
         assert result == {}
 

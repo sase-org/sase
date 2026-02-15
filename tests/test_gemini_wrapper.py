@@ -38,7 +38,9 @@ def testprocess_file_references_tilde_expansion() -> None:
             os.chdir(tmpdir)
             try:
                 with patch("sase.gemini_wrapper.file_references.print_status"):
-                    with patch("sase.gemini_wrapper.file_references.print_file_operation"):
+                    with patch(
+                        "sase.gemini_wrapper.file_references.print_file_operation"
+                    ):
                         result = process_file_references(prompt)
 
                 # The tilde path should be replaced with a relative path to bb/sase/context/

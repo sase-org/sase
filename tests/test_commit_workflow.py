@@ -13,7 +13,10 @@ from sase.commit_workflow.changespec_operations import (
     _find_changespec_end_line,
     add_changespec_to_project_file,
 )
-from sase.commit_workflow.changespec_queries import changespec_exists, project_file_exists
+from sase.commit_workflow.changespec_queries import (
+    changespec_exists,
+    project_file_exists,
+)
 from sase.commit_workflow.editor_utils import get_editor
 from sase.workflow_utils import get_project_file_path
 
@@ -411,7 +414,8 @@ def test_get_cl_description_empty_file_falls_back() -> None:
         desc_file = f.name
     try:
         with patch(
-            "sase.summarize_utils.get_file_summary", return_value="Summarized description"
+            "sase.summarize_utils.get_file_summary",
+            return_value="Summarized description",
         ):
             result = mod._get_cl_description("some response", desc_file)
         assert result == "Summarized description"

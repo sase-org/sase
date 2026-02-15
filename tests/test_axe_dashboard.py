@@ -1,6 +1,10 @@
 """Tests for the axe dashboard widget utility functions."""
 
-from sase.ace.tui.widgets.axe_dashboard import AxeDashboard, _format_runtime, _format_uptime
+from sase.ace.tui.widgets.axe_dashboard import (
+    AxeDashboard,
+    _format_runtime,
+    _format_uptime,
+)
 
 
 def test_format_uptime_seconds_only() -> None:

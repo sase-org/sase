@@ -226,7 +226,9 @@ xprompts:
 
 def test_load_xprompts_from_config_missing_file() -> None:
     """Test that missing config file returns empty dict."""
-    with patch("sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"):
+    with patch(
+        "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
+    ):
         xprompts = _load_xprompts_from_config()
 
     assert xprompts == {}
@@ -404,7 +406,9 @@ def test_get_all_xprompts_with_project_includes_project_xprompts() -> None:
     project_xprompt = XPrompt(name="testproj/proj_prompt", content="Project content")
 
     with (
-        patch("sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"),
+        patch(
+            "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
+        ),
         patch("sase.xprompt.loader._load_xprompts_from_files", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
         patch(
@@ -421,7 +425,9 @@ def test_get_all_xprompts_with_project_includes_project_xprompts() -> None:
 def test_get_all_xprompts_without_project_excludes_project_xprompts() -> None:
     """Test that get_all_xprompts without project param doesn't load project xprompts."""
     with (
-        patch("sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"),
+        patch(
+            "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
+        ),
         patch("sase.xprompt.loader._load_xprompts_from_files", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_project") as mock_load_project,
@@ -438,7 +444,9 @@ def test_get_all_xprompts_file_overrides_project() -> None:
     file_xprompt = XPrompt(name="test", content="From file")
 
     with (
-        patch("sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"),
+        patch(
+            "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
+        ),
         patch(
             "sase.xprompt.loader._load_xprompts_from_files",
             return_value={"test": file_xprompt},

@@ -78,7 +78,9 @@ metahooks:
 
 def test_load_axe_config_missing_file() -> None:
     """Test loading config with missing file returns all defaults."""
-    with patch("sase.axe_config._get_config_path", return_value="/nonexistent/path.yml"):
+    with patch(
+        "sase.axe_config._get_config_path", return_value="/nonexistent/path.yml"
+    ):
         config = load_axe_config()
 
     assert config == _AxeConfig()

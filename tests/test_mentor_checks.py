@@ -549,7 +549,8 @@ def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
 
     # Mock get_all_mentor_profiles to return our test profile
     monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_checks.get_all_mentor_profiles", lambda: [mock_profile]
+        "sase.ace.scheduler.mentor_checks.get_all_mentor_profiles",
+        lambda: [mock_profile],
     )
 
     # Scenario: commits 3, 4, 5 exist, MENTORS entry for 3 exists

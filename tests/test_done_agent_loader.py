@@ -36,7 +36,8 @@ def test_load_done_agents_reads_step_output(tmp_path: Path) -> None:
     (gai_dir / "artifacts").symlink_to(project_dir / "artifacts")
 
     with patch(
-        "sase.ace.tui.models._loaders._artifact_loaders.Path.home", return_value=tmp_path
+        "sase.ace.tui.models._loaders._artifact_loaders.Path.home",
+        return_value=tmp_path,
     ):
         agents = load_done_agents({}, {})
 
@@ -66,7 +67,8 @@ def test_load_done_agents_without_step_output(tmp_path: Path) -> None:
         json.dump(done_data, f)
 
     with patch(
-        "sase.ace.tui.models._loaders._artifact_loaders.Path.home", return_value=tmp_path
+        "sase.ace.tui.models._loaders._artifact_loaders.Path.home",
+        return_value=tmp_path,
     ):
         agents = load_done_agents({}, {})
 

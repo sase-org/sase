@@ -15,7 +15,9 @@ from sase.prompt_history import (
 
 def test_load_empty_when_no_file(tmp_path: Path) -> None:
     """Test loading returns empty list when no file exists."""
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", tmp_path / "nonexistent.json"):
+    with patch(
+        "sase.prompt_history._PROMPT_HISTORY_FILE", tmp_path / "nonexistent.json"
+    ):
         result = _load_prompt_history()
         assert result == []
 
@@ -70,7 +72,9 @@ def test_add_new_prompt(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file),
-        patch("sase.prompt_history._get_current_branch_or_workspace", return_value="main"),
+        patch(
+            "sase.prompt_history._get_current_branch_or_workspace", return_value="main"
+        ),
         patch("sase.prompt_history._get_workspace_name", return_value="myproject"),
         patch("sase.prompt_history.generate_timestamp", return_value="251231_143052"),
     ):
@@ -101,10 +105,13 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
         # Add the same prompt again
         with (
             patch(
-                "sase.prompt_history._get_current_branch_or_workspace", return_value="main"
+                "sase.prompt_history._get_current_branch_or_workspace",
+                return_value="main",
             ),
             patch("sase.prompt_history._get_workspace_name", return_value="myproject"),
-            patch("sase.prompt_history.generate_timestamp", return_value="251231_200000"),
+            patch(
+                "sase.prompt_history.generate_timestamp", return_value="251231_200000"
+            ),
         ):
             add_or_update_prompt("test prompt")
 

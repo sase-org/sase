@@ -182,7 +182,8 @@ def test_get_pending_checks_with_matching_files() -> None:
         Path(temp_dir, "other_feature-cl_submitted-241227_120002.txt").touch()
 
         with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory", return_value=temp_dir
+            "sase.ace.scheduler.checks_runner._get_checks_directory",
+            return_value=temp_dir,
         ):
             result = _get_pending_checks(mock_changespec)
 
@@ -202,7 +203,8 @@ def test_has_pending_check_true() -> None:
         Path(temp_dir, "my_feature-cl_submitted-241227_120000.txt").touch()
 
         with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory", return_value=temp_dir
+            "sase.ace.scheduler.checks_runner._get_checks_directory",
+            return_value=temp_dir,
         ):
             result = has_pending_check(mock_changespec, CHECK_TYPE_CL_SUBMITTED)
             assert result is True
@@ -216,7 +218,8 @@ def test_has_pending_check_false() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         # No files in directory
         with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory", return_value=temp_dir
+            "sase.ace.scheduler.checks_runner._get_checks_directory",
+            return_value=temp_dir,
         ):
             result = has_pending_check(mock_changespec, CHECK_TYPE_CL_SUBMITTED)
             assert result is False
@@ -232,7 +235,8 @@ def test_has_pending_check_different_type() -> None:
         Path(temp_dir, "my_feature-cl_submitted-241227_120000.txt").touch()
 
         with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory", return_value=temp_dir
+            "sase.ace.scheduler.checks_runner._get_checks_directory",
+            return_value=temp_dir,
         ):
             result = has_pending_check(mock_changespec, CHECK_TYPE_REVIEWER_COMMENTS)
             assert result is False
@@ -254,7 +258,8 @@ def test_check_pending_checks_processes_completed() -> None:
         check_file.write_text(f"Output\n{CHECK_COMPLETE_MARKER}EXIT_CODE: 1\n")
 
         with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory", return_value=temp_dir
+            "sase.ace.scheduler.checks_runner._get_checks_directory",
+            return_value=temp_dir,
         ):
             with patch("sase.ace.scheduler.checks_runner.update_last_checked"):
                 with patch(
@@ -279,7 +284,8 @@ def test_check_pending_checks_incomplete_not_processed() -> None:
         check_file.write_text("Still running...\n")
 
         with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory", return_value=temp_dir
+            "sase.ace.scheduler.checks_runner._get_checks_directory",
+            return_value=temp_dir,
         ):
             result = check_pending_checks(mock_changespec, mock_log)
 

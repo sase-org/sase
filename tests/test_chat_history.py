@@ -14,7 +14,11 @@ from sase.chat_history import (
     load_chat_history,
     save_chat_history,
 )
-from sase.sase_utils import ensure_sase_directory, generate_timestamp, get_sase_directory
+from sase.sase_utils import (
+    ensure_sase_directory,
+    generate_timestamp,
+    get_sase_directory,
+)
 
 
 def test_get_chats_directory() -> None:
@@ -73,7 +77,9 @@ def test_get_branch_or_workspace_name_failure() -> None:
 def test_generate_chat_filename_basic() -> None:
     """Test _generate_chat_filename with basic inputs."""
     with (
-        patch("sase.chat_history._get_branch_or_workspace_name", return_value="my-branch"),
+        patch(
+            "sase.chat_history._get_branch_or_workspace_name", return_value="my-branch"
+        ),
         patch("sase.chat_history.generate_timestamp", return_value="251128120000"),
     ):
         result = _generate_chat_filename("run")
@@ -83,7 +89,9 @@ def test_generate_chat_filename_basic() -> None:
 def test_generate_chat_filename_with_agent() -> None:
     """Test _generate_chat_filename with agent name."""
     with (
-        patch("sase.chat_history._get_branch_or_workspace_name", return_value="my-branch"),
+        patch(
+            "sase.chat_history._get_branch_or_workspace_name", return_value="my-branch"
+        ),
         patch("sase.chat_history.generate_timestamp", return_value="251128_120000"),
     ):
         # Workflow dashes are normalized to underscores in filename
@@ -130,7 +138,8 @@ def test_save_chat_history_basic() -> None:
 
         with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
             with patch(
-                "sase.chat_history._get_branch_or_workspace_name", return_value="test-branch"
+                "sase.chat_history._get_branch_or_workspace_name",
+                return_value="test-branch",
             ):
                 with patch(
                     "sase.chat_history.generate_timestamp", return_value="251128120000"
@@ -157,7 +166,8 @@ def test_save_chat_history_with_previous_history() -> None:
 
         with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
             with patch(
-                "sase.chat_history._get_branch_or_workspace_name", return_value="test-branch"
+                "sase.chat_history._get_branch_or_workspace_name",
+                return_value="test-branch",
             ):
                 with patch(
                     "sase.chat_history.generate_timestamp", return_value="251128120000"
@@ -230,7 +240,9 @@ def test_list_chat_histories_nonexistent_dir() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         nonexistent_dir = os.path.join(tmpdir, "nonexistent")
 
-        with patch("sase.chat_history.get_sase_directory", return_value=nonexistent_dir):
+        with patch(
+            "sase.chat_history.get_sase_directory", return_value=nonexistent_dir
+        ):
             result = list_chat_histories()
             assert result == []
 

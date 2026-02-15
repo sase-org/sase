@@ -146,7 +146,9 @@ def test_sigterm_handler_sets_killed() -> None:
 # Tests for prepare_workspace
 def test_prepare_workspace_clean_fails() -> None:
     """Test prepare_workspace returns False when clean fails."""
-    with patch("sase.commit_utils.run_bb_hg_clean", return_value=(False, "clean error")):
+    with patch(
+        "sase.commit_utils.run_bb_hg_clean", return_value=(False, "clean error")
+    ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
@@ -211,7 +213,9 @@ def test_prepare_workspace_success() -> None:
     mock_provider.get_default_parent_revision.return_value = "p4head"
 
     with (
-        patch("sase.commit_utils.run_bb_hg_clean", return_value=(True, None)) as mock_clean,
+        patch(
+            "sase.commit_utils.run_bb_hg_clean", return_value=(True, None)
+        ) as mock_clean,
         patch("sase.axe_runner_utils.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(

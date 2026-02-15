@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sase.accept_workflow.parsing import expand_shorthand_proposals, parse_proposal_entries
+from sase.accept_workflow.parsing import (
+    expand_shorthand_proposals,
+    parse_proposal_entries,
+)
 
 from ....changespec import ChangeSpec
 from ._types import HintMixinBase

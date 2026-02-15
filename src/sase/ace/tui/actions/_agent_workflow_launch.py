@@ -295,7 +295,11 @@ class AgentLaunchMixin:
             True if workflow was executed, False if not a valid workflow reference,
             or a str with the rendered prompt for simple xprompts.
         """
-        from sase.xprompt import get_all_prompts, parse_workflow_reference, strip_hitl_suffix
+        from sase.xprompt import (
+            get_all_prompts,
+            parse_workflow_reference,
+            strip_hitl_suffix,
+        )
 
         workflow_ref = prompt[1:]  # Strip the #
         workflow_ref, hitl_override = strip_hitl_suffix(workflow_ref)

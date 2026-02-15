@@ -13,7 +13,10 @@ from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.gemini import GeminiProvider
-from sase.llm_provider.postprocessing import log_prompt_and_response, save_prompt_to_file
+from sase.llm_provider.postprocessing import (
+    log_prompt_and_response,
+    save_prompt_to_file,
+)
 from sase.llm_provider.registry import _REGISTRY, get_provider, register_provider
 from sase.llm_provider.types import _MODEL_SIZE_TO_TIER, LoggingContext, ModelTier
 

@@ -6,7 +6,11 @@ This module handles adding/removing the READY TO MAIL suffix from STATUS fields.
 
 import logging
 
-from sase.ace.changespec import changespec_lock, get_base_status, write_changespec_atomic
+from sase.ace.changespec import (
+    changespec_lock,
+    get_base_status,
+    write_changespec_atomic,
+)
 
 from .field_updates import apply_status_update, read_status_from_lines
 

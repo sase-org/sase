@@ -206,7 +206,9 @@ def test_add_test_hooks_if_available_restores_directory_on_error() -> None:
 def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
     """Test that function returns False when adding hooks fails."""
     with (
-        patch("sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"),
+        patch(
+            "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
+        ),
         patch("sase.workflow_utils.get_changespec_from_file", return_value=None),
         patch("sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=False),
         patch("sase.rich_utils.print_status"),
@@ -254,7 +256,9 @@ def test_get_initial_hooks_for_changespec_includes_test_targets() -> None:
 def test_get_initial_hooks_for_changespec_preserves_order() -> None:
     """Test that hooks are in correct order: required first, then test targets."""
     with (
-        patch("sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"),
+        patch(
+            "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
+        ),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
     ):
         result = get_initial_hooks_for_changespec()

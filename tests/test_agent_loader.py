@@ -9,7 +9,9 @@ from sase.ace.tui.models.agent_loader import _get_status_priority, load_all_agen
 def test_load_all_agents_empty() -> None:
     """Test load_all_agents with no project files."""
     with (
-        patch("sase.ace.tui.models.agent_loader.get_all_project_files", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files", return_value=[]
+        ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
     ):
         agents = load_all_agents()

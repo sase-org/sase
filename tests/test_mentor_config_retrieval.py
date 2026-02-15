@@ -34,7 +34,9 @@ mentor_profiles:
 
 def test_get_all_mentor_profiles_config_error() -> None:
     """Test that get_all_mentor_profiles returns empty list on config errors."""
-    with patch("sase.mentor_config._get_config_path", return_value="/nonexistent/path.yml"):
+    with patch(
+        "sase.mentor_config._get_config_path", return_value="/nonexistent/path.yml"
+    ):
         profiles = get_all_mentor_profiles()
 
     assert profiles == []
@@ -89,7 +91,9 @@ mentor_profiles:
 
 def test_get_mentor_profile_by_name_config_error() -> None:
     """Test that get_mentor_profile_by_name returns None on config errors."""
-    with patch("sase.mentor_config._get_config_path", return_value="/nonexistent/path.yml"):
+    with patch(
+        "sase.mentor_config._get_config_path", return_value="/nonexistent/path.yml"
+    ):
         profile = get_mentor_profile_by_name("any_profile")
 
     assert profile is None
@@ -244,7 +248,9 @@ mentor_profiles:
 
 def test_profile_has_wip_mentors_nonexistent_profile() -> None:
     """Test profile_has_wip_mentors returns False for nonexistent profile."""
-    with patch("sase.mentor_config._get_config_path", return_value="/nonexistent/path.yml"):
+    with patch(
+        "sase.mentor_config._get_config_path", return_value="/nonexistent/path.yml"
+    ):
         result = profile_has_wip_mentors("nonexistent_profile")
 
     assert result is False

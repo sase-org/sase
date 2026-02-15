@@ -13,7 +13,10 @@ from sase.xprompt.workflow_executor_steps_embedded import (
     _WORKFLOW_REF_PATTERN,
     EmbeddedWorkflowMixin,
 )
-from sase.xprompt.workflow_executor_steps_prompt import PromptStepMixin, capture_git_diff
+from sase.xprompt.workflow_executor_steps_prompt import (
+    PromptStepMixin,
+    capture_git_diff,
+)
 from sase.xprompt.workflow_executor_steps_script import ScriptStepMixin
 
 # Re-export for backward compatibility

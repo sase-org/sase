@@ -35,7 +35,9 @@ def test_update_to_changespec_with_parent() -> None:
         mock_get_ws.return_value = "/tmp/project/src"
         with patch("os.path.exists", return_value=True):
             with patch("os.path.isdir", return_value=True):
-                with patch("sase.vcs_provider.get_vcs_provider", return_value=mock_provider):
+                with patch(
+                    "sase.vcs_provider.get_vcs_provider", return_value=mock_provider
+                ):
                     success, error = update_to_changespec(changespec)
 
     assert success is True
@@ -55,7 +57,9 @@ def test_update_to_changespec_without_parent() -> None:
         mock_get_ws.return_value = "/tmp/project/src"
         with patch("os.path.exists", return_value=True):
             with patch("os.path.isdir", return_value=True):
-                with patch("sase.vcs_provider.get_vcs_provider", return_value=mock_provider):
+                with patch(
+                    "sase.vcs_provider.get_vcs_provider", return_value=mock_provider
+                ):
                     success, error = update_to_changespec(changespec)
 
     assert success is True
@@ -79,7 +83,9 @@ def test_update_to_changespec_with_revision() -> None:
         mock_get_ws.return_value = "/tmp/project/src"
         with patch("os.path.exists", return_value=True):
             with patch("os.path.isdir", return_value=True):
-                with patch("sase.vcs_provider.get_vcs_provider", return_value=mock_provider):
+                with patch(
+                    "sase.vcs_provider.get_vcs_provider", return_value=mock_provider
+                ):
                     success, error = update_to_changespec(
                         changespec, revision="custom_revision"
                     )

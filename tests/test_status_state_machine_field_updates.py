@@ -140,7 +140,9 @@ def test_transition_changespec_status_drafted_to_wip_increments_suffix() -> None
             patch("sase.ace.mentors.set_mentor_wip_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic") as mock_rename,
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
-            patch("sase.status_state_machine.field_updates.update_parent_references_atomic"),
+            patch(
+                "sase.status_state_machine.field_updates.update_parent_references_atomic"
+            ),
             patch("sase.running_field.update_running_field_cl_name"),
         ):
             mock_find.return_value = [mock_cs1, mock_cs2]
@@ -284,7 +286,9 @@ def test_transition_to_wip_allowed_when_children_are_wip_or_reverted() -> None:
             patch("sase.ace.mentors.set_mentor_wip_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic"),
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
-            patch("sase.status_state_machine.field_updates.update_parent_references_atomic"),
+            patch(
+                "sase.status_state_machine.field_updates.update_parent_references_atomic"
+            ),
             patch("sase.running_field.update_running_field_cl_name"),
         ):
             mock_find.return_value = [

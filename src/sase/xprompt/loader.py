@@ -23,10 +23,10 @@ def get_sase_package_xprompts_dir() -> Path:
     # This file is in src/sase/xprompt/loader.py
     # xprompts dir is at <repo_root>/xprompts/
     loader_path = Path(__file__).resolve()
-    xprompt_pkg = loader_path.parent      # src/sase/xprompt/
-    sase_pkg = xprompt_pkg.parent         # src/sase/
-    src_dir = sase_pkg.parent             # src/
-    repo_root = src_dir.parent            # repo root
+    xprompt_pkg = loader_path.parent  # src/sase/xprompt/
+    sase_pkg = xprompt_pkg.parent  # src/sase/
+    src_dir = sase_pkg.parent  # src/
+    repo_root = src_dir.parent  # repo root
     return repo_root / "xprompts"
 
 
