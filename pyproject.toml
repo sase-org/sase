@@ -61,6 +61,24 @@ select = [
 [tool.ruff.lint.isort]
 known-first-party = ["sase"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "E501",    # line too long (migrated tests)
+    "SIM117",  # multiple with statements (migrated tests)
+    "RUF059",  # unpacked variable unused (migrated tests)
+    "PT019",   # fixture without value (migrated tests)
+    "PT018",   # composite assertion (migrated tests)
+    "PT012",   # pytest.raises block too long (migrated tests)
+    "PT013",   # incorrect pytest import (migrated tests)
+    "PT006",   # wrong type for parametrize (migrated tests)
+    "RUF015",  # unnecessary iterable allocation (migrated tests)
+    "N802",    # function name lowercase (migrated tests)
+    "RET504",  # unnecessary assignment before return (migrated tests)
+    "SIM105",  # use contextlib.suppress (migrated tests)
+    "SIM300",  # yoda condition (migrated tests)
+    "PT001",   # use @pytest.fixture() (migrated tests)
+]
+
 # --- Mypy ---
 [tool.mypy]
 files = ["src"]
@@ -88,7 +106,7 @@ ignore_missing_imports = true
 # --- Pytest ---
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 addopts = "--import-mode=importlib --strict-markers --strict-config"
 
 # --- Coverage ---
