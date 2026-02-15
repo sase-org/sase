@@ -27,7 +27,7 @@ from .models import (
     is_running_process_suffix,
     parse_commit_entry_id,
 )
-from .parser import parse_project_file
+from .parser import parse_project_file as _parse_gp_project_file
 from .raw_text import get_raw_changespec_text
 from .validation import (
     all_hooks_passed_for_entries,
@@ -85,11 +85,35 @@ __all__ = [
 ]
 
 
+def parse_project_file(file_path: str) -> list[ChangeSpec]:
+    """Parse all ChangeSpecs from a project file.
+
+    Dispatches to the appropriate parser based on file extension:
+    - .yaml/.yml files are parsed via the YAML project spec parser
+    - .gp files are parsed via the markdown parser
+
+    Args:
+        file_path: Path to the project file
+
+    Returns:
+        List of ChangeSpec objects
+    """
+    ext = Path(file_path).suffix.lower()
+    if ext in (".yaml", ".yml"):
+        from .project_spec import parse_project_spec
+
+        spec = parse_project_spec(file_path)
+        return spec.changespecs or []
+    return _parse_gp_project_file(file_path)
+
+
 def find_all_changespecs() -> list[ChangeSpec]:
     """Find all ChangeSpecs in all project files.
 
+    Prefers .yaml files over .gp files when both exist.
+
     Returns:
-        List of all ChangeSpec objects from ~/.sase/projects/<project>/<project>.gp files
+        List of all ChangeSpec objects from ~/.sase/projects/<project>/ files
     """
     projects_dir = Path.home() / ".sase" / "projects"
 
@@ -103,11 +127,19 @@ def find_all_changespecs() -> list[ChangeSpec]:
         if not project_dir.is_dir():
             continue
 
-        # Look for <project>.gp file inside the project directory
+        # Look for project files, preferring .yaml over .gp
         project_name = project_dir.name
+        yaml_file = project_dir / f"{project_name}.yaml"
+        yml_file = project_dir / f"{project_name}.yml"
         gp_file = project_dir / f"{project_name}.gp"
 
-        if gp_file.exists():
+        if yaml_file.exists():
+            changespecs = parse_project_file(str(yaml_file))
+            all_changespecs.extend(changespecs)
+        elif yml_file.exists():
+            changespecs = parse_project_file(str(yml_file))
+            all_changespecs.extend(changespecs)
+        elif gp_file.exists():
             changespecs = parse_project_file(str(gp_file))
             all_changespecs.extend(changespecs)
 

@@ -24,6 +24,7 @@ dev = [
     "ruff",
     "mypy",
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "pytest-mock",
     "tox",
@@ -94,6 +95,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
 addopts = "--import-mode=importlib --strict-markers --strict-config"
+asyncio_mode = "auto"
 
 # --- Coverage ---
 [tool.coverage.run]

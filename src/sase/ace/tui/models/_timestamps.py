@@ -52,7 +52,10 @@ def extract_timestamp_from_workflow(workflow: str | None) -> str | None:
 def parse_timestamp_from_suffix(suffix: str | None) -> datetime | None:
     """Parse start time from agent suffix format.
 
-    Format: <agent>-<PID>-YYmmdd_HHMMSS (e.g., fix_hook-12345-251230_151429)
+    Supported formats:
+    - New format: <agent>-<PID>-YYmmdd_HHMMSS (e.g., fix_hook-12345-251230_151429)
+    - Legacy format: <agent>-YYmmdd_HHMMSS (e.g., fix_hook-251230_151429)
+    - Bare timestamp: YYmmdd_HHMMSS (e.g., 251230_151429)
 
     Args:
         suffix: The suffix value to parse.
@@ -60,18 +63,27 @@ def parse_timestamp_from_suffix(suffix: str | None) -> datetime | None:
     Returns:
         Parsed datetime, or None if parsing fails.
     """
-    if suffix is None or "-" not in suffix:
+    if suffix is None:
         return None
 
+    # Try bare timestamp first (no dashes required)
+    if len(suffix) == 13 and suffix[6] == "_":
+        try:
+            return datetime.strptime(suffix, "%y%m%d_%H%M%S")
+        except ValueError:
+            pass
+
+    if "-" not in suffix:
+        return None
+
+    # Try the last segment as a timestamp (handles both new and legacy formats)
     parts = suffix.split("-")
-    # Format: <agent>-<PID>-YYmmdd_HHMMSS
-    if len(parts) >= 3:
-        ts = parts[-1]
-        if len(ts) == 13 and ts[6] == "_":
-            try:
-                return datetime.strptime(ts, "%y%m%d_%H%M%S")
-            except ValueError:
-                pass
+    ts = parts[-1]
+    if len(ts) == 13 and ts[6] == "_":
+        try:
+            return datetime.strptime(ts, "%y%m%d_%H%M%S")
+        except ValueError:
+            pass
 
     return None
 

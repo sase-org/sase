@@ -229,12 +229,12 @@ mentor_profiles:
 
 
 def test_load_mentor_profiles_mentor_missing_name() -> None:
-    """Test loading raises ValueError when mentor with prompt is missing name field."""
+    """Test mentor_name is derived from prompt when not provided."""
     yaml_content = """
 mentor_profiles:
   - profile_name: profile1
     mentors:
-      - prompt: No name provided
+      - prompt: "#simple_mentor"
     file_globs:
       - "*.py"
 """
@@ -243,14 +243,16 @@ mentor_profiles:
         config_path = f.name
 
     with patch("sase.mentor_config._get_config_path", return_value=config_path):
-        with pytest.raises(ValueError, match="must have 'mentor_name' field"):
-            _load_mentor_profiles()
+        # prompt without mentor_name should derive name from prompt
+        profiles = _load_mentor_profiles()
+        # "#simple_mentor" -> "simple_mentor" (strips leading #)
+        assert profiles[0].mentors[0].mentor_name == "simple_mentor"
 
     Path(config_path).unlink()
 
 
 def test_load_mentor_profiles_mentor_missing_prompt() -> None:
-    """Test loading raises ValueError when mentor is missing prompt and xprompt."""
+    """Test loading raises ValueError when mentor is missing prompt."""
     yaml_content = """
 mentor_profiles:
   - profile_name: profile1
@@ -264,7 +266,7 @@ mentor_profiles:
         config_path = f.name
 
     with patch("sase.mentor_config._get_config_path", return_value=config_path):
-        with pytest.raises(ValueError, match="must have 'prompt' or 'xprompt' field"):
+        with pytest.raises(ValueError, match="must have 'prompt' field"):
             _load_mentor_profiles()
 
     Path(config_path).unlink()
@@ -647,47 +649,34 @@ mentor_profiles:
     Path(config_path).unlink()
 
 
-# Tests for MentorConfig xprompt field
+# Tests for MentorConfig prompt field
 
 
-def test_mentor_config_with_xprompt() -> None:
-    """Test MentorConfig with xprompt field."""
-    config = MentorConfig(mentor_name="aaa", xprompt="#mentor/aaa")
+def test_mentor_config_with_prompt() -> None:
+    """Test MentorConfig with prompt field."""
+    config = MentorConfig(mentor_name="aaa", prompt="#mentor/aaa")
 
     assert config.mentor_name == "aaa"
-    assert config.prompt is None
-    assert config.xprompt == "#mentor/aaa"
+    assert config.prompt == "#mentor/aaa"
     assert config.run_on_wip is False
 
 
-def test_mentor_config_with_xprompt_and_run_on_wip() -> None:
-    """Test MentorConfig with xprompt and run_on_wip=True."""
-    config = MentorConfig(mentor_name="test", xprompt="#mentor/test", run_on_wip=True)
+def test_mentor_config_with_prompt_and_run_on_wip() -> None:
+    """Test MentorConfig with prompt and run_on_wip=True."""
+    config = MentorConfig(mentor_name="test", prompt="#mentor/test", run_on_wip=True)
 
-    assert config.xprompt == "#mentor/test"
+    assert config.prompt == "#mentor/test"
     assert config.run_on_wip is True
 
 
-def test_mentor_config_both_prompt_and_xprompt_raises() -> None:
-    """Test that MentorConfig with both prompt and xprompt raises ValueError."""
-    with pytest.raises(ValueError, match="cannot have both"):
-        MentorConfig(mentor_name="test", prompt="test prompt", xprompt="#mentor/test")
-
-
-def test_mentor_config_neither_prompt_nor_xprompt_raises() -> None:
-    """Test that MentorConfig with neither prompt nor xprompt raises ValueError."""
-    with pytest.raises(ValueError, match="must have 'prompt' or 'xprompt'"):
-        MentorConfig(mentor_name="test")
-
-
-def test_load_mentor_profiles_with_xprompt() -> None:
-    """Test loading mentor profiles with xprompt field."""
+def test_load_mentor_profiles_with_prompt() -> None:
+    """Test loading mentor profiles with prompt field."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
     mentors:
-      - xprompt: "#mentor/aaa"
-      - xprompt: "#mentor/bbb"
+      - prompt: "#mentor/aaa"
+      - prompt: "#mentor/bbb"
         run_on_wip: true
     file_globs:
       - "*.py"
@@ -701,26 +690,25 @@ mentor_profiles:
 
     assert len(profiles) == 1
     assert len(profiles[0].mentors) == 2
-    # mentor_name should be derived from xprompt
+    # mentor_name should be derived from prompt
     assert profiles[0].mentors[0].mentor_name == "aaa"
-    assert profiles[0].mentors[0].xprompt == "#mentor/aaa"
-    assert profiles[0].mentors[0].prompt is None
+    assert profiles[0].mentors[0].prompt == "#mentor/aaa"
     assert profiles[0].mentors[0].run_on_wip is False
     assert profiles[0].mentors[1].mentor_name == "bbb"
-    assert profiles[0].mentors[1].xprompt == "#mentor/bbb"
+    assert profiles[0].mentors[1].prompt == "#mentor/bbb"
     assert profiles[0].mentors[1].run_on_wip is True
 
     Path(config_path).unlink()
 
 
-def test_load_mentor_profiles_xprompt_with_explicit_name() -> None:
-    """Test loading mentor profiles with xprompt and explicit mentor_name."""
+def test_load_mentor_profiles_prompt_with_explicit_name() -> None:
+    """Test loading mentor profiles with prompt and explicit mentor_name."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
     mentors:
       - mentor_name: custom_name
-        xprompt: "#mentor/aaa"
+        prompt: "#mentor/aaa"
     file_globs:
       - "*.py"
 """
@@ -732,18 +720,18 @@ mentor_profiles:
         profiles = _load_mentor_profiles()
 
     assert profiles[0].mentors[0].mentor_name == "custom_name"
-    assert profiles[0].mentors[0].xprompt == "#mentor/aaa"
+    assert profiles[0].mentors[0].prompt == "#mentor/aaa"
 
     Path(config_path).unlink()
 
 
-def test_load_mentor_profiles_simple_xprompt_name_derivation() -> None:
-    """Test that simple xprompt (no namespace) derives name correctly."""
+def test_load_mentor_profiles_simple_prompt_name_derivation() -> None:
+    """Test that simple prompt (no namespace) derives name correctly."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
     mentors:
-      - xprompt: "#foo"
+      - prompt: "#foo"
     file_globs:
       - "*.py"
 """
@@ -756,20 +744,20 @@ mentor_profiles:
 
     # Should derive name from #foo -> foo
     assert profiles[0].mentors[0].mentor_name == "foo"
-    assert profiles[0].mentors[0].xprompt == "#foo"
+    assert profiles[0].mentors[0].prompt == "#foo"
 
     Path(config_path).unlink()
 
 
-def test_load_mentor_profiles_mixed_formats() -> None:
-    """Test loading mentor profiles with mixed prompt and xprompt formats."""
+def test_load_mentor_profiles_multiple_prompts() -> None:
+    """Test loading mentor profiles with multiple prompts."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
     mentors:
-      - mentor_name: legacy
-        prompt: "Legacy prompt text"
-      - xprompt: "#mentor/new"
+      - mentor_name: first
+        prompt: "First prompt text"
+      - prompt: "#mentor/new"
     file_globs:
       - "*.py"
 """
@@ -781,43 +769,18 @@ mentor_profiles:
         profiles = _load_mentor_profiles()
 
     assert len(profiles[0].mentors) == 2
-    # Legacy format
-    assert profiles[0].mentors[0].mentor_name == "legacy"
-    assert profiles[0].mentors[0].prompt == "Legacy prompt text"
-    assert profiles[0].mentors[0].xprompt is None
-    # New format
+    # First mentor with explicit name
+    assert profiles[0].mentors[0].mentor_name == "first"
+    assert profiles[0].mentors[0].prompt == "First prompt text"
+    # Second mentor with name derived from prompt
     assert profiles[0].mentors[1].mentor_name == "new"
-    assert profiles[0].mentors[1].prompt is None
-    assert profiles[0].mentors[1].xprompt == "#mentor/new"
+    assert profiles[0].mentors[1].prompt == "#mentor/new"
 
     Path(config_path).unlink()
 
 
-def test_load_mentor_profiles_both_prompt_and_xprompt_raises() -> None:
-    """Test that mentor with both prompt and xprompt raises ValueError."""
-    yaml_content = """
-mentor_profiles:
-  - profile_name: test_profile
-    mentors:
-      - mentor_name: invalid
-        prompt: "Some prompt"
-        xprompt: "#mentor/test"
-    file_globs:
-      - "*.py"
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
-    with patch("sase.mentor_config._get_config_path", return_value=config_path):
-        with pytest.raises(ValueError, match="cannot have both"):
-            _load_mentor_profiles()
-
-    Path(config_path).unlink()
-
-
-def test_load_mentor_profiles_neither_prompt_nor_xprompt_raises() -> None:
-    """Test that mentor with neither prompt nor xprompt raises ValueError."""
+def test_load_mentor_profiles_missing_prompt_raises() -> None:
+    """Test that mentor with missing prompt raises ValueError."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -832,14 +795,14 @@ mentor_profiles:
         config_path = f.name
 
     with patch("sase.mentor_config._get_config_path", return_value=config_path):
-        with pytest.raises(ValueError, match="must have 'prompt' or 'xprompt'"):
+        with pytest.raises(ValueError, match="must have 'prompt' field"):
             _load_mentor_profiles()
 
     Path(config_path).unlink()
 
 
-def test_load_mentor_profiles_prompt_without_name_raises() -> None:
-    """Test that legacy prompt format without mentor_name raises ValueError."""
+def test_load_mentor_profiles_prompt_name_derivation_with_name() -> None:
+    """Test prompt without explicit mentor_name derives name from prompt value."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -853,7 +816,10 @@ mentor_profiles:
         config_path = f.name
 
     with patch("sase.mentor_config._get_config_path", return_value=config_path):
-        with pytest.raises(ValueError, match="must have 'mentor_name' field"):
-            _load_mentor_profiles()
+        profiles = _load_mentor_profiles()
+
+    # "Some prompt without name" has no "/" and no "#", so lstrip("#") returns same
+    assert profiles[0].mentors[0].mentor_name == "Some prompt without name"
+    assert profiles[0].mentors[0].prompt == "Some prompt without name"
 
     Path(config_path).unlink()

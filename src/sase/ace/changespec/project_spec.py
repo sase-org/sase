@@ -55,7 +55,7 @@ class ProjectSpec:
 def _load_schema() -> dict[str, Any]:
     """Load the project_spec JSON schema."""
     schema_path = (
-        Path(__file__).resolve().parent.parent.parent.parent
+        Path(__file__).resolve().parent.parent.parent.parent.parent
         / "xprompts"
         / "project_spec.schema.json"
     )

@@ -352,7 +352,7 @@ def test_add_changespec_no_parent_placed_at_bottom() -> None:
 def _load_commit_workflow_module() -> types.ModuleType:
     """Load executable_sase_commit_workflow as a Python module."""
     script_path = str(
-        Path(__file__).parent.parent.parent.parent
+        Path(__file__).parent.parent
         / "bin"
         / "executable_sase_commit_workflow"
     )

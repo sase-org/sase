@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Helper script for the #commit xprompt workflow.
+
+Creates a new CL from uncommitted workspace changes.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def _get_cl_description(response: str, generated_desc_file: str = "") -> str:
+    """Get CL description from pre-generated file or by summarizing response."""
+    if generated_desc_file and os.path.isfile(generated_desc_file):
+        with open(generated_desc_file, "r", encoding="utf-8") as f:
+            description = f.read().strip()
+        if description:
+            return description
+    # Fall back to summarization
+    fd_response, response_tmp = tempfile.mkstemp(
+        suffix=".md", prefix="sase_commit_response_"
+    )
+    try:
+        with os.fdopen(fd_response, "w", encoding="utf-8") as f:
+            f.write(response)
+        from sase.summarize_utils import get_file_summary
+
+        return get_file_summary(
+            response_tmp,
+            usage="a concise description of what changes were made to the codebase",
+            fallback="Changes made by agent",
+        )
+    finally:
+        try:
+            os.unlink(response_tmp)
+        except OSError:
+            pass
+
+
+def main() -> None:
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description="Helper for the #commit xprompt workflow"
+    )
+    parser.add_argument(
+        "--create", action="store_true", help="Create a new CL from uncommitted changes"
+    )
+    parser.add_argument("--name", required=True, help="CL name (without project prefix)")
+    parser.add_argument(
+        "--bug-id", type=int, default=0, help="Bug ID to link (0 for no bug)"
+    )
+    parser.add_argument(
+        "--data-file", required=True, help="Path to JSON file with prompt and response"
+    )
+    parser.add_argument(
+        "--generated-desc-file",
+        default="",
+        help="Path to pre-generated CL description file",
+    )
+
+    args = parser.parse_args()
+
+    if args.create:
+        print("Not yet implemented in sase", file=sys.stderr)
+        sys.exit(1)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

@@ -154,12 +154,14 @@ class XPrompt:
         name: The xprompt name (used in #name syntax).
         content: The template content (may contain Jinja2 or legacy placeholders).
         inputs: List of input argument definitions from YAML front matter.
+        output: Optional output specification for validating agent responses.
         source_path: File path or "config" indicating where this xprompt was loaded from.
     """
 
     name: str
     content: str
     inputs: list[InputArg] = field(default_factory=list)
+    output: OutputSpec | None = None
     source_path: str | None = None
 
     def get_input_by_name(self, name: str) -> InputArg | None:

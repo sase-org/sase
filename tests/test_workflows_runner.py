@@ -221,12 +221,12 @@ def testget_running_crs_workflows_with_timestamp_suffix() -> None:
     comment = CommentEntry(
         reviewer="critique",
         file_path="~/.sase/comments/test.json",
-        suffix="251227_123456",
+        suffix="crs-99999-251227_123456",
     )
     cs = _make_changespec(comments=[comment])
     result = get_running_crs_workflows(cs)
     assert len(result) == 1
-    assert result[0] == ("critique", "251227_123456")
+    assert result[0] == ("critique", "crs-99999-251227_123456")
 
 
 def testget_running_crs_workflows_with_non_timestamp_suffix() -> None:
@@ -255,13 +255,14 @@ def testget_running_fix_hook_workflows_with_timestamp_suffix() -> None:
         timestamp="251227_100000",
         status="FAILED",
         duration="5s",
-        suffix="251227_123456",  # This is a timestamp suffix
+        suffix="fix_hook-99999-251227_123456",
+        suffix_type="running_agent",
     )
     hook = HookEntry(command="make test", status_lines=[status_line])
     cs = _make_changespec(hooks=[hook])
     result = get_running_fix_hook_workflows(cs)
     assert len(result) == 1
-    assert result[0] == ("make test", "251227_123456")
+    assert result[0] == ("make test", "251227_123456", "1", None)
 
 
 def testget_running_fix_hook_workflows_with_non_timestamp_suffix() -> None:
