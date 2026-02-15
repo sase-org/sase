@@ -50,6 +50,14 @@ all: fmt lint test
 lint-md:
     prettier --check --prose-wrap=always --print-width=120 "**/*.md"
 
+# Find unused Python function/class definitions
+pyvision:
+    bin/pyvision src/sase
+
+# Check Python file line counts
+pylimit:
+    bin/pylimit src/sase 1000 850 700
+
 # Remove build artifacts
 clean:
     rm -rf build/ dist/ *.egg-info src/*.egg-info .tox/ .mypy_cache/ .ruff_cache/ .pytest_cache/ htmlcov/ .coverage

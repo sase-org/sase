@@ -108,6 +108,16 @@ function run() {
                 fi
             fi
 
+            print_cmd_to_user "python" "just pyvision"
+            if ! output=$(just pyvision 2>&1); then
+                errors+="just pyvision FAILED:\n$output\n\n"
+            fi
+
+            print_cmd_to_user "python" "just pylimit"
+            if ! output=$(just pylimit 2>&1); then
+                errors+="just pylimit FAILED:\n$output\n\n"
+            fi
+
             if [ -n "$errors" ]; then
                 printf '%s' "$errors" >"$tmpdir/python_errors"
             fi
