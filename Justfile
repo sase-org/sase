@@ -46,6 +46,10 @@ check: fmt-check lint test
 # Format code, run linteers, and run tests.
 all: fmt lint test
 
+# Check Markdown formatting with prettier
+lint-md:
+    prettier --check --prose-wrap=always --print-width=120 "**/*.md"
+
 # Remove build artifacts
 clean:
     rm -rf build/ dist/ *.egg-info src/*.egg-info .tox/ .mypy_cache/ .ruff_cache/ .pytest_cache/ htmlcov/ .coverage
