@@ -90,13 +90,30 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
-addopts = "--import-mode=importlib --strict-markers --strict-config"
+addopts = [
+    "--import-mode=importlib",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=sase",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-branch",
+    "--cov-fail-under=48",
+    "-v",
+]
 asyncio_mode = "auto"
 
 # --- Coverage ---
 [tool.coverage.run]
 source_pkgs = ["sase"]
 branch = true
+omit = [
+    "*/test/*",
+    "*/tests/*",
+    "**/test_*.py",
+    "**/conftest.py",
+    "**/__init__.py",
+]
 
 [tool.coverage.report]
 show_missing = true
@@ -105,5 +122,8 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.",
     "@overload",
+    "@abstractmethod",
     "raise NotImplementedError",
+    "raise AssertionError",
+    "def __repr__",
 ]

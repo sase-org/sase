@@ -59,7 +59,7 @@ fmt-md-check:
 # Run tests with coverage
 test: _setup (_header "test")
     @printf "\n---------- Running pytest with coverage... ----------\n"
-    {{ venv_bin }}/pytest --cov=sase --cov-report=term-missing --cov-branch
+    {{ venv_bin }}/pytest
 
 # Run tests across all Python versions
 test-tox: _setup
