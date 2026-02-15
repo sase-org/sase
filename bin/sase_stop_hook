@@ -79,6 +79,19 @@ function run() {
         has_md_changes=true
     fi
 
+    # Auto-format changed files before running checks
+    if [ "$has_python_changes" = true ]; then
+        print_cmd_to_user "fmt" "just fmt-py"
+        just fmt-py 2>&1 || true
+    fi
+    if [ "$has_md_changes" = true ]; then
+        print_cmd_to_user "fmt" "just fmt-md"
+        just fmt-md 2>&1 || true
+    fi
+
+    # Re-cache changed files after formatting (formatting may have changed files)
+    CHANGED_FILES="$(get_changed_files)"
+
     # Create temp directory for parallel job output
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -125,24 +138,6 @@ function run() {
         pids+=($!)
     fi
 
-    # Run markdown linter if markdown files changed
-    if [ "$has_md_changes" = true ]; then
-        (
-            local errors=""
-            local output
-
-            print_cmd_to_user "md" "just lint-md"
-            if ! output=$(just lint-md 2>&1); then
-                errors+="just lint-md FAILED:\n$output\n\n"
-            fi
-
-            if [ -n "$errors" ]; then
-                printf '%s' "$errors" >"$tmpdir/md_errors"
-            fi
-        ) &
-        pids+=($!)
-    fi
-
     # Wait for all background jobs to complete
     for pid in "${pids[@]}"; do
         wait "$pid"
@@ -150,7 +145,7 @@ function run() {
 
     # Collect errors from all groups
     local errors=""
-    for f in "$tmpdir"/python_errors "$tmpdir"/md_errors; do
+    for f in "$tmpdir"/python_errors; do
         if [ -f "$f" ]; then
             errors+="$(cat "$f")"
         fi

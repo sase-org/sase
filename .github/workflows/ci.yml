@@ -32,7 +32,7 @@ jobs:
       - name: Pylimit (file line count check)
         run: bin/pylimit src/sase 1000 850 700
 
-  lint-md:
+  fmt-md-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

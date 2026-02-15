@@ -19,14 +19,28 @@ lint: _setup
     {{ venv_bin }}/ruff check src/ tests/
     {{ venv_bin }}/mypy
 
-# Auto-format code
-fmt: _setup
+# Auto-format all code
+fmt: fmt-py fmt-md
+
+# Auto-format Python code
+fmt-py: _setup
     {{ venv_bin }}/ruff format src/ tests/
     {{ venv_bin }}/ruff check --fix src/ tests/
 
-# Check formatting (CI mode)
-fmt-check: _setup
+# Auto-format Markdown files
+fmt-md:
+    prettier --write --prose-wrap=always --print-width=120 "**/*.md"
+
+# Check all formatting (CI mode)
+fmt-check: fmt-py-check fmt-md-check
+
+# Check Python formatting (CI mode)
+fmt-py-check: _setup
     {{ venv_bin }}/ruff format --check src/ tests/
+
+# Check Markdown formatting (CI mode)
+fmt-md-check:
+    prettier --check --prose-wrap=always --print-width=120 "**/*.md"
 
 # Run tests with coverage
 test: _setup
@@ -45,10 +59,6 @@ check: fmt-check lint test
 
 # Format code, run linteers, and run tests.
 all: fmt lint test
-
-# Check Markdown formatting with prettier
-lint-md:
-    prettier --check --prose-wrap=always --print-width=120 "**/*.md"
 
 # Find unused Python function/class definitions
 pyvision:
