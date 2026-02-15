@@ -10,40 +10,55 @@ default:
 _setup:
     @[ -x {{ venv_bin }}/python ] || (uv venv {{ venv_dir }} && uv pip install -e ".[dev]")
 
+# Print a box header for a top-level command (private helper)
+_header NAME:
+    @printf "\n"
+    @printf "┌───────────────────────────────────────────────────────┐\n"
+    @printf "│                RUNNING: just %-25s│\n" "{{ NAME }}"
+    @printf "└───────────────────────────────────────────────────────┘\n"
+
 # Install in editable mode with dev dependencies
 install: _setup
     uv pip install -e ".[dev]"
 
 # Run linters (ruff + mypy)
-lint: _setup
+lint: _setup (_header "lint")
+    @printf "\n---------- Running ruff linter on Python files... ----------\n"
     {{ venv_bin }}/ruff check src/ tests/
+    @printf "\n---------- Running mypy type checker... ----------\n"
     {{ venv_bin }}/mypy
 
 # Auto-format all code
-fmt: fmt-py fmt-md
+fmt: (_header "fmt") fmt-py fmt-md
 
 # Auto-format Python code
 fmt-py: _setup
+    @printf "\n---------- Formatting Python with ruff... ----------\n"
     {{ venv_bin }}/ruff format src/ tests/
+    @printf "\n---------- Fixing Python with ruff... ----------\n"
     {{ venv_bin }}/ruff check --fix src/ tests/
 
 # Auto-format Markdown files
 fmt-md:
+    @printf "\n---------- Formatting Markdown with prettier... ----------\n"
     prettier --write --prose-wrap=always --print-width=120 "**/*.md"
 
 # Check all formatting (CI mode)
-fmt-check: fmt-py-check fmt-md-check
+fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check
 
 # Check Python formatting (CI mode)
 fmt-py-check: _setup
+    @printf "\n---------- Checking Python formatting with ruff... ----------\n"
     {{ venv_bin }}/ruff format --check src/ tests/
 
 # Check Markdown formatting (CI mode)
 fmt-md-check:
+    @printf "\n---------- Checking Markdown formatting with prettier... ----------\n"
     prettier --check --prose-wrap=always --print-width=120 "**/*.md"
 
 # Run tests with coverage
-test: _setup
+test: _setup (_header "test")
+    @printf "\n---------- Running pytest with coverage... ----------\n"
     {{ venv_bin }}/pytest --cov=sase --cov-report=term-missing --cov-branch
 
 # Run tests across all Python versions
