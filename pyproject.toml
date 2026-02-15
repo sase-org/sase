@@ -13,6 +13,7 @@ dependencies = [
     "jsonschema",
     "langgraph",
     "langchain-core",
+    "pyyaml",
     "rich",
     "schedule",
     "textual>=0.45.0",

@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""Standalone fix-hook workflow runner for sase loop background execution.
+
+This script runs the fix-hook workflow in the background and writes completion
+markers to the output file for the loop to detect when finished.
+
+Usage:
+    python3 loop_fix_hook_runner.py <changespec_name> <project_file> <hook_command> \
+        <hook_output_path> <workspace_dir> <output_file> <workspace_num> \
+        <workflow_name> <last_history_id> <timestamp>
+
+Output file will contain:
+    - Workflow output/logs
+    - Completion marker: ===WORKFLOW_COMPLETE=== PROPOSAL_ID: <id> EXIT_CODE: <code>
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Add the parent directory to the path for imports (use abspath to handle relative __file__)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from sase.ace.changespec import ChangeSpec
+from sase.ace.hooks import contract_test_target_command, set_hook_suffix
+from sase.gemini_wrapper import invoke_agent
+from sase.loop_runner_utils import (
+    create_proposal_from_changes,
+    finalize_loop_runner,
+)
+from sase.sase_utils import shorten_path, strip_hook_prefix
+
+
+def _update_hook_suffix(
+    cs: ChangeSpec,
+    project_file: str,
+    proposal_id: str | None,
+    exit_code: int,
+    hook_command: str,
+    entry_id: str,
+    output_file: str,
+) -> None:
+    """Update the hook suffix based on workflow result."""
+    # Find the current summary from the status line (to preserve it)
+    # Note: cs.hooks may be slightly stale but summary is unlikely to change
+    current_summary: str | None = None
+    if cs.hooks:
+        for hook in cs.hooks:
+            if hook.command == hook_command:
+                sl = hook.get_status_line_for_commit_entry(entry_id)
+                if sl:
+                    current_summary = sl.summary
+                break
+
+    if exit_code == 0 and proposal_id:
+        # Success - proposal ID suffix (not an error), preserve summary
+        # Pass hooks=None to let set_hook_suffix do a safe read inside the lock
+        # (avoids race condition when multiple fix-hook agents run in parallel)
+        set_hook_suffix(
+            project_file,
+            cs.name,
+            hook_command,
+            proposal_id,
+            hooks=None,
+            entry_id=entry_id,
+            suffix_type="plain",
+            summary=current_summary,
+        )
+    else:
+        # Failure - "!" suffix (is an error), preserve summary
+        # Prepend output file path to summary for easy access to fix-hook logs
+        shortened_output = shorten_path(output_file)
+        if current_summary:
+            current_summary = f"{shortened_output} | {current_summary}"
+        else:
+            current_summary = shortened_output
+        set_hook_suffix(
+            project_file,
+            cs.name,
+            hook_command,
+            "fix-hook Failed",
+            hooks=None,
+            entry_id=entry_id,
+            suffix_type="error",
+            summary=current_summary,
+        )
+
+
+def main() -> int:
+    """Run the fix-hook workflow and write completion marker."""
+    if len(sys.argv) != 11:
+        print(
+            f"Usage: {sys.argv[0]} <changespec_name> <project_file> <hook_command> "
+            "<hook_output_path> <workspace_dir> <output_file> <workspace_num> "
+            "<workflow_name> <last_history_id> <timestamp>"
+        )
+        return 1
+
+    changespec_name = sys.argv[1]
+    project_file = sys.argv[2]
+    hook_command = sys.argv[3]
+    hook_output_path = sys.argv[4]
+    workspace_dir = sys.argv[5]
+    output_file = sys.argv[6]
+    workspace_num = int(sys.argv[7])
+    workflow_name = sys.argv[8]
+    last_history_id = sys.argv[9]
+    timestamp = sys.argv[10]  # Same timestamp used in agent suffix
+
+    proposal_id: str | None = None
+    exit_code = 1
+
+    # Get the command to run (strip "!" prefix)
+    run_hook_command = strip_hook_prefix(hook_command)
+
+    try:
+        # Change to workspace directory
+        os.chdir(workspace_dir)
+        print(f"Running fix-hook workflow for {changespec_name}")
+        print(f"Workspace: {workspace_dir}")
+        print(f"Hook command: {run_hook_command}")
+        print(f"Hook output: {hook_output_path}")
+        print()
+
+        # Build the prompt for the agent
+        prompt = (
+            f'The command "{run_hook_command}" is failing. The output of the last run can '
+            f"be found in the @{hook_output_path} file. Can you help me fix this command by "
+            "making the appropriate file changes? Verify that your fix worked when you "
+            "are done by re-running that command.\n\n"
+            "IMPORTANT: Do NOT commit or amend any changes. Only make file edits and "
+            "leave them uncommitted.\n\n#cl"
+        )
+
+        # Create artifacts directory using same timestamp as agent suffix
+        # This ensures the Agents tab can find the prompt file
+        # Convert timestamp: YYmmdd_HHMMSS -> YYYYmmddHHMMSS
+        artifacts_timestamp = f"20{timestamp[:6]}{timestamp[7:]}"
+        project_name = Path(project_file).parent.name
+        artifacts_dir = os.path.expanduser(
+            f"~/.sase/projects/{project_name}/artifacts/fix-hook/{artifacts_timestamp}"
+        )
+        Path(artifacts_dir).mkdir(parents=True, exist_ok=True)
+
+        # Run the agent
+        print("Running fix-hook agent...")
+        print(f"Command: {run_hook_command}")
+        print()
+
+        response = invoke_agent(
+            prompt,
+            agent_type="fix-hook",
+            model_size="big",
+            workflow="fix-hook",
+            artifacts_dir=artifacts_dir,
+            timestamp=timestamp,
+        )
+        response_content = str(response.content)
+        print(f"\nAgent Response:\n{response_content}\n")
+
+        # Build workflow note with summary
+        history_ref = f"({last_history_id})" if last_history_id else ""
+
+        # Get summary of the fix-hook response for the HISTORY entry header
+        summary = ""
+        if response_content:
+            import tempfile
+
+            # Save response to temp file for summarization
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False
+            ) as f:
+                f.write(response_content)
+                temp_path = f.name
+
+            try:
+                from sase.summarize_utils import get_file_summary
+
+                summary = get_file_summary(
+                    target_file=temp_path,
+                    usage="a HISTORY entry header describing what changes were made to fix the hook",
+                    fallback="",
+                )
+            finally:
+                os.unlink(temp_path)
+
+        # Contract test target command for display in COMMITS entry
+        display_command = contract_test_target_command(run_hook_command)
+
+        if summary:
+            workflow_note = f"[fix-hook {history_ref} {display_command}] {summary}"
+        else:
+            workflow_note = f"[fix-hook {history_ref} {display_command}]"
+
+        # Create proposal from changes
+        proposal_id, exit_code = create_proposal_from_changes(
+            project_file=project_file,
+            cl_name=changespec_name,
+            workspace_dir=workspace_dir,
+            workflow_note=workflow_note,
+            prompt=prompt,
+            response=response_content,
+            workflow="fix-hook",
+            timestamp=timestamp,
+        )
+
+    except Exception as e:
+        print(f"Error running fix-hook workflow: {e}")
+        import traceback
+
+        traceback.print_exc()
+        exit_code = 1
+
+    finally:
+        # Finalize: update suffix, release workspace, write completion marker
+        finalize_loop_runner(
+            project_file=project_file,
+            changespec_name=changespec_name,
+            workspace_num=workspace_num,
+            workflow_name=workflow_name,
+            proposal_id=proposal_id,
+            exit_code=exit_code,
+            update_suffix_fn=lambda cs, pf, pid, ec: _update_hook_suffix(
+                cs, pf, pid, ec, hook_command, last_history_id, output_file
+            ),
+        )
+
+    return exit_code
+
+
+if __name__ == "__main__":
+    sys.exit(main())
