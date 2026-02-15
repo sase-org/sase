@@ -167,9 +167,9 @@ def check_hooks(
                         completed_entry_ids.add(sl.commit_entry_num)
                 updated_hooks.append(completed_hook)
                 modified_hooks[completed_hook.command] = completed_hook
-                status_msg = completed_hook.status or "UNKNOWN"
+                status_msg = completed_hook.status or "UNKNOWN"  # type: ignore[attr-defined]
                 duration_msg = (
-                    f" ({completed_hook.duration})" if completed_hook.duration else ""
+                    f" ({completed_hook.duration})" if completed_hook.duration else ""  # type: ignore[attr-defined]
                 )
                 updates.append(f"Hook '{hook.command}' -> {status_msg}{duration_msg}")
                 continue
@@ -194,10 +194,10 @@ def check_hooks(
                                 completed_entry_ids.add(inner_sl.commit_entry_num)
                         updated_hooks.append(completed_hook)
                         modified_hooks[completed_hook.command] = completed_hook
-                        status_msg = completed_hook.status or "UNKNOWN"
+                        status_msg = completed_hook.status or "UNKNOWN"  # type: ignore[attr-defined]
                         duration_msg = (
-                            f" ({completed_hook.duration})"
-                            if completed_hook.duration
+                            f" ({completed_hook.duration})"  # type: ignore[attr-defined]
+                            if completed_hook.duration  # type: ignore[attr-defined]
                             else ""
                         )
                         updates.append(
@@ -282,7 +282,7 @@ def check_hooks(
         # This runs AFTER the completion check, so we only mark as DEAD if the
         # process died without logging an exit code (abnormal termination).
         found_dead_process = False
-        if hook.status == "RUNNING" and hook.status_lines:
+        if hook.status == "RUNNING" and hook.status_lines:  # type: ignore[attr-defined]
             for sl in hook.status_lines:
                 if (
                     sl.status == "RUNNING"
@@ -309,10 +309,10 @@ def check_hooks(
                                         )
                                 updated_hooks.append(retry_result)
                                 modified_hooks[retry_result.command] = retry_result
-                                status_msg = retry_result.status or "UNKNOWN"
+                                status_msg = retry_result.status or "UNKNOWN"  # type: ignore[attr-defined]
                                 duration_msg = (
-                                    f" ({retry_result.duration})"
-                                    if retry_result.duration
+                                    f" ({retry_result.duration})"  # type: ignore[attr-defined]
+                                    if retry_result.duration  # type: ignore[attr-defined]
                                     else ""
                                 )
                                 updates.append(

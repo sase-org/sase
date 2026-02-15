@@ -14,7 +14,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from sase.ace.hooks import format_duration
-from sase.ace.mentors import (
+from sase.ace.mentors import (  # type: ignore[attr-defined]
     get_latest_proposal_for_entry,
     set_mentor_status,
 )

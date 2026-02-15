@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 from sase.commit_utils import run_bb_hg_clean
 from sase.mentor_config import MentorProfileConfig
-from sase.running_field import (
+from sase.running_field import (  # type: ignore[attr-defined]
     claim_workspace,
     get_first_available_loop_workspace,
     get_workspace_directory_for_num,

@@ -114,7 +114,7 @@ class CLNameInputModal(ModalScreen[CLNameResult | None]):
 
         # Validate against conflicting ChangeSpecs
         if value and self._project_name:
-            from sase.commit_workflow.changespec_queries import (
+            from sase.commit_workflow.changespec_queries import (  # type: ignore[attr-defined]
                 get_conflicting_changespec,
             )
 

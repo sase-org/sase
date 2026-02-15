@@ -96,7 +96,7 @@ def main() -> int:
         )
 
         # Run the CRS workflow with timestamp for consistent artifacts directory
-        workflow = CrsWorkflow(
+        workflow = CrsWorkflow(  # type: ignore[call-arg]
             context_file_directory=context_file_directory,
             comments_file=comments_file,
             timestamp=timestamp,

@@ -13,7 +13,7 @@ from sase.commit_utils import run_bb_hg_clean
 from sase.commit_workflow.editor_utils import get_editor
 
 from ..changespec import ChangeSpec
-from ..mail_ops import escape_for_hg_reword
+from ..mail_ops import escape_for_hg_reword  # type: ignore[attr-defined]
 from ..mail_ops import handle_mail as mail_ops_handle_mail
 from ..operations import update_to_changespec
 

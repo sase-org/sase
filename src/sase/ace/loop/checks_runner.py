@@ -18,7 +18,7 @@ from sase.status_state_machine import transition_changespec_status
 
 from ..changespec import ChangeSpec, CommentEntry, is_plain_suffix
 from ..cl_status import is_parent_submitted
-from ..comments import (
+from ..comments import (  # type: ignore[attr-defined]
     generate_comments_timestamp,
     get_comments_file_path,
     is_timestamp_suffix,
@@ -394,7 +394,7 @@ def _handle_cl_submitted_completion(
     if exit_code == 0 and is_parent_submitted(changespec):
         from ..sync_cache import clear_cache_entry
 
-        success, old_status, _ = transition_changespec_status(
+        success, old_status, _, _sibling_results = transition_changespec_status(
             changespec.file_path,
             changespec.name,
             "Submitted",

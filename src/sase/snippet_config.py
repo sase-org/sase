@@ -4,6 +4,6 @@ DEPRECATED: This module is deprecated. Use xprompt.loader instead.
 This module now wraps xprompt.loader for backward compatibility.
 """
 
-from sase.xprompt.loader import get_all_snippets
+from sase.xprompt.loader import get_all_snippets  # type: ignore[attr-defined]
 
 __all__ = ["get_all_snippets"]

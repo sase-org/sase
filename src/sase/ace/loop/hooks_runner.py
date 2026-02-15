@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 
 from sase.commit_utils import apply_diff_to_workspace, clean_workspace, run_bb_hg_clean
-from sase.running_field import (
+from sase.running_field import (  # type: ignore[attr-defined]
     claim_workspace,
     get_claimed_workspaces,
     get_first_available_loop_workspace,

@@ -18,7 +18,7 @@ from sase.split_spec import (
     topological_sort_entries,
     validate_split_spec,
 )
-from sase.xprompt import (
+from sase.xprompt import (  # type: ignore[attr-defined]
     OutputValidationError,
     extract_structured_content,
     generate_format_instructions,

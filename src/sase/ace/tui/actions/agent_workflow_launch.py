@@ -275,7 +275,7 @@ class AgentLaunchMixin:
         else:
             from sase.running_field import claim_workspace
 
-            if not claim_workspace(
+            if not claim_workspace(  # type: ignore[call-arg]
                 project_file,
                 workspace_num,
                 workflow_name,

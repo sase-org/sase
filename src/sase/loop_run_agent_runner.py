@@ -131,7 +131,10 @@ def _create_new_changespec(
     """
     import tempfile
 
-    from sase.commit_workflow.branch_info import get_cl_number, get_parent_branch_name
+    from sase.commit_workflow.branch_info import (  # type: ignore[attr-defined]
+        get_cl_number,
+        get_parent_branch_name,
+    )
     from sase.commit_workflow.changespec_operations import (
         add_changespec_to_project_file,
     )
@@ -229,7 +232,7 @@ def _create_new_changespec(
         else:
             console.print(f"[red]Failed to create ChangeSpec: {full_cl_name}[/red]")
 
-        return success
+        return success  # type: ignore[return-value]
 
     finally:
         # Clean up temp file
