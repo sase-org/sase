@@ -39,6 +39,9 @@ test-py VER:
 # Run all checks (format check + lint + test)
 check: fmt-check lint test
 
+# Format code, run linteers, and run tests.
+all: fmt lint test
+
 # Remove build artifacts
 clean:
     rm -rf build/ dist/ *.egg-info src/*.egg-info .tox/ .mypy_cache/ .ruff_cache/ .pytest_cache/ htmlcov/ .coverage
