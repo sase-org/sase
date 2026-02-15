@@ -10,8 +10,6 @@ from typing import Any, Literal, cast
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from sase.llm_provider import invoke_agent as _llm_invoke_agent
-
 # Backward-compat re-exports: tests import these from gemini_wrapper.wrapper
 from sase.llm_provider.gemini import (  # noqa: F401
     stream_process_output as _stream_process_output,
@@ -60,6 +58,8 @@ def invoke_agent(
     Returns:
         The AIMessage response from the agent.
     """
+    from sase.llm_provider import invoke_agent as _llm_invoke_agent
+
     return _llm_invoke_agent(
         prompt,
         agent_type=agent_type,
@@ -144,6 +144,8 @@ class GeminiCommandWrapper:
 
         if not query:
             return AIMessage(content="No query found in messages")
+
+        from sase.llm_provider import invoke_agent as _llm_invoke_agent
 
         return _llm_invoke_agent(
             query,

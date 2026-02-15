@@ -62,13 +62,11 @@ KNOWN_MODULES = {
     "loop_runner_utils",
     "loop_summarize_hook_runner",
     "sase_utils",
-    "sase_migrate_gp_to_yaml",
 }
 
 # Modules that were renamed during copy
 RENAMED_MODULES = {
     "gai_utils": "sase_utils",
-    "gai_migrate_gp_to_yaml": "sase_migrate_gp_to_yaml",
 }
 
 
@@ -93,7 +91,6 @@ def _rewrite_import_line(line: str) -> str:
         return line
 
     # Handle "from gai_utils import X" -> "from sase.sase_utils import X"
-    # Handle "from gai_migrate_gp_to_yaml import X" -> "from sase.sase_migrate_gp_to_yaml import X"
     for old_name, new_name in RENAMED_MODULES.items():
         m = re.match(
             rf"^(\s*)from\s+{re.escape(old_name)}(\.\w+)*\s+import\s+", line
@@ -193,7 +190,6 @@ CONTENT_RENAMES = [
     (r'"gai summarize"', '"sase summarize"'),
     (r'"gai fix-hook"', '"sase fix-hook"'),
     (r'"gai crs"', '"sase crs"'),
-    (r'"gai migrate-gp-to-yaml"', '"sase migrate-gp-to-yaml"'),
     # Also handle single-quoted CLI refs
     (r"'gai run'", "'sase run'"),
     (r"'gai ace'", "'sase ace'"),
@@ -210,7 +206,6 @@ CONTENT_RENAMES = [
     (r"'gai summarize'", "'sase summarize'"),
     (r"'gai fix-hook'", "'sase fix-hook'"),
     (r"'gai crs'", "'sase crs'"),
-    (r"'gai migrate-gp-to-yaml'", "'sase migrate-gp-to-yaml'"),
     # Commands
     (r"\bgai_get_workspace\b", "sase_get_workspace"),
     (r"\bgai_rewind\b", "sase_rewind"),
