@@ -1,21 +1,17 @@
 """XPrompt discovery and loading from files and configuration."""
 
-import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.config import load_merged_config
+
 from .models import UNSET, InputArg, InputType, OutputSpec, XPrompt
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
-
-
-def _get_config_path() -> str:
-    """Get the path to the sase config file."""
-    return os.path.expanduser("~/.config/sase/sase.yml")
 
 
 def get_sase_package_xprompts_dir() -> Path:
@@ -509,16 +505,7 @@ def _load_xprompts_from_config() -> dict[str, XPrompt]:
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
     """
-    config_path = _get_config_path()
-
-    if not os.path.exists(config_path):
-        return {}
-
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-    except (yaml.YAMLError, OSError):
-        return {}
+    data = load_merged_config()
 
     if not isinstance(data, dict):
         return {}

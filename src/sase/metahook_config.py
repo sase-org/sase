@@ -1,10 +1,9 @@
 """Metahook configuration loading and matching."""
 
-import os
 import re
 from dataclasses import dataclass
 
-import yaml  # type: ignore[import-untyped]
+from sase.config import load_merged_config
 
 
 @dataclass
@@ -20,11 +19,6 @@ class MetahookConfig:
     output_regex: str  # regex to match against hook output
 
 
-def _get_config_path() -> str:
-    """Get the path to the sase config file."""
-    return os.path.expanduser("~/.config/sase/sase.yml")
-
-
 def _load_metahooks() -> list[MetahookConfig]:
     """Load all metahook configurations from the config file.
 
@@ -32,16 +26,13 @@ def _load_metahooks() -> list[MetahookConfig]:
         List of MetahookConfig objects.
 
     Raises:
-        FileNotFoundError: If config file doesn't exist.
+        FileNotFoundError: If config data is empty (no config files exist).
         ValueError: If config file is malformed.
     """
-    config_path = _get_config_path()
+    data = load_merged_config()
 
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Config file not found: {config_path}")
-
-    with open(config_path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    if not data:
+        raise FileNotFoundError("Config file not found: ~/.config/sase/sase.yml")
 
     if not isinstance(data, dict):
         raise ValueError("Config must be a dictionary")

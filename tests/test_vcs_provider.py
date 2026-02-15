@@ -487,49 +487,27 @@ def test_resolve_vcs_name_default_auto_detects() -> None:
 
 def test_get_vcs_provider_config_missing_file() -> None:
     """Returns empty dict when config file doesn't exist."""
-    with patch("sase.vcs_provider.config.os.path.exists", return_value=False):
+    with patch("sase.vcs_provider.config.load_merged_config", return_value={}):
         assert get_vcs_provider_config() == {}
 
 
 def test_get_vcs_provider_config_no_section() -> None:
     """Returns empty dict when vcs_provider section is absent."""
-    with patch("sase.vcs_provider.config.os.path.exists", return_value=True):
-        with patch(
-            "builtins.open",
-            MagicMock(
-                return_value=MagicMock(
-                    __enter__=lambda s: s,
-                    __exit__=MagicMock(return_value=False),
-                    read=MagicMock(return_value="llm_provider:\n  provider: gemini\n"),
-                )
-            ),
-        ):
-            with patch(
-                "sase.vcs_provider.config.yaml.safe_load",
-                return_value={"llm_provider": {"provider": "gemini"}},
-            ):
-                assert get_vcs_provider_config() == {}
+    with patch(
+        "sase.vcs_provider.config.load_merged_config",
+        return_value={"llm_provider": {"provider": "gemini"}},
+    ):
+        assert get_vcs_provider_config() == {}
 
 
 def test_get_vcs_provider_config_with_section() -> None:
     """Returns vcs_provider dict when section is present."""
-    with patch("sase.vcs_provider.config.os.path.exists", return_value=True):
-        with patch(
-            "builtins.open",
-            MagicMock(
-                return_value=MagicMock(
-                    __enter__=lambda s: s,
-                    __exit__=MagicMock(return_value=False),
-                    read=MagicMock(return_value=""),
-                )
-            ),
-        ):
-            with patch(
-                "sase.vcs_provider.config.yaml.safe_load",
-                return_value={"vcs_provider": {"provider": "hg"}},
-            ):
-                result = get_vcs_provider_config()
-                assert result == {"provider": "hg"}
+    with patch(
+        "sase.vcs_provider.config.load_merged_config",
+        return_value={"vcs_provider": {"provider": "hg"}},
+    ):
+        result = get_vcs_provider_config()
+        assert result == {"provider": "hg"}
 
 
 # === Tests for get_workspace_root ===

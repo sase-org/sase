@@ -1,21 +1,15 @@
 """Shared test utilities for sase tests."""
 
-import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
-from pathlib import Path
 from unittest.mock import patch
+
+import yaml
 
 
 @contextmanager
-def mentor_config_from_yaml(yaml_content: str) -> Generator[str, None, None]:
-    """Context manager that creates a temp YAML config and patches _get_config_path."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
-    try:
-        with patch("sase.mentor_config._get_config_path", return_value=config_path):
-            yield config_path
-    finally:
-        Path(config_path).unlink()
+def mentor_config_from_yaml(yaml_content: str) -> Generator[dict, None, None]:
+    """Context manager that parses YAML and patches load_merged_config."""
+    data = yaml.safe_load(yaml_content)
+    with patch("sase.mentor_config.load_merged_config", return_value=data):
+        yield data

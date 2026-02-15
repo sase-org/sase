@@ -3,7 +3,7 @@
 import os
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+from sase.config import load_merged_config
 
 
 def get_vcs_provider_config() -> dict[str, Any]:
@@ -15,13 +15,8 @@ def get_vcs_provider_config() -> dict[str, Any]:
     Returns:
         The vcs_provider configuration dict.
     """
-    config_path = os.path.expanduser("~/.config/sase/sase.yml")
-    if not os.path.exists(config_path):
-        return {}
-
     try:
-        with open(config_path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+        data = load_merged_config()
 
         if not isinstance(data, dict):
             return {}

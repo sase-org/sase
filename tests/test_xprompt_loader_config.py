@@ -4,6 +4,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 from sase.xprompt.loader import (
     _load_xprompt_from_file,
     _load_xprompts_from_config,
@@ -136,18 +138,12 @@ No closing delimiter here"""
 
 def test_load_xprompts_from_config_basic() -> None:
     """Test loading xprompts from config file."""
-    yaml_content = """
+    data = yaml.safe_load("""
 xprompts:
   foo: "Foo content"
   bar: "Bar content"
-"""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yml", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
-    with patch("sase.xprompt.loader._get_config_path", return_value=config_path):
+""")
+    with patch("sase.xprompt.loader.load_merged_config", return_value=data):
         xprompts = _load_xprompts_from_config()
 
     assert len(xprompts) == 2
@@ -155,25 +151,17 @@ xprompts:
     assert xprompts["bar"].content == "Bar content"
     assert xprompts["foo"].source_path == "config"
 
-    Path(config_path).unlink()
-
 
 def test_load_xprompts_from_config_structured_with_inputs() -> None:
     """Test loading structured xprompts with input/content from config."""
-    yaml_content = """
+    data = yaml.safe_load("""
 xprompts:
   simple: "Simple content"
   with_input:
     input: { name: word, count: { type: int, default: 0 } }
     content: "Hello {{ name }}, count={{ count }}"
-"""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yml", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
-    with patch("sase.xprompt.loader._get_config_path", return_value=config_path):
+""")
+    with patch("sase.xprompt.loader.load_merged_config", return_value=data):
         xprompts = _load_xprompts_from_config()
 
     assert len(xprompts) == 2
@@ -198,37 +186,25 @@ xprompts:
     assert count_input.type == InputType.INT
     assert count_input.default == 0
 
-    Path(config_path).unlink()
-
 
 def test_load_xprompts_from_config_structured_content_only() -> None:
     """Test loading structured xprompt with only content field."""
-    yaml_content = """
+    data = yaml.safe_load("""
 xprompts:
   content_only:
     content: "Just content, no inputs"
-"""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yml", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
-    with patch("sase.xprompt.loader._get_config_path", return_value=config_path):
+""")
+    with patch("sase.xprompt.loader.load_merged_config", return_value=data):
         xprompts = _load_xprompts_from_config()
 
     assert len(xprompts) == 1
     assert xprompts["content_only"].content == "Just content, no inputs"
     assert xprompts["content_only"].inputs == []
 
-    Path(config_path).unlink()
-
 
 def test_load_xprompts_from_config_missing_file() -> None:
     """Test that missing config file returns empty dict."""
-    with patch(
-        "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
-    ):
+    with patch("sase.xprompt.loader.load_merged_config", return_value={}):
         xprompts = _load_xprompts_from_config()
 
     assert xprompts == {}
@@ -236,22 +212,14 @@ def test_load_xprompts_from_config_missing_file() -> None:
 
 def test_load_xprompts_from_config_missing_key() -> None:
     """Test that config without xprompts/snippets returns empty dict."""
-    yaml_content = """
+    data = yaml.safe_load("""
 mentor_profiles:
   - name: test
-"""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yml", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
-    with patch("sase.xprompt.loader._get_config_path", return_value=config_path):
+""")
+    with patch("sase.xprompt.loader.load_merged_config", return_value=data):
         xprompts = _load_xprompts_from_config()
 
     assert xprompts == {}
-
-    Path(config_path).unlink()
 
 
 # Tests for get_all_xprompts
@@ -259,21 +227,15 @@ mentor_profiles:
 
 def test_get_all_xprompts_merges_sources() -> None:
     """Test that xprompts are merged from all sources."""
-    yaml_content = """
+    data = yaml.safe_load("""
 xprompts:
   from_config: "Config content"
-"""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yml", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
+""")
     # Mock file discovery to return a test xprompt
     file_xprompt = XPrompt(name="from_file", content="File content")
 
     with (
-        patch("sase.xprompt.loader._get_config_path", return_value=config_path),
+        patch("sase.xprompt.loader.load_merged_config", return_value=data),
         patch(
             "sase.xprompt.loader._load_xprompts_from_files",
             return_value={"from_file": file_xprompt},
@@ -285,25 +247,17 @@ xprompts:
     assert "from_config" in xprompts
     assert "from_file" in xprompts
 
-    Path(config_path).unlink()
-
 
 def test_get_all_xprompts_file_overrides_config() -> None:
     """Test that file-based xprompts override config-based ones."""
-    yaml_content = """
+    data = yaml.safe_load("""
 xprompts:
   test: "From config"
-"""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yml", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
+""")
     file_xprompt = XPrompt(name="test", content="From file")
 
     with (
-        patch("sase.xprompt.loader._get_config_path", return_value=config_path),
+        patch("sase.xprompt.loader.load_merged_config", return_value=data),
         patch(
             "sase.xprompt.loader._load_xprompts_from_files",
             return_value={"test": file_xprompt},
@@ -314,8 +268,6 @@ xprompts:
 
     # File-based should win
     assert xprompts["test"].content == "From file"
-
-    Path(config_path).unlink()
 
 
 # Tests for _load_xprompts_from_project
@@ -406,9 +358,7 @@ def test_get_all_xprompts_with_project_includes_project_xprompts() -> None:
     project_xprompt = XPrompt(name="testproj/proj_prompt", content="Project content")
 
     with (
-        patch(
-            "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
-        ),
+        patch("sase.xprompt.loader.load_merged_config", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_files", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
         patch(
@@ -425,9 +375,7 @@ def test_get_all_xprompts_with_project_includes_project_xprompts() -> None:
 def test_get_all_xprompts_without_project_excludes_project_xprompts() -> None:
     """Test that get_all_xprompts without project param doesn't load project xprompts."""
     with (
-        patch(
-            "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
-        ),
+        patch("sase.xprompt.loader.load_merged_config", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_files", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_project") as mock_load_project,
@@ -444,9 +392,7 @@ def test_get_all_xprompts_file_overrides_project() -> None:
     file_xprompt = XPrompt(name="test", content="From file")
 
     with (
-        patch(
-            "sase.xprompt.loader._get_config_path", return_value="/nonexistent/path.yml"
-        ),
+        patch("sase.xprompt.loader.load_merged_config", return_value={}),
         patch(
             "sase.xprompt.loader._load_xprompts_from_files",
             return_value={"test": file_xprompt},
@@ -465,20 +411,14 @@ def test_get_all_xprompts_file_overrides_project() -> None:
 
 def test_get_all_xprompts_project_overrides_config() -> None:
     """Test that project xprompts override config xprompts."""
-    yaml_content = """
+    data = yaml.safe_load("""
 xprompts:
   test: "From config"
-"""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yml", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(yaml_content)
-        config_path = f.name
-
+""")
     project_xprompt = XPrompt(name="test", content="From project")
 
     with (
-        patch("sase.xprompt.loader._get_config_path", return_value=config_path),
+        patch("sase.xprompt.loader.load_merged_config", return_value=data),
         patch("sase.xprompt.loader._load_xprompts_from_files", return_value={}),
         patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
         patch(
@@ -490,5 +430,3 @@ xprompts:
 
     # Project should win over config
     assert xprompts["test"].content == "From project"
-
-    Path(config_path).unlink()

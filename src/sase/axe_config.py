@@ -1,9 +1,8 @@
 """Axe scheduler configuration loading."""
 
-import os
 from dataclasses import dataclass
 
-import yaml  # type: ignore[import-untyped]
+from sase.config import load_merged_config
 
 
 @dataclass
@@ -17,20 +16,9 @@ class _AxeConfig:
     max_runners: int = 5
 
 
-def _get_config_path() -> str:
-    """Get the path to the sase config file."""
-    return os.path.expanduser("~/.config/sase/sase.yml")
-
-
 def load_axe_config() -> _AxeConfig:
     """Load axe config from sase.yml, returning defaults if section missing."""
-    config_path = _get_config_path()
-
-    if not os.path.exists(config_path):
-        return _AxeConfig()
-
-    with open(config_path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    data = load_merged_config()
 
     if not isinstance(data, dict) or "axe" not in data:
         return _AxeConfig()
