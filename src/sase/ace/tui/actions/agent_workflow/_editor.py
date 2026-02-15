@@ -63,7 +63,6 @@ class EditorMixin:
         import tempfile
 
         import yaml  # type: ignore[import-untyped]
-
         from sase.sase_utils import generate_timestamp
 
         timestamp = generate_timestamp()

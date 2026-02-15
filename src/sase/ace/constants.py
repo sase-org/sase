@@ -8,6 +8,6 @@ DEFAULT_ZOMBIE_TIMEOUT_SECONDS = 2 * 60 * 60
 # - "$" prefix: skip running for proposal entries (e.g., "1a")
 # Can be overridden via vcs_provider.default_hooks in sase.yml.
 _DEFAULT_REQUIRED_HOOKS = (
-    "!$sase_presubmit",
-    "$sase_lint",
+    "!$gai_presubmit",
+    "$gai_lint",
 )

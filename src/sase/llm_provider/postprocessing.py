@@ -8,8 +8,8 @@ import os
 from datetime import datetime
 
 from sase.chat_history import save_chat_history
-from sase.rich_utils import print_prompt_and_response
 from sase.sase_utils import EASTERN_TZ
+from sase.rich_utils import print_prompt_and_response
 from sase.shared_utils import get_sase_log_file, run_bam_command
 
 from .types import _MODEL_TIER_TO_LABEL, LoggingContext, ModelTier

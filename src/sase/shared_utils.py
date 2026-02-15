@@ -7,13 +7,12 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
-
+from sase.sase_utils import EASTERN_TZ, run_shell_command
 from sase.rich_utils import (
     print_file_operation,
     print_status,
     print_workflow_header,
 )
-from sase.sase_utils import EASTERN_TZ, run_shell_command
 
 # LangGraph configuration
 LANGGRAPH_RECURSION_LIMIT = 100
@@ -28,6 +27,8 @@ def _str_literal_representer(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarN
 
 class _LiteralBlockDumper(yaml.SafeDumper):
     """YAML Dumper that uses literal block style for multi-line strings."""
+
+    pass
 
 
 _LiteralBlockDumper.add_representer(str, _str_literal_representer)

@@ -7,7 +7,6 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-
 from sase.running_field import get_claimed_workspaces
 
 from .changespec import (
@@ -31,7 +30,7 @@ def display_changespec(
 ) -> tuple[dict[int, str], dict[int, int]]:
     """Display a ChangeSpec using rich formatting.
 
-    Color scheme from saseproject.vim:
+    Color scheme from gaiproject.vim:
     - Field keys (NAME:, DESCRIPTION:, etc.): bold #87D7FF (cyan)
     - NAME/PARENT values: bold #00D7AF (cyan-green)
     - CL values: bold underline #569CD6 (standard URL blue)

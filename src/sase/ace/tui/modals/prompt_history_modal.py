@@ -3,14 +3,13 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
+from sase.prompt_history import PromptEntry, get_prompts_for_fzf
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
-
-from sase.prompt_history import PromptEntry, get_prompts_for_fzf
 
 from .base import FilterInput, OptionListNavigationMixin
 

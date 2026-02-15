@@ -1,7 +1,8 @@
 """Default hook configuration for new ChangeSpecs."""
 
-from sase.ace.constants import _DEFAULT_REQUIRED_HOOKS
 from sase.vcs_provider.config import get_vcs_provider_config
+
+from sase.ace.constants import _DEFAULT_REQUIRED_HOOKS
 
 
 def get_required_changespec_hooks() -> tuple[str, ...]:

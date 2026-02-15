@@ -59,6 +59,8 @@ class OutputSpec:
 class XPromptValidationError(Exception):
     """Raised when input validation fails."""
 
+    pass
+
 
 @dataclass
 class InputArg:
@@ -98,16 +100,16 @@ class InputArg:
                     f"Argument '{self.name}' expects word (no spaces), got '{value}'"
                 )
             return value
-        if self.type == InputType.LINE:
+        elif self.type == InputType.LINE:
             if "\n" in value:
                 raise XPromptValidationError(
                     f"Argument '{self.name}' expects line (no newlines), "
                     f"got value with newlines"
                 )
             return value
-        if self.type == InputType.TEXT:
+        elif self.type == InputType.TEXT:
             return value  # No validation
-        if self.type == InputType.PATH:
+        elif self.type == InputType.PATH:
             if any(c.isspace() for c in value):
                 raise XPromptValidationError(
                     f"Argument '{self.name}' expects path (no spaces), got '{value}'"
@@ -118,7 +120,7 @@ class InputArg:
                     f"Argument '{self.name}' path does not exist: '{value}'"
                 )
             return value  # Return original value, not expanded
-        if self.type == InputType.INT:
+        elif self.type == InputType.INT:
             try:
                 return int(value)
             except ValueError:
@@ -136,11 +138,12 @@ class InputArg:
             lower_value = value.lower()
             if lower_value in ("true", "1", "yes", "on"):
                 return True
-            if lower_value in ("false", "0", "no", "off"):
+            elif lower_value in ("false", "0", "no", "off"):
                 return False
-            raise XPromptValidationError(
-                f"Argument '{self.name}' expects bool, got '{value}'"
-            )
+            else:
+                raise XPromptValidationError(
+                    f"Argument '{self.name}' expects bool, got '{value}'"
+                )
         else:
             # Should never happen, but handle gracefully
             return value
@@ -154,14 +157,12 @@ class XPrompt:
         name: The xprompt name (used in #name syntax).
         content: The template content (may contain Jinja2 or legacy placeholders).
         inputs: List of input argument definitions from YAML front matter.
-        output: Optional output specification for validating agent responses.
         source_path: File path or "config" indicating where this xprompt was loaded from.
     """
 
     name: str
     content: str
     inputs: list[InputArg] = field(default_factory=list)
-    output: OutputSpec | None = None
     source_path: str | None = None
 
     def get_input_by_name(self, name: str) -> InputArg | None:

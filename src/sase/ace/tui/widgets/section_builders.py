@@ -11,8 +11,8 @@ from .mentors_builder import build_mentors_section
 
 __all__ = [
     "HintTracker",
-    "build_comments_section",
     "build_commits_section",
     "build_hooks_section",
+    "build_comments_section",
     "build_mentors_section",
 ]

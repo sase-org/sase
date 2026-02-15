@@ -75,8 +75,9 @@ def _add_hooks_for_test_targets(
             display_target = target.lstrip("/")
             self.console.print(f"[green]Added hook: //{display_target}[/green]")
         return True
-    self.console.print("[yellow]Hooks already exist or error adding[/yellow]")
-    return False
+    else:
+        self.console.print("[yellow]Hooks already exist or error adding[/yellow]")
+        return False
 
 
 def handle_edit_hooks(
@@ -141,7 +142,7 @@ def handle_edit_hooks(
         return _handle_rerun_delete_hooks(
             self, changespec, changespecs, current_idx, user_input, hint_to_hook_idx
         )
-    if user_input.startswith("//"):
+    elif user_input.startswith("//"):
         # Handle as bb_rabbit_test targets
         success = _add_hooks_for_test_targets(self, changespec, user_input)
         if success:
@@ -149,24 +150,25 @@ def handle_edit_hooks(
                 changespecs, changespec
             )
         return changespecs, current_idx
-    # Handle as new hook command
-    # Don't pass existing_hooks - let it re-read from disk to avoid
-    # overwriting changes made by sase axe
-    success = add_hook_to_changespec(
-        changespec.file_path,
-        changespec.name,
-        user_input,
-    )
-    if not success:
-        self.console.print("[red]Error adding hook[/red]")
+    else:
+        # Handle as new hook command
+        # Don't pass existing_hooks - let it re-read from disk to avoid
+        # overwriting changes made by sase axe
+        success = add_hook_to_changespec(
+            changespec.file_path,
+            changespec.name,
+            user_input,
+        )
+        if not success:
+            self.console.print("[red]Error adding hook[/red]")
+            return changespecs, current_idx
+
+        from sase.hook_history import add_or_update_hook
+
+        add_or_update_hook(user_input)
+        self.console.print(f"[green]Added hook: {user_input}[/green]")
+        changespecs, current_idx = self._reload_and_reposition(changespecs, changespec)
         return changespecs, current_idx
-
-    from sase.hook_history import add_or_update_hook
-
-    add_or_update_hook(user_input)
-    self.console.print(f"[green]Added hook: {user_input}[/green]")
-    changespecs, current_idx = self._reload_and_reposition(changespecs, changespec)
-    return changespecs, current_idx
 
 
 def _handle_rerun_delete_hooks(
@@ -253,7 +255,7 @@ def _handle_rerun_delete_hooks(
         if i in hook_indices_to_delete:
             # Skip this hook entirely (delete it)
             continue
-        if i in hook_indices_to_rerun:
+        elif i in hook_indices_to_rerun:
             # Remove only the status line for the last COMMITS entry (to trigger rerun)
             if hook.status_lines:
                 # Keep all status lines except the one for the last COMMITS entry

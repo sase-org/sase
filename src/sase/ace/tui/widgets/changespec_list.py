@@ -61,15 +61,15 @@ def _get_status_letter_and_color(
         return "*", "#00D787"
     if "..." in status:
         return "~", "#87AFFF"
-    if status.startswith("Drafted"):
+    elif status.startswith("Drafted"):
         return "D", "#87D700"
-    if status.startswith("Mailed"):
+    elif status.startswith("Mailed"):
         return "M", "#00D787"
-    if status.startswith("Submitted"):
+    elif status.startswith("Submitted"):
         return "S", "#00AF00"
-    if status.startswith("Reverted"):
+    elif status.startswith("Reverted"):
         return "X", "#808080"
-    if status.startswith("Archived"):
+    elif status.startswith("Archived"):
         return "A", "#606060"
     return "W", "#FFD700"
 

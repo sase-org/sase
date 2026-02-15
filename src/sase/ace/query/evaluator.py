@@ -305,16 +305,17 @@ def _match_property(
     """
     if prop.key == "status":
         return _match_status(prop, changespec)
-    if prop.key == "project":
+    elif prop.key == "project":
         return _match_project(prop, changespec)
-    if prop.key == "ancestor":
+    elif prop.key == "ancestor":
         return _match_ancestor(prop, changespec, all_changespecs)
-    if prop.key == "name":
+    elif prop.key == "name":
         return _match_name(prop, changespec)
-    if prop.key == "sibling":
+    elif prop.key == "sibling":
         return _match_sibling(prop, changespec)
-    # Unknown property key - should not happen with proper tokenization
-    return False
+    else:
+        # Unknown property key - should not happen with proper tokenization
+        return False
 
 
 def _evaluate(
@@ -350,19 +351,20 @@ def _evaluate(
         if expr.is_running_process:
             return RUNNING_PROCESS_MARKER in text
         return _match_string(text, expr)
-    if isinstance(expr, PropertyMatch):
+    elif isinstance(expr, PropertyMatch):
         return _match_property(expr, changespec, all_changespecs)
-    if isinstance(expr, NotExpr):
+    elif isinstance(expr, NotExpr):
         return not _evaluate(expr.operand, text, changespec, all_changespecs)
-    if isinstance(expr, AndExpr):
+    elif isinstance(expr, AndExpr):
         return all(
             _evaluate(op, text, changespec, all_changespecs) for op in expr.operands
         )
-    if isinstance(expr, OrExpr):
+    elif isinstance(expr, OrExpr):
         return any(
             _evaluate(op, text, changespec, all_changespecs) for op in expr.operands
         )
-    raise TypeError(f"Unknown expression type: {type(expr)}")
+    else:
+        raise TypeError(f"Unknown expression type: {type(expr)}")
 
 
 def query_explicitly_targets_terminal(
@@ -401,13 +403,16 @@ def query_explicitly_targets_terminal(
                 if ref_status in ("Reverted", "Archived"):
                     return True
             return False
-        if isinstance(e, NotExpr):
+        elif isinstance(e, NotExpr):
             # NOT expressions don't count as "targeting" terminal
             return False
-        if isinstance(e, AndExpr) or isinstance(e, OrExpr):
+        elif isinstance(e, AndExpr):
             return any(_check_expr(op) for op in e.operands)
-        # StringMatch doesn't target terminal specifically
-        return False
+        elif isinstance(e, OrExpr):
+            return any(_check_expr(op) for op in e.operands)
+        else:
+            # StringMatch doesn't target terminal specifically
+            return False
 
     return _check_expr(expr)
 

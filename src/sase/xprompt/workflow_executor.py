@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 from sase.xprompt.workflow_output import LoopInfo
 
 # Re-export for backward compatibility
-__all__ = ["HITLHandler", "HITLResult", "WorkflowExecutor"]
+__all__ = ["WorkflowExecutor", "HITLHandler", "HITLResult"]
 
 
 class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
@@ -334,11 +334,12 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         """
         if step.is_parallel_step():
             return "parallel"
-        if step.is_prompt_step():
+        elif step.is_prompt_step():
             return "prompt"
-        if step.is_python_step():
+        elif step.is_python_step():
             return "python"
-        return "bash"
+        else:
+            return "bash"
 
     def _get_loop_info(self, step: WorkflowStep) -> LoopInfo | None:
         """Get loop information for a step.
@@ -357,17 +358,17 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             except Exception:
                 items = []
             return LoopInfo(loop_type="for", items=items)
-        if step.repeat_config:
+        elif step.repeat_config:
             return LoopInfo(
                 loop_type="repeat",
                 max_iterations=step.repeat_config.max_iterations,
             )
-        if step.while_config:
+        elif step.while_config:
             return LoopInfo(
                 loop_type="while",
                 max_iterations=step.while_config.max_iterations,
             )
-        if step.parallel_config:
+        elif step.parallel_config:
             # Return parallel info - items are the nested step names
             nested_names = [s.name for s in step.parallel_config.steps]
             return LoopInfo(loop_type="parallel", items=nested_names)

@@ -5,9 +5,8 @@ from typing import Any
 
 from rich.panel import Panel
 from rich.text import Text
-from textual.widgets import Static
-
 from sase.running_field import get_claimed_workspaces
+from textual.widgets import Static
 
 from ...changespec import ChangeSpec, get_current_and_proposal_entry_ids
 from ...display_helpers import (

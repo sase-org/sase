@@ -5,12 +5,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from rich.syntax import Syntax
+from sase.shared_utils import dump_yaml
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
-
-from sase.shared_utils import dump_yaml
 from sase.xprompt import HITLResult
 
 from .base import CopyModeForwardingMixin

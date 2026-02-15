@@ -6,4 +6,4 @@ from ._core import DISMISSABLE_STATUSES, AgentsMixinCore
 # (which already inherits from AgentKillingMixin and AgentRevivalMixin)
 AgentsMixin = AgentsMixinCore
 
-__all__ = ["DISMISSABLE_STATUSES", "AgentsMixin"]
+__all__ = ["AgentsMixin", "DISMISSABLE_STATUSES"]

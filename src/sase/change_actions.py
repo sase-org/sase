@@ -5,8 +5,6 @@ import subprocess
 import tempfile
 from typing import Literal
 
-from rich.console import Console
-
 from sase.ace.comments.operations import (
     mark_comment_agents_as_killed,
     update_changespec_comments_field,
@@ -21,6 +19,7 @@ from sase.ace.hooks.processes import (
     mark_mentor_agents_as_killed,
 )
 from sase.ace.mentors import update_changespec_mentors_field
+from rich.console import Console
 from sase.running_field import get_claimed_workspaces, release_workspace
 from sase.vcs_provider import get_vcs_provider
 
@@ -80,8 +79,9 @@ def _delete_proposal_entry(
                     # Skip metadata line
                     i += 1
                     continue
-                # No longer in metadata
-                skip_until_next_entry = False
+                else:
+                    # No longer in metadata
+                    skip_until_next_entry = False
 
         new_lines.append(line)
         i += 1
@@ -291,17 +291,18 @@ def prompt_for_change_action(
             if proposal_id:
                 # Accept the proposal (no extra message)
                 return ("accept", proposal_id)
-            if not branch_name:
+            elif not branch_name:
                 console.print(
                     "[red]Error: 'a' is not available - no branch found[/red]"
                 )
                 continue
-            # Fallback to old behavior if proposal wasn't created
-            console.print(
-                "[red]Error: 'a' requires a message (e.g., 'a fix typo')[/red]"
-            )
-            continue
-        if user_input.startswith("a "):
+            else:
+                # Fallback to old behavior if proposal wasn't created
+                console.print(
+                    "[red]Error: 'a' requires a message (e.g., 'a fix typo')[/red]"
+                )
+                continue
+        elif user_input.startswith("a "):
             if proposal_id:
                 # Accept with optional message: "a <msg>" -> append msg to note
                 extra_msg = user_input[2:].strip()
@@ -309,22 +310,26 @@ def prompt_for_change_action(
                     "accept",
                     f"{proposal_id}:{extra_msg}" if extra_msg else proposal_id,
                 )
-            if not branch_name:
+            elif not branch_name:
                 console.print(
                     "[red]Error: 'a' is not available - no branch found[/red]"
                 )
                 continue
-            # Proposal creation failed earlier, can't accept
-            console.print("[red]Error: No proposal was created. Cannot accept.[/red]")
-            continue
-        if user_input == "p":
+            else:
+                # Proposal creation failed earlier, can't accept
+                console.print(
+                    "[red]Error: No proposal was created. Cannot accept.[/red]"
+                )
+                continue
+        elif user_input == "p":
             # Promote WIP ChangeSpec to Drafted
             return ("promote", None)
-        if user_input == "n":
+        elif user_input == "n":
             return ("reject", proposal_id)
-        if user_input == "x":
+        elif user_input == "x":
             return ("purge", proposal_id)
-        console.print(f"[red]Invalid option: {user_input}[/red]")
+        else:
+            console.print(f"[red]Invalid option: {user_input}[/red]")
 
 
 def execute_change_action(
@@ -523,7 +528,7 @@ def execute_change_action(
         console.print(f"[green]Proposal ({proposal_id}) accepted![/green]")
         return True
 
-    if action == "promote":
+    elif action == "promote":
         # Promote WIP ChangeSpec to Drafted status
         from sase.status_state_machine import transition_changespec_status
         from sase.workflow_utils import get_cl_name_from_branch
@@ -562,14 +567,15 @@ def execute_change_action(
                 f"[green]Promoted {cl_name} from {old_status} to Drafted[/green]"
             )
             return True
-        console.print(f"[red]Failed to promote: {promote_error}[/red]")
-        return False
+        else:
+            console.print(f"[red]Failed to promote: {promote_error}[/red]")
+            return False
 
-    if action == "reject":
+    elif action == "reject":
         console.print("[yellow]Changes rejected. Returning to view.[/yellow]")
         return False
 
-    if action == "purge":
+    elif action == "purge":
         # Delete the proposal entry from COMMITS
         if not action_args:
             console.print("[yellow]No proposal to purge.[/yellow]")
@@ -640,5 +646,6 @@ def execute_change_action(
 
         return False  # Return False to indicate workflow didn't "succeed"
 
-    console.print(f"[red]Unknown action: {action}[/red]")
-    return False
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        return False

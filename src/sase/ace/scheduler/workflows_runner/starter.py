@@ -6,15 +6,11 @@ import time
 from collections.abc import Callable
 
 from sase.commit_utils import run_bb_hg_clean
+from sase.sase_utils import ensure_sase_directory, make_safe_filename, strip_reverted_suffix
 from sase.running_field import (
     claim_workspace,
     get_first_available_axe_workspace,
     get_workspace_directory_for_num,
-)
-from sase.sase_utils import (
-    ensure_sase_directory,
-    make_safe_filename,
-    strip_reverted_suffix,
 )
 from sase.vcs_provider import get_vcs_provider
 

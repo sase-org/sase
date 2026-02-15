@@ -24,12 +24,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.ace.hooks import contract_test_target_command, set_hook_suffix
 from sase.axe_runner_utils import finalize_axe_runner
+from sase.sase_utils import shorten_path, strip_hook_prefix
 from sase.llm_provider import invoke_agent
 from sase.main.query_handler import (
     execute_standalone_steps,
     expand_embedded_workflows_in_query,
 )
-from sase.sase_utils import shorten_path, strip_hook_prefix
 from sase.shared_utils import create_artifacts_directory, ensure_str_content
 from sase.xprompt import escape_for_xprompt, process_xprompt_references
 

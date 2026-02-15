@@ -47,7 +47,6 @@ select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "F",   # pyflakes
-    "I",   # isort
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
@@ -59,9 +58,6 @@ ignore = [
     "F821",  # undefined name
     "B007",  # unused loop control variable
 ]
-
-[tool.ruff.lint.isort]
-known-first-party = ["sase"]
 
 # --- Mypy ---
 [tool.mypy]

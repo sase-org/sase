@@ -126,9 +126,9 @@ class LoopMixin:
 
         if mode == "array":
             return results
-        if mode == "lastOf":
+        elif mode == "lastOf":
             return results[-1]
-        if mode == "text":
+        elif mode == "text":
             # Concatenate string representations
             texts = []
             for r in results:
@@ -139,13 +139,14 @@ class LoopMixin:
                 else:
                     texts.append(json.dumps(r))
             return "\n".join(texts)
-        if mode == "object":
+        elif mode == "object":
             # Merge all dicts into one
             merged: dict[str, Any] = {}
             for r in results:
                 merged.update(r)
             return merged
-        return results
+        else:
+            return results
 
     def _execute_for_step(
         self,

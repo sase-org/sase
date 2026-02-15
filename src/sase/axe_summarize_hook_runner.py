@@ -105,7 +105,8 @@ def main() -> int:
                     print()
                     print(f"{WORKFLOW_COMPLETE_MARKER}None EXIT_CODE: {exit_code}")
                     return exit_code
-                print("Metahook returned 0, continuing with normal summarize flow")
+                else:
+                    print("Metahook returned 0, continuing with normal summarize flow")
 
             except FileNotFoundError:
                 print(

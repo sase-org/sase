@@ -48,11 +48,10 @@ def main() -> NoReturn:
     if args.command == "search":
         from pathlib import Path
 
-        from rich.console import Console
-
         from sase.ace.changespec import find_all_changespecs
         from sase.ace.display import display_changespec
         from sase.ace.query import evaluate_query, parse_query
+        from rich.console import Console
 
         try:
             parsed_query = parse_query(args.query)
@@ -74,10 +73,9 @@ def main() -> NoReturn:
         if args.format == "rich":
             from collections import Counter
 
+            from sase.ace.display_helpers import get_status_color
             from rich.panel import Panel
             from rich.text import Text
-
-            from sase.ace.display_helpers import get_status_color
 
             console = Console()
             for cs in matching:

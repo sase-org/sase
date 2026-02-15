@@ -9,7 +9,6 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
-
 from sase.xprompt import get_all_prompts
 from sase.xprompt.workflow_models import Workflow
 

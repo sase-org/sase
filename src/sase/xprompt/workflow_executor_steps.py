@@ -13,14 +13,11 @@ from sase.xprompt.workflow_executor_steps_embedded import (
     _WORKFLOW_REF_PATTERN,
     EmbeddedWorkflowMixin,
 )
-from sase.xprompt.workflow_executor_steps_prompt import (
-    PromptStepMixin,
-    capture_git_diff,
-)
+from sase.xprompt.workflow_executor_steps_prompt import PromptStepMixin, capture_git_diff
 from sase.xprompt.workflow_executor_steps_script import ScriptStepMixin
 
 # Re-export for backward compatibility
-__all__ = ["_WORKFLOW_REF_PATTERN", "StepMixin", "capture_git_diff"]
+__all__ = ["StepMixin", "_WORKFLOW_REF_PATTERN", "capture_git_diff"]
 
 
 class StepMixin(ScriptStepMixin, EmbeddedWorkflowMixin, PromptStepMixin):
@@ -45,3 +42,5 @@ class StepMixin(ScriptStepMixin, EmbeddedWorkflowMixin, PromptStepMixin):
         - _get_step_type(step) -> str
         - _evaluate_condition(condition) -> bool
     """
+
+    pass

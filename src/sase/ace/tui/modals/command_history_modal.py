@@ -2,14 +2,13 @@
 
 from dataclasses import dataclass
 
+from sase.command_history import CommandEntry, get_commands_for_display
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
-
-from sase.command_history import CommandEntry, get_commands_for_display
 
 from .base import FilterInput, OptionListNavigationMixin
 

@@ -381,7 +381,7 @@ def rerun_delete_hooks_by_command(
             for hook in current_hooks:
                 if hook.command in commands_to_delete:
                     continue  # Skip (delete)
-                if hook.command in commands_to_rerun:
+                elif hook.command in commands_to_rerun:
                     if hook.status_lines:
                         remaining_status_lines = [
                             sl

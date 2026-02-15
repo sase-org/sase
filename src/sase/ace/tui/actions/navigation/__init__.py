@@ -13,6 +13,8 @@ class NavigationMixin(
 ):
     """Mixin providing navigation, scrolling, and fold mode actions."""
 
+    pass
+
 
 __all__ = [
     "AxeViewType",

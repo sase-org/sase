@@ -27,11 +27,12 @@ def _expand_hint_part(part: str) -> list[int]:
             except ValueError:
                 pass
         return []
-    # Single number
-    try:
-        return [int(part)]
-    except ValueError:
-        return []
+    else:
+        # Single number
+        try:
+            return [int(part)]
+        except ValueError:
+            return []
 
 
 def _is_valid_hint_part(part: str) -> bool:
@@ -49,7 +50,8 @@ def _is_valid_hint_part(part: str) -> bool:
         if len(range_parts) != 2:
             return False
         return range_parts[0].isdigit() and range_parts[1].isdigit()
-    return part.isdigit()
+    else:
+        return part.isdigit()
 
 
 def is_rerun_input(user_input: str) -> bool:

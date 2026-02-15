@@ -3,13 +3,12 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from sase.axe.state import AxeStatus
+from sase.sase_utils import EASTERN_TZ
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
-
-from sase.axe.state import AxeStatus
-from sase.sase_utils import EASTERN_TZ
 
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo

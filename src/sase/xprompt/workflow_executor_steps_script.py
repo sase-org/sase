@@ -163,7 +163,7 @@ class ScriptStepMixin:
 
             if result_hitl.action == "reject":
                 return False
-            if result_hitl.action == "accept":
+            elif result_hitl.action == "accept":
                 # Set approved flag in output for subsequent steps
                 output["approved"] = True
             elif result_hitl.action == "edit":
@@ -290,7 +290,7 @@ class ScriptStepMixin:
 
             if result_hitl.action == "reject":
                 return False
-            if result_hitl.action == "accept":
+            elif result_hitl.action == "accept":
                 # Set approved flag in output for subsequent steps
                 output["approved"] = True
             elif result_hitl.action == "edit":

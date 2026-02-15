@@ -28,7 +28,6 @@ class AgentWorkflowHITLMixin:
         import tempfile
 
         import yaml  # type: ignore[import-untyped]
-
         from sase.shared_utils import dump_yaml
 
         # Unwrap _data if present

@@ -9,7 +9,7 @@ class VCSProvider(ABC):
     All methods take an explicit ``cwd`` parameter and return
     ``tuple[bool, str | None]`` — ``(success, error_message)`` — matching
     the convention established by ``run_workspace_command()`` in
-    ``sase_utils.py``.
+    ``gai_utils.py``.
     """
 
     # --- Core abstract methods (must be implemented by all providers) ---

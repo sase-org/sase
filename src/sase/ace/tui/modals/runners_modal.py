@@ -111,7 +111,7 @@ def _collect_hook_runners(
             reviewer=None,
             raw_suffix=suffix,
         )
-    if suffix_type == "running_agent":
+    elif suffix_type == "running_agent":
         # Running agent (fix-hook or summarize-hook)
         pid, ts = _extract_pid_and_timestamp_from_suffix(suffix or "")
         # Determine agent type from suffix prefix

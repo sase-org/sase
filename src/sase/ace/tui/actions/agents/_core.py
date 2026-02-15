@@ -127,6 +127,7 @@ class AgentsMixinCore(
     def _load_agents(self) -> None:
         """Load agents from all sources."""
         from ...models import load_all_agents
+        from ...models.agent import AgentType
 
         # Only capture selection identity if we're on the agents tab
         # (current_idx refers to changespecs when on changespecs tab)

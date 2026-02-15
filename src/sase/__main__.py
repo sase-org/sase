@@ -1,4 +1,4 @@
-"""Allow running as `python -m sase`."""
+"""Allow running the package as a module: python -m sase"""
 
 from sase.main.entry import main
 

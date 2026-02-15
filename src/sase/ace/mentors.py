@@ -465,8 +465,9 @@ def clear_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
     Returns:
         True if successful (or no WIP mentors to update), False on error.
     """
-    from sase.ace.scheduler.mentor_checks import profile_matches_any_commit
     from sase.mentor_config import get_all_mentor_profiles
+
+    from sase.ace.scheduler.mentor_checks import profile_matches_any_commit
 
     try:
         changespecs = parse_project_file(project_file)
@@ -499,10 +500,9 @@ def clear_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
                     for profile in get_all_mentor_profiles():
                         profile_name = profile.profile_name
                         # Include if: matches any commit OR has running mentors
-                        if (
-                            profile_matches_any_commit(profile, matching_commits)
-                            or profile_name in profiles_with_running_mentors
-                        ):
+                        if profile_matches_any_commit(profile, matching_commits):
+                            new_profiles.append(profile_name)
+                        elif profile_name in profiles_with_running_mentors:
                             new_profiles.append(profile_name)
 
                     last_wip_entry.profiles = new_profiles
@@ -579,41 +579,6 @@ def clear_mentor_status_lines(
             return True
     except Exception:
         return False
-
-
-def get_latest_proposal_for_entry(
-    project_file: str,
-    changespec_name: str,
-    entry_id: int,
-    mentor_name: str | None = None,
-) -> str | None:
-    """Find the latest proposal (letter-suffixed entry) for a given entry_id.
-
-    Args:
-        project_file: Path to the project file.
-        changespec_name: Name of the ChangeSpec.
-        entry_id: The base entry number (e.g., 3 for proposals "3a", "3b").
-        mentor_name: If provided, only match proposals whose note contains this name.
-
-    Returns:
-        The proposal ID string (e.g., "3a") or None if not found.
-    """
-    changespecs = parse_project_file(project_file)
-    for cs in changespecs:
-        if cs.name == changespec_name and cs.commits:
-            latest_proposal: str | None = None
-            for commit in cs.commits:
-                num, letter = parse_commit_entry_id(commit.display_number)
-                if num == entry_id and letter:
-                    # This is a proposal for the target entry
-                    if mentor_name:
-                        # Check if note references this mentor
-                        note = commit.note or ""
-                        if mentor_name not in note:
-                            continue
-                    latest_proposal = commit.display_number
-            return latest_proposal
-    return None
 
 
 def set_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:

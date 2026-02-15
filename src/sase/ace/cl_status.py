@@ -35,32 +35,3 @@ def is_parent_submitted(changespec: ChangeSpec) -> bool:
 
     # Parent not found - assume it's okay to proceed (might have been deleted)
     return True
-
-
-def is_cl_submitted(changespec: ChangeSpec) -> bool:
-    """Check if the CL itself is submitted (not just the parent).
-
-    Runs the is_cl_submitted shell command synchronously.
-    """
-    import re
-    import subprocess
-
-    if not changespec.cl:
-        return False
-
-    # Extract CL number from URL
-    match = re.match(r"https?://cl/(\d+)", changespec.cl)
-    if not match:
-        return False
-
-    cl_number = match.group(1)
-    try:
-        result = subprocess.run(
-            ["is_cl_submitted", cl_number],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False

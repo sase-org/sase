@@ -58,10 +58,7 @@ def format_chat_line_with_duration(
         Formatted CHAT line like "      | CHAT: <path> (1m23s)\n" or
         "      | CHAT: <path>\n" if duration cannot be calculated.
     """
-    from sase.ace.hooks.timestamps import (
-        calculate_duration_from_timestamps,
-        format_duration,
-    )
+    from sase.ace.hooks.timestamps import calculate_duration_from_timestamps, format_duration
 
     timestamp = _extract_timestamp_from_chat_path(chat_path)
     if timestamp is None:

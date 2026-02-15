@@ -181,7 +181,7 @@ def _modify_description_for_mailing(
         modified_description = description.replace("R=startblock", f"R={reviewers[0]}")
         return modified_description
 
-    if num_reviewers == 1 and has_valid_parent:
+    elif num_reviewers == 1 and has_valid_parent:
         # Scenario 2: Don't modify R= tag, just add startblock section
         # R= should remain as "R=startblock" and the reviewer will be added by startblock
 
@@ -206,7 +206,7 @@ Startblock:
             result_lines.extend([""] + tag_lines)
         return "\n".join(result_lines)
 
-    if num_reviewers == 2 and not has_valid_parent:
+    elif num_reviewers == 2 and not has_valid_parent:
         # Scenario 3: Replace R=startblock with R=<reviewer1>,startblock and add section
         # Need to replace in the entire description to find R= tag
         tag_lines_str = "\n".join(tag_lines)
@@ -236,9 +236,9 @@ Startblock:
             result_lines.extend([""] + modified_tag_lines)
         return "\n".join(result_lines)
 
-    # num_reviewers == 2 and has_valid_parent
-    # Scenario 4: Add startblock section with 3 stages
-    startblock_section = f"""
+    else:  # num_reviewers == 2 and has_valid_parent
+        # Scenario 4: Add startblock section with 3 stages
+        startblock_section = f"""
 ### Startblock Conditions
 
 ```
@@ -257,11 +257,11 @@ Startblock:
     add reviewer {reviewers[1]}
 ```"""
 
-    # Reconstruct description
-    result_lines = content_lines + ["", startblock_section]
-    if tag_lines:
-        result_lines.extend([""] + tag_lines)
-    return "\n".join(result_lines)
+        # Reconstruct description
+        result_lines = content_lines + ["", startblock_section]
+        if tag_lines:
+            result_lines.extend([""] + tag_lines)
+        return "\n".join(result_lines)
 
 
 def prepare_mail(
@@ -552,8 +552,9 @@ def handle_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> bo
             f"[green]Status updated: {old_status if old_status else 'Drafted'} → Mailed[/green]"
         )
         return True
-    console.print(
-        f"[yellow]Warning: CL was mailed but status update failed: "
-        f"{status_error if status_error else 'Unknown error'}[/yellow]"
-    )
-    return True  # Still return True since mailing succeeded
+    else:
+        console.print(
+            f"[yellow]Warning: CL was mailed but status update failed: "
+            f"{status_error if status_error else 'Unknown error'}[/yellow]"
+        )
+        return True  # Still return True since mailing succeeded

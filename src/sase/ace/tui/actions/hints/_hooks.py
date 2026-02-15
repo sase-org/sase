@@ -103,9 +103,10 @@ class HookEditingMixin(HintMixinBase):
         """Apply hook changes based on modal result."""
         if result.action_type == "rerun_delete":
             return self._handle_rerun_delete_hooks(changespec, result, hook_hint_to_idx)
-        if result.action_type == "test_targets":
+        elif result.action_type == "test_targets":
             return self._add_test_target_hooks(changespec, result.test_targets)
-        return self._add_custom_hook(changespec, result.hook_command)
+        else:
+            return self._add_custom_hook(changespec, result.hook_command)
 
     def _handle_rerun_delete_hooks(
         self,
@@ -256,8 +257,9 @@ class HookEditingMixin(HintMixinBase):
         if success:
             self.notify(f"Added {len(test_targets)} test hook(s)")  # type: ignore[attr-defined]
             return True
-        self.notify("Error adding hooks", severity="error")  # type: ignore[attr-defined]
-        return False
+        else:
+            self.notify("Error adding hooks", severity="error")  # type: ignore[attr-defined]
+            return False
 
     def _add_custom_hook(
         self, changespec: ChangeSpec, hook_command: str | None

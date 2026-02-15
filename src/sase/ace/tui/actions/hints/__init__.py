@@ -15,3 +15,5 @@ class HintActionsMixin(
     RewindMixin,
 ):
     """Mixin providing hint-based actions (edit hooks, view files, rewind)."""
+
+    pass

@@ -9,10 +9,9 @@ import os
 import subprocess
 from typing import Any, Literal, cast
 
-from langchain_core.messages import AIMessage
-
-from sase.rich_utils import print_decision_counts, print_prompt_and_response
 from sase.sase_utils import generate_timestamp
+from langchain_core.messages import AIMessage
+from sase.rich_utils import print_decision_counts, print_prompt_and_response
 
 from .postprocessing import (
     postprocess_error,
@@ -172,7 +171,7 @@ def invoke_agent(
         return AIMessage(content=error_content)
 
     except Exception as e:
-        error_content = f"Error: {e!s}"
+        error_content = f"Error: {str(e)}"
 
         postprocess_error(
             prompt=query,

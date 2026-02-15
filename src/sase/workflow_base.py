@@ -12,13 +12,16 @@ class BaseWorkflow(ABC):
         Returns:
             bool: True if the workflow completed successfully, False otherwise
         """
+        pass
 
     @property
     @abstractmethod
     def name(self) -> str:
         """Return the name of this workflow."""
+        pass
 
     @property
     @abstractmethod
     def description(self) -> str:
         """Return a description of what this workflow does."""
+        pass

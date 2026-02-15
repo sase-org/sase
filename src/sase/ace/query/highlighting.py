@@ -234,7 +234,9 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
             # Not a property - it's a regular term
             # But first check if it's a keyword we missed
             word_upper = word.upper()
-            if word_upper == "AND" or word_upper == "OR":
+            if word_upper == "AND":
+                tokens.append((word, "keyword"))
+            elif word_upper == "OR":
                 tokens.append((word, "keyword"))
             else:
                 tokens.append((word, "term"))

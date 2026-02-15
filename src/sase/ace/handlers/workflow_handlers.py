@@ -12,6 +12,7 @@ from sase.change_actions import (
 )
 from sase.chat_history import save_chat_history
 from sase.commit_utils import run_bb_hg_clean
+from sase.sase_utils import generate_timestamp, strip_hook_prefix
 from sase.llm_provider import invoke_agent
 from sase.running_field import (
     claim_workspace,
@@ -19,7 +20,6 @@ from sase.running_field import (
     get_workspace_directory_for_num,
     release_workspace,
 )
-from sase.sase_utils import generate_timestamp, strip_hook_prefix
 
 from ..changespec import ChangeSpec, parse_project_file
 from ..display import display_changespec
@@ -82,10 +82,11 @@ def handle_run_workflow(
     # Route to the appropriate handler based on workflow name
     if selected_workflow == "fix-hook":
         return handle_run_fix_hook_workflow(self, changespec, changespecs, current_idx)
-    if selected_workflow == "crs":
+    elif selected_workflow == "crs":
         return handle_run_crs_workflow(self, changespec, changespecs, current_idx)
-    self.console.print(f"[red]Unknown workflow: {selected_workflow}[/red]")
-    return changespecs, current_idx
+    else:
+        self.console.print(f"[red]Unknown workflow: {selected_workflow}[/red]")
+        return changespecs, current_idx
 
 
 def handle_run_crs_workflow(

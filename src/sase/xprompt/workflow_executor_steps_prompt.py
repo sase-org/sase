@@ -161,6 +161,7 @@ class PromptStepMixin:
         """
         from sase.llm_provider import invoke_agent
         from sase.shared_utils import ensure_str_content
+
         from sase.xprompt import (
             extract_structured_content,
             process_xprompt_references,
@@ -270,7 +271,7 @@ class PromptStepMixin:
 
             if result.action == "reject":
                 return False
-            if result.action == "accept":
+            elif result.action == "accept":
                 pass  # Continue with output as-is
             elif result.action == "edit":
                 if result.edited_output is not None:

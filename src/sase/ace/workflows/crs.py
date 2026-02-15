@@ -14,13 +14,13 @@ from sase.change_actions import (
 from sase.chat_history import save_chat_history
 from sase.commit_utils import run_bb_hg_clean
 from sase.crs_workflow import CrsWorkflow
+from sase.sase_utils import generate_timestamp, shorten_path
 from sase.running_field import (
     claim_workspace,
     get_first_available_workspace,
     get_workspace_directory_for_num,
     release_workspace,
 )
-from sase.sase_utils import generate_timestamp, shorten_path
 
 from ..changespec import ChangeSpec
 from ..comments import set_comment_suffix

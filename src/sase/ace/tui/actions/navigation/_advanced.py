@@ -26,15 +26,15 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.commits_collapsed = not self.commits_collapsed
             self._refresh_display()  # type: ignore[attr-defined]
             return True
-        if key == "h":
+        elif key == "h":
             self.hooks_collapsed = not self.hooks_collapsed
             self._refresh_display()  # type: ignore[attr-defined]
             return True
-        if key == "m":
+        elif key == "m":
             self.mentors_collapsed = not self.mentors_collapsed
             self._refresh_display()  # type: ignore[attr-defined]
             return True
-        if key == "z":
+        elif key == "z":
             # Toggle all - if different states, collapse all
             if self.commits_collapsed == self.hooks_collapsed == self.mentors_collapsed:
                 new_state = not self.commits_collapsed
@@ -45,8 +45,9 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.mentors_collapsed = new_state
             self._refresh_display()  # type: ignore[attr-defined]
             return True
-        # Invalid key - cancel fold mode
-        return True
+        else:
+            # Invalid key - cancel fold mode
+            return True
 
     # --- Help Action ---
 
@@ -147,12 +148,13 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             if target_idx is not None:
                 self.current_idx = target_idx
                 return True
-            # ChangeSpec no longer exists in this query result
-            self.notify(  # type: ignore[attr-defined]
-                f"ChangeSpec '{entry.name}' no longer exists in query results",
-                severity="warning",
-            )
-            return False
+            else:
+                # ChangeSpec no longer exists in this query result
+                self.notify(  # type: ignore[attr-defined]
+                    f"ChangeSpec '{entry.name}' no longer exists in query results",
+                    severity="warning",
+                )
+                return False
 
         except Exception as e:
             self.notify(f"History navigation error: {e}", severity="error")  # type: ignore[attr-defined]

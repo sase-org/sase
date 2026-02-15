@@ -10,8 +10,8 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 from rich.console import Console
 from rich.syntax import Syntax
-
 from sase.shared_utils import dump_yaml
+
 from sase.xprompt.workflow_executor_types import HITLResult
 
 _EXTENSION_TO_LEXER: dict[str, str] = {
@@ -110,17 +110,18 @@ class TUIHITLHandler:
                     action = response_data.get("action", "reject")
                     if action == "accept":
                         return HITLResult(action="accept", approved=True)
-                    if action == "reject":
+                    elif action == "reject":
                         return HITLResult(action="reject", approved=False)
-                    if action == "edit":
+                    elif action == "edit":
                         edited_output = response_data.get("edited_output")
                         return HITLResult(action="edit", edited_output=edited_output)
-                    if action == "feedback":
+                    elif action == "feedback":
                         feedback = response_data.get("feedback", "")
                         return HITLResult(action="feedback", feedback=feedback)
-                    if action == "rerun":
+                    elif action == "rerun":
                         return HITLResult(action="rerun")
-                    return HITLResult(action="reject", approved=False)
+                    else:
+                        return HITLResult(action="reject", approved=False)
                 except (json.JSONDecodeError, OSError):
                     # Response file exists but couldn't be read, wait and retry
                     pass
@@ -217,21 +218,23 @@ class CLIHITLHandler:
 
         if response.lower() == "a":
             return HITLResult(action="accept", approved=True)
-        if response.lower() == "x":
+        elif response.lower() == "x":
             return HITLResult(action="reject", approved=False)
-        if response.lower() == "e" and can_edit:
+        elif response.lower() == "e" and can_edit:
             edited_output = self._edit_output(output)
             if edited_output is not None:
                 return HITLResult(action="edit", edited_output=edited_output)
-            # User cancelled edit, treat as reject
-            return HITLResult(action="reject")
-        if response.lower() == "r" and step_type in ("bash", "python"):
+            else:
+                # User cancelled edit, treat as reject
+                return HITLResult(action="reject")
+        elif response.lower() == "r" and step_type in ("bash", "python"):
             return HITLResult(action="rerun")
-        if response and step_type == "prompt":
+        elif response and step_type == "prompt":
             # Treat any other input as feedback for regeneration
             return HITLResult(action="feedback", feedback=response)
-        # Default to accept for empty input
-        return HITLResult(action="accept", approved=True)
+        else:
+            # Default to accept for empty input
+            return HITLResult(action="accept", approved=True)
 
     def _display_path_file(self, file_path: str, field_name: str) -> None:
         """Display the contents of a path-typed output file with syntax highlighting.

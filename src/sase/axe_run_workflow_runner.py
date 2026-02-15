@@ -14,11 +14,8 @@ from datetime import datetime
 # Add parent directory to path for imports (use abspath to handle relative __file__)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from sase.axe_runner_utils import (
-    install_sigterm_handler,
-    prepare_workspace,
-)
-from sase.running_field import release_workspace
+from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace  # noqa: E402
+from sase.running_field import release_workspace  # noqa: E402
 
 install_sigterm_handler("workflow")
 

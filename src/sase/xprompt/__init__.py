@@ -55,29 +55,6 @@ from .workflow_models import (
 )
 from .workflow_output import LoopInfo, WorkflowOutputHandler
 
-
-def get_primary_output_schema(prompt_text: str) -> OutputSpec | None:
-    """Extract the primary output schema from an xprompt reference before expansion.
-
-    Parses the xprompt name from the prompt text, loads the xprompt definition,
-    and returns its output spec if defined.
-    """
-    import re
-
-    # Extract xprompt name from #name(...) syntax
-    match = re.match(r'#(\w+)\(', prompt_text)
-    if not match:
-        return None
-
-    name = match.group(1)
-    xprompts = get_all_xprompts()
-    xprompt = xprompts.get(name)
-    if xprompt is None:
-        return None
-
-    return xprompt.output
-
-
 __all__ = [
     # Models
     "InputArg",
@@ -128,6 +105,4 @@ __all__ = [
     # Workflow output
     "LoopInfo",
     "WorkflowOutputHandler",
-    # Helper functions
-    "get_primary_output_schema",
 ]

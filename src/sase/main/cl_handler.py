@@ -4,10 +4,9 @@ import argparse
 import sys
 from typing import NoReturn
 
-from rich.console import Console
-
 from sase.amend_workflow import AmendWorkflow
 from sase.commit_workflow import CommitWorkflow
+from rich.console import Console
 
 
 def handle_amend_command(args: argparse.Namespace) -> NoReturn:

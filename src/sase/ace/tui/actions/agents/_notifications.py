@@ -30,6 +30,7 @@ class AgentNotificationMixin:
         Called on every auto-refresh regardless of current tab.
         """
         from ...models import load_all_agents
+        from ...models.agent import AgentType
         from ._core import DISMISSABLE_STATUSES, is_axe_spawned_agent
 
         all_agents = load_all_agents()
@@ -112,6 +113,7 @@ class AgentNotificationMixin:
         This prevents the badge from reappearing when quickly switching away.
         """
         from ...models import load_all_agents
+        from ...models.agent import AgentType
         from ...viewed_agents import save_viewed_agents
         from ._core import DISMISSABLE_STATUSES, is_axe_spawned_agent
 

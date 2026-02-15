@@ -8,6 +8,10 @@ from rich.console import Console
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+from sase.sase_utils import (
+    get_next_suffix_number,
+    has_suffix,
+)
 from sase.running_field import (
     get_first_available_workspace,
     get_workspace_directory_for_num,
@@ -15,10 +19,6 @@ from sase.running_field import (
 )
 from sase.running_field import (
     get_workspace_directory as get_workspace_dir_from_project,
-)
-from sase.sase_utils import (
-    get_next_suffix_number,
-    has_suffix,
 )
 from sase.status_state_machine import update_parent_references_atomic
 

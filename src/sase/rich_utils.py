@@ -177,7 +177,8 @@ def gemini_timer(message: str = "Waiting for Gemini") -> Generator[None, None, N
 
         if hours > 0:
             return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        return f"{minutes:02d}:{seconds:02d}"
+        else:
+            return f"{minutes:02d}:{seconds:02d}"
 
     # Create a Text object for the timer display
     def _get_timer_text() -> Text:
@@ -219,12 +220,3 @@ def gemini_timer(message: str = "Waiting for Gemini") -> Generator[None, None, N
             live.update(final_text)
             # Give a moment to show the final message
             time.sleep(0.3)
-
-
-def format_countdown(seconds_remaining: int) -> str:
-    """Format seconds remaining as a countdown string for terminal display."""
-    minutes = seconds_remaining // 60
-    secs = seconds_remaining % 60
-    if minutes > 0:
-        return f"Next check in {minutes}m {secs}s"
-    return f"Next check in {secs}s"

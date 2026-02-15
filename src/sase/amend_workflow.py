@@ -101,8 +101,9 @@ class AmendWorkflow(BaseWorkflow):
         if self._propose:
             # Propose mode: add proposed entry, clean workspace, skip amend
             return self._run_propose_mode(cl_name, project_file, diff_path)
-        # Regular mode: amend commit
-        return self._run_amend_mode(cl_name, project_file, diff_path)
+        else:
+            # Regular mode: amend commit
+            return self._run_amend_mode(cl_name, project_file, diff_path)
 
     def _run_propose_mode(
         self, cl_name: str, project_file: str, diff_path: str

@@ -150,9 +150,10 @@ class Agent:
         minutes, seconds = divmod(remainder, 60)
         if hours > 0:
             return f"{hours}h{minutes}m"
-        if minutes > 0:
+        elif minutes > 0:
             return f"{minutes}m{seconds}s"
-        return f"{seconds}s"
+        else:
+            return f"{seconds}s"
 
     @property
     def identity(self) -> tuple["AgentType", str, str | None]:

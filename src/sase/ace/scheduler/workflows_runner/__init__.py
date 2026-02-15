@@ -9,8 +9,8 @@ from .monitor import WORKFLOW_COMPLETE_MARKER
 from .starter import LogCallback, start_stale_workflows
 
 __all__ = [
-    "WORKFLOW_COMPLETE_MARKER",
     "LogCallback",
+    "WORKFLOW_COMPLETE_MARKER",
     "check_and_complete_workflows",
     "start_stale_workflows",
 ]

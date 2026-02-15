@@ -665,7 +665,7 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     3. ~/.xprompts/*.yml (home, hidden)
     4. ~/xprompts/*.yml (home, non-hidden)
     5. ~/.config/sase/xprompts/{project}/*.yml (project-specific, if project given)
-    6. <sase_package>/xprompts/*.yml (internal)
+    6. <gai_package>/xprompts/*.yml (internal)
 
     Args:
         project: Optional project name to include project-specific workflows.

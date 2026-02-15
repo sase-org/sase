@@ -278,7 +278,7 @@ def _convert_data_types(
             lower_val = data.lower()
             if lower_val in ("true", "1", "yes", "on"):
                 return True
-            if lower_val in ("false", "0", "no", "off"):
+            elif lower_val in ("false", "0", "no", "off"):
                 return False
         elif semantic_type == "int":
             try:
@@ -483,4 +483,5 @@ def validate_response(response: str, output_spec: OutputSpec) -> tuple[Any, str 
 
     if is_valid:
         return data, None
-    return data, error_msg
+    else:
+        return data, error_msg

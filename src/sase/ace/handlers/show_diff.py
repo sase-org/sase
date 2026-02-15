@@ -67,4 +67,4 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
 
             os.unlink(tmp_path)
     except Exception as e:
-        self.console.print(f"[red]Error showing diff: {e!s}[/red]")
+        self.console.print(f"[red]Error showing diff: {str(e)}[/red]")

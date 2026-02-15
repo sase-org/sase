@@ -8,7 +8,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
-
 from sase.shared_utils import dump_yaml
 
 
@@ -421,12 +420,13 @@ def _format_value(value: Any) -> str:
         if len(value) > 40:
             return f'"{value[:37]}..."'
         return f'"{value}"'
-    if isinstance(value, list):
+    elif isinstance(value, list):
         if len(value) <= 3:
             return str(value)
         return f"[{value[0]!r}, {value[1]!r}, ... ({len(value)} items)]"
-    if isinstance(value, dict):
+    elif isinstance(value, dict):
         if len(value) <= 2:
             return str(value)
         return f"{{...}} ({len(value)} keys)"
-    return str(value)
+    else:
+        return str(value)

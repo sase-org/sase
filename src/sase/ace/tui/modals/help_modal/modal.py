@@ -150,10 +150,10 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         """Get the keybinding sections for the current tab."""
         if self._current_tab == "changespecs":
             return CLS_BINDINGS
-        if self._current_tab == "agents":
+        elif self._current_tab == "agents":
             return AGENTS_BINDINGS
-        # axe
-        return AXE_BINDINGS
+        else:  # axe
+            return AXE_BINDINGS
 
     def _add_section(
         self,

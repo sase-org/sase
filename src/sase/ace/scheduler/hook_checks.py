@@ -274,10 +274,11 @@ def check_hooks(
                             )
                             found_pending_dead = True
                             break
-                        # Still waiting - keep as pending_dead_process
-                        updated_hooks.append(hook)
-                        found_pending_dead = True
-                        break
+                        else:
+                            # Still waiting - keep as pending_dead_process
+                            updated_hooks.append(hook)
+                            found_pending_dead = True
+                            break
 
         if found_pending_dead:
             continue

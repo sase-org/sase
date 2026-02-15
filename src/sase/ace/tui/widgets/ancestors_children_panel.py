@@ -6,10 +6,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.sase_utils import strip_reverted_suffix
 from rich.text import Text
 from textual.widgets import Static
-
-from sase.sase_utils import strip_reverted_suffix
 
 from ...changespec import ChangeSpec
 
@@ -18,13 +17,13 @@ def _get_simple_status_indicator(status: str) -> tuple[str, str]:
     """Get a simple status indicator character and color."""
     if status.startswith("Drafted"):
         return "D", "#87D700"
-    if status.startswith("Mailed"):
+    elif status.startswith("Mailed"):
         return "M", "#00D787"
-    if status.startswith("Submitted"):
+    elif status.startswith("Submitted"):
         return "S", "#00AF00"
-    if status.startswith("Reverted"):
+    elif status.startswith("Reverted"):
         return "X", "#808080"
-    if status.startswith("Archived"):
+    elif status.startswith("Archived"):
         return "A", "#606060"
     return "W", "#FFD700"  # WIP - gold
 

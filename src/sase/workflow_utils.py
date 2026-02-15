@@ -95,7 +95,7 @@ def get_initial_hooks_for_changespec(verbose: bool = True) -> list[str]:
     """Get all hooks to include in a new ChangeSpec.
 
     Returns required hooks (configurable via sase.yml, defaults to
-    sase_presubmit, sase_lint) plus any test target hooks from
+    gai_presubmit, gai_lint) plus any test target hooks from
     changed_test_targets.
 
     Args:
@@ -188,6 +188,7 @@ def add_test_hooks_if_available(
         if verbose:
             print_status(f"Added {len(target_list)} test target hook(s).", "success")
         return True
-    if verbose:
-        print_status("Failed to add test target hooks.", "warning")
-    return False
+    else:
+        if verbose:
+            print_status("Failed to add test target hooks.", "warning")
+        return False

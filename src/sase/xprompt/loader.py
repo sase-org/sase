@@ -23,10 +23,10 @@ def get_sase_package_xprompts_dir() -> Path:
     # This file is in src/sase/xprompt/loader.py
     # xprompts dir is at <repo_root>/xprompts/
     loader_path = Path(__file__).resolve()
-    xprompt_pkg = loader_path.parent  # src/sase/xprompt/
-    sase_pkg = xprompt_pkg.parent  # src/sase/
-    src_dir = sase_pkg.parent  # src/
-    repo_root = src_dir.parent  # repo root
+    xprompt_pkg = loader_path.parent      # src/sase/xprompt/
+    sase_pkg = xprompt_pkg.parent         # src/sase/
+    src_dir = sase_pkg.parent             # src/
+    repo_root = src_dir.parent            # repo root
     return repo_root / "xprompts"
 
 
@@ -222,21 +222,22 @@ def _parse_shortform_output(output_data: dict[str, Any] | list[Any]) -> OutputSp
                 "items": items_schema,
             },
         )
-    # Object syntax: {name: word, desc: text}
-    properties = {}
-    for field_name, field_value in output_data.items():
-        type_str, default = _parse_shortform_input_value(field_value)
-        if default is None:
-            properties[field_name] = {"type": [type_str, "null"]}
-        else:
-            properties[field_name] = {"type": type_str}
+    else:
+        # Object syntax: {name: word, desc: text}
+        properties = {}
+        for field_name, field_value in output_data.items():
+            type_str, default = _parse_shortform_input_value(field_value)
+            if default is None:
+                properties[field_name] = {"type": [type_str, "null"]}
+            else:
+                properties[field_name] = {"type": type_str}
 
-    return OutputSpec(
-        type="json_schema",
-        schema={
-            "properties": properties,
-        },
-    )
+        return OutputSpec(
+            type="json_schema",
+            schema={
+                "properties": properties,
+            },
+        )
 
 
 def _parse_inputs_from_front_matter(
@@ -377,7 +378,7 @@ def get_xprompt_search_paths() -> list[Path]:
     3. ~/.xprompts/*.md (home, hidden)
     4. ~/xprompts/*.md (home, non-hidden)
     5. (config is handled separately)
-    6. <sase_package>/xprompts/*.md (internal)
+    6. <gai_package>/xprompts/*.md (internal)
 
     Returns:
         List of directory paths to search, in priority order.
@@ -470,14 +471,12 @@ def parse_xprompt_entries(
             # Simple string content (no arguments)
             content = value
             inputs: list[InputArg] = []
-            output_spec = None
         elif isinstance(value, dict):
             # Structured xprompt with input/content
             content = value.get("content", "")
             if not isinstance(content, str):
                 continue
             inputs = _parse_inputs_from_front_matter(value.get("input"))
-            output_spec = parse_output_from_front_matter(value.get("output"))
         else:
             continue
 
@@ -485,7 +484,6 @@ def parse_xprompt_entries(
             name=name,
             content=content,
             inputs=inputs,
-            output=output_spec,
             source_path=source_path,
         )
 
@@ -595,7 +593,7 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     4. ~/xprompts/*.md (home, non-hidden)
     5. ~/.config/sase/xprompts/{project}/*.md (project-specific, if project given)
     6. sase.yml xprompts:/snippets: section
-    7. <sase_package>/xprompts/*.md (internal)
+    7. <gai_package>/xprompts/*.md (internal)
 
     Args:
         project: Optional project name to include project-specific xprompts.

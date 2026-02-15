@@ -107,7 +107,7 @@ def _parse_string(query: str, pos: int, case_sensitive: bool) -> tuple[Token, in
                 ),
                 pos + 1,
             )
-        if char == "\\":
+        elif char == "\\":
             # Escape sequence
             if pos + 1 >= len(query):
                 raise TokenizerError("Unterminated escape sequence", pos)
@@ -162,7 +162,7 @@ def _parse_property_value(query: str, pos: int) -> tuple[str, int]:
             char = query[pos]
             if char == '"':
                 return "".join(value_chars), pos + 1
-            if char == "\\":
+            elif char == "\\":
                 if pos + 1 >= len(query):
                     raise TokenizerError("Unterminated escape sequence", pos)
                 next_char = query[pos + 1]

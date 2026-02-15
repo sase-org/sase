@@ -10,12 +10,11 @@ from typing import Any
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
+from sase.running_field import get_workspace_directory
 from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
-
-from sase.running_field import get_workspace_directory
 
 from ..models.agent import Agent
 

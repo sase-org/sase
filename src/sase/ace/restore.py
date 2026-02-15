@@ -8,13 +8,13 @@ from rich.console import Console
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from sase.running_field import (
-    update_running_field_cl_name,
-)
 from sase.sase_utils import (
     get_workspace_directory_for_changespec,
     run_workspace_command,
     strip_reverted_suffix,
+)
+from sase.running_field import (
+    update_running_field_cl_name,
 )
 from sase.vcs_provider import get_vcs_provider
 

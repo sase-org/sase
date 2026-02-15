@@ -60,9 +60,9 @@ class TreeNavigationMixin(NavigationMixinBase):
         """
         if self._ancestor_mode_active:
             return self._process_ancestor_key(key)
-        if self._child_mode_active:
+        elif self._child_mode_active:
             return self._process_child_key(key)
-        if self._sibling_mode_active:
+        elif self._sibling_mode_active:
             return self._process_sibling_key(key)
         return False
 
@@ -76,7 +76,7 @@ class TreeNavigationMixin(NavigationMixinBase):
                 target = list(self._ancestor_keys.keys())[0]
                 self._navigate_to_changespec(target, is_ancestor=True)
             return True
-        if len(key) == 1 and key.isalpha() and key.islower():
+        elif len(key) == 1 and key.isalpha() and key.islower():
             # <a, <b, etc. - find matching ancestor
             expected_key = f"<{key}"
             for name, keybind in self._ancestor_keys.items():
@@ -161,7 +161,7 @@ class TreeNavigationMixin(NavigationMixinBase):
                 target = self._sibling_keys["~~"]
                 self._navigate_to_changespec(target, is_ancestor=False, is_sibling=True)
             return True
-        if len(key) == 1 and key.isalpha() and key.islower():
+        elif len(key) == 1 and key.isalpha() and key.islower():
             # ~a, ~b, etc. - find matching sibling
             expected_key = f"~{key}"
             if expected_key in self._sibling_keys:
@@ -194,8 +194,9 @@ class TreeNavigationMixin(NavigationMixinBase):
         if last_char.isdigit():
             # After digit, expect letter
             return key.isalpha() and key.islower()
-        # After letter, expect digit
-        return key.isdigit() and "2" <= key <= "9"
+        else:
+            # After letter, expect digit
+            return key.isdigit() and "2" <= key <= "9"
 
     def _navigate_to_changespec(
         self, target_name: str, is_ancestor: bool, is_sibling: bool = False

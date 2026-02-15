@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from sase.accept_workflow.parsing import (
-    expand_shorthand_proposals,
-    parse_proposal_entries,
-)
+from sase.accept_workflow.parsing import expand_shorthand_proposals, parse_proposal_entries
 
 from ....changespec import ChangeSpec
 from ._types import HintMixinBase
@@ -136,7 +133,6 @@ class AcceptMailMixin(HintMixinBase):
         import os
 
         from rich.console import Console
-
         from sase.running_field import (
             claim_workspace,
             get_first_available_axe_workspace,

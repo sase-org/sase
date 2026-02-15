@@ -67,7 +67,6 @@ class RenameMixin:
             changespec: The ChangeSpec to rename.
             new_name: The new name for the ChangeSpec.
         """
-        from sase.ace.revert import update_changespec_name_atomic
         from sase.running_field import (
             claim_workspace,
             get_first_available_axe_workspace,
@@ -76,6 +75,8 @@ class RenameMixin:
             update_running_field_cl_name,
         )
         from sase.status_state_machine import update_parent_references_atomic
+
+        from sase.ace.revert import update_changespec_name_atomic
 
         from ...changespec import get_base_status
 

@@ -15,8 +15,8 @@ from .rename import RenameMixin
 from .sync import SyncMixin
 
 __all__ = [
-    "AgentWorkflowMixin",
     "AgentsMixin",
+    "AgentWorkflowMixin",
     "AxeMixin",
     "BaseActionsMixin",
     "ChangeSpecMixin",

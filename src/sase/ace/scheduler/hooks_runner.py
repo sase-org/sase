@@ -195,14 +195,15 @@ def start_stale_hooks(
             log,
             remaining_limited_slots=remaining_limited_slots,
         )
-    # For regular entries, use shared workspace
-    return _start_stale_hooks_shared_workspace(
-        changespec,
-        entry_id,
-        changespec.project_basename,
-        log,
-        remaining_limited_slots=remaining_limited_slots,
-    )
+    else:
+        # For regular entries, use shared workspace
+        return _start_stale_hooks_shared_workspace(
+            changespec,
+            entry_id,
+            changespec.project_basename,
+            log,
+            remaining_limited_slots=remaining_limited_slots,
+        )
 
 
 def _start_stale_hooks_for_proposal(

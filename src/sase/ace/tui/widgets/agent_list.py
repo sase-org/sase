@@ -6,7 +6,6 @@ from rich.text import Text
 from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
-
 from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..models.agent import Agent, AgentType

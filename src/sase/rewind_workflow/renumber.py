@@ -178,11 +178,12 @@ def _update_mentors_with_id_mapping(
                     # Delete this entry and its status lines
                     skip_status_lines = True
                     continue
-                skip_status_lines = False
-                if new_id != old_id:
-                    updated_lines.append(f"  ({new_id}) {rest}\n")
                 else:
-                    updated_lines.append(line)
+                    skip_status_lines = False
+                    if new_id != old_id:
+                        updated_lines.append(f"  ({new_id}) {rest}\n")
+                    else:
+                        updated_lines.append(line)
             elif skip_status_lines and line.startswith("      | "):
                 # Skip status lines for deleted entries
                 continue

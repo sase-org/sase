@@ -1,13 +1,12 @@
 """Hook history selection modal with filtering for the ace TUI."""
 
+from sase.hook_history import HookHistoryEntry, get_hooks_for_display
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
-
-from sase.hook_history import HookHistoryEntry, get_hooks_for_display
 
 from .base import FilterInput, OptionListNavigationMixin
 

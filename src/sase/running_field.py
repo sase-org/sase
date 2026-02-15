@@ -341,7 +341,8 @@ def release_workspace(
                         if should_remove:
                             # Skip this line (remove the claim)
                             continue
-                        has_remaining_claims = True
+                        else:
+                            has_remaining_claims = True
                 else:
                     in_running_field = False
 
@@ -518,8 +519,9 @@ def get_workspace_directory_for_num(
 
     if workspace_num == 1:
         return (workspace_dir, None)
-    workspace_suffix = f"{project_basename}_{workspace_num}"
-    return (workspace_dir, workspace_suffix)
+    else:
+        workspace_suffix = f"{project_basename}_{workspace_num}"
+        return (workspace_dir, workspace_suffix)
 
 
 def get_workspace_directory(project: str, workspace_num: int = 1) -> str:

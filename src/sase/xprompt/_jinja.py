@@ -5,7 +5,6 @@ import sys
 from typing import Any
 
 from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
-
 from sase.rich_utils import print_status
 
 from ._exceptions import XPromptArgumentError
@@ -214,12 +213,13 @@ def _substitute_legacy_placeholders(
 
         if index < len(args):
             return str(args[index])
-        if default is not None:
+        elif default is not None:
             return default
-        raise XPromptArgumentError(
-            f"XPrompt '#{xprompt_name}' requires argument {{{index + 1}}} "
-            f"but only {len(args)} argument(s) provided"
-        )
+        else:
+            raise XPromptArgumentError(
+                f"XPrompt '#{xprompt_name}' requires argument {{{index + 1}}} "
+                f"but only {len(args)} argument(s) provided"
+            )
 
     return re.sub(placeholder_pattern, replace, content)
 
@@ -240,4 +240,5 @@ def substitute_placeholders(
         return _render_jinja2_template(
             content, positional_args, named_args, xprompt_name, scope=scope
         )
-    return _substitute_legacy_placeholders(content, positional_args, xprompt_name)
+    else:
+        return _substitute_legacy_placeholders(content, positional_args, xprompt_name)

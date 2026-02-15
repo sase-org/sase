@@ -61,7 +61,7 @@ class AgentLaunchMixin:
                 self._prompt_context = None
                 self.call_later(self._load_agents)  # type: ignore[attr-defined]
                 return
-            if isinstance(workflow_result, str):
+            elif isinstance(workflow_result, str):
                 # Simple xprompt expanded inline — use as regular prompt
                 prompt = workflow_result
 
@@ -92,11 +92,11 @@ class AgentLaunchMixin:
         Args:
             prompt: The user's prompt for all agents.
         """
+        from sase.sase_utils import generate_timestamp
         from sase.running_field import (
             get_first_available_axe_workspace,
             get_workspace_directory_for_num,
         )
-        from sase.sase_utils import generate_timestamp
 
         if not self._bulk_changespecs:
             self.notify("No bulk changespecs", severity="error")  # type: ignore[attr-defined]
@@ -295,11 +295,7 @@ class AgentLaunchMixin:
             True if workflow was executed, False if not a valid workflow reference,
             or a str with the rendered prompt for simple xprompts.
         """
-        from sase.xprompt import (
-            get_all_prompts,
-            parse_workflow_reference,
-            strip_hitl_suffix,
-        )
+        from sase.xprompt import get_all_prompts, parse_workflow_reference, strip_hitl_suffix
 
         workflow_ref = prompt[1:]  # Strip the #
         workflow_ref, hitl_override = strip_hitl_suffix(workflow_ref)

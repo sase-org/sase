@@ -58,10 +58,10 @@ class ClipboardMixin:
 
         if self.current_tab == "changespecs":
             return self._handle_changespecs_copy_key(key)
-        if self.current_tab == "agents":
+        elif self.current_tab == "agents":
             return self._handle_agents_copy_key(key)
-        # axe
-        return self._handle_axe_copy_key(key)
+        else:  # axe
+            return self._handle_axe_copy_key(key)
 
     def _handle_changespecs_copy_key(self, key: str) -> bool:
         """Handle copy key for changespecs tab.

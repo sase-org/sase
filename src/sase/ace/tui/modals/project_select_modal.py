@@ -5,13 +5,12 @@ from pathlib import Path
 from typing import Literal
 
 from rich.text import Text
+from sase.status_state_machine import remove_workspace_suffix
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
-
-from sase.status_state_machine import remove_workspace_suffix
 
 from ...changespec import find_all_changespecs
 from .base import FilterInput, OptionListNavigationMixin

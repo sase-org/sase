@@ -5,10 +5,9 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-from rich.console import Console
-
 from sase.ace.changespec import find_all_changespecs
 from sase.commit_utils import run_bb_hg_clean
+from sase.sase_utils import generate_timestamp
 from sase.llm_provider import invoke_agent
 from sase.main.query_handler import (
     execute_standalone_steps,
@@ -19,6 +18,7 @@ from sase.mentor_config import (
     get_mentor_from_profile,
     get_mentor_profile_by_name,
 )
+from rich.console import Console
 from sase.rich_utils import print_artifact_created, print_status, print_workflow_header
 from sase.running_field import (
     claim_workspace,
@@ -26,7 +26,6 @@ from sase.running_field import (
     get_workspace_directory_for_num,
     release_workspace,
 )
-from sase.sase_utils import generate_timestamp
 from sase.shared_utils import (
     create_artifacts_directory,
     ensure_str_content,
