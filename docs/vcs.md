@@ -335,7 +335,7 @@ The Mercurial provider uses a combination of standard `hg` commands and Google-i
 | Uncommitted diff | `hg diff`                      |
 | Revision diff    | `hg diff -c <revision>`        |
 | Apply patch      | `hg import --no-commit <path>` |
-| Rewind           | `sase_rewind <diff_paths>`      |
+| Rewind           | `sase_rewind <diff_paths>`     |
 
 ### Change URL
 

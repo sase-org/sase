@@ -1,7 +1,7 @@
 # LLM Provider Integration
 
-This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends (currently
-Claude Code and Gemini CLI) behind a shared orchestration layer that handles preprocessing, invocation, and
+This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends
+(currently Claude Code and Gemini CLI) behind a shared orchestration layer that handles preprocessing, invocation, and
 postprocessing.
 
 ## Table of Contents
@@ -42,7 +42,7 @@ Key design principles:
 | `src/llm_provider/claude.py`         | Claude Code provider implementation |
 | `src/llm_provider/gemini.py`         | Gemini CLI provider implementation  |
 | `src/llm_provider/registry.py`       | Provider registration and lookup    |
-| `src/llm_provider/config.py`         | Config file reader (`sase.yml`)      |
+| `src/llm_provider/config.py`         | Config file reader (`sase.yml`)     |
 | `src/llm_provider/types.py`          | `ModelTier`, `LoggingContext` types |
 | `src/llm_provider/_invoke.py`        | `invoke_agent()` orchestrator       |
 | `src/llm_provider/_subprocess.py`    | `stream_process_output()`           |
@@ -119,8 +119,8 @@ The prompt is written to stdin, and output is streamed from stdout in real-time.
 
 ### Environment Variables
 
-| Variable                | Description                                                |
-| ----------------------- | ---------------------------------------------------------- |
+| Variable                 | Description                                                |
+| ------------------------ | ---------------------------------------------------------- |
 | `SASE_LLM_LARGE_ARGS`    | Extra CLI args for `large` tier (generic, preferred)       |
 | `SASE_LLM_SMALL_ARGS`    | Extra CLI args for `small` tier (generic, preferred)       |
 | `SASE_CLAUDE_LARGE_ARGS` | Extra CLI args for `large` tier (Claude-specific fallback) |
@@ -152,8 +152,8 @@ the extra args environment variables.
 
 ### Environment Variables
 
-| Variable                 | Description                                                |
-| ------------------------ | ---------------------------------------------------------- |
+| Variable                  | Description                                                |
+| ------------------------- | ---------------------------------------------------------- |
 | `SASE_LLM_LARGE_ARGS`     | Extra CLI args for `large` tier (generic, preferred)       |
 | `SASE_LLM_SMALL_ARGS`     | Extra CLI args for `small` tier (generic, preferred)       |
 | `SASE_BIG_GEMINI_ARGS`    | Extra CLI args for `large` tier (Gemini-specific fallback) |
@@ -252,31 +252,31 @@ Complete reference of environment variables used by the LLM provider layer.
 
 ### Generic (Provider-Agnostic)
 
-| Variable                  | Description                                    |
-| ------------------------- | ---------------------------------------------- |
+| Variable                   | Description                                    |
+| -------------------------- | ---------------------------------------------- |
 | `SASE_LLM_LARGE_ARGS`      | Extra CLI args for `large` tier invocations    |
 | `SASE_LLM_SMALL_ARGS`      | Extra CLI args for `small` tier invocations    |
 | `SASE_MODEL_TIER_OVERRIDE` | Force all invocations to a specific model tier |
-| `SASE_MODEL_SIZE_OVERRIDE` | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`     |
+| `SASE_MODEL_SIZE_OVERRIDE` | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`    |
 
 ### Claude-Specific
 
-| Variable                | Description                                 |
-| ----------------------- | ------------------------------------------- |
+| Variable                 | Description                                 |
+| ------------------------ | ------------------------------------------- |
 | `SASE_CLAUDE_LARGE_ARGS` | Claude-specific extra args for `large` tier |
 | `SASE_CLAUDE_SMALL_ARGS` | Claude-specific extra args for `small` tier |
 
 ### Gemini-Specific
 
-| Variable                 | Description                                          |
-| ------------------------ | ---------------------------------------------------- |
+| Variable                  | Description                                          |
+| ------------------------- | ---------------------------------------------------- |
 | `SASE_BIG_GEMINI_ARGS`    | Gemini-specific extra args for `large` tier (legacy) |
 | `SASE_LITTLE_GEMINI_ARGS` | Gemini-specific extra args for `small` tier (legacy) |
 
 ### VCS Provider
 
-| Variable           | Description                                          |
-| ------------------ | ---------------------------------------------------- |
+| Variable            | Description                                          |
+| ------------------- | ---------------------------------------------------- |
 | `SASE_VCS_PROVIDER` | Override VCS provider (`"git"`, `"hg"`, or `"auto"`) |
 
 ## CLI Flags
@@ -366,7 +366,8 @@ After a provider returns (or raises an error), the orchestration layer runs post
 
 1. **Rich error display**: Prints the prompt and error via `print_prompt_and_response()` with an `_ERROR` suffix on the
    agent type label (skipped if `suppress_output`).
-2. **Log to sase.md**: Same as success, but the response is the error message and the agent type gets an `_ERROR` suffix.
+2. **Log to sase.md**: Same as success, but the response is the error message and the agent type gets an `_ERROR`
+   suffix.
 3. **Save error chat history**: Writes to `~/.sase/chats/` with an `_ERROR` agent suffix.
 
 ### sase.md Log Format
@@ -493,7 +494,7 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 | `model_size`      | `"big" \| "little" \| None` | `None`     | Deprecated, use `model_tier`            |
 | `iteration`       | `int \| None`               | `None`     | Iteration number for logging            |
 | `workflow_tag`    | `str \| None`               | `None`     | Workflow tag for logging                |
-| `artifacts_dir`   | `str \| None`               | `None`     | Directory for sase.md and prompt files   |
+| `artifacts_dir`   | `str \| None`               | `None`     | Directory for sase.md and prompt files  |
 | `workflow`        | `str \| None`               | `None`     | Workflow name for chat history          |
 | `suppress_output` | `bool`                      | `False`    | Suppress console output                 |
 | `timestamp`       | `str \| None`               | `None`     | Shared timestamp (`YYmmdd_HHMMSS`)      |

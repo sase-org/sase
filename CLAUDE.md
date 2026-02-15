@@ -2,8 +2,7 @@
 
 ## Project Overview
 
-**sase** (Structured Agentic Software Engineering) is a Python toolkit for building and orchestrating AI agents. It is a
-migration from the `gai` (Google AI) codebase into a properly packaged Python project.
+**sase** (Structured Agentic Software Engineering) is a Python toolkit for building and orchestrating AI agents.
 
 ## Build & Run Commands
 

@@ -19,9 +19,8 @@ just check         # All checks (fmt-check + lint + test)
 
 ## Adding Dependencies
 
-Add runtime dependencies to `[project.dependencies]` in `pyproject.toml`.
-Add dev-only dependencies to `[project.optional-dependencies.dev]`.
-Then re-run `just install`.
+Add runtime dependencies to `[project.dependencies]` in `pyproject.toml`. Add dev-only dependencies to
+`[project.optional-dependencies.dev]`. Then re-run `just install`.
 
 ## Running Specific Tests
 
