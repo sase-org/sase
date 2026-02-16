@@ -91,6 +91,10 @@ clean:
 build: _setup
     {{ venv_bin }}/python -m build
 
+# Build and verify package (CI mode)
+build-check: build
+    {{ venv_bin }}/twine check dist/*
+
 # Activate venv in subshell
 dev-shell:
     @echo "Entering dev shell... (exit to return)"
