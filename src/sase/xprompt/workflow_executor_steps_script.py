@@ -189,6 +189,13 @@ class ScriptStepMixin:
             ),
         )
 
+        # Handle _chdir special output: change executor's working directory
+        if "_chdir" in output:
+            chdir_path = str(output.pop("_chdir"))
+            if not os.path.isabs(chdir_path):
+                chdir_path = os.path.abspath(chdir_path)
+            os.chdir(chdir_path)
+
         # Store output in context under step name
         step_state.output = output
         self.context[step.name] = output
@@ -315,6 +322,13 @@ class ScriptStepMixin:
                 self, "_current_embedded_workflow_name", None
             ),
         )
+
+        # Handle _chdir special output: change executor's working directory
+        if "_chdir" in output:
+            chdir_path = str(output.pop("_chdir"))
+            if not os.path.isabs(chdir_path):
+                chdir_path = os.path.abspath(chdir_path)
+            os.chdir(chdir_path)
 
         # Store output in context under step name
         step_state.output = output
