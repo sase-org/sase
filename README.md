@@ -33,10 +33,10 @@ scale.
 │  (TUI)   │ (daemon) │(workflows)│  (VCS ops)    │
 ├──────────┴──────────┴───────────┴───────────────┤
 │              Core Engine                        │
-│  ┌────────────┐  ┌──────────┐  ┌────────────┐  │
-│  │ ChangeSpec │  │ XPrompt  │  │  Workflows │  │
-│  │  Tracking  │  │ Templates│  │  (YAML)    │  │
-│  └────────────┘  └──────────┘  └────────────┘  │
+│  ┌────────────┐  ┌──────────┐  ┌────────────┐   │
+│  │ ChangeSpec │  │ XPrompt  │  │  Workflows │   │
+│  │  Tracking  │  │ Templates│  │  (YAML)    │   │
+│  └────────────┘  └──────────┘  └────────────┘   │
 ├─────────────────────┬───────────────────────────┤
 │   LLM Provider      │      VCS Provider         │
 │  (Claude, Gemini)   │     (git / hg)            │
