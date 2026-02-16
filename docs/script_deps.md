@@ -8,8 +8,8 @@ are **not well-known standard tools**. Contributors should be aware that these s
 
 Source: `src/sase/vcs_provider/_hg.py`
 
-| Script          | Usage                       | Line(s)  |
-| --------------- | --------------------------- | -------- |
+| Script            | Usage                       | Line(s)  |
+| ----------------- | --------------------------- | -------- |
 | `sase_hg_update`  | Checkout/update to revision | 73       |
 | `sase_hg_amend`   | Amend current CL            | 136      |
 | `sase_hg_rename`  | Rename branch               | 144      |

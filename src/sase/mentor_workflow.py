@@ -231,7 +231,9 @@ class MentorWorkflow(BaseWorkflow):
                     resolved_cl_name, workspace_dir
                 )
                 if not checkout_ok:
-                    print_status(f"Error: sase_hg_update failed: {checkout_err}", "error")
+                    print_status(
+                        f"Error: sase_hg_update failed: {checkout_err}", "error"
+                    )
                     return False
 
             # Generate timestamp if not provided (interactive mode)

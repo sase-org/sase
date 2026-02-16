@@ -88,7 +88,7 @@ Creates a new commit with formatted CL description and metadata tracking.
 | Fix            | No-op (returns success)                                   | `hg fix`                                          |
 | Upload         | No-op (returns success)                                   | `hg upload tree`                                  |
 | Change URL     | `gh pr view --json url -q .url`                           | `http://cl/<branch_number>`                       |
-| Rename branch  | `git branch -m <new_name>`                                | `sase_hg_rename <new_name>`                         |
+| Rename branch  | `git branch -m <new_name>`                                | `sase_hg_rename <new_name>`                       |
 
 ### `sase amend`
 
@@ -101,10 +101,10 @@ Amends the current commit with COMMITS tracking. Has a **propose mode** that sav
 3. **Amend commit** — `amend(note)` to amend the current revision
 4. In **propose mode**: `clean_workspace()` instead of amending
 
-| Operation       | Git                                       | Mercurial                          |
-| --------------- | ----------------------------------------- | ---------------------------------- |
+| Operation       | Git                                       | Mercurial                            |
+| --------------- | ----------------------------------------- | ------------------------------------ |
 | Amend           | `git commit --amend -m <note>`            | `sase_hg_amend [--no-upload] <note>` |
-| Clean workspace | `git reset --hard HEAD` + `git clean -fd` | `hg update --clean .` + `hg clean` |
+| Clean workspace | `git reset --hard HEAD` + `git clean -fd` | `hg update --clean .` + `hg clean`   |
 
 ### `sase ace` TUI Actions
 
@@ -114,8 +114,8 @@ The ace TUI provides interactive actions that use VCS operations:
 
 Syncs the workspace with the remote repository.
 
-| Step     | Git                                                       | Mercurial             |
-| -------- | --------------------------------------------------------- | --------------------- |
+| Step     | Git                                                       | Mercurial               |
+| -------- | --------------------------------------------------------- | ----------------------- |
 | Checkout | `git checkout <name>`                                     | `sase_hg_update <name>` |
 | Sync     | `git fetch origin` + `git rebase origin/<default_branch>` | `sase_hg_sync`          |
 
@@ -159,8 +159,8 @@ Reverts a ChangeSpec by saving its diff and pruning the revision.
 2. Prune revision via `prune()`
 3. Update status to "Reverted"
 
-| Operation | Git                        | Mercurial                |
-| --------- | -------------------------- | ------------------------ |
+| Operation | Git                        | Mercurial                  |
+| --------- | -------------------------- | -------------------------- |
 | Prune     | `git branch -D <revision>` | `sase_hg_prune <revision>` |
 
 #### Restore (status change from "Reverted" to "WIP"/"Drafted")
@@ -173,7 +173,7 @@ Restores a previously reverted ChangeSpec.
 
 | Operation   | Git                     | Mercurial                      |
 | ----------- | ----------------------- | ------------------------------ |
-| Checkout    | `git checkout <target>` | `sase_hg_update <target>`        |
+| Checkout    | `git checkout <target>` | `sase_hg_update <target>`      |
 | Apply patch | `git apply <path>`      | `hg import --no-commit <path>` |
 
 #### Archive (status change to "Archived")
@@ -184,16 +184,16 @@ Archives a ChangeSpec by saving the diff, archiving the revision, and updating s
 2. Save diff to `~/.sase/archived/<name>.diff`
 3. Archive revision via `archive()`
 
-| Operation | Git                                                      | Mercurial              |
-| --------- | -------------------------------------------------------- | ---------------------- |
+| Operation | Git                                                      | Mercurial                |
+| --------- | -------------------------------------------------------- | ------------------------ |
 | Archive   | `git tag archive/<name> <name>` + `git branch -D <name>` | `sase_hg_archive <name>` |
 
 #### Reword (`w` key)
 
 Amends the commit message without changing code.
 
-| Operation | Git                                   | Mercurial                    |
-| --------- | ------------------------------------- | ---------------------------- |
+| Operation | Git                                   | Mercurial                      |
+| --------- | ------------------------------------- | ------------------------------ |
 | Reword    | `git commit --amend -m <description>` | `sase_hg_reword <description>` |
 
 The Mercurial provider applies ANSI-C escape quoting to the description (escaping backslashes, single quotes, newlines,
@@ -288,9 +288,9 @@ The Mercurial provider uses a combination of standard `hg` commands and Google-i
 
 ### Core Commands
 
-| Operation | Command                                           |
-| --------- | ------------------------------------------------- |
-| Commit    | `hg commit --name <name> --logfile <logfile>`     |
+| Operation | Command                                             |
+| --------- | --------------------------------------------------- |
+| Commit    | `hg commit --name <name> --logfile <logfile>`       |
 | Amend     | `sase_hg_amend [--no-upload] <note>`                |
 | Checkout  | `sase_hg_update <revision>`                         |
 | Sync      | `sase_hg_sync`                                      |
@@ -379,7 +379,7 @@ The `stash_and_clean()` operation saves the current diff to a file and resets th
 | Provider  | Steps                                                                       |
 | --------- | --------------------------------------------------------------------------- |
 | Git       | `git diff HEAD` → write to file → `git reset --hard HEAD` → `git clean -fd` |
-| Mercurial | `sase_hg_clean <diff_name>` (handles both steps internally)                   |
+| Mercurial | `sase_hg_clean <diff_name>` (handles both steps internally)                 |
 
 ## Configuration Reference
 
@@ -472,8 +472,8 @@ gh auth login
 
 ### Mercurial: `sase_hg_*` Commands Not Found
 
-The Mercurial provider depends on Google-internal `sase_hg_*` wrapper commands. If these are not in your PATH, operations
-will fail.
+The Mercurial provider depends on Google-internal `sase_hg_*` wrapper commands. If these are not in your PATH,
+operations will fail.
 
 **Symptoms:**
 

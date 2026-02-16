@@ -309,7 +309,10 @@ def test_update_to_changespec_command_fails_stderr(
 ) -> None:
     """Test update_to_changespec handles command failure with error message."""
     mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (False, "sase_hg_update failed: Update failed")
+    mock_provider.checkout.return_value = (
+        False,
+        "sase_hg_update failed: Update failed",
+    )
     mock_get_provider.return_value = mock_provider
 
     with tempfile.TemporaryDirectory() as tmpdir:

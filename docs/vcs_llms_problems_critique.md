@@ -281,6 +281,6 @@ The "3-5x underestimate" conclusion is built on a foundation of 3 factual errors
 - `bam` is Google-internal? **No, it's a 47-line bell script.**
 - `critique_comments` will crash? **Already skipped for git repos.**
 
-The valid concerns (workspace system, `sase_hg_update` calls, `p4head`, default hooks, workspace numbering) are real work
-but are straightforward fixes, not fundamental architectural problems. The estimate of remaining work should be based on
-the 5 valid points, not on 14 claims where 9 are wrong or exaggerated.
+The valid concerns (workspace system, `sase_hg_update` calls, `p4head`, default hooks, workspace numbering) are real
+work but are straightforward fixes, not fundamental architectural problems. The estimate of remaining work should be
+based on the 5 valid points, not on 14 claims where 9 are wrong or exaggerated.

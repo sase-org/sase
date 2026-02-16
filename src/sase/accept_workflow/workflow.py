@@ -6,7 +6,11 @@ from typing import NoReturn
 
 from sase.ace.changespec import ChangeSpec, CommitEntry
 from sase.ace.operations import update_to_changespec
-from sase.commit_utils import apply_diff_to_workspace, clean_workspace, run_sase_hg_clean
+from sase.commit_utils import (
+    apply_diff_to_workspace,
+    clean_workspace,
+    run_sase_hg_clean,
+)
 from sase.rich_utils import print_status
 from sase.running_field import (
     claim_workspace,

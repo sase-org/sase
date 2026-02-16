@@ -58,8 +58,8 @@ These will all crash with `FileNotFoundError` outside Google.
 
 ### C. `ace/tui/actions/base.py` — Direct `sase_hg_update` subprocess calls
 
-Lines 455-456 and 530-531 call `subprocess.run(["sase_hg_update", ...])` directly — not through the VCS provider. This is
-in the TUI's checkout-to-workspace and open-tmux-at-workspace actions. The VCS abstraction was never wired in here.
+Lines 455-456 and 530-531 call `subprocess.run(["sase_hg_update", ...])` directly — not through the VCS provider. This
+is in the TUI's checkout-to-workspace and open-tmux-at-workspace actions. The VCS abstraction was never wired in here.
 
 Similarly, `ace/tui/actions/axe.py:270` does `subprocess.run(["sase_hg_update", cl_name], ...)` directly.
 
@@ -100,9 +100,9 @@ The user has to know these are no-ops and do them manually.
 
 ### I. The `sase_hg_presubmit` and `sase_hg_lint` default hooks
 
-`ace/constants.py:10-11` hardcodes `"!$sase_hg_presubmit"` and `"$sase_hg_lint"` as default hooks. These are Google-internal
-commands. In a git repo, these would need to be replaced with project-specific CI checks, but there's no mechanism for
-that.
+`ace/constants.py:10-11` hardcodes `"!$sase_hg_presubmit"` and `"$sase_hg_lint"` as default hooks. These are
+Google-internal commands. In a git repo, these would need to be replaced with project-specific CI checks, but there's no
+mechanism for that.
 
 ### J. Workspace numbering system (100-199 range)
 

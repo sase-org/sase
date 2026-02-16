@@ -162,7 +162,8 @@ def _start_crs_workflow(
     )
     if not clean_success:
         log(
-            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}", "yellow"
+            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
+            "yellow",
         )
 
     # Run sase_hg_update to switch to the ChangeSpec's branch
@@ -331,7 +332,8 @@ def start_fix_hook_workflow(
     )
     if not clean_success:
         log(
-            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}", "yellow"
+            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
+            "yellow",
         )
 
     # Run sase_hg_update to switch to the ChangeSpec's branch
