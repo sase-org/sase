@@ -95,7 +95,7 @@ def _parse_workflow_step(
     # Validate mutually exclusive fields - must have exactly one of prompt, bash, python,
     # prompt_part, parallel
     step_types = [prompt, bash, python, prompt_part, parallel_data]
-    num_step_types = sum(1 for t in step_types if t)
+    num_step_types = sum(1 for t in step_types if t is not None)
 
     if num_step_types > 1:
         raise WorkflowValidationError(
@@ -138,7 +138,7 @@ def _parse_workflow_step(
         )
 
     # Validate prompt_part step restrictions
-    if prompt_part:
+    if prompt_part is not None:
         if condition:
             raise WorkflowValidationError(
                 f"Step '{name}' with 'prompt_part' cannot have 'if' condition"
@@ -261,7 +261,7 @@ def _parse_workflow_step(
         prompt=str(prompt) if prompt else None,
         bash=str(bash) if bash else None,
         python=str(python) if python else None,
-        prompt_part=str(prompt_part) if prompt_part else None,
+        prompt_part=str(prompt_part) if prompt_part is not None else None,
         output=output,
         hitl=hitl,
         hidden=hidden,
