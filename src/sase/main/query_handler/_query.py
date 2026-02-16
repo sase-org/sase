@@ -267,6 +267,12 @@ def execute_standalone_steps(
                 )
 
             output = parse_bash_output(result.stdout)
+            # Handle _chdir special output: change executor's working directory
+            if "_chdir" in output:
+                chdir_path = str(output.pop("_chdir"))
+                if not os.path.isabs(chdir_path):
+                    chdir_path = os.path.abspath(chdir_path)
+                os.chdir(chdir_path)
             context[step.name] = output
 
         elif step.is_python_step() and step.python:
@@ -294,6 +300,12 @@ def execute_standalone_steps(
                 )
 
             output = parse_bash_output(result.stdout)
+            # Handle _chdir special output: change executor's working directory
+            if "_chdir" in output:
+                chdir_path = str(output.pop("_chdir"))
+                if not os.path.isabs(chdir_path):
+                    chdir_path = os.path.abspath(chdir_path)
+                os.chdir(chdir_path)
             context[step.name] = output
 
         elif step.is_prompt_step() and step.prompt:

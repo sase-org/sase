@@ -1,5 +1,8 @@
 """Tests for jinja, models, standalone execution, and utilities."""
 
+import os
+from pathlib import Path
+
 import pytest
 from sase.main.query_handler._query import _evaluate_standalone_condition
 from sase.shared_utils import dump_yaml
@@ -555,6 +558,29 @@ def test_render_template_string_lower_false() -> None:
     """Test that | string | lower on Python False produces 'false'."""
     result = render_template("{{ flag | string | lower }}", {"flag": False})
     assert result == "false"
+
+
+def test_chdir_handling_in_standalone_steps(tmp_path: Path) -> None:
+    """Test that _chdir special output changes the working directory."""
+    from sase.main.query_handler._query import execute_standalone_steps
+    from sase.xprompt.workflow_models import WorkflowStep
+
+    target_dir = str(tmp_path)
+    original_dir = os.getcwd()
+    try:
+        steps = [
+            WorkflowStep(
+                name="change_dir",
+                bash=f"echo '_chdir={target_dir}'",
+            ),
+        ]
+        context: dict[str, object] = {}
+        result = execute_standalone_steps(steps, context, "test_workflow")
+        assert os.getcwd() == target_dir
+        # _chdir should be popped from output
+        assert "_chdir" not in result["change_dir"]
+    finally:
+        os.chdir(original_dir)
 
 
 def test_bool_roundtrip_bash_to_template() -> None:
