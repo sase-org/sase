@@ -54,7 +54,7 @@ class AgentLaunchMixin:
             return
 
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
-        if prompt.startswith("#"):
+        if prompt.startswith("#") and not ctx.is_bare_mode:
             workflow_result = self._try_execute_workflow(prompt)
             if workflow_result is True:
                 # Full workflow executed successfully

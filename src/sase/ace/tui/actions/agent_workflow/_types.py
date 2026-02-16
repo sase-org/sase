@@ -24,3 +24,4 @@ class PromptContext:
     display_name: str
     update_target: str
     is_home_mode: bool = False
+    is_bare_mode: bool = False

@@ -103,57 +103,8 @@ class EntryPointsMixin:
             pass
 
     def action_start_custom_agent(self) -> None:
-        """Start a custom agent by selecting project or CL (works on all tabs)."""
-        from ...modals import (
-            ProjectSelectModal,
-            SelectionItem,
-        )
-
-        def on_project_select(result: SelectionItem | str | None) -> None:
-            if result is None:
-                self.notify("Selection cancelled")  # type: ignore[attr-defined]
-                return
-
-            # Handle home directory selection
-            if isinstance(result, SelectionItem) and result.item_type == "home":
-                self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
-                return
-
-            # Determine selection type and details
-            if isinstance(result, str):
-                # Custom name entered - treat as new project name
-                project_name: str = result
-                selected_cl_name = None
-            elif result.item_type == "project":
-                selected_cl_name = None
-                project_name = result.project_name
-            else:
-                selected_cl_name = result.cl_name
-                project_name = result.project_name
-
-            # Determine sort key for prompt history
-            history_sort_key = selected_cl_name or project_name
-
-            if selected_cl_name is not None:
-                # CL selection: target the selected CL
-                self._show_prompt_input_bar(  # type: ignore[attr-defined]
-                    project_name,
-                    cl_name=selected_cl_name,
-                    update_target=selected_cl_name,
-                    history_sort_key=history_sort_key,
-                )
-            else:
-                # Project selection: target VCS default revision
-                from sase.vcs_provider import VCS_DEFAULT_REVISION
-
-                self._show_prompt_input_bar(  # type: ignore[attr-defined]
-                    project_name,
-                    cl_name=None,
-                    update_target=VCS_DEFAULT_REVISION,
-                    history_sort_key=history_sort_key,
-                )
-
-        self.push_screen(ProjectSelectModal(), on_project_select)  # type: ignore[attr-defined]
+        """Start a custom agent with bare prompt bar (works on all tabs)."""
+        self._show_bare_prompt_input_bar()  # type: ignore[attr-defined]
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.

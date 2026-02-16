@@ -129,6 +129,39 @@ class PromptBarMixin:
         # Show prompt input bar
         self.mount(PromptInputBar(id="prompt-input-bar"))  # type: ignore[attr-defined]
 
+    def _show_bare_prompt_input_bar(self) -> None:
+        """Show bare prompt input bar for direct xprompt-based workflows.
+
+        This provides a minimal prompt bar without project or workspace
+        resolution. The user's prompt (e.g., '#hg(cl_name) fix bug') drives
+        all workspace management through embedded xprompt workflows.
+        """
+        from pathlib import Path
+
+        from sase.sase_utils import generate_timestamp
+
+        from ...widgets import PromptInputBar
+
+        timestamp = generate_timestamp()
+        workflow_name = f"ace(run)-{timestamp}"
+
+        self._prompt_context = PromptContext(
+            project_name="home",
+            cl_name=None,
+            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            workspace_dir=str(Path.home()),
+            workspace_num=0,
+            workflow_name=workflow_name,
+            timestamp=timestamp,
+            history_sort_key="custom",
+            display_name="@",
+            update_target="",
+            is_home_mode=True,
+            is_bare_mode=True,
+        )
+
+        self.mount(PromptInputBar(id="prompt-input-bar"))  # type: ignore[attr-defined]
+
     def on_prompt_input_bar_submitted(self, event: object) -> None:
         """Handle prompt submission from the input bar."""
         from ...widgets import PromptInputBar
