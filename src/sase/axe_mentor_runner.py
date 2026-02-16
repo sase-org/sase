@@ -9,13 +9,10 @@ import os
 import sys
 import time
 
-# Add src directory to path for imports (use abspath to handle relative __file__)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from sase.ace.hooks import format_duration  # noqa: E402
-from sase.ace.mentors import set_mentor_status  # noqa: E402
-from sase.axe_runner_utils import install_sigterm_handler, was_killed  # noqa: E402
-from sase.mentor_workflow import MentorWorkflow  # noqa: E402
+from sase.ace.hooks import format_duration
+from sase.ace.mentors import set_mentor_status
+from sase.axe_runner_utils import install_sigterm_handler, was_killed
+from sase.mentor_workflow import MentorWorkflow
 
 install_sigterm_handler("mentor")
 

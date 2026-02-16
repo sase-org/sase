@@ -15,13 +15,9 @@ Output file will contain:
     - Completion marker: ===WORKFLOW_COMPLETE=== PROPOSAL_ID: None EXIT_CODE: <code>
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
-
-# Add the src directory to the path for imports (use abspath to handle relative __file__)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sase.ace.hooks import set_hook_suffix
 from sase.metahook_config import MetahookConfig, find_matching_metahook

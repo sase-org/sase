@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import TYPE_CHECKING
 
 from .agent_workflow._types import PromptContext
@@ -230,7 +231,7 @@ class AgentLaunchMixin:
             with open(output_path, "w") as output_file:
                 process = subprocess.Popen(
                     [
-                        "python3",
+                        sys.executable,
                         runner_script,
                         cl_name,
                         project_file,
@@ -484,7 +485,7 @@ class AgentLaunchMixin:
             with open(output_path, "w") as output_file:
                 process = subprocess.Popen(
                     [
-                        "python3",
+                        sys.executable,
                         runner_script,
                         workflow_name,
                         json.dumps(positional_args),

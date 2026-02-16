@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 
@@ -238,7 +239,7 @@ def _start_crs_workflow(
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
                 [
-                    "python3",
+                    sys.executable,
                     runner_script,
                     changespec.name,
                     changespec.file_path,
@@ -360,7 +361,7 @@ def start_fix_hook_workflow(
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
                 [
-                    "python3",
+                    sys.executable,
                     runner_script,
                     changespec.name,
                     changespec.file_path,
@@ -463,7 +464,7 @@ def _start_summarize_hook_workflow(
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
                 [
-                    "python3",
+                    sys.executable,
                     runner_script,
                     changespec.name,
                     changespec.file_path,

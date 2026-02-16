@@ -13,12 +13,8 @@ Output file will contain:
     - Completion marker: ===WORKFLOW_COMPLETE=== PROPOSAL_ID: <id> EXIT_CODE: <code>
 """
 
-import os
 import sys
 from pathlib import Path
-
-# Add the src directory to the path for imports (use abspath to handle relative __file__)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.ace.hooks import contract_test_target_command, set_hook_suffix
