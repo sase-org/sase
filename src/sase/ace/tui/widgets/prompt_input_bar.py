@@ -124,13 +124,15 @@ class PromptInputBar(Static):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, initial_value: str = "", **kwargs: Any) -> None:
         """Initialize the prompt input bar.
 
         Args:
+            initial_value: Pre-populated text for the input field.
             **kwargs: Additional arguments for Static
         """
         super().__init__(**kwargs)
+        self._initial_value = initial_value
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
@@ -139,13 +141,17 @@ class PromptInputBar(Static):
             yield _PromptInput(
                 placeholder="Type prompt, '.' for history, '##' for snippets [^G] editor [^Y] workflow",
                 id="prompt-input",
+                value=self._initial_value,
+                select_on_focus=not self._initial_value,
             )
             yield Label("[Esc] cancel", id="prompt-escape-hint", classes="dim-label")
 
     def on_mount(self) -> None:
-        """Focus the input on mount."""
+        """Focus the input on mount and position cursor at end of initial text."""
         prompt_input = self.query_one("#prompt-input", _PromptInput)
         prompt_input.focus()
+        if self._initial_value:
+            prompt_input.cursor_position = len(self._initial_value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input."""

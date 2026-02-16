@@ -95,11 +95,21 @@ class PromptBarMixin:
         except Exception:
             pass  # Bar not present
 
-    def _show_prompt_input_bar_for_home(self) -> None:
+    def _show_prompt_input_bar_for_home(
+        self,
+        initial_text: str = "",
+        display_name: str = "~",
+        history_sort_key: str = "home",
+    ) -> None:
         """Show prompt input bar for home directory mode.
 
         This skips CL name and bug modals, running the agent from the user's
         home directory without version control or workspace management.
+
+        Args:
+            initial_text: Pre-populated text for the prompt input bar.
+            display_name: Display name shown in the prompt context.
+            history_sort_key: Key used to sort/filter prompt history.
         """
         from pathlib import Path
 
@@ -120,14 +130,14 @@ class PromptBarMixin:
             workspace_num=0,
             workflow_name=workflow_name,
             timestamp=timestamp,
-            history_sort_key="home",
-            display_name="~",
+            history_sort_key=history_sort_key,
+            display_name=display_name,
             update_target="",
             is_home_mode=True,
         )
 
         # Show prompt input bar
-        self.mount(PromptInputBar(id="prompt-input-bar"))  # type: ignore[attr-defined]
+        self.mount(PromptInputBar(initial_value=initial_text, id="prompt-input-bar"))  # type: ignore[attr-defined]
 
     def on_prompt_input_bar_submitted(self, event: object) -> None:
         """Handle prompt submission from the input bar."""

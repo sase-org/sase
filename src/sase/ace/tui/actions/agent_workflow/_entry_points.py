@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from ._types import PromptContext, TabName
@@ -9,6 +10,23 @@ from ._types import PromptContext, TabName
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
     from ...models import Agent
+
+
+def _vcs_prompt_prefix(project_file: str, name: str) -> str:
+    """Build a VCS prompt prefix like ``#gh:name `` or ``#hg:name ``.
+
+    Args:
+        project_file: Path to the project ``.gp`` file.
+        name: Project or CL name to embed in the prefix.
+
+    Returns:
+        A string such as ``"#gh:my_cl "`` or ``"#hg:my_cl "``.
+    """
+    from sase.gh_workspace import detect_vcs_type_for_project
+
+    vcs_type = detect_vcs_type_for_project(project_file)
+    vcs = "gh" if vcs_type == "git" else "hg"
+    return f"#{vcs}:{name} "
 
 
 class EntryPointsMixin:
@@ -74,21 +92,19 @@ class EntryPointsMixin:
         """Start agent from current ChangeSpec without CL name modal.
 
         This is the quick version that skips CLNameInputModal entirely,
-        going directly to the prompt input bar.
+        going directly to the prompt input bar with a VCS prefix.
         """
         if not self.changespecs:
             self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
             return
 
         changespec = self.changespecs[self.current_idx]
-        project_name = changespec.project_basename
         cl_name = changespec.name
+        prefix = _vcs_prompt_prefix(changespec.file_path, cl_name)
 
-        # Go directly to prompt input bar, skipping CLNameInputModal
-        self._show_prompt_input_bar(  # type: ignore[attr-defined]
-            project_name,
-            cl_name=cl_name,
-            update_target=cl_name,
+        self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+            initial_text=prefix,
+            display_name=cl_name,
             history_sort_key=cl_name,
         )
 
@@ -103,8 +119,50 @@ class EntryPointsMixin:
             pass
 
     def action_start_custom_agent(self) -> None:
-        """Start a custom agent with home prompt bar (works on all tabs)."""
-        self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+        """Start a custom agent by selecting project or CL (works on all tabs)."""
+        from ...modals import (
+            ProjectSelectModal,
+            SelectionItem,
+        )
+
+        def on_project_select(result: SelectionItem | str | None) -> None:
+            if result is None:
+                self.notify("Selection cancelled")  # type: ignore[attr-defined]
+                return
+
+            # Handle home directory selection
+            if isinstance(result, SelectionItem) and result.item_type == "home":
+                self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+                return
+
+            # Determine selection type and details
+            if isinstance(result, str):
+                # Custom name entered - no project file, use plain home mode
+                self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+                return
+
+            project_name: str = result.project_name
+            project_file = os.path.expanduser(
+                f"~/.sase/projects/{project_name}/{project_name}.gp"
+            )
+
+            if result.item_type == "cl" and result.cl_name:
+                prefix = _vcs_prompt_prefix(project_file, result.cl_name)
+                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                    initial_text=prefix,
+                    display_name=result.cl_name,
+                    history_sort_key=result.cl_name,
+                )
+            else:
+                # Project selection
+                prefix = _vcs_prompt_prefix(project_file, project_name)
+                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                    initial_text=prefix,
+                    display_name=project_name,
+                    history_sort_key=project_name,
+                )
+
+        self.push_screen(ProjectSelectModal(), on_project_select)  # type: ignore[attr-defined]
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.
