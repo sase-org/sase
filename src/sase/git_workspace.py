@@ -239,10 +239,10 @@ def init_bare_git_project(
         clone_dir = str(Path.home() / "projects" / "git" / project_name) + "/"
 
     if existing_bare:
-        # Validate it's a bare repo
+        # Validate it's a bare repo (use --git-dir to avoid
+        # safe.bareRepository=explicit blocking access)
         result = subprocess.run(
-            ["git", "rev-parse", "--is-bare-repository"],
-            cwd=existing_bare,
+            ["git", "--git-dir", existing_bare, "rev-parse", "--is-bare-repository"],
             capture_output=True,
             text=True,
             check=False,

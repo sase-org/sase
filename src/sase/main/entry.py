@@ -40,6 +40,19 @@ def main() -> NoReturn:
     if args.command == "commit":
         handle_commit_command(args)
 
+    # --- init-git ---
+    if args.command == "init-git":
+        from sase.git_workspace import init_bare_git_project
+
+        project_file = init_bare_git_project(
+            project_name=args.project_name,
+            bare_dir=args.bare_dir,
+            clone_dir=args.clone_dir,
+            existing_bare=args.existing,
+        )
+        print(f"Initialized git project: {project_file}")
+        sys.exit(0)
+
     # --- restore ---
     if args.command == "restore":
         handle_restore_command(args)

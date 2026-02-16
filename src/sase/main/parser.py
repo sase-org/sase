@@ -220,6 +220,32 @@ def create_parser() -> argparse.ArgumentParser:
         help="End timestamp for duration calculation (YYmmdd_HHMMSS format).",
     )
 
+    # --- init-git ---
+    init_git_parser = top_level_subparsers.add_parser(
+        "init-git",
+        help="Initialize a new bare-repo-backed git project",
+    )
+    init_git_parser.add_argument(
+        "project_name",
+        help="Name of the project to initialize",
+    )
+    # Options for 'init-git' (keep sorted alphabetically by long option name)
+    init_git_parser.add_argument(
+        "--bare-dir",
+        default=None,
+        help="Override bare repo path (default: ~/.sase/repos/<name>.git)",
+    )
+    init_git_parser.add_argument(
+        "--clone-dir",
+        default=None,
+        help="Override clone path (default: ~/projects/git/<name>/)",
+    )
+    init_git_parser.add_argument(
+        "--existing",
+        default=None,
+        help="Path to an existing bare repo to register instead of creating new",
+    )
+
     # --- restore ---
     restore_parser = top_level_subparsers.add_parser(
         "restore",
