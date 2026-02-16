@@ -256,8 +256,9 @@ class TestInitBareGitProject:
                     "test", bare_dir=bare_dir, clone_dir=clone_dir
                 )
                 assert result.endswith("test.gp")
-                # Should have called: git init --bare, git clone, git commit, git push
-                assert mock_run.call_count == 4
+                # git init --bare, git clone, git config email,
+                # git config name, git commit, git push
+                assert mock_run.call_count == 6
                 mock_set_bare.assert_called_once()
                 mock_set_ws.assert_called_once()
 

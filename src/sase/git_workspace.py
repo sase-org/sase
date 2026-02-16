@@ -276,6 +276,20 @@ def init_bare_git_project(
             check=True,
         )
 
+        # Set default git identity for the initial commit
+        subprocess.run(
+            ["git", "config", "user.email", "sase@localhost"],
+            cwd=clone_dir,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "sase"],
+            cwd=clone_dir,
+            capture_output=True,
+            check=True,
+        )
+
         # Create initial commit and push
         subprocess.run(
             ["git", "commit", "--allow-empty", "-m", "Initial commit"],
