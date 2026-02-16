@@ -13,6 +13,16 @@ def test_load_all_agents_empty() -> None:
             "sase.ace.tui.models.agent_loader.get_all_project_files", return_value=[]
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         assert agents == []
@@ -35,6 +45,16 @@ def test_load_all_agents_with_running_claims() -> None:
             return_value=[mock_claim],
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         assert len(agents) == 1
@@ -67,6 +87,16 @@ def test_load_all_agents_sorting() -> None:
             return_value=[mock_claim1, mock_claim2],
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         assert len(agents) == 2
@@ -115,6 +145,16 @@ def test_load_all_agents_with_hook_agents() -> None:
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         assert len(agents) == 1
@@ -162,6 +202,16 @@ def test_load_all_agents_with_summarize_agents() -> None:
         patch(
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
         ),
     ):
         agents = load_all_agents()
@@ -212,6 +262,16 @@ def test_load_all_agents_with_mentor_agents() -> None:
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         assert len(agents) == 1
@@ -253,6 +313,16 @@ def test_load_all_agents_with_crs_agents() -> None:
             "sase.ace.tui.models.agent_loader.find_all_changespecs",
             return_value=[mock_cs],
         ),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         assert len(agents) == 1
@@ -280,6 +350,16 @@ def test_load_all_agents_filters_hook_processes() -> None:
             return_value=[mock_claim],
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         # Hook process should be filtered out
@@ -306,6 +386,16 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
             return_value=[mock_claim],
         ),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         # Agent workflow should be included

@@ -63,6 +63,16 @@ def test_load_all_agents_deduplicates_by_timestamp() -> None:
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         # Should have only one agent (deduplicated by timestamp)
@@ -129,6 +139,16 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
     ):
         agents = load_all_agents()
         assert len(agents) == 1
@@ -192,6 +212,16 @@ def test_load_all_agents_dedup_mentor_by_timestamp() -> None:
         patch(
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_done_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
         ),
     ):
         agents = load_all_agents()
