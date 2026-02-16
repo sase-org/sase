@@ -45,3 +45,6 @@ coverage.xml
 # OS
 .DS_Store
 Thumbs.db
+
+# exploration markdown files
+explore/
