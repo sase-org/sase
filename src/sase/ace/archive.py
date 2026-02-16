@@ -39,9 +39,9 @@ def archive_changespec(
     1. Validates that the ChangeSpec has a valid CL set
     2. Validates that all children are Archived or Reverted
     3. Claims a workspace >= 100
-    4. Checks out the CL with bb_hg_update
+    4. Checks out the CL with sase_hg_update
     5. Saves the diff to `~/.sase/archived/<new_name>.diff`
-    6. Runs `bb_hg_archive <name>` to archive the revision
+    6. Runs `sase_hg_archive <name>` to archive the revision
     7. Renames the ChangeSpec by appending `__<N>` suffix
     8. Updates STATUS to "Archived" and CL to "None"
     9. Releases the claimed workspace
@@ -133,7 +133,7 @@ def archive_changespec(
             diff_path = Path.home() / ".sase" / "archived" / f"{new_name}.diff"
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
-        # Run bb_hg_archive
+        # Run sase_hg_archive
         success, error = provider.archive(changespec.name, workspace_dir)
         if not success:
             return (False, f"Failed to archive revision: {error}")

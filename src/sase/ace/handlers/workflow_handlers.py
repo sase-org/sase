@@ -11,7 +11,7 @@ from sase.change_actions import (
     prompt_for_change_action,
 )
 from sase.chat_history import save_chat_history
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.sase_utils import generate_timestamp, strip_hook_prefix
 from sase.llm_provider import invoke_agent
 from sase.running_field import (
@@ -239,15 +239,15 @@ def handle_run_fix_hook_workflow(
         self.console.print(f"[cyan]Using workspace share: {workspace_suffix}[/cyan]")
 
     # Clean workspace before switching branches
-    clean_success, clean_error = run_bb_hg_clean(
+    clean_success, clean_error = run_sase_hg_clean(
         workspace_dir, f"{changespec.name}-fix-hook"
     )
     if not clean_success:
         self.console.print(
-            f"[yellow]Warning: bb_hg_clean failed: {clean_error}[/yellow]"
+            f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]"
         )
 
-    # Update to the changespec NAME (cd and bb_hg_update to the branch)
+    # Update to the changespec NAME (cd and sase_hg_update to the branch)
     success, error_msg = update_to_changespec(
         changespec, self.console, revision=changespec.name, workspace_dir=workspace_dir
     )

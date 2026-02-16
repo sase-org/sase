@@ -5,7 +5,7 @@ import subprocess
 import time
 from collections.abc import Callable
 
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.sase_utils import (
     ensure_sase_directory,
     make_safe_filename,
@@ -157,20 +157,20 @@ def _start_crs_workflow(
         return None
 
     # Clean workspace before switching branches
-    clean_success, clean_error = run_bb_hg_clean(
+    clean_success, clean_error = run_sase_hg_clean(
         workspace_dir, f"{changespec.name}-crs"
     )
     if not clean_success:
         log(
-            f"[WS#{workspace_num}] Warning: bb_hg_clean failed: {clean_error}", "yellow"
+            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}", "yellow"
         )
 
-    # Run bb_hg_update to switch to the ChangeSpec's branch
+    # Run sase_hg_update to switch to the ChangeSpec's branch
     provider = get_vcs_provider(workspace_dir)
     checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
     if not checkout_ok:
         log(
-            f"[WS#{workspace_num}] Warning: bb_hg_update failed for "
+            f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
             f"{changespec.name}: {checkout_err}",
             "yellow",
         )
@@ -326,20 +326,20 @@ def start_fix_hook_workflow(
         return None
 
     # Clean workspace before switching branches
-    clean_success, clean_error = run_bb_hg_clean(
+    clean_success, clean_error = run_sase_hg_clean(
         workspace_dir, f"{changespec.name}-fix-hook"
     )
     if not clean_success:
         log(
-            f"[WS#{workspace_num}] Warning: bb_hg_clean failed: {clean_error}", "yellow"
+            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}", "yellow"
         )
 
-    # Run bb_hg_update to switch to the ChangeSpec's branch
+    # Run sase_hg_update to switch to the ChangeSpec's branch
     provider = get_vcs_provider(workspace_dir)
     checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
     if not checkout_ok:
         log(
-            f"[WS#{workspace_num}] Warning: bb_hg_update failed for "
+            f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
             f"{changespec.name}: {checkout_err}",
             "yellow",
         )

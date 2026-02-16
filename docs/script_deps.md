@@ -10,15 +10,15 @@ Source: `src/sase/vcs_provider/_hg.py`
 
 | Script          | Usage                       | Line(s)  |
 | --------------- | --------------------------- | -------- |
-| `bb_hg_update`  | Checkout/update to revision | 73       |
-| `bb_hg_amend`   | Amend current CL            | 136      |
-| `bb_hg_rename`  | Rename branch               | 144      |
-| `bb_hg_rebase`  | Rebase branch               | 150      |
-| `bb_hg_archive` | Archive revision            | 154      |
-| `bb_hg_prune`   | Prune revision              | 158      |
-| `bb_hg_clean`   | Stash and clean workspace   | 164      |
-| `bb_hg_sync`    | Sync workspace              | 176      |
-| `bb_hg_reword`  | Reword CL description       | 207, 213 |
+| `sase_hg_update`  | Checkout/update to revision | 73       |
+| `sase_hg_amend`   | Amend current CL            | 136      |
+| `sase_hg_rename`  | Rename branch               | 144      |
+| `sase_hg_rebase`  | Rebase branch               | 150      |
+| `sase_hg_archive` | Archive revision            | 154      |
+| `sase_hg_prune`   | Prune revision              | 158      |
+| `sase_hg_clean`   | Stash and clean workspace   | 164      |
+| `sase_hg_sync`    | Sync workspace              | 176      |
+| `sase_hg_reword`  | Reword CL description       | 207, 213 |
 
 ## Google-internal / CL utilities
 

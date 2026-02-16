@@ -112,7 +112,7 @@ def test_restore_changespec_success(make_changespec) -> None:  # type: ignore[no
 
 
 def test_restore_changespec_with_parent(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test restore_changespec uses parent for bb_hg_update."""
+    """Test restore_changespec uses parent for sase_hg_update."""
     changespec = make_changespec.create(
         name="test_project_feature__1", status="Reverted", parent="parent_branch"
     )
@@ -174,8 +174,8 @@ def test_restore_changespec_without_parent_uses_provider_default(  # type: ignor
     mock_provider.checkout.assert_called_once_with("p4head", "/tmp")
 
 
-def test_restore_changespec_bb_hg_update_fails(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test restore_changespec fails when bb_hg_update fails."""
+def test_restore_changespec_sase_hg_update_fails(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test restore_changespec fails when sase_hg_update fails."""
     changespec = make_changespec.create(
         name="test_project_feature__1", status="Reverted"
     )

@@ -341,7 +341,7 @@ def test_all_non_skip_hooks_ready_only_skip_hooks() -> None:
     """Test only !-prefixed hooks blocks mentors (non-! hooks not yet added)."""
     cs = _make_changespec(
         hooks=[
-            _make_hook("!$bb_hg_presubmit", "1", "PASSED"),
+            _make_hook("!$sase_hg_presubmit", "1", "PASSED"),
         ]
     )
     # Only skip hooks exist, so non-skip hooks haven't been added yet

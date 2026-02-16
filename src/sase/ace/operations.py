@@ -100,7 +100,7 @@ def update_to_changespec(
 
     This function:
     1. Changes to workspace directory (uses sase_get_workspace to determine path)
-    2. Runs bb_hg_update <revision>
+    2. Runs sase_hg_update <revision>
 
     Args:
         changespec: The ChangeSpec object to update to

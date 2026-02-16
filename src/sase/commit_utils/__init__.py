@@ -21,7 +21,7 @@ from sase.commit_utils.workspace import (
     apply_diff_to_workspace,
     apply_diffs_to_workspace,
     clean_workspace,
-    run_bb_hg_clean,
+    run_sase_hg_clean,
     save_diff,
 )
 
@@ -35,7 +35,7 @@ __all__ = [
     "mark_proposal_broken",
     "reject_all_new_proposals",
     "reject_proposals_and_set_status_atomic",
-    "run_bb_hg_clean",
+    "run_sase_hg_clean",
     "save_diff",
     "update_commit_entry_suffix",
 ]

@@ -87,7 +87,7 @@ def revert_changespec(
     2. Validates that the ChangeSpec has no children
     3. Renames the ChangeSpec by appending `__<N>` suffix
     4. Saves the diff to `~/.sase/reverted/<new_name>.diff`
-    5. Runs `bb_hg_prune <name>` to remove the revision
+    5. Runs `sase_hg_prune <name>` to remove the revision
     6. Updates STATUS to "Reverted" and CL to "None"
 
     Args:
@@ -144,7 +144,7 @@ def revert_changespec(
         diff_path = Path.home() / ".sase" / "reverted" / f"{new_name}.diff"
         console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
-    # Run bb_hg_prune
+    # Run sase_hg_prune
     provider = get_vcs_provider(workspace_dir)
     success, error = provider.prune(changespec.name, workspace_dir)
     if not success:

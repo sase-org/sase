@@ -12,7 +12,7 @@ from sase.change_actions import (
     prompt_for_change_action,
 )
 from sase.chat_history import save_chat_history
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.crs_workflow import CrsWorkflow
 from sase.sase_utils import generate_timestamp, shorten_path
 from sase.running_field import (
@@ -68,13 +68,13 @@ def run_crs_workflow(
         console.print(f"[cyan]Using workspace share: {workspace_suffix}[/cyan]")
 
     # Clean workspace before switching branches
-    clean_success, clean_error = run_bb_hg_clean(
+    clean_success, clean_error = run_sase_hg_clean(
         workspace_dir, f"{changespec.name}-crs"
     )
     if not clean_success:
-        console.print(f"[yellow]Warning: bb_hg_clean failed: {clean_error}[/yellow]")
+        console.print(f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]")
 
-    # Now update to the changespec NAME (cd and bb_hg_update to the branch)
+    # Now update to the changespec NAME (cd and sase_hg_update to the branch)
     success, error_msg = update_to_changespec(
         changespec, console, revision=changespec.name, workspace_dir=workspace_dir
     )

@@ -271,7 +271,7 @@ def test_handle_reword_trailing_newline_no_false_diff(
 
 @patch("sase.ace.handlers.reword._sync_description_after_reword")
 @patch("sase.ace.handlers.reword.get_vcs_provider")
-@patch("sase.ace.handlers.reword.run_bb_hg_clean", return_value=(True, None))
+@patch("sase.ace.handlers.reword.run_sase_hg_clean", return_value=(True, None))
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
     return_value=("/ws", "fig_101"),

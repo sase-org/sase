@@ -58,11 +58,11 @@ cause `FileNotFoundError` crashes because they exist on this system's PATH.
 
 ---
 
-## 2C. Direct `bb_hg_update` calls — Valid
+## 2C. Direct `sase_hg_update` calls — Valid
 
 **Verdict: Valid**
 
-The TUI code does call `subprocess.run(["bb_hg_update", ...])` directly. The fix is straightforward: replace with
+The TUI code does call `subprocess.run(["sase_hg_update", ...])` directly. The fix is straightforward: replace with
 `provider.checkout()`. This is a real gap.
 
 ---
@@ -182,7 +182,7 @@ operation. These are not missing functionality; the git workflow simply handles 
 
 ---
 
-## 2I. Default hooks `bb_hg_presubmit` / `bb_hg_lint` — Valid
+## 2I. Default hooks `sase_hg_presubmit` / `sase_hg_lint` — Valid
 
 **Verdict: Valid**
 
@@ -281,6 +281,6 @@ The "3-5x underestimate" conclusion is built on a foundation of 3 factual errors
 - `bam` is Google-internal? **No, it's a 47-line bell script.**
 - `critique_comments` will crash? **Already skipped for git repos.**
 
-The valid concerns (workspace system, `bb_hg_update` calls, `p4head`, default hooks, workspace numbering) are real work
+The valid concerns (workspace system, `sase_hg_update` calls, `p4head`, default hooks, workspace numbering) are real work
 but are straightforward fixes, not fundamental architectural problems. The estimate of remaining work should be based on
 the 5 valid points, not on 14 claims where 9 are wrong or exaggerated.

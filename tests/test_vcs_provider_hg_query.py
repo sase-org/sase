@@ -138,7 +138,7 @@ def test_hg_reword_success(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_args[0][0] == ["bb_hg_reword", "new description"]
+    assert mock_run.call_args[0][0] == ["sase_hg_reword", "new description"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -151,7 +151,7 @@ def test_hg_reword_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_reword failed" in error
+    assert "sase_hg_reword failed" in error
 
 
 # === Tests for reword_add_tag ===
@@ -168,7 +168,7 @@ def test_hg_reword_add_tag_success(mock_run: MagicMock) -> None:
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == [
-        "bb_hg_reword",
+        "sase_hg_reword",
         "--add-tag",
         "BUG",
         "12345",
@@ -185,7 +185,7 @@ def test_hg_reword_add_tag_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_reword failed" in error
+    assert "sase_hg_reword failed" in error
 
 
 # === Tests for get_change_url ===

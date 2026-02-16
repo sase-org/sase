@@ -217,7 +217,7 @@ def test_update_hooks_with_id_mapping_suffix_with_summary() -> None:
         "NAME: test_cl\n",
         "STATUS: Drafted\n",
         "HOOKS:\n",
-        "  bb_hg_lint\n",
+        "  sase_hg_lint\n",
         "      | (1) [260101_141242] FAILED (5s) - (1a | Lint failed: Missing Javadoc)\n",
     ]
     promote_mapping = {"1a": "3"}

@@ -9,7 +9,7 @@ from ._types import CommandOutput
 
 
 class _HgProvider(VCSProvider):
-    """VCS provider backed by Mercurial and Google-internal ``bb_hg_*`` helpers."""
+    """VCS provider backed by Mercurial and Google-internal ``sase_hg_*`` helpers."""
 
     # --- Private helpers ---
 
@@ -70,8 +70,8 @@ class _HgProvider(VCSProvider):
     # --- Core abstract methods ---
 
     def checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_update", revision], cwd)
-        return self._to_result(out, "bb_hg_update")
+        out = self._run(["sase_hg_update", revision], cwd)
+        return self._to_result(out, "sase_hg_update")
 
     def diff(self, cwd: str) -> tuple[bool, str | None]:
         out = self._run(["hg", "diff"], cwd)
@@ -133,35 +133,35 @@ class _HgProvider(VCSProvider):
     def amend(
         self, note: str, cwd: str, *, no_upload: bool = False
     ) -> tuple[bool, str | None]:
-        cmd = ["bb_hg_amend"]
+        cmd = ["sase_hg_amend"]
         if no_upload:
             cmd.append("--no-upload")
         cmd.append(note)
         out = self._run(cmd, cwd)
-        return self._to_result(out, "bb_hg_amend")
+        return self._to_result(out, "sase_hg_amend")
 
     def rename_branch(self, new_name: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_rename", new_name], cwd)
-        return self._to_result(out, "bb_hg_rename")
+        out = self._run(["sase_hg_rename", new_name], cwd)
+        return self._to_result(out, "sase_hg_rename")
 
     def rebase(
         self, branch_name: str, new_parent: str, cwd: str
     ) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_rebase", branch_name, new_parent], cwd, timeout=600)
-        return self._to_result(out, "bb_hg_rebase")
+        out = self._run(["sase_hg_rebase", branch_name, new_parent], cwd, timeout=600)
+        return self._to_result(out, "sase_hg_rebase")
 
     def archive(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_archive", revision], cwd)
-        return self._to_result(out, "bb_hg_archive")
+        out = self._run(["sase_hg_archive", revision], cwd)
+        return self._to_result(out, "sase_hg_archive")
 
     def prune(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_prune", revision], cwd)
-        return self._to_result(out, "bb_hg_prune")
+        out = self._run(["sase_hg_prune", revision], cwd)
+        return self._to_result(out, "sase_hg_prune")
 
     def stash_and_clean(
         self, diff_name: str, cwd: str, *, timeout: int = 300
     ) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_clean", diff_name], cwd, timeout=timeout)
+        out = self._run(["sase_hg_clean", diff_name], cwd, timeout=timeout)
         if not out.success:
             error_msg = out.stderr.strip() or out.stdout.strip() or "no error output"
             return (False, error_msg)
@@ -173,15 +173,15 @@ class _HgProvider(VCSProvider):
         return "p4head"
 
     def sync_workspace(self, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_sync"], cwd, timeout=600)
-        return self._to_result(out, "bb_hg_sync")
+        out = self._run(["sase_hg_sync"], cwd, timeout=600)
+        return self._to_result(out, "sase_hg_sync")
 
     # --- VCS-agnostic method overrides ---
 
     def prepare_description_for_reword(self, description: str) -> str:
-        """Escape a description for bb_hg_reword's ``$'...'`` quoting.
+        """Escape a description for sase_hg_reword's ``$'...'`` quoting.
 
-        bb_hg_reword uses ``bash -c "hg reword -m $'$1'"`` which interprets
+        sase_hg_reword uses ``bash -c "hg reword -m $'$1'"`` which interprets
         ANSI-C escape sequences. Python passes actual newline chars, but the
         script needs literal ``\\n`` sequences that ``$'...'`` converts back.
         """
@@ -204,14 +204,14 @@ class _HgProvider(VCSProvider):
     # --- Google-internal methods ---
 
     def reword(self, description: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_reword", description], cwd)
-        return self._to_result(out, "bb_hg_reword")
+        out = self._run(["sase_hg_reword", description], cwd)
+        return self._to_result(out, "sase_hg_reword")
 
     def reword_add_tag(
         self, tag_name: str, tag_value: str, cwd: str
     ) -> tuple[bool, str | None]:
-        out = self._run(["bb_hg_reword", "--add-tag", tag_name, tag_value], cwd)
-        return self._to_result(out, "bb_hg_reword")
+        out = self._run(["sase_hg_reword", "--add-tag", tag_name, tag_value], cwd)
+        return self._to_result(out, "sase_hg_reword")
 
     def get_description(
         self, revision: str, cwd: str, *, short: bool = False

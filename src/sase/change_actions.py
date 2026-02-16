@@ -495,11 +495,11 @@ def execute_change_action(
         # Build amend note (append extra_msg if provided)
         amend_note = f"{entry.note} - {extra_msg}" if extra_msg else entry.note
 
-        # Run bb_hg_amend with the amend note
+        # Run sase_hg_amend with the amend note
         console.print("[cyan]Amending commit...[/cyan]")
         amend_ok, amend_err = provider.amend(amend_note, target_dir)
         if not amend_ok:
-            console.print(f"[red]bb_hg_amend failed: {amend_err}[/red]")
+            console.print(f"[red]sase_hg_amend failed: {amend_err}[/red]")
             return False
 
         # Renumber history entries (pass extra_msg to append to COMMITS note)

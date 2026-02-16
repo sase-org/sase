@@ -5,7 +5,7 @@ import subprocess
 import time
 from collections.abc import Callable
 
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.sase_utils import (
     ensure_sase_directory,
     get_sase_directory,
@@ -150,12 +150,12 @@ def _start_single_mentor(
         return None
 
     # Clean workspace before switching branches
-    clean_success, clean_error = run_bb_hg_clean(
+    clean_success, clean_error = run_sase_hg_clean(
         workspace_dir, f"{changespec.name}-mentor"
     )
     if not clean_success:
         log(
-            f"[WS#{workspace_num}] Warning: bb_hg_clean failed: {clean_error}",
+            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
             "yellow",
         )
 

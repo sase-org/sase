@@ -320,7 +320,7 @@ def test_get_failing_hooks_for_fix_excludes_skip_fix_hook() -> None:
     from sase.ace.hooks.workflow_queries import get_failing_hooks_for_fix
 
     hook = HookEntry(
-        command="!bb_hg_presubmit",
+        command="!sase_hg_presubmit",
         status_lines=[
             HookStatusLine(
                 commit_entry_num="1",
@@ -338,7 +338,7 @@ def test_get_failing_hook_entries_for_fix_excludes_skip_fix_hook() -> None:
     from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_fix
 
     hook = HookEntry(
-        command="!bb_hg_presubmit",
+        command="!sase_hg_presubmit",
         status_lines=[
             HookStatusLine(
                 commit_entry_num="3",
@@ -359,7 +359,7 @@ def test_has_failing_hooks_for_fix_false_skip_fix_hook() -> None:
 
     hooks = [
         HookEntry(
-            command="!bb_hg_presubmit",
+            command="!sase_hg_presubmit",
             status_lines=[
                 HookStatusLine(
                     commit_entry_num="1",

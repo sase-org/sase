@@ -17,7 +17,7 @@ from sase.axe.state import (
     read_metrics,
     read_output_log_tail,
 )
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.running_field import get_workspace_directory
 
 from ..bgcmd import (
@@ -254,12 +254,12 @@ class AxeMixin:
         # If a CL was selected, checkout that CL first
         if cl_name is not None:
             # Clean workspace first (save uncommitted changes)
-            clean_success, clean_error = run_bb_hg_clean(
+            clean_success, clean_error = run_sase_hg_clean(
                 workspace_dir, f"{cl_name}-bgcmd"
             )
             if not clean_success:
                 self.notify(  # type: ignore[attr-defined]
-                    f"Warning: bb_hg_clean failed: {clean_error}", severity="warning"
+                    f"Warning: sase_hg_clean failed: {clean_error}", severity="warning"
                 )
 
             # Checkout the CL via VCS provider

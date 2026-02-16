@@ -38,7 +38,7 @@ work/
 **operations.py** - ChangeSpec operations
 
 - `should_show_run_option()` - Check if run action is available
-- `update_to_changespec()` - Update working directory (bb_hg_update)
+- `update_to_changespec()` - Update working directory (sase_hg_update)
 
 **workflow.py** - Orchestration layer
 

@@ -106,7 +106,7 @@ def _auto_accept_proposal(
     provider = get_vcs_provider(workspace_dir)
     amend_ok, amend_err = provider.amend(entry.note, workspace_dir)
     if not amend_ok:
-        log(f"bb_hg_amend failed: {amend_err}", "yellow")
+        log(f"sase_hg_amend failed: {amend_err}", "yellow")
         return False
 
     # Renumber history entries

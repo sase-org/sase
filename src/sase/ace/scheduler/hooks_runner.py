@@ -8,7 +8,7 @@ from sase.commit_utils import (
     apply_diff_to_workspace,
     clean_workspace,
     mark_proposal_broken,
-    run_bb_hg_clean,
+    run_sase_hg_clean,
 )
 from sase.running_field import (
     claim_workspace,
@@ -150,12 +150,12 @@ def start_stale_hooks(
 
     For regular history entries:
         Claims a workspace >= 100 for this ChangeSpec if not already claimed,
-        runs bb_hg_update, and starts hooks. The workspace remains claimed while
+        runs sase_hg_update, and starts hooks. The workspace remains claimed while
         hooks are running and will be released by _check_hooks when all hooks
         complete (passed/failed/zombie).
 
     For proposal entries:
-        All hooks for a proposal share one workspace. After bb_hg_update, the
+        All hooks for a proposal share one workspace. After sase_hg_update, the
         proposal's diff is applied before running hooks.
 
     Args:
@@ -217,7 +217,7 @@ def _start_stale_hooks_for_proposal(
 ) -> tuple[list[str], list[HookEntry], int]:
     """Start stale hooks for a proposal entry.
 
-    All hooks for a proposal share one workspace. After bb_hg_update, the
+    All hooks for a proposal share one workspace. After sase_hg_update, the
     proposal's diff is applied before running hooks. Hooks prefixed with
     "$" are skipped for proposals.
 
@@ -329,15 +329,15 @@ def _start_stale_hooks_for_proposal(
                 )
             return updates, started_hooks, limited_count
 
-        # Run bb_hg_update and apply diff only if newly claimed
+        # Run sase_hg_update and apply diff only if newly claimed
         if newly_claimed:
             # Clean workspace before switching branches
-            clean_success, clean_error = run_bb_hg_clean(
+            clean_success, clean_error = run_sase_hg_clean(
                 workspace_dir, f"{changespec.name}-hooks-proposal"
             )
             if not clean_success:
                 log(
-                    f"[WS#{workspace_num}] Warning: bb_hg_clean failed: {clean_error}",
+                    f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
                     "yellow",
                 )
 
@@ -347,7 +347,7 @@ def _start_stale_hooks_for_proposal(
             )
             if not checkout_ok:
                 log(
-                    f"[WS#{workspace_num}] Warning: bb_hg_update failed for "
+                    f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
                     f"{changespec.name}: {checkout_err}",
                     "yellow",
                 )
@@ -563,21 +563,21 @@ def _start_stale_hooks_shared_workspace(
             return updates, started_hooks, limited_count
 
         # Clean workspace before switching branches
-        clean_success, clean_error = run_bb_hg_clean(
+        clean_success, clean_error = run_sase_hg_clean(
             workspace_dir, f"{changespec.name}-hooks-shared"
         )
         if not clean_success:
             log(
-                f"[WS#{workspace_num}] Warning: bb_hg_clean failed: {clean_error}",
+                f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
                 "yellow",
             )
 
-        # Run bb_hg_update to switch to the ChangeSpec's branch
+        # Run sase_hg_update to switch to the ChangeSpec's branch
         provider = get_vcs_provider(workspace_dir)
         checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
         if not checkout_ok:
             log(
-                f"[WS#{workspace_num}] Warning: bb_hg_update failed for "
+                f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
                 f"{changespec.name}: {checkout_err}",
                 "yellow",
             )

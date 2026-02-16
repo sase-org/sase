@@ -165,8 +165,8 @@ def run_workspace_command(
 ) -> tuple[bool, str | None]:
     """Run a subprocess command in a workspace directory.
 
-    A generic wrapper for running commands like bb_hg_prune, bb_hg_update,
-    bb_hg_archive, hg import, and sase commit in a workspace directory.
+    A generic wrapper for running commands like sase_hg_prune, sase_hg_update,
+    sase_hg_archive, hg import, and sase commit in a workspace directory.
 
     Args:
         cmd: The command and arguments to run.

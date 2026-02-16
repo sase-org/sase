@@ -53,13 +53,13 @@ def prepare_workspace(
     Returns:
         True if successful, False otherwise.
     """
-    from sase.commit_utils import run_bb_hg_clean
+    from sase.commit_utils import run_sase_hg_clean
 
     # Clean workspace (saves any existing changes to a diff file)
     print("Cleaning workspace...")
-    success, error = run_bb_hg_clean(workspace_dir, f"{cl_name}-{backup_suffix}")
+    success, error = run_sase_hg_clean(workspace_dir, f"{cl_name}-{backup_suffix}")
     if not success:
-        print(f"bb_hg_clean failed: {error}", file=sys.stderr)
+        print(f"sase_hg_clean failed: {error}", file=sys.stderr)
         return False
 
     # Update workspace to target
@@ -71,7 +71,7 @@ def prepare_workspace(
     print(f"Updating workspace to {update_target}...")
     checkout_ok, checkout_err = provider.checkout(update_target, workspace_dir)
     if not checkout_ok:
-        print(f"bb_hg_update failed: {checkout_err}", file=sys.stderr)
+        print(f"sase_hg_update failed: {checkout_err}", file=sys.stderr)
         return False
 
     print("Workspace ready")

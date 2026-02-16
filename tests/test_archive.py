@@ -251,7 +251,7 @@ def test_archive_changespec_claims_workspace_100_plus(make_changespec) -> None: 
 
 
 def test_archive_changespec_fails_on_archive_error(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test archive_changespec fails when bb_hg_archive fails."""
+    """Test archive_changespec fails when sase_hg_archive fails."""
     changespec = make_changespec.create_with_file()
 
     mock_provider = MagicMock()

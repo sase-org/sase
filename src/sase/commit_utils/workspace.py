@@ -113,7 +113,7 @@ def clean_workspace(workspace_dir: str) -> bool:
         return False
 
 
-def run_bb_hg_clean(workspace_dir: str, diff_name: str) -> tuple[bool, str]:
+def run_sase_hg_clean(workspace_dir: str, diff_name: str) -> tuple[bool, str]:
     """Save changes and clean the workspace.
 
     This saves any uncommitted changes to a diff file before cleaning.

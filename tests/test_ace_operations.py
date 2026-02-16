@@ -309,7 +309,7 @@ def test_update_to_changespec_command_fails_stderr(
 ) -> None:
     """Test update_to_changespec handles command failure with error message."""
     mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (False, "bb_hg_update failed: Update failed")
+    mock_provider.checkout.return_value = (False, "sase_hg_update failed: Update failed")
     mock_get_provider.return_value = mock_provider
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -320,7 +320,7 @@ def test_update_to_changespec_command_fails_stderr(
 
         assert success is False
         assert error is not None
-        assert "bb_hg_update failed" in error
+        assert "sase_hg_update failed" in error
         assert "Update failed" in error
 
 
@@ -332,7 +332,7 @@ def test_update_to_changespec_command_fails_stdout(
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (
         False,
-        "bb_hg_update failed: Conflict detected",
+        "sase_hg_update failed: Conflict detected",
     )
     mock_get_provider.return_value = mock_provider
 
@@ -355,7 +355,7 @@ def test_update_to_changespec_command_not_found(
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (
         False,
-        "bb_hg_update failed: bb_hg_update command not found",
+        "sase_hg_update failed: sase_hg_update command not found",
     )
     mock_get_provider.return_value = mock_provider
 
@@ -378,7 +378,7 @@ def test_update_to_changespec_unexpected_error(
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (
         False,
-        "bb_hg_update failed: Unexpected error: Disk full",
+        "sase_hg_update failed: Unexpected error: Disk full",
     )
     mock_get_provider.return_value = mock_provider
 

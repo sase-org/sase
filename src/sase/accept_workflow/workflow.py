@@ -6,7 +6,7 @@ from typing import NoReturn
 
 from sase.ace.changespec import ChangeSpec, CommitEntry
 from sase.ace.operations import update_to_changespec
-from sase.commit_utils import apply_diff_to_workspace, clean_workspace, run_bb_hg_clean
+from sase.commit_utils import apply_diff_to_workspace, clean_workspace, run_sase_hg_clean
 from sase.rich_utils import print_status
 from sase.running_field import (
     claim_workspace,
@@ -269,11 +269,11 @@ class AcceptWorkflow(BaseWorkflow):
             print_status(f"Changed to workspace: {workspace_dir}", "progress")
 
             # Clean workspace before switching branches
-            clean_success, clean_error = run_bb_hg_clean(
+            clean_success, clean_error = run_sase_hg_clean(
                 workspace_dir, f"{cl_name}-accept"
             )
             if not clean_success:
-                print_status(f"Warning: bb_hg_clean failed: {clean_error}", "warning")
+                print_status(f"Warning: sase_hg_clean failed: {clean_error}", "warning")
 
             # Update to the changespec branch
             print_status(f"Updating to branch: {cl_name}", "progress")
@@ -338,7 +338,7 @@ class AcceptWorkflow(BaseWorkflow):
                     amend_note, workspace_dir, no_upload=not is_last
                 )
                 if not amend_ok:
-                    print_status(f"bb_hg_amend failed: {amend_err}", "error")
+                    print_status(f"sase_hg_amend failed: {amend_err}", "error")
                     clean_workspace(workspace_dir)
                     return None, None
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
 
 if TYPE_CHECKING:
@@ -130,11 +130,11 @@ class RenameMixin:
 
             try:
                 # Clean workspace before switching branches
-                clean_success, clean_error = run_bb_hg_clean(
+                clean_success, clean_error = run_sase_hg_clean(
                     workspace_dir, f"{old_name}-rename"
                 )
                 if not clean_success:
-                    print(f"Warning: bb_hg_clean failed: {clean_error}")
+                    print(f"Warning: sase_hg_clean failed: {clean_error}")
 
                 # Checkout the CL
                 print(f"Checking out {old_name}...")
@@ -143,7 +143,7 @@ class RenameMixin:
                 if not checkout_ok:
                     return (
                         False,
-                        f"bb_hg_update failed: {checkout_err}",
+                        f"sase_hg_update failed: {checkout_err}",
                     )
 
                 # Rename the CL in Mercurial
@@ -152,7 +152,7 @@ class RenameMixin:
                 if not rename_ok:
                     return (
                         False,
-                        f"bb_hg_rename failed: {rename_err}",
+                        f"sase_hg_rename failed: {rename_err}",
                     )
 
                 # Update spec file references

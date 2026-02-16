@@ -198,23 +198,23 @@ def test_get_workspace_directory_for_changespec_extracts_basename() -> None:
 # Tests for strip_hook_prefix
 def test_strip_hook_prefix_no_prefix() -> None:
     """Test strip_hook_prefix with no prefix."""
-    assert strip_hook_prefix("bb_hg_lint") == "bb_hg_lint"
+    assert strip_hook_prefix("sase_hg_lint") == "sase_hg_lint"
 
 
 def test_strip_hook_prefix_exclamation() -> None:
     """Test strip_hook_prefix removes ! prefix."""
-    assert strip_hook_prefix("!bb_hg_presubmit") == "bb_hg_presubmit"
+    assert strip_hook_prefix("!sase_hg_presubmit") == "sase_hg_presubmit"
 
 
 def test_strip_hook_prefix_dollar() -> None:
     """Test strip_hook_prefix removes $ prefix."""
-    assert strip_hook_prefix("$bb_hg_test") == "bb_hg_test"
+    assert strip_hook_prefix("$sase_hg_test") == "sase_hg_test"
 
 
 def test_strip_hook_prefix_both() -> None:
     """Test strip_hook_prefix removes both ! and $ prefixes."""
-    assert strip_hook_prefix("!$bb_hg_presubmit") == "bb_hg_presubmit"
-    assert strip_hook_prefix("$!bb_hg_presubmit") == "bb_hg_presubmit"
+    assert strip_hook_prefix("!$sase_hg_presubmit") == "sase_hg_presubmit"
+    assert strip_hook_prefix("$!sase_hg_presubmit") == "sase_hg_presubmit"
 
 
 def test_strip_hook_prefix_multiple() -> None:
@@ -294,11 +294,11 @@ def test_run_workspace_command_failure() -> None:
     """Test run_workspace_command returns failure on non-zero exit code."""
     with patch("sase.sase_utils.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=1, stderr="some error", stdout="")
-        success, error = run_workspace_command(["bb_hg_prune", "foo"], "/tmp")
+        success, error = run_workspace_command(["sase_hg_prune", "foo"], "/tmp")
 
     assert success is False
     assert error is not None
-    assert "bb_hg_prune failed" in error
+    assert "sase_hg_prune failed" in error
     assert "some error" in error
 
 

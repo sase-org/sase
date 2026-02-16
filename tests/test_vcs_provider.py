@@ -83,7 +83,7 @@ def test_hg_checkout_success(mock_run: MagicMock) -> None:
     assert success is True
     assert error is None
     mock_run.assert_called_once()
-    assert mock_run.call_args[0][0] == ["bb_hg_update", "my_branch"]
+    assert mock_run.call_args[0][0] == ["sase_hg_update", "my_branch"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -98,7 +98,7 @@ def test_hg_checkout_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_update failed" in error
+    assert "sase_hg_update failed" in error
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -153,7 +153,7 @@ def test_hg_amend_success(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_args[0][0] == ["bb_hg_amend", "fix typo"]
+    assert mock_run.call_args[0][0] == ["sase_hg_amend", "fix typo"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -165,7 +165,7 @@ def test_hg_amend_no_upload(mock_run: MagicMock) -> None:
     success, _ = provider.amend("fix typo", "/workspace", no_upload=True)
 
     assert success is True
-    assert mock_run.call_args[0][0] == ["bb_hg_amend", "--no-upload", "fix typo"]
+    assert mock_run.call_args[0][0] == ["sase_hg_amend", "--no-upload", "fix typo"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -226,7 +226,7 @@ def test_hg_stash_and_clean_success(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_args[0][0] == ["bb_hg_clean", "backup_diff"]
+    assert mock_run.call_args[0][0] == ["sase_hg_clean", "backup_diff"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -251,7 +251,7 @@ def test_hg_rename_branch(mock_run: MagicMock) -> None:
     success, _error = provider.rename_branch("new_name", "/workspace")
 
     assert success is True
-    assert mock_run.call_args[0][0] == ["bb_hg_rename", "new_name"]
+    assert mock_run.call_args[0][0] == ["sase_hg_rename", "new_name"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -259,7 +259,7 @@ def test_hg_command_timeout(mock_run: MagicMock) -> None:
     """Test _HgProvider handles command timeout."""
     import subprocess
 
-    mock_run.side_effect = subprocess.TimeoutExpired(cmd="bb_hg_update", timeout=300)
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="sase_hg_update", timeout=300)
 
     provider = _HgProvider()
     success, error = provider.checkout("my_branch", "/workspace")
@@ -296,7 +296,7 @@ def test_hg_sync_workspace_success(mock_run: MagicMock) -> None:
     assert success is True
     assert error is None
     mock_run.assert_called_once()
-    assert mock_run.call_args[0][0] == ["bb_hg_sync"]
+    assert mock_run.call_args[0][0] == ["sase_hg_sync"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -309,7 +309,7 @@ def test_hg_sync_workspace_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_sync failed" in error
+    assert "sase_hg_sync failed" in error
 
 
 # === Tests for Google-internal method defaults ===
@@ -346,7 +346,7 @@ def test_vcs_provider_google_methods_raise() -> None:
 
 
 def test_hg_prepare_description_for_reword_escapes_newlines() -> None:
-    """Test that _HgProvider escapes newlines for bb_hg_reword."""
+    """Test that _HgProvider escapes newlines for sase_hg_reword."""
     provider = _HgProvider()
     assert provider.prepare_description_for_reword("hello\nworld") == "hello\\nworld"
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
 
 if TYPE_CHECKING:
@@ -86,11 +86,11 @@ class SyncMixin:
 
             try:
                 # Clean workspace before switching branches
-                clean_success, clean_error = run_bb_hg_clean(
+                clean_success, clean_error = run_sase_hg_clean(
                     workspace_dir, f"{changespec.name}-sync"
                 )
                 if not clean_success:
-                    print(f"Warning: bb_hg_clean failed: {clean_error}")
+                    print(f"Warning: sase_hg_clean failed: {clean_error}")
 
                 # Checkout the CL
                 print(f"Checking out {changespec.name}...")

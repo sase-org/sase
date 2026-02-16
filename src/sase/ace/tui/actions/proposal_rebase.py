@@ -357,7 +357,7 @@ class ProposalRebaseMixin:
         """
         import os
 
-        from sase.commit_utils import run_bb_hg_clean
+        from sase.commit_utils import run_sase_hg_clean
         from sase.running_field import (
             claim_workspace,
             get_first_available_axe_workspace,
@@ -397,11 +397,11 @@ class ProposalRebaseMixin:
 
             try:
                 # Clean workspace before switching branches
-                clean_success, clean_error = run_bb_hg_clean(
+                clean_success, clean_error = run_sase_hg_clean(
                     workspace_dir, f"{changespec.name}-rebase"
                 )
                 if not clean_success:
-                    print(f"Warning: bb_hg_clean failed: {clean_error}")
+                    print(f"Warning: sase_hg_clean failed: {clean_error}")
 
                 # Checkout the CL being rebased
                 from sase.vcs_provider import get_vcs_provider
@@ -413,7 +413,7 @@ class ProposalRebaseMixin:
                 if not checkout_ok:
                     return (
                         False,
-                        f"bb_hg_update failed: {checkout_err}",
+                        f"sase_hg_update failed: {checkout_err}",
                     )
 
                 # Resolve sentinel to real VCS default for the rebase call
@@ -421,14 +421,14 @@ class ProposalRebaseMixin:
                 if new_parent_name == _ROOT_PARENT_SENTINEL:
                     rebase_parent = provider.get_default_parent_revision(workspace_dir)
 
-                # Run bb_hg_rebase
+                # Run sase_hg_rebase
                 rebase_ok, rebase_err = provider.rebase(
                     changespec.name, rebase_parent, workspace_dir
                 )
                 if not rebase_ok:
                     return (
                         False,
-                        f"bb_hg_rebase failed: {rebase_err}",
+                        f"sase_hg_rebase failed: {rebase_err}",
                     )
 
                 # Update PARENT field on success

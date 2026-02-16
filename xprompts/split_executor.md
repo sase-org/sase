@@ -24,7 +24,7 @@ For each entry in the split specification (process in the order shown - parents 
 
 1. **Navigate to the parent CL:**
    - If `parent` is specified in the entry: checkout `<parent>` (e.g. `git checkout <parent>` or
-     `bb_hg_update <parent>`)
+     `sase_hg_update <parent>`)
    - Otherwise: checkout `{{ default_parent }}`
 
 2. **Make the file changes for this CL based on its description.**

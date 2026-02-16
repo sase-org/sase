@@ -5,7 +5,7 @@ import os
 from sase.ace.changespec import ChangeSpec
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
 from sase.ace.operations import update_to_changespec
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.rich_utils import print_status
 from sase.running_field import (
     claim_workspace,
@@ -111,11 +111,11 @@ class RewindWorkflow:
             print_status(f"Changed to workspace: {workspace_dir}", "progress")
 
             # Clean workspace before switching branches
-            clean_success, clean_error = run_bb_hg_clean(
+            clean_success, clean_error = run_sase_hg_clean(
                 workspace_dir, f"{cl_name}-rewind"
             )
             if not clean_success:
-                print_status(f"Warning: bb_hg_clean failed: {clean_error}", "warning")
+                print_status(f"Warning: sase_hg_clean failed: {clean_error}", "warning")
 
             # Update to the changespec branch
             print_status(f"Updating to branch: {cl_name}", "progress")
@@ -146,7 +146,7 @@ class RewindWorkflow:
 
             print_status("Diffs rewound successfully", "success")
 
-            # CRITICAL: Run bb_hg_amend
+            # CRITICAL: Run sase_hg_amend
             print_status("Amending commit...", "progress")
             amend_msg = f"[rewind] ({selected_entry_num})"
             amend_ok, amend_err = provider.amend(amend_msg, workspace_dir)
@@ -154,7 +154,7 @@ class RewindWorkflow:
                 # CRITICAL FAILURE - halt and alert user
                 return (
                     False,
-                    f"bb_hg_amend failed - requires manual intervention: {amend_err}",
+                    f"sase_hg_amend failed - requires manual intervention: {amend_err}",
                 )
 
             print_status("Commit amended", "success")

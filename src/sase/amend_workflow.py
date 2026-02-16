@@ -176,12 +176,12 @@ class AmendWorkflow(BaseWorkflow):
                     log_fn=lambda msg: print_status(msg, "progress"),
                 )
 
-        # Run bb_hg_amend
+        # Run sase_hg_amend
         print_status(f"Amending commit with note: {self._note}", "progress")
         provider = get_vcs_provider(os.getcwd())
         amend_ok, amend_err = provider.amend(self._note, os.getcwd())
         if not amend_ok:
-            print_status(f"bb_hg_amend failed: {amend_err}", "error")
+            print_status(f"sase_hg_amend failed: {amend_err}", "error")
             return False
 
         # Add COMMITS entry

@@ -114,7 +114,7 @@ def restore_changespec(
     This function:
     1. Validates that the ChangeSpec has "Reverted" or "Archived" status
     2. Renames the ChangeSpec to remove the __<N> suffix
-    3. Runs bb_hg_update to either p4head or the parent
+    3. Runs sase_hg_update to either p4head or the parent
     4. Runs hg import --no-commit to apply the stashed diff
     5. Runs sase commit with the base name (which will find the renamed ChangeSpec)
 

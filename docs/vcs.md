@@ -88,7 +88,7 @@ Creates a new commit with formatted CL description and metadata tracking.
 | Fix            | No-op (returns success)                                   | `hg fix`                                          |
 | Upload         | No-op (returns success)                                   | `hg upload tree`                                  |
 | Change URL     | `gh pr view --json url -q .url`                           | `http://cl/<branch_number>`                       |
-| Rename branch  | `git branch -m <new_name>`                                | `bb_hg_rename <new_name>`                         |
+| Rename branch  | `git branch -m <new_name>`                                | `sase_hg_rename <new_name>`                         |
 
 ### `sase amend`
 
@@ -103,7 +103,7 @@ Amends the current commit with COMMITS tracking. Has a **propose mode** that sav
 
 | Operation       | Git                                       | Mercurial                          |
 | --------------- | ----------------------------------------- | ---------------------------------- |
-| Amend           | `git commit --amend -m <note>`            | `bb_hg_amend [--no-upload] <note>` |
+| Amend           | `git commit --amend -m <note>`            | `sase_hg_amend [--no-upload] <note>` |
 | Clean workspace | `git reset --hard HEAD` + `git clean -fd` | `hg update --clean .` + `hg clean` |
 
 ### `sase ace` TUI Actions
@@ -116,8 +116,8 @@ Syncs the workspace with the remote repository.
 
 | Step     | Git                                                       | Mercurial             |
 | -------- | --------------------------------------------------------- | --------------------- |
-| Checkout | `git checkout <name>`                                     | `bb_hg_update <name>` |
-| Sync     | `git fetch origin` + `git rebase origin/<default_branch>` | `bb_hg_sync`          |
+| Checkout | `git checkout <name>`                                     | `sase_hg_update <name>` |
+| Sync     | `git fetch origin` + `git rebase origin/<default_branch>` | `sase_hg_sync`          |
 
 The git sync auto-detects the default branch (main/master) via `git symbolic-ref refs/remotes/origin/HEAD`.
 
@@ -138,7 +138,7 @@ Pushes changes for review. The flow differs significantly between providers.
 
 1. Prompt for reviewers (1 or 2, or `@` to run `p4 findreviewers -c <cl_number>`)
 2. Modify CL description with reviewer tags and startblock configuration
-3. Reword CL description via `bb_hg_reword`
+3. Reword CL description via `sase_hg_reword`
 4. Prompt user to confirm mail
 5. `hg mail -r <revision>`
 
@@ -161,7 +161,7 @@ Reverts a ChangeSpec by saving its diff and pruning the revision.
 
 | Operation | Git                        | Mercurial                |
 | --------- | -------------------------- | ------------------------ |
-| Prune     | `git branch -D <revision>` | `bb_hg_prune <revision>` |
+| Prune     | `git branch -D <revision>` | `sase_hg_prune <revision>` |
 
 #### Restore (status change from "Reverted" to "WIP"/"Drafted")
 
@@ -173,7 +173,7 @@ Restores a previously reverted ChangeSpec.
 
 | Operation   | Git                     | Mercurial                      |
 | ----------- | ----------------------- | ------------------------------ |
-| Checkout    | `git checkout <target>` | `bb_hg_update <target>`        |
+| Checkout    | `git checkout <target>` | `sase_hg_update <target>`        |
 | Apply patch | `git apply <path>`      | `hg import --no-commit <path>` |
 
 #### Archive (status change to "Archived")
@@ -186,7 +186,7 @@ Archives a ChangeSpec by saving the diff, archiving the revision, and updating s
 
 | Operation | Git                                                      | Mercurial              |
 | --------- | -------------------------------------------------------- | ---------------------- |
-| Archive   | `git tag archive/<name> <name>` + `git branch -D <name>` | `bb_hg_archive <name>` |
+| Archive   | `git tag archive/<name> <name>` + `git branch -D <name>` | `sase_hg_archive <name>` |
 
 #### Reword (`w` key)
 
@@ -194,10 +194,10 @@ Amends the commit message without changing code.
 
 | Operation | Git                                   | Mercurial                    |
 | --------- | ------------------------------------- | ---------------------------- |
-| Reword    | `git commit --amend -m <description>` | `bb_hg_reword <description>` |
+| Reword    | `git commit --amend -m <description>` | `sase_hg_reword <description>` |
 
 The Mercurial provider applies ANSI-C escape quoting to the description (escaping backslashes, single quotes, newlines,
-tabs, carriage returns) because `bb_hg_reword` uses `$'...'` shell quoting internally.
+tabs, carriage returns) because `sase_hg_reword` uses `$'...'` shell quoting internally.
 
 ### `sase axe`
 
@@ -284,23 +284,23 @@ git commit --amend -m "<msg>\n<tag>=<value>"    # Append tag
 
 ## Mercurial Provider Details
 
-The Mercurial provider uses a combination of standard `hg` commands and Google-internal `bb_hg_*` wrapper commands.
+The Mercurial provider uses a combination of standard `hg` commands and Google-internal `sase_hg_*` wrapper commands.
 
 ### Core Commands
 
 | Operation | Command                                           |
 | --------- | ------------------------------------------------- |
 | Commit    | `hg commit --name <name> --logfile <logfile>`     |
-| Amend     | `bb_hg_amend [--no-upload] <note>`                |
-| Checkout  | `bb_hg_update <revision>`                         |
-| Sync      | `bb_hg_sync`                                      |
-| Archive   | `bb_hg_archive <revision>`                        |
-| Prune     | `bb_hg_prune <revision>`                          |
-| Rename    | `bb_hg_rename <new_name>`                         |
-| Rebase    | `bb_hg_rebase <branch> <new_parent>`              |
-| Reword    | `bb_hg_reword <description>`                      |
-| Add tag   | `bb_hg_reword --add-tag <name> <value>`           |
-| Clean     | `bb_hg_clean <diff_name>` (saves diff and cleans) |
+| Amend     | `sase_hg_amend [--no-upload] <note>`                |
+| Checkout  | `sase_hg_update <revision>`                         |
+| Sync      | `sase_hg_sync`                                      |
+| Archive   | `sase_hg_archive <revision>`                        |
+| Prune     | `sase_hg_prune <revision>`                          |
+| Rename    | `sase_hg_rename <new_name>`                         |
+| Rebase    | `sase_hg_rebase <branch> <new_parent>`              |
+| Reword    | `sase_hg_reword <description>`                      |
+| Add tag   | `sase_hg_reword --add-tag <name> <value>`           |
+| Clean     | `sase_hg_clean <diff_name>` (saves diff and cleans) |
 
 ### Branch and Workspace Info
 
@@ -343,7 +343,7 @@ CL URLs follow the pattern `http://cl/<number>`, where the number comes from `br
 
 ### Description Escaping
 
-The `prepare_description_for_reword()` method escapes descriptions for `bb_hg_reword`'s `$'...'` shell quoting:
+The `prepare_description_for_reword()` method escapes descriptions for `sase_hg_reword`'s `$'...'` shell quoting:
 
 - `\` → `\\` (backslashes first)
 - `'` → `\'`
@@ -379,7 +379,7 @@ The `stash_and_clean()` operation saves the current diff to a file and resets th
 | Provider  | Steps                                                                       |
 | --------- | --------------------------------------------------------------------------- |
 | Git       | `git diff HEAD` → write to file → `git reset --hard HEAD` → `git clean -fd` |
-| Mercurial | `bb_hg_clean <diff_name>` (handles both steps internally)                   |
+| Mercurial | `sase_hg_clean <diff_name>` (handles both steps internally)                   |
 
 ## Configuration Reference
 
@@ -470,18 +470,18 @@ brew install gh
 gh auth login
 ```
 
-### Mercurial: `bb_hg_*` Commands Not Found
+### Mercurial: `sase_hg_*` Commands Not Found
 
-The Mercurial provider depends on Google-internal `bb_hg_*` wrapper commands. If these are not in your PATH, operations
+The Mercurial provider depends on Google-internal `sase_hg_*` wrapper commands. If these are not in your PATH, operations
 will fail.
 
 **Symptoms:**
 
-- "bb_hg_amend command not found"
-- "bb_hg_sync command not found"
+- "sase_hg_amend command not found"
+- "sase_hg_sync command not found"
 - Any core hg operation failing with "command not found"
 
-**Fix:** Ensure your PATH includes the directory containing the `bb_hg_*` scripts. These are typically available in
+**Fix:** Ensure your PATH includes the directory containing the `sase_hg_*` scripts. These are typically available in
 Google's internal development environment.
 
 ### Auto-Detection Picks Wrong Provider in Nested Repos

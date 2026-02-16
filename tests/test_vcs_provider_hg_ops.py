@@ -53,7 +53,7 @@ def test_hg_rename_branch_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_rename failed" in error
+    assert "sase_hg_rename failed" in error
 
 
 # === Tests for rebase ===
@@ -69,7 +69,7 @@ def test_hg_rebase_success(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_args[0][0] == ["bb_hg_rebase", "feature", "main"]
+    assert mock_run.call_args[0][0] == ["sase_hg_rebase", "feature", "main"]
     # Verify 600s timeout
     assert mock_run.call_args[1]["timeout"] == 600
 
@@ -84,7 +84,7 @@ def test_hg_rebase_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_rebase failed" in error
+    assert "sase_hg_rebase failed" in error
 
 
 # === Tests for archive ===
@@ -100,7 +100,7 @@ def test_hg_archive_success(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_args[0][0] == ["bb_hg_archive", "old-feature"]
+    assert mock_run.call_args[0][0] == ["sase_hg_archive", "old-feature"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -113,7 +113,7 @@ def test_hg_archive_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_archive failed" in error
+    assert "sase_hg_archive failed" in error
 
 
 # === Tests for prune ===
@@ -129,7 +129,7 @@ def test_hg_prune_success(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_args[0][0] == ["bb_hg_prune", "dead-branch"]
+    assert mock_run.call_args[0][0] == ["sase_hg_prune", "dead-branch"]
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -142,4 +142,4 @@ def test_hg_prune_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "bb_hg_prune failed" in error
+    assert "sase_hg_prune failed" in error

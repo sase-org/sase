@@ -56,12 +56,12 @@ These files call Google-internal shell commands directly, bypassing the VCS abst
 
 These will all crash with `FileNotFoundError` outside Google.
 
-### C. `ace/tui/actions/base.py` — Direct `bb_hg_update` subprocess calls
+### C. `ace/tui/actions/base.py` — Direct `sase_hg_update` subprocess calls
 
-Lines 455-456 and 530-531 call `subprocess.run(["bb_hg_update", ...])` directly — not through the VCS provider. This is
+Lines 455-456 and 530-531 call `subprocess.run(["sase_hg_update", ...])` directly — not through the VCS provider. This is
 in the TUI's checkout-to-workspace and open-tmux-at-workspace actions. The VCS abstraction was never wired in here.
 
-Similarly, `ace/tui/actions/axe.py:270` does `subprocess.run(["bb_hg_update", cl_name], ...)` directly.
+Similarly, `ace/tui/actions/axe.py:270` does `subprocess.run(["sase_hg_update", cl_name], ...)` directly.
 
 ### D. `p4head` hardcoded as the default checkout target
 
@@ -98,9 +98,9 @@ returns `(True, None)` for both — silent no-ops. This means after `sase commit
 
 The user has to know these are no-ops and do them manually.
 
-### I. The `bb_hg_presubmit` and `bb_hg_lint` default hooks
+### I. The `sase_hg_presubmit` and `sase_hg_lint` default hooks
 
-`ace/constants.py:10-11` hardcodes `"!$bb_hg_presubmit"` and `"$bb_hg_lint"` as default hooks. These are Google-internal
+`ace/constants.py:10-11` hardcodes `"!$sase_hg_presubmit"` and `"$sase_hg_lint"` as default hooks. These are Google-internal
 commands. In a git repo, these would need to be replaced with project-specific CI checks, but there's no mechanism for
 that.
 
@@ -179,10 +179,10 @@ For this to work on a real GitHub project developed by Claude Code:
 2. **Rewrite `mail_ops.py`** — GitHub PR creation is fundamentally different from `hg mail`
 3. **Abstract 6+ `run_shell_command` call sites** — `branch_or_workspace_name`, `workspace_name`, `critique_comments`,
    `bam`
-4. **Replace all direct `subprocess.run(["bb_hg_*", ...])` calls** — at least 3 call sites in the TUI
+4. **Replace all direct `subprocess.run(["sase_hg_*", ...])` calls** — at least 3 call sites in the TUI
 5. **Replace `p4head`** with `origin/main` or configurable default branch
 6. **Replace CL URL parsing** with GitHub URL parsing
-7. **Replace default hooks** (`bb_hg_presubmit`, `bb_hg_lint`) with configurable hooks
+7. **Replace default hooks** (`sase_hg_presubmit`, `sase_hg_lint`) with configurable hooks
 8. **Rethink the COMMITS tracking model** for git's immutable-commit model
 9. **Reconsider the LLM invocation model** — shelling out to `claude` from within a Claude Code session is odd
 10. **Add real integration tests** that exercise git workflows end-to-end

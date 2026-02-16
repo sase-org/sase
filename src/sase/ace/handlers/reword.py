@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from sase.commit_utils import run_bb_hg_clean
+from sase.commit_utils import run_sase_hg_clean
 from sase.commit_workflow.editor_utils import get_editor
 from sase.vcs_provider import get_vcs_provider
 
@@ -181,7 +181,7 @@ def handle_add_tag(
 ) -> None:
     """Handle 'W' (add tag) action to append a tag to the CL description.
 
-    Claims a workspace, checks out the CL, runs bb_hg_reword --add-tag,
+    Claims a workspace, checks out the CL, runs sase_hg_reword --add-tag,
     and syncs the description back to the project file.
 
     Args:
@@ -214,12 +214,12 @@ def handle_add_tag(
             self.console.print(f"[cyan]Using workspace: {workspace_suffix}[/cyan]")
 
         # Clean workspace before switching branches
-        clean_success, clean_error = run_bb_hg_clean(
+        clean_success, clean_error = run_sase_hg_clean(
             workspace_dir, f"{changespec.name}-add_tag"
         )
         if not clean_success:
             self.console.print(
-                f"[yellow]Warning: bb_hg_clean failed: {clean_error}[/yellow]"
+                f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]"
             )
 
         # Update to the changespec (checkout the CL)
@@ -230,7 +230,7 @@ def handle_add_tag(
             self.console.print(f"[red]Error checking out CL: {checkout_err}[/red]")
             return
 
-        # Run bb_hg_reword --add-tag
+        # Run sase_hg_reword --add-tag
         self.console.print(f"[cyan]Adding tag {tag_name}={tag_value}...[/cyan]")
         tag_ok, tag_err = provider.reword_add_tag(tag_name, tag_value, workspace_dir)
         if tag_ok:
@@ -247,7 +247,7 @@ def handle_add_tag(
             )
         else:
             self.console.print(
-                f"[yellow]bb_hg_reword --add-tag failed: {tag_err}[/yellow]"
+                f"[yellow]sase_hg_reword --add-tag failed: {tag_err}[/yellow]"
             )
 
     finally:
@@ -260,7 +260,7 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
     """Handle 'w' (reword) action to change CL description.
 
     Fetches the current description and opens an editor immediately (fast),
-    then only claims a workspace and runs bb_hg_reword if the description
+    then only claims a workspace and runs sase_hg_reword if the description
     was actually changed.
 
     Args:
@@ -328,12 +328,12 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
             self.console.print(f"[cyan]Using workspace: {workspace_suffix}[/cyan]")
 
         # Clean workspace before switching branches
-        clean_success, clean_error = run_bb_hg_clean(
+        clean_success, clean_error = run_sase_hg_clean(
             workspace_dir, f"{changespec.name}-reword"
         )
         if not clean_success:
             self.console.print(
-                f"[yellow]Warning: bb_hg_clean failed: {clean_error}[/yellow]"
+                f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]"
             )
 
         # Update to the changespec (checkout the CL)
@@ -359,7 +359,7 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
                 log_fn=lambda msg: self.console.print(f"[cyan]{msg}[/cyan]"),
             )
         else:
-            self.console.print(f"[yellow]bb_hg_reword failed: {reword_err}[/yellow]")
+            self.console.print(f"[yellow]sase_hg_reword failed: {reword_err}[/yellow]")
 
     finally:
         # Always release the workspace
