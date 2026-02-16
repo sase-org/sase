@@ -9,17 +9,18 @@ import pytest
 
 from sase.gh_workspace import (
     ResolvedGhRef,
-    _get_default_branch,
+    get_default_branch,
     _get_git_worktree_dir,
-    _set_workspace_dir,
+    set_workspace_dir,
     detect_vcs_type_for_project,
+    detect_workflow_type_for_project,
     ensure_git_worktree,
     parse_workspace_dir,
     resolve_gh_ref,
 )
 
 
-# ── _get_default_branch ─────────────────────────────────────────────
+# ── get_default_branch ─────────────────────────────────────────────
 
 
 class TestGetDefaultBranch:
@@ -28,24 +29,24 @@ class TestGetDefaultBranch:
         mock_run.return_value = MagicMock(
             returncode=0, stdout="refs/remotes/origin/main\n"
         )
-        assert _get_default_branch("/repo") == "origin/main"
+        assert get_default_branch("/repo") == "origin/main"
 
     @patch("sase.gh_workspace.subprocess.run")
     def test_detects_master(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(
             returncode=0, stdout="refs/remotes/origin/master\n"
         )
-        assert _get_default_branch("/repo") == "origin/master"
+        assert get_default_branch("/repo") == "origin/master"
 
     @patch("sase.gh_workspace.subprocess.run")
     def test_fallback_on_failure(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=1, stdout="")
-        assert _get_default_branch("/repo") == "origin/main"
+        assert get_default_branch("/repo") == "origin/main"
 
     @patch("sase.gh_workspace.subprocess.run")
     def test_fallback_on_exception(self, mock_run: MagicMock) -> None:
         mock_run.side_effect = OSError("no git")
-        assert _get_default_branch("/repo") == "origin/main"
+        assert get_default_branch("/repo") == "origin/main"
 
 
 # ── parse_workspace_dir ──────────────────────────────────────────────
@@ -101,21 +102,21 @@ class TestParseWorkspaceDir:
             os.unlink(f.name)
 
 
-# ── _set_workspace_dir ────────────────────────────────────────────────
+# ── set_workspace_dir ────────────────────────────────────────────────
 
 
 class TestSetWorkspaceDir:
     def test_new_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             gp = os.path.join(d, "proj.gp")
-            assert _set_workspace_dir(gp, "/repo/")
+            assert set_workspace_dir(gp, "/repo/")
             with open(gp) as f:
                 assert f.read() == "WORKSPACE_DIR: /repo/\n"
 
     def test_creates_directory(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             gp = os.path.join(d, "subdir", "proj.gp")
-            assert _set_workspace_dir(gp, "/repo/")
+            assert set_workspace_dir(gp, "/repo/")
             assert os.path.exists(gp)
 
     @patch("sase.gh_workspace.write_changespec_atomic")
@@ -128,7 +129,7 @@ class TestSetWorkspaceDir:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("WORKSPACE_DIR: /old/\nNAME: cl\n")
             f.flush()
-            assert _set_workspace_dir(f.name, "/new/")
+            assert set_workspace_dir(f.name, "/new/")
             mock_write.assert_called_once()
             written = mock_write.call_args[0][1]
             assert "WORKSPACE_DIR: /new/" in written
@@ -145,7 +146,7 @@ class TestSetWorkspaceDir:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("NAME: cl\nSTATUS: WIP\n")
             f.flush()
-            assert _set_workspace_dir(f.name, "/repo/")
+            assert set_workspace_dir(f.name, "/repo/")
             written = mock_write.call_args[0][1]
             lines = written.splitlines()
             ws_idx = next(
@@ -165,7 +166,7 @@ class TestSetWorkspaceDir:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("RUNNING:\n  #hg 1 1234\nNAME: cl\n")
             f.flush()
-            assert _set_workspace_dir(f.name, "/repo/")
+            assert set_workspace_dir(f.name, "/repo/")
             written = mock_write.call_args[0][1]
             lines = written.splitlines()
             ws_idx = next(
@@ -277,8 +278,8 @@ class TestDetectVcsTypeForProject:
 
 
 class TestResolveGhRef:
-    @patch("sase.gh_workspace._get_default_branch", return_value="origin/main")
-    @patch("sase.gh_workspace._set_workspace_dir", return_value=True)
+    @patch("sase.gh_workspace.get_default_branch", return_value="origin/main")
+    @patch("sase.gh_workspace.set_workspace_dir", return_value=True)
     @patch("sase.gh_workspace.parse_workspace_dir", return_value=None)
     def test_repo_path(
         self,
@@ -293,8 +294,8 @@ class TestResolveGhRef:
         assert "alice/myrepo" in result.primary_workspace_dir
         mock_set.assert_called_once()
 
-    @patch("sase.gh_workspace._get_default_branch", return_value="origin/main")
-    @patch("sase.gh_workspace._set_workspace_dir", return_value=True)
+    @patch("sase.gh_workspace.get_default_branch", return_value="origin/main")
+    @patch("sase.gh_workspace.set_workspace_dir", return_value=True)
     @patch("sase.gh_workspace.parse_workspace_dir")
     def test_repo_path_conflict(
         self,
@@ -306,7 +307,7 @@ class TestResolveGhRef:
         with pytest.raises(ValueError, match="WORKSPACE_DIR conflict"):
             resolve_gh_ref("alice/myrepo")
 
-    @patch("sase.gh_workspace._get_default_branch", return_value="origin/main")
+    @patch("sase.gh_workspace.get_default_branch", return_value="origin/main")
     def test_project_shorthand(self, mock_branch: MagicMock) -> None:
         with tempfile.TemporaryDirectory() as d:
             with patch("sase.gh_workspace.Path.home", return_value=Path(d)):
@@ -322,7 +323,7 @@ class TestResolveGhRef:
                 assert result.branch_name is None
                 assert result.checkout_target == "origin/main"
 
-    @patch("sase.gh_workspace._get_default_branch", return_value="origin/main")
+    @patch("sase.gh_workspace.get_default_branch", return_value="origin/main")
     @patch("sase.gh_workspace.find_all_changespecs")
     def test_changespec_name(
         self,
@@ -382,3 +383,59 @@ class TestResolveGhRef:
     def test_invalid_repo_path(self) -> None:
         with pytest.raises(ValueError, match="expected 'user/project'"):
             resolve_gh_ref("a/b/c")
+
+
+# ── detect_workflow_type_for_project ─────────────────────────────────
+
+
+class TestDetectWorkflowTypeForProject:
+    def test_hg_no_git(self) -> None:
+        """Returns 'hg' when no WORKSPACE_DIR or no .git directory."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+            f.write("NAME: cl\n")
+            f.flush()
+            assert detect_workflow_type_for_project(f.name) == "hg"
+            os.unlink(f.name)
+
+    @patch("sase.gh_workspace.subprocess.run")
+    def test_git_bare_repo_dir_set(self, mock_run: MagicMock) -> None:
+        """Returns 'git' when BARE_REPO_DIR is set in project file."""
+        with tempfile.TemporaryDirectory() as d:
+            workspace = os.path.join(d, "repo")
+            os.makedirs(os.path.join(workspace, ".git"))
+            gp = os.path.join(d, "proj.gp")
+            with open(gp, "w") as f:
+                f.write(
+                    f"WORKSPACE_DIR: {workspace}\n"
+                    "BARE_REPO_DIR: /repos/proj.git\n"
+                    "NAME: cl\n"
+                )
+            assert detect_workflow_type_for_project(gp) == "git"
+
+    @patch("sase.gh_workspace.subprocess.run")
+    def test_git_local_origin_url(self, mock_run: MagicMock) -> None:
+        """Returns 'git' when origin remote URL is a local path."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="/home/user/repos/proj.git\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            workspace = os.path.join(d, "repo")
+            os.makedirs(os.path.join(workspace, ".git"))
+            gp = os.path.join(d, "proj.gp")
+            with open(gp, "w") as f:
+                f.write(f"WORKSPACE_DIR: {workspace}\nNAME: cl\n")
+            assert detect_workflow_type_for_project(gp) == "git"
+
+    @patch("sase.gh_workspace.subprocess.run")
+    def test_gh_github_origin_url(self, mock_run: MagicMock) -> None:
+        """Returns 'gh' when origin remote URL is a GitHub URL."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="https://github.com/user/repo.git\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            workspace = os.path.join(d, "repo")
+            os.makedirs(os.path.join(workspace, ".git"))
+            gp = os.path.join(d, "proj.gp")
+            with open(gp, "w") as f:
+                f.write(f"WORKSPACE_DIR: {workspace}\nNAME: cl\n")
+            assert detect_workflow_type_for_project(gp) == "gh"

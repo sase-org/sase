@@ -67,6 +67,20 @@ class _GitProvider(VCSProvider):
             f"{op_name} failed: {error_msg}" if error_msg else f"{op_name} failed",
         )
 
+    def _is_bare_remote(self, cwd: str) -> bool:
+        """Check if the origin remote points to a local filesystem path.
+
+        Returns ``True`` if the origin URL is a local path (not a hosted
+        service like GitHub), indicating a bare-repo-backed workflow.
+        """
+        out = self._run(["git", "config", "--get", "remote.origin.url"], cwd)
+        if not out.success:
+            return False
+        url = out.stdout.strip()
+        if url and not url.startswith(("http://", "https://", "git@", "ssh://")):
+            return True
+        return False
+
     # --- Core abstract methods ---
 
     def checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
@@ -232,6 +246,8 @@ class _GitProvider(VCSProvider):
     # --- VCS-agnostic method overrides ---
 
     def get_change_url(self, cwd: str) -> tuple[bool, str | None]:
+        if self._is_bare_remote(cwd):
+            return (True, None)
         out = self._run(["gh", "pr", "view", "--json", "url", "-q", ".url"], cwd)
         if out.success:
             url = out.stdout.strip()
@@ -240,6 +256,8 @@ class _GitProvider(VCSProvider):
         return (True, None)
 
     def get_cl_number(self, cwd: str) -> tuple[bool, str | None]:
+        if self._is_bare_remote(cwd):
+            return (True, None)
         out = self._run(["gh", "pr", "view", "--json", "number", "-q", ".number"], cwd)
         if out.success:
             number = out.stdout.strip()
@@ -261,6 +279,9 @@ class _GitProvider(VCSProvider):
         out = self._run(["git", "push", "-u", "origin", revision], cwd)
         if not out.success:
             return self._to_result(out, "git push")
+        # Bare remote: push only, no PR creation
+        if self._is_bare_remote(cwd):
+            return (True, None)
         # Check if PR already exists
         pr_check = self._run(
             ["gh", "pr", "view", "--json", "number", "-q", ".number"], cwd

@@ -17,7 +17,7 @@ from sase.ace.changespec import (
 )
 
 
-def _get_default_branch(workspace_dir: str) -> str:
+def get_default_branch(workspace_dir: str) -> str:
     """Detect the default branch for the origin remote.
 
     Returns a string like ``"origin/main"`` or ``"origin/master"``.
@@ -70,7 +70,7 @@ def parse_workspace_dir(project_file: str) -> str | None:
     return None
 
 
-def _set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
+def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
     """Set or update the WORKSPACE_DIR field in a .gp project file.
 
     Creates the file and parent directories if they don't exist.
@@ -208,6 +208,42 @@ def detect_vcs_type_for_project(project_file: str) -> str:
     return "hg"
 
 
+def detect_workflow_type_for_project(project_file: str) -> str:
+    """Return ``'gh'``, ``'git'``, or ``'hg'`` based on project configuration.
+
+    - ``'hg'``: No WORKSPACE_DIR or no ``.git`` directory.
+    - ``'git'``: Has ``BARE_REPO_DIR`` set, or origin remote is a local path.
+    - ``'gh'``: Git repo with a remote GitHub (or other hosted) origin.
+    """
+    workspace_dir = parse_workspace_dir(project_file)
+    if not workspace_dir or not os.path.isdir(os.path.join(workspace_dir, ".git")):
+        return "hg"
+
+    # Lazy import to avoid circular dependency
+    from sase.git_workspace import parse_bare_repo_dir
+
+    if parse_bare_repo_dir(project_file):
+        return "git"
+
+    # Check origin remote URL — local path means bare git
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            if url and not url.startswith(("http://", "https://", "git@", "ssh://")):
+                return "git"
+    except Exception:
+        pass
+
+    return "gh"
+
+
 @dataclass
 class ResolvedGhRef:
     """Result of resolving a ``#gh`` reference."""
@@ -257,8 +293,8 @@ def resolve_gh_ref(gh_ref: str) -> ResolvedGhRef:
                 f"existing={existing}, derived={primary_workspace_dir}"
             )
 
-        _set_workspace_dir(project_file, primary_workspace_dir)
-        checkout_target = _get_default_branch(primary_workspace_dir)
+        set_workspace_dir(project_file, primary_workspace_dir)
+        checkout_target = get_default_branch(primary_workspace_dir)
 
         return ResolvedGhRef(
             project_file=project_file,
@@ -274,7 +310,7 @@ def resolve_gh_ref(gh_ref: str) -> ResolvedGhRef:
     if project_dir.is_dir() and project_file_path.exists():
         workspace_dir = parse_workspace_dir(str(project_file_path))
         if workspace_dir:
-            checkout_target = _get_default_branch(workspace_dir)
+            checkout_target = get_default_branch(workspace_dir)
             return ResolvedGhRef(
                 project_file=str(project_file_path),
                 project_name=gh_ref,

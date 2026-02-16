@@ -304,7 +304,12 @@ def test_git_get_change_url_no_pr(mock_run: MagicMock) -> None:
 @patch("sase.vcs_provider._git.subprocess.run")
 def test_git_get_cl_number_with_pr(mock_run: MagicMock) -> None:
     """Test _GitProvider.get_cl_number when PR exists."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="42\n", stderr="")
+    mock_run.side_effect = [
+        MagicMock(
+            returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
+        ),  # _is_bare_remote → GitHub URL → False
+        MagicMock(returncode=0, stdout="42\n", stderr=""),  # gh pr view
+    ]
 
     provider = _GitProvider()
     success, number = provider.get_cl_number("/workspace")
@@ -368,6 +373,9 @@ def test_git_mail_push_and_create_pr(mock_run: MagicMock) -> None:
     """Test _GitProvider.mail pushes and creates PR when none exists."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # git push
+        MagicMock(
+            returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
+        ),  # _is_bare_remote → GitHub URL → False
         MagicMock(returncode=1, stdout="", stderr="no PR"),  # gh pr view (no PR)
         MagicMock(returncode=0, stdout="", stderr=""),  # gh pr create
     ]
@@ -377,7 +385,7 @@ def test_git_mail_push_and_create_pr(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_count == 3
+    assert mock_run.call_count == 4
     assert mock_run.call_args_list[0][0][0] == [
         "git",
         "push",
@@ -385,7 +393,7 @@ def test_git_mail_push_and_create_pr(mock_run: MagicMock) -> None:
         "origin",
         "feature-branch",
     ]
-    assert mock_run.call_args_list[2][0][0] == ["gh", "pr", "create", "--fill"]
+    assert mock_run.call_args_list[3][0][0] == ["gh", "pr", "create", "--fill"]
 
 
 @patch("sase.vcs_provider._git.subprocess.run")
@@ -393,6 +401,9 @@ def test_git_mail_push_existing_pr(mock_run: MagicMock) -> None:
     """Test _GitProvider.mail just pushes when PR already exists."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # git push
+        MagicMock(
+            returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
+        ),  # _is_bare_remote → GitHub URL → False
         MagicMock(returncode=0, stdout="42\n", stderr=""),  # gh pr view (PR exists)
     ]
 
@@ -401,7 +412,7 @@ def test_git_mail_push_existing_pr(mock_run: MagicMock) -> None:
 
     assert success is True
     assert error is None
-    assert mock_run.call_count == 2
+    assert mock_run.call_count == 3
 
 
 @patch("sase.vcs_provider._git.subprocess.run")
@@ -451,3 +462,95 @@ def test_git_reword_add_tag_log_fails(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
+
+
+# === Tests for _is_bare_remote ===
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_is_bare_remote_local_path(mock_run: MagicMock) -> None:
+    """Test _is_bare_remote returns True for local filesystem path."""
+    mock_run.return_value = MagicMock(
+        returncode=0, stdout="/home/user/repos/proj.git\n", stderr=""
+    )
+    provider = _GitProvider()
+    assert provider._is_bare_remote("/workspace") is True
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_is_bare_remote_github_url(mock_run: MagicMock) -> None:
+    """Test _is_bare_remote returns False for GitHub URL."""
+    mock_run.return_value = MagicMock(
+        returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
+    )
+    provider = _GitProvider()
+    assert provider._is_bare_remote("/workspace") is False
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_is_bare_remote_failure(mock_run: MagicMock) -> None:
+    """Test _is_bare_remote returns False when git config fails."""
+    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
+    provider = _GitProvider()
+    assert provider._is_bare_remote("/workspace") is False
+
+
+# === Tests for bare remote behavior in mail/get_change_url/get_cl_number ===
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_git_mail_bare_remote_push_only(mock_run: MagicMock) -> None:
+    """Test _GitProvider.mail pushes without PR creation for bare remotes."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="", stderr=""),  # git push
+        MagicMock(
+            returncode=0, stdout="/repos/proj.git\n", stderr=""
+        ),  # git config (bare remote check)
+    ]
+
+    provider = _GitProvider()
+    success, error = provider.mail("feature-branch", "/workspace")
+
+    assert success is True
+    assert error is None
+    # Should only call push + remote check, no gh pr commands
+    assert mock_run.call_count == 2
+    assert mock_run.call_args_list[0][0][0] == [
+        "git",
+        "push",
+        "-u",
+        "origin",
+        "feature-branch",
+    ]
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_git_get_change_url_bare_remote(mock_run: MagicMock) -> None:
+    """Test _GitProvider.get_change_url returns None for bare remotes."""
+    mock_run.return_value = MagicMock(
+        returncode=0, stdout="/repos/proj.git\n", stderr=""
+    )
+
+    provider = _GitProvider()
+    success, url = provider.get_change_url("/workspace")
+
+    assert success is True
+    assert url is None
+    # Should only call git config, not gh pr view
+    assert mock_run.call_count == 1
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_git_get_cl_number_bare_remote(mock_run: MagicMock) -> None:
+    """Test _GitProvider.get_cl_number returns None for bare remotes."""
+    mock_run.return_value = MagicMock(
+        returncode=0, stdout="/repos/proj.git\n", stderr=""
+    )
+
+    provider = _GitProvider()
+    success, number = provider.get_cl_number("/workspace")
+
+    assert success is True
+    assert number is None
+    # Should only call git config, not gh pr view
+    assert mock_run.call_count == 1
