@@ -34,6 +34,7 @@ dev = [
 
 [project.scripts]
 sase = "sase.main.entry:main"
+tmux_sase = "sase.scripts.tmux_sase:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]
