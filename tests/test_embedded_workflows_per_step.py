@@ -1,13 +1,13 @@
-"""Tests for _load_embedded_workflows step-specific file resolution."""
+"""Tests for load_embedded_workflows step-specific file resolution."""
 
 import json
 from pathlib import Path
 
-from sase.ace.tui.widgets.prompt_panel import _load_embedded_workflows
+from sase.ace.tui.widgets.prompt_panel import load_embedded_workflows
 
 
 def _make_agent(artifacts_dir: str | None, step_name: str | None = None) -> object:
-    """Create a minimal mock agent for testing _load_embedded_workflows."""
+    """Create a minimal mock agent for testing load_embedded_workflows."""
 
     class _MockAgent:
         def __init__(self, artifacts_dir: str | None, step_name: str | None) -> None:
@@ -32,7 +32,7 @@ def test_step_specific_file_takes_priority(tmp_path: Path) -> None:
     step_file.write_text(json.dumps(step_data))
 
     agent = _make_agent(str(tmp_path), step_name="create_commit")
-    result = _load_embedded_workflows(agent)  # type: ignore[arg-type]
+    result = load_embedded_workflows(agent)  # type: ignore[arg-type]
     assert result == step_data
 
 
@@ -43,7 +43,7 @@ def test_returns_none_when_step_file_missing(tmp_path: Path) -> None:
     shared_file.write_text(json.dumps(shared_data))
 
     agent = _make_agent(str(tmp_path), step_name="create_commit")
-    result = _load_embedded_workflows(agent)  # type: ignore[arg-type]
+    result = load_embedded_workflows(agent)  # type: ignore[arg-type]
     assert result is None
 
 
@@ -54,12 +54,12 @@ def test_falls_back_to_shared_when_step_name_is_none(tmp_path: Path) -> None:
     shared_file.write_text(json.dumps(shared_data))
 
     agent = _make_agent(str(tmp_path), step_name=None)
-    result = _load_embedded_workflows(agent)  # type: ignore[arg-type]
+    result = load_embedded_workflows(agent)  # type: ignore[arg-type]
     assert result == shared_data
 
 
 def test_returns_none_when_no_artifacts_dir() -> None:
     """Returns None when artifacts_dir is None."""
     agent = _make_agent(None, step_name="create_commit")
-    result = _load_embedded_workflows(agent)  # type: ignore[arg-type]
+    result = load_embedded_workflows(agent)  # type: ignore[arg-type]
     assert result is None
