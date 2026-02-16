@@ -103,8 +103,8 @@ class EntryPointsMixin:
             pass
 
     def action_start_custom_agent(self) -> None:
-        """Start a custom agent with bare prompt bar (works on all tabs)."""
-        self._show_bare_prompt_input_bar()  # type: ignore[attr-defined]
+        """Start a custom agent with home prompt bar (works on all tabs)."""
+        self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.

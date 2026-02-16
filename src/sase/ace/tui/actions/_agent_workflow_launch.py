@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,8 @@ from .agent_workflow._types import PromptContext
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
     from ..models import Agent
+
+_GH_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#gh(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
 
 
 class AgentLaunchMixin:
@@ -25,6 +28,42 @@ class AgentLaunchMixin:
     _bulk_changespecs: list[ChangeSpec] | None = None
     # State for prompt input (from AgentWorkflowMixin)
     _prompt_context: PromptContext | None = None
+
+    def _resolve_gh_from_prompt(
+        self, prompt: str
+    ) -> tuple[str, str, str, int, str] | None:
+        """Extract and resolve a #gh reference from a prompt.
+
+        Returns (project_file, project_name, workspace_dir, workspace_num,
+        gh_ref) or None if not found or resolution fails.
+        """
+        from sase.gh_workspace import ensure_git_worktree, resolve_gh_ref
+        from sase.running_field import get_first_available_axe_workspace
+
+        match = _GH_REF_PATTERN.search(prompt)
+        if match is None:
+            return None
+
+        gh_ref = match.group(1) or match.group(2)
+        if not gh_ref:
+            return None
+
+        try:
+            resolved = resolve_gh_ref(gh_ref)
+            workspace_num = get_first_available_axe_workspace(resolved.project_file)
+            workspace_dir = ensure_git_worktree(
+                resolved.primary_workspace_dir, workspace_num
+            )
+        except (ValueError, RuntimeError):
+            return None
+
+        return (
+            resolved.project_file,
+            resolved.project_name,
+            workspace_dir,
+            workspace_num,
+            gh_ref,
+        )
 
     def _finish_agent_launch(self, prompt: str) -> None:
         """Complete agent launch with the given prompt.
@@ -54,8 +93,25 @@ class AgentLaunchMixin:
             self._launch_bulk_agents(prompt)
             return
 
+        # Detect workspace-managing embedded workflows in home mode
+        gh_ref_info: str | None = None
+        if ctx.is_home_mode:
+            resolved = self._resolve_gh_from_prompt(prompt)
+            if resolved is not None:
+                (
+                    ctx.project_file,
+                    ctx.project_name,
+                    ctx.workspace_dir,
+                    ctx.workspace_num,
+                    gh_ref_info,
+                ) = resolved
+                ctx.display_name = ctx.project_name
+                ctx.update_target = ""  # gh.yml handles checkout
+                ctx.is_home_mode = False  # Enable workspace claiming/releasing
+
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
-        if prompt.startswith("#") and not ctx.is_bare_mode:
+        # Skip if #gh workspace was detected (embedded workflow, not standalone)
+        if prompt.startswith("#") and gh_ref_info is None:
             workflow_result = self._try_execute_workflow(prompt)
             if workflow_result is True:
                 # Full workflow executed successfully
@@ -81,6 +137,7 @@ class AgentLaunchMixin:
             project_name=ctx.project_name,
             history_sort_key=ctx.history_sort_key,
             is_home_mode=ctx.is_home_mode,
+            gh_ref=gh_ref_info,
         )
 
         # Refresh agents list (deferred to avoid lag)
@@ -178,6 +235,7 @@ class AgentLaunchMixin:
         project_name: str = "",
         history_sort_key: str = "",
         is_home_mode: bool = False,
+        gh_ref: str | None = None,
     ) -> None:
         """Launch agent as background process.
 
@@ -193,6 +251,7 @@ class AgentLaunchMixin:
             project_name: Project name for prompt history tracking.
             history_sort_key: CL name to associate with the prompt in history.
             is_home_mode: If True, skip workspace management (for home directory).
+            gh_ref: If set, the #gh reference that was pre-resolved by the TUI.
         """
         import subprocess
         import tempfile
@@ -223,6 +282,13 @@ class AgentLaunchMixin:
             "axe_run_agent_runner.py",
         )
 
+        # Build subprocess environment (copy to avoid mutating os.environ)
+        subprocess_env = dict(os.environ)
+        if gh_ref is not None:
+            subprocess_env["SASE_GH_PRE_ALLOCATED"] = "1"
+            subprocess_env["SASE_GH_WORKSPACE_NUM"] = str(workspace_num)
+            subprocess_env["SASE_GH_WORKSPACE_DIR"] = workspace_dir
+
         # Start background process first to get actual PID
         # Args: cl_name, project_file, workspace_dir, output_path, workspace_num,
         #       workflow_name, prompt_file, timestamp,
@@ -250,7 +316,7 @@ class AgentLaunchMixin:
                     stdout=output_file,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,  # Detach from TUI process
-                    env=os.environ,
+                    env=subprocess_env,
                 )
         except Exception as e:
             self.notify(f"Failed to start agent: {e}", severity="error")  # type: ignore[attr-defined]
@@ -337,6 +403,11 @@ class AgentLaunchMixin:
                     )
             content = workflow.get_prompt_part_content()
             return render_template(content, render_ctx)
+
+        # Multi-step workflows with prompt_part are designed for embedding,
+        # not standalone execution (e.g., #gh, #hg)
+        if workflow.has_prompt_part():
+            return False
 
         # Check if we have changespec context (not home mode)
         ctx = self._prompt_context
