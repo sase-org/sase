@@ -143,6 +143,7 @@ class AceApp(
         Binding("n", "rename_cl", "Rename", show=False),
         Binding("u", "clear_marks", "Unmark All", show=False),
         Binding("S", "bulk_change_status", "Bulk Status", show=False),
+        Binding("N", "show_notifications", "Notifications", show=False),
         Binding("x", "kill_agent", "Kill", show=False),
         Binding("l", "expand_or_layout", "Expand / Layout", show=False),
         Binding("L", "expand_all_folds", "Expand All", show=False),

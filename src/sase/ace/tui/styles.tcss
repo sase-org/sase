@@ -958,6 +958,44 @@ ProcessSelectModal #process-list {
     border: solid $secondary;
 }
 
+/* ===== Notification Modal Styling ===== */
+
+NotificationModal {
+    align: center middle;
+}
+
+NotificationModal > Container {
+    width: 70;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+NotificationModal #notification-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+NotificationModal #notification-list {
+    height: auto;
+    max-height: 15;
+    border: solid $secondary;
+}
+
+NotificationModal #notification-empty {
+    color: $text-muted;
+    text-align: center;
+    margin: 2 0;
+}
+
+NotificationModal #notification-hints {
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 /* ===== Tag Input Modal Styling ===== */
 
 TagInputModal {
