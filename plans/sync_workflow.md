@@ -80,6 +80,9 @@ Add tests in `tests/test_vcs_provider_git_core.py` for the git implementations u
 
 - `xprompts/sync.yml` — **New**: The main sync workflow
 - `xprompts/resolve_conflicts.md` — **New** (optional): Helper xprompt with detailed conflict resolution instructions
+- `src/sase/scripts/sync_setup.py` — **New**: Extracted setup step logic
+- `src/sase/scripts/sync_attempt.py` — **New**: Extracted sync attempt step logic
+- `src/sase/scripts/sync_report.py` — **New**: Extracted report step logic
 
 ### Workflow design: `xprompts/sync.yml`
 
@@ -91,47 +94,15 @@ input:
 
 steps:
   - name: setup
-    # Detect VCS type, resolve working directory, get branch info
     python: |
-      from sase.vcs_provider import get_vcs_provider
-      from sase.vcs_provider._registry import detect_vcs
-      import os
-
-      cwd = os.getcwd()
-      vcs_type = detect_vcs(cwd) or "git"
-      provider = get_vcs_provider(cwd)
-
-      # Get branch name
-      ok, branch = provider.get_branch_name(cwd)
-      branch_name = branch if (ok and branch) else "unknown"
-
-      print(f"vcs_type={vcs_type}")
-      print(f"branch_name={branch_name}")
-      print(f"cwd={cwd}")
+      from sase.scripts.sync_setup import main
+      main()
     output: { vcs_type: word, branch_name: word, cwd: path }
 
   - name: sync_attempt
-    # Run sync_workspace(), detect if conflicts resulted
     python: |
-      from sase.vcs_provider import get_vcs_provider
-      import json, os
-
-      cwd = {{ setup.cwd | tojson }}
-      provider = get_vcs_provider(cwd)
-
-      sync_ok, sync_err = provider.sync_workspace(cwd)
-
-      has_conflicts = False
-      conflicted_files = []
-      if not sync_ok:
-          has_conflicts = provider.is_sync_in_progress(cwd)
-          if has_conflicts:
-              conflicted_files = provider.get_conflicted_files(cwd)
-
-      print(f"success={'true' if sync_ok else 'false'}")
-      print(f"has_conflicts={'true' if has_conflicts else 'false'}")
-      print(f"error={sync_err or ''}")
-      print(f"conflicted_files={json.dumps(conflicted_files)}")
+      from sase.scripts.sync_attempt import main
+      main(cwd={{ setup.cwd | tojson }})
     output: { success: bool, has_conflicts: bool, error: text, conflicted_files: text }
 
   - name: resolve
@@ -187,22 +158,12 @@ steps:
   - name: report
     hidden: true
     python: |
-      import json
-
-      success = {{ sync_attempt.success }}
-      has_conflicts = {{ sync_attempt.has_conflicts }}
-      all_resolved = {{ resolve.all_resolved | default(false) }}
-
-      if success:
-          print("status=success")
-          print("message=Sync completed successfully (no conflicts)")
-      elif has_conflicts and all_resolved:
-          print("status=resolved")
-          print("message=Sync completed after resolving merge conflicts")
-      else:
-          print("status=failed")
-          print("message=Sync failed - conflicts could not be fully resolved")
-
+      from sase.scripts.sync_report import main
+      main(
+          success={{ sync_attempt.success }},
+          has_conflicts={{ sync_attempt.has_conflicts }},
+          all_resolved={{ resolve.all_resolved | default(false) }},
+      )
     output: { status: word, message: text }
 ```
 
