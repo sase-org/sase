@@ -83,6 +83,14 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             # get_all_prompts() returns both workflows and converted xprompts
             prompts = get_all_prompts(project=project)
             if workflow_name in prompts:
+                workflow = prompts[workflow_name]
+                # Multi-step prompt_part workflows (like #gh, #hg) need to go
+                # through run_query so their embedded pre/post steps and
+                # prompt_part expansion work correctly.
+                if workflow.has_prompt_part() and not workflow.is_simple_xprompt():
+                    run_query(potential_query)
+                    sys.exit(0)
+
                 # Create artifacts directory in ~/.sase/projects/ so TUI can find it
                 # Extract base workflow name (without project prefix) to avoid slashes in path
                 base_workflow = (

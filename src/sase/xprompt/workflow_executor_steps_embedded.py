@@ -112,7 +112,7 @@ def map_output_by_type(
 _WORKFLOW_REF_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_.-]+)|(\+))?"  # Supports backtick-delimited colon args
+    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_./-]+)|(\+))?"  # Supports backtick-delimited colon args
 )
 
 
