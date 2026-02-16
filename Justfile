@@ -81,7 +81,8 @@ pyvision:
 
 # Check Python file line counts
 pylimit:
-    bin/pylimit src/sase 1000 850 700
+    bin/pylimit src 1000 850 700
+    bin/pylimit tests 1000 850 700
 
 # Remove build artifacts
 clean:
