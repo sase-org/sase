@@ -243,6 +243,35 @@ class _GitProvider(VCSProvider):
         )
         return self._to_result(rebase_out, "git rebase")
 
+    def is_sync_in_progress(self, cwd: str) -> bool:
+        out = self._run(["git", "rev-parse", "--git-dir"], cwd)
+        if not out.success:
+            return False
+        git_dir = out.stdout.strip()
+        if not os.path.isabs(git_dir):
+            git_dir = os.path.join(cwd, git_dir)
+        return os.path.isdir(os.path.join(git_dir, "rebase-merge")) or os.path.isdir(
+            os.path.join(git_dir, "rebase-apply")
+        )
+
+    def get_conflicted_files(self, cwd: str) -> list[str]:
+        out = self._run(["git", "diff", "--name-only", "--diff-filter=U"], cwd)
+        if not out.success:
+            return []
+        return [line for line in out.stdout.split("\n") if line.strip()]
+
+    def continue_sync(self, cwd: str) -> tuple[bool, str | None]:
+        out = self._run(
+            ["git", "-c", "core.editor=true", "rebase", "--continue"],
+            cwd,
+            timeout=600,
+        )
+        return self._to_result(out, "git rebase --continue")
+
+    def abort_sync(self, cwd: str) -> tuple[bool, str | None]:
+        out = self._run(["git", "rebase", "--abort"], cwd)
+        return self._to_result(out, "git rebase --abort")
+
     # --- VCS-agnostic method overrides ---
 
     def get_change_url(self, cwd: str) -> tuple[bool, str | None]:

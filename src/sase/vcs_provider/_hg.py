@@ -176,6 +176,31 @@ class _HgProvider(VCSProvider):
         out = self._run(["sase_hg_sync"], cwd, timeout=600)
         return self._to_result(out, "sase_hg_sync")
 
+    def is_sync_in_progress(self, cwd: str) -> bool:
+        out = self._run(["hg", "resolve", "--list"], cwd)
+        if not out.success:
+            return False
+        return any(line.startswith("U ") for line in out.stdout.split("\n"))
+
+    def get_conflicted_files(self, cwd: str) -> list[str]:
+        out = self._run(["hg", "resolve", "--list"], cwd)
+        if not out.success:
+            return []
+        return [line[2:] for line in out.stdout.split("\n") if line.startswith("U ")]
+
+    def continue_sync(self, cwd: str) -> tuple[bool, str | None]:
+        if self.is_sync_in_progress(cwd):
+            return (False, "Unresolved conflicts remain")
+        out = self._run(["hg", "rebase", "--continue"], cwd, timeout=600)
+        return self._to_result(out, "hg rebase --continue")
+
+    def abort_sync(self, cwd: str) -> tuple[bool, str | None]:
+        out = self._run(["hg", "rebase", "--abort"], cwd)
+        if not out.success:
+            out = self._run(["hg", "update", "--clean", "."], cwd)
+            return self._to_result(out, "hg update --clean")
+        return (True, None)
+
     # --- VCS-agnostic method overrides ---
 
     def prepare_description_for_reword(self, description: str) -> str:

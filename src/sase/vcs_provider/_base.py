@@ -99,6 +99,26 @@ class VCSProvider(ABC):
             "sync_workspace is not supported by this VCS provider"
         )
 
+    def is_sync_in_progress(self, cwd: str) -> bool:
+        """Check whether a sync/rebase operation is currently in progress."""
+        raise NotImplementedError(
+            "is_sync_in_progress is not supported by this VCS provider"
+        )
+
+    def get_conflicted_files(self, cwd: str) -> list[str]:
+        """Return a list of files with unresolved merge conflicts."""
+        raise NotImplementedError(
+            "get_conflicted_files is not supported by this VCS provider"
+        )
+
+    def continue_sync(self, cwd: str) -> tuple[bool, str | None]:
+        """Continue a paused sync/rebase after conflicts have been resolved."""
+        raise NotImplementedError("continue_sync is not supported by this VCS provider")
+
+    def abort_sync(self, cwd: str) -> tuple[bool, str | None]:
+        """Abort a sync/rebase in progress and restore the previous state."""
+        raise NotImplementedError("abort_sync is not supported by this VCS provider")
+
     # --- Google-internal methods (default raises NotImplementedError) ---
 
     def reword(self, description: str, cwd: str) -> tuple[bool, str | None]:
