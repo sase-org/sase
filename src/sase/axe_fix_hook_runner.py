@@ -6,8 +6,7 @@ markers to the output file for the axe scheduler to detect when finished.
 
 Usage:
     python3 axe_fix_hook_runner.py <changespec_name> <project_file> <hook_command> \
-        <hook_output_path> <workspace_dir> <output_file> <workspace_num> \
-        <workflow_name> <last_history_id> <timestamp>
+        <hook_output_path> <output_file> <last_history_id> <timestamp>
 
 Output file will contain:
     - Workflow output/logs
@@ -91,11 +90,10 @@ def _update_hook_suffix(
 
 def main() -> int:
     """Run the fix-hook workflow and write completion marker."""
-    if len(sys.argv) != 11:
+    if len(sys.argv) != 8:
         print(
             f"Usage: {sys.argv[0]} <changespec_name> <project_file> <hook_command> "
-            "<hook_output_path> <workspace_dir> <output_file> <workspace_num> "
-            "<workflow_name> <last_history_id> <timestamp>"
+            "<hook_output_path> <output_file> <last_history_id> <timestamp>"
         )
         return 1
 
@@ -103,12 +101,9 @@ def main() -> int:
     project_file = sys.argv[2]
     hook_command = sys.argv[3]
     hook_output_path = sys.argv[4]
-    workspace_dir = sys.argv[5]
-    output_file = sys.argv[6]
-    workspace_num = int(sys.argv[7])
-    workflow_name = sys.argv[8]
-    last_history_id = sys.argv[9]
-    timestamp = sys.argv[10]  # Same timestamp used in agent suffix
+    output_file = sys.argv[5]
+    last_history_id = sys.argv[6]
+    timestamp = sys.argv[7]  # Same timestamp used in agent suffix
 
     proposal_id: str | None = None
     exit_code = 1
@@ -117,10 +112,7 @@ def main() -> int:
     run_hook_command = strip_hook_prefix(hook_command)
 
     try:
-        # Change to workspace directory
-        os.chdir(workspace_dir)
         print(f"Running fix-hook workflow for {changespec_name}")
-        print(f"Workspace: {workspace_dir}")
         print(f"Hook command: {run_hook_command}")
         print(f"Hook output: {hook_output_path}")
         print()
@@ -128,8 +120,11 @@ def main() -> int:
         # Build the prompt using xprompt reference
         escaped_cmd = escape_for_xprompt(run_hook_command)
         escaped_output = escape_for_xprompt(hook_output_path)
+        escaped_cl = escape_for_xprompt(changespec_name)
         prompt_ref = (
-            f'#fix_hook(hook_command="{escaped_cmd}", output_file="{escaped_output}")'
+            f'#fix_hook(hook_command="{escaped_cmd}", '
+            f'output_file="{escaped_output}", '
+            f'cl_name="{escaped_cl}")'
         )
         prompt = process_xprompt_references(prompt_ref)
 
@@ -232,8 +227,8 @@ def main() -> int:
         finalize_axe_runner(
             project_file=project_file,
             changespec_name=changespec_name,
-            workspace_num=workspace_num,
-            workflow_name=workflow_name,
+            workspace_num=None,
+            workflow_name=None,
             proposal_id=proposal_id,
             exit_code=exit_code,
             update_suffix_fn=lambda cs, pf, pid, ec: _update_hook_suffix(

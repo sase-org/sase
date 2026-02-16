@@ -264,8 +264,7 @@ def start_fix_hook_workflow(
 ) -> str | None:
     """Start fix-hook workflow as a background process.
 
-    Spawns the subprocess first, then claims the workspace with the actual PID.
-    If the claim fails, the subprocess is terminated.
+    The runner uses #hg embedded workflow for workspace management (chdir).
 
     Args:
         changespec: The ChangeSpec to run fix-hook for.
@@ -276,30 +275,7 @@ def start_fix_hook_workflow(
     Returns:
         Update message if started, None if failed.
     """
-    project_basename = get_project_basename(changespec)
     timestamp = generate_timestamp()
-
-    # Get workspace info (don't claim yet - need subprocess PID first)
-    workspace_num = get_first_available_axe_workspace(changespec.file_path)
-    workflow_name = f"axe(fix-hook)-{timestamp}"
-
-    try:
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
-        )
-    except RuntimeError as e:
-        log(
-            f"[WS#{workspace_num}] Warning: Failed to get workspace directory: {e}",
-            "yellow",
-        )
-        return None
-
-    if not os.path.isdir(workspace_dir):
-        log(
-            f"[WS#{workspace_num}] Warning: Workspace directory not found: {workspace_dir}",
-            "yellow",
-        )
-        return None
 
     # ATOMIC CLAIM: Check eligibility and claim hook under lock to prevent race condition
     # where two processes both see "summarize_complete" and start fix-hook agents
@@ -316,30 +292,9 @@ def start_fix_hook_workflow(
     if not existing_summary:
         # Either not eligible or already claimed by another process
         log(
-            f"[WS#{workspace_num}] Fix-hook for {hook.display_command} ({entry_id}) "
+            f"Fix-hook for {hook.display_command} ({entry_id}) "
             "not eligible or already claimed",
             "dim",
-        )
-        return None
-
-    # Clean workspace before switching branches
-    clean_success, clean_error = run_sase_hg_clean(
-        workspace_dir, f"{changespec.name}-fix-hook"
-    )
-    if not clean_success:
-        log(
-            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
-            "yellow",
-        )
-
-    # Run sase_hg_update to switch to the ChangeSpec's branch
-    provider = get_vcs_provider(workspace_dir)
-    checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
-    if not checkout_ok:
-        log(
-            f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
-            f"{changespec.name}: {checkout_err}",
-            "yellow",
         )
         return None
 
@@ -371,14 +326,11 @@ def start_fix_hook_workflow(
                     changespec.file_path,
                     hook.command,
                     hook_output_path,
-                    workspace_dir,
                     output_path,
-                    str(workspace_num),
-                    workflow_name,
                     entry_id,
                     timestamp,  # Pass timestamp for artifacts directory sync
                 ],
-                cwd=workspace_dir,
+                cwd=os.path.expanduser("~"),
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
@@ -387,30 +339,9 @@ def start_fix_hook_workflow(
             pid = proc.pid
     except Exception as e:
         log(
-            f"[WS#{workspace_num}] Warning: Failed to start fix-hook subprocess: {e}",
+            f"Warning: Failed to start fix-hook subprocess: {e}",
             "yellow",
         )
-        return None
-
-    # Now claim workspace with actual subprocess PID
-    if not claim_workspace(
-        changespec.file_path,
-        workspace_num,
-        workflow_name,
-        pid,
-        changespec.name,
-        artifacts_timestamp=timestamp,
-    ):
-        log(
-            f"[WS#{workspace_num}] Warning: Failed to claim workspace for fix-hook on "
-            f"{changespec.name}, terminating subprocess",
-            "yellow",
-        )
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
         return None
 
     # Set timestamp suffix on hook status line to indicate workflow is running

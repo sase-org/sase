@@ -260,3 +260,38 @@ def test_prepare_workspace_non_sentinel_passes_through() -> None:
         # get_default_parent_revision should NOT be called
         mock_provider.get_default_parent_revision.assert_not_called()
         mock_provider.checkout.assert_called_once_with("my_branch", "/workspace")
+
+
+def test_finalize_axe_runner_skips_workspace_release_when_none() -> None:
+    """Test finalize_axe_runner skips workspace release when workspace_num/workflow_name are None."""
+    mock_cs = MagicMock()
+    mock_cs.name = "test_cl"
+
+    update_suffix_calls: list[tuple[object, str, str | None, int]] = []
+
+    def mock_update_suffix(cs: object, pf: str, pid: str | None, ec: int) -> None:
+        update_suffix_calls.append((cs, pf, pid, ec))
+
+    with (
+        patch(
+            "sase.axe_runner_utils.parse_project_file",
+            return_value=[mock_cs],
+        ),
+        patch("sase.axe_runner_utils.release_workspace") as mock_release,
+    ):
+        finalize_axe_runner(
+            project_file="/path/project.gp",
+            changespec_name="test_cl",
+            workspace_num=None,
+            workflow_name=None,
+            proposal_id="abc123",
+            exit_code=0,
+            update_suffix_fn=mock_update_suffix,
+        )
+
+        # Suffix update should still work
+        assert len(update_suffix_calls) == 1
+        assert update_suffix_calls[0] == (mock_cs, "/path/project.gp", "abc123", 0)
+
+        # release_workspace should NOT be called
+        mock_release.assert_not_called()
