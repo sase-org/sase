@@ -57,7 +57,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Workflows & Agents",
         [
             ("r", "Run workflow"),
-            ("@", "Run agent (select project/CL)"),
+            ("@", "Run an agent"),
             ("!", "Run background command"),
             ("<space>", "Run agent from current CL"),
         ],
