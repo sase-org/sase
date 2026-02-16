@@ -227,8 +227,6 @@ def main() -> int:
         finalize_axe_runner(
             project_file=project_file,
             changespec_name=changespec_name,
-            workspace_num=None,
-            workflow_name=None,
             proposal_id=proposal_id,
             exit_code=exit_code,
             update_suffix_fn=lambda cs, pf, pid, ec: _update_hook_suffix(
