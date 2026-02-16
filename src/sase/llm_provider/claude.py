@@ -25,6 +25,7 @@ class ClaudeCodeProvider(LLMProvider):
         *,
         model_tier: ModelTier,
         suppress_output: bool = False,
+        model_override: str | None = None,
     ) -> str:
         """Invoke Claude Code CLI with the given prompt.
 
@@ -32,6 +33,8 @@ class ClaudeCodeProvider(LLMProvider):
             prompt: The preprocessed prompt to send.
             model_tier: Which model tier to use ("large" or "small").
             suppress_output: If True, suppress real-time output to console.
+            model_override: If set, use this model name directly instead of
+                mapping from ``model_tier``.
 
         Returns:
             The response text from Claude.
@@ -39,7 +42,7 @@ class ClaudeCodeProvider(LLMProvider):
         Raises:
             subprocess.CalledProcessError: If the Claude CLI process fails.
         """
-        model_alias = _TIER_TO_MODEL[model_tier]
+        model_alias = model_override if model_override else _TIER_TO_MODEL[model_tier]
 
         # Build base command arguments
         base_args = [

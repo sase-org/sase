@@ -23,6 +23,7 @@ class GeminiProvider(LLMProvider):
         *,
         model_tier: ModelTier,
         suppress_output: bool = False,
+        model_override: str | None = None,
     ) -> str:
         """Invoke Gemini CLI with the given prompt.
 
@@ -30,6 +31,8 @@ class GeminiProvider(LLMProvider):
             prompt: The preprocessed prompt to send.
             model_tier: Which model tier to use ("large" or "small").
             suppress_output: If True, suppress real-time output to console.
+            model_override: If set, add ``--model model_override`` to args
+                instead of relying on tier-based env vars.
 
         Returns:
             The response text from Gemini.
@@ -42,6 +45,9 @@ class GeminiProvider(LLMProvider):
             "/google/bin/releases/gemini-cli/tools/gemini",
             "--yolo",
         ]
+
+        if model_override:
+            base_args.extend(["--model", model_override])
 
         # Parse additional args from environment variable based on tier
         # Check generic SASE_LLM_*_ARGS first, fall back to Gemini-specific

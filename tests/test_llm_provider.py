@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.llm_provider._invoke import invoke_agent
+from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
@@ -98,6 +99,7 @@ def test_llm_provider_subclass() -> None:
             *,
             model_tier: ModelTier,
             suppress_output: bool = False,
+            model_override: str | None = None,
         ) -> str:
             return f"mock response to: {prompt}"
 
@@ -119,6 +121,7 @@ def test_register_and_get_provider() -> None:
             *,
             model_tier: ModelTier,
             suppress_output: bool = False,
+            model_override: str | None = None,
         ) -> str:
             return "test"
 
@@ -342,7 +345,7 @@ def test_invoke_agent_with_mocked_provider(
 ) -> None:
     """Test invoke_agent with a mocked provider."""
     # Set up mocks
-    mock_preprocess.return_value = "preprocessed prompt"
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed prompt")
     mock_provider = MagicMock()
     mock_provider.invoke.return_value = "mock response"
     mock_get_provider.return_value = mock_provider
@@ -363,6 +366,7 @@ def test_invoke_agent_with_mocked_provider(
         "preprocessed prompt",
         model_tier="large",
         suppress_output=True,
+        model_override=None,
     )
 
     # Verify result
@@ -378,7 +382,7 @@ def test_invoke_agent_handles_error(
     mock_get_provider: MagicMock,
 ) -> None:
     """Test invoke_agent handles provider errors gracefully."""
-    mock_preprocess.return_value = "preprocessed prompt"
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed prompt")
     mock_provider = MagicMock()
     mock_provider.invoke.side_effect = Exception("test error")
     mock_get_provider.return_value = mock_provider
@@ -404,7 +408,7 @@ def test_invoke_agent_model_size_backward_compat(
     mock_get_provider: MagicMock,
 ) -> None:
     """Test invoke_agent with deprecated model_size parameter."""
-    mock_preprocess.return_value = "preprocessed"
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
     mock_provider = MagicMock()
     mock_provider.invoke.return_value = "response"
     mock_get_provider.return_value = mock_provider
@@ -421,6 +425,7 @@ def test_invoke_agent_model_size_backward_compat(
         "preprocessed",
         model_tier="small",
         suppress_output=True,
+        model_override=None,
     )
 
 
@@ -433,7 +438,7 @@ def test_invoke_agent_model_tier_override_env(
     mock_get_provider: MagicMock,
 ) -> None:
     """Test that SASE_MODEL_TIER_OVERRIDE env var overrides model_tier."""
-    mock_preprocess.return_value = "preprocessed"
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
     mock_provider = MagicMock()
     mock_provider.invoke.return_value = "response"
     mock_get_provider.return_value = mock_provider
@@ -451,6 +456,7 @@ def test_invoke_agent_model_tier_override_env(
             "preprocessed",
             model_tier="small",
             suppress_output=True,
+            model_override=None,
         )
     finally:
         del os.environ["SASE_MODEL_TIER_OVERRIDE"]
@@ -465,7 +471,7 @@ def test_invoke_agent_model_size_override_env_compat(
     mock_get_provider: MagicMock,
 ) -> None:
     """Test that SASE_MODEL_SIZE_OVERRIDE env var still works."""
-    mock_preprocess.return_value = "preprocessed"
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
     mock_provider = MagicMock()
     mock_provider.invoke.return_value = "response"
     mock_get_provider.return_value = mock_provider
@@ -483,6 +489,7 @@ def test_invoke_agent_model_size_override_env_compat(
             "preprocessed",
             model_tier="small",
             suppress_output=True,
+            model_override=None,
         )
     finally:
         del os.environ["SASE_MODEL_SIZE_OVERRIDE"]

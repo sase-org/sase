@@ -9,6 +9,7 @@ This module provides a replacement for the legacy snippet system, adding:
 """
 
 from ._parsing import escape_for_xprompt, parse_workflow_reference, strip_hitl_suffix
+from .directives import PromptDirectives, extract_prompt_directives
 from .loader import (
     get_all_prompts,
     get_all_workflows,
@@ -80,6 +81,9 @@ __all__ = [
     "escape_for_xprompt",
     "parse_workflow_reference",
     "strip_hitl_suffix",
+    # Directives
+    "PromptDirectives",
+    "extract_prompt_directives",
     # Processor
     "WorkflowResult",
     "execute_workflow",

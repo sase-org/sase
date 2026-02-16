@@ -5,6 +5,8 @@ into a standalone function. The preprocessing functions themselves remain in
 their original modules (xprompt, gemini_wrapper.file_references).
 """
 
+from dataclasses import dataclass, field
+
 from sase.gemini_wrapper.file_references import (
     format_with_prettier,
     process_command_substitution,
@@ -16,12 +18,27 @@ from sase.xprompt import (
     process_xprompt_references,
     render_toplevel_jinja2,
 )
+from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
 
 
-def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> str:
+@dataclass
+class _PreprocessResult:
+    """Result of prompt preprocessing.
+
+    Attributes:
+        prompt: The fully preprocessed prompt text.
+        directives: Parsed prompt directives extracted before preprocessing.
+    """
+
+    prompt: str
+    directives: PromptDirectives = field(default_factory=PromptDirectives)
+
+
+def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> _PreprocessResult:
     """Apply the full preprocessing pipeline to a raw prompt.
 
     Steps:
+        0. Extract ``%name`` prompt directives.
         1. Expand ``#name`` xprompt references.
         2. Expand ``$(cmd)`` command substitutions.
         3. Expand ``@path`` file references (copy absolute/tilde paths).
@@ -34,8 +51,11 @@ def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> str:
         is_home_mode: If True, skip file copying for ``@`` file references.
 
     Returns:
-        The fully preprocessed prompt.
+        A _PreprocessResult with the cleaned prompt and extracted directives.
     """
+    # 0. Extract prompt directives (%name patterns) before other processing
+    prompt, directives = extract_prompt_directives(prompt)
+
     # 1. Process xprompt references (#name patterns)
     prompt = process_xprompt_references(prompt)
 
@@ -55,4 +75,4 @@ def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> str:
     # 6. Strip HTML/markdown comments
     prompt = strip_html_comments(prompt)
 
-    return prompt
+    return _PreprocessResult(prompt=prompt, directives=directives)

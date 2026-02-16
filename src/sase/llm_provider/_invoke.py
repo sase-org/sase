@@ -104,11 +104,16 @@ def invoke_agent(
     )
 
     # 1. Preprocess prompt
-    query = preprocess_prompt(prompt, is_home_mode=is_home_mode)
+    result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
+    query = result.prompt
+    model_override = result.directives.model
 
     # 2. Build display label
-    model_tier_label = _MODEL_TIER_TO_LABEL[model_tier]
-    agent_type_with_tier = f"{agent_type} [{model_tier_label}]"
+    if model_override:
+        agent_type_with_tier = f"{agent_type} [{model_override}]"
+    else:
+        model_tier_label = _MODEL_TIER_TO_LABEL[model_tier]
+        agent_type_with_tier = f"{agent_type} [{model_tier_label}]"
 
     # 3. Display decision counts (if not suppressed)
     if not suppress_output and decision_counts is not None:
@@ -144,6 +149,7 @@ def invoke_agent(
             query,
             model_tier=model_tier,
             suppress_output=suppress_output,
+            model_override=model_override,
         )
 
         # 8. Postprocess success

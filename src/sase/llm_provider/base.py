@@ -20,6 +20,7 @@ class LLMProvider(ABC):
         *,
         model_tier: ModelTier,
         suppress_output: bool = False,
+        model_override: str | None = None,
     ) -> str:
         """Send a preprocessed prompt to the LLM and return the response text.
 
@@ -27,6 +28,8 @@ class LLMProvider(ABC):
             prompt: The preprocessed prompt to send.
             model_tier: Which model tier to use ("large" or "small").
             suppress_output: If True, suppress real-time output to console.
+            model_override: If set, use this model name directly instead of
+                mapping from ``model_tier``.
 
         Returns:
             The raw response text from the LLM.
