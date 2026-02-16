@@ -81,8 +81,8 @@ def prepare_workspace(
 def finalize_axe_runner(
     project_file: str,
     changespec_name: str,
-    workspace_num: int,
-    workflow_name: str,
+    workspace_num: int | None,
+    workflow_name: str | None,
     proposal_id: str | None,
     exit_code: int,
     update_suffix_fn: Callable[[ChangeSpec, str, str | None, int], None],
@@ -92,8 +92,8 @@ def finalize_axe_runner(
     Args:
         project_file: Path to the project file.
         changespec_name: Name of the ChangeSpec.
-        workspace_num: Workspace number to release.
-        workflow_name: Name of the workflow.
+        workspace_num: Workspace number to release, or None to skip release.
+        workflow_name: Name of the workflow, or None to skip release.
         proposal_id: Proposal ID if successful, None otherwise.
         exit_code: Exit code (0 for success).
         update_suffix_fn: Callback to update the suffix (hook or comment).
@@ -109,17 +109,18 @@ def finalize_axe_runner(
     except Exception as e:
         print(f"Warning: Failed to update suffix: {e}")
 
-    # Release workspace
-    try:
-        release_workspace(
-            project_file,
-            workspace_num,
-            workflow_name,
-            changespec_name,
-        )
-        print(f"Released workspace #{workspace_num}")
-    except Exception as e:
-        print(f"Warning: Failed to release workspace: {e}")
+    # Release workspace (only if both workspace_num and workflow_name are provided)
+    if workspace_num is not None and workflow_name is not None:
+        try:
+            release_workspace(
+                project_file,
+                workspace_num,
+                workflow_name,
+                changespec_name,
+            )
+            print(f"Released workspace #{workspace_num}")
+        except Exception as e:
+            print(f"Warning: Failed to release workspace: {e}")
 
     # Write completion marker
     print()

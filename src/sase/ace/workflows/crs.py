@@ -111,6 +111,7 @@ def run_crs_workflow(
             comments_file=comments_file,
             timestamp=crs_start_timestamp,
             project_name=changespec.project_basename,
+            cl_name=changespec.name,
         )
         workflow_succeeded = workflow.run()
 

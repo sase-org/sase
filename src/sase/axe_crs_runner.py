@@ -6,8 +6,7 @@ markers to the output file for the axe scheduler to detect when finished.
 
 Usage:
     python3 axe_crs_runner.py <changespec_name> <project_file> <comments_file> \
-        <reviewer_type> <workspace_dir> <output_file> <workspace_num> <workflow_name> \
-        <timestamp>
+        <reviewer_type> <timestamp>
 
 Output file will contain:
     - Workflow output/logs
@@ -54,11 +53,10 @@ def _update_comment_suffix(
 
 def main() -> int:
     """Run the CRS workflow and write completion marker."""
-    if len(sys.argv) != 10:
+    if len(sys.argv) != 6:
         print(
             f"Usage: {sys.argv[0]} <changespec_name> <project_file> <comments_file> "
-            "<reviewer_type> <workspace_dir> <output_file> <workspace_num> "
-            "<workflow_name> <timestamp>"
+            "<reviewer_type> <timestamp>"
         )
         return 1
 
@@ -66,20 +64,13 @@ def main() -> int:
     project_file = sys.argv[2]
     comments_file = sys.argv[3] if sys.argv[3] else None
     reviewer_type = sys.argv[4]
-    workspace_dir = sys.argv[5]
-    # output_file = sys.argv[6]  # Not used - output goes to stdout
-    workspace_num = int(sys.argv[7])
-    workflow_name = sys.argv[8]
-    timestamp = sys.argv[9]  # Same timestamp used in agent suffix
+    timestamp = sys.argv[5]  # Same timestamp used in agent suffix
 
     proposal_id: str | None = None
     exit_code = 1
 
     try:
-        # Change to workspace directory
-        os.chdir(workspace_dir)
         print(f"Running CRS workflow for {changespec_name}")
-        print(f"Workspace: {workspace_dir}")
         print(f"Comments file: {comments_file}")
         print(f"Reviewer type: {reviewer_type}")
         print()
@@ -97,6 +88,7 @@ def main() -> int:
             timestamp=timestamp,
             who=who,
             project_name=project_basename,
+            cl_name=changespec_name,
         )
         workflow_succeeded = workflow.run()
 
@@ -116,12 +108,13 @@ def main() -> int:
         exit_code = 1
 
     finally:
-        # Finalize: update suffix, release workspace, write completion marker
+        # Finalize: update suffix, write completion marker
+        # Workspace release is handled by the scheduler's completer
         finalize_axe_runner(
             project_file=project_file,
             changespec_name=changespec_name,
-            workspace_num=workspace_num,
-            workflow_name=workflow_name,
+            workspace_num=None,
+            workflow_name=None,
             proposal_id=proposal_id,
             exit_code=exit_code,
             update_suffix_fn=lambda cs, pf, pid, ec: _update_comment_suffix(

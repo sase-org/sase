@@ -204,11 +204,7 @@ def _start_crs_workflow(
                     changespec.file_path,
                     comments_file or "",
                     comment_entry.reviewer,
-                    workspace_dir,
-                    output_path,
-                    str(workspace_num),
-                    workflow_name,
-                    timestamp,  # Pass timestamp for artifacts directory sync
+                    timestamp,
                 ],
                 cwd=workspace_dir,
                 stdout=output_file,
