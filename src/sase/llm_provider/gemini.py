@@ -17,6 +17,10 @@ from .types import ModelTier
 class GeminiProvider(LLMProvider):
     """LLM provider that invokes Google's Gemini CLI tool."""
 
+    def resolve_model_name(self, model_tier: ModelTier = "large") -> str:  # noqa: ARG002
+        """Return the Gemini model name."""
+        return "gemini"
+
     def invoke(
         self,
         prompt: str,

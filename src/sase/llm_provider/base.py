@@ -37,3 +37,10 @@ class LLMProvider(ABC):
         Raises:
             subprocess.CalledProcessError: If the underlying process fails.
         """
+
+    def resolve_model_name(self, model_tier: ModelTier = "large") -> str:  # noqa: ARG002
+        """Return a human-readable model name for the given tier.
+
+        Subclasses should override to return provider-specific names.
+        """
+        return "unknown"

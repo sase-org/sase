@@ -19,6 +19,10 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
 class ClaudeCodeProvider(LLMProvider):
     """LLM provider that invokes the Claude Code CLI tool."""
 
+    def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
+        """Return the Claude model alias for the given tier."""
+        return _TIER_TO_MODEL[model_tier]
+
     def invoke(
         self,
         prompt: str,

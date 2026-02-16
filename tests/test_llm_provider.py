@@ -675,6 +675,40 @@ def test_claude_provider_extra_args_from_env_small(
     assert "1000" in cmd
 
 
+def test_base_provider_resolve_model_name_returns_unknown() -> None:
+    """Test that the base LLMProvider.resolve_model_name() returns 'unknown'."""
+
+    class MinimalProvider(LLMProvider):
+        def invoke(
+            self,
+            prompt: str,
+            *,
+            model_tier: ModelTier,
+            suppress_output: bool = False,
+            model_override: str | None = None,
+        ) -> str:
+            return ""
+
+    provider = MinimalProvider()
+    assert provider.resolve_model_name() == "unknown"
+
+
+def test_claude_provider_resolve_model_name() -> None:
+    """Test that ClaudeCodeProvider.resolve_model_name() returns correct names."""
+    provider = ClaudeCodeProvider()
+    assert provider.resolve_model_name() == "opus"
+    assert provider.resolve_model_name("large") == "opus"
+    assert provider.resolve_model_name("small") == "sonnet"
+
+
+def test_gemini_provider_resolve_model_name() -> None:
+    """Test that GeminiProvider.resolve_model_name() returns 'gemini'."""
+    provider = GeminiProvider()
+    assert provider.resolve_model_name() == "gemini"
+    assert provider.resolve_model_name("large") == "gemini"
+    assert provider.resolve_model_name("small") == "gemini"
+
+
 @patch("sase.llm_provider.claude.stream_process_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch("sase.llm_provider.claude.gemini_timer")

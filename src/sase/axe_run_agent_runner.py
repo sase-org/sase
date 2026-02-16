@@ -177,6 +177,11 @@ def main() -> None:
 
             _, directives = extract_prompt_directives(prompt)
             agent_model = directives.model
+            if not agent_model:
+                from sase.llm_provider.registry import get_provider
+
+                provider = get_provider()
+                agent_model = provider.resolve_model_name()
 
             vcs_name = detect_vcs(workspace_dir)
             vcs_display_map = {"git": "GitHub", "hg": "Mercurial"}
