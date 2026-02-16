@@ -1,0 +1,66 @@
+input:
+  - name: gh_ref
+    type: word
+
+steps:
+  - name: setup
+    python: |
+      from sase.gh_workspace import resolve_gh_ref, ensure_git_worktree
+      from sase.running_field import (
+          get_first_available_axe_workspace,
+          claim_workspace,
+      )
+      import os
+
+      gh_ref = {{ gh_ref | tojson }}
+      resolved = resolve_gh_ref(gh_ref)
+
+      project_name = resolved.project_name
+      project_file = resolved.project_file
+
+      workspace_num = get_first_available_axe_workspace(project_file)
+      workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
+
+      pid = os.getppid()
+      workflow_name = f"gh-{gh_ref}"
+      claim_workspace(project_file, workspace_num, workflow_name, pid, resolved.branch_name)
+
+      print(f"project_name={project_name}")
+      print(f"project_file={project_file}")
+      print(f"workspace_dir={workspace_dir}")
+      print(f"workspace_num={workspace_num}")
+      print(f"checkout_target={resolved.checkout_target}")
+      print(f"_chdir={workspace_dir}")
+    output:
+      project_name: word
+      project_file: path
+      workspace_dir: path
+      workspace_num: int
+      checkout_target: word
+
+  - name: prepare
+    bash: |
+      # Save diff backup if workspace is dirty
+      if ! git diff --quiet HEAD 2>/dev/null; then
+        git diff HEAD > "/tmp/gh-workspace-backup-$(date +%s).patch"
+      fi
+      git checkout . && git clean -fd
+      git fetch --quiet
+      git checkout --detach {{ setup.checkout_target }} --quiet
+      echo "success=true"
+    output: { success: bool }
+
+  - name: inject
+    prompt_part: ""
+
+  - name: release
+    python: |
+      from sase.running_field import release_workspace
+      release_workspace(
+          {{ setup.project_file | tojson }},
+          {{ setup.workspace_num }},
+          f"gh-{{ gh_ref }}",
+          {{ gh_ref | tojson }} if "/" not in {{ gh_ref | tojson }} else None,
+      )
+      print("released=true")
+    output: { released: bool }
