@@ -9,8 +9,8 @@ import os
 import sys
 import time
 
-# Add parent directory to path for imports (use abspath to handle relative __file__)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add src directory to path for imports (use abspath to handle relative __file__)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sase.ace.hooks import format_duration  # noqa: E402
 from sase.ace.mentors import set_mentor_status  # noqa: E402

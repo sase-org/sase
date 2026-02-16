@@ -16,8 +16,8 @@ Output file will contain:
 import os
 import sys
 
-# Add the parent directory to the path for imports (use abspath to handle relative __file__)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add the src directory to the path for imports (use abspath to handle relative __file__)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
