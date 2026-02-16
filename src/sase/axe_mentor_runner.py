@@ -16,18 +16,16 @@ from sase.ace.hooks import format_duration  # noqa: E402
 from sase.ace.mentors import set_mentor_status  # noqa: E402
 from sase.axe_runner_utils import install_sigterm_handler, was_killed  # noqa: E402
 from sase.mentor_workflow import MentorWorkflow  # noqa: E402
-from sase.running_field import release_workspace  # noqa: E402
 
 install_sigterm_handler("mentor")
 
 
 def main() -> None:
     """Run mentor workflow and update status on completion."""
-    if len(sys.argv) != 11:
+    if len(sys.argv) != 8:
         print(
             f"Usage: {sys.argv[0]} <cl_name> <project_file> <mentor_name> "
-            "<workspace_dir> <output_path> <workspace_num> <workflow_name> "
-            "<entry_id> <profile_name> <timestamp>",
+            "<output_path> <entry_id> <profile_name> <timestamp>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -35,13 +33,10 @@ def main() -> None:
     cl_name = sys.argv[1]
     project_file = sys.argv[2]
     mentor_name = sys.argv[3]
-    workspace_dir = sys.argv[4]
-    output_path = sys.argv[5]
-    workspace_num = int(sys.argv[6])
-    workflow_name = sys.argv[7]
-    entry_id = sys.argv[8]
-    profile_name = sys.argv[9]
-    timestamp = sys.argv[10]
+    output_path = sys.argv[4]
+    entry_id = sys.argv[5]
+    profile_name = sys.argv[6]
+    timestamp = sys.argv[7]
 
     start_time = time.time()
     success = False
@@ -52,7 +47,6 @@ def main() -> None:
     print(f"CL: {cl_name}")
     print(f"Profile: {profile_name}")
     print(f"Entry ID: {entry_id}")
-    print(f"Workspace: {workspace_dir}")
     print()
 
     try:
@@ -60,14 +54,11 @@ def main() -> None:
             # Build who identifier for proposal
             who = f"mentor:{mentor_name}"
 
-            # Run the mentor workflow with pre-claimed workspace info
+            # Run the mentor workflow (#hg handles workspace management)
             workflow = MentorWorkflow(
                 profile_name=profile_name,
                 mentor_name=mentor_name,
                 cl_name=cl_name,
-                workspace_num=workspace_num,
-                workflow_name=workflow_name,
-                workspace_dir=workspace_dir,
                 timestamp=timestamp,
                 who=who,
             )
@@ -141,13 +132,6 @@ def main() -> None:
                 print(f"Error updating mentor status: {e}", file=sys.stderr)
 
     finally:
-        # Always release workspace, even if killed via SIGTERM
-        # This prevents zombie workspace claims in the RUNNING field
-        try:
-            release_workspace(project_file, workspace_num, workflow_name, cl_name)
-        except Exception as e:
-            print(f"Error releasing workspace: {e}", file=sys.stderr)
-
         # Write completion marker
         try:
             with open(output_path, "a") as f:

@@ -5,7 +5,6 @@ import subprocess
 import time
 from collections.abc import Callable
 
-from sase.commit_utils import run_sase_hg_clean
 from sase.sase_utils import (
     ensure_sase_directory,
     get_sase_directory,
@@ -13,13 +12,7 @@ from sase.sase_utils import (
     strip_reverted_suffix,
 )
 from sase.mentor_config import MentorProfileConfig
-from sase.running_field import (
-    claim_workspace,
-    get_first_available_axe_workspace,
-    get_workspace_directory_for_num,
-)
 from sase.status_state_machine import remove_workspace_suffix
-from sase.vcs_provider import get_vcs_provider
 
 from ..changespec import ChangeSpec
 from ..hooks import generate_timestamp
@@ -77,8 +70,8 @@ def _start_single_mentor(
 ) -> str | None:
     """Start a single mentor workflow as a background process.
 
-    Spawns the subprocess first, then claims the workspace with the actual PID.
-    If the claim fails, the subprocess is terminated.
+    The ``#hg`` embedded workflow handles workspace claiming, checkout, and
+    release.  This function only launches the subprocess and tracks status.
 
     Args:
         changespec: The ChangeSpec to run mentor for.
@@ -90,10 +83,9 @@ def _start_single_mentor(
     Returns:
         Update message if started, None if failed.
     """
-    project_basename = changespec.project_basename
     timestamp = generate_timestamp()
 
-    # EARLY REGISTRATION: Mark as STARTING before expensive workspace operations
+    # EARLY REGISTRATION: Mark as STARTING before subprocess launch
     # This prevents other loop cycles from starting the same mentor (race condition fix)
     set_mentor_status(
         changespec.file_path,
@@ -105,82 +97,6 @@ def _start_single_mentor(
         timestamp=timestamp,
     )
 
-    # Get workspace info (don't claim yet - need subprocess PID first)
-    workspace_num = get_first_available_axe_workspace(changespec.file_path)
-    workflow_name = f"axe(mentor)-{mentor_name}-{timestamp}"
-
-    try:
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
-        )
-    except RuntimeError as e:
-        set_mentor_status(
-            changespec.file_path,
-            changespec.name,
-            entry_id,
-            profile.profile_name,
-            mentor_name,
-            status="FAILED",
-            timestamp=timestamp,
-            suffix="workspace_dir_error",
-            suffix_type="error",
-        )
-        log(
-            f"[WS#{workspace_num}] Warning: Failed to get workspace directory: {e}",
-            "yellow",
-        )
-        return None
-
-    if not os.path.isdir(workspace_dir):
-        set_mentor_status(
-            changespec.file_path,
-            changespec.name,
-            entry_id,
-            profile.profile_name,
-            mentor_name,
-            status="FAILED",
-            timestamp=timestamp,
-            suffix="workspace_not_found",
-            suffix_type="error",
-        )
-        log(
-            f"[WS#{workspace_num}] Warning: Workspace directory not found: {workspace_dir}",
-            "yellow",
-        )
-        return None
-
-    # Clean workspace before switching branches
-    clean_success, clean_error = run_sase_hg_clean(
-        workspace_dir, f"{changespec.name}-mentor"
-    )
-    if not clean_success:
-        log(
-            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
-            "yellow",
-        )
-
-    # Checkout the ChangeSpec's branch via VCS provider
-    provider = get_vcs_provider(workspace_dir)
-    checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
-    if not checkout_ok:
-        set_mentor_status(
-            changespec.file_path,
-            changespec.name,
-            entry_id,
-            profile.profile_name,
-            mentor_name,
-            status="FAILED",
-            timestamp=timestamp,
-            suffix="checkout_failed",
-            suffix_type="error",
-        )
-        log(
-            f"[WS#{workspace_num}] Warning: checkout failed for "
-            f"{changespec.name}: {checkout_err}",
-            "yellow",
-        )
-        return None
-
     # Get output file path
     output_path = _get_mentor_output_path(changespec.name, mentor_name, timestamp)
 
@@ -190,7 +106,7 @@ def _start_single_mentor(
         "axe_mentor_runner.py",
     )
 
-    # Start the background process first to get actual PID
+    # Start the background process
     try:
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
@@ -200,15 +116,12 @@ def _start_single_mentor(
                     changespec.name,
                     changespec.file_path,
                     mentor_name,
-                    workspace_dir,
                     output_path,
-                    str(workspace_num),
-                    workflow_name,
                     entry_id,
                     profile.profile_name,
-                    timestamp,  # Pass timestamp for chat file naming
+                    timestamp,
                 ],
-                cwd=workspace_dir,
+                cwd=os.path.expanduser("~"),
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
@@ -228,41 +141,9 @@ def _start_single_mentor(
             suffix_type="error",
         )
         log(
-            f"[WS#{workspace_num}] Warning: Failed to start mentor subprocess: {e}",
+            f"Warning: Failed to start mentor subprocess: {e}",
             "yellow",
         )
-        return None
-
-    # Now claim workspace with actual subprocess PID
-    if not claim_workspace(
-        changespec.file_path,
-        workspace_num,
-        workflow_name,
-        pid,
-        changespec.name,
-        artifacts_timestamp=timestamp,
-    ):
-        set_mentor_status(
-            changespec.file_path,
-            changespec.name,
-            entry_id,
-            profile.profile_name,
-            mentor_name,
-            status="FAILED",
-            timestamp=timestamp,
-            suffix="workspace_claim_failed",
-            suffix_type="error",
-        )
-        log(
-            f"[WS#{workspace_num}] Warning: Failed to claim workspace for mentor "
-            f"{mentor_name} on {changespec.name}, terminating subprocess",
-            "yellow",
-        )
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
         return None
 
     # Set mentor status to RUNNING with timestamp

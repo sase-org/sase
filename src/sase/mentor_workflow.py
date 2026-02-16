@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import NoReturn
 
 from sase.ace.changespec import find_all_changespecs
-from sase.commit_utils import run_sase_hg_clean
 from sase.sase_utils import generate_timestamp
 from sase.llm_provider import invoke_agent
 from sase.main.query_handler import (
@@ -20,12 +19,6 @@ from sase.mentor_config import (
 )
 from rich.console import Console
 from sase.rich_utils import print_artifact_created, print_status, print_workflow_header
-from sase.running_field import (
-    claim_workspace,
-    get_first_available_workspace,
-    get_workspace_directory_for_num,
-    release_workspace,
-)
 from sase.shared_utils import (
     create_artifacts_directory,
     ensure_str_content,
@@ -34,22 +27,24 @@ from sase.shared_utils import (
     initialize_sase_log,
     run_bam_command,
 )
-from sase.vcs_provider import get_vcs_provider
 from sase.workflow_base import BaseWorkflow
 from sase.workflow_utils import get_cl_name_from_branch
 from sase.xprompt import process_xprompt_references
 
 
-def _build_mentor_prompt(mentor: MentorConfig) -> str:
-    """Build the mentor prompt using the mentor prompt.
+def _build_mentor_prompt(mentor: MentorConfig, cl_name: str) -> str:
+    """Build the mentor prompt with ``#hg`` workspace management prepended.
 
     Args:
         mentor: The mentor configuration.
+        cl_name: CL name passed to the ``#hg`` embedded workflow.
 
     Returns:
-        The complete prompt with xprompt references expanded.
+        The complete prompt with ``#hg:<cl_name>`` prepended and xprompt
+        references expanded.
     """
-    return process_xprompt_references(mentor.prompt)
+    expanded = process_xprompt_references(mentor.prompt)
+    return f"#hg:{cl_name}\n\n{expanded}"
 
 
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
@@ -79,9 +74,6 @@ class MentorWorkflow(BaseWorkflow):
         profile_name: str,
         mentor_name: str,
         cl_name: str | None = None,
-        workspace_num: int | None = None,
-        workflow_name: str | None = None,
-        workspace_dir: str | None = None,
         timestamp: str | None = None,
         who: str | None = None,
     ) -> None:
@@ -91,21 +83,14 @@ class MentorWorkflow(BaseWorkflow):
             profile_name: Name of the profile containing the mentor.
             mentor_name: Name of the mentor to use.
             cl_name: CL name to work on (defaults to current branch name).
-            workspace_num: Pre-claimed workspace number (for axe context).
-            workflow_name: Pre-claimed workflow name (for axe context).
-            workspace_dir: Pre-configured workspace directory (for axe context).
             timestamp: Timestamp for chat file naming (YYmmdd_HHMMSS format).
             who: Optional identifier for who is creating the proposal (e.g., "mentor:name").
         """
         self.profile_name = profile_name
         self.mentor_name = mentor_name
         self.cl_name = cl_name
-        self._workspace_num = workspace_num
-        self._workflow_name = workflow_name
-        self._workspace_dir = workspace_dir
         self._timestamp = timestamp
         self._who = who
-        self._owns_workspace = False  # True if we claimed the workspace ourselves
         self.response_path: str | None = None
         self.proposal_id: str | None = None
         self._mentor: MentorConfig | None = None
@@ -160,49 +145,6 @@ class MentorWorkflow(BaseWorkflow):
             )
             return False
 
-        # Handle workspace: use pre-claimed if provided, otherwise claim new
-        if self._workspace_num is not None and self._workspace_dir is not None:
-            # Running in loop context - workspace already claimed
-            workspace_num = self._workspace_num
-            workspace_dir = self._workspace_dir
-            workflow_name = self._workflow_name or f"mentor-{self.mentor_name}"
-            self._owns_workspace = False
-        else:
-            # Interactive context - claim workspace ourselves
-            workspace_num = get_first_available_workspace(project_file)
-            try:
-                workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-                    workspace_num, project
-                )
-            except RuntimeError as e:
-                print_status(f"Error: {e}", "error")
-                return False
-
-            workflow_name = f"mentor-{self.mentor_name}"
-            claim_success = claim_workspace(
-                project_file,
-                workspace_num,
-                workflow_name,
-                os.getpid(),
-                resolved_cl_name,
-            )
-            if not claim_success:
-                print_status("Error: Failed to claim workspace.", "error")
-                return False
-
-            self._owns_workspace = True
-
-            if workspace_suffix:
-                self._console.print(
-                    f"[cyan]Using workspace share: {workspace_suffix}[/cyan]"
-                )
-
-        # Store for use in finally block
-        self._workspace_num = workspace_num
-        self._workflow_name = workflow_name
-        self._project_file = project_file
-        self._resolved_cl_name = resolved_cl_name
-
         # Generate workflow tag
         workflow_tag = generate_workflow_tag()
         print_workflow_header(f"mentor-{self.mentor_name}", workflow_tag)
@@ -211,31 +153,6 @@ class MentorWorkflow(BaseWorkflow):
         original_dir = os.getcwd()
 
         try:
-            # Change to workspace and update to CL
-            os.chdir(workspace_dir)
-
-            # Run sase_hg_update to checkout the CL (skip if workspace already set up)
-            if self._owns_workspace:
-                # Clean workspace before switching branches
-                clean_success, clean_error = run_sase_hg_clean(
-                    workspace_dir, f"{resolved_cl_name}-mentor-{self.mentor_name}"
-                )
-                if not clean_success:
-                    print_status(
-                        f"Warning: sase_hg_clean failed: {clean_error}", "warning"
-                    )
-
-                print_status(f"Checking out CL: {resolved_cl_name}", "progress")
-                provider = get_vcs_provider(workspace_dir)
-                checkout_ok, checkout_err = provider.checkout(
-                    resolved_cl_name, workspace_dir
-                )
-                if not checkout_ok:
-                    print_status(
-                        f"Error: sase_hg_update failed: {checkout_err}", "error"
-                    )
-                    return False
-
             # Generate timestamp if not provided (interactive mode)
             if self._timestamp is None:
                 self._timestamp = generate_timestamp()
@@ -256,7 +173,7 @@ class MentorWorkflow(BaseWorkflow):
 
             # Build and run prompt
             print_status("Building mentor prompt...", "progress")
-            prompt = _build_mentor_prompt(self._mentor)
+            prompt = _build_mentor_prompt(self._mentor, resolved_cl_name)
 
             # Expand embedded workflows (like #propose from #p expansion)
             expanded_prompt, post_workflows = expand_embedded_workflows_in_query(
@@ -341,14 +258,6 @@ class MentorWorkflow(BaseWorkflow):
             return False
         finally:
             os.chdir(original_dir)
-            # Only release workspace if we claimed it ourselves
-            if self._owns_workspace:
-                release_workspace(
-                    self._project_file,
-                    self._workspace_num,
-                    self._workflow_name,
-                    self._resolved_cl_name,
-                )
 
 
 def main() -> NoReturn:
