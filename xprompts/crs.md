@@ -6,9 +6,12 @@ input:
   - name: cl_name
     type: word
     default: "null"
+  - name: vcs_type
+    type: word
+    default: "hg"
 ---
 
-{% if cl_name != "null" %}#hg:{{ cl_name }}
+{% if cl_name != "null" %}#{{ vcs_type }}:{{ cl_name }}
 
 {% endif %}Can you help me address the Critique comments? Read all of the files below VERY carefully to make sure that
 the changes you make align with the overall goal of this CL! Make the necessary file changes.

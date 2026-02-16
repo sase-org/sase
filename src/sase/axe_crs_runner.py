@@ -69,6 +69,12 @@ def main() -> int:
     proposal_id: str | None = None
     exit_code = 1
 
+    # Detect VCS type for the project
+    from sase.gh_workspace import detect_vcs_type_for_project
+
+    raw_vcs = detect_vcs_type_for_project(project_file)
+    vcs_type = "gh" if raw_vcs == "git" else "hg"
+
     try:
         print(f"Running CRS workflow for {changespec_name}")
         print(f"Comments file: {comments_file}")
@@ -89,6 +95,7 @@ def main() -> int:
             who=who,
             project_name=project_basename,
             cl_name=changespec_name,
+            vcs_type=vcs_type,
         )
         workflow_succeeded = workflow.run()
 

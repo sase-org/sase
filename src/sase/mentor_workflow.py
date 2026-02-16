@@ -32,19 +32,22 @@ from sase.workflow_utils import get_cl_name_from_branch
 from sase.xprompt import process_xprompt_references
 
 
-def _build_mentor_prompt(mentor: MentorConfig, cl_name: str) -> str:
-    """Build the mentor prompt with ``#hg`` workspace management prepended.
+def _build_mentor_prompt(
+    mentor: MentorConfig, cl_name: str, vcs_type: str = "hg"
+) -> str:
+    """Build the mentor prompt with VCS workspace management prepended.
 
     Args:
         mentor: The mentor configuration.
-        cl_name: CL name passed to the ``#hg`` embedded workflow.
+        cl_name: CL name passed to the embedded workflow.
+        vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
 
     Returns:
-        The complete prompt with ``#hg:<cl_name>`` prepended and xprompt
-        references expanded.
+        The complete prompt with ``#<vcs_type>:<cl_name>`` prepended and
+        xprompt references expanded.
     """
     expanded = process_xprompt_references(mentor.prompt)
-    return f"#hg:{cl_name}\n\n{expanded}"
+    return f"#{vcs_type}:{cl_name}\n\n{expanded}"
 
 
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
@@ -145,6 +148,12 @@ class MentorWorkflow(BaseWorkflow):
             )
             return False
 
+        # Detect VCS type for the project
+        from sase.gh_workspace import detect_vcs_type_for_project
+
+        raw_vcs = detect_vcs_type_for_project(project_file)
+        vcs_type = "gh" if raw_vcs == "git" else "hg"
+
         # Generate workflow tag
         workflow_tag = generate_workflow_tag()
         print_workflow_header(f"mentor-{self.mentor_name}", workflow_tag)
@@ -173,7 +182,7 @@ class MentorWorkflow(BaseWorkflow):
 
             # Build and run prompt
             print_status("Building mentor prompt...", "progress")
-            prompt = _build_mentor_prompt(self._mentor, resolved_cl_name)
+            prompt = _build_mentor_prompt(self._mentor, resolved_cl_name, vcs_type)
 
             # Expand embedded workflows (like #propose from #p expansion)
             expanded_prompt, post_workflows = expand_embedded_workflows_in_query(

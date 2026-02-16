@@ -62,12 +62,17 @@ def _create_critique_comments_artifact(
     return artifact_path
 
 
-def _build_crs_prompt(critique_comments_path: str, cl_name: str | None = None) -> str:
+def _build_crs_prompt(
+    critique_comments_path: str,
+    cl_name: str | None = None,
+    vcs_type: str = "hg",
+) -> str:
     """Build the change request prompt using the crs xprompt.
 
     Args:
         critique_comments_path: Path to the critique comments JSON file
-        cl_name: Optional CL/branch name for #hg embedded workflow context.
+        cl_name: Optional CL/branch name for embedded workflow context.
+        vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
 
     Returns:
         The formatted prompt string
@@ -75,7 +80,8 @@ def _build_crs_prompt(critique_comments_path: str, cl_name: str | None = None) -
     escaped_path = escape_for_xprompt(critique_comments_path)
     if cl_name:
         prompt_text = (
-            f'#crs(critique_comments_path="{escaped_path}", cl_name="{cl_name}")'
+            f'#crs(critique_comments_path="{escaped_path}", '
+            f'cl_name="{cl_name}", vcs_type="{vcs_type}")'
         )
     else:
         prompt_text = f'#crs(critique_comments_path="{escaped_path}")'
@@ -92,6 +98,7 @@ class CrsWorkflow(BaseWorkflow):
         who: str | None = None,
         project_name: str | None = None,
         cl_name: str | None = None,
+        vcs_type: str | None = None,
     ) -> None:
         """Initialize CRS workflow.
 
@@ -102,13 +109,15 @@ class CrsWorkflow(BaseWorkflow):
                 When provided, ensures the artifacts directory matches the agent suffix timestamp.
             who: Optional identifier for who is creating the proposal (e.g., "crs (ref)").
             project_name: Optional project name for artifacts directory.
-            cl_name: Optional CL/branch name for #hg embedded workflow context.
+            cl_name: Optional CL/branch name for embedded workflow context.
+            vcs_type: VCS workflow type (``"hg"`` or ``"gh"``). Defaults to ``"hg"``.
         """
         self.project_name = project_name
         self.comments_file = comments_file
         self._timestamp = timestamp
         self._who = who
         self.cl_name = cl_name
+        self.vcs_type = vcs_type
         self.response_path: str | None = None
         self.last_prompt: str | None = None
         self.proposal_id: str | None = None
@@ -148,7 +157,11 @@ class CrsWorkflow(BaseWorkflow):
 
         # Build the prompt
         print_status("Building change request prompt...", "progress")
-        prompt = _build_crs_prompt(critique_artifact, cl_name=self.cl_name)
+        prompt = _build_crs_prompt(
+            critique_artifact,
+            cl_name=self.cl_name,
+            vcs_type=self.vcs_type or "hg",
+        )
         self.last_prompt = prompt
 
         # Expand embedded workflows (#propose from crs.md)

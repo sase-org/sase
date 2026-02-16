@@ -131,6 +131,12 @@ def _start_crs_workflow(
     Returns:
         Update message if started, None if failed.
     """
+    from sase.gh_workspace import (
+        detect_vcs_type_for_project,
+        ensure_git_worktree,
+        parse_workspace_dir,
+    )
+
     project_basename = get_project_basename(changespec)
     timestamp = generate_timestamp()
 
@@ -138,36 +144,70 @@ def _start_crs_workflow(
     workspace_num = get_first_available_axe_workspace(changespec.file_path)
     workflow_name = f"axe(crs)-{comment_entry.reviewer}-{timestamp}"
 
-    try:
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
-        )
-    except RuntimeError as e:
-        log(
-            f"[WS#{workspace_num}] Warning: Failed to get workspace directory: {e}",
-            "yellow",
-        )
-        return None
+    # Detect VCS type and resolve workspace directory accordingly
+    raw_vcs = detect_vcs_type_for_project(changespec.file_path)
 
-    if not os.path.isdir(workspace_dir):
-        log(
-            f"[WS#{workspace_num}] Warning: Workspace directory not found: {workspace_dir}",
-            "yellow",
-        )
-        return None
+    if raw_vcs == "git":
+        # Git: use worktrees from WORKSPACE_DIR
+        primary_dir = parse_workspace_dir(changespec.file_path)
+        if not primary_dir:
+            log(
+                f"[WS#{workspace_num}] Warning: WORKSPACE_DIR not set for git project",
+                "yellow",
+            )
+            return None
+        try:
+            workspace_dir = ensure_git_worktree(primary_dir, workspace_num)
+        except RuntimeError as e:
+            log(
+                f"[WS#{workspace_num}] Warning: Failed to get git worktree: {e}",
+                "yellow",
+            )
+            return None
 
-    # Clean workspace before switching branches
-    clean_success, clean_error = run_sase_hg_clean(
-        workspace_dir, f"{changespec.name}-crs"
-    )
-    if not clean_success:
-        log(
-            f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
-            "yellow",
+        # Clean workspace using VCS provider
+        provider = get_vcs_provider(workspace_dir)
+        clean_success, clean_error = provider.stash_and_clean(
+            f"{changespec.name}-crs", workspace_dir
         )
+        if not clean_success:
+            log(
+                f"[WS#{workspace_num}] Warning: stash_and_clean failed: {clean_error}",
+                "yellow",
+            )
+    else:
+        # Hg: use existing workspace directory logic
+        try:
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, project_basename
+            )
+        except RuntimeError as e:
+            log(
+                f"[WS#{workspace_num}] Warning: Failed to get workspace directory: {e}",
+                "yellow",
+            )
+            return None
 
-    # Run sase_hg_update to switch to the ChangeSpec's branch
-    provider = get_vcs_provider(workspace_dir)
+        if not os.path.isdir(workspace_dir):
+            log(
+                f"[WS#{workspace_num}] Warning: Workspace directory not found: {workspace_dir}",
+                "yellow",
+            )
+            return None
+
+        # Clean workspace before switching branches
+        clean_success, clean_error = run_sase_hg_clean(
+            workspace_dir, f"{changespec.name}-crs"
+        )
+        if not clean_success:
+            log(
+                f"[WS#{workspace_num}] Warning: sase_hg_clean failed: {clean_error}",
+                "yellow",
+            )
+
+        provider = get_vcs_provider(workspace_dir)
+
+    # Switch to the ChangeSpec's branch
     checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
     if not checkout_ok:
         log(
