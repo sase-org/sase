@@ -50,14 +50,14 @@ Source: `src/sase/vcs_provider/_hg.py`
 | ------------------- | ---------------------------------- | ----------------------------- |
 | `tm`                | Open tmux session (custom wrapper) | `ace/tui/actions/base.py:463` |
 | `bam`               | Audio/visual notification          | `shared_utils.py:203`         |
-| `terminal-notifier` | macOS desktop notifications        | `bin/sase_stop_hook:52`       |
+| `terminal-notifier` | macOS desktop notifications        | `tools/sase_stop_hook:52`     |
 
 ## Shell library (referenced but sourced from `~/lib/`)
 
-| Path                                       | Usage                                            | Source location                                |
-| ------------------------------------------ | ------------------------------------------------ | ---------------------------------------------- |
-| `~/lib/bugyi.sh`                           | Shell utility library (sourced by `bin/pylimit`) | `bin/pylimit:7`                                |
-| `~/lib/sase/xprompts/workflow.schema.json` | Workflow schema file                             | `ace/tui/actions/agent_workflow/_editor.py:72` |
+| Path                                       | Usage                                              | Source location                                |
+| ------------------------------------------ | -------------------------------------------------- | ---------------------------------------------- |
+| `~/lib/bugyi.sh`                           | Shell utility library (sourced by `tools/pylimit`) | `tools/pylimit:7`                              |
+| `~/lib/sase/xprompts/workflow.schema.json` | Workflow schema file                               | `ace/tui/actions/agent_workflow/_editor.py:72` |
 
 ## LLM CLI tools
 
@@ -71,5 +71,5 @@ Source: `src/sase/vcs_provider/_hg.py`
 `bat`, `less`, `cat`, `tmux`, `pbcopy`, `xclip`, `prettier`, `perl`, `logger`, `python3`, `twine`, `npm`, `just`, `wc`,
 `find`, `grep`, `getopt`, `mktemp`, `date`.
 
-**Included in this repo** (also excluded from the list above): `bin/pyvision`, `bin/pylimit`, `bin/sase_stop_hook`,
-`lib/bugyi_260215.sh`.
+**Included in this repo** (also excluded from the list above): `tools/pyvision`, `tools/pylimit`,
+`tools/sase_stop_hook`, `lib/bugyi_260215.sh`.

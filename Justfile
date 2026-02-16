@@ -77,12 +77,12 @@ all: fmt lint test
 
 # Find unused Python function/class definitions
 pyvision:
-    bin/pyvision src/sase --exclude-symbol resolve_gh_ref --exclude-symbol ResolvedGhRef --exclude-symbol resolve_git_ref --exclude-symbol ResolvedGitRef --exclude-symbol detect_workflow_type_for_project --exclude-symbol init_bare_git_project
+    tools/pyvision src/sase --exclude-symbol resolve_gh_ref --exclude-symbol ResolvedGhRef --exclude-symbol resolve_git_ref --exclude-symbol ResolvedGitRef --exclude-symbol detect_workflow_type_for_project --exclude-symbol init_bare_git_project --exclude-symbol get_script_path --exclude-symbol run_script
 
 # Check Python file line counts
 pylimit:
-    bin/pylimit src 1000 850 700
-    bin/pylimit tests 1000 850 700
+    tools/pylimit src 1000 850 700
+    tools/pylimit tests 1000 850 700
 
 # Remove build artifacts
 clean:
