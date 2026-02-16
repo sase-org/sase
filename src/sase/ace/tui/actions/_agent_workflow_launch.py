@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ..models import Agent
 
 _GH_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#gh(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
+_GIT_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#git(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
 
 
 class AgentLaunchMixin:
@@ -65,6 +66,43 @@ class AgentLaunchMixin:
             gh_ref,
         )
 
+    def _resolve_git_from_prompt(
+        self, prompt: str
+    ) -> tuple[str, str, str, int, str] | None:
+        """Extract and resolve a #git reference from a prompt.
+
+        Returns (project_file, project_name, workspace_dir, workspace_num,
+        git_ref) or None if not found or resolution fails.
+        """
+        from sase.gh_workspace import ensure_git_worktree
+        from sase.git_workspace import resolve_git_ref
+        from sase.running_field import get_first_available_axe_workspace
+
+        match = _GIT_REF_PATTERN.search(prompt)
+        if match is None:
+            return None
+
+        git_ref = match.group(1) or match.group(2)
+        if not git_ref:
+            return None
+
+        try:
+            resolved = resolve_git_ref(git_ref)
+            workspace_num = get_first_available_axe_workspace(resolved.project_file)
+            workspace_dir = ensure_git_worktree(
+                resolved.primary_workspace_dir, workspace_num
+            )
+        except (ValueError, RuntimeError):
+            return None
+
+        return (
+            resolved.project_file,
+            resolved.project_name,
+            workspace_dir,
+            workspace_num,
+            git_ref,
+        )
+
     def _finish_agent_launch(self, prompt: str) -> None:
         """Complete agent launch with the given prompt.
 
@@ -95,6 +133,7 @@ class AgentLaunchMixin:
 
         # Detect workspace-managing embedded workflows in home mode
         gh_ref_info: str | None = None
+        git_ref_info: str | None = None
         if ctx.is_home_mode:
             resolved = self._resolve_gh_from_prompt(prompt)
             if resolved is not None:
@@ -109,9 +148,23 @@ class AgentLaunchMixin:
                 ctx.update_target = ""  # gh.yml handles checkout
                 ctx.is_home_mode = False  # Enable workspace claiming/releasing
 
+        if ctx.is_home_mode and gh_ref_info is None:
+            git_resolved = self._resolve_git_from_prompt(prompt)
+            if git_resolved is not None:
+                (
+                    ctx.project_file,
+                    ctx.project_name,
+                    ctx.workspace_dir,
+                    ctx.workspace_num,
+                    git_ref_info,
+                ) = git_resolved
+                ctx.display_name = ctx.project_name
+                ctx.update_target = ""  # git.yml handles checkout
+                ctx.is_home_mode = False  # Enable workspace claiming/releasing
+
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
-        # Skip if #gh workspace was detected (embedded workflow, not standalone)
-        if prompt.startswith("#") and gh_ref_info is None:
+        # Skip if #gh/#git workspace was detected (embedded workflow, not standalone)
+        if prompt.startswith("#") and gh_ref_info is None and git_ref_info is None:
             workflow_result = self._try_execute_workflow(prompt)
             if workflow_result is True:
                 # Full workflow executed successfully
@@ -138,6 +191,7 @@ class AgentLaunchMixin:
             history_sort_key=ctx.history_sort_key,
             is_home_mode=ctx.is_home_mode,
             gh_ref=gh_ref_info,
+            git_ref=git_ref_info,
         )
 
         # Refresh agents list (deferred to avoid lag)
@@ -236,6 +290,7 @@ class AgentLaunchMixin:
         history_sort_key: str = "",
         is_home_mode: bool = False,
         gh_ref: str | None = None,
+        git_ref: str | None = None,
     ) -> None:
         """Launch agent as background process.
 
@@ -252,6 +307,7 @@ class AgentLaunchMixin:
             history_sort_key: CL name to associate with the prompt in history.
             is_home_mode: If True, skip workspace management (for home directory).
             gh_ref: If set, the #gh reference that was pre-resolved by the TUI.
+            git_ref: If set, the #git reference that was pre-resolved by the TUI.
         """
         import subprocess
         import tempfile
@@ -288,6 +344,10 @@ class AgentLaunchMixin:
             subprocess_env["SASE_GH_PRE_ALLOCATED"] = "1"
             subprocess_env["SASE_GH_WORKSPACE_NUM"] = str(workspace_num)
             subprocess_env["SASE_GH_WORKSPACE_DIR"] = workspace_dir
+        if git_ref is not None:
+            subprocess_env["SASE_GIT_PRE_ALLOCATED"] = "1"
+            subprocess_env["SASE_GIT_WORKSPACE_NUM"] = str(workspace_num)
+            subprocess_env["SASE_GIT_WORKSPACE_DIR"] = workspace_dir
 
         # Start background process first to get actual PID
         # Args: cl_name, project_file, workspace_dir, output_path, workspace_num,

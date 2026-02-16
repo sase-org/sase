@@ -22,11 +22,10 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
     Returns:
         A string such as ``"#gh:my_cl "`` or ``"#hg:my_cl "``.
     """
-    from sase.gh_workspace import detect_vcs_type_for_project
+    from sase.gh_workspace import detect_workflow_type_for_project
 
-    vcs_type = detect_vcs_type_for_project(project_file)
-    vcs = "gh" if vcs_type == "git" else "hg"
-    return f"#{vcs}:{name} "
+    workflow_type = detect_workflow_type_for_project(project_file)
+    return f"#{workflow_type}:{name} "
 
 
 class EntryPointsMixin:

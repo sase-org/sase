@@ -149,10 +149,9 @@ class MentorWorkflow(BaseWorkflow):
             return False
 
         # Detect VCS type for the project
-        from sase.gh_workspace import detect_vcs_type_for_project
+        from sase.gh_workspace import detect_workflow_type_for_project
 
-        raw_vcs = detect_vcs_type_for_project(project_file)
-        vcs_type = "gh" if raw_vcs == "git" else "hg"
+        vcs_type = detect_workflow_type_for_project(project_file)
 
         # Generate workflow tag
         workflow_tag = generate_workflow_tag()
