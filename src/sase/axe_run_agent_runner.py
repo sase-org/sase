@@ -171,15 +171,41 @@ def main() -> None:
                 timestamp=timestamp,
             )
 
+            # Extract model directive and detect VCS before preprocessing
+            from sase.vcs_provider._registry import detect_vcs
+            from sase.xprompt.directives import extract_prompt_directives
+
+            _, directives = extract_prompt_directives(prompt)
+            agent_model = directives.model
+
+            vcs_name = detect_vcs(workspace_dir)
+            vcs_display_map = {"git": "GitHub", "hg": "Mercurial"}
+            agent_vcs_provider = vcs_display_map.get(vcs_name) if vcs_name else None
+
+            # Persist model and VCS to agent_meta.json
+            agent_meta: dict[str, Any] = {}
+            if agent_model:
+                agent_meta["model"] = agent_model
+            if agent_vcs_provider:
+                agent_meta["vcs_provider"] = agent_vcs_provider
+            if agent_meta:
+                meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(agent_meta, f, indent=2)
+
             # Write running marker for home mode (no workspace tracking available)
             if is_home_mode:
                 running_marker_path = os.path.join(artifacts_dir, "running.json")
-                running_marker = {
+                running_marker: dict[str, Any] = {
                     "cl_name": cl_name,
                     "pid": os.getpid(),
                     "timestamp": timestamp,
                     "prompt": prompt,
                 }
+                if agent_model:
+                    running_marker["model"] = agent_model
+                if agent_vcs_provider:
+                    running_marker["vcs_provider"] = agent_vcs_provider
                 with open(running_marker_path, "w", encoding="utf-8") as f:
                     json.dump(running_marker, f, indent=2)
 
@@ -224,6 +250,10 @@ def main() -> None:
                 "step_output": step_output,
                 "diff_path": diff_path,
             }
+            if agent_model:
+                done_marker["model"] = agent_model
+            if agent_vcs_provider:
+                done_marker["vcs_provider"] = agent_vcs_provider
             done_path = os.path.join(artifacts_dir, "done.json")
             with open(done_path, "w", encoding="utf-8") as f:
                 json.dump(done_marker, f, indent=2)
@@ -248,6 +278,10 @@ def main() -> None:
                     "error": str(e),
                     "workspace_num": workspace_num,
                 }
+                if agent_model:
+                    error_done["model"] = agent_model
+                if agent_vcs_provider:
+                    error_done["vcs_provider"] = agent_vcs_provider
                 done_path = os.path.join(artifacts_dir, "done.json")
                 with open(done_path, "w", encoding="utf-8") as f:
                     json.dump(error_done, f, indent=2)

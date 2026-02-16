@@ -14,6 +14,32 @@ from .._timestamps import (
 from ..agent import Agent, AgentType
 
 
+def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
+    """Read agent_meta.json and populate model/vcs_provider fields.
+
+    Args:
+        agent: The Agent to enrich (modified in place).
+        artifacts_dir: Path to the artifacts directory, or None.
+    """
+    if not artifacts_dir:
+        return
+
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+
+    if not isinstance(data, dict):
+        return
+
+    if data.get("model"):
+        agent.model = data["model"]
+    if data.get("vcs_provider"):
+        agent.vcs_provider = data["vcs_provider"]
+
+
 def get_all_project_files() -> list[str]:
     """Get all project file paths.
 
@@ -89,22 +115,22 @@ def load_agents_from_running_field(
             )
 
             cl_name = claim.cl_name or "unknown"
-            agents.append(
-                Agent(
-                    agent_type=agent_type,
-                    cl_name=cl_name,
-                    project_file=project_file,
-                    status="RUNNING",
-                    start_time=start_time,
-                    workspace_num=claim.workspace_num,
-                    workflow=workflow_name,
-                    pid=claim.pid,
-                    # Use normalized timestamp as raw_suffix for prompt lookup
-                    raw_suffix=normalized_ts,
-                    bug=bug_by_cl_name.get(cl_name),
-                    cl_num=cl_by_cl_name.get(cl_name),
-                )
+            agent = Agent(
+                agent_type=agent_type,
+                cl_name=cl_name,
+                project_file=project_file,
+                status="RUNNING",
+                start_time=start_time,
+                workspace_num=claim.workspace_num,
+                workflow=workflow_name,
+                pid=claim.pid,
+                # Use normalized timestamp as raw_suffix for prompt lookup
+                raw_suffix=normalized_ts,
+                bug=bug_by_cl_name.get(cl_name),
+                cl_num=cl_by_cl_name.get(cl_name),
             )
+            enrich_agent_from_meta(agent, agent.get_artifacts_dir())
+            agents.append(agent)
 
     return agents
 
@@ -178,6 +204,8 @@ def load_done_agents(
                         bug=bug_by_cl_name.get(cl_name),
                         cl_num=cl_by_cl_name.get(cl_name),
                         error_message=error_message,
+                        model=data.get("model"),
+                        vcs_provider=data.get("vcs_provider"),
                     )
                 )
             except Exception:
@@ -242,6 +270,8 @@ def load_running_home_agents() -> list[Agent]:
                     workflow="ace(run)",
                     pid=pid,
                     raw_suffix=timestamp_str,
+                    model=data.get("model"),
+                    vcs_provider=data.get("vcs_provider"),
                 )
             )
         except Exception:

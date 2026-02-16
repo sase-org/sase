@@ -71,6 +71,16 @@ class AgentPromptPanel(Static):
                     f"{_format_embedded_workflows(embedded_workflows)}\n"
                 )
 
+        # Model (if explicitly set via %model directive)
+        if agent.model:
+            header_text.append("Model: ", style="bold #87D7FF")
+            header_text.append(f"{agent.model}\n", style="#AF87D7")
+
+        # VCS provider
+        if agent.vcs_provider:
+            header_text.append("VCS: ", style="bold #87D7FF")
+            header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
+
         # PID (if available)
         if agent.pid:
             header_text.append("PID: ", style="bold #87D7FF")
@@ -297,6 +307,16 @@ class AgentPromptPanel(Static):
         if agent.workspace_num is not None:
             header_text.append("Workspace: ", style="bold #87D7FF")
             header_text.append(f"#{agent.workspace_num}\n", style="#5FD7FF")
+
+        # Model (if explicitly set via %model directive)
+        if agent.model:
+            header_text.append("Model: ", style="bold #87D7FF")
+            header_text.append(f"{agent.model}\n", style="#AF87D7")
+
+        # VCS provider
+        if agent.vcs_provider:
+            header_text.append("VCS: ", style="bold #87D7FF")
+            header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
 
         # Status
         header_text.append("Status: ", style="bold #87D7FF")

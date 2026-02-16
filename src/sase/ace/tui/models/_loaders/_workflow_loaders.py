@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ....hooks.processes import is_process_running
+from ._artifact_loaders import enrich_agent_from_meta
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
@@ -184,24 +185,24 @@ def load_workflow_agents() -> list[Agent]:
                     step_output = step.output
                     break
 
-        agents.append(
-            Agent(
-                agent_type=AgentType.WORKFLOW,
-                cl_name=entry.cl_name,
-                project_file=entry.project_file,
-                status=entry.status,
-                start_time=entry.start_time,
-                workflow=entry.workflow_name,
-                raw_suffix=raw_suffix,
-                pid=entry.pid,
-                appears_as_agent=entry.appears_as_agent,
-                is_anonymous=entry.is_anonymous,
-                artifacts_dir=entry.artifacts_dir,
-                diff_path=entry.diff_path,
-                error_message=entry.error_message,
-                step_output=step_output,
-            )
+        agent = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=entry.cl_name,
+            project_file=entry.project_file,
+            status=entry.status,
+            start_time=entry.start_time,
+            workflow=entry.workflow_name,
+            raw_suffix=raw_suffix,
+            pid=entry.pid,
+            appears_as_agent=entry.appears_as_agent,
+            is_anonymous=entry.is_anonymous,
+            artifacts_dir=entry.artifacts_dir,
+            diff_path=entry.diff_path,
+            error_message=entry.error_message,
+            step_output=step_output,
         )
+        enrich_agent_from_meta(agent, entry.artifacts_dir)
+        agents.append(agent)
 
     return agents
 
@@ -306,32 +307,32 @@ def load_workflow_agent_steps() -> list[Agent]:
                                             diff_path = str(path_value)
                                             break
 
-                        agents.append(
-                            Agent(
-                                agent_type=AgentType.WORKFLOW,
-                                cl_name=step_name,
-                                project_file=project_file,
-                                status=display_status,
-                                start_time=start_time,
-                                workflow=workflow_name,
-                                raw_suffix=timestamp_dir.name,
-                                parent_workflow=workflow_name,
-                                parent_timestamp=timestamp_dir.name,
-                                step_name=step_name,
-                                step_type=step_type,
-                                step_source=step_source,
-                                step_output=step_output,
-                                step_index=step_index,
-                                total_steps=total_steps,
-                                parent_step_index=parent_step_index,
-                                parent_total_steps=parent_total_steps,
-                                is_hidden_step=is_hidden,
-                                artifacts_dir=artifacts_dir_from_marker,
-                                diff_path=diff_path,
-                                error_message=error_message,
-                                response_path=response_path,
-                            )
+                        agent = Agent(
+                            agent_type=AgentType.WORKFLOW,
+                            cl_name=step_name,
+                            project_file=project_file,
+                            status=display_status,
+                            start_time=start_time,
+                            workflow=workflow_name,
+                            raw_suffix=timestamp_dir.name,
+                            parent_workflow=workflow_name,
+                            parent_timestamp=timestamp_dir.name,
+                            step_name=step_name,
+                            step_type=step_type,
+                            step_source=step_source,
+                            step_output=step_output,
+                            step_index=step_index,
+                            total_steps=total_steps,
+                            parent_step_index=parent_step_index,
+                            parent_total_steps=parent_total_steps,
+                            is_hidden_step=is_hidden,
+                            artifacts_dir=artifacts_dir_from_marker,
+                            diff_path=diff_path,
+                            error_message=error_message,
+                            response_path=response_path,
                         )
+                        enrich_agent_from_meta(agent, artifacts_dir_from_marker)
+                        agents.append(agent)
                     except Exception:
                         continue
 

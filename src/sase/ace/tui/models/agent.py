@@ -98,6 +98,12 @@ class Agent:
     # Error message for failed agents (from HookStatusLine.suffix)
     error_message: str | None = None
 
+    # Model name from %model directive (only when explicitly set)
+    model: str | None = None
+
+    # VCS provider display name (e.g., "GitHub", "Mercurial")
+    vcs_provider: str | None = None
+
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None
 
