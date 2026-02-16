@@ -1,3 +1,7 @@
+---
+bead_id: sase-5rn
+---
+
 # Merge Conflict Resolution via XPrompt Workflow
 
 ## Context
