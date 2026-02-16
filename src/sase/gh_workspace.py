@@ -70,7 +70,7 @@ def parse_workspace_dir(project_file: str) -> str | None:
     return None
 
 
-def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
+def _set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
     """Set or update the WORKSPACE_DIR field in a .gp project file.
 
     Creates the file and parent directories if they don't exist.
@@ -124,7 +124,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
         return False
 
 
-def get_git_worktree_dir(primary_workspace_dir: str, workspace_num: int) -> str:
+def _get_git_worktree_dir(primary_workspace_dir: str, workspace_num: int) -> str:
     """Compute the path for a Git worktree.
 
     Args:
@@ -153,7 +153,7 @@ def ensure_git_worktree(primary_workspace_dir: str, workspace_num: int) -> str:
     Raises:
         RuntimeError: If the directory doesn't exist (num=1) or creation fails.
     """
-    worktree_dir = get_git_worktree_dir(primary_workspace_dir, workspace_num)
+    worktree_dir = _get_git_worktree_dir(primary_workspace_dir, workspace_num)
 
     if workspace_num == 1:
         if not os.path.isdir(worktree_dir):
@@ -257,7 +257,7 @@ def resolve_gh_ref(gh_ref: str) -> ResolvedGhRef:
                 f"existing={existing}, derived={primary_workspace_dir}"
             )
 
-        set_workspace_dir(project_file, primary_workspace_dir)
+        _set_workspace_dir(project_file, primary_workspace_dir)
         checkout_target = _get_default_branch(primary_workspace_dir)
 
         return ResolvedGhRef(

@@ -10,12 +10,12 @@ import pytest
 from sase.gh_workspace import (
     ResolvedGhRef,
     _get_default_branch,
+    _get_git_worktree_dir,
+    _set_workspace_dir,
     detect_vcs_type_for_project,
     ensure_git_worktree,
-    get_git_worktree_dir,
     parse_workspace_dir,
     resolve_gh_ref,
-    set_workspace_dir,
 )
 
 
@@ -101,21 +101,21 @@ class TestParseWorkspaceDir:
             os.unlink(f.name)
 
 
-# ── set_workspace_dir ────────────────────────────────────────────────
+# ── _set_workspace_dir ────────────────────────────────────────────────
 
 
 class TestSetWorkspaceDir:
     def test_new_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             gp = os.path.join(d, "proj.gp")
-            assert set_workspace_dir(gp, "/repo/")
+            assert _set_workspace_dir(gp, "/repo/")
             with open(gp) as f:
                 assert f.read() == "WORKSPACE_DIR: /repo/\n"
 
     def test_creates_directory(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             gp = os.path.join(d, "subdir", "proj.gp")
-            assert set_workspace_dir(gp, "/repo/")
+            assert _set_workspace_dir(gp, "/repo/")
             assert os.path.exists(gp)
 
     @patch("sase.gh_workspace.write_changespec_atomic")
@@ -128,7 +128,7 @@ class TestSetWorkspaceDir:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("WORKSPACE_DIR: /old/\nNAME: cl\n")
             f.flush()
-            assert set_workspace_dir(f.name, "/new/")
+            assert _set_workspace_dir(f.name, "/new/")
             mock_write.assert_called_once()
             written = mock_write.call_args[0][1]
             assert "WORKSPACE_DIR: /new/" in written
@@ -145,7 +145,7 @@ class TestSetWorkspaceDir:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("NAME: cl\nSTATUS: WIP\n")
             f.flush()
-            assert set_workspace_dir(f.name, "/repo/")
+            assert _set_workspace_dir(f.name, "/repo/")
             written = mock_write.call_args[0][1]
             lines = written.splitlines()
             ws_idx = next(
@@ -165,7 +165,7 @@ class TestSetWorkspaceDir:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("RUNNING:\n  #hg 1 1234\nNAME: cl\n")
             f.flush()
-            assert set_workspace_dir(f.name, "/repo/")
+            assert _set_workspace_dir(f.name, "/repo/")
             written = mock_write.call_args[0][1]
             lines = written.splitlines()
             ws_idx = next(
@@ -176,21 +176,21 @@ class TestSetWorkspaceDir:
             os.unlink(f.name)
 
 
-# ── get_git_worktree_dir ─────────────────────────────────────────────
+# ── _get_git_worktree_dir ─────────────────────────────────────────────
 
 
 class TestGetGitWorktreeDir:
     def test_primary(self) -> None:
-        assert get_git_worktree_dir("/repo/", 1) == "/repo/"
+        assert _get_git_worktree_dir("/repo/", 1) == "/repo/"
 
     def test_secondary(self) -> None:
-        assert get_git_worktree_dir("/repo/", 2) == "/repo__2/"
+        assert _get_git_worktree_dir("/repo/", 2) == "/repo__2/"
 
     def test_tertiary(self) -> None:
-        assert get_git_worktree_dir("/repo/", 3) == "/repo__3/"
+        assert _get_git_worktree_dir("/repo/", 3) == "/repo__3/"
 
     def test_trailing_slash_handling(self) -> None:
-        assert get_git_worktree_dir("/repo", 2) == "/repo__2/"
+        assert _get_git_worktree_dir("/repo", 2) == "/repo__2/"
 
 
 # ── ensure_git_worktree ──────────────────────────────────────────────
@@ -278,7 +278,7 @@ class TestDetectVcsTypeForProject:
 
 class TestResolveGhRef:
     @patch("sase.gh_workspace._get_default_branch", return_value="origin/main")
-    @patch("sase.gh_workspace.set_workspace_dir", return_value=True)
+    @patch("sase.gh_workspace._set_workspace_dir", return_value=True)
     @patch("sase.gh_workspace.parse_workspace_dir", return_value=None)
     def test_repo_path(
         self,
@@ -294,7 +294,7 @@ class TestResolveGhRef:
         mock_set.assert_called_once()
 
     @patch("sase.gh_workspace._get_default_branch", return_value="origin/main")
-    @patch("sase.gh_workspace.set_workspace_dir", return_value=True)
+    @patch("sase.gh_workspace._set_workspace_dir", return_value=True)
     @patch("sase.gh_workspace.parse_workspace_dir")
     def test_repo_path_conflict(
         self,
