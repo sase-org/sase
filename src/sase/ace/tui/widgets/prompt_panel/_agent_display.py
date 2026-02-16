@@ -45,6 +45,9 @@ class AgentDisplayMixin:
         if agent.is_workflow_child and agent.step_name:
             header_text.append("Step: ", style="bold #87D7FF")
             header_text.append(f"{agent.step_name}\n", style="#00D7AF")
+        elif agent.is_project_agent:
+            header_text.append("Project: ", style="bold #87D7FF")
+            header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
         else:
             # ChangeSpec name
             header_text.append("ChangeSpec: ", style="bold #87D7FF")

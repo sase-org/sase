@@ -171,6 +171,14 @@ class Agent:
         """Check if this agent is a child step of a workflow."""
         return self.parent_workflow is not None or self.parent_timestamp is not None
 
+    @property
+    def is_project_agent(self) -> bool:
+        """Check if this agent runs against a project (not a specific ChangeSpec)."""
+        if not self.project_file:
+            return False
+        project_name = Path(self.project_file).parent.name
+        return self.cl_name == project_name
+
     def get_artifacts_dir(self) -> str | None:
         """Get the artifacts directory path for this agent.
 
