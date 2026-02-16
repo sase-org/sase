@@ -1,3 +1,7 @@
+---
+bead_id: sase-rhv
+---
+
 # Plan: Create `#gh` GitHub Embedded Workflow
 
 ## Context
