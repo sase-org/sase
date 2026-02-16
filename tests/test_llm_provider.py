@@ -146,10 +146,35 @@ def test_gemini_provider_registered_by_default() -> None:
     assert isinstance(provider, GeminiProvider)
 
 
-def test_get_default_provider_returns_gemini() -> None:
-    """Test that the default provider is 'gemini'."""
+@patch("sase.llm_provider.registry.shutil.which", return_value=None)
+def test_get_default_provider_falls_back_to_gemini(mock_which: MagicMock) -> None:
+    """Test that the default provider is 'gemini' when claude is not on PATH."""
     provider = get_provider()
     assert isinstance(provider, GeminiProvider)
+
+
+@patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")
+def test_get_default_provider_prefers_claude_when_available(
+    mock_which: MagicMock,
+) -> None:
+    """Test that the default provider is 'claude' when claude is on PATH."""
+    provider = get_provider()
+    assert isinstance(provider, ClaudeCodeProvider)
+
+
+@patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")
+@patch(
+    "sase.llm_provider.registry.get_llm_provider_config",
+    return_value={"provider": "gemini"},
+)
+def test_config_provider_overrides_auto_detection(
+    mock_config: MagicMock,
+    mock_which: MagicMock,
+) -> None:
+    """Test that explicit config overrides auto-detection."""
+    provider = get_provider()
+    assert isinstance(provider, GeminiProvider)
+    mock_which.assert_not_called()
 
 
 # --- postprocessing.py tests ---

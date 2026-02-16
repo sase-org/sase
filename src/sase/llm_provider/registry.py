@@ -1,5 +1,7 @@
 """Provider registry for LLM backends."""
 
+import shutil
+
 from .base import LLMProvider
 from .config import get_llm_provider_config
 
@@ -44,10 +46,17 @@ def _get_default_provider_name() -> str:
     """Get the default provider name from configuration.
 
     Returns:
-        The configured default provider name, or "gemini" as fallback.
+        The configured default provider name, or auto-detected provider.
+        Prefers claude if available on PATH, falls back to gemini.
     """
     config = get_llm_provider_config()
-    return config.get("provider", "gemini")
+    provider = config.get("provider")
+    if provider:
+        return provider
+    # Auto-detect: prefer claude if available on PATH
+    if shutil.which("claude"):
+        return "claude"
+    return "gemini"
 
 
 def _register_builtin_providers() -> None:
