@@ -164,6 +164,32 @@ def test_empty_prompt() -> None:
     assert directives == PromptDirectives()
 
 
+# --- Alias tests ---
+
+
+def test_alias_m_resolves_to_model() -> None:
+    """%m:sonnet works the same as %model:sonnet."""
+    prompt = "%m:sonnet\nReview this code"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Review this code"
+    assert directives.model == "sonnet"
+
+
+def test_alias_m_no_arg_yields_none() -> None:
+    """%m with no argument yields model=None."""
+    prompt = "%m\nSome prompt"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Some prompt"
+    assert directives.model is None
+
+
+def test_alias_m_and_model_duplicate_raises() -> None:
+    """%m + %model in the same prompt raises DirectiveError."""
+    prompt = "%m:opus\n%model:sonnet\nPrompt text"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%model'"):
+        extract_prompt_directives(prompt)
+
+
 def test_percent_in_normal_text_not_matched() -> None:
     """Percent signs in normal text (not followed by name) are left alone."""
     prompt = "Use 50% of the data"

@@ -31,6 +31,9 @@ _DIRECTIVE_PATTERN = (
 # Known directive names
 _KNOWN_DIRECTIVES = frozenset({"model"})
 
+# Short aliases for directives (alias -> canonical name)
+_DIRECTIVE_ALIASES: dict[str, str] = {"m": "model"}
+
 
 @dataclass
 class PromptDirectives:
@@ -73,6 +76,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     for match in matches:
         name = match.group(1)
+        name = _DIRECTIVE_ALIASES.get(name, name)  # resolve alias
         if name not in _KNOWN_DIRECTIVES:
             continue
 
