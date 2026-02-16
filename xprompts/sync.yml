@@ -1,0 +1,79 @@
+input:
+  - name: branch_name
+    type: word
+    default: ""
+
+steps:
+  - name: setup
+    hidden: true
+    python: |
+      from sase.scripts.sync_setup import main
+      main()
+    output: { vcs_type: word, branch_name: word, cwd: path }
+
+  - name: sync_attempt
+    hidden: true
+    python: |
+      from sase.scripts.sync_attempt import main
+      main(cwd={{ setup.cwd | tojson }})
+    output: { success: bool, has_conflicts: bool, error: text, conflicted_files: text }
+
+  - name: resolve
+    if: "{{ sync_attempt.has_conflicts }}"
+    repeat:
+      until: "{{ resolve.all_resolved }}"
+      max: 20
+    prompt: |
+      A {{ setup.vcs_type }} sync/rebase operation has resulted in merge conflicts
+      that need to be resolved.
+
+      Working directory: {{ setup.cwd }}
+      Branch: {{ setup.branch_name }}
+      VCS: {{ setup.vcs_type }}
+
+      {% if setup.vcs_type == "git" %}
+      ## Git Conflict Resolution Steps
+
+      1. **Find conflicted files**: Run `git diff --name-only --diff-filter=U`
+      2. **Read each file**: Look for conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`)
+         - Content between `<<<<<<< HEAD` and `=======` is YOUR version (current branch)
+         - Content between `=======` and `>>>>>>> <commit>` is the INCOMING version (from rebase)
+      3. **Resolve each file**: Edit to keep the correct code and remove ALL conflict markers
+      4. **Stage resolved files**: Run `git add <file>` for EACH resolved file
+      5. **Continue rebase**: Run `git -c core.editor=true rebase --continue`
+         - If this produces MORE conflicts, set `all_resolved=false`
+         - If this succeeds (exit code 0), set `all_resolved=true`
+      6. **Verify**: Run `git diff --name-only --diff-filter=U` to check for remaining conflicts
+      {% else %}
+      ## Mercurial Conflict Resolution Steps
+
+      1. **Find conflicted files**: Run `hg resolve --list` (lines starting with `U` are unresolved)
+      2. **Read each file**: Look for conflict markers
+      3. **Resolve each file**: Edit to keep the correct code and remove ALL conflict markers
+      4. **Mark resolved**: Run `hg resolve --mark <file>` for EACH resolved file
+      5. **Check**: Run `hg resolve --list` again — if all show `R` (resolved), set `all_resolved=true`
+      {% endif %}
+
+      ## Resolution Guidelines
+      - When in doubt, prefer the INCOMING version (it's more recent)
+      - For import statements: keep both if they import different things
+      - For function changes: understand the intent of both sides before merging
+      - NEVER leave conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) in any file
+      - If a file has conflicts you can't resolve (e.g., binary files), report it
+
+      ## Required Output
+      Report your results as:
+      - `all_resolved`: true if rebase/sync completed successfully with no remaining conflicts
+      - `files_resolved`: number of files you resolved in this round
+    output: { all_resolved: bool, files_resolved: int }
+
+  - name: report
+    hidden: true
+    python: |
+      from sase.scripts.sync_report import main
+      main(
+          success={{ sync_attempt.success }},
+          has_conflicts={{ sync_attempt.has_conflicts }},
+          all_resolved={{ resolve.all_resolved | default(false) }},
+      )
+    output: { status: word, message: text }
