@@ -28,9 +28,9 @@ steps:
           workspace_num = get_first_available_axe_workspace(project_file)
           workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
 
-          pid = os.getppid()
-          workflow_name = f"gh-{gh_ref}"
-          claim_workspace(project_file, workspace_num, workflow_name, pid, resolved.branch_name)
+      pid = os.getpid()
+      workflow_name = f"gh-{gh_ref}"
+      claim_workspace(project_file, workspace_num, workflow_name, pid, resolved.branch_name)
 
       print(f"project_name={project_name}")
       print(f"project_file={project_file}")
@@ -62,16 +62,13 @@ steps:
 
   - name: release
     python: |
-      import os
       from sase.running_field import release_workspace
 
-      # Skip release if workspace was pre-allocated by the TUI (runner handles it)
-      if os.environ.get("SASE_GH_PRE_ALLOCATED") != "1":
-          release_workspace(
-              {{ setup.project_file | tojson }},
-              {{ setup.workspace_num }},
-              f"gh-{{ gh_ref }}",
-              {{ gh_ref | tojson }} if "/" not in {{ gh_ref | tojson }} else None,
-          )
+      release_workspace(
+          {{ setup.project_file | tojson }},
+          {{ setup.workspace_num }},
+          f"gh-{{ gh_ref }}",
+          {{ gh_ref | tojson }} if "/" not in {{ gh_ref | tojson }} else None,
+      )
       print("released=true")
     output: { released: bool }

@@ -349,13 +349,13 @@ class AgentLaunchMixin:
             subprocess_env["SASE_GIT_WORKSPACE_NUM"] = str(workspace_num)
             subprocess_env["SASE_GIT_WORKSPACE_DIR"] = workspace_dir
 
-        # Start background process first to get actual PID
+        # Start background process (workspace claiming is handled by embedded workflows)
         # Args: cl_name, project_file, workspace_dir, output_path, workspace_num,
         #       workflow_name, prompt_file, timestamp,
         #       update_target, project_name, history_sort_key, is_home_mode
         try:
             with open(output_path, "w") as output_file:
-                process = subprocess.Popen(
+                subprocess.Popen(
                     [
                         sys.executable,
                         runner_script,
@@ -382,35 +382,14 @@ class AgentLaunchMixin:
             self.notify(f"Failed to start agent: {e}", severity="error")  # type: ignore[attr-defined]
             return
 
-        # Claim workspace with actual subprocess PID (skip for home mode)
+        # Create home project directory and file if needed (for artifact path resolution)
         if is_home_mode:
-            # Create home project directory and file if needed (for artifact path resolution)
             home_project_dir = os.path.expanduser("~/.sase/projects/home")
             home_project_file = os.path.join(home_project_dir, "home.gp")
             os.makedirs(home_project_dir, exist_ok=True)
             if not os.path.exists(home_project_file):
                 with open(home_project_file, "w", encoding="utf-8") as f:
                     f.write("")  # Empty file - just needs to exist
-        else:
-            from sase.running_field import claim_workspace
-
-            if not claim_workspace(
-                project_file,
-                workspace_num,
-                workflow_name,
-                process.pid,
-                cl_name,
-                artifacts_timestamp=timestamp,
-            ):
-                self.notify(  # type: ignore[attr-defined]
-                    "Failed to claim workspace, terminating agent", severity="error"
-                )
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                return
 
     def _try_execute_workflow(self, prompt: str) -> bool | str:
         """Try to execute a workflow reference.

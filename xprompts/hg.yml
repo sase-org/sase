@@ -39,7 +39,7 @@ steps:
       workspace_num = get_first_available_axe_workspace(project_file)
       workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
 
-      pid = os.getppid()
+      pid = os.getpid()
       workflow_name = f"hg-{cl_name}"
       claim_workspace(project_file, workspace_num, workflow_name, pid, cl_name)
 

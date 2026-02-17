@@ -14,7 +14,6 @@ from typing import Any
 from sase.ace.hooks import format_duration
 from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace
 from sase.chat_history import save_chat_history
-from sase.running_field import release_workspace
 from sase.shared_utils import (
     convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
@@ -308,16 +307,6 @@ def main() -> None:
                 os.unlink(running_marker_path)
             except OSError:
                 pass
-
-        # Release workspace (skip for home mode - no workspace to release)
-        if not is_home_mode:
-            # Always release workspace, even if killed via SIGTERM
-            # This prevents zombie workspace claims in the RUNNING field
-            try:
-                release_workspace(project_file, workspace_num, workflow_name, cl_name)
-                print("Workspace released")
-            except Exception as e:
-                print(f"Error releasing workspace: {e}", file=sys.stderr)
 
         # Write completion marker
         try:
