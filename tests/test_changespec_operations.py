@@ -333,7 +333,10 @@ HOOKS:
                 description="Child description",
                 parent="parent_feature",
                 cl_url="http://cl/22222",
-                initial_hooks=["!$sase_hg_presubmit", "bb_rabbit_test //foo:child_test"],
+                initial_hooks=[
+                    "!$sase_hg_presubmit",
+                    "bb_rabbit_test //foo:child_test",
+                ],
             )
 
         assert result is not None
