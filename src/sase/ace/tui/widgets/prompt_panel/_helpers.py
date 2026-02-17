@@ -72,8 +72,14 @@ def format_meta_key(key: str) -> str:
     return key.removeprefix("meta_").replace("_", " ").title()
 
 
+SPECIAL_META_KEYS = frozenset({"meta_project", "meta_changespec", "meta_workspace"})
+
+
 def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:
     """Extract meta_* fields from a step output dict.
+
+    Excludes special meta keys (meta_project, meta_changespec, meta_workspace)
+    that are rendered in the header section instead.
 
     Args:
         output: A step output dictionary.
@@ -83,7 +89,7 @@ def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:
     """
     results: list[tuple[str, str]] = []
     for key, value in output.items():
-        if key.startswith("meta_"):
+        if key.startswith("meta_") and key not in SPECIAL_META_KEYS:
             results.append((format_meta_key(key), str(value)))
     return results
 
@@ -110,7 +116,7 @@ def aggregate_meta_fields(
         if not isinstance(output, dict):
             continue
         for key, value in output.items():
-            if key.startswith("meta_"):
+            if key.startswith("meta_") and key not in SPECIAL_META_KEYS:
                 key_counts[key] = key_counts.get(key, 0) + 1
                 entries.append((key, format_meta_key(key), str(value)))
 

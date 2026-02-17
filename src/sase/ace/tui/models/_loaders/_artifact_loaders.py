@@ -214,6 +214,34 @@ def load_done_agents(
     return agents
 
 
+def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
+    """Read prompt_step_*.json markers and populate meta_* fields on step_output.
+
+    Args:
+        agent: The Agent to enrich (modified in place).
+        artifacts_dir: Path to the artifacts directory.
+    """
+    artifacts_path = Path(artifacts_dir)
+    meta_fields: dict[str, str] = {}
+    for marker_file in sorted(artifacts_path.glob("prompt_step_*.json")):
+        try:
+            with open(marker_file, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        output = data.get("output")
+        if isinstance(output, dict):
+            for k, v in output.items():
+                if k.startswith("meta_") and v:
+                    meta_fields[k] = str(v)
+    if meta_fields:
+        if agent.step_output is None:
+            agent.step_output = {}
+        agent.step_output.update(meta_fields)
+
+
 def load_running_home_agents() -> list[Agent]:
     """Load running home mode agents from running.json marker files.
 
@@ -258,22 +286,22 @@ def load_running_home_agents() -> list[Agent]:
             start_time = parse_timestamp_14_digit(timestamp_str)
 
             cl_name = data.get("cl_name", "~")
-            agents.append(
-                Agent(
-                    agent_type=AgentType.RUNNING,
-                    cl_name=cl_name,
-                    project_file=str(
-                        Path.home() / ".sase" / "projects" / "home" / "home.gp"
-                    ),
-                    status="RUNNING",
-                    start_time=start_time,
-                    workflow="ace(run)",
-                    pid=pid,
-                    raw_suffix=timestamp_str,
-                    model=data.get("model"),
-                    vcs_provider=data.get("vcs_provider"),
-                )
+            agent = Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name=cl_name,
+                project_file=str(
+                    Path.home() / ".sase" / "projects" / "home" / "home.gp"
+                ),
+                status="RUNNING",
+                start_time=start_time,
+                workflow="ace(run)",
+                pid=pid,
+                raw_suffix=timestamp_str,
+                model=data.get("model"),
+                vcs_provider=data.get("vcs_provider"),
             )
+            _enrich_agent_from_prompt_markers(agent, str(artifact_dir))
+            agents.append(agent)
         except Exception:
             continue
 

@@ -40,13 +40,24 @@ def capture_git_diff() -> str | None:
     return None
 
 
-def _collect_embedded_post_step_outputs(
+def _collect_embedded_step_outputs(
     embedded_workflows: list["EmbeddedWorkflowInfo"],
 ) -> tuple[str | None, dict[str, str]]:
-    """Collect diff_path and meta_* fields from embedded post-step outputs."""
+    """Collect diff_path and meta_* fields from embedded step outputs.
+
+    Scans both pre-steps and post-steps for meta_* fields.
+    diff_path extraction remains post-step only.
+    """
     diff_path: str | None = None
     meta_fields: dict[str, str] = {}
     for info in embedded_workflows:
+        # Collect meta_* from ALL pre-steps
+        for step in info.pre_steps:
+            step_output = info.context.get(step.name)
+            if isinstance(step_output, dict):
+                for k, v in step_output.items():
+                    if k.startswith("meta_") and v:
+                        meta_fields[k] = str(v)
         # Collect meta_* from ALL post-steps
         for step in info.post_steps:
             step_output = info.context.get(step.name)
@@ -188,6 +199,19 @@ class PromptStepMixin:
             self._expand_embedded_workflows_in_prompt(expanded_prompt)
         )
 
+        # Collect meta_* from embedded pre-steps so the TUI can display
+        # Workspace/Project/ChangeSpec immediately when the agent starts.
+        pre_step_meta: dict[str, str] = {}
+        for info in embedded_workflows:
+            for pre_step in info.pre_steps:
+                pre_step_output = info.context.get(pre_step.name)
+                if isinstance(pre_step_output, dict):
+                    for k, v in pre_step_output.items():
+                        if k.startswith("meta_") and v:
+                            pre_step_meta[k] = str(v)
+        if pre_step_meta:
+            step_state.output = dict(pre_step_meta)
+
         # Save initial marker to show step is running in TUI
         step_state.status = StepStatus.IN_PROGRESS
         self._save_prompt_step_marker(step.name, step_state, hidden=step.hidden)
@@ -286,6 +310,12 @@ class PromptStepMixin:
         # Mark step completed after HITL (prompt work is done)
         step_state.status = StepStatus.COMPLETED
 
+        # Merge pre-step meta back into output (preserving prompt output priority)
+        if pre_step_meta:
+            for k, v in pre_step_meta.items():
+                if k not in output:
+                    output[k] = v
+
         # Store output in context under step name
         step_state.output = output
         self.context[step.name] = output
@@ -344,7 +374,7 @@ class PromptStepMixin:
         # Collect diff_path and meta_* from embedded post-step outputs and
         # re-save the parent marker so the TUI can display them.
         if embedded_workflows:
-            embedded_diff_path, embedded_meta = _collect_embedded_post_step_outputs(
+            embedded_diff_path, embedded_meta = _collect_embedded_step_outputs(
                 embedded_workflows
             )
             resave_needed = False

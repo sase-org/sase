@@ -41,10 +41,30 @@ class AgentDisplayMixin:
         header_text.append("AGENT DETAILS\n", style="bold #D7AF5F underline")
         header_text.append("\n")
 
+        # Extract meta_* overrides from step_output
+        meta_project = None
+        meta_changespec = None
+        meta_workspace = None
+        if agent.step_output and isinstance(agent.step_output, dict):
+            meta_project = agent.step_output.get("meta_project")
+            meta_changespec = agent.step_output.get("meta_changespec")
+            meta_workspace = agent.step_output.get("meta_workspace")
+
         # For workflow step agents, show "Step" instead of "ChangeSpec"
         if agent.is_workflow_child and agent.step_name:
             header_text.append("Step: ", style="bold #87D7FF")
             header_text.append(f"{agent.step_name}\n", style="#00D7AF")
+        elif meta_project:
+            header_text.append("Project: ", style="bold #87D7FF")
+            header_text.append(f"{meta_project}\n", style="#00D7AF")
+        elif meta_changespec:
+            header_text.append("ChangeSpec: ", style="bold #87D7FF")
+            header_text.append(f"{meta_changespec}", style="#00D7AF")
+            if agent.cl_num:
+                header_text.append(" (")
+                header_text.append(agent.cl_num, style="bold underline #569CD6")
+                header_text.append(")")
+            header_text.append("\n")
         elif agent.is_project_agent:
             header_text.append("Project: ", style="bold #87D7FF")
             header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
@@ -58,10 +78,11 @@ class AgentDisplayMixin:
                 header_text.append(")")
             header_text.append("\n")
 
-        # Workspace (if available)
-        if agent.workspace_num is not None:
+        # Workspace (if available) - check meta_workspace first, then agent field
+        workspace_num = meta_workspace or agent.workspace_num
+        if workspace_num is not None:
             header_text.append("Workspace: ", style="bold #87D7FF")
-            header_text.append(f"#{agent.workspace_num}\n", style="#5FD7FF")
+            header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 
         # Workflow (if available)
         if agent.workflow:

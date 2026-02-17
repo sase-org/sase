@@ -48,6 +48,11 @@ steps:
       print(f"workspace_dir={workspace_dir}")
       print(f"workspace_num={workspace_num}")
       print(f"_chdir={workspace_dir}")
+      print(f"meta_workspace={workspace_num}")
+      if cs_match:
+          print(f"meta_changespec={cl_name}")
+      else:
+          print(f"meta_project={cl_name}")
     output:
       project_name: word
       project_file: path

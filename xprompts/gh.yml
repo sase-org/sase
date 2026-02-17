@@ -38,6 +38,8 @@ steps:
       print(f"workspace_num={workspace_num}")
       print(f"checkout_target={resolved.checkout_target}")
       print(f"_chdir={workspace_dir}")
+      print(f"meta_workspace={workspace_num}")
+      print(f"meta_changespec={resolved.branch_name}")
     output:
       project_name: word
       project_file: path

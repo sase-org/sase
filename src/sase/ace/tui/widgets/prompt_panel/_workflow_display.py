@@ -31,14 +31,32 @@ class WorkflowDisplayMixin:
         header_text.append("Workflow: ", style="bold #87D7FF")
         header_text.append(f"{agent.workflow or 'unknown'}\n", style="#AF87D7 bold")
 
-        # ChangeSpec name
-        header_text.append("ChangeSpec: ", style="bold #87D7FF")
-        header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
+        # Extract meta_* overrides from step outputs
+        meta_project = None
+        meta_changespec = None
+        meta_workspace = None
+        meta_fields_data = self._load_workflow_meta_raw(agent)
+        if meta_fields_data:
+            meta_project = meta_fields_data.get("meta_project")
+            meta_changespec = meta_fields_data.get("meta_changespec")
+            meta_workspace = meta_fields_data.get("meta_workspace")
 
-        # Workspace (if available)
-        if agent.workspace_num is not None:
+        # Project/ChangeSpec with meta_* priority
+        if meta_project:
+            header_text.append("Project: ", style="bold #87D7FF")
+            header_text.append(f"{meta_project}\n", style="#00D7AF")
+        elif meta_changespec:
+            header_text.append("ChangeSpec: ", style="bold #87D7FF")
+            header_text.append(f"{meta_changespec}\n", style="#00D7AF")
+        else:
+            header_text.append("ChangeSpec: ", style="bold #87D7FF")
+            header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
+
+        # Workspace (if available) - check meta_workspace first, then agent field
+        workspace_num = meta_workspace or agent.workspace_num
+        if workspace_num is not None:
             header_text.append("Workspace: ", style="bold #87D7FF")
-            header_text.append(f"#{agent.workspace_num}\n", style="#5FD7FF")
+            header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 
         # Model (if explicitly set via %model directive)
         if agent.model:
@@ -135,6 +153,38 @@ class WorkflowDisplayMixin:
             return None
 
         return data.get("inputs")
+
+    def _load_workflow_meta_raw(self, agent: Agent) -> dict[str, str] | None:
+        """Load raw meta_* fields from workflow step outputs as a dict.
+
+        Args:
+            agent: The workflow agent.
+
+        Returns:
+            Dict of meta_* key to value, or None if not found.
+        """
+        artifacts_dir = agent.get_artifacts_dir()
+        if artifacts_dir is None:
+            return None
+
+        state_file = Path(artifacts_dir) / "workflow_state.json"
+        if not state_file.exists():
+            return None
+
+        try:
+            with open(state_file, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return None
+
+        meta: dict[str, str] = {}
+        for step in data.get("steps", []):
+            output = step.get("output")
+            if isinstance(output, dict):
+                for k, v in output.items():
+                    if k.startswith("meta_") and v:
+                        meta[k] = str(v)
+        return meta if meta else None
 
     def _load_workflow_meta_fields(self, agent: Agent) -> list[tuple[str, str]]:
         """Load aggregated meta_* fields from workflow step outputs.
