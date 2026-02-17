@@ -1,3 +1,7 @@
+---
+bead_id: sase-wjw
+---
+
 # Notification System Overhaul
 
 ## Context
