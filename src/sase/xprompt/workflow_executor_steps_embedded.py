@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from sase.shared_utils import apply_section_marker_handling
@@ -114,6 +114,31 @@ _WORKFLOW_REF_PATTERN = (
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
     r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_./-]+)|(\+))?"  # Supports backtick-delimited colon args
 )
+
+
+@dataclass
+class _PendingEmbeddedWorkflow:
+    """Collected match data for an embedded workflow reference between phases.
+
+    Attributes:
+        name: Workflow name (e.g. "git", "commit").
+        workflow: The resolved Workflow object.
+        match_start: Start position of the reference in the prompt.
+        match_end: End position of the reference in the prompt (after args).
+        args: Resolved args dict (with defaults applied).
+        explicit_args: Args explicitly provided by the user (before defaults).
+        embedded_context: Isolated context for the workflow (filled during execution).
+        rendered_prompt_part: Rendered prompt_part content (filled during execution).
+    """
+
+    name: str
+    workflow: Workflow
+    match_start: int
+    match_end: int
+    args: dict[str, Any]
+    explicit_args: dict[str, str]
+    embedded_context: dict[str, Any] = field(default_factory=dict)
+    rendered_prompt_part: str = ""
 
 
 class EmbeddedWorkflowMixin:
@@ -292,6 +317,13 @@ class EmbeddedWorkflowMixin:
         Finds workflow references in the prompt, executes their pre-steps,
         and replaces the references with prompt_part content.
 
+        The expansion proceeds in five phases:
+        1. Collection — iterate matches left-to-right, parse args, build pending list
+        2. Validation — ensure at most one wraps_all workflow
+        3. Pre-step execution — wraps_all first, then remaining in right-to-left order
+        4. Text replacement — replace references right-to-left (position-safe)
+        5. Post-step list — build embedded_workflows with wraps_all at end
+
         Args:
             prompt: The prompt text that may contain workflow references.
             pre_step_offset: Starting offset for sub-step numbering of pre-steps.
@@ -305,25 +337,21 @@ class EmbeddedWorkflowMixin:
         from sase.xprompt.loader import get_all_workflows
 
         workflows = get_all_workflows()
-        embedded_workflows: list[EmbeddedWorkflowInfo] = []
-        expanded_metadata: list[dict[str, Any]] = []
         running_offset = pre_step_offset
 
-        # Find all potential workflow references
+        # ── Phase 1: Collection ──────────────────────────────────────────
+        # Iterate matches left-to-right, parse args, build pending list.
         matches = list(re.finditer(_WORKFLOW_REF_PATTERN, prompt, re.MULTILINE))
+        pending: list[_PendingEmbeddedWorkflow] = []
 
-        # Process from last to first to preserve positions
-        for match in reversed(matches):
+        for match in matches:
             name = match.group(1)
 
-            # Skip if not a workflow
             if name not in workflows:
                 continue
 
             workflow = workflows[name]
 
-            # Skip workflows without prompt_part (they're not embeddable)
-            # They will be handled by the regular workflow execution
             if not workflow.has_prompt_part():
                 continue
 
@@ -344,7 +372,6 @@ class EmbeddedWorkflowMixin:
                     positional_args, named_args = parse_args(paren_content)
                     match_end = paren_end + 1
             elif colon_arg is not None:
-                # Strip backticks if present (backtick-delimited syntax)
                 if colon_arg.startswith("`") and colon_arg.endswith("`"):
                     colon_arg = colon_arg[1:-1]
                 positional_args = [colon_arg]
@@ -359,23 +386,47 @@ class EmbeddedWorkflowMixin:
                     if input_arg.name not in args:
                         args[input_arg.name] = value
 
-            # Capture explicit args before applying defaults
             explicit_args = dict(args)
-            expanded_metadata.append({"name": name, "args": explicit_args})
 
             # Apply defaults
             for input_arg in workflow.inputs:
                 if input_arg.name not in args and input_arg.default is not None:
                     args[input_arg.name] = str(input_arg.default)
 
-            # Get pre and post steps
-            pre_steps = workflow.get_pre_prompt_steps()
-            post_steps = workflow.get_post_prompt_steps()
+            pending.append(
+                _PendingEmbeddedWorkflow(
+                    name=name,
+                    workflow=workflow,
+                    match_start=match.start(),
+                    match_end=match_end,
+                    args=args,
+                    explicit_args=explicit_args,
+                )
+            )
 
-            # Create isolated context for the embedded workflow
-            embedded_context: dict[str, Any] = dict(args)
+        if not pending:
+            return prompt, [], 0
 
-            # Execute pre-steps to populate context
+        # ── Phase 2: Validation ──────────────────────────────────────────
+        wraps_all_entries = [p for p in pending if p.workflow.wraps_all]
+        if len(wraps_all_entries) > 1:
+            names = ", ".join(f"#{p.name}" for p in wraps_all_entries)
+            raise WorkflowExecutionError(
+                f"Multiple wraps_all workflows in one prompt: {names}. "
+                "At most one wraps_all workflow is allowed per prompt."
+            )
+
+        # ── Phase 3: Pre-step execution ──────────────────────────────────
+        # Execute in priority order: wraps_all first, then remaining in
+        # reversed (right-to-left) order to preserve current behavior.
+        wraps_all_pending = [p for p in pending if p.workflow.wraps_all]
+        non_wraps_all_pending = [p for p in pending if not p.workflow.wraps_all]
+        execution_order = wraps_all_pending + list(reversed(non_wraps_all_pending))
+
+        for p in execution_order:
+            pre_steps = p.workflow.get_pre_prompt_steps()
+            p.embedded_context = dict(p.args)
+
             if pre_steps:
                 from sase.xprompt.workflow_output import ParentStepContext
 
@@ -385,51 +436,74 @@ class EmbeddedWorkflowMixin:
                 )
                 success = self._execute_embedded_workflow_steps(
                     pre_steps,
-                    embedded_context,
-                    f"embedded:{name}",
+                    p.embedded_context,
+                    f"embedded:{p.name}",
                     parent_step_context=parent_ctx,
                     is_pre_prompt_step=True,
                     step_index_offset=running_offset,
-                    embedded_workflow_name=name,
+                    embedded_workflow_name=p.name,
                 )
                 if not success:
                     raise WorkflowExecutionError(
-                        f"Pre-steps for embedded workflow '{name}' failed"
+                        f"Pre-steps for embedded workflow '{p.name}' failed"
                     )
                 running_offset += len(pre_steps)
 
-            # Render prompt_part with the embedded context (args + pre-step outputs)
-            prompt_part_content = workflow.get_prompt_part_content()
+            # Render prompt_part
+            prompt_part_content = p.workflow.get_prompt_part_content()
             if prompt_part_content:
                 prompt_part_content = render_template(
-                    prompt_part_content, embedded_context
+                    prompt_part_content, p.embedded_context
                 )
-
-                # Handle section markers (### or ---) with proper line positioning
                 is_at_line_start = (
-                    match.start() == 0 or prompt[match.start() - 1] == "\n"
+                    p.match_start == 0 or prompt[p.match_start - 1] == "\n"
                 )
                 prompt_part_content = apply_section_marker_handling(
                     prompt_part_content, is_at_line_start
                 )
+            p.rendered_prompt_part = prompt_part_content
 
-            # Replace the workflow reference with the prompt_part content
-            prompt = prompt[: match.start()] + prompt_part_content + prompt[match_end:]
+        # ── Phase 4: Text replacement ────────────────────────────────────
+        # Sort by match_start descending so right-to-left replacement is position-safe.
+        for p in sorted(pending, key=lambda x: x.match_start, reverse=True):
+            prompt = (
+                prompt[: p.match_start] + p.rendered_prompt_part + prompt[p.match_end :]
+            )
 
-            # Store post-steps for execution after the main prompt
+        # ── Phase 5: Post-step list ──────────────────────────────────────
+        # Build embedded_workflows: non-wraps_all in right-to-left order, then
+        # wraps_all at END so its post-steps run last (teardown after everything).
+        embedded_workflows: list[EmbeddedWorkflowInfo] = []
+
+        for p in reversed(non_wraps_all_pending):
+            post_steps = p.workflow.get_post_prompt_steps()
             if post_steps:
                 embedded_workflows.append(
                     EmbeddedWorkflowInfo(
-                        pre_steps=pre_steps,
+                        pre_steps=p.workflow.get_pre_prompt_steps(),
                         post_steps=post_steps,
-                        context=embedded_context,
-                        workflow_name=name,
+                        context=p.embedded_context,
+                        workflow_name=p.name,
                     )
                 )
 
-        # Save embedded workflow metadata (reversed to restore original order)
-        if expanded_metadata and os.path.isdir(self.artifacts_dir):
-            ordered_metadata = list(reversed(expanded_metadata))
+        for p in wraps_all_pending:
+            post_steps = p.workflow.get_post_prompt_steps()
+            if post_steps:
+                embedded_workflows.append(
+                    EmbeddedWorkflowInfo(
+                        pre_steps=p.workflow.get_pre_prompt_steps(),
+                        post_steps=post_steps,
+                        context=p.embedded_context,
+                        workflow_name=p.name,
+                    )
+                )
+
+        # Save embedded workflow metadata (pending is already left-to-right)
+        if pending and os.path.isdir(self.artifacts_dir):
+            ordered_metadata = [
+                {"name": p.name, "args": p.explicit_args} for p in pending
+            ]
             # Write shared file (backward compat for sase run agents)
             metadata_path = os.path.join(self.artifacts_dir, "embedded_workflows.json")
             with open(metadata_path, "w", encoding="utf-8") as f:

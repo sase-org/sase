@@ -113,6 +113,9 @@ class Workflow:
         steps: Ordered list of workflow steps to execute.
         source_path: File path where workflow was loaded from.
         xprompts: Workflow-local xprompt definitions (highest priority within this workflow).
+        wraps_all: If True, this workflow's pre-steps run before all other embedded
+            workflows' pre-steps and its post-steps run after all others. Used for
+            workspace setup/teardown workflows like #git, #gh, #hg.
     """
 
     name: str
@@ -120,6 +123,7 @@ class Workflow:
     steps: list[WorkflowStep] = field(default_factory=list)
     source_path: str | None = None
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
+    wraps_all: bool = False
 
     def get_input_by_name(self, name: str) -> InputArg | None:
         """Get an input argument definition by name.

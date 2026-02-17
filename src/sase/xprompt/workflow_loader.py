@@ -460,6 +460,9 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
     # Derive workflow name from filename
     name = file_path.stem
 
+    # Parse wraps_all
+    wraps_all = bool(data.get("wraps_all", False))
+
     # Parse inputs
     inputs = _parse_workflow_inputs(data.get("input"))
 
@@ -517,6 +520,7 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
         steps=steps,
         source_path=str(file_path),
         xprompts=parsed_xprompts,
+        wraps_all=wraps_all,
     )
 
     # Validate variable usage
@@ -635,6 +639,7 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
                     steps=workflow.steps,
                     source_path=workflow.source_path,
                     xprompts=workflow.xprompts,
+                    wraps_all=workflow.wraps_all,
                 )
 
     for yaml_file in project_dir.glob("*.yaml"):
@@ -652,6 +657,7 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
                         steps=workflow.steps,
                         source_path=workflow.source_path,
                         xprompts=workflow.xprompts,
+                        wraps_all=workflow.wraps_all,
                     )
     return workflows
 

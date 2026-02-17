@@ -1,3 +1,5 @@
+wraps_all: true
+
 input:
   - name: git_ref
     type: word

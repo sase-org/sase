@@ -1,3 +1,5 @@
+wraps_all: true
+
 input:
   - name: cl_name
     type: word
