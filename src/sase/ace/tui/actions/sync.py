@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,16 @@ from sase.vcs_provider import get_vcs_provider
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
+
+
+def _abort_if_needed(provider: object, workspace_dir: str) -> None:
+    """Abort any in-progress sync/rebase to avoid leaving dirty state."""
+    try:
+        if provider.is_sync_in_progress(workspace_dir):  # type: ignore[attr-defined]
+            print("Aborting in-progress rebase...")
+            provider.abort_sync(workspace_dir)  # type: ignore[attr-defined]
+    except (NotImplementedError, Exception):
+        pass
 
 
 class SyncMixin:
@@ -101,13 +112,44 @@ class SyncMixin:
                 if not checkout_ok:
                     return (False, f"checkout failed: {checkout_err}")
 
-                # Sync workspace
-                print("Syncing workspace...")
-                sync_ok, sync_err = provider.sync_workspace(workspace_dir)
-                if not sync_ok:
-                    return (False, f"sync failed: {sync_err}")
+                # Sync workspace via xprompt workflow
+                from sase.xprompt import execute_workflow
+                from sase.xprompt.workflow_models import WorkflowExecutionError
 
-                return (True, f"Synced {changespec.name}")
+                # Set env var so sync_setup.py finds the workspace
+                old_sync_cwd = os.environ.get("SASE_SYNC_CWD")
+                os.environ["SASE_SYNC_CWD"] = workspace_dir
+
+                try:
+                    print("Syncing workspace via workflow...")
+                    result = execute_workflow("sync", [], {}, silent=False)
+
+                    # Parse the report step output
+                    try:
+                        report = json.loads(result.output)
+                        status = report.get("status", "error")
+                        message = report.get("message", "")
+                    except (json.JSONDecodeError, AttributeError):
+                        status = "error"
+                        message = "Failed to parse workflow output"
+
+                    if status in ("success", "resolved"):
+                        return (True, f"Synced {changespec.name}: {message}")
+                    else:
+                        _abort_if_needed(provider, workspace_dir)
+                        return (False, f"sync failed: {message}")
+
+                except WorkflowExecutionError as e:
+                    _abort_if_needed(provider, workspace_dir)
+                    return (False, f"sync workflow failed: {e}")
+                except Exception as e:
+                    _abort_if_needed(provider, workspace_dir)
+                    return (False, f"sync failed: {e}")
+                finally:
+                    if old_sync_cwd is not None:
+                        os.environ["SASE_SYNC_CWD"] = old_sync_cwd
+                    else:
+                        os.environ.pop("SASE_SYNC_CWD", None)
 
             finally:
                 # Always release workspace
