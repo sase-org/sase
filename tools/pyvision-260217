@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Vendored from my.files via pyvendor on 2026-02-17
 """Find unused public Python function and class definitions."""
 
 import argparse

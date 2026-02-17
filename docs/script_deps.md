@@ -56,7 +56,7 @@ Source: `src/sase/vcs_provider/_hg.py`
 
 | Path                                       | Usage                                              | Source location                                |
 | ------------------------------------------ | -------------------------------------------------- | ---------------------------------------------- |
-| `~/lib/bugyi.sh`                           | Shell utility library (sourced by `tools/pylimit`) | `tools/pylimit:7`                              |
+| `~/lib/bugyi.sh`                           | Shell utility library (sourced by `tools/pylimit`) | `tools/pylimit-260217:4`                       |
 | `~/lib/sase/xprompts/workflow.schema.json` | Workflow schema file                               | `ace/tui/actions/agent_workflow/_editor.py:72` |
 
 ## LLM CLI tools
@@ -71,5 +71,5 @@ Source: `src/sase/vcs_provider/_hg.py`
 `bat`, `less`, `cat`, `tmux`, `pbcopy`, `xclip`, `prettier`, `perl`, `logger`, `python3`, `twine`, `npm`, `just`, `wc`,
 `find`, `grep`, `getopt`, `mktemp`, `date`.
 
-**Included in this repo** (also excluded from the list above): `tools/pyvision`, `tools/pylimit`,
-`tools/sase_stop_hook`, `lib/bugyi_260215.sh`.
+**Included in this repo** (also excluded from the list above): `tools/pyvision-260217`, `tools/pylimit-260217`,
+`tools/sase_stop_hook`, `lib/bugyi_260217.sh`.
