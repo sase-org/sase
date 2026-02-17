@@ -245,7 +245,7 @@ def detect_workflow_type_for_project(project_file: str) -> str:
 
 
 @dataclass
-class ResolvedGhRef:
+class _ResolvedGhRef:
     """Result of resolving a ``#gh`` reference."""
 
     project_file: str
@@ -255,7 +255,7 @@ class ResolvedGhRef:
     checkout_target: str
 
 
-def resolve_gh_ref(gh_ref: str) -> ResolvedGhRef:
+def resolve_gh_ref(gh_ref: str) -> _ResolvedGhRef:
     """Resolve a ``#gh`` reference to workspace and branch information.
 
     Three dispatch modes:
@@ -296,7 +296,7 @@ def resolve_gh_ref(gh_ref: str) -> ResolvedGhRef:
         set_workspace_dir(project_file, primary_workspace_dir)
         checkout_target = get_default_branch(primary_workspace_dir)
 
-        return ResolvedGhRef(
+        return _ResolvedGhRef(
             project_file=project_file,
             project_name=project,
             primary_workspace_dir=primary_workspace_dir,
@@ -311,7 +311,7 @@ def resolve_gh_ref(gh_ref: str) -> ResolvedGhRef:
         workspace_dir = parse_workspace_dir(str(project_file_path))
         if workspace_dir:
             checkout_target = get_default_branch(workspace_dir)
-            return ResolvedGhRef(
+            return _ResolvedGhRef(
                 project_file=str(project_file_path),
                 project_name=gh_ref,
                 primary_workspace_dir=workspace_dir,
@@ -328,7 +328,7 @@ def resolve_gh_ref(gh_ref: str) -> ResolvedGhRef:
                     f"ChangeSpec '{gh_ref}' found in {cs.file_path} "
                     "but WORKSPACE_DIR is not set"
                 )
-            return ResolvedGhRef(
+            return _ResolvedGhRef(
                 project_file=cs.file_path,
                 project_name=cs.project_basename,
                 primary_workspace_dir=workspace_dir,

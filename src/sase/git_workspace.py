@@ -106,7 +106,7 @@ def _set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
 
 
 @dataclass
-class ResolvedGitRef:
+class _ResolvedGitRef:
     """Result of resolving a ``#git`` reference."""
 
     project_file: str
@@ -117,7 +117,7 @@ class ResolvedGitRef:
     checkout_target: str
 
 
-def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
+def resolve_git_ref(git_ref: str) -> _ResolvedGitRef:
     """Resolve a ``#git`` reference to workspace and branch information.
 
     Three dispatch modes:
@@ -150,7 +150,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                         "WORKSPACE_DIR is not set"
                     )
                 checkout_target = get_default_branch(workspace_dir)
-                return ResolvedGitRef(
+                return _ResolvedGitRef(
                     project_file=str(project_file_path),
                     project_name=git_ref,
                     primary_workspace_dir=workspace_dir,
@@ -174,7 +174,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                         f"ChangeSpec '{git_ref}' found in {cs.file_path} "
                         "but WORKSPACE_DIR is not set"
                     )
-                return ResolvedGitRef(
+                return _ResolvedGitRef(
                     project_file=cs.file_path,
                     project_name=cs.project_basename,
                     primary_workspace_dir=workspace_dir,
@@ -199,7 +199,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     set_workspace_dir(project_file, clone_dir)
     checkout_target = get_default_branch(clone_dir)
 
-    return ResolvedGitRef(
+    return _ResolvedGitRef(
         project_file=project_file,
         project_name=project_name,
         primary_workspace_dir=clone_dir,

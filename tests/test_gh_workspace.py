@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.gh_workspace import (
-    ResolvedGhRef,
+    _ResolvedGhRef,
     get_default_branch,
     _get_git_worktree_dir,
     set_workspace_dir,

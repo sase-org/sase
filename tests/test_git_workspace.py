@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.git_workspace import (
-    ResolvedGitRef,
+    _ResolvedGitRef,
     _set_bare_repo_dir,
     init_bare_git_project,
     parse_bare_repo_dir,
@@ -149,7 +149,7 @@ class TestResolveGitRef:
                     )
 
                 result = resolve_git_ref("myproj")
-                assert isinstance(result, ResolvedGitRef)
+                assert isinstance(result, _ResolvedGitRef)
                 assert result.project_name == "myproj"
                 assert result.primary_workspace_dir == "/work/myproj/"
                 assert result.bare_repo_dir == "/repos/myproj.git"
