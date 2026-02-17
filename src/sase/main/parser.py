@@ -246,6 +246,17 @@ def create_parser() -> argparse.ArgumentParser:
         help="Path to an existing bare repo to register instead of creating new",
     )
 
+    # --- notify ---
+    notify_parser = top_level_subparsers.add_parser(
+        "notify",
+        help="Create a notification (reads JSON from stdin or uses flags)",
+    )
+    notify_parser.add_argument(
+        "--sender",
+        default=None,
+        help="Notification sender name (overrides sender in JSON input)",
+    )
+
     # --- restore ---
     restore_parser = top_level_subparsers.add_parser(
         "restore",

@@ -53,6 +53,12 @@ def main() -> NoReturn:
         print(f"Initialized git project: {project_file}")
         sys.exit(0)
 
+    # --- notify ---
+    if args.command == "notify":
+        from .notify_handler import handle_notify_command
+
+        handle_notify_command(args)
+
     # --- restore ---
     if args.command == "restore":
         handle_restore_command(args)
