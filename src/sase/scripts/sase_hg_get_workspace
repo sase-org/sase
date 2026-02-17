@@ -13,9 +13,9 @@ run() {
   shift
 
   # Determine VCS provider: env var > auto-detect > GOOG_CLOUD_DIR fallback > default git
-  local vcs="${GAI_VCS_PROVIDER:-}"
+  local vcs="${SASE_VCS_PROVIDER:-}"
   if [[ -z "$vcs" ]]; then
-    local root="${GAI_WORKSPACE_ROOT:-${HOME}/workspace}"
+    local root="${SASE_WORKSPACE_ROOT:-${HOME}/workspace}"
     local primary_dir="$root/$project"
     if [[ -d "$primary_dir/.hg" ]]; then
       vcs="hg"
@@ -33,7 +33,7 @@ run() {
   fi
 
   # --- git mode ---
-  local root="${GAI_WORKSPACE_ROOT:-${HOME}/workspace}"
+  local root="${SASE_WORKSPACE_ROOT:-${HOME}/workspace}"
   local primary_dir="$root/$project"
 
   if ! [[ -d "$primary_dir" ]]; then

@@ -2,10 +2,10 @@
 
 ## Context
 
-The `gai ace` TUI has a `ProjectSelectModal` (triggered by `at` keybinding) that prompts the user to select a project or
-ChangeSpec, then allocates a workspace, cleans it, checks out the target revision, and launches a background agent. This
-modal-based flow is being replaced with the `#hg` embedded workflow, where the user types `#hg(cl_name)` directly in
-their prompt.
+The `sase ace` TUI has a `ProjectSelectModal` (triggered by `at` keybinding) that prompts the user to select a project
+or ChangeSpec, then allocates a workspace, cleans it, checks out the target revision, and launches a background agent.
+This modal-based flow is being replaced with the `#hg` embedded workflow, where the user types `#hg(cl_name)` directly
+in their prompt.
 
 The `#hg` workflow will handle: workspace claiming (RUNNING field), directory change, workspace preparation (clean +
 checkout), and workspace release (post-step). The prompt_part will be empty.

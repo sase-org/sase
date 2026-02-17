@@ -374,7 +374,7 @@ def get_xprompt_search_paths() -> list[Path]:
     3. ~/.xprompts/*.md (home, hidden)
     4. ~/xprompts/*.md (home, non-hidden)
     5. (config is handled separately)
-    6. <gai_package>/xprompts/*.md (internal)
+    6. <sase_package>/xprompts/*.md (internal)
 
     Returns:
         List of directory paths to search, in priority order.
@@ -580,7 +580,7 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     4. ~/xprompts/*.md (home, non-hidden)
     5. ~/.config/sase/xprompts/{project}/*.md (project-specific, if project given)
     6. sase.yml xprompts:/snippets: section
-    7. <gai_package>/xprompts/*.md (internal)
+    7. <sase_package>/xprompts/*.md (internal)
 
     Args:
         project: Optional project name to include project-specific xprompts.
