@@ -48,3 +48,6 @@ Thumbs.db
 
 # exploration markdown files
 explore/
+
+# Private Claude Instructions
+CLAUDE.local.md
