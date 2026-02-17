@@ -268,6 +268,51 @@ def load_all_agents() -> list[Agent]:
         or seen_suffixes.get(a.raw_suffix) is a
     ]
 
+    # Deduplicate RUNNING vs WORKFLOW (appears_as_agent) by PID.
+    # When ace(run) launches an embedded workflow, the same PID appears as both
+    # a RUNNING agent (from project file) and a WORKFLOW agent (from
+    # workflow_state.json with appears_as_agent=True). Merge metadata from the
+    # WORKFLOW agent into the RUNNING agent and discard the WORKFLOW duplicate.
+    workflow_by_pid: dict[int, Agent] = {}
+    for agent in agents:
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and agent.appears_as_agent
+            and agent.pid is not None
+        ):
+            workflow_by_pid[agent.pid] = agent
+
+    merged_workflow_pids: set[int] = set()
+    for agent in agents:
+        if agent.agent_type == AgentType.RUNNING and agent.pid is not None:
+            wf_agent = workflow_by_pid.get(agent.pid)
+            if wf_agent is not None:
+                # Merge workspace_num from WORKFLOW if RUNNING lacks it
+                if agent.workspace_num is None and wf_agent.workspace_num is not None:
+                    agent.workspace_num = wf_agent.workspace_num
+                # WORKFLOW has more accurate terminal status from workflow_state.json
+                if wf_agent.status in ("DONE", "FAILED", "WAITING INPUT"):
+                    agent.status = wf_agent.status
+                # Copy supplementary fields
+                if agent.diff_path is None and wf_agent.diff_path is not None:
+                    agent.diff_path = wf_agent.diff_path
+                if agent.step_output is None and wf_agent.step_output is not None:
+                    agent.step_output = wf_agent.step_output
+                if agent.error_message is None and wf_agent.error_message is not None:
+                    agent.error_message = wf_agent.error_message
+                merged_workflow_pids.add(agent.pid)
+
+    if merged_workflow_pids:
+        agents = [
+            a
+            for a in agents
+            if not (
+                a.agent_type == AgentType.WORKFLOW
+                and a.appears_as_agent
+                and a.pid in merged_workflow_pids
+            )
+        ]
+
     # Sort by start time (most recent first), with None times at end
     def sort_key(a: Agent) -> tuple[bool, datetime]:
         if a.start_time is None:
