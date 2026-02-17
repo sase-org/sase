@@ -1,9 +1,5 @@
 """Bundled scripts that get installed to PATH via pip/uv.
 
-Public API:
-    get_script_path(name) -> Path to a bundled script
-    run_script(name, args, **kwargs) -> subprocess.CompletedProcess
-
 Adding a new script:
     Python: add module with main(), register in [project.scripts]
     Shell:  add file with shebang, add _exec_script wrapper here,
@@ -13,14 +9,13 @@ Adding a new script:
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import NoReturn
 
 
-def get_script_path(name: str) -> Path:
+def _get_script_path(name: str) -> Path:
     """Return the filesystem path to a bundled script by name.
 
     Works in both editable and regular installs via importlib.resources.
@@ -29,33 +24,13 @@ def get_script_path(name: str) -> Path:
     return Path(str(ref))
 
 
-def run_script(
-    name: str,
-    args: list[str] | None = None,
-    **kwargs: Any,
-) -> subprocess.CompletedProcess[Any]:
-    """Locate a bundled script and run it via subprocess.
-
-    The interpreter is auto-detected from the shebang line:
-    - ``#!/usr/bin/env bash`` (or similar) → ``bash``
-    - anything else (or no shebang) → ``sys.executable``
-
-    Extra *kwargs* are forwarded to :func:`subprocess.run`.
-    """
-    script = get_script_path(name)
-    interpreter = _detect_interpreter(script)
-    cmd = [interpreter, str(script), *(args or [])]
-    kwargs.setdefault("check", True)
-    return subprocess.run(cmd, **kwargs)
-
-
 def _exec_script(name: str) -> NoReturn:
     """Replace the current process with a bundled script.
 
     Used by thin wrapper functions registered as ``[project.scripts]``
     entry points for shell scripts.
     """
-    script = get_script_path(name)
+    script = _get_script_path(name)
     interpreter = _detect_interpreter(script)
     os.execvp(interpreter, [interpreter, str(script), *sys.argv[1:]])
 
