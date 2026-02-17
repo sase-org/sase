@@ -35,6 +35,20 @@ dev = [
 [project.scripts]
 sase = "sase.main.entry:main"
 tmux_sase = "sase.scripts.tmux_sase:main"
+sase_hg_amend = "sase.scripts:sase_hg_amend"
+sase_hg_archive = "sase.scripts:sase_hg_archive"
+sase_hg_clean = "sase.scripts:sase_hg_clean"
+sase_hg_lint = "sase.scripts:sase_hg_lint"
+sase_hg_patch = "sase.scripts:sase_hg_patch"
+sase_hg_presubmit = "sase.scripts:sase_hg_presubmit"
+sase_hg_prune = "sase.scripts:sase_hg_prune"
+sase_hg_rebase = "sase.scripts:sase_hg_rebase"
+sase_hg_rename = "sase.scripts:sase_hg_rename"
+sase_hg_reword = "sase.scripts:sase_hg_reword"
+sase_hg_sync = "sase.scripts:sase_hg_sync"
+sase_hg_unamend = "sase.scripts:sase_hg_unamend"
+sase_hg_update = "sase.scripts:sase_hg_update"
+sase_hg_upload = "sase.scripts:sase_hg_upload"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]
