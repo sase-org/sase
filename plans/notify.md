@@ -20,6 +20,7 @@ notifications, audible bells, tab badge, and agents-tab HITL.
   "action": "HITL | JumpToChangeSpec | Tmux | null",
   "action_data": {
     "changespec_name": "string (for JumpToChangeSpec)",
+    "project_file": "string (for JumpToChangeSpec)",
     "workspace_dir": "string (for Tmux)",
     "artifacts_dir": "string (for HITL)",
     "workflow_name": "string (for HITL)"
@@ -231,23 +232,33 @@ When user presses `f` on a notification with files:
 
 ### User-Initiated Agents/Workflows
 
-- In the runner `finally` blocks, call `notify_workflow_complete()` with:
-  - sender="user-agent" or "user-workflow", action=None (or Tmux if workspace dir known)
-- Only for non-axe-spawned agents (user-initiated via `sase run` or TUI keymaps)
+Three separate code paths need notification calls:
 
-### Sync Workflow (`src/sase/scripts/sync_report.py` or sync action)
+- **`src/sase/axe_run_agent_runner.py`** — TUI-launched agents. Add `notify_workflow_complete()` in the `finally` block
+  (~line 303). sender="user-agent", action=Tmux if workspace dir known, else None.
+- **`src/sase/axe_run_workflow_runner.py`** — Standalone workflows launched from TUI. Add `notify_workflow_complete()`
+  in the `finally` block (~line 185). sender="user-workflow", action=Tmux if workspace dir known, else None.
+- **`src/sase/main/_query.py:run_query()`** — CLI `sase run` foreground execution. This is a separate code path from the
+  TUI runners. Add notification after run completes. sender="user-agent", action=None.
 
-- After sync completes, check status:
+Only for non-axe-spawned agents (user-initiated via `sase run` or TUI keymaps).
+
+### Sync Workflow (`src/sase/ace/tui/actions/sync.py:action_sync()`)
+
+- In `action_sync()`, after parsing the workflow result JSON (~lines 129-140), check status:
   - `status == "success"` (clean, no merge) → NO notification
   - `status == "resolved"` or `status == "unresolved"` or `status == "error"` → send notification
 - sender="sync", action="Tmux", action_data with workspace_dir
 
 ### Axe Hourly Error Digest (`src/sase/axe/core.py`)
 
-- Add error collection mechanism (append errors to a list during each check cycle)
-- Add hourly scheduled job that checks if errors accumulated since last digest
+- Leverage existing error collection infrastructure:
+  - `src/sase/axe/state.py:append_error()` — already persists errors to `~/.sase/axe/recent_errors.json`
+  - `src/sase/axe/state.py:read_errors()` — reads collected errors
+  - `src/sase/axe/core.py:_handle_job_error()` — already calls `append_error()` on every job failure
+- Add hourly scheduled job that calls `read_errors()`, filters by timestamp (last hour)
 - If errors exist, call `notify_axe_error_digest()` with summary and workspace dirs
-- Reset error accumulator after sending
+- Clear/mark digested errors after sending (no new error collection mechanism needed)
 
 ### HITL Workflow Steps (`src/sase/xprompt/workflow_hitl.py`)
 
@@ -264,8 +275,10 @@ When user presses `f` on a notification with files:
 - `src/sase/axe_fix_hook_runner.py`
 - `src/sase/xprompt/workflow_hitl.py`
 - `src/sase/axe/core.py`
-- `src/sase/scripts/sync_report.py` or `src/sase/ace/tui/actions/sync.py`
-- Runner files for user-initiated agents/workflows
+- `src/sase/ace/tui/actions/sync.py`
+- `src/sase/axe_run_agent_runner.py`
+- `src/sase/axe_run_workflow_runner.py`
+- `src/sase/main/_query.py`
 
 ### Verification
 
