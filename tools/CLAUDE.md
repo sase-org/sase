@@ -11,5 +11,5 @@ This linter will fail if any public symbol is unused by other (non-test) files, 
 files, or if any private symbol is NOT used in the file it is defined in. This linter should normally be obeye since it
 does a good job of preventing unused code from accumulating. With that said, when working an epic (a bead that has been
 broken down into phases), it may be necessary to ignore one or more symbols (that will be used by later phases). You can
-accomplish this by adding the `--epic-bead <epic_bead_id>(<symbol_name>)` option to the `pyvision` command in Justfile
+accomplish this by adding the `--epic-symbol <epic_bead_id>(<symbol_name>)` option to the `pyvision` command in Justfile
 for every symbol that needs to be ignored.
