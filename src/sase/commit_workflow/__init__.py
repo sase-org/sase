@@ -34,7 +34,7 @@ def main() -> NoReturn:
         "-b",
         "--bug",
         help="Bug number to include in the metadata tags (e.g., '12345'). "
-        "Defaults to the output of the 'branch_bug' command.",
+        "Defaults to the output of the 'sase_hg_branch_bug' command.",
     )
     parser.add_argument(
         "-p",

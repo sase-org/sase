@@ -281,9 +281,9 @@ class _HgProvider(VCSProvider):
         return (True, text if text else None)
 
     def get_bug_number(self, cwd: str) -> tuple[bool, str | None]:
-        out = self._run_shell("branch_bug", cwd)
+        out = self._run_shell("sase_hg_branch_bug", cwd)
         if not out.success:
-            return (False, "branch_bug command failed")
+            return (False, "sase_hg_branch_bug command failed")
         return (True, out.stdout.strip())
 
     def mail(self, revision: str, cwd: str) -> tuple[bool, str | None]:

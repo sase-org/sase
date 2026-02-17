@@ -37,7 +37,7 @@ def main() -> None:
         f.write(result.stdout)
 
     bug = subprocess.run(
-        ["branch_bug"], capture_output=True, text=True, check=True
+        ["sase_hg_branch_bug"], capture_output=True, text=True, check=True
     ).stdout.strip()
     workspace = subprocess.run(
         ["workspace_name"], capture_output=True, text=True, check=True

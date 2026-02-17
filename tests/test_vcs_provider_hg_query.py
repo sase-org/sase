@@ -252,7 +252,7 @@ def test_hg_get_bug_number_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "branch_bug command failed" in error
+    assert "sase_hg_branch_bug command failed" in error
 
 
 # === Tests for mail ===

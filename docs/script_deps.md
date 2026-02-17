@@ -28,7 +28,7 @@ Source: `src/sase/vcs_provider/_hg.py`
 | `branch_number`            | Get CL number                            | `_hg.py:237`                                                                    |
 | `workspace_name`           | Get workspace name                       | `_hg.py:246`, `shared_utils.py:148`, `main/utils.py:18`, `prompt_history.py:45` |
 | `branch_local_changes`     | Check for local changes                  | `_hg.py:253`                                                                    |
-| `branch_bug`               | Get bug number for branch                | `_hg.py:259`                                                                    |
+| `sase_hg_branch_bug`       | Get bug number for branch                | `_hg.py:259`                                                                    |
 | `branch_or_workspace_name` | Get branch or workspace name             | `chat_history.py:24`, `prompt_history.py:33`                                    |
 | `cl_desc`                  | Get CL description                       | `_hg.py:219`                                                                    |
 | `is_cl_submitted`          | Check if CL is submitted                 | `ace/scheduler/checks_runner.py:158`                                            |

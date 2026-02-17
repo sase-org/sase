@@ -183,7 +183,7 @@ def create_parser() -> argparse.ArgumentParser:
     bug_group.add_argument(
         "-b",
         "--bug",
-        help="Bug number for BUG= tag. Defaults to output of 'branch_bug'.",
+        help="Bug number for BUG= tag. Defaults to output of 'sase_hg_branch_bug'.",
     )
     bug_group.add_argument(
         "-B",

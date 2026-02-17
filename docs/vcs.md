@@ -82,7 +82,7 @@ Creates a new commit with formatted CL description and metadata tracking.
 
 | Operation      | Git                                                       | Mercurial                                         |
 | -------------- | --------------------------------------------------------- | ------------------------------------------------- |
-| Bug number     | Returns empty string (not applicable)                     | `branch_bug` command                              |
+| Bug number     | Returns empty string (not applicable)                     | `sase_hg_branch_bug` command                      |
 | Workspace name | `git config --get remote.origin.url` (extracts repo name) | `workspace_name` command                          |
 | Create commit  | `git checkout -b <name>` + `git commit -F <logfile>`      | `hg commit --name "<name>" --logfile "<logfile>"` |
 | Fix            | No-op (returns success)                                   | `hg fix`                                          |
@@ -308,7 +308,7 @@ The Mercurial provider uses a combination of standard `hg` commands and Google-i
 | -------------- | ---------------------- |
 | Branch name    | `branch_name`          |
 | CL number      | `branch_number`        |
-| Bug number     | `branch_bug`           |
+| Bug number     | `sase_hg_branch_bug`   |
 | Workspace name | `workspace_name`       |
 | Local changes  | `branch_local_changes` |
 

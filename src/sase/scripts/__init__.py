@@ -58,6 +58,10 @@ def sase_hg_archive() -> NoReturn:
     _exec_script("sase_hg_archive")
 
 
+def sase_hg_branch_bug() -> NoReturn:
+    _exec_script("sase_hg_branch_bug")
+
+
 def sase_hg_clean() -> NoReturn:
     _exec_script("sase_hg_clean")
 
