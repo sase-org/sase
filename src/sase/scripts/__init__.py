@@ -108,3 +108,39 @@ def sase_hg_update() -> NoReturn:
 
 def sase_hg_upload() -> NoReturn:
     _exec_script("sase_hg_upload")
+
+
+def sase_commit_workflow() -> NoReturn:
+    _exec_script("sase_commit_workflow")
+
+
+def sase_amend_workflow() -> NoReturn:
+    _exec_script("sase_amend_workflow")
+
+
+def sase_propose_workflow() -> NoReturn:
+    _exec_script("sase_propose_workflow")
+
+
+def sase_json_workflow() -> NoReturn:
+    _exec_script("sase_json_workflow")
+
+
+def sase_split_setup() -> NoReturn:
+    _exec_script("sase_split_setup")
+
+
+def sase_split_prepare_execute() -> NoReturn:
+    _exec_script("sase_split_prepare_execute")
+
+
+def sase_rewind() -> NoReturn:
+    _exec_script("sase_rewind")
+
+
+def sase_metahook_scuba() -> NoReturn:
+    _exec_script("sase_metahook_scuba")
+
+
+def sase_metahook_hg_presubmit_tap() -> NoReturn:
+    _exec_script("sase_metahook_hg_presubmit_tap")

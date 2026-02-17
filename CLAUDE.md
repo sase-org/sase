@@ -50,3 +50,9 @@ bd sync               # Sync with git
 The `tmux_sase` script can be run with the `uv run tmux_sase <KEYS>` command, where `<KEYS>` is a sequence of keystrokes
 to send to the tmux session. This script will run the `sase ace` command in a new tmux window, emulate the keystrokes
 that you specified with `<KEYS>`, capture the contents of the tmux pane, and then output those contents on STDOUT.
+
+## sase.yml
+
+The sase.yml files that I use to configure sase can be found in the ~/.local/share/chezmoi/home/dot_config/sase/
+directory. Feel free to modify these if needed, but make sure to commit your changes to the chezmoi repo using your
+commit skill (NOT `git commit`) after making them.

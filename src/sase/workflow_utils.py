@@ -95,7 +95,7 @@ def get_initial_hooks_for_changespec(verbose: bool = True) -> list[str]:
     """Get all hooks to include in a new ChangeSpec.
 
     Returns required hooks (configurable via sase.yml, defaults to
-    gai_presubmit, gai_lint) plus any test target hooks from
+    sase_hg_presubmit, sase_hg_lint) plus any test target hooks from
     changed_test_targets.
 
     Args:
