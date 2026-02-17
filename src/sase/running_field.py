@@ -500,7 +500,7 @@ def get_workspace_directory_for_num(
 ) -> tuple[str, str | None]:
     """Get the workspace directory path for a given workspace number.
 
-    Calls sase_get_workspace to get the directory path, which will create
+    Calls sase_hg_get_workspace to get the directory path, which will create
     workspace shares if they don't exist.
 
     Args:
@@ -513,7 +513,7 @@ def get_workspace_directory_for_num(
         - workspace_suffix: Suffix like "fig_3" or None for main workspace
 
     Raises:
-        RuntimeError: If sase_get_workspace command fails
+        RuntimeError: If sase_hg_get_workspace command fails
     """
     workspace_dir = get_workspace_directory(project_basename, workspace_num)
 
@@ -525,10 +525,10 @@ def get_workspace_directory_for_num(
 
 
 def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
-    """Get the workspace directory path by calling sase_get_workspace.
+    """Get the workspace directory path by calling sase_hg_get_workspace.
 
     This is the primary function for getting workspace directories. It calls
-    the sase_get_workspace command which handles creating workspace shares
+    the sase_hg_get_workspace command which handles creating workspace shares
     if they don't exist.
 
     Args:
@@ -539,20 +539,20 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
         Full path to workspace directory
 
     Raises:
-        RuntimeError: If sase_get_workspace command fails
+        RuntimeError: If sase_hg_get_workspace command fails
     """
     try:
         result = subprocess.run(
-            ["sase_get_workspace", project, str(workspace_num)],
+            ["sase_hg_get_workspace", project, str(workspace_num)],
             capture_output=True,
             text=True,
             check=True,
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        error_msg = f"sase_get_workspace failed (exit code {e.returncode})"
+        error_msg = f"sase_hg_get_workspace failed (exit code {e.returncode})"
         if e.stderr:
             error_msg += f": {e.stderr.strip()}"
         raise RuntimeError(error_msg) from e
     except FileNotFoundError as e:
-        raise RuntimeError("sase_get_workspace command not found") from e
+        raise RuntimeError("sase_hg_get_workspace command not found") from e

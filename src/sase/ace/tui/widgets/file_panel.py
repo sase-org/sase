@@ -371,7 +371,7 @@ class AgentFilePanel(Static):
         except subprocess.CalledProcessError:
             return None
         except RuntimeError:
-            # sase_get_workspace command failed
+            # sase_hg_get_workspace command failed
             return None
         except Exception:
             return None

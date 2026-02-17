@@ -62,6 +62,10 @@ def sase_hg_clean() -> NoReturn:
     _exec_script("sase_hg_clean")
 
 
+def sase_hg_get_workspace() -> NoReturn:
+    _exec_script("sase_hg_get_workspace")
+
+
 def sase_hg_lint() -> NoReturn:
     _exec_script("sase_hg_lint")
 

@@ -38,11 +38,11 @@ Source: `src/sase/vcs_provider/_hg.py`
 
 ## sase ecosystem scripts (not in this repo)
 
-| Script               | Usage                                                      | Source location                   |
-| -------------------- | ---------------------------------------------------------- | --------------------------------- |
-| `sase_get_workspace` | Get/create workspace directory                             | `running_field.py:546`            |
-| `sase_rewind`        | Rewind diffs                                               | `_hg.py:285`                      |
-| `sase_metahook_*`    | Dynamic metahook scripts (pattern: `sase_metahook_{name}`) | `axe_summarize_hook_runner.py:69` |
+| Script                  | Usage                                                      | Source location                   |
+| ----------------------- | ---------------------------------------------------------- | --------------------------------- |
+| `sase_hg_get_workspace` | Get/create workspace directory                             | `running_field.py:546`            |
+| `sase_rewind`           | Rewind diffs                                               | `_hg.py:285`                      |
+| `sase_metahook_*`       | Dynamic metahook scripts (pattern: `sase_metahook_{name}`) | `axe_summarize_hook_runner.py:69` |
 
 ## Notification / UI utilities
 
