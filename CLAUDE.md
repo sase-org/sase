@@ -44,3 +44,9 @@ bd update <id> --status in_progress  # Claim work
 bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
+
+## End-to-End Testing w/ `tmux_sase`
+
+The `tmux_sase` script can be run with the `uv run tmux_sase <KEYS>` command, where `<KEYS>` is a sequence of keystrokes
+to send to the tmux session. This script will run the `sase ace` command in a new tmux window, emulate the keystrokes
+that you specified with `<KEYS>`, capture the contents of the tmux pane, and then output those contents on STDOUT.
