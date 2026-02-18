@@ -288,7 +288,7 @@ The `#propose` workflow currently depends on hg-specific shell commands. Three s
 
 ### What
 
-- Replace `agent_<N>` branch names with 100 pre-created human-readable names for git/gh
+- Replace `agent_<N>` branch names with random adjective-noun combinations (80×80 = 6,400 unique names) for git/gh
 - Decouple branch names from workspace numbers
 - Add `n` input (optional int, default null) to all VCS workflows (#git, #gh, #hg)
 - Add `release` input (bool, defaults to `true` when `n` is null, `false` when `n` is given)
@@ -301,18 +301,26 @@ The `#propose` workflow currently depends on hg-specific shell commands. Three s
 **New module for branch names:**
 
 - Create `src/sase/branch_names.py`:
-  - Hardcoded list of 100 human-readable names (e.g., `amber-falcon`, `bright-cedar`, ...)
-  - `get_available_branch_name(workspace_dir: str) -> str` — run `git branch -a` to check which names from the list
-    exist as branches in the repo, pick the first unused one
-  - Round-robin: track the last-used index in `~/.sase/branch_state/<project>.json` and start searching from there;
-    wraps around when reaching end of list
+  - Two curated word lists: **80 adjectives** and **80 nouns** (all 3–7 characters, distinct, pronounceable) → **6,400
+    combinations** before any suffix needed
+  - `generate_branch_name(workspace_dir: str) -> str`:
+    1. Run `git branch -a` to get all existing branch names (local + remote)
+    2. Randomly pick `adjective-noun` combinations up to 10 attempts
+    3. Return the first combination not already in use
+    4. **Fallback**: if all 10 random picks collide, pick a random base name and append `-2`, `-3`, ... until finding an
+       unused one
+  - `_get_existing_branch_names(workspace_dir: str) -> set[str]` — parses `git branch -a` output, strips
+    `remotes/origin/` prefixes, skips `HEAD ->` lines
+  - `_add_numeric_suffix(base_name: str, existing: set[str]) -> str` — tries `base-2`, `base-3`, ... starting at 2
+    (unsuffixed is logically "1")
+  - **No state file needed** — the function is stateless (queries git each time)
 
 **VCS workflow xprompts:**
 
 - `xprompts/git.yml`:
   - Add inputs: `n` (int, default null), `release` (bool, default depends on n)
   - Setup step: if `n` is given, use that workspace number; otherwise auto-claim
-  - Prepare step: replace `agent_{{ setup.workspace_num }}` with branch name from `get_available_branch_name()`
+  - Prepare step: replace `agent_{{ setup.workspace_num }}` with branch name from `generate_branch_name()`
   - Release step: skip if `release=false`; add `meta_workspace_num` output
   - Pass branch_name to `create_changespec_for_workflow()`
 - `xprompts/gh.yml` — Same changes as git.yml
@@ -341,8 +349,8 @@ The `#propose` workflow currently depends on hg-specific shell commands. Three s
 ### Verification
 
 - `just check` passes
-- `#git sase` creates a branch like `amber-falcon` instead of `agent_105`
-- `#gh bbugyi200/sase` uses random branch names
+- `#git sase` creates a branch like `swift-falcon` instead of `agent_105`
+- `#gh bbugyi200/sase` uses random adjective-noun branch names
 - `#git sase n=105` uses workspace 105 and doesn't auto-release
 - `#git sase n=105 release=true` uses workspace 105 and releases after
 - ChangeSpec creation works with random branch names
