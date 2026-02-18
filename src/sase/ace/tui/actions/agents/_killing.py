@@ -307,8 +307,6 @@ class AgentKillingMixin:
 
         # Track dismissal as safety net (ensures agent is filtered even if
         # workspace release failed or RUNNING field persists)
-        from ...dismissed_agents import save_dismissed_agents
-
         self._dismissed_agents.add(agent.identity)  # type: ignore[attr-defined]
 
         # Also dismiss child steps
@@ -320,8 +318,6 @@ class AgentKillingMixin:
                     and step.parent_workflow == agent.workflow
                 ):
                     self._dismissed_agents.add(step.identity)  # type: ignore[attr-defined]
-
-        save_dismissed_agents(self._dismissed_agents)  # type: ignore[attr-defined]
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
@@ -404,8 +400,6 @@ class AgentKillingMixin:
             # Always track dismissal in _dismissed_agents as a fallback.
             # This ensures the workflow is filtered out even if it's loaded
             # from the RUNNING field or other sources.
-            from ...dismissed_agents import save_dismissed_agents
-
             self._dismissed_agents.add(agent.identity)  # type: ignore[attr-defined]
 
             # If this is a parent workflow (not a child step), also dismiss all its steps
@@ -417,8 +411,6 @@ class AgentKillingMixin:
                         and step.parent_workflow == agent.workflow
                     ):
                         self._dismissed_agents.add(step.identity)  # type: ignore[attr-defined]
-
-            save_dismissed_agents(self._dismissed_agents)  # type: ignore[attr-defined]
 
             self._load_agents()  # type: ignore[attr-defined]
             return
@@ -432,10 +424,7 @@ class AgentKillingMixin:
             AgentType.MENTOR,
             AgentType.CRS,
         ):
-            from ...dismissed_agents import save_dismissed_agents
-
             self._dismissed_agents.add(agent.identity)  # type: ignore[attr-defined]
-            save_dismissed_agents(self._dismissed_agents)  # type: ignore[attr-defined]
 
             self.notify(  # type: ignore[attr-defined]
                 f"Dismissed {agent.agent_type.value.lower()} agent for {agent.cl_name}"
