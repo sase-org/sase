@@ -261,12 +261,9 @@ class AceApp(
 
         # Agent completion tracking for notifications
         from .dismissed_agents import load_dismissed_agents
-        from .models.agent import AgentType
-        from .viewed_agents import load_viewed_agents
 
-        self._tracked_running_agents: set[tuple[AgentType, str, str | None]] = set()
         self._pending_attention_count: int = 0
-        self._viewed_agents = load_viewed_agents()
+        self._last_unread_count: int = 0
         self._dismissed_agents = load_dismissed_agents()
 
         # Axe state
@@ -369,20 +366,16 @@ class AceApp(
             )
 
     def _initialize_agent_tracking(self) -> None:
-        """Initialize agent tracking by capturing currently running agents.
+        """Initialize notification tracking by seeding unread count.
 
-        This ensures we don't trigger notifications for agents that were
-        already running when the TUI started.
+        This ensures we don't trigger bell/toast for notifications that
+        were already unread when the TUI started.
         """
-        from .actions.agents._core import DISMISSABLE_STATUSES
-        from .models import load_all_agents
+        from sase.notifications import load_notifications
 
-        all_agents = load_all_agents()
-
-        # Track all currently running agents
-        for agent in all_agents:
-            if agent.status not in DISMISSABLE_STATUSES:
-                self._tracked_running_agents.add(agent.identity)
+        notifications = load_notifications()
+        unread_count = sum(1 for n in notifications if not n.read)
+        self._last_unread_count = unread_count
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""
@@ -442,8 +435,6 @@ class AceApp(
             axe_view.add_class("hidden")
             # Load agents on first access or refresh
             self._load_agents()
-            # Mark current dismissable agents as viewed immediately (not waiting for auto-refresh)
-            self._mark_current_agents_as_viewed()
             # Clear the attention badge when viewing agents tab
             self._clear_tab_bar_emphasis()
         else:  # axe

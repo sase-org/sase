@@ -45,7 +45,7 @@ def _is_always_visible(agent: Agent) -> bool:
         return True
 
     # Axe-spawned agents are hideable (hidden by default, shown with '.' toggle)
-    if is_axe_spawned_agent(agent):
+    if _is_axe_spawned_agent(agent):
         return False
 
     return (
@@ -54,7 +54,7 @@ def _is_always_visible(agent: Agent) -> bool:
     )
 
 
-def is_axe_spawned_agent(agent: Agent) -> bool:
+def _is_axe_spawned_agent(agent: Agent) -> bool:
     """Check if agent was spawned by sase axe (not user-initiated).
 
     Agents spawned by axe should not trigger notifications since they're
@@ -119,9 +119,8 @@ class AgentsMixinCore(
     _fold_counts: dict[str, tuple[int, int]]
 
     # Agent completion tracking for notifications
-    _tracked_running_agents: set[tuple[AgentType, str, str | None]]
     _pending_attention_count: int
-    _viewed_agents: set[tuple[AgentType, str, str | None]]
+    _last_unread_count: int
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
 
     def _load_agents(self) -> None:

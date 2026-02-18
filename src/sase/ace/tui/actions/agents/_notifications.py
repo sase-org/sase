@@ -1,94 +1,55 @@
-"""Agent completion tracking and notification methods for the ace TUI app."""
+"""Notification polling and display methods for the ace TUI app."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from ...models.agent import Agent, AgentType
+    from sase.notifications import Notification
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
 
 class AgentNotificationMixin:
-    """Mixin providing agent completion tracking and notification methods.
+    """Mixin providing notification polling and display methods.
 
     Type hints below declare attributes that are defined at runtime by AceApp.
     """
 
-    _tracked_running_agents: set[tuple[AgentType, str, str | None]]
     _pending_attention_count: int
-    _viewed_agents: set[tuple[AgentType, str, str | None]]
-    _dismissed_agents: set[tuple[AgentType, str, str | None]]
-    _agents: list[Agent]
+    _last_unread_count: int
     current_tab: TabName
 
     def _poll_agent_completions(self) -> None:
-        """Poll agents for completions and update notification state.
+        """Poll notification store for new unread notifications.
 
-        Detects when user-initiated agents complete and triggers notifications.
+        Detects when unread count increases and triggers bell/toast.
         Called on every auto-refresh regardless of current tab.
         """
-        from ...models import load_all_agents
-        from ...models.agent import AgentType
-        from ._core import DISMISSABLE_STATUSES, is_axe_spawned_agent
+        from sase.notifications import load_notifications
 
-        all_agents = load_all_agents()
+        notifications = load_notifications()
+        unread = [n for n in notifications if not n.read]
+        unread_count = len(unread)
 
-        current_running: set[tuple[AgentType, str, str | None]] = set()
-        current_dismissible_non_axe: set[tuple[AgentType, str, str | None]] = set()
-
-        for agent in all_agents:
-            # Skip workflow children — only top-level agents trigger notifications
-            if agent.is_workflow_child:
-                continue
-            is_axe = is_axe_spawned_agent(agent)
-            is_dismissible = agent.status in DISMISSABLE_STATUSES
-
-            if not is_dismissible:
-                current_running.add(agent.identity)
-            elif not is_axe:
-                current_dismissible_non_axe.add(agent.identity)
-
-        # Build identity → agent lookup for toast notifications
-        identity_to_agent = {
-            agent.identity: agent for agent in all_agents if not agent.is_workflow_child
-        }
-
-        # Detect newly completed (was running, now dismissible non-axe)
-        newly_completed = self._tracked_running_agents & current_dismissible_non_axe
-
-        if newly_completed:
+        # Detect newly arrived notifications
+        if unread_count > self._last_unread_count:
             self._ring_tmux_bell()
-            # Fire toast notification for each newly completed agent
-            for identity in newly_completed:
-                completed_agent = identity_to_agent.get(identity)
-                if completed_agent is not None:
-                    severity = (
-                        "information" if completed_agent.status == "DONE" else "warning"
-                    )
-                    self.notify(  # type: ignore[attr-defined]
-                        f"[{completed_agent.display_type}] {completed_agent.cl_name}"
-                        f" — {completed_agent.status}",
-                        severity=severity,
-                        timeout=8,
-                    )
+            # Fire toast for new notifications
+            new_count = unread_count - self._last_unread_count
+            self.notify(  # type: ignore[attr-defined]
+                f"{new_count} new notification{'s' if new_count != 1 else ''}",
+                severity="information",
+                timeout=8,
+            )
 
-        self._tracked_running_agents = current_running
+        self._last_unread_count = unread_count
+        self._pending_attention_count = unread_count
 
-        # Only count agents that haven't been viewed yet
-        unviewed_dismissible = current_dismissible_non_axe - self._viewed_agents
-        self._pending_attention_count = len(unviewed_dismissible)
-
-        if self.current_tab != "agents":
+        if unread_count > 0 and self.current_tab != "agents":
             self._update_tab_bar_emphasis()
-        else:
-            # Mark all dismissable agents as viewed when on agents tab and persist
-            self._viewed_agents.update(current_dismissible_non_axe)
-            from ...viewed_agents import save_viewed_agents
-
-            save_viewed_agents(self._viewed_agents)
+        elif unread_count == 0:
             self._clear_tab_bar_emphasis()
 
     def _ring_tmux_bell(self) -> None:
@@ -124,77 +85,26 @@ class AgentNotificationMixin:
         tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
         tab_bar.set_attention_count(0)
 
-    def _mark_current_agents_as_viewed(self) -> None:
-        """Mark all current dismissable non-axe agents as viewed immediately.
-
-        This is called when switching to the agents tab to ensure agents are
-        marked as viewed right away, rather than waiting for the next auto-refresh.
-        This prevents the badge from reappearing when quickly switching away.
-        """
-        from ...models import load_all_agents
-        from ...models.agent import AgentType
-        from ...viewed_agents import save_viewed_agents
-        from ._core import DISMISSABLE_STATUSES, is_axe_spawned_agent
-
-        all_agents = load_all_agents()
-
-        # Collect all dismissable non-axe agents
-        current_dismissible_non_axe: set[tuple[AgentType, str, str | None]] = set()
-        for agent in all_agents:
-            # Skip workflow children — only top-level agents trigger notifications
-            if agent.is_workflow_child:
-                continue
-            is_axe = is_axe_spawned_agent(agent)
-            is_dismissible = agent.status in DISMISSABLE_STATUSES
-
-            if is_dismissible and not is_axe:
-                current_dismissible_non_axe.add(agent.identity)
-
-        # Update viewed agents and persist to disk
-        self._viewed_agents.update(current_dismissible_non_axe)
-        save_viewed_agents(self._viewed_agents)
-
     def action_show_notifications(self) -> None:
-        """Show the notification modal with unread completed agents."""
-        from ...models import load_all_agents
+        """Show the notification modal with unread notifications."""
+        from sase.notifications import load_notifications, mark_read
+
         from ...modals import NotificationModal
-        from ._core import DISMISSABLE_STATUSES, is_axe_spawned_agent
 
-        all_agents = load_all_agents()
+        notifications = load_notifications()
+        unread = [n for n in notifications if not n.read]
 
-        # Filter to unread completed non-axe non-workflow-child agents
-        unread_agents = [
-            agent
-            for agent in all_agents
-            if not agent.is_workflow_child
-            and not is_axe_spawned_agent(agent)
-            and agent.status in DISMISSABLE_STATUSES
-            and agent.identity not in self._viewed_agents
-            and agent.identity not in self._dismissed_agents
-        ]
-
-        def _on_dismiss(
-            result: tuple[AgentType, str, str | None] | None,
-        ) -> None:
+        def _on_dismiss(result: Notification | None) -> None:
             if result is None:
                 return
-            self._navigate_to_agent(result)
+            # Mark the selected notification as read
+            mark_read(result.id)
+            # Update badge count
+            self._last_unread_count = max(0, self._last_unread_count - 1)
+            self._pending_attention_count = self._last_unread_count
+            if self._last_unread_count > 0:
+                self._update_tab_bar_emphasis()
+            else:
+                self._clear_tab_bar_emphasis()
 
-        self.push_screen(NotificationModal(unread_agents), callback=_on_dismiss)  # type: ignore[attr-defined]
-
-    def _navigate_to_agent(self, identity: tuple[AgentType, str, str | None]) -> None:
-        """Switch to Agents tab and highlight the given agent."""
-        from ...viewed_agents import save_viewed_agents
-
-        # Switch to agents tab (triggers _load_agents via watch_current_tab)
-        self.current_tab = "agents"  # type: ignore[attr-defined]
-
-        # Find the agent in the current list and select it
-        for idx, agent in enumerate(self._agents):
-            if agent.identity == identity:
-                self.current_idx = idx  # type: ignore[attr-defined]
-                break
-
-        # Mark this agent as viewed
-        self._viewed_agents.add(identity)
-        save_viewed_agents(self._viewed_agents)
+        self.push_screen(NotificationModal(unread), callback=_on_dismiss)  # type: ignore[attr-defined]
