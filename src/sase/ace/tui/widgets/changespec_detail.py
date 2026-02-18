@@ -5,6 +5,7 @@ from typing import Any
 
 from rich.panel import Panel
 from rich.text import Text
+from sase.gh_workspace import get_cl_field_label
 from sase.running_field import get_claimed_workspaces
 from textual.widgets import Static
 
@@ -333,9 +334,10 @@ class ChangeSpecDetail(Static):
             for line in changespec.kickstart.split("\n"):
                 text.append(f"  {line}\n", style="#D7D7AF")
 
-        # CL field (only display if present)
+        # CL/PR field (only display if present)
         if changespec.cl:
-            text.append("CL: ", style="bold #87D7FF")
+            label = get_cl_field_label(changespec.file_path)
+            text.append(f"{label}: ", style="bold #87D7FF")
             text.append(f"{changespec.cl}\n", style="bold underline #569CD6")
 
         # BUG field (only display if present)

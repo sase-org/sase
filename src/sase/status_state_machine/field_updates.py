@@ -8,6 +8,7 @@ DESCRIPTION fields.
 import logging
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.gh_workspace import get_cl_field_label
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,16 @@ def apply_status_update(lines: list[str], changespec_name: str, new_status: str)
     return "".join(updated_lines)
 
 
-def _apply_cl_update(lines: list[str], changespec_name: str, new_cl: str | None) -> str:
+def _apply_cl_update(
+    lines: list[str], changespec_name: str, new_cl: str | None, project_file: str
+) -> str:
     """Apply CL field update to file lines.
 
     Args:
         lines: Current file lines.
         changespec_name: NAME of the ChangeSpec to update.
         new_cl: New CL value (None to reset/remove).
+        project_file: Path to the project file (used to determine CL/PR label).
 
     Returns:
         Updated file content as a string.
@@ -65,17 +69,19 @@ def _apply_cl_update(lines: list[str], changespec_name: str, new_cl: str | None)
             in_target_changespec = current_name == changespec_name
             found_cl_line = False  # Reset for new ChangeSpec
 
-        # Update CL if we're in the target ChangeSpec
-        if in_target_changespec and line.startswith("CL:"):
+        # Update CL/PR if we're in the target ChangeSpec
+        if in_target_changespec and line.startswith(("CL:", "PR:")):
             found_cl_line = True
-            # Replace the CL line, or skip it entirely if resetting to None
+            # Replace the CL/PR line, or skip it entirely if resetting to None
             if new_cl is not None:
-                updated_lines.append(f"CL: {new_cl}\n")
+                prefix = "PR" if line.startswith("PR:") else "CL"
+                updated_lines.append(f"{prefix}: {new_cl}\n")
             # When new_cl is None, we simply skip this line (don't append it)
         elif in_target_changespec and line.startswith("STATUS:") and not found_cl_line:
-            # CL field doesn't exist - add it before STATUS if we have a new value
+            # CL/PR field doesn't exist - add it before STATUS if we have a new value
             if new_cl is not None:
-                updated_lines.append(f"CL: {new_cl}\n")
+                label = get_cl_field_label(project_file)
+                updated_lines.append(f"{label}: {new_cl}\n")
                 found_cl_line = True
             updated_lines.append(line)
         else:
@@ -108,7 +114,7 @@ def update_changespec_cl_atomic(
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
-        updated_content = _apply_cl_update(lines, changespec_name, new_cl)
+        updated_content = _apply_cl_update(lines, changespec_name, new_cl, project_file)
 
         write_changespec_atomic(project_file, updated_content, commit_msg)
 
@@ -193,7 +199,7 @@ def _apply_parent_update(
         elif (
             in_target_changespec
             and in_description
-            and (line.startswith("CL:") or line.startswith("STATUS:"))
+            and (line.startswith(("CL:", "PR:")) or line.startswith("STATUS:"))
             and not found_parent_line
         ):
             # PARENT field doesn't exist - add it before CL or STATUS if we have value
@@ -208,7 +214,7 @@ def _apply_parent_update(
                 in_target_changespec
                 and in_description
                 and line.startswith(
-                    ("PARENT:", "CL:", "STATUS:", "TEST TARGETS:", "KICKSTART:")
+                    ("PARENT:", "CL:", "PR:", "STATUS:", "TEST TARGETS:", "KICKSTART:")
                 )
             ):
                 in_description = False

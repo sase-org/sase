@@ -146,7 +146,7 @@ def _parse_field_header(state: _ParserState, line: str) -> bool:
         state.reset_section_flags()
         return True
 
-    if line.startswith("CL: "):
+    if line.startswith(("CL: ", "PR: ")):
         state.save_pending_entries()
         state.cl = line[4:].strip()
         state.reset_section_flags()

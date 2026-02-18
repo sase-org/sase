@@ -208,6 +208,11 @@ def detect_vcs_type_for_project(project_file: str) -> str:
     return "hg"
 
 
+def get_cl_field_label(project_file: str) -> str:
+    """Return 'PR' for git projects, 'CL' for hg projects."""
+    return "PR" if detect_vcs_type_for_project(project_file) == "git" else "CL"
+
+
 def detect_workflow_type_for_project(project_file: str) -> str:
     """Return ``'gh'``, ``'git'``, or ``'hg'`` based on project configuration.
 

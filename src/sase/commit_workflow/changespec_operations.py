@@ -61,6 +61,7 @@ def add_changespec_to_project_file(
     initial_hooks: list[str] | None = None,
     initial_commits: list[tuple[int, str, str | None, str | None]] | None = None,
     bug: str | None = None,
+    cl_label: str = "CL",
 ) -> str | None:
     """Add a new ChangeSpec to the project file.
 
@@ -190,7 +191,7 @@ def add_changespec_to_project_file(
                 hooks_block = "".join(hooks_lines)
 
             # Build the ChangeSpec block with the suffixed name
-            cl_line = f"CL: {cl_url}\n" if cl_url else ""
+            cl_line = f"{cl_label}: {cl_url}\n" if cl_url else ""
             changespec_block = f"""
 
 NAME: {cl_name}

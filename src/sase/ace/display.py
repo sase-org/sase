@@ -7,6 +7,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from sase.gh_workspace import get_cl_field_label
 from sase.running_field import get_claimed_workspaces
 
 from .changespec import (
@@ -102,9 +103,10 @@ def display_changespec(
         text.append("PARENT: ", style="bold #87D7FF")
         text.append(f"{changespec.parent}\n", style="bold #00D7AF")
 
-    # CL field (only display if present)
+    # CL/PR field (only display if present)
     if changespec.cl:
-        text.append("CL: ", style="bold #87D7FF")
+        label = get_cl_field_label(changespec.file_path)
+        text.append(f"{label}: ", style="bold #87D7FF")
         text.append(f"{changespec.cl}\n", style="bold underline #569CD6")
 
     # BUG field (only display if present)

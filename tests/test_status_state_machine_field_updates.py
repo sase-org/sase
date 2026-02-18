@@ -42,7 +42,7 @@ def test__apply_cl_update_sets_cl() -> None:
         "CL: old_cl\n",
         "STATUS: WIP\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", "new_cl_value")
+    result = _apply_cl_update(lines, "Test Feature", "new_cl_value", "/nonexistent")
     assert "CL: new_cl_value\n" in result
     assert "CL: old_cl\n" not in result
 
@@ -54,7 +54,7 @@ def test__apply_cl_update_removes_cl() -> None:
         "CL: old_cl\n",
         "STATUS: WIP\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", None)
+    result = _apply_cl_update(lines, "Test Feature", None, "/nonexistent")
     assert "CL:" not in result
 
 
@@ -66,7 +66,7 @@ def test__apply_cl_update_adds_cl_before_status() -> None:
         "  Test description\n",
         "STATUS: WIP\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", "new_cl")
+    result = _apply_cl_update(lines, "Test Feature", "new_cl", "/nonexistent")
     assert "CL: new_cl\n" in result
     # CL should appear before STATUS
     lines_list = result.split("\n")
