@@ -22,17 +22,6 @@ to use, but keep in mind that each phase will be given to a distinct `claude` in
 - We should always create a ChangeSpec associated with the random branch name if the agent created a commit (it will
   after file changes thanks to our stop hooks). Submitting the ChangeSpec should merge the branch with master (after
   performing any necessary checks, like making sure
-- All VCS workflows should be given a new `n` input that accepts an integer, but defaults to `null`. When no value is
-  given, we should claim an unused workspace as usual. If `n` is provided, however, we use that workspace number (or the
-  primary workspace directory if `n` is `1`). Additionally, we should start outputing the workspace number using an
-  `output` field in each of these workflows. This way we can use this in an xprompt YAML workflow to run multiple agents
-  in sequence, in the same workspace directory.
-- When the `n` input is given, we shouldn't release the workspace directory like we normally do in a post-step. We
-  should be able to force a workspace release with a new `release` boolean input that defaults to `false` when `n` is
-  given or `true` otherwise (figure out how to make this work). If this is set to `true`, we should release the
-  workspace as normal. NOTE: You might need to add a marker to the RUNNING entry (or however you track this) to make
-  sure that `sase axe` doesn't release the workspace for you (ex: it might be checking the PID and releasing if the
-  agent process is no longer running).
 
 ### #commit, #amend, and #propose Embedded Workflow Changes
 
