@@ -235,6 +235,23 @@ def main() -> int:
             ),
         )
 
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="fix-hook",
+            cl_name=changespec_name,
+            project_file=project_file,
+            success=(exit_code == 0 and proposal_id is not None),
+            notes=[
+                f"Fix-hook {'completed' if exit_code == 0 else 'failed'} for {changespec_name}"
+            ],
+            action="JumpToChangeSpec",
+            action_data={
+                "changespec_name": changespec_name,
+                "project_file": project_file,
+            },
+        )
+
     return exit_code
 
 

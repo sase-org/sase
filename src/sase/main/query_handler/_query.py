@@ -429,6 +429,29 @@ def run_query(
         )
 
         print(f"\nChat history saved to: {saved_path}")
+
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="user-agent",
+            cl_name=None,
+            project_file=project_file,
+            success=True,
+            notes=["Workflow completed via sase run"],
+            action=None,
+        )
+    except Exception:
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="user-agent",
+            cl_name=None,
+            project_file=project_file,
+            success=False,
+            notes=["Workflow failed via sase run"],
+            action=None,
+        )
+        raise
     finally:
         # Release workspace when done
         if project_file and workspace_num:

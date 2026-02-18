@@ -133,9 +133,21 @@ class SyncMixin:
                         status = "error"
                         message = "Failed to parse workflow output"
 
-                    if status in ("success", "resolved"):
+                    if status == "success":
+                        return (True, f"Synced {changespec.name}: {message}")
+                    elif status == "resolved":
+                        from sase.notifications.senders import notify_sync_result
+
+                        notify_sync_result(
+                            status, changespec.name, workspace_dir, changespec.file_path
+                        )
                         return (True, f"Synced {changespec.name}: {message}")
                     else:
+                        from sase.notifications.senders import notify_sync_result
+
+                        notify_sync_result(
+                            status, changespec.name, workspace_dir, changespec.file_path
+                        )
                         _abort_if_needed(provider, workspace_dir)
                         return (False, f"sync failed: {message}")
 

@@ -186,6 +186,11 @@ class AxeScheduler:
             self._safe_run_job, self._run_stale_running_cleanup, "stale_running_cleanup"
         ).tag("full_cycle", "stale_running_cleanup")
 
+        # Error digest notification (hourly)
+        self.scheduler.every(3600).seconds.do(
+            self._safe_run_job, self._run_error_digest, "error_digest"
+        ).tag("error_digest")
+
         # Status update job (every 5s)
         self.scheduler.every(5).seconds.do(
             self._safe_run_job, self._update_status_file, "status_update"
@@ -299,6 +304,19 @@ class AxeScheduler:
     def _run_stale_running_cleanup(self) -> None:
         """Clean up stale RUNNING entries for dead processes."""
         self._hook_runner.run_stale_running_cleanup()
+
+    def _run_error_digest(self) -> None:
+        """Send a notification if there were axe errors in the last hour."""
+        from datetime import timedelta
+
+        from sase.axe.state import read_errors
+        from sase.notifications.senders import notify_axe_error_digest
+
+        errors = read_errors()
+        cutoff = (datetime.now(EASTERN_TZ) - timedelta(hours=1)).isoformat()
+        recent = [e for e in errors if e.get("timestamp", "") >= cutoff]
+        if recent:
+            notify_axe_error_digest(recent)
 
     def _update_status_file(self) -> None:
         """Update status file for TUI visibility."""

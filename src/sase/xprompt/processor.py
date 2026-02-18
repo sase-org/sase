@@ -479,7 +479,7 @@ def execute_workflow(
 
     hitl_handler: TUIHITLHandler | CLIHITLHandler
     if silent:
-        hitl_handler = TUIHITLHandler(artifacts_dir)
+        hitl_handler = TUIHITLHandler(artifacts_dir, workflow_name=name)
         output_handler = None
     elif is_anonymous_single_step:
         hitl_handler = CLIHITLHandler()

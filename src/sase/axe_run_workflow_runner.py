@@ -197,6 +197,18 @@ def main() -> None:
             except Exception as e:
                 print(f"Error releasing workspace: {e}", file=sys.stderr)
 
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="user-workflow",
+            cl_name=cl_name,
+            project_file=project_file,
+            success=success,
+            notes=[f"Workflow {'completed' if success else 'failed'}: {workflow_name}"],
+            action="Tmux" if workspace_dir else None,
+            action_data={"workspace_dir": workspace_dir} if workspace_dir else {},
+        )
+
     sys.exit(0 if success else 1)
 
 

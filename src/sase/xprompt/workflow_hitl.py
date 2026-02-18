@@ -45,13 +45,15 @@ class TUIHITLHandler:
     allowing the TUI to present the HITL options to the user asynchronously.
     """
 
-    def __init__(self, artifacts_dir: str) -> None:
+    def __init__(self, artifacts_dir: str, workflow_name: str = "") -> None:
         """Initialize the TUI HITL handler.
 
         Args:
             artifacts_dir: Directory for workflow artifacts where HITL files are written.
+            workflow_name: Name of the workflow for notification context.
         """
         self.artifacts_dir = artifacts_dir
+        self.workflow_name = workflow_name
 
     def prompt(
         self,
@@ -92,6 +94,14 @@ class TUIHITLHandler:
             request_data["output_types"] = output_types
         with open(request_path, "w", encoding="utf-8") as f:
             json.dump(request_data, f, indent=2, default=str)
+
+        from sase.notifications.senders import notify_hitl_request
+
+        notify_hitl_request(
+            step_name=step_name,
+            workflow_name=self.workflow_name,
+            artifacts_dir=self.artifacts_dir,
+        )
 
         # Poll for response file
         start_time = time.time()
