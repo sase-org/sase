@@ -10,19 +10,19 @@ def test_mentor_config_dataclass() -> None:
 
     assert config.mentor_name == "test"
     assert config.prompt == "test prompt"
-    assert config.run_on_wip is False  # Default value
+    assert config.run_on_draft is False  # Default value
 
 
-def test_mentor_config_run_on_wip_default() -> None:
-    """Test MentorConfig run_on_wip defaults to False."""
+def test_mentor_config_run_on_draft_default() -> None:
+    """Test MentorConfig run_on_draft defaults to False."""
     config = MentorConfig(mentor_name="test", prompt="test prompt")
-    assert config.run_on_wip is False
+    assert config.run_on_draft is False
 
 
-def test_mentor_config_run_on_wip_true() -> None:
-    """Test MentorConfig with run_on_wip=True."""
-    config = MentorConfig(mentor_name="test", prompt="test prompt", run_on_wip=True)
-    assert config.run_on_wip is True
+def test_mentor_config_run_on_draft_true() -> None:
+    """Test MentorConfig with run_on_draft=True."""
+    config = MentorConfig(mentor_name="test", prompt="test prompt", run_on_draft=True)
+    assert config.run_on_draft is True
 
 
 def test_mentor_profile_config_with_file_globs() -> None:

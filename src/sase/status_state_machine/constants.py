@@ -32,7 +32,8 @@ def remove_workspace_suffix(status: str) -> str:
 # Note: "Changes Requested" status has been replaced by the COMMENTS field.
 VALID_STATUSES = [
     "WIP",
-    "Drafted",
+    "Draft",
+    "Ready",
     "Mailed",
     "Submitted",
     "Reverted",
@@ -43,8 +44,9 @@ VALID_STATUSES = [
 # Valid state transitions
 # Key: current status, Value: list of allowed next statuses
 VALID_TRANSITIONS: dict[str, list[str]] = {
-    "WIP": ["Drafted"],
-    "Drafted": ["Mailed", "WIP"],
+    "WIP": ["Draft", "Ready"],
+    "Draft": ["Ready"],
+    "Ready": ["Mailed", "Draft"],
     "Mailed": ["Submitted"],
     # Submitted is terminal
     "Submitted": [],

@@ -8,7 +8,7 @@ from sase.ace.scheduler.suffix_transforms import check_ready_to_mail
 
 def _make_changespec(
     name: str = "test_cs",
-    status: str = "Drafted",
+    status: str = "Ready",
     file_path: str = "/path/to/project.gp",
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
@@ -30,9 +30,9 @@ def _make_changespec(
     )
 
 
-def test_check_ready_to_mail_adds_suffix_for_drafted_no_errors() -> None:
-    """Test check_ready_to_mail adds suffix for Drafted status with no errors."""
-    changespec = _make_changespec(status="Drafted")
+def test_check_ready_to_mail_adds_suffix_for_ready_no_errors() -> None:
+    """Test check_ready_to_mail adds suffix for Ready status with no errors."""
+    changespec = _make_changespec(status="Ready")
     all_changespecs = [changespec]
 
     with patch(
@@ -45,8 +45,8 @@ def test_check_ready_to_mail_adds_suffix_for_drafted_no_errors() -> None:
     assert "Added READY TO MAIL suffix" in result[0]
 
 
-def test_check_ready_to_mail_skips_non_drafted_status() -> None:
-    """Test check_ready_to_mail skips non-Drafted statuses."""
+def test_check_ready_to_mail_skips_non_ready_status() -> None:
+    """Test check_ready_to_mail skips non-Ready statuses."""
     changespec = _make_changespec(status="Mailed")
     all_changespecs = [changespec]
 
@@ -57,7 +57,7 @@ def test_check_ready_to_mail_skips_non_drafted_status() -> None:
 
 def test_check_ready_to_mail_skips_already_has_suffix() -> None:
     """Test check_ready_to_mail skips if suffix already present."""
-    changespec = _make_changespec(status="Drafted - (!: READY TO MAIL)")
+    changespec = _make_changespec(status="Ready - (!: READY TO MAIL)")
     all_changespecs = [changespec]
 
     result = check_ready_to_mail(changespec, all_changespecs)
@@ -79,7 +79,7 @@ def test_check_ready_to_mail_skips_with_error_suffix_in_hooks() -> None:
             )
         ],
     )
-    changespec = _make_changespec(status="Drafted", hooks=[hook])
+    changespec = _make_changespec(status="Ready", hooks=[hook])
     all_changespecs = [changespec]
 
     result = check_ready_to_mail(changespec, all_changespecs)
@@ -89,13 +89,13 @@ def test_check_ready_to_mail_skips_with_error_suffix_in_hooks() -> None:
 
 def test_check_ready_to_mail_skips_parent_not_ready() -> None:
     """Test check_ready_to_mail skips if parent is not ready."""
-    parent = _make_changespec(name="parent_cs", status="Drafted")
+    parent = _make_changespec(name="parent_cs", status="Ready")
     child = ChangeSpec(
         name="child_cs",
         description="Test description",
         parent="parent_cs",
         cl="http://cl/12346",
-        status="Drafted",
+        status="Ready",
         test_targets=None,
         kickstart=None,
         file_path="/path/to/project.gp",
@@ -119,7 +119,7 @@ def test_check_ready_to_mail_allows_parent_submitted() -> None:
         description="Test description",
         parent="parent_cs",
         cl="http://cl/12346",
-        status="Drafted",
+        status="Ready",
         test_targets=None,
         kickstart=None,
         file_path="/path/to/project.gp",
@@ -145,13 +145,13 @@ def test_check_ready_to_mail_skips_parent_with_only_suffix() -> None:
 
     Parent must be Mailed or Submitted, not just have the READY TO MAIL suffix.
     """
-    parent = _make_changespec(name="parent_cs", status="Drafted - (!: READY TO MAIL)")
+    parent = _make_changespec(name="parent_cs", status="Ready - (!: READY TO MAIL)")
     child = ChangeSpec(
         name="child_cs",
         description="Test description",
         parent="parent_cs",
         cl="http://cl/12346",
-        status="Drafted",
+        status="Ready",
         test_targets=None,
         kickstart=None,
         file_path="/path/to/project.gp",
@@ -183,7 +183,7 @@ def test_check_ready_to_mail_removes_suffix_when_error_appears() -> None:
         ],
     )
     # ChangeSpec has READY TO MAIL suffix but now has an error
-    changespec = _make_changespec(status="Drafted - (!: READY TO MAIL)", hooks=[hook])
+    changespec = _make_changespec(status="Ready - (!: READY TO MAIL)", hooks=[hook])
     all_changespecs = [changespec]
 
     with patch(
@@ -198,15 +198,15 @@ def test_check_ready_to_mail_removes_suffix_when_error_appears() -> None:
 
 def test_check_ready_to_mail_removes_suffix_when_parent_not_ready() -> None:
     """Test check_ready_to_mail removes suffix when parent is no longer ready."""
-    # Parent no longer has READY TO MAIL suffix and is still Drafted
-    parent = _make_changespec(name="parent_cs", status="Drafted")
+    # Parent no longer has READY TO MAIL suffix and is still Ready
+    parent = _make_changespec(name="parent_cs", status="Ready")
     # Child has the suffix but parent is not ready anymore
     child = ChangeSpec(
         name="child_cs",
         description="Test description",
         parent="parent_cs",
         cl="http://cl/12346",
-        status="Drafted - (!: READY TO MAIL)",
+        status="Ready - (!: READY TO MAIL)",
         test_targets=None,
         kickstart=None,
         file_path="/path/to/project.gp",
@@ -230,7 +230,7 @@ def test_check_ready_to_mail_removes_suffix_when_parent_not_ready() -> None:
 def test_check_ready_to_mail_keeps_suffix_when_conditions_still_met() -> None:
     """Test check_ready_to_mail keeps suffix when conditions are still met."""
     # ChangeSpec has suffix and conditions are still met (no parent, no errors)
-    changespec = _make_changespec(status="Drafted - (!: READY TO MAIL)")
+    changespec = _make_changespec(status="Ready - (!: READY TO MAIL)")
     all_changespecs = [changespec]
 
     result = check_ready_to_mail(changespec, all_changespecs)

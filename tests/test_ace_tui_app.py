@@ -13,7 +13,7 @@ from textual.widgets import Input
 def _make_changespec(
     name: str = "test_feature",
     description: str = "Test description",
-    status: str = "Drafted",
+    status: str = "Ready",
     cl: str | None = None,
     parent: str | None = None,
     file_path: str = "/tmp/test.gp",

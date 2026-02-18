@@ -46,7 +46,7 @@ def _get_conflicting_changespec(project: str, cl_name: str) -> tuple[str, str] |
     changespecs = parse_project_file(project_file)
     for cs in changespecs:
         cs_base = strip_reverted_suffix(cs.name)
-        if cs_base == base_name and cs.status not in {"WIP", "Reverted"}:
+        if cs_base == base_name and cs.status not in {"WIP", "Draft", "Reverted"}:
             return (cs.name, cs.status)
 
     return None

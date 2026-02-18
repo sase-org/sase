@@ -321,17 +321,17 @@ class KeybindingFooter(Horizontal):
 
         base_status = get_base_status(changespec.status)
 
-        # Reword (only if CL exists AND status is WIP, Drafted, or Mailed)
+        # Reword (only if CL exists AND status is WIP, Draft, Ready, or Mailed)
         if changespec.cl is not None:
-            if base_status in ("WIP", "Drafted", "Mailed"):
+            if base_status in ("WIP", "Draft", "Ready", "Mailed"):
                 bindings.append(("w", "reword"))
 
         # Mail (only if READY TO MAIL)
         if has_ready_to_mail_suffix(changespec.status):
             bindings.append(("M", "mail"))
 
-        # Rebase (only if status is WIP, Drafted, or Mailed)
-        if base_status in ("WIP", "Drafted", "Mailed"):
+        # Rebase (only if status is WIP, Draft, Ready, or Mailed)
+        if base_status in ("WIP", "Draft", "Ready", "Mailed"):
             bindings.append(("b", "rebase"))
 
         # Rewind (only if status is not Submitted/Reverted and >=2 accepted entries)
@@ -340,8 +340,8 @@ class KeybindingFooter(Horizontal):
             if len(numeric_entries) >= 2:
                 bindings.append(("R", "rewind"))
 
-        # Sync (only if status is WIP, Drafted, or Mailed)
-        if base_status in ("WIP", "Drafted", "Mailed"):
+        # Sync (only if status is WIP, Draft, Ready, or Mailed)
+        if base_status in ("WIP", "Draft", "Ready", "Mailed"):
             bindings.append(("Y", "sync"))
 
         # Rename (only if status is not Submitted or Reverted)

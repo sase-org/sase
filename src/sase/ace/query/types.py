@@ -46,7 +46,7 @@ class PropertyMatch:
     Matches against specific ChangeSpec fields rather than full-text search.
 
     Supported properties:
-    - status: Match against STATUS field (DRAFTED, MAILED, SUBMITTED, REVERTED)
+    - status: Match against STATUS field (WIP, DRAFT, READY, MAILED, SUBMITTED, REVERTED)
     - project: Match against project basename from file_path
     - ancestor: Match if ChangeSpec name or parent chain includes the value
 

@@ -124,7 +124,7 @@ class CommitWorkflow(BaseWorkflow):
         if not self.cl_name.startswith(f"{project}_"):
             full_name = f"{project}_{self.cl_name}"
 
-        # Check for blocking ChangeSpec with exact name match (Drafted/Mailed status)
+        # Check for blocking ChangeSpec with exact name match (Ready/Mailed status)
         blocking = get_blocking_exact_match_changespec(project, full_name)
         if blocking:
             blocking_name, blocking_status = blocking
@@ -132,7 +132,7 @@ class CommitWorkflow(BaseWorkflow):
                 f"Cannot create CL '{self.cl_name}': ChangeSpec '{blocking_name}' "
                 f"already exists with status '{blocking_status}'. "
                 f"A new ChangeSpec with a suffixed name will NOT be created when "
-                f"an exact match exists with Drafted or Mailed status.",
+                f"an exact match exists with Ready or Mailed status.",
                 "error",
             )
             return False

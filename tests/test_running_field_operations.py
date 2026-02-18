@@ -34,7 +34,7 @@ def _create_project_file_with_running(
         f.write("  Test description\n")
         f.write("PARENT: None\n")
         f.write("CL: None\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         return f.name
 
 
@@ -388,7 +388,7 @@ def test_get_workspace_directory_uses_running_field() -> None:
             parent="None",
             cl="None",
             test_targets=None,
-            status="Drafted",
+            status="Ready",
             file_path=project_file,
             line_number=1,
             kickstart=None,

@@ -46,9 +46,9 @@ def handle_mail(
     from ..changespec import get_base_status
 
     base_status = get_base_status(changespec.status)
-    if base_status != "Drafted":
+    if base_status != "Ready":
         self.console.print(
-            "[yellow]mail option only available for Drafted ChangeSpecs[/yellow]"
+            "[yellow]mail option only available for Ready ChangeSpecs[/yellow]"
         )
         return changespecs, current_idx
 

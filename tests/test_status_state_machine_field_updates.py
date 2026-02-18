@@ -1,4 +1,4 @@
-"""Tests for CL updates, WIP suffix, parent-child constraints, and description updates."""
+"""Tests for CL updates, Draft suffix, parent-child constraints, and description updates."""
 
 import tempfile
 from pathlib import Path
@@ -12,7 +12,7 @@ from sase.status_state_machine.field_updates import (
 
 
 def _create_test_project_file_with_suffix(
-    name: str = "Test Feature", status: str = "Drafted"
+    name: str = "Test Feature", status: str = "Ready"
 ) -> str:
     """Create a temporary project file with a specific NAME for suffix testing."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
@@ -40,7 +40,7 @@ def test__apply_cl_update_sets_cl() -> None:
         "DESCRIPTION:\n",
         "  Test description\n",
         "CL: old_cl\n",
-        "STATUS: WIP\n",
+        "STATUS: Draft\n",
     ]
     result = _apply_cl_update(lines, "Test Feature", "new_cl_value", "/nonexistent")
     assert "CL: new_cl_value\n" in result
@@ -52,7 +52,7 @@ def test__apply_cl_update_removes_cl() -> None:
     lines = [
         "NAME: Test Feature\n",
         "CL: old_cl\n",
-        "STATUS: WIP\n",
+        "STATUS: Draft\n",
     ]
     result = _apply_cl_update(lines, "Test Feature", None, "/nonexistent")
     assert "CL:" not in result
@@ -64,7 +64,7 @@ def test__apply_cl_update_adds_cl_before_status() -> None:
         "NAME: Test Feature\n",
         "DESCRIPTION:\n",
         "  Test description\n",
-        "STATUS: WIP\n",
+        "STATUS: Draft\n",
     ]
     result = _apply_cl_update(lines, "Test Feature", "new_cl", "/nonexistent")
     assert "CL: new_cl\n" in result
@@ -75,17 +75,17 @@ def test__apply_cl_update_adds_cl_before_status() -> None:
     assert cl_idx < status_idx
 
 
-def test_transition_changespec_status_drafted_to_wip_adds_suffix() -> None:
-    """Test that Drafted -> WIP transition adds __<N> suffix."""
+def test_transition_changespec_status_ready_to_draft_adds_suffix() -> None:
+    """Test that Ready -> Draft transition adds __<N> suffix."""
     project_file = _create_test_project_file_with_suffix(
-        name="Test Feature", status="Drafted"
+        name="Test Feature", status="Ready"
     )
 
     try:
         # Mock functions imported at runtime - use source module paths
         with (
             patch("sase.ace.changespec.find_all_changespecs") as mock_find,
-            patch("sase.ace.mentors.set_mentor_wip_flags") as mock_set_wip,
+            patch("sase.ace.mentors.set_mentor_draft_flags") as mock_set_draft,
             patch("sase.ace.revert.update_changespec_name_atomic") as mock_rename,
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
             patch(
@@ -97,11 +97,11 @@ def test_transition_changespec_status_drafted_to_wip_adds_suffix() -> None:
             mock_ws_dir.side_effect = RuntimeError("No workspace")
 
             success, old_status, error, _ = transition_changespec_status(
-                project_file, "Test Feature", "WIP", validate=True
+                project_file, "Test Feature", "Draft", validate=True
             )
 
             assert success is True
-            assert old_status == "Drafted"
+            assert old_status == "Ready"
             assert error is None
 
             # Verify NAME rename was called with correct suffix
@@ -114,17 +114,17 @@ def test_transition_changespec_status_drafted_to_wip_adds_suffix() -> None:
                 project_file, "Test Feature", "Test Feature__1"
             )
 
-            # Verify set_mentor_wip_flags was called
-            mock_set_wip.assert_called_once()
+            # Verify set_mentor_draft_flags was called
+            mock_set_draft.assert_called_once()
 
     finally:
         Path(project_file).unlink()
 
 
-def test_transition_changespec_status_drafted_to_wip_increments_suffix() -> None:
-    """Test that Drafted -> WIP uses next available suffix number."""
+def test_transition_changespec_status_ready_to_draft_increments_suffix() -> None:
+    """Test that Ready -> Draft uses next available suffix number."""
     project_file = _create_test_project_file_with_suffix(
-        name="Test Feature", status="Drafted"
+        name="Test Feature", status="Ready"
     )
 
     try:
@@ -137,7 +137,7 @@ def test_transition_changespec_status_drafted_to_wip_increments_suffix() -> None
         # Mock functions imported at runtime - use source module paths
         with (
             patch("sase.ace.changespec.find_all_changespecs") as mock_find,
-            patch("sase.ace.mentors.set_mentor_wip_flags"),
+            patch("sase.ace.mentors.set_mentor_draft_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic") as mock_rename,
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
             patch(
@@ -149,7 +149,7 @@ def test_transition_changespec_status_drafted_to_wip_increments_suffix() -> None
             mock_ws_dir.side_effect = RuntimeError("No workspace")
 
             success, old_status, error, _ = transition_changespec_status(
-                project_file, "Test Feature", "WIP", validate=True
+                project_file, "Test Feature", "Draft", validate=True
             )
 
             assert success is True
@@ -163,8 +163,8 @@ def test_transition_changespec_status_drafted_to_wip_increments_suffix() -> None
         Path(project_file).unlink()
 
 
-def test_transition_changespec_status_drafted_to_wip_updates_parent_refs() -> None:
-    """Test that Drafted -> WIP updates PARENT references in child ChangeSpecs."""
+def test_transition_changespec_status_ready_to_draft_updates_parent_refs() -> None:
+    """Test that Ready -> Draft updates PARENT references in child ChangeSpecs."""
     # Create a project file with parent-child relationship
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write("""# Test Project
@@ -175,7 +175,7 @@ NAME: Parent Feature
 DESCRIPTION:
   A parent feature
 CL: None
-STATUS: Drafted
+STATUS: Ready
 TEST TARGETS: None
 
 
@@ -186,7 +186,7 @@ DESCRIPTION:
   A child feature
 PARENT: Parent Feature
 CL: None
-STATUS: WIP
+STATUS: Draft
 TEST TARGETS: None
 
 ---
@@ -197,7 +197,7 @@ TEST TARGETS: None
         # Mock functions imported at runtime - use source module paths
         with (
             patch("sase.ace.changespec.find_all_changespecs") as mock_find,
-            patch("sase.ace.mentors.set_mentor_wip_flags"),
+            patch("sase.ace.mentors.set_mentor_draft_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic"),
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
             patch(
@@ -209,7 +209,7 @@ TEST TARGETS: None
             mock_ws_dir.side_effect = RuntimeError("No workspace")
 
             success, _, _, _ = transition_changespec_status(
-                project_file, "Parent Feature", "WIP", validate=True
+                project_file, "Parent Feature", "Draft", validate=True
             )
 
             assert success is True
@@ -223,52 +223,52 @@ TEST TARGETS: None
         Path(project_file).unlink()
 
 
-# === WIP children constraint tests ===
+# === Draft children constraint tests ===
 
 
-def test_transition_to_wip_blocked_when_child_is_drafted() -> None:
-    """Test that transition to WIP is blocked when a child has Drafted status."""
+def test_transition_to_draft_blocked_when_child_is_ready() -> None:
+    """Test that transition to Draft is blocked when a child has Ready status."""
     project_file = _create_test_project_file_with_suffix(
-        name="Parent Feature", status="Drafted"
+        name="Parent Feature", status="Ready"
     )
 
     try:
-        # Mock find_all_changespecs to return a child with Drafted status
+        # Mock find_all_changespecs to return a child with Ready status
         mock_child = MagicMock()
         mock_child.name = "Child Feature"
         mock_child.parent = "Parent Feature"
-        mock_child.status = "Drafted"
+        mock_child.status = "Ready"
 
         with patch("sase.ace.changespec.find_all_changespecs") as mock_find:
             mock_find.return_value = [mock_child]
 
             success, old_status, error, _ = transition_changespec_status(
-                project_file, "Parent Feature", "WIP", validate=True
+                project_file, "Parent Feature", "Draft", validate=True
             )
 
             assert success is False
-            assert old_status == "Drafted"
+            assert old_status == "Ready"
             assert error is not None
-            assert "Cannot transition 'Parent Feature' to WIP" in error
-            assert "children must be WIP or Reverted" in error
-            assert "Child Feature (Drafted)" in error
+            assert "Cannot transition 'Parent Feature' to Draft" in error
+            assert "children must be WIP, Draft, or Reverted" in error
+            assert "Child Feature (Ready)" in error
 
     finally:
         Path(project_file).unlink()
 
 
-def test_transition_to_wip_allowed_when_children_are_wip_or_reverted() -> None:
-    """Test that transition to WIP succeeds when children are WIP or Reverted."""
+def test_transition_to_draft_allowed_when_children_are_draft_or_reverted() -> None:
+    """Test that transition to Draft succeeds when children are Draft or Reverted."""
     project_file = _create_test_project_file_with_suffix(
-        name="Parent Feature", status="Drafted"
+        name="Parent Feature", status="Ready"
     )
 
     try:
         # Mock find_all_changespecs to return children with valid statuses
-        mock_child_wip = MagicMock()
-        mock_child_wip.name = "Child WIP"
-        mock_child_wip.parent = "Parent Feature"
-        mock_child_wip.status = "WIP"
+        mock_child_draft = MagicMock()
+        mock_child_draft.name = "Child Draft"
+        mock_child_draft.parent = "Parent Feature"
+        mock_child_draft.status = "Draft"
 
         mock_child_reverted = MagicMock()
         mock_child_reverted.name = "Child Reverted"
@@ -279,11 +279,11 @@ def test_transition_to_wip_allowed_when_children_are_wip_or_reverted() -> None:
         mock_unrelated = MagicMock()
         mock_unrelated.name = "Unrelated"
         mock_unrelated.parent = "Other Parent"
-        mock_unrelated.status = "Drafted"
+        mock_unrelated.status = "Ready"
 
         with (
             patch("sase.ace.changespec.find_all_changespecs") as mock_find,
-            patch("sase.ace.mentors.set_mentor_wip_flags"),
+            patch("sase.ace.mentors.set_mentor_draft_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic"),
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
             patch(
@@ -292,26 +292,26 @@ def test_transition_to_wip_allowed_when_children_are_wip_or_reverted() -> None:
             patch("sase.running_field.update_running_field_cl_name"),
         ):
             mock_find.return_value = [
-                mock_child_wip,
+                mock_child_draft,
                 mock_child_reverted,
                 mock_unrelated,
             ]
             mock_ws_dir.side_effect = RuntimeError("No workspace")
 
             success, old_status, error, _ = transition_changespec_status(
-                project_file, "Parent Feature", "WIP", validate=True
+                project_file, "Parent Feature", "Draft", validate=True
             )
 
             assert success is True
-            assert old_status == "Drafted"
+            assert old_status == "Ready"
             assert error is None
 
     finally:
         Path(project_file).unlink()
 
 
-def test_transition_from_wip_blocked_when_parent_is_wip() -> None:
-    """Test that child cannot transition away from WIP/Reverted when parent is WIP."""
+def test_transition_from_draft_blocked_when_parent_is_draft() -> None:
+    """Test that child cannot transition away from Draft/Reverted when parent is Draft."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write("""# Test Project
 
@@ -321,7 +321,7 @@ NAME: Parent Feature
 DESCRIPTION:
   A parent feature
 CL: None
-STATUS: WIP
+STATUS: Draft
 TEST TARGETS: None
 
 
@@ -332,7 +332,7 @@ DESCRIPTION:
   A child feature
 PARENT: Parent Feature
 CL: None
-STATUS: WIP
+STATUS: Draft
 TEST TARGETS: None
 
 ---
@@ -340,24 +340,26 @@ TEST TARGETS: None
         project_file = f.name
 
     try:
-        # Try to transition child from WIP to Drafted when parent is WIP
+        # Try to transition child from Draft to Ready when parent is Draft
         success, old_status, error, _ = transition_changespec_status(
-            project_file, "Child Feature", "Drafted", validate=True
+            project_file, "Child Feature", "Ready", validate=True
         )
 
         assert success is False
-        assert old_status == "WIP"
+        assert old_status == "Draft"
         assert error is not None
-        assert "Cannot transition 'Child Feature' to Drafted" in error
-        assert "parent 'Parent Feature' is WIP" in error
-        assert "Children of WIP ChangeSpecs must be WIP or Reverted" in error
+        assert "Cannot transition 'Child Feature' to Ready" in error
+        assert "parent 'Parent Feature' is Draft" in error
+        assert (
+            "Children of WIP/Draft ChangeSpecs must be WIP, Draft, or Reverted" in error
+        )
 
     finally:
         Path(project_file).unlink()
 
 
-def test_transition_from_wip_allowed_when_parent_is_not_wip() -> None:
-    """Test that child can transition when parent is not WIP."""
+def test_transition_from_draft_allowed_when_parent_is_not_draft() -> None:
+    """Test that child can transition when parent is not Draft."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write("""# Test Project
 
@@ -367,7 +369,7 @@ NAME: Parent Feature
 DESCRIPTION:
   A parent feature
 CL: None
-STATUS: Drafted
+STATUS: Ready
 TEST TARGETS: None
 
 
@@ -378,7 +380,7 @@ DESCRIPTION:
   A child feature
 PARENT: Parent Feature
 CL: None
-STATUS: WIP
+STATUS: Draft
 TEST TARGETS: None
 
 ---
@@ -388,26 +390,26 @@ TEST TARGETS: None
     try:
         # Mock the external dependencies
         with (
-            patch("sase.ace.mentors.clear_mentor_wip_flags"),
+            patch("sase.ace.mentors.clear_mentor_draft_flags"),
             patch("sase.sase_utils.has_suffix") as mock_has_suffix,
         ):
             mock_has_suffix.return_value = False
 
-            # Transition child from WIP to Drafted when parent is Drafted
+            # Transition child from Draft to Ready when parent is Ready
             success, old_status, error, _ = transition_changespec_status(
-                project_file, "Child Feature", "Drafted", validate=True
+                project_file, "Child Feature", "Ready", validate=True
             )
 
             assert success is True
-            assert old_status == "WIP"
+            assert old_status == "Draft"
             assert error is None
 
     finally:
         Path(project_file).unlink()
 
 
-def test_transition_to_reverted_allowed_when_parent_is_wip() -> None:
-    """Test that child can transition to Reverted even when parent is WIP."""
+def test_transition_to_reverted_allowed_when_parent_is_draft() -> None:
+    """Test that child can transition to Reverted even when parent is Draft."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write("""# Test Project
 
@@ -417,7 +419,7 @@ NAME: Parent Feature
 DESCRIPTION:
   A parent feature
 CL: None
-STATUS: WIP
+STATUS: Draft
 TEST TARGETS: None
 
 
@@ -428,7 +430,7 @@ DESCRIPTION:
   A child feature
 PARENT: Parent Feature
 CL: None
-STATUS: WIP
+STATUS: Draft
 TEST TARGETS: None
 
 ---
@@ -436,14 +438,14 @@ TEST TARGETS: None
         project_file = f.name
 
     try:
-        # Transition child to Reverted - this should succeed even with WIP parent
+        # Transition child to Reverted - this should succeed even with Draft parent
         # Note: validate=False because Reverted is typically set via revert operation
         success, old_status, error, _ = transition_changespec_status(
             project_file, "Child Feature", "Reverted", validate=False
         )
 
         assert success is True
-        assert old_status == "WIP"
+        assert old_status == "Draft"
         assert error is None
 
     finally:
@@ -461,7 +463,7 @@ def test__apply_description_update_single_line() -> None:
         "  Old description\n",
         "PARENT: None\n",
         "CL: 12345\n",
-        "STATUS: WIP\n",
+        "STATUS: Draft\n",
     ]
     result = _apply_description_update(lines, "Test Feature", "New description")
     assert "DESCRIPTION:\n" in result
@@ -470,7 +472,7 @@ def test__apply_description_update_single_line() -> None:
     # Surrounding fields preserved
     assert "PARENT: None\n" in result
     assert "CL: 12345\n" in result
-    assert "STATUS: WIP\n" in result
+    assert "STATUS: Draft\n" in result
 
 
 def test__apply_description_update_multi_line() -> None:
@@ -482,7 +484,7 @@ def test__apply_description_update_multi_line() -> None:
         "\n",
         "  Old line two\n",
         "PARENT: None\n",
-        "STATUS: WIP\n",
+        "STATUS: Draft\n",
     ]
     result = _apply_description_update(
         lines, "Test Feature", "New line one\n\nNew line two"
@@ -492,7 +494,7 @@ def test__apply_description_update_multi_line() -> None:
     assert "Old line one" not in result
     assert "Old line two" not in result
     assert "PARENT: None\n" in result
-    assert "STATUS: WIP\n" in result
+    assert "STATUS: Draft\n" in result
 
 
 def test__apply_description_update_only_targets_correct_changespec() -> None:
@@ -501,12 +503,12 @@ def test__apply_description_update_only_targets_correct_changespec() -> None:
         "NAME: First Feature\n",
         "DESCRIPTION:\n",
         "  First description\n",
-        "STATUS: WIP\n",
+        "STATUS: Draft\n",
         "\n",
         "NAME: Second Feature\n",
         "DESCRIPTION:\n",
         "  Second description\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
     ]
     result = _apply_description_update(lines, "Second Feature", "Updated second")
     # First feature's description should be untouched
@@ -525,7 +527,7 @@ def test__apply_description_update_preserves_surrounding_fields() -> None:
         "  Old description line 2\n",
         "PARENT: Parent CL\n",
         "CL: 99999\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "TEST TARGETS: //foo:bar_test\n",
     ]
     result = _apply_description_update(lines, "Test Feature", "Brand new desc")

@@ -199,14 +199,14 @@ def test_format_profile_with_count_with_status_lines() -> None:
 
 
 # Tests for get_status_color
-def test_get_status_color_wip() -> None:
-    """Test get_status_color returns gold for WIP."""
-    assert get_status_color("WIP") == "#FFD700"
+def test_get_status_color_draft() -> None:
+    """Test get_status_color returns gold for Draft."""
+    assert get_status_color("Draft") == "#FFD700"
 
 
-def test_get_status_color_drafted() -> None:
-    """Test get_status_color returns green for Drafted."""
-    assert get_status_color("Drafted") == "#87D700"
+def test_get_status_color_ready() -> None:
+    """Test get_status_color returns green for Ready."""
+    assert get_status_color("Ready") == "#87D700"
 
 
 def test_get_status_color_mailed() -> None:
@@ -231,8 +231,8 @@ def test_get_status_color_unknown() -> None:
 
 def test_get_status_color_with_workspace_suffix() -> None:
     """Test get_status_color strips workspace suffix before lookup."""
-    assert get_status_color("WIP (fig_3)") == "#FFD700"
-    assert get_status_color("Drafted (project_99)") == "#87D700"
+    assert get_status_color("Draft (fig_3)") == "#FFD700"
+    assert get_status_color("Ready (project_99)") == "#87D700"
     assert get_status_color("Mailed (my-proj_1)") == "#00D787"
 
 

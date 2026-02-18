@@ -149,10 +149,10 @@ def _get_base_status(status: str) -> str:
     """Get base status without workspace suffix or READY TO MAIL suffix.
 
     Args:
-        status: The full status string (e.g., "Drafted (fig_1)" or "Drafted - (!: READY TO MAIL)").
+        status: The full status string (e.g., "Ready (fig_1)" or "Ready - (!: READY TO MAIL)").
 
     Returns:
-        The base status value (e.g., "Drafted").
+        The base status value (e.g., "Ready").
     """
     # Strip workspace suffix: " (<project>_<N>)" at end
     status = re.sub(r" \([a-zA-Z0-9_-]+_\d+\)$", "", status)

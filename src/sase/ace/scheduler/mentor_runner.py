@@ -173,7 +173,7 @@ def start_mentors_for_profile(
 ) -> tuple[int, list[str]]:
     """Start mentor workflows for a profile.
 
-    During WIP status, only mentors with run_on_wip=True will be started.
+    During Draft status, only mentors with run_on_draft=True will be started.
 
     Args:
         changespec: The ChangeSpec to run mentors for.
@@ -190,8 +190,8 @@ def start_mentors_for_profile(
     updates: list[str] = []
     started = 0
 
-    # Check if we're in WIP status (only run mentors with run_on_wip=True)
-    is_wip_status = remove_workspace_suffix(changespec.status) == "WIP"
+    # Check if we're in Draft status (only run mentors with run_on_draft=True)
+    is_draft_status = remove_workspace_suffix(changespec.status) == "Draft"
 
     # Start each mentor in the profile
     # Note: Profile entry is already added upfront by _add_matching_profiles_upfront()
@@ -206,8 +206,8 @@ def start_mentors_for_profile(
         ):
             continue
 
-        # During WIP status, skip mentors without run_on_wip=True
-        if is_wip_status and not mentor.run_on_wip:
+        # During Draft status, skip mentors without run_on_draft=True
+        if is_draft_status and not mentor.run_on_draft:
             continue
 
         result = _start_single_mentor(

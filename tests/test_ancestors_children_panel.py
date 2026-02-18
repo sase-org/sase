@@ -34,20 +34,20 @@ def _find_siblings_and_keys(
 
 
 def test_suffixed_finds_non_suffixed_sibling() -> None:
-    """A suffixed (Reverted) ChangeSpec should find its non-suffixed (Drafted) sibling."""
+    """A suffixed (Reverted) ChangeSpec should find its non-suffixed (Ready) sibling."""
     _, siblings, _ = _find_siblings_and_keys(
         current_name="pat_no_last_7_days__1",
         current_status="Reverted",
-        sibling_specs=[("pat_no_last_7_days", "Drafted")],
+        sibling_specs=[("pat_no_last_7_days", "Ready")],
     )
     assert siblings == ["pat_no_last_7_days"]
 
 
 def test_non_suffixed_finds_suffixed_siblings() -> None:
-    """A non-suffixed (Drafted) ChangeSpec should find its suffixed (Reverted) siblings."""
+    """A non-suffixed (Ready) ChangeSpec should find its suffixed (Reverted) siblings."""
     _, siblings, _ = _find_siblings_and_keys(
         current_name="pat_no_last_7_days",
-        current_status="Drafted",
+        current_status="Ready",
         sibling_specs=[
             ("pat_no_last_7_days__1", "Reverted"),
             ("pat_no_last_7_days__2", "Reverted"),
@@ -63,17 +63,17 @@ def test_non_suffixed_sibling_sorts_first() -> None:
         current_status="Reverted",
         sibling_specs=[
             ("pat_no_last_7_days__1", "Reverted"),
-            ("pat_no_last_7_days", "Drafted"),
+            ("pat_no_last_7_days", "Ready"),
         ],
     )
     assert siblings == ["pat_no_last_7_days", "pat_no_last_7_days__1"]
 
 
 def test_hide_reverted_hides_reverted_siblings_from_non_suffixed() -> None:
-    """With hide_reverted=True, Reverted siblings should be hidden from a Drafted ChangeSpec."""
+    """With hide_reverted=True, Reverted siblings should be hidden from a Ready ChangeSpec."""
     panel, siblings, _ = _find_siblings_and_keys(
         current_name="foo",
-        current_status="Drafted",
+        current_status="Ready",
         sibling_specs=[
             ("foo__1", "Reverted"),
             ("foo__2", "Archived"),
@@ -84,13 +84,13 @@ def test_hide_reverted_hides_reverted_siblings_from_non_suffixed() -> None:
     assert panel._hidden_reverted_sibling_count == 2
 
 
-def test_hide_reverted_keeps_drafted_sibling_from_suffixed() -> None:
-    """With hide_reverted=True, a Drafted (non-suffixed) sibling should still be shown."""
+def test_hide_reverted_keeps_ready_sibling_from_suffixed() -> None:
+    """With hide_reverted=True, a Ready (non-suffixed) sibling should still be shown."""
     _, siblings, _ = _find_siblings_and_keys(
         current_name="foo__1",
         current_status="Reverted",
         sibling_specs=[
-            ("foo", "Drafted"),
+            ("foo", "Ready"),
             ("foo__2", "Reverted"),
         ],
         hide_reverted=True,
@@ -115,10 +115,10 @@ def test_no_siblings_returns_empty() -> None:
     """ChangeSpec with no siblings returns empty list."""
     _, siblings, _ = _find_siblings_and_keys(
         current_name="unique_name",
-        current_status="Drafted",
+        current_status="Ready",
         sibling_specs=[
             ("different_base__1", "Reverted"),
-            ("other_thing", "Drafted"),
+            ("other_thing", "Ready"),
         ],
     )
     assert siblings == []
@@ -130,7 +130,7 @@ def test_sibling_keys_assigned_correctly() -> None:
         current_name="baz__1",
         current_status="Reverted",
         sibling_specs=[
-            ("baz", "Drafted"),
+            ("baz", "Ready"),
             ("baz__2", "Reverted"),
         ],
     )
@@ -146,7 +146,7 @@ def test_single_sibling_gets_tilde_key() -> None:
     _, siblings, sibling_keys = _find_siblings_and_keys(
         current_name="qux__1",
         current_status="Reverted",
-        sibling_specs=[("qux", "Drafted")],
+        sibling_specs=[("qux", "Ready")],
     )
     assert len(siblings) == 1
     assert "~" in sibling_keys

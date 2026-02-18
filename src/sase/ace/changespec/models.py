@@ -137,7 +137,7 @@ def has_ready_to_mail_suffix(status: str) -> bool:
     """Check if a status has the READY TO MAIL suffix.
 
     Args:
-        status: The STATUS value (e.g., "Drafted - (!: READY TO MAIL)").
+        status: The STATUS value (e.g., "Ready - (!: READY TO MAIL)").
 
     Returns:
         True if the status contains the READY TO MAIL marker.
@@ -149,10 +149,10 @@ def get_base_status(status: str) -> str:
     """Get base status without READY TO MAIL suffix.
 
     Args:
-        status: The STATUS value (e.g., "Drafted - (!: READY TO MAIL)").
+        status: The STATUS value (e.g., "Ready - (!: READY TO MAIL)").
 
     Returns:
-        The base status value (e.g., "Drafted").
+        The base status value (e.g., "Ready").
     """
     if has_ready_to_mail_suffix(status):
         return status.replace(READY_TO_MAIL_SUFFIX, "").strip()
@@ -383,7 +383,7 @@ class MentorEntry:
     entry_id: str  # Matches COMMITS entry ID (e.g., "1", "2")
     profiles: list[str]  # Profile names that were triggered for this entry
     status_lines: list[MentorStatusLine] | None = None
-    is_wip: bool = False  # True if entry was created during WIP status
+    is_draft: bool = False  # True if entry was created during Draft status
 
 
 @dataclass

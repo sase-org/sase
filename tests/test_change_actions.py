@@ -11,7 +11,7 @@ def test_delete_proposal_entry_success() -> None:
     project_content = """NAME: my_feature
 DESCRIPTION:
   Test description
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) Initial commit
       | DIFF: ~/.sase/diffs/my_feature_123.diff
@@ -45,7 +45,7 @@ def test_delete_proposal_entry_not_found() -> None:
     project_content = """NAME: my_feature
 DESCRIPTION:
   Test description
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) Initial commit
       | DIFF: ~/.sase/diffs/my_feature_123.diff

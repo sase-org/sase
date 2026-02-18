@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Migrate legacy status names in .gp project files.
+
+Performs the following replacements:
+  - STATUS: WIP       -> STATUS: Draft   (with optional workspace suffix)
+  - STATUS: Drafted    -> STATUS: Ready   (with optional READY TO MAIL / workspace suffix)
+  - #WIP               -> #Draft          (mentor markers in MENTORS entries)
+  - run_on_wip         -> run_on_draft    (embedded config references)
+
+Uses atomic writes (write to temp file, then rename) so that partial
+failures never leave a corrupt .gp file on disk.  The script is
+idempotent: running it multiple times produces the same result.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import sys
+import tempfile
+from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Replacement rules
+# ---------------------------------------------------------------------------
+
+# Each rule is (compiled_regex, replacement_string).
+_RULES: list[tuple[re.Pattern[str], str]] = [
+    # STATUS: WIP  ->  STATUS: Draft
+    # Handles optional workspace suffix like " (project_3)" at end of line.
+    (
+        re.compile(r"^(STATUS:\s+)WIP(\s*\([a-zA-Z0-9_-]+_\d+\))?\s*$", re.MULTILINE),
+        r"\1Draft\2",
+    ),
+    # STATUS: Drafted  ->  STATUS: Ready
+    # Handles optional " - (!: READY TO MAIL)" and/or workspace suffix.
+    (
+        re.compile(
+            r"^(STATUS:\s+)Drafted"
+            r"(\s*-\s*\(!\:\s*READY TO MAIL\))?"
+            r"(\s*\([a-zA-Z0-9_-]+_\d+\))?\s*$",
+            re.MULTILINE,
+        ),
+        r"\1Ready\2\3",
+    ),
+    # #WIP  ->  #Draft  (mentor markers)
+    (re.compile(r"#WIP\b"), "#Draft"),
+    # run_on_wip  ->  run_on_draft  (embedded config)
+    (re.compile(r"\brun_on_wip\b"), "run_on_draft"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _collect_gp_files(root: Path) -> list[Path]:
+    """Recursively find all *.gp files under *root*."""
+    return sorted(root.rglob("*.gp"))
+
+
+def _apply_rules(content: str) -> tuple[str, list[str]]:
+    """Apply every replacement rule to *content*.
+
+    Returns the (possibly modified) content and a list of human-readable
+    descriptions of what changed.
+    """
+    descriptions: list[str] = []
+    for pattern, replacement in _RULES:
+        new_content = pattern.sub(replacement, content)
+        if new_content != content:
+            # Build a short description from the pattern
+            descriptions.append(
+                f"  {pattern.pattern!s}  ->  {replacement!s}"
+            )
+            content = new_content
+    return content, descriptions
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write *content* to *path* atomically via a temp file + rename."""
+    try:
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+        )
+        try:
+            os.write(fd, content.encode())
+        finally:
+            os.close(fd)
+        os.replace(tmp_path, str(path))
+    except BaseException:
+        # Best-effort cleanup of the temp file on failure.
+        try:
+            os.unlink(tmp_path)  # type: ignore[possibly-undefined]
+        except OSError:
+            pass
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Migrate legacy status names in ~/.sase/projects/**/*.gp files.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without modifying any files.",
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path.home() / ".sase" / "projects",
+        help="Root directory to scan (default: ~/.sase/projects).",
+    )
+    args = parser.parse_args()
+
+    root: Path = args.root
+    dry_run: bool = args.dry_run
+
+    if not root.is_dir():
+        print(f"Root directory does not exist: {root}", file=sys.stderr)
+        sys.exit(1)
+
+    gp_files = _collect_gp_files(root)
+    if not gp_files:
+        print(f"No .gp files found under {root}")
+        return
+
+    files_modified = 0
+    files_scanned = 0
+
+    for gp_path in gp_files:
+        files_scanned += 1
+        try:
+            original = gp_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"WARNING: could not read {gp_path}: {exc}", file=sys.stderr)
+            continue
+
+        # Normalise Windows line-endings so regexes work uniformly,
+        # then restore original endings on write.
+        normalised = original.replace("\r\n", "\n")
+        updated, descriptions = _apply_rules(normalised)
+
+        if updated == normalised:
+            continue
+
+        # Restore original line endings if the file used CRLF.
+        if "\r\n" in original:
+            updated = updated.replace("\n", "\r\n")
+
+        files_modified += 1
+        print(f"{'[DRY RUN] ' if dry_run else ''}Modified: {gp_path}")
+        for desc in descriptions:
+            print(desc)
+
+        if not dry_run:
+            _atomic_write(gp_path, updated)
+
+    # Summary
+    print()
+    prefix = "[DRY RUN] " if dry_run else ""
+    print(f"{prefix}Scanned {files_scanned} .gp file(s), "
+          f"modified {files_modified} file(s).")
+
+
+if __name__ == "__main__":
+    main()

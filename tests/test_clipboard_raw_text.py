@@ -11,7 +11,7 @@ def test_get_raw_changespec_text_basic() -> None:
     content = """\
 NAME: test_cl
 DESCRIPTION: Test description
-STATUS: Drafted
+STATUS: Ready
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -20,7 +20,7 @@ STATUS: Drafted
         cs = ChangeSpec(
             name="test_cl",
             description="Test description",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=None,
@@ -32,7 +32,7 @@ STATUS: Drafted
         assert result is not None
         assert "NAME: test_cl" in result
         assert "DESCRIPTION: Test description" in result
-        assert "STATUS: Drafted" in result
+        assert "STATUS: Ready" in result
 
     Path(f.name).unlink()
 
@@ -43,12 +43,12 @@ def test_get_raw_changespec_text_with_changespec_header_delimiter() -> None:
 ## ChangeSpec
 NAME: first_cl
 DESCRIPTION: First CL
-STATUS: Drafted
+STATUS: Ready
 
 ## ChangeSpec
 NAME: second_cl
 DESCRIPTION: Second CL
-STATUS: WIP
+STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -57,7 +57,7 @@ STATUS: WIP
         cs = ChangeSpec(
             name="first_cl",
             description="First CL",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=None,
@@ -78,12 +78,12 @@ def test_get_raw_changespec_text_with_two_blank_lines_delimiter() -> None:
     content = """\
 NAME: first_cl
 DESCRIPTION: First CL
-STATUS: Drafted
+STATUS: Ready
 
 
 NAME: second_cl
 DESCRIPTION: Second CL
-STATUS: WIP
+STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -92,7 +92,7 @@ STATUS: WIP
         cs = ChangeSpec(
             name="first_cl",
             description="First CL",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=None,
@@ -113,10 +113,10 @@ def test_get_raw_changespec_text_with_name_delimiter() -> None:
     content = """\
 NAME: first_cl
 DESCRIPTION: First CL
-STATUS: Drafted
+STATUS: Ready
 NAME: second_cl
 DESCRIPTION: Second CL
-STATUS: WIP
+STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -125,7 +125,7 @@ STATUS: WIP
         cs = ChangeSpec(
             name="first_cl",
             description="First CL",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=None,
@@ -146,7 +146,7 @@ def test_get_raw_changespec_text_eof() -> None:
     content = """\
 NAME: last_cl
 DESCRIPTION: Last CL
-STATUS: Drafted"""
+STATUS: Ready"""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
         f.flush()
@@ -154,7 +154,7 @@ STATUS: Drafted"""
         cs = ChangeSpec(
             name="last_cl",
             description="Last CL",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=None,
@@ -166,7 +166,7 @@ STATUS: Drafted"""
         assert result is not None
         assert "NAME: last_cl" in result
         assert "DESCRIPTION: Last CL" in result
-        assert "STATUS: Drafted" in result
+        assert "STATUS: Ready" in result
 
     Path(f.name).unlink()
 
@@ -176,7 +176,7 @@ def test_get_raw_changespec_text_file_not_found() -> None:
     cs = ChangeSpec(
         name="test_cl",
         description="Test description",
-        status="Drafted",
+        status="Ready",
         parent=None,
         cl=None,
         test_targets=None,
@@ -198,7 +198,7 @@ def test_get_raw_changespec_text_invalid_line_number() -> None:
         cs = ChangeSpec(
             name="test_cl",
             description="Test description",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=None,
@@ -220,7 +220,7 @@ DESCRIPTION:
   This is line 1
   This is line 2
   This is line 3
-STATUS: Drafted
+STATUS: Ready
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -229,7 +229,7 @@ STATUS: Drafted
         cs = ChangeSpec(
             name="test_cl",
             description="This is line 1\nThis is line 2\nThis is line 3",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=None,
@@ -256,7 +256,7 @@ TEST TARGETS:
   //foo:test1
   //bar:test2
   //baz:test3
-STATUS: Drafted
+STATUS: Ready
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -265,7 +265,7 @@ STATUS: Drafted
         cs = ChangeSpec(
             name="test_cl",
             description="Test",
-            status="Drafted",
+            status="Ready",
             parent=None,
             cl=None,
             test_targets=["//foo:test1", "//bar:test2", "//baz:test3"],

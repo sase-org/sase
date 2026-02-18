@@ -42,9 +42,9 @@ def add_ready_to_mail_suffix(project_file: str, changespec_name: str) -> bool:
             logger.error(f"ChangeSpec '{changespec_name}' not found in {project_file}")
             return False
 
-        # Only add suffix if base status is "Drafted" (prevents race condition
+        # Only add suffix if base status is "Ready" (prevents race condition
         # where sase axe has stale changespec but file status is already "Mailed")
-        if get_base_status(current_status) != "Drafted":
+        if get_base_status(current_status) != "Ready":
             return False
 
         # Check if suffix already present

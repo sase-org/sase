@@ -148,3 +148,7 @@ def sase_metahook_scuba() -> NoReturn:
 
 def sase_metahook_hg_presubmit_tap() -> NoReturn:
     _exec_script("sase_metahook_hg_presubmit_tap")
+
+
+def sase_migrate_statuses() -> NoReturn:
+    _exec_script("sase_migrate_statuses")

@@ -62,7 +62,7 @@ class TestParseWorkspaceDir:
 
     def test_not_found(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: my-cl\nSTATUS: WIP\n")
+            f.write("NAME: my-cl\nSTATUS: Draft\n")
             f.flush()
             assert parse_workspace_dir(f.name) is None
             os.unlink(f.name)
@@ -144,7 +144,7 @@ class TestSetWorkspaceDir:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: cl\nSTATUS: WIP\n")
+            f.write("NAME: cl\nSTATUS: Draft\n")
             f.flush()
             assert set_workspace_dir(f.name, "/repo/")
             written = mock_write.call_args[0][1]

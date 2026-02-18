@@ -13,7 +13,7 @@ from sase.ace.changespec import (
 def _make_changespec(
     commits: list | None = None,
     hooks: list | None = None,
-    status: str = "Drafted",
+    status: str = "Ready",
 ) -> ChangeSpec:
     """Helper function to create a ChangeSpec with required fields for tests."""
     return ChangeSpec(

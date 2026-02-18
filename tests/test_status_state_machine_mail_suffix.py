@@ -10,7 +10,7 @@ from sase.status_state_machine import (
 )
 
 
-def _create_test_project_file(status: str = "Drafted") -> str:
+def _create_test_project_file(status: str = "Ready") -> str:
     """Create a temporary project file with a test ChangeSpec."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write(f"""# Test Project
@@ -32,13 +32,13 @@ TEST TARGETS: None
 
 def test_remove_workspace_suffix_strips_ready_to_mail() -> None:
     """Test remove_workspace_suffix also strips READY TO MAIL suffix."""
-    assert remove_workspace_suffix("Drafted - (!: READY TO MAIL)") == "Drafted"
-    assert remove_workspace_suffix("Drafted") == "Drafted"
+    assert remove_workspace_suffix("Ready - (!: READY TO MAIL)") == "Ready"
+    assert remove_workspace_suffix("Ready") == "Ready"
 
 
 def test_add_ready_to_mail_suffix() -> None:
     """Test add_ready_to_mail_suffix adds the suffix."""
-    project_file = _create_test_project_file("Drafted")
+    project_file = _create_test_project_file("Ready")
 
     try:
         result = add_ready_to_mail_suffix(project_file, "Test Feature")
@@ -46,7 +46,7 @@ def test_add_ready_to_mail_suffix() -> None:
 
         with open(project_file, encoding="utf-8") as f:
             content = f.read()
-            assert "STATUS: Drafted - (!: READY TO MAIL)" in content
+            assert "STATUS: Ready - (!: READY TO MAIL)" in content
 
     finally:
         Path(project_file).unlink()
@@ -54,7 +54,7 @@ def test_add_ready_to_mail_suffix() -> None:
 
 def test_add_ready_to_mail_suffix_already_present() -> None:
     """Test add_ready_to_mail_suffix returns False if already present."""
-    project_file = _create_test_project_file("Drafted - (!: READY TO MAIL)")
+    project_file = _create_test_project_file("Ready - (!: READY TO MAIL)")
 
     try:
         result = add_ready_to_mail_suffix(project_file, "Test Feature")
@@ -66,7 +66,7 @@ def test_add_ready_to_mail_suffix_already_present() -> None:
 
 def test_remove_ready_to_mail_suffix() -> None:
     """Test remove_ready_to_mail_suffix removes the suffix."""
-    project_file = _create_test_project_file("Drafted - (!: READY TO MAIL)")
+    project_file = _create_test_project_file("Ready - (!: READY TO MAIL)")
 
     try:
         result = remove_ready_to_mail_suffix(project_file, "Test Feature")
@@ -74,7 +74,7 @@ def test_remove_ready_to_mail_suffix() -> None:
 
         with open(project_file, encoding="utf-8") as f:
             content = f.read()
-            assert "STATUS: Drafted\n" in content
+            assert "STATUS: Ready\n" in content
             assert "READY TO MAIL" not in content
 
     finally:
@@ -83,7 +83,7 @@ def test_remove_ready_to_mail_suffix() -> None:
 
 def test_remove_ready_to_mail_suffix_not_present() -> None:
     """Test remove_ready_to_mail_suffix returns False if not present."""
-    project_file = _create_test_project_file("Drafted")
+    project_file = _create_test_project_file("Ready")
 
     try:
         result = remove_ready_to_mail_suffix(project_file, "Test Feature")

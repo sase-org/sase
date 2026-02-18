@@ -213,10 +213,10 @@ def parse_mentors_line(
             # Start new mentor entry
             entry_id = entry_match.group(1)
             profiles_raw = entry_match.group(2)
-            # Detect and strip #WIP marker
-            is_wip = profiles_raw.rstrip().endswith("#WIP")
-            if is_wip:
-                profiles_raw = profiles_raw.replace(" #WIP", "").rstrip()
+            # Detect and strip #Draft marker
+            is_draft = profiles_raw.rstrip().endswith("#Draft")
+            if is_draft:
+                profiles_raw = profiles_raw.replace(" #Draft", "").rstrip()
             # Try new format: profile[x/y] (extract just profile names)
             profiles = re.findall(r"(\w+)\[\d+/\d+\]", profiles_raw)
             if not profiles:
@@ -226,7 +226,7 @@ def parse_mentors_line(
                 entry_id=entry_id,
                 profiles=profiles,
                 status_lines=[],
-                is_wip=is_wip,
+                is_draft=is_draft,
             )
     elif line.startswith("      | "):
         # This is a status line (6-space + "| " prefixed)

@@ -50,20 +50,20 @@ other_key:
     assert profiles == []
 
 
-def test_load_mentor_profiles_with_run_on_wip() -> None:
-    """Test loading mentor profiles with run_on_wip field on mentors."""
+def test_load_mentor_profiles_with_run_on_draft() -> None:
+    """Test loading mentor profiles with run_on_draft field on mentors."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
     mentors:
       - mentor_name: quick_mentor
         prompt: Quick review.
-        run_on_wip: true
+        run_on_draft: true
       - mentor_name: full_mentor
         prompt: Full review.
       - mentor_name: detailed_mentor
         prompt: Detailed review.
-        run_on_wip: false
+        run_on_draft: false
     file_globs:
       - "*.py"
 """
@@ -73,11 +73,11 @@ mentor_profiles:
     assert len(profiles) == 1
     assert len(profiles[0].mentors) == 3
     assert profiles[0].mentors[0].mentor_name == "quick_mentor"
-    assert profiles[0].mentors[0].run_on_wip is True
+    assert profiles[0].mentors[0].run_on_draft is True
     assert profiles[0].mentors[1].mentor_name == "full_mentor"
-    assert profiles[0].mentors[1].run_on_wip is False  # Default
+    assert profiles[0].mentors[1].run_on_draft is False  # Default
     assert profiles[0].mentors[2].mentor_name == "detailed_mentor"
-    assert profiles[0].mentors[2].run_on_wip is False
+    assert profiles[0].mentors[2].run_on_draft is False
 
 
 def test_load_mentor_profiles_invalid_mentor_not_dict() -> None:
@@ -186,7 +186,7 @@ mentor_profiles:
     mentors:
       - prompt: "#mentor/aaa"
       - prompt: "#mentor/bbb"
-        run_on_wip: true
+        run_on_draft: true
     file_globs:
       - "*.py"
 """
@@ -198,10 +198,10 @@ mentor_profiles:
     # mentor_name should be derived from prompt
     assert profiles[0].mentors[0].mentor_name == "aaa"
     assert profiles[0].mentors[0].prompt == "#mentor/aaa"
-    assert profiles[0].mentors[0].run_on_wip is False
+    assert profiles[0].mentors[0].run_on_draft is False
     assert profiles[0].mentors[1].mentor_name == "bbb"
     assert profiles[0].mentors[1].prompt == "#mentor/bbb"
-    assert profiles[0].mentors[1].run_on_wip is True
+    assert profiles[0].mentors[1].run_on_draft is True
 
 
 def test_load_mentor_profiles_prompt_with_explicit_name() -> None:

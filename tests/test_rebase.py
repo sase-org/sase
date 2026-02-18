@@ -9,7 +9,7 @@ from sase.status_state_machine.field_updates import _apply_parent_update
 
 
 def _create_test_project_file_with_parent(
-    status: str = "Drafted", parent: str | None = None
+    status: str = "Ready", parent: str | None = None
 ) -> str:
     """Create a temporary project file with a test ChangeSpec."""
     parent_line = f"PARENT: {parent}\n" if parent else ""
@@ -39,7 +39,7 @@ NAME: Feature A
 DESCRIPTION:
   First feature
 CL: http://cl/123
-STATUS: WIP
+STATUS: Draft
 
 ---
 
@@ -48,7 +48,7 @@ DESCRIPTION:
   Second feature
 PARENT: Feature A
 CL: http://cl/456
-STATUS: Drafted
+STATUS: Ready
 
 ---
 
@@ -90,7 +90,7 @@ def test_apply_parent_update_existing_field() -> None:
         "  A test feature\n",
         "PARENT: OldParent\n",
         "CL: http://cl/123\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
     ]
 
     result = _apply_parent_update(lines, "Test Feature", "NewParent")
@@ -105,7 +105,7 @@ def test_apply_parent_update_no_existing_field() -> None:
         "DESCRIPTION:\n",
         "  A test feature\n",
         "CL: http://cl/123\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
     ]
 
     result = _apply_parent_update(lines, "Test Feature", "NewParent")
@@ -122,7 +122,7 @@ def test_apply_parent_update_to_none_removes_field() -> None:
         "  A test feature\n",
         "PARENT: OldParent\n",
         "CL: http://cl/123\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
     ]
 
     result = _apply_parent_update(lines, "Test Feature", None)
@@ -136,7 +136,7 @@ def test_apply_parent_update_wrong_changespec_unchanged() -> None:
         "DESCRIPTION:\n",
         "  First feature\n",
         "PARENT: ParentA\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "\n",
         "NAME: Feature B\n",
         "DESCRIPTION:\n",
@@ -156,7 +156,7 @@ def test_apply_parent_update_wrong_changespec_unchanged() -> None:
 def test_update_changespec_parent_atomic_success() -> None:
     """Test successful atomic PARENT update."""
     project_file = _create_test_project_file_with_parent(
-        status="Drafted", parent="OldParent"
+        status="Ready", parent="OldParent"
     )
 
     try:
@@ -173,7 +173,7 @@ def test_update_changespec_parent_atomic_success() -> None:
 
 def test_update_changespec_parent_atomic_add_parent() -> None:
     """Test adding PARENT when it doesn't exist."""
-    project_file = _create_test_project_file_with_parent(status="Drafted", parent=None)
+    project_file = _create_test_project_file_with_parent(status="Ready", parent=None)
 
     try:
         update_changespec_parent_atomic(project_file, "Test Feature", "NewParent")
@@ -189,7 +189,7 @@ def test_update_changespec_parent_atomic_add_parent() -> None:
 def test_update_changespec_parent_atomic_remove_parent() -> None:
     """Test removing PARENT field."""
     project_file = _create_test_project_file_with_parent(
-        status="Drafted", parent="OldParent"
+        status="Ready", parent="OldParent"
     )
 
     try:
@@ -207,14 +207,14 @@ def test_update_changespec_parent_atomic_remove_parent() -> None:
 
 
 def test_get_eligible_parents_filters_by_status() -> None:
-    """Test that only WIP, Drafted, and Mailed statuses are eligible."""
+    """Test that only Draft, Ready, and Mailed statuses are eligible."""
     project_file = _create_multi_changespec_file()
 
     try:
         # From Feature A's perspective
         eligible = get_eligible_parents_in_project(project_file, "Feature A")
 
-        # Should include Feature B (Drafted), Feature C (Mailed)
+        # Should include Feature B (Ready), Feature C (Mailed)
         # Should NOT include Feature D (Submitted), Feature E (Reverted)
         names = [name for name, status in eligible]
 
@@ -249,8 +249,8 @@ def test_get_eligible_parents_returns_status() -> None:
         eligible = get_eligible_parents_in_project(project_file, "Feature D")
         eligible_dict = dict(eligible)
 
-        assert eligible_dict.get("Feature A") == "WIP"
-        assert eligible_dict.get("Feature B") == "Drafted"
+        assert eligible_dict.get("Feature A") == "Draft"
+        assert eligible_dict.get("Feature B") == "Ready"
         assert eligible_dict.get("Feature C") == "Mailed"
 
     finally:
@@ -288,14 +288,14 @@ def test_get_eligible_parents_handles_ready_to_mail_suffix() -> None:
 NAME: Feature A
 DESCRIPTION:
   First feature
-STATUS: Drafted - (!: READY TO MAIL)
+STATUS: Ready - (!: READY TO MAIL)
 
 ---
 
 NAME: Feature B
 DESCRIPTION:
   Second feature
-STATUS: WIP
+STATUS: Draft
 
 ---
 """)
@@ -305,9 +305,9 @@ STATUS: WIP
         eligible = get_eligible_parents_in_project(project_file, "Feature B")
         eligible_dict = dict(eligible)
 
-        # Feature A should be eligible with base status "Drafted"
+        # Feature A should be eligible with base status "Ready"
         assert "Feature A" in eligible_dict
-        assert eligible_dict["Feature A"] == "Drafted"
+        assert eligible_dict["Feature A"] == "Ready"
 
     finally:
         Path(project_file).unlink()

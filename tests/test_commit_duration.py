@@ -115,7 +115,7 @@ def test_add_commit_entry_with_chat_duration() -> None:
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -173,7 +173,7 @@ def test_reject_all_new_proposals_success() -> None:
     """Test rejecting all new proposals changes suffix from (!:) to (~!:)."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) Initial commit\n")
         f.write("  (1a) Proposal one - (!: NEW PROPOSAL)\n")
@@ -197,7 +197,7 @@ def test_reject_all_new_proposals_no_proposals() -> None:
     """Test that returning 0 when no new proposals exist."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) Initial commit\n")
         temp_path = f.name
@@ -213,7 +213,7 @@ def test_reject_all_new_proposals_wrong_cl_name() -> None:
     """Test that returning 0 when CL name doesn't match."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1a) Proposal - (!: NEW PROPOSAL)\n")
         temp_path = f.name

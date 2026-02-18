@@ -25,7 +25,7 @@ class _ChangeSpecFactory:
     def create(
         name: str = "test",
         description: str = "desc",
-        status: str = "Drafted",
+        status: str = "Ready",
         cl: str | None = None,
         parent: str | None = None,
         file_path: str = "/home/user/.sase/projects/myproject/myproject.gp",

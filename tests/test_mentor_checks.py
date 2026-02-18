@@ -26,7 +26,7 @@ def _make_changespec(**kwargs: Any) -> ChangeSpec:
         "description": "Test description",
         "parent": None,
         "cl": None,
-        "status": "Drafted",
+        "status": "Ready",
         "test_targets": None,
         "kickstart": None,
         "file_path": "/tmp/test.md",
@@ -630,3 +630,23 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     assert len(result) == 1
     assert result[0][0] == "1"  # entry_id
     assert result[0][1].profile_name == "feature"  # profile
+
+
+# Tests for WIP status being skipped entirely by mentor checks
+
+
+def test_all_non_skip_hooks_ready_wip_status_with_passing_hooks() -> None:
+    """Test that _all_non_skip_hooks_ready returns True for WIP ChangeSpecs with passing hooks.
+
+    The _all_non_skip_hooks_ready function only checks hook status, not ChangeSpec status.
+    WIP status skipping is handled at a higher level in the scheduler.
+    """
+    cs = _make_changespec(
+        status="WIP",
+        hooks=[
+            _make_hook("make test", "1", "PASSED"),
+            _make_hook("make lint", "1", "PASSED"),
+        ],
+    )
+    # _all_non_skip_hooks_ready only checks hook status, not ChangeSpec status
+    assert _all_non_skip_hooks_ready(cs, "1") is True

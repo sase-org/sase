@@ -115,7 +115,7 @@ def find_all_changespecs() -> list[ChangeSpec]:
 
 
 # Eligible statuses for rebase parent selection
-_ELIGIBLE_REBASE_STATUSES = ("WIP", "Drafted", "Mailed")
+_ELIGIBLE_REBASE_STATUSES = ("WIP", "Draft", "Ready", "Mailed")
 
 
 def get_eligible_parents_in_project(
@@ -128,7 +128,7 @@ def get_eligible_parents_in_project(
         exclude_name: Name to exclude (the CL being rebased)
 
     Returns:
-        List of (name, status) tuples for ChangeSpecs with status WIP/Drafted/Mailed
+        List of (name, status) tuples for ChangeSpecs with status WIP/Draft/Ready/Mailed
     """
     changespecs = parse_project_file(project_file)
     eligible: list[tuple[str, str]] = []

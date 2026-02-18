@@ -20,7 +20,7 @@ def _make_changespec(
         description="Test description",
         parent=None,
         cl=None,
-        status="Drafted",
+        status="Ready",
         test_targets=None,
         kickstart=None,
         file_path="/tmp/test.gp",
@@ -45,7 +45,7 @@ def _make_hint_tracker(counter: int = 0) -> HintTracker:
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-@patch("sase.mentor_config.profile_has_wip_mentors", return_value=True)
+@patch("sase.mentor_config.profile_has_draft_mentors", return_value=True)
 def test_error_file_path_suffix_gets_hint(_mock_wip: object, _mock_fmt: object) -> None:
     """Error suffix that is a file path gets a hint number when with_hints=True."""
     error_path = "~/.sase/mentors/fixit_wells-260206_100530.txt"
@@ -94,7 +94,7 @@ def test_error_file_path_suffix_gets_hint(_mock_wip: object, _mock_fmt: object) 
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-@patch("sase.mentor_config.profile_has_wip_mentors", return_value=True)
+@patch("sase.mentor_config.profile_has_draft_mentors", return_value=True)
 def test_error_non_path_suffix_no_hint(_mock_wip: object, _mock_fmt: object) -> None:
     """Error suffix that is NOT a file path does not get a hint."""
     msl = MentorStatusLine(
@@ -136,7 +136,7 @@ def test_error_non_path_suffix_no_hint(_mock_wip: object, _mock_fmt: object) -> 
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-@patch("sase.mentor_config.profile_has_wip_mentors", return_value=True)
+@patch("sase.mentor_config.profile_has_draft_mentors", return_value=True)
 def test_error_file_path_no_hint_without_with_hints(
     _mock_wip: object, _mock_fmt: object
 ) -> None:
@@ -179,7 +179,7 @@ def test_error_file_path_no_hint_without_with_hints(
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-@patch("sase.mentor_config.profile_has_wip_mentors", return_value=True)
+@patch("sase.mentor_config.profile_has_draft_mentors", return_value=True)
 def test_error_absolute_path_suffix_gets_hint(
     _mock_wip: object, _mock_fmt: object
 ) -> None:

@@ -42,13 +42,13 @@ def test_strip_terminal_status_markers_skips_non_terminal() -> None:
 
 
 def test_strip_terminal_status_markers_skips_drafted() -> None:
-    """Test strip_terminal_status_markers skips Drafted status."""
+    """Test strip_terminal_status_markers skips Ready status."""
     cs = ChangeSpec(
         name="test",
         description="Test",
         parent=None,
         cl="123",
-        status="Drafted",  # Not terminal
+        status="Ready",  # Not terminal
         test_targets=None,
         kickstart=None,
         file_path="/tmp/test.gp",

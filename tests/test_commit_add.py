@@ -24,7 +24,7 @@ def test_get_next_commit_number_no_history() -> None:
         "NAME: test_cl\n",
         "DESCRIPTION:\n",
         "  Test\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
     ]
     next_num = get_next_commit_number(lines, "test_cl")
     assert next_num == 1
@@ -36,7 +36,7 @@ def test_get_next_commit_number_with_history() -> None:
         "NAME: test_cl\n",
         "DESCRIPTION:\n",
         "  Test\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (1) First commit\n",
         "      | DIFF: test.diff\n",
@@ -53,7 +53,7 @@ def test_get_next_commit_number_wrong_changespec() -> None:
         "NAME: other_cl\n",
         "DESCRIPTION:\n",
         "  Test\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (1) First commit\n",
     ]
@@ -68,7 +68,7 @@ def test_add_commit_entry_new_history_field() -> None:
         f.write("NAME: test_cl\n")
         f.write("DESCRIPTION:\n")
         f.write("  Test description\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -98,7 +98,7 @@ def test_add_commit_entry_existing_history_field() -> None:
         f.write("NAME: test_cl\n")
         f.write("DESCRIPTION:\n")
         f.write("  Test description\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("      | DIFF: ~/.sase/diffs/first.diff\n")
@@ -137,7 +137,7 @@ def test_add_commit_entry_no_optional_fields() -> None:
     """Test adding history entry without optional fields."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -176,7 +176,7 @@ def test_get_last_regular_commit_number_no_history() -> None:
     """Test getting last regular number when no history exists."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
     ]
     last_num = _get_last_regular_commit_number(lines, "test_cl")
     assert last_num == 0
@@ -186,7 +186,7 @@ def test_get_last_regular_commit_number_with_history() -> None:
     """Test getting last regular number with existing history."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (1) First commit\n",
         "  (2) Second commit\n",
@@ -199,7 +199,7 @@ def test_get_last_regular_commit_number_skips_proposals() -> None:
     """Test that proposed entries are skipped when counting."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (1) First commit\n",
         "  (2) Second commit\n",
@@ -215,7 +215,7 @@ def test_get_next_proposal_letter_no_proposals() -> None:
     """Test getting first proposal letter when none exist."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (1) First commit\n",
         "  (2) Second commit\n",
@@ -228,7 +228,7 @@ def test_get_next_proposal_letter_with_existing() -> None:
     """Test getting next proposal letter when some exist."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (2) Second commit\n",
         "  (2a) First proposal\n",
@@ -242,7 +242,7 @@ def test_get_next_proposal_letter_fills_gap() -> None:
     """Test that next letter fills gaps."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (2) Second commit\n",
         "  (2a) First proposal\n",
@@ -257,7 +257,7 @@ def test_add_proposed_commit_entry_new_history() -> None:
     """Test adding proposed entry when no COMMITS exists."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -283,7 +283,7 @@ def test_add_proposed_commit_entry_existing_history() -> None:
     """Test adding proposed entry to existing COMMITS."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("      | DIFF: ~/.sase/diffs/first.diff\n")
@@ -314,7 +314,7 @@ def test_add_proposed_commit_entry_multiple_proposals() -> None:
     """Test adding multiple proposed entries."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (2) Second commit\n")
         f.write("  (2a) First proposal\n")

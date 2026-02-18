@@ -97,7 +97,7 @@ class TestSetBareRepoDir:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: cl\nSTATUS: WIP\n")
+            f.write("NAME: cl\nSTATUS: Draft\n")
             f.flush()
             assert _set_bare_repo_dir(f.name, "/repos/proj.git")
             written = mock_write.call_args[0][1]

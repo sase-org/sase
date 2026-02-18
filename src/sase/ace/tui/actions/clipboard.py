@@ -546,9 +546,9 @@ def _format_changespec_for_clipboard(cs: ChangeSpec) -> str:
         lines.append("")
         lines.append("MENTORS:")
         for mentor_entry in cs.mentors:
-            wip_marker = " (WIP)" if mentor_entry.is_wip else ""
+            draft_marker = " (Draft)" if mentor_entry.is_draft else ""
             lines.append(
-                f"  ({mentor_entry.entry_id}) {' '.join(mentor_entry.profiles)}{wip_marker}"
+                f"  ({mentor_entry.entry_id}) {' '.join(mentor_entry.profiles)}{draft_marker}"
             )
             if mentor_entry.status_lines:
                 for msl in mentor_entry.status_lines:

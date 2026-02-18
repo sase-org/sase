@@ -354,7 +354,7 @@ def test_update_changespec_hooks_field_basic() -> None:
 NAME: test_cl
 DESCRIPTION:
   Test description
-STATUS: Drafted
+STATUS: Ready
 HOOKS:
   old_command
       | (1) [240601_100000] PASSED (1m0s)
@@ -394,7 +394,7 @@ def test_update_changespec_hooks_field_clear_status() -> None:
 NAME: test_cl
 DESCRIPTION:
   Test description
-STATUS: Drafted
+STATUS: Ready
 HOOKS:
   my_command
       | (1) [240601_100000] FAILED (1m0s)
@@ -426,7 +426,7 @@ def test_update_changespec_hooks_field_delete_hook() -> None:
 NAME: test_cl
 DESCRIPTION:
   Test description
-STATUS: Drafted
+STATUS: Ready
 HOOKS:
   hook1
       | (1) [240601_100000] PASSED (1m0s)

@@ -9,7 +9,7 @@ from sase.status_state_machine import (
 )
 
 
-def _create_test_project_file(status: str = "Drafted") -> str:
+def _create_test_project_file(status: str = "Ready") -> str:
     """Create a temporary project file with a test ChangeSpec."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write(f"""# Test Project
@@ -31,7 +31,7 @@ TEST TARGETS: None
 
 def test_transition_changespec_status_valid_transition() -> None:
     """Test successful status transition."""
-    project_file = _create_test_project_file("Drafted")
+    project_file = _create_test_project_file("Ready")
 
     try:
         success, old_status, error, _ = transition_changespec_status(
@@ -39,14 +39,14 @@ def test_transition_changespec_status_valid_transition() -> None:
         )
 
         assert success is True
-        assert old_status == "Drafted"
+        assert old_status == "Ready"
         assert error is None
 
         # Verify the file was updated
         with open(project_file) as f:
             content = f.read()
             assert "STATUS: Mailed" in content
-            assert "STATUS: Drafted" not in content
+            assert "STATUS: Ready" not in content
 
     finally:
         Path(project_file).unlink()
@@ -54,7 +54,7 @@ def test_transition_changespec_status_valid_transition() -> None:
 
 def test_transition_changespec_status_invalid_transition() -> None:
     """Test that invalid transition is rejected."""
-    project_file = _create_test_project_file("Drafted")
+    project_file = _create_test_project_file("Ready")
 
     try:
         success, old_status, error, _ = transition_changespec_status(
@@ -62,14 +62,14 @@ def test_transition_changespec_status_invalid_transition() -> None:
         )
 
         assert success is False
-        assert old_status == "Drafted"
+        assert old_status == "Ready"
         assert error is not None
         assert "Invalid status transition" in error
 
         # Verify the file was NOT updated
         with open(project_file) as f:
             content = f.read()
-            assert "STATUS: Drafted" in content
+            assert "STATUS: Ready" in content
             assert "STATUS: Submitted" not in content
 
     finally:
@@ -78,7 +78,7 @@ def test_transition_changespec_status_invalid_transition() -> None:
 
 def test_transition_changespec_status_skip_validation() -> None:
     """Test that validation can be skipped with validate=False."""
-    project_file = _create_test_project_file("Drafted")
+    project_file = _create_test_project_file("Ready")
 
     try:
         # This transition would normally be invalid
@@ -87,7 +87,7 @@ def test_transition_changespec_status_skip_validation() -> None:
         )
 
         assert success is True
-        assert old_status == "Drafted"
+        assert old_status == "Ready"
         assert error is None
 
         # Verify the file was updated
@@ -101,7 +101,7 @@ def test_transition_changespec_status_skip_validation() -> None:
 
 def test_transition_changespec_status_nonexistent_changespec() -> None:
     """Test handling of nonexistent ChangeSpec."""
-    project_file = _create_test_project_file("Drafted")
+    project_file = _create_test_project_file("Ready")
 
     try:
         success, old_status, error, _ = transition_changespec_status(
@@ -130,7 +130,7 @@ DESCRIPTION:
 PARENT: None
 CL: None
 TEST TARGETS: None
-STATUS: Drafted
+STATUS: Ready
 
 ---
 
@@ -141,7 +141,7 @@ DESCRIPTION:
   Second feature
 PARENT: None
 CL: None
-STATUS: Drafted
+STATUS: Ready
 
 ---
 """)
@@ -179,7 +179,7 @@ STATUS: Drafted
                         feature_b_status = line.split(":", 1)[1].strip()
 
             assert feature_a_status == "Mailed"
-            assert feature_b_status == "Drafted"
+            assert feature_b_status == "Ready"
 
     finally:
         Path(project_file).unlink()
@@ -190,8 +190,10 @@ def test_required_transitions_are_valid() -> None:
     # Transitions from the requirements
     # Note: "Changes Requested" status was removed and replaced with COMMENTS field
     required_transitions = [
-        ("WIP", "Drafted"),
-        ("Drafted", "Mailed"),
+        ("WIP", "Draft"),
+        ("WIP", "Ready"),
+        ("Draft", "Ready"),
+        ("Ready", "Mailed"),
         ("Mailed", "Submitted"),
     ]
 
@@ -202,7 +204,7 @@ def test_required_transitions_are_valid() -> None:
 
 def test_atomic_file_operations() -> None:
     """Test that file updates are atomic and handle UTF-8 correctly."""
-    project_file = _create_test_project_file("Drafted")
+    project_file = _create_test_project_file("Ready")
 
     try:
         # Test 1: Verify file is updated atomically
@@ -211,7 +213,7 @@ def test_atomic_file_operations() -> None:
         )
 
         assert success is True
-        assert old_status == "Drafted"
+        assert old_status == "Ready"
         assert error is None
 
         # Verify the file was updated
@@ -277,19 +279,19 @@ TEST TARGETS: None
         return f.name
 
 
-def test_wip_to_drafted_blocked_when_sibling_has_children() -> None:
-    """Test WIP->Drafted blocked when sibling WIP ChangeSpec has unreverted children."""
+def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
+    """Test Draft->Ready blocked when sibling Draft ChangeSpec has unreverted children."""
     from unittest.mock import patch
 
     # Create project file with:
-    # - foo_bar__1 (WIP) - the one we're transitioning
-    # - foo_bar__2 (WIP) - sibling that has a child
-    # - child_of_2 (Drafted) - child of foo_bar__2
+    # - foo_bar__1 (Draft) - the one we're transitioning
+    # - foo_bar__2 (Draft) - sibling that has a child
+    # - child_of_2 (Ready) - child of foo_bar__2
     project_file = _create_project_file_with_multiple_changespecs(
         [
-            ("foo_bar__1", "WIP", None),
-            ("foo_bar__2", "WIP", None),
-            ("child_of_2", "Drafted", "foo_bar__2"),
+            ("foo_bar__1", "Draft", None),
+            ("foo_bar__2", "Draft", None),
+            ("child_of_2", "Ready", "foo_bar__2"),
         ]
     )
 
@@ -303,7 +305,7 @@ def test_wip_to_drafted_blocked_when_sibling_has_children() -> None:
                 description="Test",
                 parent=None,
                 cl=None,
-                status="WIP",
+                status="Draft",
                 test_targets=None,
                 kickstart=None,
                 file_path=project_file,
@@ -314,7 +316,7 @@ def test_wip_to_drafted_blocked_when_sibling_has_children() -> None:
                 description="Test",
                 parent=None,
                 cl=None,
-                status="WIP",
+                status="Draft",
                 test_targets=None,
                 kickstart=None,
                 file_path=project_file,
@@ -325,7 +327,7 @@ def test_wip_to_drafted_blocked_when_sibling_has_children() -> None:
                 description="Test",
                 parent="foo_bar__2",
                 cl=None,
-                status="Drafted",
+                status="Ready",
                 test_targets=None,
                 kickstart=None,
                 file_path=project_file,
@@ -338,30 +340,32 @@ def test_wip_to_drafted_blocked_when_sibling_has_children() -> None:
             return_value=mock_changespecs,
         ):
             success, old_status, error, _ = transition_changespec_status(
-                project_file, "foo_bar__1", "Drafted", validate=True
+                project_file, "foo_bar__1", "Ready", validate=True
             )
 
         assert success is False
-        assert old_status == "WIP"
+        assert old_status == "Draft"
         assert error is not None
-        assert "sibling WIP ChangeSpec 'foo_bar__2' has unreverted children" in error
+        assert (
+            "sibling ChangeSpec 'foo_bar__2' (Draft) has unreverted children" in error
+        )
 
     finally:
         Path(project_file).unlink()
 
 
-def test_wip_to_drafted_allowed_when_sibling_children_reverted() -> None:
-    """Test WIP->Drafted allowed when sibling's children are all Reverted."""
+def test_draft_to_ready_allowed_when_sibling_children_reverted() -> None:
+    """Test Draft->Ready allowed when sibling's children are all Reverted."""
     from unittest.mock import patch
 
     # Create project file with:
-    # - foo_bar__1 (WIP) - the one we're transitioning
-    # - foo_bar__2 (WIP) - sibling
+    # - foo_bar__1 (Draft) - the one we're transitioning
+    # - foo_bar__2 (Draft) - sibling
     # - child_of_2 (Reverted) - child of foo_bar__2 that is reverted
     project_file = _create_project_file_with_multiple_changespecs(
         [
-            ("foo_bar__1", "WIP", None),
-            ("foo_bar__2", "WIP", None),
+            ("foo_bar__1", "Draft", None),
+            ("foo_bar__2", "Draft", None),
             ("child_of_2", "Reverted", "foo_bar__2"),
         ]
     )
@@ -375,7 +379,7 @@ def test_wip_to_drafted_allowed_when_sibling_children_reverted() -> None:
                 description="Test",
                 parent=None,
                 cl=None,
-                status="WIP",
+                status="Draft",
                 test_targets=None,
                 kickstart=None,
                 file_path=project_file,
@@ -386,7 +390,7 @@ def test_wip_to_drafted_allowed_when_sibling_children_reverted() -> None:
                 description="Test",
                 parent=None,
                 cl=None,
-                status="WIP",
+                status="Draft",
                 test_targets=None,
                 kickstart=None,
                 file_path=project_file,
@@ -410,31 +414,31 @@ def test_wip_to_drafted_allowed_when_sibling_children_reverted() -> None:
             return_value=mock_changespecs,
         ):
             # Also need to mock the functions called after successful transition
-            with patch("sase.ace.mentors.clear_mentor_wip_flags"):
+            with patch("sase.ace.mentors.clear_mentor_draft_flags"):
                 with patch(
                     "sase.status_state_machine.transitions._handle_suffix_strip",
                     return_value=[],
                 ):
                     success, old_status, error, _ = transition_changespec_status(
-                        project_file, "foo_bar__1", "Drafted", validate=True
+                        project_file, "foo_bar__1", "Ready", validate=True
                     )
 
         assert success is True
-        assert old_status == "WIP"
+        assert old_status == "Draft"
         assert error is None
 
     finally:
         Path(project_file).unlink()
 
 
-def test_wip_to_drafted_allowed_when_no_siblings() -> None:
-    """Test WIP->Drafted allowed when no sibling WIP ChangeSpecs exist."""
+def test_draft_to_ready_allowed_when_no_siblings() -> None:
+    """Test Draft->Ready allowed when no sibling Draft ChangeSpecs exist."""
     from unittest.mock import patch
 
-    # Create project file with just one WIP ChangeSpec (no siblings)
+    # Create project file with just one Draft ChangeSpec (no siblings)
     project_file = _create_project_file_with_multiple_changespecs(
         [
-            ("foo_bar__1", "WIP", None),
+            ("foo_bar__1", "Draft", None),
         ]
     )
 
@@ -447,7 +451,7 @@ def test_wip_to_drafted_allowed_when_no_siblings() -> None:
                 description="Test",
                 parent=None,
                 cl=None,
-                status="WIP",
+                status="Draft",
                 test_targets=None,
                 kickstart=None,
                 file_path=project_file,
@@ -459,17 +463,17 @@ def test_wip_to_drafted_allowed_when_no_siblings() -> None:
             "sase.ace.changespec.find_all_changespecs",
             return_value=mock_changespecs,
         ):
-            with patch("sase.ace.mentors.clear_mentor_wip_flags"):
+            with patch("sase.ace.mentors.clear_mentor_draft_flags"):
                 with patch(
                     "sase.status_state_machine.transitions._handle_suffix_strip",
                     return_value=[],
                 ):
                     success, old_status, error, _ = transition_changespec_status(
-                        project_file, "foo_bar__1", "Drafted", validate=True
+                        project_file, "foo_bar__1", "Ready", validate=True
                     )
 
         assert success is True
-        assert old_status == "WIP"
+        assert old_status == "Draft"
         assert error is None
 
     finally:

@@ -179,7 +179,7 @@ def test_open_editor_with_content_cleans_up_temp_file(
 
 
 def _make_context_and_changespec(
-    status: str = "WIP", cl: str | None = "123456"
+    status: str = "Draft", cl: str | None = "123456"
 ) -> tuple[MagicMock, MagicMock]:
     """Create mock WorkflowContext and ChangeSpec."""
     ctx = MagicMock()
@@ -210,7 +210,7 @@ def test_handle_reword_invalid_status(mock_base: MagicMock) -> None:
 @patch("sase.ace.changespec.get_base_status")
 def test_handle_reword_no_cl(mock_base: MagicMock) -> None:
     """Test reword rejected when CL is not set."""
-    mock_base.return_value = "WIP"
+    mock_base.return_value = "Draft"
     ctx, cs = _make_context_and_changespec(cl=None)
 
     handle_reword(ctx, cs)
@@ -223,7 +223,7 @@ def test_handle_reword_no_cl(mock_base: MagicMock) -> None:
     "sase.ace.handlers.reword._fetch_cl_description",
     return_value="Original desc\n",
 )
-@patch("sase.ace.changespec.get_base_status", return_value="WIP")
+@patch("sase.ace.changespec.get_base_status", return_value="Draft")
 def test_handle_reword_editor_returns_none(
     _mock_base: MagicMock, _mock_fetch: MagicMock, _mock_editor: MagicMock
 ) -> None:
@@ -237,14 +237,14 @@ def test_handle_reword_editor_returns_none(
 
 @patch("sase.ace.handlers.reword._open_editor_with_content")
 @patch("sase.ace.handlers.reword._fetch_cl_description")
-@patch("sase.ace.changespec.get_base_status", return_value="Drafted")
+@patch("sase.ace.changespec.get_base_status", return_value="Ready")
 def test_handle_reword_description_unchanged_no_workspace(
     _mock_base: MagicMock, mock_fetch: MagicMock, mock_editor: MagicMock
 ) -> None:
     """Test no workspace claimed when description is unchanged."""
     mock_fetch.return_value = "Same description\n"
     mock_editor.return_value = "Same description\n"
-    ctx, cs = _make_context_and_changespec(status="Drafted")
+    ctx, cs = _make_context_and_changespec(status="Ready")
 
     with patch("sase.running_field.claim_workspace") as mock_claim:
         handle_reword(ctx, cs)
@@ -255,14 +255,14 @@ def test_handle_reword_description_unchanged_no_workspace(
 
 @patch("sase.ace.handlers.reword._open_editor_with_content")
 @patch("sase.ace.handlers.reword._fetch_cl_description")
-@patch("sase.ace.changespec.get_base_status", return_value="Drafted")
+@patch("sase.ace.changespec.get_base_status", return_value="Ready")
 def test_handle_reword_trailing_newline_no_false_diff(
     _mock_base: MagicMock, mock_fetch: MagicMock, mock_editor: MagicMock
 ) -> None:
     """Test trailing newline differences don't trigger a reword."""
     mock_fetch.return_value = "Same description\n"
     mock_editor.return_value = "Same description"  # no trailing newline
-    ctx, cs = _make_context_and_changespec(status="Drafted")
+    ctx, cs = _make_context_and_changespec(status="Ready")
 
     with patch("sase.running_field.claim_workspace") as mock_claim:
         handle_reword(ctx, cs)
@@ -287,7 +287,7 @@ def test_handle_reword_trailing_newline_no_false_diff(
     "sase.ace.handlers.reword._fetch_cl_description",
     return_value="Old description\n",
 )
-@patch("sase.ace.changespec.get_base_status", return_value="WIP")
+@patch("sase.ace.changespec.get_base_status", return_value="Draft")
 def test_handle_reword_changed_runs_full_flow(
     _mock_base: MagicMock,
     _mock_fetch: MagicMock,
@@ -323,7 +323,7 @@ def test_handle_reword_changed_runs_full_flow(
 
 
 @patch("sase.ace.handlers.reword._fetch_cl_description", return_value=None)
-@patch("sase.ace.changespec.get_base_status", return_value="WIP")
+@patch("sase.ace.changespec.get_base_status", return_value="Draft")
 def test_handle_reword_fetch_fails_returns_early(
     _mock_base: MagicMock, _mock_fetch: MagicMock
 ) -> None:

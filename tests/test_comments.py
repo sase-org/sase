@@ -236,9 +236,9 @@ def test_displayis_suffix_timestamp_invalid() -> None:
     assert is_suffix_timestamp("ZOMBIE") is False
 
 
-def testget_status_color_drafted() -> None:
-    """Test get_status_color for Drafted status."""
-    assert get_status_color("Drafted") == "#87D700"
+def testget_status_color_ready() -> None:
+    """Test get_status_color for Ready status."""
+    assert get_status_color("Ready") == "#87D700"
 
 
 def testget_status_color_submitted() -> None:
@@ -253,8 +253,8 @@ def testget_status_color_reverted() -> None:
 
 def testget_status_color_with_workspace_suffix() -> None:
     """Test get_status_color strips workspace suffix before lookup."""
-    # Status with workspace suffix (e.g., "Drafted (fig_3)")
-    assert get_status_color("Drafted (fig_3)") == "#87D700"
+    # Status with workspace suffix (e.g., "Ready (fig_3)")
+    assert get_status_color("Ready (fig_3)") == "#87D700"
     assert get_status_color("Mailed (project_1)") == "#00D787"
 
 

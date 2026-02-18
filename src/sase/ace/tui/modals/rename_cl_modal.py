@@ -104,11 +104,13 @@ class RenameCLModal(ModalScreen[str | None]):
             )
             return
 
-        # Check WIP/Reverted suffix requirements
-        if self._status in ("WIP", "Reverted") and has_suffix(self._current_name):
+        # Check WIP/Draft/Reverted suffix requirements
+        if self._status in ("WIP", "Draft", "Reverted") and has_suffix(
+            self._current_name
+        ):
             if not has_suffix(new_name):
                 self.notify(
-                    "WIP/Reverted CLs with __<N> suffix must keep suffix",
+                    "WIP/Draft/Reverted CLs with __<N> suffix must keep suffix",
                     severity="error",
                 )
                 return

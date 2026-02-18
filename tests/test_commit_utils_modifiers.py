@@ -20,7 +20,7 @@ def _create_test_project_file(content: str) -> Path:
 def test_reject_proposals_and_set_status_atomic_set_mailed() -> None:
     """Test setting status to Mailed while rejecting proposals."""
     content = """NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
@@ -47,7 +47,7 @@ COMMITS:
 def test_reject_proposals_and_set_status_atomic_add_ready_to_mail() -> None:
     """Test adding READY TO MAIL suffix while rejecting proposals."""
     content = """NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
@@ -63,7 +63,7 @@ COMMITS:
         with open(project_file) as f:
             new_content = f.read()
 
-        assert "STATUS: Drafted - (!: READY TO MAIL)" in new_content
+        assert "STATUS: Ready - (!: READY TO MAIL)" in new_content
         assert "(~!: NEW PROPOSAL)" in new_content
     finally:
         project_file.unlink()
@@ -72,7 +72,7 @@ COMMITS:
 def test_reject_proposals_and_set_status_atomic_no_proposals() -> None:
     """Test when there are no proposals to reject."""
     content = """NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2) Second commit
@@ -96,7 +96,7 @@ COMMITS:
 def test_reject_proposals_and_set_status_atomic_wrong_cl() -> None:
     """Test when the CL name doesn't match."""
     content = """NAME: other-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
 """
@@ -114,7 +114,7 @@ COMMITS:
 def test_reject_proposals_and_set_status_atomic_already_has_suffix() -> None:
     """Test when status already has READY TO MAIL suffix."""
     content = """NAME: test-cl
-STATUS: Drafted - (!: READY TO MAIL)
+STATUS: Ready - (!: READY TO MAIL)
 COMMITS:
   (1) First commit
 """
@@ -138,18 +138,18 @@ COMMITS:
 def test_reject_proposals_and_set_status_atomic_multiple_changespecs() -> None:
     """Test with multiple changespecs in the file."""
     content = """NAME: first-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
 
 NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
 
 NAME: third-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) Third commit
 """
@@ -184,9 +184,9 @@ COMMITS:
                 elif current_cl == "third-cl":
                     third_cl_status = line
 
-        assert first_cl_status == "STATUS: Drafted"
+        assert first_cl_status == "STATUS: Ready"
         assert test_cl_status == "STATUS: Mailed"
-        assert third_cl_status == "STATUS: Drafted"
+        assert third_cl_status == "STATUS: Ready"
 
         # Only test-cl proposals should be rejected
         assert "(~!: NEW PROPOSAL)" in new_content
@@ -197,7 +197,7 @@ COMMITS:
 def test_reject_proposals_and_set_status_atomic_with_mentors_section() -> None:
     """Test that MENTORS section is handled correctly (stops in_commits)."""
     content = """NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
@@ -224,7 +224,7 @@ MENTORS:
 def test_mark_proposal_broken_success() -> None:
     """Test successfully marking a proposal as broken."""
     content = """NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
@@ -250,7 +250,7 @@ COMMITS:
 def test_mark_proposal_broken_entry_not_found() -> None:
     """Test when the entry doesn't exist."""
     content = """NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
@@ -273,7 +273,7 @@ COMMITS:
 def test_mark_proposal_broken_wrong_cl() -> None:
     """Test when the CL name doesn't match."""
     content = """NAME: other-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
@@ -290,7 +290,7 @@ COMMITS:
 def test_mark_proposal_broken_already_rejected() -> None:
     """Test when the entry is already rejected (not a NEW PROPOSAL)."""
     content = """NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (~!: NEW PROPOSAL)
@@ -307,19 +307,19 @@ COMMITS:
 def test_mark_proposal_broken_multiple_changespecs() -> None:
     """Test with multiple changespecs in the file."""
     content = """NAME: first-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (2a) Proposal A - (!: NEW PROPOSAL)
 
 NAME: test-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) First commit
   (3a) Proposal B - (!: NEW PROPOSAL)
 
 NAME: third-cl
-STATUS: Drafted
+STATUS: Ready
 COMMITS:
   (1) Third commit
 """

@@ -31,7 +31,7 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=load_last_query() or "!!!",
         help="Query string for filtering ChangeSpecs (default: '!!!' for error suffixes). "
-        'Examples: \'"feature" AND "Drafted"\', \'"myproject" OR "bugfix"\', '
+        'Examples: \'"feature" AND "Ready"\', \'"myproject" OR "bugfix"\', '
         "'!!! AND @myproject'",
     )
     # Options for 'ace' (keep sorted alphabetically by long option name)
@@ -283,7 +283,7 @@ def create_parser() -> argparse.ArgumentParser:
     search_parser.add_argument(
         "query",
         help="Query string for filtering ChangeSpecs. "
-        "Examples: '\"feature\" AND \"Drafted\"', '+myproject', '!!! OR @@@'",
+        "Examples: '\"feature\" AND \"Ready\"', '+myproject', '!!! OR @@@'",
     )
     # Options for 'search' (keep sorted alphabetically by long option name)
     search_parser.add_argument(

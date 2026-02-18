@@ -11,8 +11,9 @@ def get_status_color(status: str) -> str:
     Workspace suffixes (e.g., " (fig_3)") are stripped before color lookup.
 
     Color mapping:
-    - WIP: #FFD700 (gold/yellow)
-    - Drafted: #87D700 (green)
+    - Draft: #FFD700 (gold/yellow)
+    - WIP: #87CEEB (light blue)
+    - Ready: #87D700 (green)
     - Mailed: #00D787 (cyan-green)
     - Submitted: #00AF00 (green)
     - Reverted: #808080 (gray)
@@ -22,8 +23,9 @@ def get_status_color(status: str) -> str:
     base_status = re.sub(r" \([a-zA-Z0-9_-]+_\d+\)$", "", status)
 
     status_colors = {
-        "WIP": "#FFD700",
-        "Drafted": "#87D700",
+        "Draft": "#FFD700",
+        "WIP": "#87CEEB",
+        "Ready": "#87D700",
         "Mailed": "#00D787",
         "Submitted": "#00AF00",
         "Reverted": "#808080",
@@ -115,14 +117,14 @@ class _MentorStatusLineLike(Protocol):
 def format_profile_with_count(
     profile_name: str,
     status_lines: Sequence[_MentorStatusLineLike] | None,
-    is_wip: bool = False,
+    is_draft: bool = False,
 ) -> str:
     """Format profile name with [started/total] count for display.
 
     Args:
         profile_name: Name of the mentor profile.
         status_lines: List of MentorStatusLine objects to count started mentors.
-        is_wip: If True, only count mentors with run_on_wip=True.
+        is_draft: If True, only count mentors with run_on_draft=True.
 
     Returns:
         Formatted string like "profile[2/3]".
@@ -133,22 +135,22 @@ def format_profile_with_count(
     if profile_config is None:
         return profile_name  # Fallback if profile not found in config
 
-    # Calculate total based on WIP status
-    if is_wip:
-        total = sum(1 for m in profile_config.mentors if m.run_on_wip)
-        wip_mentor_names = {
-            m.mentor_name for m in profile_config.mentors if m.run_on_wip
+    # Calculate total based on Draft status
+    if is_draft:
+        total = sum(1 for m in profile_config.mentors if m.run_on_draft)
+        draft_mentor_names = {
+            m.mentor_name for m in profile_config.mentors if m.run_on_draft
         }
     else:
         total = len(profile_config.mentors)
-        wip_mentor_names = None
+        draft_mentor_names = None
 
     started = 0
     if status_lines:
         for sl in status_lines:
             if sl.profile_name == profile_name:
-                # For WIP, only count status lines for run_on_wip mentors
-                if wip_mentor_names is None or sl.mentor_name in wip_mentor_names:
+                # For Draft, only count status lines for run_on_draft mentors
+                if draft_mentor_names is None or sl.mentor_name in draft_mentor_names:
                     started += 1
 
     return f"{profile_name}[{started}/{total}]"

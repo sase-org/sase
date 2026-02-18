@@ -46,7 +46,7 @@ def changespec_exists(project: str, cl_name: str) -> bool:
 def get_blocking_exact_match_changespec(
     project: str, cl_name: str
 ) -> tuple[str, str] | None:
-    """Check if a ChangeSpec with exact name has blocking status (Drafted/Mailed).
+    """Check if a ChangeSpec with exact name has blocking status (Ready/Mailed).
 
     Args:
         project: Project name.
@@ -69,7 +69,7 @@ def get_blocking_exact_match_changespec(
     changespecs = parse_project_file(project_file)
     for cs in changespecs:
         # Exact name match only (no suffix stripping)
-        if cs.name == full_name and cs.status in {"Drafted", "Mailed"}:
+        if cs.name == full_name and cs.status in {"Ready", "Mailed"}:
             return (cs.name, cs.status)
 
     return None

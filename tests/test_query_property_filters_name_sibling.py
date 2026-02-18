@@ -138,13 +138,13 @@ def test_evaluate_name_combined_with_status(
 ) -> None:
     """Test combining name and status filters."""
     query = parse_query("&my_feature %d")
-    cs1 = make_changespec.create(name="my_feature", status="Drafted")
+    cs1 = make_changespec.create(name="my_feature", status="Draft")
     assert evaluate_query(query, cs1) is True
 
     cs2 = make_changespec.create(name="my_feature", status="Mailed")
     assert evaluate_query(query, cs2) is False
 
-    cs3 = make_changespec.create(name="other_feature", status="Drafted")
+    cs3 = make_changespec.create(name="other_feature", status="Draft")
     assert evaluate_query(query, cs3) is False
 
 
@@ -248,14 +248,14 @@ def test_evaluate_sibling_combined_with_status(
 ) -> None:
     """Test combining sibling and status filters."""
     query = parse_query("sibling:feature %d")
-    cs1 = make_changespec.create(name="feature", status="Drafted")
+    cs1 = make_changespec.create(name="feature", status="Draft")
     assert evaluate_query(query, cs1) is True
 
-    cs2 = make_changespec.create(name="feature__2", status="Drafted")
+    cs2 = make_changespec.create(name="feature__2", status="Draft")
     assert evaluate_query(query, cs2) is True
 
     cs3 = make_changespec.create(name="feature__3", status="Mailed")
     assert evaluate_query(query, cs3) is False
 
-    cs4 = make_changespec.create(name="other_feature", status="Drafted")
+    cs4 = make_changespec.create(name="other_feature", status="Draft")
     assert evaluate_query(query, cs4) is False

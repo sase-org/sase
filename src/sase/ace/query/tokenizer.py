@@ -30,13 +30,14 @@ class TokenType(Enum):
 # Valid property keys for property filters
 VALID_PROPERTY_KEYS = frozenset({"status", "project", "ancestor", "name", "sibling"})
 
-# Status shorthand mappings: %d -> DRAFTED, %m -> MAILED, etc.
+# Status shorthand mappings: %d -> DRAFT, %m -> MAILED, etc.
 STATUS_SHORTHANDS = {
-    "d": "DRAFTED",
+    "d": "DRAFT",
     "m": "MAILED",
     "r": "REVERTED",
     "s": "SUBMITTED",
     "w": "WIP",
+    "y": "READY",
 }
 
 
@@ -315,7 +316,7 @@ def tokenize(query: str) -> Iterator[Token]:
                 )
             else:
                 raise TokenizerError(
-                    "Invalid status shorthand (use %d, %m, %r, %s, or %w)", start
+                    "Invalid status shorthand (use %d, %m, %r, %s, %w, or %y)", start
                 )
         # Project shorthand: +identifier
         elif char == "+":

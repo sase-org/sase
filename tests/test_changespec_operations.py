@@ -210,7 +210,7 @@ DESCRIPTION:
   Test description
 BUG: http://b/12345678
 CL: http://cl/12345
-STATUS: WIP
+STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -232,7 +232,7 @@ def test_parse_changespec_without_bug_field() -> None:
 DESCRIPTION:
   Test description
 CL: http://cl/12345
-STATUS: WIP
+STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -255,7 +255,7 @@ def test_add_changespec_inherits_parent_hooks() -> None:
 DESCRIPTION:
   Parent description
 CL: http://cl/11111
-STATUS: WIP
+STATUS: Draft
 HOOKS:
   !$sase_hg_presubmit
   sase_hg_lint
@@ -313,7 +313,7 @@ def test_add_changespec_inherits_parent_hooks_order() -> None:
 DESCRIPTION:
   Parent description
 CL: http://cl/11111
-STATUS: WIP
+STATUS: Draft
 HOOKS:
   sase_hg_lint
   bb_rabbit_test //foo:parent_test
@@ -399,7 +399,7 @@ DESCRIPTION:
   Parent description
 BUG: http://b/12345678
 CL: http://cl/11111
-STATUS: WIP
+STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(parent_content)
@@ -439,7 +439,7 @@ DESCRIPTION:
   Parent description
 BUG: http://b/11111111
 CL: http://cl/11111
-STATUS: WIP
+STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(parent_content)

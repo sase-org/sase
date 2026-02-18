@@ -10,7 +10,7 @@ def test_rewind_to_entry_1_basic() -> None:
     """Test rewinding to entry (1) - the edge case that triggered this bug."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("      | DIFF: ~/.sase/diffs/first.diff\n")
@@ -42,7 +42,7 @@ def test_rewind_to_middle_entry() -> None:
     """Test rewinding to a middle entry (e.g., entry 3)."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")
@@ -75,7 +75,7 @@ def test_rewind_with_existing_proposals() -> None:
     """Test rewinding when there are existing proposals for the selected entry."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")
@@ -111,7 +111,7 @@ def test_rewind_updates_hooks() -> None:
     """Test that HOOKS section is updated with correct ID mapping."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")
@@ -144,7 +144,7 @@ def test_rewind_updates_mentors() -> None:
     """Test that MENTORS section is updated with correct ID mapping."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")
@@ -175,7 +175,7 @@ def test_rewind_deletes_entries_after_entry_after() -> None:
     """Test that entries N+2, N+3, etc. are deleted."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")
@@ -215,7 +215,7 @@ def test_rewind_preserves_chat_and_diff() -> None:
     """Test that CHAT and DIFF paths are preserved during rewind."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("      | CHAT: ~/.sase/chats/first.md\n")
@@ -245,7 +245,7 @@ def test_rewind_strips_existing_suffix() -> None:
     """Test that existing suffixes are stripped before adding NEW PROPOSAL."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit - (~: OLD STATUS)\n")
         f.write("  (2) Second commit - (!: SOMETHING)\n")
@@ -278,7 +278,7 @@ def test_rewind_no_commits_section() -> None:
     """Test that rewinding when no COMMITS section exists returns False."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -292,7 +292,7 @@ def test_rewind_no_entry_after() -> None:
     """Test that rewinding fails when there's no entry after the selected one."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")
@@ -310,7 +310,7 @@ def test_rewind_deletes_orphaned_mentors_entries() -> None:
     """Test that MENTORS entries for non-existent commits are deleted."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")

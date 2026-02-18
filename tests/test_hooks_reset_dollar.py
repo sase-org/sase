@@ -28,7 +28,7 @@ def _make_changespec(
         description="Test",
         parent=None,
         cl=None,
-        status="WIP",
+        status="Draft",
         test_targets=None,
         kickstart=None,
         file_path="/tmp/test.gp",

@@ -18,12 +18,12 @@ from sase.ace.query.tokenizer import TokenizerError, TokenType, tokenize
 # --- Tokenizer Tests ---
 
 
-def test_tokenize_status_shorthand_drafted() -> None:
-    """Test tokenizing %d as status:DRAFTED."""
+def test_tokenize_status_shorthand_draft() -> None:
+    """Test tokenizing %d as status:DRAFT."""
     tokens = list(tokenize("%d"))
     assert len(tokens) == 2
     assert tokens[0].type == TokenType.PROPERTY
-    assert tokens[0].value == "DRAFTED"
+    assert tokens[0].value == "DRAFT"
     assert tokens[0].property_key == "status"
     assert tokens[1].type == TokenType.EOF
 
@@ -64,7 +64,7 @@ def test_tokenize_status_shorthand_case_insensitive() -> None:
     """Test that %D (uppercase) also works as status shorthand."""
     tokens = list(tokenize("%D"))
     assert tokens[0].type == TokenType.PROPERTY
-    assert tokens[0].value == "DRAFTED"
+    assert tokens[0].value == "DRAFT"
     assert tokens[0].property_key == "status"
 
 
@@ -110,11 +110,11 @@ def test_tokenize_ancestor_shorthand() -> None:
 
 
 def test_tokenize_explicit_status_property() -> None:
-    """Test tokenizing status:DRAFTED explicitly."""
-    tokens = list(tokenize("status:DRAFTED"))
+    """Test tokenizing status:DRAFT explicitly."""
+    tokens = list(tokenize("status:DRAFT"))
     assert len(tokens) == 2
     assert tokens[0].type == TokenType.PROPERTY
-    assert tokens[0].value == "DRAFTED"
+    assert tokens[0].value == "DRAFT"
     assert tokens[0].property_key == "status"
 
 
@@ -153,7 +153,7 @@ def test_tokenize_property_in_expression() -> None:
     """Test property filter in complex expression."""
     tokens = list(tokenize('%d AND "foo"'))
     assert tokens[0].type == TokenType.PROPERTY
-    assert tokens[0].value == "DRAFTED"
+    assert tokens[0].value == "DRAFT"
     assert tokens[1].type == TokenType.AND
     assert tokens[2].type == TokenType.STRING
     assert tokens[2].value == "foo"
@@ -176,7 +176,7 @@ def test_parse_status_property() -> None:
     result = parse_query("%d")
     assert isinstance(result, PropertyMatch)
     assert result.key == "status"
-    assert result.value == "DRAFTED"
+    assert result.value == "DRAFT"
 
 
 def test_parse_project_property() -> None:
@@ -219,7 +219,7 @@ def test_parse_status_shorthand_in_or_expression() -> None:
     assert isinstance(result, OrExpr)
     assert len(result.operands) == 2
     assert isinstance(result.operands[0], PropertyMatch)
-    assert result.operands[0].value == "DRAFTED"
+    assert result.operands[0].value == "DRAFT"
     assert isinstance(result.operands[1], PropertyMatch)
     assert result.operands[1].value == "MAILED"
 
@@ -260,7 +260,7 @@ def test_parse_property_with_string() -> None:
 def test_canonical_status_property() -> None:
     """Test canonicalization of status property."""
     result = parse_query("%d")
-    assert to_canonical_string(result) == "status:DRAFTED"
+    assert to_canonical_string(result) == "status:DRAFT"
 
 
 def test_canonical_project_property() -> None:
@@ -278,24 +278,24 @@ def test_canonical_ancestor_property() -> None:
 def test_canonical_property_in_expression() -> None:
     """Test canonicalization of property in expression."""
     result = parse_query('%d "foo"')
-    assert to_canonical_string(result) == 'status:DRAFTED AND "foo"'
+    assert to_canonical_string(result) == 'status:DRAFT AND "foo"'
 
 
 def test_canonical_status_or_expression() -> None:
     """Test canonicalization of OR status expression."""
     result = parse_query("%d OR %m")
-    assert to_canonical_string(result) == "status:DRAFTED OR status:MAILED"
+    assert to_canonical_string(result) == "status:DRAFT OR status:MAILED"
 
 
 # --- Evaluator Tests ---
 
 
-def test_evaluate_status_drafted(
+def test_evaluate_status_draft(
     make_changespec: Any,
 ) -> None:
-    """Test status:DRAFTED matches Drafted status."""
+    """Test status:DRAFT matches Draft status."""
     query = parse_query("%d")
-    cs = make_changespec.create(status="Drafted")
+    cs = make_changespec.create(status="Draft")
     assert evaluate_query(query, cs) is True
 
 
@@ -303,8 +303,8 @@ def test_evaluate_status_case_insensitive(
     make_changespec: Any,
 ) -> None:
     """Test status matching is case-insensitive."""
-    query = parse_query("status:drafted")
-    cs = make_changespec.create(status="Drafted")
+    query = parse_query("status:draft")
+    cs = make_changespec.create(status="Draft")
     assert evaluate_query(query, cs) is True
 
 
@@ -313,7 +313,7 @@ def test_evaluate_status_with_workspace_suffix(
 ) -> None:
     """Test status matches even with workspace suffix."""
     query = parse_query("%d")
-    cs = make_changespec.create(status="Drafted (fig_1)")
+    cs = make_changespec.create(status="Draft (fig_1)")
     assert evaluate_query(query, cs) is True
 
 
@@ -322,7 +322,7 @@ def test_evaluate_status_with_ready_to_mail_suffix(
 ) -> None:
     """Test status matches even with READY TO MAIL suffix."""
     query = parse_query("%d")
-    cs = make_changespec.create(status="Drafted - (!: READY TO MAIL)")
+    cs = make_changespec.create(status="Draft - (!: READY TO MAIL)")
     assert evaluate_query(query, cs) is True
 
 
@@ -451,7 +451,7 @@ def test_evaluate_combined_status_and_project(
     """Test combining status and project filters."""
     query = parse_query("%d +myproject")
     cs1 = make_changespec.create(
-        status="Drafted",
+        status="Draft",
         file_path="/home/user/.sase/projects/myproject/myproject.gp",
     )
     assert evaluate_query(query, cs1) is True
@@ -463,7 +463,7 @@ def test_evaluate_combined_status_and_project(
     assert evaluate_query(query, cs2) is False
 
     cs3 = make_changespec.create(
-        status="Drafted",
+        status="Draft",
         file_path="/home/user/.sase/projects/otherproject/otherproject.gp",
     )
     assert evaluate_query(query, cs3) is False
@@ -474,11 +474,11 @@ def test_evaluate_status_or_combined(
 ) -> None:
     """Test OR combination of status filters."""
     query = parse_query("%d OR %m")
-    cs_drafted = make_changespec.create(status="Drafted")
+    cs_draft = make_changespec.create(status="Draft")
     cs_mailed = make_changespec.create(status="Mailed")
     cs_submitted = make_changespec.create(status="Submitted")
 
-    assert evaluate_query(query, cs_drafted) is True
+    assert evaluate_query(query, cs_draft) is True
     assert evaluate_query(query, cs_mailed) is True
     assert evaluate_query(query, cs_submitted) is False
 
@@ -488,10 +488,10 @@ def test_evaluate_not_status(
 ) -> None:
     """Test NOT with status filter."""
     query = parse_query("!%r")
-    cs_drafted = make_changespec.create(status="Drafted")
+    cs_draft = make_changespec.create(status="Draft")
     cs_reverted = make_changespec.create(status="Reverted")
 
-    assert evaluate_query(query, cs_drafted) is True
+    assert evaluate_query(query, cs_draft) is True
     assert evaluate_query(query, cs_reverted) is False
 
 
@@ -505,7 +505,7 @@ def test_full_pipeline_with_property_filters(
     changespecs = [
         make_changespec.create(
             name="feature_a",
-            status="Drafted",
+            status="Draft",
             file_path="/home/user/.sase/projects/projectA/projectA.gp",
         ),
         make_changespec.create(
@@ -515,7 +515,7 @@ def test_full_pipeline_with_property_filters(
         ),
         make_changespec.create(
             name="feature_c",
-            status="Drafted",
+            status="Draft",
             file_path="/home/user/.sase/projects/projectB/projectB.gp",
         ),
     ]

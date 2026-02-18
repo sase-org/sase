@@ -61,8 +61,10 @@ def _get_status_letter_and_color(
         return "*", "#00D787"
     if "..." in status:
         return "~", "#87AFFF"
-    elif status.startswith("Drafted"):
-        return "D", "#87D700"
+    elif status.startswith("Draft"):
+        return "D", "#FFD700"
+    elif status.startswith("Ready"):
+        return "R", "#87D700"
     elif status.startswith("Mailed"):
         return "M", "#00D787"
     elif status.startswith("Submitted"):
@@ -71,7 +73,7 @@ def _get_status_letter_and_color(
         return "X", "#808080"
     elif status.startswith("Archived"):
         return "A", "#606060"
-    return "W", "#FFD700"
+    return "W", "#87CEEB"
 
 
 def _get_status_indicator(changespec: ChangeSpec) -> tuple[str, str]:

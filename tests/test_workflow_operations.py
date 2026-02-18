@@ -23,15 +23,15 @@ def _make_hook(
     return HookEntry(command=command, status_lines=[status_line])
 
 
-def test_get_available_workflows_drafted() -> None:
-    """Test that Drafted status returns no workflows."""
+def test_get_available_workflows_ready() -> None:
+    """Test that Ready status returns no workflows."""
     cs = ChangeSpec(
         name="Test",
         description="Test",
         parent="None",
         cl="123",
         test_targets=None,
-        status="Drafted",
+        status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
         kickstart=None,
@@ -89,7 +89,7 @@ def test_get_available_workflows_with_failed_test_targets() -> None:
         parent="None",
         cl="123",
         test_targets=None,
-        status="Drafted",
+        status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
         kickstart=None,
@@ -110,7 +110,7 @@ def test_get_available_workflows_with_non_test_target_failed_hook() -> None:
         parent="None",
         cl="123",
         test_targets=None,
-        status="Drafted",
+        status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
         kickstart=None,
@@ -148,7 +148,7 @@ def test_get_available_workflows_no_hooks() -> None:
         parent="None",
         cl="123",
         test_targets=None,
-        status="Drafted",
+        status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
         kickstart=None,
@@ -166,7 +166,7 @@ def test_get_available_workflows_empty_hooks() -> None:
         parent="None",
         cl="123",
         test_targets=None,
-        status="Drafted",
+        status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
         kickstart=None,
@@ -184,7 +184,7 @@ def test_get_available_workflows_all_hooks_passing() -> None:
         parent="None",
         cl="123",
         test_targets=None,
-        status="Drafted",
+        status="Ready",
         file_path="/tmp/test.md",
         line_number=1,
         kickstart=None,

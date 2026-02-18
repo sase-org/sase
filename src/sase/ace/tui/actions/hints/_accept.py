@@ -146,10 +146,10 @@ class AcceptMailMixin(HintMixinBase):
         from ....changespec import get_base_status, has_ready_to_mail_suffix
         from ....mail_ops import MailPrepResult, execute_mail, prepare_mail
 
-        # Validate: must be Drafted without READY TO MAIL suffix
+        # Validate: must be Ready without READY TO MAIL suffix
         base_status = get_base_status(changespec.status)
-        if base_status != "Drafted":
-            self.notify("Must be Drafted status", severity="warning")  # type: ignore[attr-defined]
+        if base_status != "Ready":
+            self.notify("Must be Ready status", severity="warning")  # type: ignore[attr-defined]
             return
         if has_ready_to_mail_suffix(changespec.status):
             self.notify("Already marked as ready to mail", severity="warning")  # type: ignore[attr-defined]

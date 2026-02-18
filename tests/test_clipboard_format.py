@@ -17,7 +17,7 @@ from sase.ace.tui.actions.clipboard import _format_changespec_for_clipboard
 def _make_basic_changespec(
     name: str = "test_cl",
     description: str = "Test description",
-    status: str = "Drafted",
+    status: str = "Ready",
     **kwargs: Any,
 ) -> ChangeSpec:
     """Helper to create a basic ChangeSpec for testing."""
@@ -44,12 +44,12 @@ def test_format_changespec_basic_fields() -> None:
     cs = _make_basic_changespec(
         name="my_feature",
         description="Add new feature",
-        status="Drafted",
+        status="Ready",
     )
     result = _format_changespec_for_clipboard(cs)
     assert "NAME: my_feature" in result
     assert "DESCRIPTION: Add new feature" in result
-    assert "STATUS: Drafted" in result
+    assert "STATUS: Ready" in result
 
 
 def test_format_changespec_with_parent() -> None:
@@ -309,14 +309,14 @@ def test_format_changespec_with_mentors() -> None:
     assert "(1) profile1 profile2" in result
 
 
-def test_format_changespec_mentors_with_wip() -> None:
-    """Test formatting mentors with WIP marker."""
+def test_format_changespec_mentors_with_draft() -> None:
+    """Test formatting mentors with Draft marker."""
     mentors = [
-        MentorEntry(entry_id="1", profiles=["profile1"], is_wip=True),
+        MentorEntry(entry_id="1", profiles=["profile1"], is_draft=True),
     ]
     cs = _make_basic_changespec(mentors=mentors)
     result = _format_changespec_for_clipboard(cs)
-    assert "(1) profile1 (WIP)" in result
+    assert "(1) profile1 (Draft)" in result
 
 
 def test_format_changespec_mentors_with_status_lines() -> None:

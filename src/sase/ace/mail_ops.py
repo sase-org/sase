@@ -549,7 +549,7 @@ def handle_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> bo
     )
     if status_success:
         console.print(
-            f"[green]Status updated: {old_status if old_status else 'Drafted'} → Mailed[/green]"
+            f"[green]Status updated: {old_status if old_status else 'Ready'} → Mailed[/green]"
         )
         return True
     else:

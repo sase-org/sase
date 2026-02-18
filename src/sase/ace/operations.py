@@ -185,7 +185,7 @@ def calculate_lifecycle_new_name(
     Returns:
         The new name (may be unchanged if WIP with existing suffix).
     """
-    if changespec.status == "WIP" and has_suffix(changespec.name):
+    if changespec.status in ("WIP", "Draft") and has_suffix(changespec.name):
         return changespec.name
     existing_names = {cs.name for cs in all_changespecs}
     suffix = get_next_suffix_number(changespec.name, existing_names)

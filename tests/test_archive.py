@@ -24,11 +24,11 @@ def test_has_active_children_with_no_children(make_changespec) -> None:  # type:
     Path(child.file_path).unlink()
 
 
-def test_has_active_children_with_wip_child(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test has_active_children returns True when child is WIP."""
+def test_has_active_children_with_draft_child(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test has_active_children returns True when child is Draft."""
     parent = make_changespec.create_with_file(name="parent_feature")
     child = make_changespec.create_with_file(
-        name="child_feature", parent="parent_feature", status="WIP"
+        name="child_feature", parent="parent_feature", status="Draft"
     )
     all_changespecs = [parent, child]
 
@@ -121,7 +121,7 @@ def test_archive_changespec_fails_with_non_terminal_children(make_changespec) ->
     """Test archive_changespec fails when ChangeSpec has non-terminal children."""
     parent = make_changespec.create_with_file(name="parent_feature")
     child = make_changespec.create_with_file(
-        name="child_feature", parent="parent_feature", status="WIP"
+        name="child_feature", parent="parent_feature", status="Draft"
     )
 
     mock_provider = MagicMock()

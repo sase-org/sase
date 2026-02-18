@@ -21,7 +21,7 @@ from sase.ace.tui.widgets.prompt_panel import (
 def _make_changespec(
     name: str = "test_feature",
     description: str = "Test description",
-    status: str = "Drafted",
+    status: str = "Ready",
     cl: str | None = None,
     parent: str | None = None,
     file_path: str = "/tmp/test.gp",

@@ -69,10 +69,10 @@ class ProjectSelectModal(
                             )
                         )
 
-        # Load CLs with WIP, Drafted, or Mailed status
+        # Load CLs with WIP, Draft, Ready, or Mailed status
         for cs in find_all_changespecs():
             base_status = remove_workspace_suffix(cs.status)
-            if base_status in ("WIP", "Drafted", "Mailed"):
+            if base_status in ("WIP", "Draft", "Ready", "Mailed"):
                 self.all_items.append(
                     SelectionItem(
                         display_name=f"[C] {cs.name} [{base_status}]",

@@ -31,7 +31,7 @@ Shorthands:
     - !! (standalone) is equivalent to NOT !!! (matches changespecs with NO error suffix)
     - @@@ or standalone @ matches changespecs with running agents (CRS or fix-hook)
     - !@ (standalone) is equivalent to NOT @@@ (matches changespecs with NO running agents)
-    - %d, %m, %r, %s, %w expand to status:DRAFTED, status:MAILED, status:REVERTED, status:SUBMITTED, status:WIP
+    - %d, %m, %r, %s, %w, %y expand to status:DRAFT, status:MAILED, status:REVERTED, status:SUBMITTED, status:WIP, status:READY
     - +project expands to project:project (match changespecs in a project)
     - ^name expands to ancestor:name (match changespecs with name or parent chain containing name)
 """

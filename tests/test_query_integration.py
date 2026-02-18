@@ -8,9 +8,9 @@ from sase.ace.query import evaluate_query, parse_query
 def test_full_pipeline_simple(make_changespec: Any) -> None:
     """Test full pipeline with simple query."""
     changespecs = [
-        make_changespec.create(name="feature_a", status="Drafted"),
+        make_changespec.create(name="feature_a", status="Ready"),
         make_changespec.create(name="feature_b", status="Mailed"),
-        make_changespec.create(name="bugfix_c", status="Drafted"),
+        make_changespec.create(name="bugfix_c", status="Ready"),
     ]
 
     query = parse_query('"feature"')
@@ -23,12 +23,12 @@ def test_full_pipeline_simple(make_changespec: Any) -> None:
 def test_full_pipeline_complex(make_changespec: Any) -> None:
     """Test full pipeline with complex query."""
     changespecs = [
-        make_changespec.create(name="feature_a", status="Drafted"),
+        make_changespec.create(name="feature_a", status="Ready"),
         make_changespec.create(name="feature_b", status="Mailed"),
-        make_changespec.create(name="bugfix_c", status="Drafted"),
+        make_changespec.create(name="bugfix_c", status="Ready"),
     ]
 
-    query = parse_query('"feature" AND "Drafted"')
+    query = parse_query('"feature" AND "Ready"')
     results = [cs for cs in changespecs if evaluate_query(query, cs)]
     assert len(results) == 1
     assert results[0].name == "feature_a"

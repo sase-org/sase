@@ -58,14 +58,14 @@ def build_mentors_section(
     text.append("MENTORS:\n", style="bold #87D7FF")
 
     for mentor_entry in changespec.mentors:
-        # Filter profiles for WIP entries - only show profiles with run_on_wip mentors
-        from sase.mentor_config import profile_has_wip_mentors
+        # Filter profiles for Draft entries - only show profiles with run_on_draft mentors
+        from sase.mentor_config import profile_has_draft_mentors
 
         from ...display_helpers import format_profile_with_count
 
-        if mentor_entry.is_wip:
+        if mentor_entry.is_draft:
             visible_profiles = [
-                p for p in mentor_entry.profiles if profile_has_wip_mentors(p)
+                p for p in mentor_entry.profiles if profile_has_draft_mentors(p)
             ]
         else:
             visible_profiles = mentor_entry.profiles
@@ -96,13 +96,13 @@ def build_mentors_section(
         text.append(f"({mentor_entry.entry_id}) ", style="bold #D7AF5F")
         profiles_with_counts = [
             format_profile_with_count(
-                p, mentor_entry.status_lines, is_wip=mentor_entry.is_wip
+                p, mentor_entry.status_lines, is_draft=mentor_entry.is_draft
             )
             for p in visible_profiles
         ]
         text.append(" ".join(profiles_with_counts), style="#D7D7AF")
-        if mentor_entry.is_wip:
-            text.append(" #WIP", style="bold #FFD700")
+        if mentor_entry.is_draft:
+            text.append(" #Draft", style="bold #FFD700")
 
         # Add folded suffix if collapsed and has non-RUNNING statuses
         if mentors_collapsed and (passed_count or failed_count or dead_count):

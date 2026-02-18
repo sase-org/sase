@@ -11,7 +11,7 @@ class MentorConfig:
 
     mentor_name: str
     prompt: str
-    run_on_wip: bool = False  # If True, mentor runs even on WIP status
+    run_on_draft: bool = False  # If True, mentor runs even on Draft status
 
 
 @dataclass
@@ -101,7 +101,7 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
                 MentorConfig(
                     mentor_name=mentor_name,
                     prompt=mentor_item["prompt"],
-                    run_on_wip=mentor_item.get("run_on_wip", False),
+                    run_on_draft=mentor_item.get("run_on_draft", False),
                 )
             )
 
@@ -163,28 +163,28 @@ def get_mentor_from_profile(
     return None
 
 
-def _get_wip_mentor_count(profile: MentorProfileConfig) -> int:
-    """Count mentors in a profile that have run_on_wip=True.
+def _get_draft_mentor_count(profile: MentorProfileConfig) -> int:
+    """Count mentors in a profile that have run_on_draft=True.
 
     Args:
         profile: The profile configuration.
 
     Returns:
-        Number of mentors with run_on_wip=True.
+        Number of mentors with run_on_draft=True.
     """
-    return sum(1 for m in profile.mentors if m.run_on_wip)
+    return sum(1 for m in profile.mentors if m.run_on_draft)
 
 
-def profile_has_wip_mentors(profile_name: str) -> bool:
-    """Check if a profile has any mentors with run_on_wip=True.
+def profile_has_draft_mentors(profile_name: str) -> bool:
+    """Check if a profile has any mentors with run_on_draft=True.
 
     Args:
         profile_name: The name of the profile.
 
     Returns:
-        True if the profile has at least one mentor with run_on_wip=True.
+        True if the profile has at least one mentor with run_on_draft=True.
     """
     profile = get_mentor_profile_by_name(profile_name)
     if profile is None:
         return False
-    return _get_wip_mentor_count(profile) > 0
+    return _get_draft_mentor_count(profile) > 0

@@ -10,7 +10,7 @@ def test_renumber_commit_entries_accept_single_proposal() -> None:
     """Test renumbering after accepting a single proposal."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("      | DIFF: ~/.sase/diffs/first.diff\n")
@@ -44,7 +44,7 @@ def test_renumber_commit_entries_accept_multiple_proposals() -> None:
     """Test renumbering after accepting multiple proposals."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal A\n")
@@ -76,7 +76,7 @@ def test_renumber_commit_entries_no_remaining_proposals() -> None:
     """Test renumbering when all proposals are accepted."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Only proposal\n")
@@ -107,7 +107,7 @@ def test_renumber_commit_entries_no_history_section() -> None:
     """Test renumbering when no COMMITS section exists."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -121,7 +121,7 @@ def test_renumber_commit_entries_preserves_diffs() -> None:
     """Test that renumbering preserves DIFF paths."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("      | DIFF: ~/.sase/diffs/first.diff\n")
@@ -150,7 +150,7 @@ def test_renumber_commit_entries_with_extra_msg() -> None:
     """Test that extra_msg is appended to accepted entry note."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Original note\n")
@@ -175,7 +175,7 @@ def test_renumber_commit_entries_with_per_proposal_messages() -> None:
     """Test that per-proposal messages are appended to each accepted entry."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal A\n")
@@ -212,7 +212,7 @@ def test_renumber_commit_entries_with_mixed_none_messages() -> None:
     """Test that None messages in extra_msgs don't append anything."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal A\n")
@@ -246,7 +246,7 @@ def test_renumber_commit_entries_updates_hook_status_lines() -> None:
     """Test that hook status lines are updated with new entry IDs."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (2) Second commit\n")
@@ -288,7 +288,7 @@ def test_renumber_commit_entries_sorts_hook_status_lines() -> None:
     """Test that hook status lines are sorted by entry ID after renumbering."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal A\n")
@@ -325,7 +325,7 @@ def test_renumber_commit_entries_preserves_hook_suffix() -> None:
     """Test that hook status line suffixes are preserved during renumbering."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal\n")
@@ -352,7 +352,7 @@ def test_renumber_commit_entries_multiple_hooks() -> None:
     """Test renumbering with multiple hooks."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal\n")
@@ -388,7 +388,7 @@ def test_renumber_commit_entries_multi_accept_archives_hooks() -> None:
     """Test full renumbering archives hook status lines for non-first proposals."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal A\n")
@@ -437,7 +437,7 @@ def test_renumber_commit_entries_mark_ready_to_mail() -> None:
     """Test renumbering with mark_ready_to_mail flag adds suffix and rejects proposals."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) First proposal - (!: NEW PROPOSAL)\n")
@@ -459,7 +459,7 @@ def test_renumber_commit_entries_mark_ready_to_mail() -> None:
         # (1b) stays as (1b) but rejected ((!: NEW PROPOSAL) -> (~!: NEW PROPOSAL))
         assert "(1b) Second proposal - (~!: NEW PROPOSAL)" in content
         # READY TO MAIL suffix added to STATUS line
-        assert "STATUS: Drafted - (!: READY TO MAIL)" in content
+        assert "STATUS: Ready - (!: READY TO MAIL)" in content
     finally:
         os.unlink(temp_path)
 
@@ -468,7 +468,7 @@ def test_renumber_commit_entries_mark_ready_to_mail_no_remaining_proposals() -> 
     """Test mark_ready_to_mail when all proposals are accepted."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Only proposal - (!: NEW PROPOSAL)\n")
@@ -488,7 +488,7 @@ def test_renumber_commit_entries_mark_ready_to_mail_no_remaining_proposals() -> 
         # No remaining proposals to reject
         assert "(~!: NEW PROPOSAL)" not in content
         # READY TO MAIL suffix added to STATUS line
-        assert "STATUS: Drafted - (!: READY TO MAIL)" in content
+        assert "STATUS: Ready - (!: READY TO MAIL)" in content
     finally:
         os.unlink(temp_path)
 
@@ -497,7 +497,7 @@ def test_renumber_commit_entries_mark_ready_to_mail_idempotent() -> None:
     """Test mark_ready_to_mail doesn't duplicate suffix if already present."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted - (!: READY TO MAIL)\n")
+        f.write("STATUS: Ready - (!: READY TO MAIL)\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Only proposal - (!: NEW PROPOSAL)\n")
@@ -515,7 +515,7 @@ def test_renumber_commit_entries_mark_ready_to_mail_idempotent() -> None:
         # Should still have exactly one READY TO MAIL suffix
         assert content.count("(!: READY TO MAIL)") == 1
         # Check it's formatted correctly
-        assert "STATUS: Drafted - (!: READY TO MAIL)" in content
+        assert "STATUS: Ready - (!: READY TO MAIL)" in content
     finally:
         os.unlink(temp_path)
 
@@ -524,7 +524,7 @@ def test_renumber_commit_entries_mark_ready_to_mail_with_extra_msgs() -> None:
     """Test mark_ready_to_mail works correctly with extra_msgs."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
         f.write("  (1) First commit\n")
         f.write("  (1a) Proposal A - (!: NEW PROPOSAL)\n")
@@ -549,6 +549,6 @@ def test_renumber_commit_entries_mark_ready_to_mail_with_extra_msgs() -> None:
         # (1b) stays as (1b) but rejected
         assert "(1b) Proposal B - (~!: NEW PROPOSAL)" in content
         # READY TO MAIL suffix added
-        assert "STATUS: Drafted - (!: READY TO MAIL)" in content
+        assert "STATUS: Ready - (!: READY TO MAIL)" in content
     finally:
         os.unlink(temp_path)

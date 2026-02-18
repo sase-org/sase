@@ -379,7 +379,7 @@ def test_get_changespec_from_file_found() -> None:
     """Test get_changespec_from_file returns changespec when found."""
     content = """NAME: my_feature
 DESCRIPTION: Test description
-STATUS: Drafted
+STATUS: Ready
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -398,7 +398,7 @@ def test_get_changespec_from_file_not_found() -> None:
     """Test get_changespec_from_file returns None when CL not found."""
     content = """NAME: other_feature
 DESCRIPTION: Test description
-STATUS: Drafted
+STATUS: Ready
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
@@ -415,7 +415,7 @@ def test_get_changespec_from_file_multiple_changespecs() -> None:
     """Test get_changespec_from_file finds correct CL among multiple."""
     content = """NAME: first_cl
 DESCRIPTION: First
-STATUS: Drafted
+STATUS: Ready
 
 NAME: target_cl
 DESCRIPTION: Target description
@@ -423,7 +423,7 @@ STATUS: Mailed
 
 NAME: third_cl
 DESCRIPTION: Third
-STATUS: Drafted
+STATUS: Ready
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)

@@ -30,7 +30,7 @@ def _make_hook(
 
 def _make_changespec(
     name: str = "test_cs",
-    status: str = "Drafted",
+    status: str = "Ready",
     file_path: str = "/path/to/project.gp",
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
@@ -228,3 +228,24 @@ def test_check_hooks_logs_warning_on_merge_failure() -> None:
         "Warning: Hook update failed for test_cs, will retry",
         "dim",
     )
+
+
+def test_check_hooks_skips_wip() -> None:
+    """Test check_hooks skips starting new hooks for WIP status.
+
+    The new WIP status represents true work-in-progress that axe skips entirely,
+    so no hooks should be started for WIP ChangeSpecs.
+    """
+    cs = _make_changespec(
+        status="WIP",
+        hooks=[
+            _make_hook(command="test_cmd", status="PASSED", timestamp="240101120000")
+        ],
+    )
+    log = MagicMock()
+
+    updates, hooks_started = check_hooks(cs, log)
+
+    # No updates since WIP is skipped
+    assert updates == []
+    assert hooks_started == 0

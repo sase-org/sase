@@ -232,7 +232,7 @@ def test_get_changespec_from_file_found() -> None:
         f.write("NAME: test_cl\n")
         f.write("DESCRIPTION:\n")
         f.write("  Test description\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -247,7 +247,7 @@ def test_get_changespec_from_file_not_found() -> None:
     """Test getting changespec that doesn't exist."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: other_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         temp_path = f.name
 
     try:
@@ -261,7 +261,7 @@ def test_get_changespec_from_file_multiple_specs() -> None:
     """Test getting changespec from file with multiple specs."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: first_cl\n")
-        f.write("STATUS: Drafted\n")
+        f.write("STATUS: Ready\n")
         f.write("\n")
         f.write("NAME: second_cl\n")
         f.write("STATUS: Mailed\n")

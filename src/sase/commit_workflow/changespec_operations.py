@@ -197,7 +197,7 @@ def add_changespec_to_project_file(
 NAME: {cl_name}
 DESCRIPTION:
 {formatted_description}
-{parent_line}{bug_line}{cl_line}STATUS: WIP
+{parent_line}{bug_line}{cl_line}STATUS: Draft
 {commits_block}{hooks_block}"""
 
             # Insert the new ChangeSpec

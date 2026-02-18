@@ -9,7 +9,7 @@ from sase.ace.tui.widgets import KeybindingFooter
 def _make_changespec(
     name: str = "test_feature",
     description: str = "Test description",
-    status: str = "Drafted",
+    status: str = "Ready",
     cl: str | None = None,
     parent: str | None = None,
     file_path: str = "/tmp/test.gp",
@@ -35,10 +35,10 @@ def _make_changespec(
 # --- Rebase Binding Tests ---
 
 
-def test_keybinding_footer_rebase_visible_wip() -> None:
-    """Test 'b' (rebase) binding is visible for WIP status."""
+def test_keybinding_footer_rebase_visible_draft() -> None:
+    """Test 'b' (rebase) binding is visible for Draft status."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="WIP")
+    changespec = _make_changespec(status="Draft")
 
     bindings = footer._compute_available_bindings(changespec)
     binding_keys = [b[0] for b in bindings]
@@ -46,10 +46,10 @@ def test_keybinding_footer_rebase_visible_wip() -> None:
     assert "b" in binding_keys
 
 
-def test_keybinding_footer_rebase_visible_drafted() -> None:
-    """Test 'b' (rebase) binding is visible for Drafted status."""
+def test_keybinding_footer_rebase_visible_ready() -> None:
+    """Test 'b' (rebase) binding is visible for Ready status."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Drafted")
+    changespec = _make_changespec(status="Ready")
 
     bindings = footer._compute_available_bindings(changespec)
     binding_keys = [b[0] for b in bindings]
@@ -90,7 +90,7 @@ def test_keybinding_footer_workflow_binding_single() -> None:
         reviewer="fix-hook",
         file_path="test.py",
     )
-    changespec = _make_changespec(status="Drafted", comments=[comment])
+    changespec = _make_changespec(status="Ready", comments=[comment])
 
     with patch(
         "sase.ace.tui.widgets.keybinding_footer.get_available_workflows"
@@ -106,7 +106,7 @@ def test_keybinding_footer_workflow_binding_single() -> None:
 def test_keybinding_footer_workflow_binding_multiple() -> None:
     """Test 'r' (run) binding shows count when multiple workflows available."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Drafted")
+    changespec = _make_changespec(status="Ready")
 
     with patch(
         "sase.ace.tui.widgets.keybinding_footer.get_available_workflows"
@@ -122,7 +122,7 @@ def test_keybinding_footer_workflow_binding_multiple() -> None:
 def test_keybinding_footer_workflow_binding_none() -> None:
     """Test 'r' (run) binding is hidden when no workflows available."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Drafted")
+    changespec = _make_changespec(status="Ready")
 
     with patch(
         "sase.ace.tui.widgets.keybinding_footer.get_available_workflows"
@@ -140,7 +140,7 @@ def test_keybinding_footer_workflow_binding_none() -> None:
 def test_keybinding_footer_edit_spec_always_visible() -> None:
     """Test 'e' (edit spec) binding is always visible."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Drafted")
+    changespec = _make_changespec(status="Ready")
 
     bindings = footer._compute_available_bindings(changespec)
     binding_keys = [b[0] for b in bindings]
@@ -151,7 +151,7 @@ def test_keybinding_footer_edit_spec_always_visible() -> None:
 def test_keybinding_footer_fold_always_visible() -> None:
     """Test 'z' (fold) binding is always visible."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Drafted")
+    changespec = _make_changespec(status="Ready")
 
     bindings = footer._compute_available_bindings(changespec)
     binding_keys = [b[0] for b in bindings]

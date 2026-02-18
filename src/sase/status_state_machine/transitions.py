@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SiblingRevertResult:
-    """Result of reverting a sibling WIP ChangeSpec."""
+    """Result of reverting a sibling Draft ChangeSpec."""
 
     name: str
     success: bool
@@ -36,11 +36,11 @@ def _check_siblings_for_unreverted_children(
     base_name: str,
     excluded_name: str,
 ) -> str | None:
-    """Check if any sibling WIP ChangeSpec has unreverted children.
+    """Check if any sibling WIP/Draft ChangeSpec has unreverted children.
 
-    When transitioning a WIP ChangeSpec to Drafted, sibling WIP ChangeSpecs
-    will be auto-reverted. This function checks if any of those siblings
-    have unreverted children, which would block the revert operation.
+    When transitioning a WIP/Draft ChangeSpec to Ready, sibling WIP/Draft
+    ChangeSpecs will be auto-reverted. This function checks if any of those
+    siblings have unreverted children, which would block the revert operation.
 
     Args:
         project_file: Path to the project file.
@@ -63,30 +63,30 @@ def _check_siblings_for_unreverted_children(
         if cs.name == excluded_name:
             continue
 
-        # Check if same basename and is WIP
+        # Check if same basename and is WIP or Draft
         cs_base = strip_reverted_suffix(cs.name)
-        if cs_base == base_name and cs.status == "WIP":
+        if cs_base == base_name and cs.status in ("WIP", "Draft"):
             # Check if this sibling has unreverted children
             if has_children(cs, all_changespecs):
                 return (
-                    f"Cannot transition '{excluded_name}' to Drafted: "
-                    f"sibling WIP ChangeSpec '{cs.name}' has unreverted children."
+                    f"Cannot transition '{excluded_name}' to Ready: "
+                    f"sibling ChangeSpec '{cs.name}' ({cs.status}) has unreverted children."
                 )
 
     return None
 
 
-def _revert_sibling_wip_changespecs(
+def _revert_sibling_draft_changespecs(
     project_file: str,
     base_name: str,
     excluded_name: str,
     console: "Console | None" = None,
 ) -> list[SiblingRevertResult]:
-    """Revert all WIP ChangeSpecs with the same basename.
+    """Revert all WIP/Draft ChangeSpecs with the same basename.
 
-    When a WIP ChangeSpec transitions to Drafted and has its suffix stripped,
-    any other WIP ChangeSpecs with the same base name are automatically reverted
-    since they are now obsolete.
+    When a WIP/Draft ChangeSpec transitions to Ready and has its suffix stripped,
+    any other WIP/Draft ChangeSpecs with the same base name are automatically
+    reverted since they are now obsolete.
 
     Args:
         project_file: Path to the project file.
@@ -111,12 +111,14 @@ def _revert_sibling_wip_changespecs(
         if cs.name == excluded_name:
             continue
 
-        # Check if same basename and is WIP
+        # Check if same basename and is WIP or Draft
         cs_base = strip_reverted_suffix(cs.name)
-        if cs_base == base_name and cs.status == "WIP":
-            logger.info(f"Auto-reverting sibling WIP ChangeSpec: {cs.name}")
+        if cs_base == base_name and cs.status in ("WIP", "Draft"):
+            logger.info(f"Auto-reverting sibling ChangeSpec: {cs.name} ({cs.status})")
             if console:
-                console.print(f"[yellow]Auto-reverting sibling WIP:[/] {cs.name}")
+                console.print(
+                    f"[yellow]Auto-reverting sibling {cs.status}:[/] {cs.name}"
+                )
             success, error = revert_changespec(cs, console=console)
             if not success:
                 logger.warning(f"Failed to revert {cs.name}: {error}")
@@ -133,7 +135,7 @@ def _handle_suffix_strip(
     base_name: str,
     console: "Console | None" = None,
 ) -> list[SiblingRevertResult]:
-    """Handle stripping __<N> suffix when transitioning from WIP to Drafted.
+    """Handle stripping __<N> suffix when transitioning to Ready.
 
     Args:
         project_file: Path to the project file.
@@ -177,8 +179,8 @@ def _handle_suffix_strip(
     # Update RUNNING field entries
     update_running_field_cl_name(project_file, suffixed_name, base_name)
 
-    # Auto-revert sibling WIP ChangeSpecs with the same basename
-    return _revert_sibling_wip_changespecs(
+    # Auto-revert sibling WIP/Draft ChangeSpecs with the same basename
+    return _revert_sibling_draft_changespecs(
         project_file, base_name, suffixed_name, console
     )
 
@@ -188,7 +190,7 @@ def _handle_suffix_append(
     base_name: str,
     suffixed_name: str,
 ) -> None:
-    """Handle appending __<N> suffix when transitioning from Drafted to WIP.
+    """Handle appending __<N> suffix when transitioning from Ready to Draft.
 
     Args:
         project_file: Path to the project file.
@@ -229,7 +231,7 @@ def _handle_suffix_append(
     update_running_field_cl_name(project_file, base_name, suffixed_name)
 
 
-def _handle_wip_transition(
+def _handle_draft_transition(
     project_file: str,
     changespec_name: str,
     old_status: str,
@@ -237,26 +239,27 @@ def _handle_wip_transition(
     lines: list[str],
     validate: bool,
 ) -> tuple[bool, str | None, str | None, tuple[str, str] | None]:
-    """Handle transition to WIP status.
+    """Handle transition to Draft status (from Ready).
 
     Returns:
         Tuple of (success, old_status, error_msg, suffix_append_info)
     """
     from sase.ace.changespec import find_all_changespecs
-    from sase.ace.mentors import set_mentor_wip_flags
+    from sase.ace.mentors import set_mentor_draft_flags
     from sase.sase_utils import get_next_suffix_number
 
     all_changespecs = find_all_changespecs()
     invalid_children = [
         cs
         for cs in all_changespecs
-        if cs.parent == changespec_name and cs.status not in ("WIP", "Reverted")
+        if cs.parent == changespec_name
+        and cs.status not in ("WIP", "Draft", "Reverted")
     ]
     if invalid_children:
         child_info = ", ".join(f"{cs.name} ({cs.status})" for cs in invalid_children)
         error_msg = (
-            f"Cannot transition '{changespec_name}' to WIP: "
-            f"children must be WIP or Reverted. "
+            f"Cannot transition '{changespec_name}' to Draft: "
+            f"children must be WIP, Draft, or Reverted. "
             f"Invalid children: {child_info}"
         )
         logger.error(error_msg)
@@ -272,7 +275,7 @@ def _handle_wip_transition(
         logger.error(error_msg)
         return (False, old_status, error_msg, None)
 
-    # Valid transition to WIP
+    # Valid transition to Draft
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_msg = (
         f"[{timestamp}] Transitioning {changespec_name}: "
@@ -289,7 +292,7 @@ def _handle_wip_transition(
         f"Update STATUS to {new_status} for {changespec_name}",
     )
 
-    # Add __<N> suffix when transitioning to WIP
+    # Add __<N> suffix when transitioning to Draft
     existing_names = {cs.name for cs in all_changespecs}
     suffix_num = get_next_suffix_number(changespec_name, existing_names)
     suffix_append_info = (
@@ -297,13 +300,13 @@ def _handle_wip_transition(
         f"{changespec_name}__{suffix_num}",
     )
 
-    # Set #WIP flag on mentors
-    set_mentor_wip_flags(project_file, changespec_name)
+    # Set #Draft flag on mentors
+    set_mentor_draft_flags(project_file, changespec_name)
 
     return (True, old_status, None, suffix_append_info)
 
 
-def _handle_non_wip_transition(
+def _handle_ready_transition(
     project_file: str,
     changespec_name: str,
     old_status: str,
@@ -311,7 +314,7 @@ def _handle_non_wip_transition(
     lines: list[str],
     validate: bool,
 ) -> tuple[bool, str | None, str | None, tuple[str, str] | None]:
-    """Handle transition to non-WIP/non-Reverted status (e.g., Drafted, Mailed, Submitted).
+    """Handle transition to Ready status (from WIP or Draft), or other non-Draft statuses.
 
     Returns:
         Tuple of (success, old_status, error_msg, suffix_strip_info)
@@ -325,11 +328,11 @@ def _handle_non_wip_transition(
         parent_cs = next(
             (cs for cs in changespecs if cs.name == current_cs.parent), None
         )
-        if parent_cs and parent_cs.status == "WIP":
+        if parent_cs and parent_cs.status in ("WIP", "Draft"):
             error_msg = (
                 f"Cannot transition '{changespec_name}' to {new_status}: "
-                f"parent '{current_cs.parent}' is WIP. "
-                f"Children of WIP ChangeSpecs must be WIP or Reverted."
+                f"parent '{current_cs.parent}' is {parent_cs.status}. "
+                f"Children of WIP/Draft ChangeSpecs must be WIP, Draft, or Reverted."
             )
             logger.error(error_msg)
             return (False, old_status, error_msg, None)
@@ -345,8 +348,8 @@ def _handle_non_wip_transition(
         logger.error(error_msg)
         return (False, old_status, error_msg, None)
 
-    # Validate siblings don't have unreverted children when WIP -> Drafted
-    if old_status == "WIP" and new_status == "Drafted":
+    # Validate siblings don't have unreverted children when transitioning to Ready
+    if new_status == "Ready" and old_status in ("WIP", "Draft"):
         from sase.sase_utils import has_suffix, strip_reverted_suffix
 
         if has_suffix(changespec_name):
@@ -377,12 +380,13 @@ def _handle_non_wip_transition(
 
     suffix_strip_info = None
 
-    # Clear #WIP from mentors when transitioning from WIP to Drafted
-    if old_status == "WIP" and new_status == "Drafted":
-        from sase.ace.mentors import clear_mentor_wip_flags
+    # Clear #Draft from mentors when transitioning from Draft to Ready
+    # (WIP has no mentors to clear)
+    if old_status == "Draft" and new_status == "Ready":
+        from sase.ace.mentors import clear_mentor_draft_flags
         from sase.sase_utils import has_suffix, strip_reverted_suffix
 
-        clear_mentor_wip_flags(project_file, changespec_name)
+        clear_mentor_draft_flags(project_file, changespec_name)
 
         # Check if we need to strip suffix (done outside lock)
         if has_suffix(changespec_name):
@@ -391,7 +395,60 @@ def _handle_non_wip_transition(
                 strip_reverted_suffix(changespec_name),
             )
 
+    # Strip suffix when transitioning from WIP to Ready
+    if old_status == "WIP" and new_status == "Ready":
+        from sase.sase_utils import has_suffix, strip_reverted_suffix
+
+        if has_suffix(changespec_name):
+            suffix_strip_info = (
+                changespec_name,
+                strip_reverted_suffix(changespec_name),
+            )
+
     return (True, old_status, None, suffix_strip_info)
+
+
+def _handle_wip_to_draft_transition(
+    project_file: str,
+    changespec_name: str,
+    old_status: str,
+    new_status: str,
+    lines: list[str],
+    validate: bool,
+) -> tuple[bool, str | None, str | None]:
+    """Handle transition from WIP to Draft status.
+
+    This is a simple status change — no suffix manipulation, no mentor flags.
+
+    Returns:
+        Tuple of (success, old_status, error_msg)
+    """
+    if validate and not is_valid_transition(old_status, new_status):
+        error_msg = (
+            f"Invalid status transition for '{changespec_name}': "
+            f"'{old_status}' -> '{new_status}'. "
+            f"Allowed transitions from '{old_status}': "
+            f"{VALID_TRANSITIONS.get(old_status, [])}"
+        )
+        logger.error(error_msg)
+        return (False, old_status, error_msg)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_msg = (
+        f"[{timestamp}] Transitioning {changespec_name}: "
+        f"'{old_status}' -> '{new_status}'"
+    )
+    if not validate:
+        log_msg += " (validation skipped)"
+    logger.info(log_msg)
+
+    updated_content = apply_status_update(lines, changespec_name, new_status)
+    write_changespec_atomic(
+        project_file,
+        updated_content,
+        f"Update STATUS to {new_status} for {changespec_name}",
+    )
+    return (True, old_status, None)
 
 
 def _handle_reverted_transition(
@@ -522,14 +579,22 @@ def transition_changespec_status(
             logger.error(error_msg)
             result = (False, None, error_msg)
 
-        elif new_status == "WIP":
-            success, old_st, err, suffix_append_info = _handle_wip_transition(
+        elif new_status == "Draft" and old_status == "WIP":
+            # WIP→Draft: simple status change, no suffix/mentor manipulation
+            result = _handle_wip_to_draft_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+
+        elif new_status == "Draft" and old_status == "Ready":
+            # Ready→Draft: append suffix, set mentor draft flags
+            success, old_st, err, suffix_append_info = _handle_draft_transition(
                 project_file, changespec_name, old_status, new_status, lines, validate
             )
             result = (success, old_st, err)
 
-        elif new_status not in ("WIP", "Reverted", "Archived"):
-            success, old_st, err, suffix_strip_info = _handle_non_wip_transition(
+        elif new_status == "Ready":
+            # WIP→Ready or Draft→Ready: strip suffix, revert siblings
+            success, old_st, err, suffix_strip_info = _handle_ready_transition(
                 project_file, changespec_name, old_status, new_status, lines, validate
             )
             result = (success, old_st, err)
@@ -539,20 +604,26 @@ def transition_changespec_status(
                 project_file, changespec_name, old_status, new_status, lines, validate
             )
 
-        else:
-            # new_status == "Archived"
+        elif new_status == "Archived":
             result = _handle_archived_transition(
                 project_file, changespec_name, old_status, new_status, lines, validate
             )
 
-    # Strip __<N> suffix when transitioning from WIP to Drafted (outside lock)
+        else:
+            # Mailed, Submitted, etc. - use ready transition handler
+            success, old_st, err, _ = _handle_ready_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+            result = (success, old_st, err)
+
+    # Strip __<N> suffix when transitioning to Ready (outside lock)
     if suffix_strip_info is not None:
         suffixed_name, base_name = suffix_strip_info
         sibling_results = _handle_suffix_strip(
             project_file, suffixed_name, base_name, console
         )
 
-    # Append __<N> suffix when transitioning from Drafted to WIP (outside lock)
+    # Append __<N> suffix when transitioning from Ready to Draft (outside lock)
     if suffix_append_info is not None:
         base_name, suffixed_name = suffix_append_info
         _handle_suffix_append(project_file, base_name, suffixed_name)

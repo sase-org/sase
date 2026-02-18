@@ -18,14 +18,14 @@ from .changespec import (
 def _format_profile_with_count(
     profile_name: str,
     status_lines: list[MentorStatusLine] | None,
-    is_wip: bool = False,
+    is_draft: bool = False,
 ) -> str:
     """Format profile name with [started/total] count.
 
     Args:
         profile_name: Name of the profile.
         status_lines: List of MentorStatusLine objects to count started mentors.
-        is_wip: If True, only count mentors with run_on_wip=True.
+        is_draft: If True, only count mentors with run_on_draft=True.
 
     Returns:
         Formatted string like "profile[2/3]".
@@ -36,22 +36,22 @@ def _format_profile_with_count(
     if profile_config is None:
         return profile_name  # Fallback if profile not found in config
 
-    # Calculate total based on WIP status
-    if is_wip:
-        total = sum(1 for m in profile_config.mentors if m.run_on_wip)
-        wip_mentor_names = {
-            m.mentor_name for m in profile_config.mentors if m.run_on_wip
+    # Calculate total based on Draft status
+    if is_draft:
+        total = sum(1 for m in profile_config.mentors if m.run_on_draft)
+        draft_mentor_names = {
+            m.mentor_name for m in profile_config.mentors if m.run_on_draft
         }
     else:
         total = len(profile_config.mentors)
-        wip_mentor_names = None
+        draft_mentor_names = None
 
     started = 0
     if status_lines:
         for sl in status_lines:
             if sl.profile_name == profile_name:
-                # For WIP, only count status lines for run_on_wip mentors
-                if wip_mentor_names is None or sl.mentor_name in wip_mentor_names:
+                # For Draft, only count status lines for run_on_draft mentors
+                if draft_mentor_names is None or sl.mentor_name in draft_mentor_names:
                     started += 1
 
     return f"{profile_name}[{started}/{total}]"
@@ -66,16 +66,18 @@ def _format_mentors_field(mentors: list[MentorEntry]) -> list[str]:
     Returns:
         List of formatted lines including "MENTORS:\n" header.
     """
-    from sase.mentor_config import profile_has_wip_mentors
+    from sase.mentor_config import profile_has_draft_mentors
 
     if not mentors:
         return []
 
     lines = ["MENTORS:\n"]
     for entry in mentors:
-        # Filter profiles for WIP entries - only show profiles with run_on_wip mentors
-        if entry.is_wip:
-            visible_profiles = [p for p in entry.profiles if profile_has_wip_mentors(p)]
+        # Filter profiles for Draft entries - only show profiles with run_on_draft mentors
+        if entry.is_draft:
+            visible_profiles = [
+                p for p in entry.profiles if profile_has_draft_mentors(p)
+            ]
         else:
             visible_profiles = entry.profiles
 
@@ -85,12 +87,12 @@ def _format_mentors_field(mentors: list[MentorEntry]) -> list[str]:
 
         # Format entry header: (<id>) <profile1>[x/y] [<profile2>[x/y] ...]
         profiles_with_counts = [
-            _format_profile_with_count(p, entry.status_lines, is_wip=entry.is_wip)
+            _format_profile_with_count(p, entry.status_lines, is_draft=entry.is_draft)
             for p in visible_profiles
         ]
         profiles_str = " ".join(profiles_with_counts)
-        wip_suffix = " #WIP" if entry.is_wip else ""
-        lines.append(f"  ({entry.entry_id}) {profiles_str}{wip_suffix}\n")
+        draft_suffix = " #Draft" if entry.is_draft else ""
+        lines.append(f"  ({entry.entry_id}) {profiles_str}{draft_suffix}\n")
 
         # Format status lines
         if entry.status_lines:
@@ -229,7 +231,7 @@ def add_mentor_entry(
     changespec_name: str,
     entry_id: str,
     profile_names: list[str],
-    is_wip: bool = False,
+    is_draft: bool = False,
 ) -> bool:
     """Add a new MENTORS entry for a ChangeSpec.
 
@@ -241,7 +243,7 @@ def add_mentor_entry(
         changespec_name: Name of the ChangeSpec.
         entry_id: The commit entry ID (e.g., "1", "2").
         profile_names: List of profile names that were triggered.
-        is_wip: True if entry is being created during WIP status.
+        is_draft: True if entry is being created during Draft status.
 
     Returns:
         True if successful, False otherwise.
@@ -273,7 +275,7 @@ def add_mentor_entry(
                     entry_id=entry_id,
                     profiles=profile_names,
                     status_lines=[],
-                    is_wip=is_wip,
+                    is_draft=is_draft,
                 )
                 current_mentors.append(new_entry)
 
@@ -336,10 +338,10 @@ def set_mentor_status(
                     changespec_status = cs.status
                     break
 
-            # Determine if changespec is in WIP status
-            is_wip_status = (
+            # Determine if changespec is in Draft status
+            is_draft_status = (
                 changespec_status is not None
-                and remove_workspace_suffix(changespec_status) == "WIP"
+                and remove_workspace_suffix(changespec_status) == "Draft"
             )
 
             # Find the entry
@@ -355,7 +357,7 @@ def set_mentor_status(
                     entry_id=entry_id,
                     profiles=[profile_name],
                     status_lines=[],
-                    is_wip=is_wip_status,
+                    is_draft=is_draft_status,
                 )
                 current_mentors.append(target_entry)
 
@@ -450,20 +452,20 @@ def update_changespec_mentors_field(
         return False
 
 
-def clear_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
-    """Clear is_wip flag and add all matching profiles for the LAST MENTORS entry.
+def clear_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
+    """Clear is_draft flag and add all matching profiles for the LAST MENTORS entry.
 
-    This is called when transitioning from WIP to Drafted status. It:
-    1. Finds the MENTORS entry with the highest entry_id that has is_wip=True
-    2. Adds ALL matching profiles (not just WIP-enabled ones) to that entry
-    3. Clears the is_wip flag
+    This is called when transitioning from Draft to Ready status. It:
+    1. Finds the MENTORS entry with the highest entry_id that has is_draft=True
+    2. Adds ALL matching profiles (not just Draft-enabled ones) to that entry
+    3. Clears the is_draft flag
 
     Args:
         project_file: Path to the project file.
         changespec_name: NAME of the ChangeSpec to update.
 
     Returns:
-        True if successful (or no WIP mentors to update), False on error.
+        True if successful (or no Draft mentors to update), False on error.
     """
     from sase.mentor_config import get_all_mentor_profiles
 
@@ -476,19 +478,19 @@ def clear_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
                 if not cs.mentors:
                     return True  # No mentors, nothing to do
 
-                # Find WIP entries and sort by entry_id
-                wip_entries = [e for e in cs.mentors if e.is_wip]
-                if not wip_entries:
-                    return True  # No WIP entries, nothing to do
+                # Find Draft entries and sort by entry_id
+                draft_entries = [e for e in cs.mentors if e.is_draft]
+                if not draft_entries:
+                    return True  # No Draft entries, nothing to do
 
                 # Sort by entry_id and get the last one
-                wip_entries.sort(key=lambda e: parse_commit_entry_id(e.entry_id))
-                last_wip_entry = wip_entries[-1]
+                draft_entries.sort(key=lambda e: parse_commit_entry_id(e.entry_id))
+                last_draft_entry = draft_entries[-1]
 
                 # Collect profiles with running mentors (must be preserved)
                 profiles_with_running_mentors: set[str] = set()
-                if last_wip_entry.status_lines:
-                    for sl in last_wip_entry.status_lines:
+                if last_draft_entry.status_lines:
+                    for sl in last_draft_entry.status_lines:
                         profiles_with_running_mentors.add(sl.profile_name)
 
                 # Use ALL commits for matching (not just this entry_id)
@@ -505,11 +507,11 @@ def clear_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
                         elif profile_name in profiles_with_running_mentors:
                             new_profiles.append(profile_name)
 
-                    last_wip_entry.profiles = new_profiles
+                    last_draft_entry.profiles = new_profiles
                 # If no commits, keep existing profiles (edge case / backward compat)
 
-                # Clear the WIP flag
-                last_wip_entry.is_wip = False
+                # Clear the Draft flag
+                last_draft_entry.is_draft = False
 
                 # Write back
                 return update_changespec_mentors_field(
@@ -581,13 +583,13 @@ def clear_mentor_status_lines(
         return False
 
 
-def set_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
-    """Set is_wip flag and filter profiles for the LAST MENTORS entry.
+def set_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
+    """Set is_draft flag and filter profiles for the LAST MENTORS entry.
 
-    This is called when transitioning from Drafted to WIP status. It:
+    This is called when transitioning from Ready to Draft status. It:
     1. Finds the MENTORS entry with the highest entry_id
-    2. Sets the is_wip flag to True
-    3. Filters profiles to only those with run_on_wip mentors
+    2. Sets the is_draft flag to True
+    3. Filters profiles to only those with run_on_draft mentors
 
     Args:
         project_file: Path to the project file.
@@ -596,7 +598,7 @@ def set_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
     Returns:
         True if successful (or no mentors to update), False on error.
     """
-    from sase.mentor_config import profile_has_wip_mentors
+    from sase.mentor_config import profile_has_draft_mentors
 
     try:
         changespecs = parse_project_file(project_file)
@@ -611,12 +613,12 @@ def set_mentor_wip_flags(project_file: str, changespec_name: str) -> bool:
                 )
                 last_entry = sorted_entries[-1]
 
-                # Set the WIP flag
-                last_entry.is_wip = True
+                # Set the Draft flag
+                last_entry.is_draft = True
 
-                # Filter profiles to only those with run_on_wip mentors
+                # Filter profiles to only those with run_on_draft mentors
                 last_entry.profiles = [
-                    p for p in last_entry.profiles if profile_has_wip_mentors(p)
+                    p for p in last_entry.profiles if profile_has_draft_mentors(p)
                 ]
 
                 # Write back

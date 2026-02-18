@@ -60,6 +60,7 @@ sase_split_prepare_execute = "sase.scripts:sase_split_prepare_execute"
 sase_hg_rewind = "sase.scripts:sase_hg_rewind"
 sase_metahook_scuba = "sase.scripts:sase_metahook_scuba"
 sase_metahook_hg_presubmit_tap = "sase.scripts:sase_metahook_hg_presubmit_tap"
+sase_migrate_statuses = "sase.scripts:sase_migrate_statuses"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]

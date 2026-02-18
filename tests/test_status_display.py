@@ -21,9 +21,9 @@ def testget_status_color_unknown() -> None:
     assert color == "#FFFFFF"
 
 
-def testget_status_color_drafted() -> None:
-    """Test that 'Drafted' status has the correct color."""
-    color = get_status_color("Drafted")
+def testget_status_color_ready() -> None:
+    """Test that 'Ready' status has the correct color."""
+    color = get_status_color("Ready")
     assert color == "#87D700"
 
 
@@ -35,14 +35,14 @@ def testget_status_color_submitted() -> None:
 
 def test_get_available_statuses_excludes_current() -> None:
     """Test that get_available_statuses excludes the current status."""
-    current_status = "Drafted"
+    current_status = "Ready"
     available = get_available_statuses(current_status)
     assert current_status not in available
 
 
 def test_get_available_statuses_includes_others() -> None:
     """Test that get_available_statuses includes other valid statuses."""
-    current_status = "Drafted"
+    current_status = "Ready"
     available = get_available_statuses(current_status)
     # Should include some other statuses but not current
     assert len(available) > 0
@@ -51,7 +51,7 @@ def test_get_available_statuses_includes_others() -> None:
 
 def test_get_available_statuses_excludes_transient() -> None:
     """Test that get_available_statuses excludes transient statuses with '...'"""
-    available = get_available_statuses("Drafted")
+    available = get_available_statuses("Ready")
     # Should not include any status ending with "..."
     assert all(not s.endswith("...") for s in available)
 
@@ -64,7 +64,7 @@ def test_display_changespec_with_hints_returns_mappings() -> None:
         description="Test description",
         parent=None,
         cl=None,
-        status="Drafted",
+        status="Ready",
         test_targets=None,
         kickstart=None,
         file_path="/tmp/test.gp",
@@ -94,7 +94,7 @@ def test_display_changespec_without_hints_returns_empty() -> None:
         description="Test description",
         parent=None,
         cl=None,
-        status="Drafted",
+        status="Ready",
         test_targets=None,
         kickstart=None,
         file_path="/tmp/test.gp",

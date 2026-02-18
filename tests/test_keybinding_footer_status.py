@@ -6,14 +6,14 @@ from sase.ace.tui.widgets import KeybindingFooter
 # --- Status Utility Tests ---
 
 
-def test_get_base_status_drafted() -> None:
-    """Test get_base_status returns correct base for Drafted."""
-    assert get_base_status("Drafted") == "Drafted"
+def test_get_base_status_ready() -> None:
+    """Test get_base_status returns correct base for Ready."""
+    assert get_base_status("Ready") == "Ready"
 
 
 def test_get_base_status_with_ready_to_mail_suffix() -> None:
     """Test get_base_status strips READY TO MAIL suffix."""
-    assert get_base_status("Drafted - (!: READY TO MAIL)") == "Drafted"
+    assert get_base_status("Ready - (!: READY TO MAIL)") == "Ready"
 
 
 def test_get_base_status_submitted() -> None:
@@ -33,12 +33,12 @@ def test_get_base_status_reverted() -> None:
 
 def test_has_ready_to_mail_suffix_true() -> None:
     """Test has_ready_to_mail_suffix returns True for correct suffix."""
-    assert has_ready_to_mail_suffix("Drafted - (!: READY TO MAIL)") is True
+    assert has_ready_to_mail_suffix("Ready - (!: READY TO MAIL)") is True
 
 
 def test_has_ready_to_mail_suffix_false() -> None:
     """Test has_ready_to_mail_suffix returns False for no suffix."""
-    assert has_ready_to_mail_suffix("Drafted") is False
+    assert has_ready_to_mail_suffix("Ready") is False
 
 
 def test_has_ready_to_mail_suffix_mailed_true() -> None:

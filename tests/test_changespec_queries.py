@@ -45,7 +45,7 @@ def test_changespec_exists_file_not_found(mock_get_path: MagicMock) -> None:
 def test_changespec_exists_found() -> None:
     """Test changespec_exists returns True when CL name is found."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("# Project File\n\nNAME: existing_cl\nSTATUS: WIP\n")
+        f.write("# Project File\n\nNAME: existing_cl\nSTATUS: Draft\n")
         f.flush()
 
         with patch(
@@ -61,7 +61,7 @@ def test_changespec_exists_found() -> None:
 def test_changespec_exists_not_found() -> None:
     """Test changespec_exists returns False when CL name is not found."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("# Project File\n\nNAME: other_cl\nSTATUS: WIP\n")
+        f.write("# Project File\n\nNAME: other_cl\nSTATUS: Draft\n")
         f.flush()
 
         with patch(
@@ -117,10 +117,10 @@ def test_get_blocking_exact_match_no_file(mock_get_path: MagicMock) -> None:
 
 @patch("sase.commit_workflow.changespec_queries.get_project_file_path")
 @patch("sase.ace.changespec.parse_project_file")
-def test_get_blocking_exact_match_wip_status(
+def test_get_blocking_exact_match_draft_status(
     mock_parse: MagicMock, mock_get_path: MagicMock
 ) -> None:
-    """Test returns None when ChangeSpec exists with WIP status."""
+    """Test returns None when ChangeSpec exists with Draft status."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("# Project File\n")
         f.flush()
@@ -128,7 +128,7 @@ def test_get_blocking_exact_match_wip_status(
 
         mock_cs = MagicMock()
         mock_cs.name = "proj_foo"
-        mock_cs.status = "WIP"
+        mock_cs.status = "Draft"
         mock_parse.return_value = [mock_cs]
 
         result = get_blocking_exact_match_changespec("proj", "foo")
@@ -139,10 +139,10 @@ def test_get_blocking_exact_match_wip_status(
 
 @patch("sase.commit_workflow.changespec_queries.get_project_file_path")
 @patch("sase.ace.changespec.parse_project_file")
-def test_get_blocking_exact_match_drafted_status(
+def test_get_blocking_exact_match_ready_status(
     mock_parse: MagicMock, mock_get_path: MagicMock
 ) -> None:
-    """Test returns (name, 'Drafted') when exact match with Drafted status."""
+    """Test returns (name, 'Ready') when exact match with Ready status."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("# Project File\n")
         f.flush()
@@ -150,11 +150,11 @@ def test_get_blocking_exact_match_drafted_status(
 
         mock_cs = MagicMock()
         mock_cs.name = "proj_foo"
-        mock_cs.status = "Drafted"
+        mock_cs.status = "Ready"
         mock_parse.return_value = [mock_cs]
 
         result = get_blocking_exact_match_changespec("proj", "foo")
-        assert result == ("proj_foo", "Drafted")
+        assert result == ("proj_foo", "Ready")
 
         Path(f.name).unlink()
 
@@ -195,7 +195,7 @@ def test_get_blocking_exact_match_suffixed_not_blocking(
         # Only proj_foo__1 exists (suffixed), not proj_foo (exact)
         mock_cs = MagicMock()
         mock_cs.name = "proj_foo__1"
-        mock_cs.status = "Drafted"
+        mock_cs.status = "Ready"
         mock_parse.return_value = [mock_cs]
 
         result = get_blocking_exact_match_changespec("proj", "foo")

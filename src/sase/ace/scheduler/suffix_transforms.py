@@ -320,7 +320,7 @@ def check_ready_to_mail(
     """Check if a ChangeSpec is ready to mail and add/remove suffix accordingly.
 
     A ChangeSpec is ready to mail if:
-    - STATUS is "Drafted" (base status)
+    - STATUS is "Ready" (base status)
     - No error suffixes exist in COMMITS/HOOKS/COMMENTS
     - Parent is ready (no parent, Submitted, or Mailed)
     - All hooks have PASSED for current history entry and its proposals
@@ -340,8 +340,8 @@ def check_ready_to_mail(
     # Get base status (strip any existing suffix)
     base_status = get_base_status(changespec.status)
 
-    # Only applies to Drafted status
-    if base_status != "Drafted":
+    # Only applies to Ready status
+    if base_status != "Ready":
         return updates
 
     already_has_suffix = has_ready_to_mail_suffix(changespec.status)

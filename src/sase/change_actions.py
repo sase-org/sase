@@ -141,7 +141,7 @@ def prompt_for_change_action(
 
     Returns:
         ("accept", "<proposal_id>") - User chose 'a' to accept proposal
-        ("promote", None) - User chose 'p' to promote WIP to Drafted
+        ("promote", None) - User chose 'p' to promote Draft to Ready
         ("reject", "<proposal_id>") - User chose 'n' (proposal stays)
         ("purge", "<proposal_id>") - User chose 'x' (delete proposal)
         None - No changes detected
@@ -322,7 +322,7 @@ def prompt_for_change_action(
                 )
                 continue
         elif user_input == "p":
-            # Promote WIP ChangeSpec to Drafted
+            # Promote Draft ChangeSpec to Ready
             return ("promote", None)
         elif user_input == "n":
             return ("reject", proposal_id)
@@ -529,7 +529,7 @@ def execute_change_action(
         return True
 
     elif action == "promote":
-        # Promote WIP ChangeSpec to Drafted status
+        # Promote Draft ChangeSpec to Ready status
         from sase.status_state_machine import transition_changespec_status
         from sase.workflow_utils import get_cl_name_from_branch
 
@@ -552,19 +552,19 @@ def execute_change_action(
                 f"~/.sase/projects/{project}/{project}.gp"
             )
 
-        # Transition status from WIP to Drafted
-        # Note: transition_changespec_status automatically calls clear_mentor_wip_flags()
-        # when transitioning from WIP to Drafted
+        # Transition status from Draft to Ready
+        # Note: transition_changespec_status automatically calls clear_mentor_draft_flags()
+        # when transitioning from Draft to Ready
         promote_success, old_status_opt, promote_error, _ = (
             transition_changespec_status(
-                resolved_project_file, cl_name, "Drafted", validate=True
+                resolved_project_file, cl_name, "Ready", validate=True
             )
         )
 
         if promote_success:
-            old_status = old_status_opt or "WIP"
+            old_status = old_status_opt or "Draft"
             console.print(
-                f"[green]Promoted {cl_name} from {old_status} to Drafted[/green]"
+                f"[green]Promoted {cl_name} from {old_status} to Ready[/green]"
             )
             return True
         else:

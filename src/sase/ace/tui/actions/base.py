@@ -98,7 +98,11 @@ class BaseActionsMixin:
             return
 
         # Special handling for transitioning FROM "Reverted" status
-        if changespec.status == STATUS_REVERTED and new_status in ("WIP", "Drafted"):
+        if changespec.status == STATUS_REVERTED and new_status in (
+            "WIP",
+            "Draft",
+            "Ready",
+        ):
             from ...restore import restore_changespec
 
             def run_restore() -> tuple[bool, str | None]:
@@ -115,8 +119,8 @@ class BaseActionsMixin:
                 self._reload_and_reposition()  # type: ignore[attr-defined]
                 return
 
-            # restore_changespec sets status to WIP; if target is Drafted, transition again
-            if new_status == "Drafted":
+            # restore_changespec sets status to WIP; if target is Draft or Ready, transition again
+            if new_status in ("Draft", "Ready"):
                 # Need to find the new name (restore strips suffix, sase commit adds it back)
                 from ...changespec import parse_project_file
 
@@ -135,16 +139,16 @@ class BaseActionsMixin:
                     success, _, error_msg, _ = transition_changespec_status(
                         changespec.file_path,
                         restored_cs.name,
-                        "Drafted",
+                        new_status,
                         validate=False,
                     )
                     if not success:
                         self.notify(  # type: ignore[attr-defined]
-                            f"Error transitioning to Drafted: {error_msg}",
+                            f"Error transitioning to {new_status}: {error_msg}",
                             severity="error",
                         )
                     else:
-                        self.notify("Restored and drafted ChangeSpec")  # type: ignore[attr-defined]
+                        self.notify(f"Restored and set ChangeSpec to {new_status}")  # type: ignore[attr-defined]
                 else:
                     self.notify("Restored ChangeSpec to WIP")  # type: ignore[attr-defined]
             else:
@@ -156,10 +160,10 @@ class BaseActionsMixin:
         # Remove READY TO MAIL suffix if present before transitioning
         remove_ready_to_mail_suffix(changespec.file_path, changespec.name)
 
-        # Check if this is a WIP→Drafted transition with suffix (may trigger sibling reverts)
+        # Check if this is a Draft→Ready transition with suffix (may trigger sibling reverts)
         may_have_sibling_reverts = (
-            changespec.status == "WIP"
-            and new_status == "Drafted"
+            changespec.status == "Draft"
+            and new_status == "Ready"
             and has_suffix(changespec.name)
         )
 
@@ -308,11 +312,11 @@ class BaseActionsMixin:
             self.notify("CL is not set", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Validate status is WIP, Drafted, or Mailed
+        # Validate status is WIP, Draft, Ready, or Mailed
         base_status = get_base_status(changespec.status)
-        if base_status not in ("WIP", "Drafted", "Mailed"):
+        if base_status not in ("WIP", "Draft", "Ready", "Mailed"):
             self.notify(  # type: ignore[attr-defined]
-                "Reword is only available for WIP, Drafted, or Mailed ChangeSpecs",
+                "Reword is only available for WIP, Draft, Ready, or Mailed ChangeSpecs",
                 severity="warning",
             )
             return
@@ -345,11 +349,11 @@ class BaseActionsMixin:
             self.notify("CL is not set", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Validate status is WIP, Drafted, or Mailed
+        # Validate status is WIP, Draft, Ready, or Mailed
         base_status = get_base_status(changespec.status)
-        if base_status not in ("WIP", "Drafted", "Mailed"):
+        if base_status not in ("WIP", "Draft", "Ready", "Mailed"):
             self.notify(  # type: ignore[attr-defined]
-                "Add tag is only available for WIP, Drafted, or Mailed ChangeSpecs",
+                "Add tag is only available for WIP, Draft, Ready, or Mailed ChangeSpecs",
                 severity="warning",
             )
             return

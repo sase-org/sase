@@ -109,7 +109,7 @@ def test_update_hooks_with_id_mapping() -> None:
     """Test updating hooks with ID mapping."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (1a) [251224_120100] PASSED (30s)\n",
@@ -125,13 +125,13 @@ def test_update_hooks_with_id_mapping_preserves_other_changespecs() -> None:
     """Test that updating hooks doesn't affect other changespecs."""
     lines = [
         "NAME: other_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (1a) [251224_120100] PASSED (30s)\n",
         "\n",
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (1a) [251224_120200] PASSED (30s)\n",
@@ -150,7 +150,7 @@ def test_update_hooks_with_id_mapping_updates_proposal_id_suffix() -> None:
     """Test that proposal ID suffixes are updated in hook status lines."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (1a) [251224_120100] PASSED (30s) - (1a)\n",
@@ -169,7 +169,7 @@ def test_update_hooks_with_id_mapping_archives_non_first_proposals() -> None:
     """Test that non-first accepted proposals are archived, not promoted."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (1c) [251224_120100] PASSED (30s)\n",
@@ -194,7 +194,7 @@ def test_update_hooks_with_id_mapping_suffix_updated_for_archived() -> None:
     """Test that suffixes are updated to new ID even for archived proposals."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (1a) [251224_120100] FAILED (30s) - (1a)\n",
@@ -215,7 +215,7 @@ def test_update_hooks_with_id_mapping_suffix_with_summary() -> None:
     """Test that proposal ID suffixes with summaries are updated correctly."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  sase_hg_lint\n",
         "      | (1) [260101_141242] FAILED (5s) - (1a | Lint failed: Missing Javadoc)\n",
@@ -237,7 +237,7 @@ def test_update_hooks_single_proposal_no_archive() -> None:
     """Test that single proposal acceptance works as before (no archiving)."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (1a) [251224_120100] PASSED (30s)\n",
@@ -258,7 +258,7 @@ def test_sort_hook_status_lines() -> None:
     """Test sorting hook status lines."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (2) [251224_120100] PASSED (30s)\n",
@@ -279,7 +279,7 @@ def test_sort_hook_status_lines_multiple_hooks() -> None:
     """Test sorting status lines across multiple hooks."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (2) [251224_120100] PASSED (30s)\n",
@@ -308,7 +308,7 @@ def test_sort_hook_status_lines_with_archived_format() -> None:
     """Test sorting handles (1a-3) archive format correctly."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (2) [251224_120100] PASSED (30s)\n",

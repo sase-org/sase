@@ -17,7 +17,7 @@ def test_sort_hook_status_lines_basic() -> None:
     """Test basic sorting of hook status lines by entry ID."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "HOOKS:\n",
         "  make lint\n",
         "      | (2) [251224_120100] PASSED (30s)\n",
@@ -228,7 +228,7 @@ def test_find_commits_section_basic() -> None:
     """Test finding commits section in a project file."""
     lines = [
         "NAME: test_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (1) First commit\n",
         "  (2) Second commit\n",
@@ -245,7 +245,7 @@ def test_find_commits_section_not_found() -> None:
     """Test finding commits section when CL not found."""
     lines = [
         "NAME: other_cl\n",
-        "STATUS: Drafted\n",
+        "STATUS: Ready\n",
         "COMMITS:\n",
         "  (1) First commit\n",
     ]

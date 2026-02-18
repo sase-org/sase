@@ -15,8 +15,10 @@ from ...changespec import ChangeSpec
 
 def _get_simple_status_indicator(status: str) -> tuple[str, str]:
     """Get a simple status indicator character and color."""
-    if status.startswith("Drafted"):
-        return "D", "#87D700"
+    if status.startswith("Draft"):
+        return "D", "#FFD700"
+    elif status.startswith("Ready"):
+        return "R", "#87D700"
     elif status.startswith("Mailed"):
         return "M", "#00D787"
     elif status.startswith("Submitted"):
@@ -25,7 +27,7 @@ def _get_simple_status_indicator(status: str) -> tuple[str, str]:
         return "X", "#808080"
     elif status.startswith("Archived"):
         return "A", "#606060"
-    return "W", "#FFD700"  # WIP - gold
+    return "W", "#87CEEB"  # WIP - light blue
 
 
 @dataclass
@@ -170,7 +172,7 @@ class AncestorsChildrenPanel(Static):
 
         Siblings are ChangeSpecs that share the same base name after stripping
         the __<N> suffix. Both suffixed and non-suffixed ChangeSpecs can have
-        siblings (e.g., a Drafted "foo" and its Reverted "foo__1" are siblings).
+        siblings (e.g., a Ready "foo" and its Reverted "foo__1" are siblings).
 
         Args:
             changespec: The starting ChangeSpec

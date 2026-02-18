@@ -282,9 +282,7 @@ def test_query_preserved_in_history() -> None:
         stacks,
     )
     push_to_prev_stack(
-        ChangeSpecHistoryEntry(
-            name="cl2", file_path="/test.gp", query="status:Drafted"
-        ),
+        ChangeSpecHistoryEntry(name="cl2", file_path="/test.gp", query="status:Ready"),
         stacks,
     )
 
@@ -295,4 +293,4 @@ def test_query_preserved_in_history() -> None:
     )
     assert result is not None
     assert result.name == "cl2"
-    assert result.query == "status:Drafted"
+    assert result.query == "status:Ready"

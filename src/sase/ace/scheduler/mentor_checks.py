@@ -8,7 +8,7 @@ from collections.abc import Callable
 from sase.mentor_config import (
     MentorProfileConfig,
     get_all_mentor_profiles,
-    profile_has_wip_mentors,
+    profile_has_draft_mentors,
 )
 from sase.status_state_machine import remove_workspace_suffix
 
@@ -318,16 +318,16 @@ def _get_matching_profiles_for_entry(
         changespec, latest_entry_id
     )
 
-    # Check if we're in WIP status
-    is_wip_status = remove_workspace_suffix(changespec.status) == "WIP"
+    # Check if we're in Draft status
+    is_draft_status = remove_workspace_suffix(changespec.status) == "Draft"
 
     for profile in get_all_mentor_profiles():
         # Skip profiles already registered
         if profile.profile_name in registered_profiles:
             continue
-        # During WIP status, skip profiles without WIP mentors
+        # During Draft status, skip profiles without Draft mentors
         # (they would be filtered out when writing anyway)
-        if is_wip_status and not profile_has_wip_mentors(profile.profile_name):
+        if is_draft_status and not profile_has_draft_mentors(profile.profile_name):
             continue
         # Check if profile matches any commit
         if profile_matches_any_commit(profile, commits_to_check):
@@ -355,7 +355,7 @@ def _add_matching_profiles_upfront(
     updates: list[str] = []
 
     # Don't add profiles for terminal statuses
-    if changespec.status in ("Reverted", "Submitted", "Archived"):
+    if changespec.status in ("WIP", "Reverted", "Submitted", "Archived"):
         return updates
 
     matching_profiles = _get_matching_profiles_for_entry(changespec)
@@ -365,7 +365,7 @@ def _add_matching_profiles_upfront(
     # Import here to avoid circular imports
     from ..mentors import add_mentor_entry
 
-    is_wip_status = remove_workspace_suffix(changespec.status) == "WIP"
+    is_draft_status = remove_workspace_suffix(changespec.status) == "Draft"
 
     for entry_id, profile in matching_profiles:
         success = add_mentor_entry(
@@ -373,7 +373,7 @@ def _add_matching_profiles_upfront(
             changespec.name,
             entry_id,
             [profile.profile_name],
-            is_wip=is_wip_status,
+            is_draft=is_draft_status,
         )
         if success:
             total = len(profile.mentors)
@@ -396,7 +396,7 @@ def _get_mentor_profiles_to_run(
     Checks ALL commits since the last MENTORS entry.
     Returns profiles that have unstarted mentors for the latest entry.
 
-    During WIP status, only mentors with run_on_wip=True are considered.
+    During Draft status, only mentors with run_on_draft=True are considered.
 
     Args:
         changespec: The ChangeSpec to check.
@@ -424,7 +424,7 @@ def _get_mentor_profiles_to_run(
         return result
 
     # Get profiles already registered in MENTORS for this entry
-    # (profiles are added by _add_matching_profiles_upfront or clear_mentor_wip_flags)
+    # (profiles are added by _add_matching_profiles_upfront or clear_mentor_draft_flags)
     registered_profiles = _get_profiles_registered_for_entry(
         changespec, latest_entry_id
     )
@@ -432,8 +432,8 @@ def _get_mentor_profiles_to_run(
     # Get mentors already started for this entry
     started_mentors = _get_started_mentors_for_entry(changespec, latest_entry_id)
 
-    # Check if we're in WIP status (only run mentors with run_on_wip=True)
-    is_wip_status = remove_workspace_suffix(changespec.status) == "WIP"
+    # Check if we're in Draft status (only run mentors with run_on_draft=True)
+    is_draft_status = remove_workspace_suffix(changespec.status) == "Draft"
 
     for profile in get_all_mentor_profiles():
         # Only run mentors for profiles that are registered for this entry
@@ -444,8 +444,8 @@ def _get_mentor_profiles_to_run(
         has_unstarted = False
         for mentor in profile.mentors:
             if (profile.profile_name, mentor.mentor_name) not in started_mentors:
-                # During WIP status, only consider mentors with run_on_wip=True
-                if is_wip_status and not mentor.run_on_wip:
+                # During Draft status, only consider mentors with run_on_draft=True
+                if is_draft_status and not mentor.run_on_draft:
                     continue
                 has_unstarted = True
                 break
@@ -564,7 +564,7 @@ def check_mentors(
     mentors_started = 0
 
     # Don't check mentors for terminal statuses
-    if changespec.status in ("Reverted", "Submitted", "Archived"):
+    if changespec.status in ("WIP", "Reverted", "Submitted", "Archived"):
         return updates, mentors_started
 
     # Phase 1: Check completion of running mentors
