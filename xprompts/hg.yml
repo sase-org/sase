@@ -49,20 +49,24 @@ steps:
       print(f"workspace_num={workspace_num}")
       print(f"_chdir={workspace_dir}")
       print(f"meta_workspace={workspace_num}")
+      checkout_target = cl_name if cs_match else "p4head"
+
       if cs_match:
           print(f"meta_changespec={cl_name}")
       else:
           print(f"meta_project={cl_name}")
+      print(f"checkout_target={checkout_target}")
     output:
       project_name: word
       project_file: path
       workspace_dir: path
       workspace_num: int
+      checkout_target: word
 
   - name: prepare
     bash: |
       sase_hg_clean "{{ cl_name }}-hg"
-      sase_hg_update "{{ cl_name }}"
+      sase_hg_update "{{ setup.checkout_target }}"
       echo "success=true"
     output: { success: bool }
 
