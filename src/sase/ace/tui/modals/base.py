@@ -63,8 +63,6 @@ class OptionListNavigationMixin:
         ("k", "prev_option", "Previous"),
         ("down", "next_option", "Next"),
         ("up", "prev_option", "Previous"),
-        ("ctrl+n", "next_option", "Next"),
-        ("ctrl+p", "prev_option", "Previous"),
     ]
 
     def action_cancel(self) -> None:

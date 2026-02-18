@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
 from sase.notifications import (
     Notification,
     format_relative_time,
@@ -17,7 +22,6 @@ from sase.notifications import (
 )
 
 from .base import OptionListNavigationMixin
-from .notification_file_browser import NotificationFileBrowser
 
 
 # Action badge mapping
@@ -35,7 +39,8 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("d", "dismiss_notification", "Dismiss"),
-        ("f", "show_files", "Files"),
+        ("ctrl+n", "next_file", "Next File"),
+        ("ctrl+p", "prev_file", "Previous File"),
         ("R", "read_all", "Read All"),  # uppercase R
     ]
 
@@ -47,25 +52,128 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         """
         super().__init__()
         self._notifications = list(notifications)
+        self._current_file_index: int = 0
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container(id="notification-container"):
             yield Label("Notifications", id="notification-title")
-            if self._notifications:
-                yield OptionList(
-                    *self._create_options(),
-                    id="notification-list",
-                )
-            else:
-                yield Static(
-                    "No unread notifications",
-                    id="notification-empty",
-                )
+            with Horizontal(id="notification-panels"):
+                with Vertical(id="notification-left"):
+                    if self._notifications:
+                        yield OptionList(
+                            *self._create_options(),
+                            id="notification-list",
+                        )
+                    else:
+                        yield Static(
+                            "No unread notifications",
+                            id="notification-empty",
+                        )
+                with Vertical(id="notification-right"):
+                    yield Label("No files attached", id="notification-file-title")
+                    with VerticalScroll(id="notification-file-scroll"):
+                        yield Static(id="notification-file-content")
             yield Label(
-                "Enter: select  d: dismiss  f: files  R: read all  q/Esc: close",
+                "Enter: select  d: dismiss  C-n/C-p: next/prev file  R: read all  q: close",
                 id="notification-hints",
             )
+
+    @staticmethod
+    def _shorten_path(path: str) -> str:
+        """Shorten a path by replacing home directory with ~."""
+        return path.replace(str(Path.home()), "~")
+
+    def _get_highlighted_notification(self) -> Notification | None:
+        """Return the notification object for the currently highlighted option."""
+        idx = self._get_selected_index()
+        if idx is not None and 0 <= idx < len(self._notifications):
+            return self._notifications[idx]
+        return None
+
+    def _display_file(self, notification: Notification | None) -> None:
+        """Render file content with syntax highlighting in the right pane."""
+        title = self.query_one("#notification-file-title", Label)
+        content_widget = self.query_one("#notification-file-content", Static)
+
+        if notification is None or not notification.files:
+            title.update("No files attached")
+            content_widget.update("")
+            return
+
+        files = notification.files
+        # Clamp index
+        if self._current_file_index >= len(files):
+            self._current_file_index = 0
+
+        file_path = files[self._current_file_index]
+        short = self._shorten_path(file_path)
+        title.update(f"File {self._current_file_index + 1}/{len(files)}: {short}")
+
+        expanded_path = os.path.expanduser(file_path)
+
+        try:
+            with open(expanded_path, encoding="utf-8") as f:
+                content = f.read()
+        except Exception:
+            content_widget.update(Text("Could not read file.", style="dim italic"))
+            self._reset_file_scroll()
+            return
+
+        if not content.strip():
+            content_widget.update(Text("File is empty.", style="dim italic"))
+            self._reset_file_scroll()
+            return
+
+        # Detect lexer from file extension
+        _, ext = os.path.splitext(expanded_path)
+        lexer = _EXTENSION_TO_LEXER.get(ext.lower(), "text")
+
+        syntax = Syntax(
+            content,
+            lexer,
+            theme="monokai",
+            line_numbers=True,
+            word_wrap=True,
+        )
+        content_widget.update(syntax)
+        self._reset_file_scroll()
+
+    def _reset_file_scroll(self) -> None:
+        """Reset the file scroll pane to the top."""
+        try:
+            scroll = self.query_one("#notification-file-scroll", VerticalScroll)
+            scroll.scroll_home(animate=False)
+        except Exception:
+            pass
+
+    def action_next_file(self) -> None:
+        """Cycle to the next attached file."""
+        notification = self._get_highlighted_notification()
+        if notification and notification.files:
+            self._current_file_index = (self._current_file_index + 1) % len(
+                notification.files
+            )
+            self._display_file(notification)
+
+    def action_prev_file(self) -> None:
+        """Cycle to the previous attached file."""
+        notification = self._get_highlighted_notification()
+        if notification and notification.files:
+            self._current_file_index = (self._current_file_index - 1) % len(
+                notification.files
+            )
+            self._display_file(notification)
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        """Update the right pane when a different notification is highlighted."""
+        self._current_file_index = 0
+        if event.option and event.option.id is not None:
+            idx = int(event.option.id)
+            if 0 <= idx < len(self._notifications):
+                self._display_file(self._notifications[idx])
 
     def _create_styled_label(self, notification: Notification) -> Text:
         """Create styled text for a notification option."""
@@ -114,12 +222,16 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         ]
 
     def on_mount(self) -> None:
-        """Focus the option list on mount."""
+        """Focus the option list on mount and display first file."""
         try:
             option_list = self.query_one("#notification-list", OptionList)
             option_list.focus()
         except Exception:
             pass  # No list if empty
+
+        # Display file for the first notification
+        if self._notifications:
+            self._display_file(self._notifications[0])
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (Enter or click)."""
@@ -154,19 +266,6 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         self._notifications.pop(idx)
         self._rebuild_list()
 
-    def action_show_files(self) -> None:
-        """Show file browser for the currently highlighted notification."""
-        idx = self._get_selected_index()
-        if idx is None or idx >= len(self._notifications):
-            return
-
-        notification = self._notifications[idx]
-        if not notification.files:
-            self.notify("No files attached to this notification", severity="warning")
-            return
-
-        self.app.push_screen(NotificationFileBrowser(notification.files))
-
     def action_read_all(self) -> None:
         """Mark all notifications as read and rebuild the display."""
         mark_all_read()
@@ -192,16 +291,22 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             try:
                 self.query_one("#notification-empty", Static)
             except Exception:
-                # Insert empty message before hints
-                container = self.query_one("#notification-container", Container)
-                container.mount(
+                # Insert empty message into the left panel
+                left_panel = self.query_one("#notification-left", Vertical)
+                left_panel.mount(
                     Static(
                         "No unread notifications",
                         id="notification-empty",
                     ),
-                    before="#notification-hints",
                 )
+            # Update right pane
+            self._display_file(None)
             return
 
         for option in self._create_options():
             option_list.add_option(option)
+
+        # Update right pane for whatever is now highlighted
+        self._current_file_index = 0
+        notification = self._get_highlighted_notification()
+        self._display_file(notification)

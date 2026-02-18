@@ -977,9 +977,8 @@ NotificationModal {
 }
 
 NotificationModal > Container {
-    width: 80;
-    height: auto;
-    max-height: 80%;
+    width: 95%;
+    height: 90%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
@@ -990,9 +989,18 @@ NotificationModal #notification-title {
     margin-bottom: 1;
 }
 
+NotificationModal #notification-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+NotificationModal #notification-left {
+    width: 40%;
+    height: 100%;
+}
+
 NotificationModal #notification-list {
-    height: auto;
-    max-height: 20;
+    height: 1fr;
     border: solid $secondary;
 }
 
@@ -1002,48 +1010,31 @@ NotificationModal #notification-empty {
     margin: 2 0;
 }
 
-NotificationModal #notification-hints {
+NotificationModal #notification-right {
+    width: 60%;
+    height: 100%;
+    margin-left: 1;
+    border-left: solid $secondary;
+    padding-left: 1;
+}
+
+NotificationModal #notification-file-title {
     color: $text-muted;
-    text-align: center;
-    margin-top: 1;
-}
-
-/* ===== Notification File Browser Modal Styling ===== */
-
-NotificationFileBrowser {
-    align: center middle;
-}
-
-NotificationFileBrowser > Container {
-    width: 85%;
-    max-width: 120;
-    height: 80%;
-    border: double $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-NotificationFileBrowser #file-browser-title {
     text-style: bold;
-    margin-bottom: 1;
+    height: 1;
 }
 
-NotificationFileBrowser #file-browser-list {
-    height: auto;
-    max-height: 20;
-    border: solid $secondary;
-}
-
-NotificationFileBrowser #file-browser-content-scroll {
+NotificationModal #notification-file-scroll {
     height: 1fr;
     scrollbar-gutter: stable;
 }
 
-NotificationFileBrowser #file-browser-content {
+NotificationModal #notification-file-content {
     height: auto;
 }
 
-NotificationFileBrowser #file-browser-hints {
+NotificationModal #notification-hints {
+    height: 1;
     color: $text-muted;
     text-align: center;
     margin-top: 1;
