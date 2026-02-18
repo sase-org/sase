@@ -23,6 +23,8 @@ jobs:
         run: uv python install 3.12
       - name: Install dependencies
         run: just install
+      - name: Install beads (bd)
+        run: npm install -g @beads/bd
       - name: Check Python formatting
         run: just fmt-py-check
       - name: Lint
