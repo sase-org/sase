@@ -43,6 +43,7 @@ export-state/
 # Dolt database (managed by Dolt remotes, not git)
 dolt/
 dolt-access.lock
+dolt.*.corrupt.backup/
 
 # NOTE: Do NOT add negation patterns (e.g., !issues.jsonl) here.
 # They would override fork protection in .git/info/exclude, allowing
