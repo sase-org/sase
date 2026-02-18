@@ -281,8 +281,10 @@ class TestResolveGhRef:
     @patch("sase.gh_workspace.get_default_branch", return_value="origin/main")
     @patch("sase.gh_workspace.set_workspace_dir", return_value=True)
     @patch("sase.gh_workspace.parse_workspace_dir", return_value=None)
+    @patch("sase.gh_workspace.os.path.isdir", return_value=True)
     def test_repo_path(
         self,
+        mock_isdir: MagicMock,
         mock_parse: MagicMock,
         mock_set: MagicMock,
         mock_branch: MagicMock,

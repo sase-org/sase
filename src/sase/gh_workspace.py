@@ -41,6 +41,32 @@ def get_default_branch(workspace_dir: str) -> str:
     return "origin/main"
 
 
+def _clone_gh_repo(user: str, project: str, target_dir: str) -> None:
+    """Clone a GitHub repo to the target directory.
+
+    Creates parent directories as needed.
+
+    Raises:
+        RuntimeError: If the clone fails.
+    """
+    url = f"https://github.com/{user}/{project}.git"
+    parent = os.path.dirname(target_dir.rstrip("/"))
+    os.makedirs(parent, exist_ok=True)
+
+    try:
+        subprocess.run(
+            ["git", "clone", url, target_dir.rstrip("/")],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        error_msg = f"git clone failed for {url}"
+        if e.stderr:
+            error_msg += f": {e.stderr.strip()}"
+        raise RuntimeError(error_msg) from e
+
+
 def parse_workspace_dir(project_file: str) -> str | None:
     """Parse the WORKSPACE_DIR field from a .gp project file.
 
@@ -165,6 +191,11 @@ def ensure_git_worktree(primary_workspace_dir: str, workspace_num: int) -> str:
     # workspace_num >= 2: create worktree if needed
     if os.path.isdir(worktree_dir):
         return worktree_dir
+
+    if not os.path.isdir(primary_workspace_dir.rstrip("/")):
+        raise RuntimeError(
+            f"Primary workspace directory does not exist: {primary_workspace_dir}"
+        )
 
     # Prune stale worktrees first
     try:
@@ -297,6 +328,10 @@ def resolve_gh_ref(gh_ref: str) -> _ResolvedGhRef:
                 f"WORKSPACE_DIR conflict for '{project}': "
                 f"existing={existing}, derived={primary_workspace_dir}"
             )
+
+        # Clone if primary workspace doesn't exist
+        if not os.path.isdir(primary_workspace_dir.rstrip("/")):
+            _clone_gh_repo(user, project, primary_workspace_dir)
 
         set_workspace_dir(project_file, primary_workspace_dir)
         checkout_target = get_default_branch(primary_workspace_dir)
