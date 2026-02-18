@@ -38,6 +38,9 @@ steps:
       print(f"workspace_dir={workspace_dir}")
       print(f"workspace_num={workspace_num}")
       print(f"checkout_target={resolved.checkout_target}")
+      print(f"primary_workspace_dir={resolved.primary_workspace_dir}")
+      should_create_branch = resolved.branch_name is None
+      print(f"should_create_branch={'true' if should_create_branch else 'false'}")
       print(f"_chdir={workspace_dir}")
       print(f"meta_workspace={workspace_num}")
       print(f"meta_changespec={resolved.branch_name}")
@@ -47,6 +50,8 @@ steps:
       workspace_dir: path
       workspace_num: int
       checkout_target: word
+      primary_workspace_dir: path
+      should_create_branch: bool
 
   - name: prepare
     bash: |
@@ -56,7 +61,38 @@ steps:
       fi
       git checkout . && git clean -fd
       git fetch --quiet
-      git checkout --detach {{ setup.checkout_target }} --quiet
+
+      if [ "{{ setup.should_create_branch }}" = "true" ]; then
+        BRANCH_NAME="agent_{{ setup.workspace_num }}"
+        CHECKOUT_TARGET="{{ setup.checkout_target }}"
+
+        if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
+          git checkout "$BRANCH_NAME" --quiet
+        elif git show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME" 2>/dev/null; then
+          git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" --quiet
+        else
+          # New branch — create from checkout target, push to set upstream
+          git checkout -b "$BRANCH_NAME" "$CHECKOUT_TARGET" --quiet
+          git push -u origin "$BRANCH_NAME" --quiet
+          echo "success=true"
+          exit 0
+        fi
+
+        # Sync existing branch with master
+        if ! git merge "$CHECKOUT_TARGET" --no-edit --quiet 2>&1; then
+          git merge --abort
+          echo '{"notes": ["Merge conflict syncing agent_{{ setup.workspace_num }} with {{ setup.checkout_target }} in workspace #{{ setup.workspace_num }}"]}' \
+            | sase notify --sender git-workflow
+          echo "success=false"
+          exit 1
+        fi
+
+        # Push to ensure upstream is set (for ccommit's `git push`)
+        git push -u origin "$BRANCH_NAME" --quiet 2>/dev/null || git push --set-upstream origin "$BRANCH_NAME" --quiet
+      else
+        git checkout --detach {{ setup.checkout_target }} --quiet
+      fi
+
       echo "success=true"
     output: { success: bool }
 
