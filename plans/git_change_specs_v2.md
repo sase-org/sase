@@ -40,34 +40,148 @@ Note: Draft→WIP is NOT a valid transition. Both WIP and Draft use `__<N>` suff
 - `sase axe` should completely skip WIP ChangeSpecs: no hook checks, no mentor checks, no workflow starts
 - Terminal status guards (`Reverted`, `Submitted`, `Archived`) should also include `WIP` in relevant places
 
-### Key files to modify
+### Implementation tip
+
+Before starting, run `grep -rn '"WIP"\|"Drafted"\|"wip"\|"drafted"' src/ tests/` to find every occurrence. The
+comprehensive file list below was generated this way — use it as a checklist.
+
+### Key files to modify (source — 39 files)
+
+**Status state machine:**
 
 - `src/sase/status_state_machine/constants.py` — Update `VALID_STATUSES` and `VALID_TRANSITIONS`
-- `src/sase/status_state_machine/transitions.py` — Update all status string comparisons, handle WIP↔Draft transitions
-  (no suffix change), keep suffix-stripping on →Ready transitions
+- `src/sase/status_state_machine/mail_suffix.py` — Update status string references
+- `src/sase/status_state_machine/transitions.py` — Rename functions and update all status string comparisons (see
+  function rename table below); handle WIP↔Draft transitions (no suffix change), keep suffix-stripping on →Ready
+  transitions
+
+**Function renames in `transitions.py`:**
+
+| Current name                              | New name                               | Reason                                                |
+| ----------------------------------------- | -------------------------------------- | ----------------------------------------------------- |
+| `_handle_wip_transition`                  | `_handle_draft_transition`             | Handles Ready→Draft (was Drafted→WIP)                 |
+| `_handle_non_wip_transition`              | `_handle_non_draft_transition`         | Handles Draft→Ready (was WIP→Drafted)                 |
+| `_revert_sibling_wip_changespecs`         | `_revert_sibling_draft_changespecs`    | Reverts Draft siblings (was WIP siblings)             |
+| `_check_siblings_for_unreverted_children` | (keep name, update docstring/comments) | References "WIP" → "Draft"                            |
+| `SiblingRevertResult`                     | (keep name, update docstring)          | "sibling WIP ChangeSpec" → "sibling Draft ChangeSpec" |
+| `_handle_suffix_strip`                    | (keep name, update docstring)          | "WIP to Drafted" → "Draft to Ready"                   |
+| `_handle_suffix_append`                   | (keep name, update docstring)          | "Drafted to WIP" → "Ready to Draft"                   |
+
+Also update all `set_mentor_wip_flags` / `clear_mentor_wip_flags` calls — these rename to `set_mentor_draft_flags` /
+`clear_mentor_draft_flags`.
+
+**Commit workflow:**
+
+- `src/sase/commit_workflow/changespec_operations.py` — Line 200: `STATUS: WIP` → `STATUS: Draft`
+- `src/sase/commit_workflow/changespec_queries.py` — Update status string references
+- `src/sase/commit_workflow/workflow.py` — Update status string references
+
+**ChangeSpec management:**
+
+- `src/sase/ace/changespec/__init__.py` — Line 118: update status tuples
+- `src/sase/ace/changespec/models.py` — Update status string references
+- `src/sase/ace/changespec/section_parsers.py` — Update status string references
+
+**Ace operations & display:**
+
+- `src/sase/ace/display.py` — Update status-to-color mappings
+- `src/sase/ace/display_helpers.py` — Update color map keys, add WIP color
+- `src/sase/ace/operations.py` — Update status string references
+- `src/sase/ace/archive.py` — Update status string references
+- `src/sase/ace/revert.py` — Update status string references
+- `src/sase/ace/mail_ops.py` — Update status string references
+- `src/sase/ace/mentors.py` — All "WIP" refs → "Draft"; docstrings; rename `set_mentor_wip_flags` →
+  `set_mentor_draft_flags`, `clear_mentor_wip_flags` → `clear_mentor_draft_flags`
+
+**Query system:**
+
+- `src/sase/ace/query/__init__.py` — Update status string references
+- `src/sase/ace/query/evaluator.py` — Update status string references
+- `src/sase/ace/query/parser.py` — Update status string references
+- `src/sase/ace/query/tokenizer.py` — Update shorthands: `"w"` → `"WIP"` (stays, but now means new WIP), `"d"` →
+  `"DRAFT"` (was DRAFTED), add `"y"` → `"READY"` (`%r` is already REVERTED)
+
+**Ace handlers:**
+
+- `src/sase/ace/handlers/mail.py` — Update status string references
+- `src/sase/ace/handlers/reword.py` — Update status string references
+
+**Ace scheduler:**
+
 - `src/sase/ace/scheduler/mentor_checks.py` — Lines 322, 330, 368, 436, 448: rename "WIP" refs to "Draft"; add "WIP" to
   skip list at line 567
+- `src/sase/ace/scheduler/mentor_runner.py` — Update status string references
+- `src/sase/ace/scheduler/suffix_transforms.py` — Update status string references
 - `src/sase/ace/scheduler/hook_checks.py` — Line 120: add "WIP" to terminal-like statuses that don't start new hooks
-- `src/sase/axe/hook_jobs.py` — Add WIP filtering in `run_hook_checks`, `run_mentor_checks`
-- `src/sase/ace/display_helpers.py` — Update color map keys, add WIP color
-- `src/sase/ace/query/tokenizer.py` — Update shorthands: `"w"` → `"WIP"`, `"d"` → `"DRAFT"`, add shorthand for Ready
-- `src/sase/commit_workflow/changespec_operations.py` — Line 200: `STATUS: WIP` → `STATUS: Draft`
-- `src/sase/ace/changespec/__init__.py` — Line 118: update status tuples
-- `src/sase/ace/mentors.py` — All "WIP" refs → "Draft"; docstrings
+
+**Ace TUI widgets:**
+
+- `src/sase/ace/tui/widgets/keybinding_footer.py` — Update status string references
+- `src/sase/ace/tui/widgets/mentors_builder.py` — Update status string references
+- `src/sase/ace/tui/widgets/ancestors_children_panel.py` — Update status string references
+- `src/sase/ace/tui/widgets/changespec_list.py` — Update status string references
+
+**Ace TUI modals & actions:**
+
+- `src/sase/ace/tui/modals/project_select_modal.py` — Update status string references
+- `src/sase/ace/tui/modals/rename_cl_modal.py` — Update status string references
+- `src/sase/ace/tui/actions/base.py` — Update status string references
+- `src/sase/ace/tui/actions/clipboard.py` — Update status string references
+- `src/sase/ace/tui/actions/hints/_accept.py` — Update status string references
+- `src/sase/ace/tui/actions/proposal_rebase.py` — Update status string references
+
+**Core & configuration:**
+
 - `src/sase/change_actions.py` — "Drafted" → "Ready" in promote action
-- `src/sase/ace/tui/` — Multiple widgets/modals/actions referencing status strings
-- `~/.local/share/chezmoi/home/dot_config/nvim/syntax/` — Vim syntax highlighting groups
-- All test files referencing "WIP" or "Drafted" string literals
-- **Migration script**: New file `src/sase/scripts/sase_migrate_statuses` that scans `~/.sase/projects/**/*.gp` and
-  replaces `STATUS: WIP` → `STATUS: Draft`, `STATUS: Drafted` → `STATUS: Ready`, updates `#WIP` mentor markers to
-  `#Draft`
+- `src/sase/mentor_config.py` — Update status string references
+- `src/sase/main/parser.py` — Update status string references
+- `src/sase/axe/hook_jobs.py` — Add WIP filtering in `run_hook_checks`, `run_mentor_checks`
+
+**Scripts:**
+
+- `src/sase/scripts/sase_commit_workflow` — Update status string references
+
+**External config (chezmoi):**
+
+- `~/.local/share/chezmoi/home/dot_config/nvim/syntax/` — Vim syntax highlighting groups for WIP/Draft/Ready
+
+**Migration script (new file):**
+
+- `src/sase/scripts/sase_migrate_statuses` — Scans `~/.sase/projects/**/*.gp` and replaces `STATUS: WIP` →
+  `STATUS: Draft`, `STATUS: Drafted` → `STATUS: Ready`, updates `#WIP` mentor markers to `#Draft`
+
+### Key files to modify (tests — 57 files)
+
+All test files referencing "WIP" or "Drafted" string literals need updating. Major ones include:
+
+- `tests/test_status_state_machine_constants.py`
+- `tests/test_status_state_machine_transitions.py`
+- `tests/test_status_state_machine_field_updates.py`
+- `tests/test_status_state_machine_mail_suffix.py`
+- `tests/test_mentor_checks.py`
+- `tests/test_mentors_wip.py`
+- `tests/test_mentors.py`
+- `tests/test_changespec_operations.py`
+- `tests/test_changespec_queries.py`
+- `tests/test_changespec_status_indicators.py`
+- `tests/test_query_evaluator.py`
+- `tests/test_query_integration.py`
+- `tests/test_query_property_filters.py`
+- `tests/test_display_helpers.py`
+- `tests/test_hook_checks.py`
+- `tests/test_change_actions.py`
+- `tests/test_commit_workflow.py`
+- `tests/test_keybinding_footer_status.py`
+- `tests/conftest.py`
+
+Plus ~38 more test files. Run `grep -rln '"WIP"\|"Drafted"' tests/` for the full list.
 
 ### Verification
 
 - `just check` passes
 - Migration script runs on existing `.gp` files without errors
 - `sase ace` TUI loads with new status names
-- Query shorthands work (`%w` for WIP, `%d` for Draft)
+- Query shorthands work (`%w` for WIP, `%d` for Draft, `%y` for Ready)
 - `sase axe` skips WIP ChangeSpecs entirely
 
 ---
@@ -87,28 +201,72 @@ Note: Draft→WIP is NOT a valid transition. Both WIP and Draft use `__<N>` suff
 
 - `xprompts/commit.yml` → rename to `xprompts/cl.yml`, add `wip` boolean input (default false)
 - `xprompts/amend.yml` → rename to `xprompts/commit.yml`
-- `xprompts/propose.yml` — Verify it works in git/gh context (currently calls `sase_propose_workflow` which may be
-  hg-specific)
+- `xprompts/propose.yml` — Replace `branch_local_changes` bash call with VCS provider (see below)
 - `src/sase/scripts/sase_commit_workflow` — Add `--wip` flag; when set, create ChangeSpec with `STATUS: WIP` instead of
   `STATUS: Draft`
 - `src/sase/commit_workflow/changespec_operations.py` — Accept `status` parameter to allow WIP vs Draft
-- `~/.local/share/chezmoi/home/dot_config/sase/sase.yml`:
-  - Rename xprompt `cl` → `cldd` (lines 107-114)
-  - Update shortcut `c` from `"#commit(..."` → `"#cl(..."`
-  - Update shortcut `a` from `"#amend(..."` → `"#commit(..."`
-  - Update shortcut `b` which references `#commit` → `#cl`
-  - Update any `#cl` references in inject steps of amend.yml/propose.yml → `#cldd`
-- `xprompts/propose.yml` inject step references `#cl` → update to `#cldd`
-- `xprompts/amend.yml` (old, now commit.yml) inject step references `#cl` → update to `#cldd`
 - `src/sase/amend_workflow.py` — May need adaptation for git/gh propose support
 - Any other references to `#commit`, `#amend`, or `#cl` in prompts, docs, or code
 
-### #propose for git/gh
+### sase.yml shortcut mappings
 
-- The `sase_propose_workflow` script needs to detect git/gh context and save a git diff (vs. hg diff)
-- In git context: `git diff HEAD` to capture uncommitted changes, save to diff file, create COMMITS proposal entry
-- The `branch_local_changes` bash function (used in propose.yml's check_changes step) may need a git-compatible
-  implementation
+File: `~/.local/share/chezmoi/home/dot_config/sase/sase.yml`
+
+| Lines   | Shortcut                  | Current value                                   | New value                                   |
+| ------- | ------------------------- | ----------------------------------------------- | ------------------------------------------- |
+| 86-88   | `a`                       | `#amend(note='{{ note }}')`                     | `#commit(note='{{ note }}')`                |
+| 102-104 | `c`                       | `#commit(name={{ name }}, bug_id={{ bug_id }})` | `#cl(name={{ name }}, bug_id={{ bug_id }})` |
+| 94-96   | `b`                       | `...#commit({{ cl_name }}, {{ bug_id }})`       | `...#cl({{ cl_name }}, {{ bug_id }})`       |
+| 106-114 | `cl` (xprompt definition) | `cl:` with CL context content                   | Rename to `cldd:`                           |
+| 131-135 | `launch/beta`             | `...#commit(launch_beta, {{ bug_id }})`         | `...#cl(launch_beta, {{ bug_id }})`         |
+| 137-139 | `launch/tests`            | `...#commit(launch_tests, {{ bug_id }})`        | `...#cl(launch_tests, {{ bug_id }})`        |
+
+Also update `#cl` references inside inject steps:
+
+- `xprompts/propose.yml` line 13: inject step references `#cl` → update to `#cldd`
+- `xprompts/amend.yml` line 13: inject step references `#cl` → update to `#cldd`
+
+### #propose for git/gh — detailed implementation
+
+The `#propose` workflow currently depends on hg-specific shell commands. Three specific problems need fixing:
+
+**Problem 1: `branch_local_changes` in `propose.yml` check_changes step**
+
+- Location: `xprompts/propose.yml` lines 15-24
+- Current: Calls `branch_local_changes` bash function (hg-specific shell command)
+- Solution: Replace bash step with a python step that uses the VCS provider:
+  ```python
+  from sase.vcs_provider import get_vcs_provider
+  provider = get_vcs_provider(os.getcwd())
+  ok, changes = provider.has_local_changes(os.getcwd())
+  ```
+- The git provider already implements `has_local_changes()` at `_git.py:358-363` using `git status --porcelain`
+
+**Problem 2: `workspace_name` and `branch_name` shell commands in `sase_propose_workflow`**
+
+- Location: `src/sase/scripts/sase_propose_workflow` lines 16-34
+- Current: `_get_project_from_workspace()` calls `subprocess.run(["workspace_name"])` (line 18-19);
+  `_get_cl_name_from_branch()` calls `subprocess.run(["branch_name"])` (line 28-29)
+- Solution: Replace both with VCS provider method calls:
+  ```python
+  provider = get_vcs_provider(os.getcwd())
+  ok, project_name = provider.get_workspace_name(os.getcwd())
+  ok, cl_name = provider.get_branch_name(os.getcwd())
+  ```
+- The git provider already implements both: `get_workspace_name()` at `_git.py:365-379` and `get_branch_name()` at
+  `_git.py:339-347`
+
+**Problem 3: Same `branch_local_changes` fix needed in `amend.yml` and `commit.yml`**
+
+- Location: `xprompts/amend.yml` lines 15-24 and `xprompts/commit.yml` lines 14-23
+- Both use the same `branch_local_changes` bash pattern as `propose.yml`
+- Apply the same VCS provider fix from Problem 1
+
+**Key insight — no changes needed for `save_diff()` and `clean_workspace()`:**
+
+- `save_diff()` (`src/sase/commit_utils/workspace.py`) already calls `provider.add_remove()` and `provider.diff()`
+- `clean_workspace()` (`src/sase/commit_utils/workspace.py`) already calls `provider.clean_workspace()`
+- Both automatically work with git via the VCS provider abstraction
 
 ### Verification
 
@@ -163,13 +321,18 @@ Note: Draft→WIP is NOT a valid transition. Both WIP and Draft use `__<N>` suff
 - Use branch_name as the ChangeSpec name basis (instead of deriving from commit subjects, since the branch name IS the
   identifier)
 
-**Running field:**
+**Running field — pinned workspace support:**
 
 - `src/sase/running_field.py`:
   - Add `pinned` flag to workspace claims (e.g., append `| PINNED` to RUNNING entry line)
   - `claim_workspace()`: accept `pinned=False` parameter
-  - Stale running cleanup (`cleanup_stale_running_entries`): skip entries marked PINNED even if PID is dead
+  - Stale running cleanup: skip entries marked PINNED even if PID is dead
   - New function `unpin_workspace()` for explicit release
+
+- `src/sase/ace/scheduler/stale_running_cleanup.py`:
+  - Lines 30-36 contain the core cleanup loop that iterates `get_claimed_workspaces()` and releases if PID is not
+    running. This loop needs a guard: `if claim.pinned: continue` before the `is_process_running` check to prevent
+    releasing pinned workspaces.
 
 ### Verification
 
