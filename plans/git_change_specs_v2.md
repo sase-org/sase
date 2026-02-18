@@ -1,3 +1,7 @@
+---
+bead_id: sase-py2
+---
+
 # ChangeSpec + Git/GitHub Improvements Plan
 
 ## Context
