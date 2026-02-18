@@ -17,7 +17,6 @@ class AgentNotificationMixin:
     Type hints below declare attributes that are defined at runtime by AceApp.
     """
 
-    _pending_attention_count: int
     _last_unread_count: int
     current_tab: TabName
 
@@ -45,7 +44,6 @@ class AgentNotificationMixin:
             )
 
         self._last_unread_count = unread_count
-        self._pending_attention_count = unread_count
 
         # Update persistent notification indicator
         from ...widgets import NotificationIndicator
@@ -54,11 +52,6 @@ class AgentNotificationMixin:
             "#notification-indicator", NotificationIndicator
         )
         indicator.set_count(unread_count)
-
-        if unread_count > 0 and self.current_tab != "agents":
-            self._update_tab_bar_emphasis()
-        elif unread_count == 0:
-            self._clear_tab_bar_emphasis()
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""
@@ -78,20 +71,6 @@ class AgentNotificationMixin:
             )
         except FileNotFoundError:
             pass  # Script not available
-
-    def _update_tab_bar_emphasis(self) -> None:
-        """Update tab bar with attention count badge."""
-        from ...widgets import TabBar
-
-        tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-        tab_bar.set_attention_count(self._pending_attention_count)
-
-    def _clear_tab_bar_emphasis(self) -> None:
-        """Clear tab bar attention badge."""
-        from ...widgets import TabBar
-
-        tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-        tab_bar.set_attention_count(0)
 
     def action_show_notifications(self) -> None:
         """Show the notification modal with unread notifications."""
@@ -114,11 +93,6 @@ class AgentNotificationMixin:
             mark_read(result.id)
             # Update badge count
             self._last_unread_count = max(0, self._last_unread_count - 1)
-            self._pending_attention_count = self._last_unread_count
-            if self._last_unread_count > 0:
-                self._update_tab_bar_emphasis()
-            else:
-                self._clear_tab_bar_emphasis()
 
             # Update persistent notification indicator
             from ...widgets import NotificationIndicator

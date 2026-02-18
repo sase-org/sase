@@ -263,7 +263,6 @@ class AceApp(
         # Agent completion tracking for notifications
         from .models.agent import AgentType
 
-        self._pending_attention_count: int = 0
         self._last_unread_count: int = 0
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
 
@@ -441,8 +440,6 @@ class AceApp(
             axe_view.add_class("hidden")
             # Load agents on first access or refresh
             self._load_agents()
-            # Clear the attention badge when viewing agents tab
-            self._clear_tab_bar_emphasis()
         else:  # axe
             changespecs_view.add_class("hidden")
             agents_view.add_class("hidden")
