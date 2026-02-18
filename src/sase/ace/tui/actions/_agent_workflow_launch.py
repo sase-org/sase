@@ -312,7 +312,9 @@ class AgentLaunchMixin:
         import subprocess
         import tempfile
 
+        from sase.running_field import claim_workspace
         from sase.sase_utils import ensure_sase_directory
+        from sase.shared_utils import convert_timestamp_to_artifacts_format
 
         # Write prompt to temp file (runner will read and delete)
         fd, prompt_file = tempfile.mkstemp(suffix=".md", prefix="sase_ace_prompt_")
@@ -349,13 +351,12 @@ class AgentLaunchMixin:
             subprocess_env["SASE_GIT_WORKSPACE_NUM"] = str(workspace_num)
             subprocess_env["SASE_GIT_WORKSPACE_DIR"] = workspace_dir
 
-        # Start background process (workspace claiming is handled by embedded workflows)
         # Args: cl_name, project_file, workspace_dir, output_path, workspace_num,
         #       workflow_name, prompt_file, timestamp,
         #       update_target, project_name, history_sort_key, is_home_mode
         try:
             with open(output_path, "w") as output_file:
-                subprocess.Popen(
+                process = subprocess.Popen(
                     [
                         sys.executable,
                         runner_script,
@@ -381,6 +382,25 @@ class AgentLaunchMixin:
         except Exception as e:
             self.notify(f"Failed to start agent: {e}", severity="error")  # type: ignore[attr-defined]
             return
+
+        # Claim workspace so agent appears in Agents tab while running
+        if not is_home_mode:
+            artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
+            if not claim_workspace(
+                project_file,
+                workspace_num,
+                workflow_name,
+                process.pid,
+                cl_name,
+                artifacts_timestamp=artifacts_timestamp,
+            ):
+                self.notify("Failed to claim workspace", severity="error")  # type: ignore[attr-defined]
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                return
 
         # Create home project directory and file if needed (for artifact path resolution)
         if is_home_mode:

@@ -308,6 +308,16 @@ def main() -> None:
             except OSError:
                 pass
 
+        # Release workspace for non-home-mode agents
+        if not is_home_mode:
+            try:
+                from sase.running_field import release_workspace
+
+                release_workspace(project_file, workspace_num, workflow_name, cl_name)
+                print("Workspace released")
+            except Exception as e:
+                print(f"Error releasing workspace: {e}", file=sys.stderr)
+
         # Write completion marker
         try:
             with open(output_path, "a") as f:
