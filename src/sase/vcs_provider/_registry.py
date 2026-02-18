@@ -16,15 +16,19 @@ def register_provider(name: str, cls: type[VCSProvider]) -> None:
 
 
 def detect_vcs(cwd: str) -> str | None:
-    """Walk up from *cwd* looking for ``.hg/`` or ``.git/``.
+    """Walk up from *cwd* looking for ``.hg/`` or ``.git``.
 
     Returns the provider name (``"hg"`` or ``"git"``) or ``None``.
+
+    Note: ``.git`` is checked with ``os.path.exists`` rather than
+    ``os.path.isdir`` because git worktrees use a ``.git`` *file*
+    (containing a ``gitdir:`` pointer) instead of a directory.
     """
     directory = os.path.abspath(cwd)
     while True:
         if os.path.isdir(os.path.join(directory, ".hg")):
             return "hg"
-        if os.path.isdir(os.path.join(directory, ".git")):
+        if os.path.exists(os.path.join(directory, ".git")):
             return "git"
         parent = os.path.dirname(directory)
         if parent == directory:
