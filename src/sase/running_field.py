@@ -533,11 +533,12 @@ def get_workspace_directory_for_num(
 
 
 def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
-    """Get the workspace directory path by calling sase_hg_get_workspace.
+    """Get the workspace directory path for a project.
 
-    This is the primary function for getting workspace directories. It calls
-    the sase_hg_get_workspace command which handles creating workspace shares
-    if they don't exist.
+    For git/gh projects with WORKSPACE_DIR set in their .gp file, returns
+    the workspace directory directly (or creates a git worktree for
+    workspace_num > 1). Falls back to the sase_hg_get_workspace shell script
+    for hg projects or when WORKSPACE_DIR is not set.
 
     Args:
         project: Project name (e.g., "foobar")
@@ -547,8 +548,16 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
         Full path to workspace directory
 
     Raises:
-        RuntimeError: If sase_hg_get_workspace command fails
+        RuntimeError: If workspace resolution fails
     """
+    from sase.gh_workspace import ensure_git_worktree, parse_workspace_dir
+    from sase.workflow_utils import get_project_file_path
+
+    project_file = get_project_file_path(project)
+    workspace_dir = parse_workspace_dir(project_file)
+    if workspace_dir and os.path.isdir(os.path.join(workspace_dir, ".git")):
+        return ensure_git_worktree(workspace_dir, workspace_num)
+
     try:
         result = subprocess.run(
             ["sase_hg_get_workspace", project, str(workspace_num)],
