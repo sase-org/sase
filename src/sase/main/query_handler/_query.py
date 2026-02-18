@@ -13,6 +13,7 @@ from sase.shared_utils import (
     apply_section_marker_handling,
     create_artifacts_directory,
 )
+from sase.xprompt.models import UNSET
 from sase.xprompt.workflow_models import WorkflowStep
 
 from ..utils import ensure_project_file_and_get_workspace_num
@@ -124,8 +125,8 @@ def expand_embedded_workflows_in_query(
 
         # Apply defaults
         for input_arg in workflow.inputs:
-            if input_arg.name not in args and input_arg.default is not None:
-                args[input_arg.name] = str(input_arg.default)
+            if input_arg.name not in args and input_arg.default is not UNSET:
+                args[input_arg.name] = input_arg.default
 
         # Get pre and post steps
         pre_steps = workflow.get_pre_prompt_steps()

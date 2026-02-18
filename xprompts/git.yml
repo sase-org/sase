@@ -8,7 +8,7 @@ input:
     default: null
   - name: release
     type: bool
-    default: null
+    default: true
 
 steps:
   - name: setup
@@ -41,13 +41,7 @@ steps:
           workspace_num = get_first_available_axe_workspace(project_file)
           workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
 
-      release_input = {{ release | tojson }}
-      if release_input is not None:
-          should_release = release_input
-      elif n_input is not None:
-          should_release = False
-      else:
-          should_release = True
+      should_release = {{ release | tojson }}
 
       pid = os.getpid()
       workflow_name = f"git-{git_ref}"

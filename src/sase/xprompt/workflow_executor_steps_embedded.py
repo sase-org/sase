@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.shared_utils import apply_section_marker_handling
 
-from sase.xprompt.models import OutputSpec
+from sase.xprompt.models import UNSET, OutputSpec
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
 from sase.xprompt.workflow_executor_utils import render_template
 from sase.xprompt.workflow_models import (
@@ -390,8 +390,8 @@ class EmbeddedWorkflowMixin:
 
             # Apply defaults
             for input_arg in workflow.inputs:
-                if input_arg.name not in args and input_arg.default is not None:
-                    args[input_arg.name] = str(input_arg.default)
+                if input_arg.name not in args and input_arg.default is not UNSET:
+                    args[input_arg.name] = input_arg.default
 
             pending.append(
                 _PendingEmbeddedWorkflow(

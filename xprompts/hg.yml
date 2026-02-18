@@ -8,7 +8,7 @@ input:
     default: null
   - name: release
     type: bool
-    default: null
+    default: true
 
 steps:
   - name: setup
@@ -48,13 +48,7 @@ steps:
       else:
           workspace_num = get_first_available_axe_workspace(project_file)
 
-      release_input = {{ release | tojson }}
-      if release_input is not None:
-          should_release = release_input
-      elif n_input is not None:
-          should_release = False
-      else:
-          should_release = True
+      should_release = {{ release | tojson }}
 
       workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
 

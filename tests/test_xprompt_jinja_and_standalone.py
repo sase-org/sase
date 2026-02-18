@@ -542,10 +542,14 @@ def test_render_template_bool_default_filter_renders_lowercase() -> None:
     assert result == "false"
 
 
-def test_render_template_bool_tojson_unaffected() -> None:
-    """Test that tojson filter still produces valid JSON booleans."""
+def test_render_template_bool_tojson_produces_python() -> None:
+    """Test that tojson filter produces Python-compatible booleans/None."""
     result = render_template("{{ flag | tojson }}", {"flag": True})
-    assert result == "true"
+    assert result == "True"
+    result = render_template("{{ flag | tojson }}", {"flag": False})
+    assert result == "False"
+    result = render_template("{{ flag | tojson }}", {"flag": None})
+    assert result == "None"
 
 
 def test_render_template_string_lower_true() -> None:

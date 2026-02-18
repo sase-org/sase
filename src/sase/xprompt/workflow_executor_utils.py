@@ -21,8 +21,17 @@ def _finalize_value(value: Any) -> Any:
 def create_jinja_env() -> Environment:
     """Create a Jinja2 environment for template rendering."""
     env = Environment(undefined=StrictUndefined, finalize=_finalize_value)
-    # Add tojson filter
-    env.filters["tojson"] = json.dumps
+
+    # Add tojson filter (Python-aware: produces None/True/False instead of
+    # null/true/false so rendered templates are valid Python)
+    def _tojson(value: Any) -> str:
+        if value is None:
+            return "None"
+        if isinstance(value, bool):
+            return "True" if value else "False"
+        return json.dumps(value)
+
+    env.filters["tojson"] = _tojson
     return env
 
 
