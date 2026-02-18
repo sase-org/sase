@@ -76,8 +76,8 @@ check: fmt-check lint test
 all: fmt lint test
 
 # Find unused Python function/class definitions
-pyvision:
-    tools/pyvision-260217 src/sase
+pyvision: _setup
+    {{ venv_bin }}/python tools/pyvision-260217 src/sase
 
 # Check Python file line counts
 pylimit:
