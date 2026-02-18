@@ -11,7 +11,6 @@ from sase.sase_utils import EASTERN_TZ
 def notify_workflow_complete(
     sender: str,
     cl_name: str | None,
-    project_file: str | None,
     success: bool,
     notes: list[str],
     action: str | None = None,
@@ -20,8 +19,6 @@ def notify_workflow_complete(
 ) -> None:
     """Send a notification when a workflow finishes."""
     files = list(extra_files or [])
-    if project_file:
-        files.append(project_file)
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(EASTERN_TZ).isoformat(),

@@ -435,7 +435,6 @@ def run_query(
         notify_workflow_complete(
             sender="user-agent",
             cl_name=None,
-            project_file=project_file,
             success=True,
             notes=["Workflow completed via sase run"],
             action=None,
@@ -446,7 +445,6 @@ def run_query(
         notify_workflow_complete(
             sender="user-agent",
             cl_name=None,
-            project_file=project_file,
             success=False,
             notes=["Workflow failed via sase run"],
             action=None,

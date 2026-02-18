@@ -335,7 +335,6 @@ def main() -> None:
         notify_workflow_complete(
             sender="user-agent",
             cl_name=cl_name,
-            project_file=project_file,
             success=success,
             notes=[f"Agent {'completed' if success else 'failed'}: {workflow_name}"],
             action="Tmux" if workspace_dir else None,

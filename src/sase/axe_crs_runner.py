@@ -131,7 +131,6 @@ def main() -> int:
         notify_workflow_complete(
             sender="crs",
             cl_name=changespec_name,
-            project_file=project_file,
             success=(exit_code == 0 and proposal_id is not None),
             notes=[
                 f"CRS {'completed' if exit_code == 0 else 'failed'} for {changespec_name}"
