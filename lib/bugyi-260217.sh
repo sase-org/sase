@@ -1,5 +1,5 @@
 #!/bin/bash
-# Vendored from my.files via pyvendor on 2026-02-17
+# Vendored from https://github.com/bbugyi200/dotfiles via pyvendor on 2026-02-17
 
 # Show NYC time when using tools like `date`.
 export TZ="America/New_York"

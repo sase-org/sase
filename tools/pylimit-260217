@@ -1,5 +1,5 @@
 #!/bin/bash
-# Vendored from my.files via pyvendor on 2026-02-17
+# Vendored from https://github.com/bbugyi200/dotfiles via pyvendor on 2026-02-17
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/bugyi-260217.sh"
 
@@ -138,7 +138,7 @@ function check_python_files() {
   # Find all .py files recursively and check line counts
   while IFS= read -r -d '' file; do
     local line_count
-    line_count=$(wc -l <"${file}")
+    line_count=$(wc -l < "${file}")
 
     if [[ "${line_count}" -gt "${line_limit}" ]]; then
       log::error "VIOLATION: ${file} has ${line_count} lines (limit: ${line_limit})"
