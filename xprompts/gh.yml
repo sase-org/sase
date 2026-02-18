@@ -137,6 +137,33 @@ steps:
       echo "pr_url=${PR_URL:-failed}"
     output: { pr_url: line }
 
+  - name: create_changespec
+    if: "{{ setup.should_create_branch }}"
+    hidden: true
+    python: |
+      from sase.workspace_changespec import create_changespec_for_workflow
+
+      pr_url = {{ create_pr.pr_url | tojson }}
+      cl_url = pr_url if pr_url.startswith("http") else None
+
+      result = create_changespec_for_workflow(
+          project_name={{ setup.project_name | tojson }},
+          project_file={{ setup.project_file | tojson }},
+          checkout_target={{ setup.checkout_target | tojson }},
+          workspace_num={{ setup.workspace_num }},
+          prompt={{ _prompt | tojson }},
+          response={{ _response | tojson }},
+          workflow_name="gh-{{ gh_ref }}",
+          cl_url=cl_url,
+      )
+
+      if result:
+          print(f"changespec_name={result}")
+          print(f"meta_changespec={result}")
+      else:
+          print("changespec_name=")
+    output: { changespec_name: word }
+
   - name: release
     python: |
       from sase.running_field import release_workspace
