@@ -41,7 +41,7 @@ Source: `src/sase/vcs_provider/_hg.py`
 | Script                  | Usage                                                      | Source location                   |
 | ----------------------- | ---------------------------------------------------------- | --------------------------------- |
 | `sase_hg_get_workspace` | Get/create workspace directory                             | `running_field.py:546`            |
-| `sase_rewind`           | Rewind diffs                                               | `_hg.py:285`                      |
+| `sase_hg_rewind`        | Rewind diffs                                               | `_hg.py:285`                      |
 | `sase_metahook_*`       | Dynamic metahook scripts (pattern: `sase_metahook_{name}`) | `axe_summarize_hook_runner.py:69` |
 
 ## Notification / UI utilities

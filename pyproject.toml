@@ -57,7 +57,7 @@ sase_propose_workflow = "sase.scripts:sase_propose_workflow"
 sase_json_workflow = "sase.scripts:sase_json_workflow"
 sase_split_setup = "sase.scripts:sase_split_setup"
 sase_split_prepare_execute = "sase.scripts:sase_split_prepare_execute"
-sase_rewind = "sase.scripts:sase_rewind"
+sase_hg_rewind = "sase.scripts:sase_hg_rewind"
 sase_metahook_scuba = "sase.scripts:sase_metahook_scuba"
 sase_metahook_hg_presubmit_tap = "sase.scripts:sase_metahook_hg_presubmit_tap"
 

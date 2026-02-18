@@ -307,8 +307,8 @@ class _HgProvider(VCSProvider):
         return (True, out.stdout)
 
     def rewind(self, diff_paths: list[str], cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["sase_rewind"] + diff_paths, cwd, timeout=600)
-        return self._to_result(out, "sase_rewind")
+        out = self._run(["sase_hg_rewind"] + diff_paths, cwd, timeout=600)
+        return self._to_result(out, "sase_hg_rewind")
 
 
 # Self-register when imported

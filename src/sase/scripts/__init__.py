@@ -138,8 +138,8 @@ def sase_split_prepare_execute() -> NoReturn:
     _exec_script("sase_split_prepare_execute")
 
 
-def sase_rewind() -> NoReturn:
-    _exec_script("sase_rewind")
+def sase_hg_rewind() -> NoReturn:
+    _exec_script("sase_hg_rewind")
 
 
 def sase_metahook_scuba() -> NoReturn:

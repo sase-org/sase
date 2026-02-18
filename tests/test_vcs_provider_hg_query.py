@@ -390,7 +390,7 @@ def test_hg_rewind_success(mock_run: MagicMock) -> None:
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == [
-        "sase_rewind",
+        "sase_hg_rewind",
         "/tmp/a.diff",
         "/tmp/b.diff",
     ]
@@ -408,7 +408,7 @@ def test_hg_rewind_failure(mock_run: MagicMock) -> None:
 
     assert success is False
     assert error is not None
-    assert "sase_rewind failed" in error
+    assert "sase_hg_rewind failed" in error
 
 
 @patch("sase.vcs_provider._hg.subprocess.run")
@@ -416,7 +416,7 @@ def test_hg_rewind_timeout(mock_run: MagicMock) -> None:
     """Test _HgProvider.rewind handles timeout."""
     import subprocess
 
-    mock_run.side_effect = subprocess.TimeoutExpired(cmd="sase_rewind", timeout=600)
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="sase_hg_rewind", timeout=600)
 
     provider = _HgProvider()
     success, error = provider.rewind(["/tmp/a.diff"], "/workspace")

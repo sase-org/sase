@@ -135,14 +135,14 @@ class RewindWorkflow:
             if not diff_files:
                 return (False, "No diff files found to rewind")
 
-            # Apply diffs in REVERSE order using sase_rewind
+            # Apply diffs in REVERSE order using sase_hg_rewind
             diff_files_reversed = list(reversed(diff_files))
             print_status(f"Rewinding {len(diff_files_reversed)} diff(s)...", "progress")
 
             provider = get_vcs_provider(workspace_dir)
             rewind_ok, rewind_err = provider.rewind(diff_files_reversed, workspace_dir)
             if not rewind_ok:
-                return (False, f"sase_rewind failed: {rewind_err}")
+                return (False, f"sase_hg_rewind failed: {rewind_err}")
 
             print_status("Diffs rewound successfully", "success")
 
