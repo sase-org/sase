@@ -77,7 +77,7 @@ all: fmt lint test
 
 # Find unused Python function/class definitions
 pyvision:
-    tools/pyvision-260217 src/sase --epic-symbol 'sase-cel(create_changespec_for_workflow)'
+    tools/pyvision-260217 src/sase
 
 # Check Python file line counts
 pylimit:
