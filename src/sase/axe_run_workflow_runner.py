@@ -197,7 +197,45 @@ def main() -> None:
             except Exception as e:
                 print(f"Error releasing workspace: {e}", file=sys.stderr)
 
+        from sase.chat_history import list_chat_histories
         from sase.notifications.senders import notify_workflow_complete
+        from sase.sase_utils import get_sase_directory
+
+        # Find chat file (most recent chat history)
+        extra_files: list[str] = []
+        try:
+            chats = list_chat_histories()
+            if chats:
+                chats_dir = get_sase_directory("chats")
+                chat_path = os.path.join(chats_dir, f"{chats[0]}.md")
+                from pathlib import Path
+
+                extra_files.append(chat_path.replace(str(Path.home()), "~"))
+        except Exception:
+            pass
+
+        # Find diff file from workflow_state.json
+        try:
+            state_path = os.path.join(artifacts_dir, "workflow_state.json")
+            with open(state_path, encoding="utf-8") as f:
+                data = json.load(f)
+            diff_path: str | None = None
+            steps = data.get("steps", [])
+            if steps:
+                last_step = steps[-1]
+                out_types = last_step.get("output_types") or {}
+                step_out = last_step.get("output")
+                if out_types and isinstance(step_out, dict):
+                    for fname, ftype in out_types.items():
+                        if ftype == "path":
+                            diff_path = step_out.get(fname)
+                            break
+                if not diff_path and isinstance(step_out, dict):
+                    diff_path = step_out.get("diff_path")
+            if diff_path:
+                extra_files.append(diff_path)
+        except (OSError, json.JSONDecodeError):
+            pass
 
         notify_workflow_complete(
             sender="user-workflow",
@@ -207,6 +245,7 @@ def main() -> None:
             notes=[f"Workflow {'completed' if success else 'failed'}: {workflow_name}"],
             action="Tmux" if workspace_dir else None,
             action_data={"workspace_dir": workspace_dir} if workspace_dir else {},
+            extra_files=extra_files,
         )
 
     sys.exit(0 if success else 1)

@@ -19,6 +19,7 @@ from pathlib import Path
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.ace.hooks import contract_test_target_command, set_hook_suffix
 from sase.axe_runner_utils import finalize_axe_runner
+from sase.chat_history import find_chat_by_timestamp
 from sase.sase_utils import shorten_path, strip_hook_prefix
 from sase.llm_provider import invoke_agent
 from sase.main.query_handler import (
@@ -237,6 +238,8 @@ def main() -> int:
 
         from sase.notifications.senders import notify_workflow_complete
 
+        chat_path = find_chat_by_timestamp(timestamp)
+        extra_files = [chat_path] if chat_path else []
         notify_workflow_complete(
             sender="fix-hook",
             cl_name=changespec_name,
@@ -250,6 +253,7 @@ def main() -> int:
                 "changespec_name": changespec_name,
                 "project_file": project_file,
             },
+            extra_files=extra_files,
         )
 
     return exit_code

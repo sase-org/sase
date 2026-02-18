@@ -218,3 +218,18 @@ def list_chat_histories() -> list[str]:
     )
 
     return files
+
+
+def find_chat_by_timestamp(timestamp: str) -> str | None:
+    """Find a chat history file by its timestamp suffix.
+
+    Returns the path (with ~ for home) or None if not found.
+    """
+    chats_dir = get_sase_directory("chats")
+    if not os.path.exists(chats_dir):
+        return None
+    suffix = f"-{timestamp}.md"
+    for filename in os.listdir(chats_dir):
+        if filename.endswith(suffix):
+            return os.path.join(chats_dir, filename).replace(str(Path.home()), "~")
+    return None

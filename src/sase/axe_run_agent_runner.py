@@ -125,6 +125,8 @@ def main() -> None:
     start_time = time.time()
     success = False
     duration = "0s"
+    saved_path: str | None = None
+    diff_path: str | None = None
 
     print("Starting agent run")
     print(f"CL: {cl_name}")
@@ -329,6 +331,7 @@ def main() -> None:
 
         from sase.notifications.senders import notify_workflow_complete
 
+        extra_files = [p for p in [saved_path, diff_path] if p]
         notify_workflow_complete(
             sender="user-agent",
             cl_name=cl_name,
@@ -337,6 +340,7 @@ def main() -> None:
             notes=[f"Agent {'completed' if success else 'failed'}: {workflow_name}"],
             action="Tmux" if workspace_dir else None,
             action_data={"workspace_dir": workspace_dir} if workspace_dir else {},
+            extra_files=extra_files,
         )
 
     sys.exit(0 if success else 1)

@@ -19,6 +19,7 @@ import sys
 from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
 from sase.axe_runner_utils import finalize_axe_runner
+from sase.chat_history import find_chat_by_timestamp
 from sase.crs_workflow import CrsWorkflow
 from sase.sase_utils import shorten_path
 
@@ -125,6 +126,8 @@ def main() -> int:
 
         from sase.notifications.senders import notify_workflow_complete
 
+        chat_path = find_chat_by_timestamp(timestamp)
+        extra_files = [chat_path] if chat_path else []
         notify_workflow_complete(
             sender="crs",
             cl_name=changespec_name,
@@ -138,6 +141,7 @@ def main() -> int:
                 "changespec_name": changespec_name,
                 "project_file": project_file,
             },
+            extra_files=extra_files,
         )
 
     return exit_code

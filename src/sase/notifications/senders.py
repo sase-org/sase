@@ -16,14 +16,18 @@ def notify_workflow_complete(
     notes: list[str],
     action: str | None = None,
     action_data: dict[str, str] | None = None,
+    extra_files: list[str] | None = None,
 ) -> None:
     """Send a notification when a workflow finishes."""
+    files = list(extra_files or [])
+    if project_file:
+        files.append(project_file)
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(EASTERN_TZ).isoformat(),
         sender=sender,
         notes=notes,
-        files=[project_file] if project_file else [],
+        files=files,
         action=action,
         action_data=action_data or {},
     )
