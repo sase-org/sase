@@ -89,6 +89,11 @@ class AgentNotificationMixin:
         """Show the notification modal with unread notifications."""
         from sase.notifications import load_notifications, mark_read
 
+        from ._notification_actions import (
+            handle_hitl,
+            handle_jump_to_changespec,
+            handle_tmux,
+        )
         from ...modals import NotificationModal
 
         notifications = load_notifications()
@@ -106,5 +111,13 @@ class AgentNotificationMixin:
                 self._update_tab_bar_emphasis()
             else:
                 self._clear_tab_bar_emphasis()
+
+            # Dispatch action
+            if result.action == "JumpToChangeSpec":
+                handle_jump_to_changespec(self, result)
+            elif result.action == "Tmux":
+                handle_tmux(self, result)
+            elif result.action == "HITL":
+                handle_hitl(self, result)
 
         self.push_screen(NotificationModal(unread), callback=_on_dismiss)  # type: ignore[attr-defined]
