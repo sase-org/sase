@@ -348,29 +348,29 @@ def test_add_changespec_no_parent_placed_at_bottom() -> None:
         Path(project_file).unlink()
 
 
-# --- Tests for _get_cl_description from sase_commit_workflow ---
+# --- Tests for _get_cl_description from sase_cl_workflow ---
 
-_COMMIT_WORKFLOW_SCRIPT = (
-    Path(__file__).parent.parent / "src" / "sase" / "scripts" / "sase_commit_workflow"
+_CL_WORKFLOW_SCRIPT = (
+    Path(__file__).parent.parent / "src" / "sase" / "scripts" / "sase_cl_workflow"
 )
-_SKIP_REASON = "sase_commit_workflow script not available"
+_SKIP_REASON = "sase_cl_workflow script not available"
 
 
-def _load_commit_workflow_module() -> types.ModuleType:
-    """Load sase_commit_workflow as a Python module."""
-    script_path = str(_COMMIT_WORKFLOW_SCRIPT)
-    loader = importlib.machinery.SourceFileLoader("sase_commit_workflow", script_path)
-    spec = importlib.util.spec_from_loader("sase_commit_workflow", loader)
+def _load_cl_workflow_module() -> types.ModuleType:
+    """Load sase_cl_workflow as a Python module."""
+    script_path = str(_CL_WORKFLOW_SCRIPT)
+    loader = importlib.machinery.SourceFileLoader("sase_cl_workflow", script_path)
+    spec = importlib.util.spec_from_loader("sase_cl_workflow", loader)
     assert spec is not None
     mod = importlib.util.module_from_spec(spec)
     loader.exec_module(mod)
     return mod
 
 
-@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
+@pytest.mark.skipif(not _CL_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_valid_file() -> None:
     """Test that a valid pre-generated description file is used."""
-    mod = _load_commit_workflow_module()
+    mod = _load_cl_workflow_module()
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write("Pre-generated CL description\n")
         desc_file = f.name
@@ -381,10 +381,10 @@ def test_get_cl_description_valid_file() -> None:
         Path(desc_file).unlink()
 
 
-@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
+@pytest.mark.skipif(not _CL_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_empty_path_falls_back() -> None:
     """Test that empty string path falls back to get_file_summary."""
-    mod = _load_commit_workflow_module()
+    mod = _load_cl_workflow_module()
     with patch(
         "sase.summarize_utils.get_file_summary", return_value="Summarized description"
     ):
@@ -392,10 +392,10 @@ def test_get_cl_description_empty_path_falls_back() -> None:
     assert result == "Summarized description"
 
 
-@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
+@pytest.mark.skipif(not _CL_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_nonexistent_file_falls_back() -> None:
     """Test that a nonexistent file path falls back to get_file_summary."""
-    mod = _load_commit_workflow_module()
+    mod = _load_cl_workflow_module()
     with patch(
         "sase.summarize_utils.get_file_summary", return_value="Summarized description"
     ):
@@ -403,10 +403,10 @@ def test_get_cl_description_nonexistent_file_falls_back() -> None:
     assert result == "Summarized description"
 
 
-@pytest.mark.skipif(not _COMMIT_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
+@pytest.mark.skipif(not _CL_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
 def test_get_cl_description_empty_file_falls_back() -> None:
     """Test that an empty file falls back to get_file_summary."""
-    mod = _load_commit_workflow_module()
+    mod = _load_cl_workflow_module()
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
         f.write("")
         desc_file = f.name
@@ -419,3 +419,34 @@ def test_get_cl_description_empty_file_falls_back() -> None:
         assert result == "Summarized description"
     finally:
         Path(desc_file).unlink()
+
+
+def test_add_changespec_with_wip_status() -> None:
+    """Test that add_changespec_to_project_file respects status='WIP'."""
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.commit_workflow.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="testproj",
+                cl_name="wip_feature",
+                description="A WIP feature",
+                parent=None,
+                cl_url="http://cl/11111",
+                status="WIP",
+            )
+            assert result is not None
+            assert result.startswith("wip_feature__")
+
+        with open(project_file) as f:
+            content = f.read()
+
+        assert "STATUS: WIP" in content
+        assert "STATUS: Draft" not in content
+    finally:
+        Path(project_file).unlink()

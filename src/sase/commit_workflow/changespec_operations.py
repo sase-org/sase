@@ -62,6 +62,7 @@ def add_changespec_to_project_file(
     initial_commits: list[tuple[int, str, str | None, str | None]] | None = None,
     bug: str | None = None,
     cl_label: str = "CL",
+    status: str = "Draft",
 ) -> str | None:
     """Add a new ChangeSpec to the project file.
 
@@ -85,6 +86,7 @@ def add_changespec_to_project_file(
             paths. If None or empty, no COMMITS field is added.
         bug: BUG field value (e.g., "http://b/12345"). If None, no BUG field
             is added.
+        status: STATUS field value (e.g., "Draft", "WIP"). Defaults to "Draft".
 
     Returns:
         The suffixed cl_name (e.g., "foo_bar__1") on success, None on failure.
@@ -197,7 +199,7 @@ def add_changespec_to_project_file(
 NAME: {cl_name}
 DESCRIPTION:
 {formatted_description}
-{parent_line}{bug_line}{cl_line}STATUS: Draft
+{parent_line}{bug_line}{cl_line}STATUS: {status}
 {commits_block}{hooks_block}"""
 
             # Insert the new ChangeSpec

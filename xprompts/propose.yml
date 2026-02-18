@@ -10,17 +10,19 @@ steps:
   - name: inject
     prompt_part: |
       ---
-      IMPORTANT: You should make the necessary file changes, but should NOT create/amend a CL. #cl
+      IMPORTANT: You should make the necessary file changes, but should NOT create/amend a CL. #cldd
 
   - name: check_changes
     hidden: true
-    bash: |
-      changes=$(branch_local_changes)
-      if [ -n "$changes" ]; then
-        echo "has_changes=true"
-      else
-        echo "has_changes=false"
-      fi
+    python: |
+      import os
+      import sys
+      sys.path.insert(0, os.path.join(os.path.expanduser('~'), 'lib', 'sase', 'src'))
+      from sase.vcs_provider import get_vcs_provider
+      provider = get_vcs_provider(os.getcwd())
+      ok, changes = provider.has_local_changes(os.getcwd())
+      has_changes = ok and changes is not None and len(changes) > 0
+      print(f"has_changes={'true' if has_changes else 'false'}")
     output: { has_changes: bool }
 
   - name: save_response

@@ -114,12 +114,12 @@ def sase_hg_upload() -> NoReturn:
     _exec_script("sase_hg_upload")
 
 
+def sase_cl_workflow() -> NoReturn:
+    _exec_script("sase_cl_workflow")
+
+
 def sase_commit_workflow() -> NoReturn:
     _exec_script("sase_commit_workflow")
-
-
-def sase_amend_workflow() -> NoReturn:
-    _exec_script("sase_amend_workflow")
 
 
 def sase_propose_workflow() -> NoReturn:

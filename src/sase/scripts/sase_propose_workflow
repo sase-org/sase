@@ -15,23 +15,24 @@ from pathlib import Path
 
 def _get_project_from_workspace() -> str | None:
     """Get the project name from the current workspace."""
-    result = subprocess.run(
-        ["workspace_name"], capture_output=True, text=True, check=False
-    )
-    if result.returncode != 0:
+    from sase.vcs_provider import get_vcs_provider
+
+    provider = get_vcs_provider(os.getcwd())
+    ok, name = provider.get_workspace_name(os.getcwd())
+    if not ok or not name:
         return None
-    return result.stdout.strip() or None
+    return name
 
 
 def _get_cl_name_from_branch() -> str | None:
     """Get the CL name from the current branch."""
-    result = subprocess.run(
-        ["branch_name"], capture_output=True, text=True, check=False
-    )
-    if result.returncode != 0:
+    from sase.vcs_provider import get_vcs_provider
+
+    provider = get_vcs_provider(os.getcwd())
+    ok, name = provider.get_branch_name(os.getcwd())
+    if not ok or not name:
         return None
-    branch = result.stdout.strip()
-    return branch if branch else None
+    return name
 
 
 def _create_proposal(
