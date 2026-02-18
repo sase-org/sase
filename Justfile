@@ -73,7 +73,7 @@ test-py VER: _setup
 check: fmt-check lint test
 
 # Format code, run linteers, and run tests.
-all: fmt lint test
+all: fmt lint test pylimit pyvision
 
 # Find unused Python function/class definitions
 pyvision: _setup
