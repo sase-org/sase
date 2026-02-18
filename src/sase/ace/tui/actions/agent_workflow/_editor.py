@@ -26,7 +26,7 @@ class EditorMixin:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(initial_content)
 
-            editor = os.environ.get("EDITOR", "nvim")
+            editor = os.environ.get("EDITOR") or "nvim"
 
             result = subprocess.run([editor, temp_path], check=False)
             if result.returncode != 0:
@@ -83,7 +83,7 @@ class EditorMixin:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(template)
 
-            editor = os.environ.get("EDITOR", "nvim")
+            editor = os.environ.get("EDITOR") or "nvim"
             result = subprocess.run([editor, temp_path], check=False)
             if result.returncode != 0:
                 try:
