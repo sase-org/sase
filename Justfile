@@ -76,11 +76,11 @@ check: fmt-check lint test
 all: fmt lint pylimit pyvision test
 
 # Find unused Python function/class definitions
-pyvision: _setup
+pyvision: _setup (_header "pyvision")
     {{ venv_bin }}/python tools/pyvision-260217 src/sase
 
 # Check Python file line counts
-pylimit:
+pylimit: (_header "pylimit")
     tools/pylimit-260217 src 1000 850 700
     tools/pylimit-260217 tests 1000 850 700
 
