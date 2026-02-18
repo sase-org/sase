@@ -109,7 +109,7 @@ def create_changespec_for_workflow(
     project_name: str,
     project_file: str,
     checkout_target: str,
-    workspace_num: int,
+    branch_name: str,
     prompt: str,
     response: str,
     workflow_name: str,
@@ -120,7 +120,6 @@ def create_changespec_for_workflow(
     Returns the suffixed ChangeSpec name on success, or ``None`` when the
     agent branch has no new commits relative to *checkout_target*.
     """
-    branch_name = f"agent_{workspace_num}"
     commits = _get_commits_ahead(checkout_target, branch_name)
     if not commits:
         return None

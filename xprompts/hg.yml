@@ -3,6 +3,12 @@ wraps_all: true
 input:
   - name: cl_name
     type: word
+  - name: n
+    type: int
+    default: null
+  - name: release
+    type: bool
+    default: null
 
 steps:
   - name: setup
@@ -36,12 +42,25 @@ steps:
                   f"'{cl_name}' not found as a ChangeSpec name or project"
               )
 
-      workspace_num = get_first_available_axe_workspace(project_file)
+      n_input = {{ n | tojson }}
+      if n_input is not None:
+          workspace_num = n_input
+      else:
+          workspace_num = get_first_available_axe_workspace(project_file)
+
+      release_input = {{ release | tojson }}
+      if release_input is not None:
+          should_release = release_input
+      elif n_input is not None:
+          should_release = False
+      else:
+          should_release = True
+
       workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
 
       pid = os.getpid()
       workflow_name = f"hg-{cl_name}"
-      claim_workspace(project_file, workspace_num, workflow_name, pid, cl_name)
+      claim_workspace(project_file, workspace_num, workflow_name, pid, cl_name, pinned=not should_release)
 
       print(f"project_name={project_name}")
       print(f"project_file={project_file}")
@@ -56,12 +75,14 @@ steps:
       else:
           print(f"meta_project={cl_name}")
       print(f"checkout_target={checkout_target}")
+      print(f"should_release={'true' if should_release else 'false'}")
     output:
       project_name: word
       project_file: path
       workspace_dir: path
       workspace_num: int
       checkout_target: word
+      should_release: bool
 
   - name: prepare
     bash: |
@@ -74,6 +95,7 @@ steps:
     prompt_part: ""
 
   - name: release
+    if: "{{ setup.should_release }}"
     python: |
       from sase.running_field import release_workspace
       release_workspace(

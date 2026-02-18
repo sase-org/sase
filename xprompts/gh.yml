@@ -3,6 +3,12 @@ wraps_all: true
 input:
   - name: gh_ref
     type: word
+  - name: n
+    type: int
+    default: null
+  - name: release
+    type: bool
+    default: null
 
 steps:
   - name: setup
@@ -12,6 +18,7 @@ steps:
           get_first_available_axe_workspace,
           claim_workspace,
       )
+      from sase.branch_names import generate_branch_name
       import os
 
       gh_ref = {{ gh_ref | tojson }}
@@ -20,17 +27,36 @@ steps:
       project_name = resolved.project_name
       project_file = resolved.project_file
 
+      n_input = {{ n | tojson }}
+
       # Check if workspace was pre-allocated by the TUI
       if os.environ.get("SASE_GH_PRE_ALLOCATED") == "1":
           workspace_num = int(os.environ["SASE_GH_WORKSPACE_NUM"])
           workspace_dir = os.environ["SASE_GH_WORKSPACE_DIR"]
+      elif n_input is not None:
+          workspace_num = n_input
+          workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
       else:
           workspace_num = get_first_available_axe_workspace(project_file)
           workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
 
+      release_input = {{ release | tojson }}
+      if release_input is not None:
+          should_release = release_input
+      elif n_input is not None:
+          should_release = False
+      else:
+          should_release = True
+
       pid = os.getpid()
       workflow_name = f"gh-{gh_ref}"
-      claim_workspace(project_file, workspace_num, workflow_name, pid, resolved.branch_name)
+      claim_workspace(project_file, workspace_num, workflow_name, pid, resolved.branch_name, pinned=not should_release)
+
+      should_create_branch = resolved.branch_name is None
+      if should_create_branch:
+          branch_name = generate_branch_name(workspace_dir)
+      else:
+          branch_name = resolved.branch_name
 
       print(f"project_name={project_name}")
       print(f"project_file={project_file}")
@@ -38,11 +64,12 @@ steps:
       print(f"workspace_num={workspace_num}")
       print(f"checkout_target={resolved.checkout_target}")
       print(f"primary_workspace_dir={resolved.primary_workspace_dir}")
-      should_create_branch = resolved.branch_name is None
       print(f"should_create_branch={'true' if should_create_branch else 'false'}")
+      print(f"branch_name={branch_name}")
+      print(f"should_release={'true' if should_release else 'false'}")
       print(f"_chdir={workspace_dir}")
       print(f"meta_workspace={workspace_num}")
-      print(f"meta_changespec={resolved.branch_name}")
+      print(f"meta_changespec={branch_name}")
     output:
       project_name: word
       project_file: path
@@ -51,6 +78,8 @@ steps:
       checkout_target: word
       primary_workspace_dir: path
       should_create_branch: bool
+      branch_name: word
+      should_release: bool
 
   - name: prepare
     bash: |
@@ -62,7 +91,7 @@ steps:
       git fetch --quiet
 
       if [ "{{ setup.should_create_branch }}" = "true" ]; then
-        BRANCH_NAME="agent_{{ setup.workspace_num }}"
+        BRANCH_NAME="{{ setup.branch_name }}"
         CHECKOUT_TARGET="{{ setup.checkout_target }}"
 
         if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
@@ -80,7 +109,7 @@ steps:
         # Sync existing branch with master
         if ! git merge "$CHECKOUT_TARGET" --no-edit --quiet 2>&1; then
           git merge --abort
-          echo '{"notes": ["Merge conflict syncing agent_{{ setup.workspace_num }} with {{ setup.checkout_target }} in workspace #{{ setup.workspace_num }}"]}' \
+          echo '{"notes": ["Merge conflict syncing {{ setup.branch_name }} with {{ setup.checkout_target }} in workspace #{{ setup.workspace_num }}"]}' \
             | sase notify --sender gh-workflow
           echo "success=false"
           exit 1
@@ -105,7 +134,7 @@ steps:
         exit 0
       fi
 
-      BRANCH_NAME="agent_{{ setup.workspace_num }}"
+      BRANCH_NAME="{{ setup.branch_name }}"
       CHECKOUT_TARGET="{{ setup.checkout_target }}"
       DEFAULT_BRANCH="${CHECKOUT_TARGET#origin/}"
 
@@ -126,7 +155,7 @@ steps:
       # Use first commit message as PR title
       PR_TITLE=$(git log --format='%s' "origin/$DEFAULT_BRANCH".."$BRANCH_NAME" | tail -1)
       if [ -z "$PR_TITLE" ]; then
-        PR_TITLE="Agent changes from workspace #{{ setup.workspace_num }}"
+        PR_TITLE="Agent changes on branch {{ setup.branch_name }}"
       fi
 
       PR_URL=$(gh pr create \
@@ -150,7 +179,7 @@ steps:
           project_name={{ setup.project_name | tojson }},
           project_file={{ setup.project_file | tojson }},
           checkout_target={{ setup.checkout_target | tojson }},
-          workspace_num={{ setup.workspace_num }},
+          branch_name={{ setup.branch_name | tojson }},
           prompt={{ _prompt | tojson }},
           response={{ _response | tojson }},
           workflow_name="gh-{{ gh_ref }}",
@@ -165,6 +194,7 @@ steps:
     output: { changespec_name: word }
 
   - name: release
+    if: "{{ setup.should_release }}"
     python: |
       from sase.running_field import release_workspace
 

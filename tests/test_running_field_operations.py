@@ -376,6 +376,86 @@ def test_get_workspace_directory_for_num_share() -> None:
         assert args == ["sase_hg_get_workspace", "myproject", "3"]
 
 
+def test_workspace_claim_to_line_pinned() -> None:
+    """Test _WorkspaceClaim.to_line with pinned=True appends PINNED."""
+    claim = _WorkspaceClaim(
+        workspace_num=1, workflow="crs", cl_name="my_feature", pid=12345, pinned=True
+    )
+    assert claim.to_line() == "  #1 | 12345 | crs | my_feature | PINNED"
+
+
+def test_workspace_claim_to_line_pinned_with_timestamp() -> None:
+    """Test _WorkspaceClaim.to_line with pinned=True and timestamp."""
+    claim = _WorkspaceClaim(
+        workspace_num=1,
+        workflow="crs",
+        cl_name="my_feature",
+        pid=12345,
+        artifacts_timestamp="251230_151429",
+        pinned=True,
+    )
+    assert claim.to_line() == "  #1 | 12345 | crs | my_feature | 251230_151429 | PINNED"
+
+
+def test_workspace_claim_from_line_pinned() -> None:
+    """Test parsing a RUNNING line with PINNED flag (no timestamp)."""
+    claim = _WorkspaceClaim.from_line("  #2 | 54321 | run | my_change | PINNED")
+    assert claim is not None
+    assert claim.workspace_num == 2
+    assert claim.pid == 54321
+    assert claim.workflow == "run"
+    assert claim.cl_name == "my_change"
+    assert claim.artifacts_timestamp is None
+    assert claim.pinned is True
+
+
+def test_workspace_claim_from_line_pinned_with_timestamp() -> None:
+    """Test parsing a RUNNING line with both timestamp and PINNED."""
+    claim = _WorkspaceClaim.from_line(
+        "  #1 | 12345 | crs | my_feature | 251230_151429 | PINNED"
+    )
+    assert claim is not None
+    assert claim.workspace_num == 1
+    assert claim.pid == 12345
+    assert claim.workflow == "crs"
+    assert claim.cl_name == "my_feature"
+    assert claim.artifacts_timestamp == "251230_151429"
+    assert claim.pinned is True
+
+
+def test_workspace_claim_from_line_no_pinned_backward_compat() -> None:
+    """Test that existing lines without PINNED parse with pinned=False."""
+    claim = _WorkspaceClaim.from_line("  #1 | 12345 | crs | my_feature")
+    assert claim is not None
+    assert claim.pinned is False
+
+    claim_with_ts = _WorkspaceClaim.from_line(
+        "  #1 | 12345 | crs | my_feature | 251230_151429"
+    )
+    assert claim_with_ts is not None
+    assert claim_with_ts.pinned is False
+
+
+def test_claim_workspace_pinned() -> None:
+    """Test claim_workspace with pinned=True writes a pinned claim."""
+    project_file = _create_project_file_with_running()
+    try:
+        success = claim_workspace(
+            project_file, 1, "crs", 12345, "my_feature", pinned=True
+        )
+        assert success is True
+
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 1
+        assert claims[0].pinned is True
+
+        with open(project_file) as f:
+            content = f.read()
+        assert "PINNED" in content
+    finally:
+        Path(project_file).unlink()
+
+
 def test_get_workspace_directory_uses_running_field() -> None:
     """Test that get_workspace_directory uses RUNNING field."""
     project_file = _create_project_file_with_running(

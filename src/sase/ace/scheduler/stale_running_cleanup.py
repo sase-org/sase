@@ -28,6 +28,8 @@ def cleanup_stale_running_entries(
         claims = get_claimed_workspaces(project_file)
 
         for claim in claims:
+            if claim.pinned:
+                continue
             if is_process_running(claim.pid):
                 continue
 

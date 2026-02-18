@@ -32,6 +32,7 @@ class _WorkspaceClaim:
     cl_name: str | None
     pid: int
     artifacts_timestamp: str | None = None
+    pinned: bool = False
 
     def to_line(self) -> str:
         """Convert to RUNNING field line format.
@@ -44,7 +45,8 @@ class _WorkspaceClaim:
         """
         cl_part = self.cl_name or ""
         ts_part = f" | {self.artifacts_timestamp}" if self.artifacts_timestamp else ""
-        return f"  #{self.workspace_num} | {self.pid} | {self.workflow} | {cl_part}{ts_part}"
+        pin_part = " | PINNED" if self.pinned else ""
+        return f"  #{self.workspace_num} | {self.pid} | {self.workflow} | {cl_part}{ts_part}{pin_part}"
 
     @staticmethod
     def from_line(line: str) -> "_WorkspaceClaim | None":
@@ -67,12 +69,14 @@ class _WorkspaceClaim:
             workflow = match.group(3)
             cl_name = match.group(4).strip() or None
             artifacts_timestamp = match.group(5) if match.group(5) else None
+            pinned = match.group(6) is not None and match.group(6).strip() == "PINNED"
             return _WorkspaceClaim(
                 workspace_num=workspace_num,
                 workflow=workflow,
                 cl_name=cl_name,
                 pid=pid,
                 artifacts_timestamp=artifacts_timestamp,
+                pinned=pinned,
             )
 
         return None
@@ -207,6 +211,7 @@ def claim_workspace(
     pid: int,
     cl_name: str | None = None,
     artifacts_timestamp: str | None = None,
+    pinned: bool = False,
 ) -> bool:
     """Claim a workspace by adding it to the RUNNING field.
 
@@ -219,6 +224,7 @@ def claim_workspace(
         pid: Process ID of the claiming process (required)
         cl_name: Optional ChangeSpec name being worked on
         artifacts_timestamp: Optional timestamp of the artifacts directory (YYYYmmddHHMMSS)
+        pinned: If True, the claim is pinned and won't be cleaned up as stale
 
     Returns:
         True if claim was successful, False otherwise
@@ -238,6 +244,7 @@ def claim_workspace(
                 cl_name=cl_name,
                 pid=pid,
                 artifacts_timestamp=artifacts_timestamp,
+                pinned=pinned,
             )
 
             # Find RUNNING field
@@ -421,6 +428,7 @@ def update_running_field_cl_name(
                             cl_name=new_cl_name,
                             pid=claim.pid,
                             artifacts_timestamp=claim.artifacts_timestamp,
+                            pinned=claim.pinned,
                         )
                         new_lines.append(updated_claim.to_line())
                         updated = True

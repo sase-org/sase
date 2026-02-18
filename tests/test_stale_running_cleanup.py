@@ -282,3 +282,57 @@ def test_get_all_project_files_finds_gp_files() -> None:
             # Should only find proj1.gp
             assert len(result) == 1
             assert "proj1.gp" in result[0]
+
+
+def test_cleanup_skips_pinned_entries() -> None:
+    """Test that pinned entries are not released even if their PID is dead."""
+    claims = [
+        _WorkspaceClaim(
+            workspace_num=1,
+            workflow="crs",
+            cl_name="pinned_feature",
+            pid=11111,
+            pinned=True,
+        ),
+        _WorkspaceClaim(
+            workspace_num=2,
+            workflow="run",
+            cl_name="unpinned_feature",
+            pid=22222,
+            pinned=False,
+        ),
+    ]
+
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files"
+        ) as mock_get_files,
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces"
+        ) as mock_get_claims,
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running"
+        ) as mock_is_running,
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.release_workspace"
+        ) as mock_release,
+    ):
+        mock_get_files.return_value = [
+            "/home/user/.sase/projects/myproject/myproject.gp"
+        ]
+        mock_get_claims.return_value = claims
+        # Both PIDs are dead
+        mock_is_running.return_value = False
+
+        released = cleanup_stale_running_entries()
+
+        # Only the unpinned entry should be released
+        assert released == 1
+        mock_release.assert_called_once_with(
+            "/home/user/.sase/projects/myproject/myproject.gp",
+            2,
+            "run",
+            "unpinned_feature",
+        )
+        # is_process_running should only be called for the unpinned entry
+        mock_is_running.assert_called_once_with(22222)
