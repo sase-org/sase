@@ -5,7 +5,7 @@ import subprocess
 
 from sase.rich_utils import gemini_timer
 
-from ._subprocess import stream_process_output
+from ._subprocess import stream_and_parse_json_output
 from .base import LLMProvider
 from .types import ModelTier
 
@@ -55,7 +55,7 @@ class ClaudeCodeProvider(LLMProvider):
             "--model",
             model_alias,
             "--output-format",
-            "text",
+            "stream-json",
             "--dangerously-skip-permissions",
         ]
 
@@ -134,5 +134,5 @@ class ClaudeCodeProvider(LLMProvider):
             process.stdin.write(prompt)
             process.stdin.close()
 
-        # Stream output in real-time
-        return stream_process_output(process, suppress_output=suppress_output)
+        # Stream JSON output and extract assistant text
+        return stream_and_parse_json_output(process, suppress_output=suppress_output)

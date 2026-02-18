@@ -124,7 +124,7 @@ def test_claude_provider_registered() -> None:
     assert isinstance(provider, ClaudeCodeProvider)
 
 
-@patch("sase.llm_provider.claude.stream_process_output")
+@patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch("sase.llm_provider.claude.gemini_timer")
 def test_claude_provider_builds_correct_command_large(
@@ -150,13 +150,13 @@ def test_claude_provider_builds_correct_command_large(
     assert cmd[model_idx + 1] == "opus"
     assert "--output-format" in cmd
     fmt_idx = cmd.index("--output-format")
-    assert cmd[fmt_idx + 1] == "text"
+    assert cmd[fmt_idx + 1] == "stream-json"
     assert "--dangerously-skip-permissions" in cmd
 
     assert result == "response text"
 
 
-@patch("sase.llm_provider.claude.stream_process_output")
+@patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch("sase.llm_provider.claude.gemini_timer")
 def test_claude_provider_builds_correct_command_small(
@@ -179,7 +179,7 @@ def test_claude_provider_builds_correct_command_small(
 
 
 @patch.dict(os.environ, {"SASE_CLAUDE_LARGE_ARGS": "--verbose --debug"})
-@patch("sase.llm_provider.claude.stream_process_output")
+@patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch("sase.llm_provider.claude.gemini_timer")
 def test_claude_provider_extra_args_from_env_large(
@@ -202,7 +202,7 @@ def test_claude_provider_extra_args_from_env_large(
 
 
 @patch.dict(os.environ, {"SASE_CLAUDE_SMALL_ARGS": "--max-tokens 1000"})
-@patch("sase.llm_provider.claude.stream_process_output")
+@patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch("sase.llm_provider.claude.gemini_timer")
 def test_claude_provider_extra_args_from_env_small(
@@ -258,7 +258,7 @@ def test_gemini_provider_resolve_model_name() -> None:
     assert provider.resolve_model_name("small") == "gemini"
 
 
-@patch("sase.llm_provider.claude.stream_process_output")
+@patch("sase.llm_provider.claude.stream_and_parse_json_output")
 @patch("sase.llm_provider.claude.subprocess.Popen")
 @patch("sase.llm_provider.claude.gemini_timer")
 def test_claude_provider_raises_on_failure(
