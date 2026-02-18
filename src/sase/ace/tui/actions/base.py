@@ -61,7 +61,7 @@ class BaseActionsMixin:
 
         from ...archive import archive_changespec
         from ...revert import revert_changespec
-        from ...status import STATUS_ARCHIVED, STATUS_REVERTED
+        from ...status import STATUS_ARCHIVED, STATUS_REVERTED, STATUS_SUBMITTED
 
         # Special handling for "Reverted" status
         if new_status == STATUS_REVERTED:
@@ -79,6 +79,28 @@ class BaseActionsMixin:
                 self.notify(f"Error reverting: {error_msg}", severity="error")  # type: ignore[attr-defined]
             self._reload_and_reposition()  # type: ignore[attr-defined]
             return
+
+        # Special handling for "Submitted" status (git/gh projects)
+        if new_status == STATUS_SUBMITTED:
+            from sase.gh_workspace import detect_workflow_type_for_project
+
+            vcs_type = detect_workflow_type_for_project(changespec.file_path)
+            if vcs_type in ("git", "gh"):
+                from sase.git_submit import submit_git_changespec
+
+                def run_submit() -> tuple[bool, str | None]:
+                    from rich.console import Console
+
+                    console = Console()
+                    return submit_git_changespec(changespec, console)
+
+                with self.suspend():  # type: ignore[attr-defined]
+                    success, error_msg = run_submit()
+
+                if not success:
+                    self.notify(f"Error submitting: {error_msg}", severity="error")  # type: ignore[attr-defined]
+                self._reload_and_reposition()  # type: ignore[attr-defined]
+                return
 
         # Special handling for "Archived" status
         if new_status == STATUS_ARCHIVED:

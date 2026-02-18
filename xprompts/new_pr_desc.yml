@@ -1,0 +1,142 @@
+input:
+  - name: name
+    type: word
+
+steps:
+  - name: get_context
+    python: |
+      from sase.ace.changespec import find_all_changespecs
+      from sase.gh_workspace import parse_workspace_dir, get_default_branch
+      import subprocess
+      import os
+
+      name = {{ name | tojson }}
+
+      # Find the ChangeSpec
+      changespec = None
+      for cs in find_all_changespecs():
+          if cs.name == name:
+              changespec = cs
+              break
+
+      if changespec is None:
+          print(f"error=ChangeSpec '{name}' not found")
+          print("description=")
+          print("diff=")
+          print("workspace_dir=")
+          print("default_branch=")
+          print("branch_name=")
+      else:
+          project_file = changespec.file_path
+          workspace_dir = parse_workspace_dir(project_file)
+          if not workspace_dir:
+              print("error=WORKSPACE_DIR is not set for this project")
+              print("description=")
+              print("diff=")
+              print("workspace_dir=")
+              print("default_branch=")
+              print(f"branch_name={name}")
+          else:
+              default_branch_ref = get_default_branch(workspace_dir)
+              default_branch = default_branch_ref.rsplit("/", 1)[-1]
+
+              # Get description
+              desc = changespec.description or "No description"
+
+              # Get diff against default branch
+              try:
+                  result = subprocess.run(
+                      ["git", "diff", f"origin/{default_branch}...{name}"],
+                      cwd=workspace_dir,
+                      capture_output=True,
+                      text=True,
+                      check=False,
+                  )
+                  diff = result.stdout[:5000] if result.returncode == 0 else ""
+              except Exception:
+                  diff = ""
+
+              # Get commit subjects
+              try:
+                  result = subprocess.run(
+                      ["git", "log", "--format=%s", f"origin/{default_branch}..{name}"],
+                      cwd=workspace_dir,
+                      capture_output=True,
+                      text=True,
+                      check=False,
+                  )
+                  commits = result.stdout.strip() if result.returncode == 0 else ""
+              except Exception:
+                  commits = ""
+
+              import tempfile
+              # Save diff to temp file for the prompt
+              diff_file = tempfile.NamedTemporaryFile(
+                  mode='w', suffix='.diff', prefix='pr_desc_', delete=False
+              )
+              diff_file.write(diff)
+              diff_file.close()
+
+              print("error=")
+              print(f"description={desc}")
+              print(f"diff_file={diff_file.name}")
+              print(f"commits={commits}")
+              print(f"workspace_dir={workspace_dir}")
+              print(f"default_branch={default_branch}")
+              print(f"branch_name={name}")
+              print(f"_chdir={workspace_dir}")
+    output:
+      error: line
+      description: line
+      diff_file: path
+      commits: text
+      workspace_dir: path
+      default_branch: word
+      branch_name: word
+
+  - name: generate
+    if: "{{ not get_context.error }}"
+    prompt: |
+      Generate a PR title and body for the following changes.
+
+      ## ChangeSpec Description
+      {{ get_context.description }}
+
+      ## Commits
+      {{ get_context.commits }}
+
+      ## Diff
+      @{{ get_context.diff_file }}
+
+      ## Instructions
+      - PR title: Use conventional commit format (e.g., "feat: ...", "fix: ..."), under 72 characters
+      - PR body: Start with "## Summary" followed by 1-3 bullet points
+
+      Output EXACTLY in this format (no extra text):
+      TITLE: <your title here>
+      BODY:
+      <your body here>
+
+  - name: apply
+    if: "{{ not get_context.error }}"
+    bash: |
+      # Check if PR exists for this branch
+      PR_NUMBER=$(gh pr view "{{ get_context.branch_name }}" --json number --jq '.number' 2>/dev/null || echo "")
+      if [ -z "$PR_NUMBER" ]; then
+        echo "applied=false"
+        echo "No existing PR found for branch {{ get_context.branch_name }}"
+        exit 0
+      fi
+
+      # Extract title and body from response
+      RESPONSE="{{ _response }}"
+      TITLE=$(echo "$RESPONSE" | grep -m1 '^TITLE: ' | sed 's/^TITLE: //')
+      BODY=$(echo "$RESPONSE" | sed -n '/^BODY:$/,$ p' | tail -n +2)
+
+      if [ -n "$TITLE" ] && [ -n "$BODY" ]; then
+        gh pr edit "$PR_NUMBER" --title "$TITLE" --body "$BODY" 2>/dev/null && echo "applied=true" || echo "applied=false"
+      else
+        echo "applied=false"
+        echo "Could not parse title/body from response"
+      fi
+    output: { applied: bool }

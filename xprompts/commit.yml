@@ -47,6 +47,24 @@ steps:
         --data-file "{{ save_response.data_file }}"
     output: { success: bool, entry_id: word, cl_name: word, diff_path: path, error: text }
 
+  - name: update_pr
+    if: "{{ check_changes.has_changes and amend.success | default(false) }}"
+    hidden: true
+    bash: |
+      PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")
+      if [ -z "$PR_NUMBER" ]; then
+        echo "updated=false"
+        exit 0
+      fi
+      CURRENT_BODY=$(gh pr view --json body --jq '.body' 2>/dev/null || echo "")
+      COMMIT_NOTE="{{ amend.entry_id | default('?') }}: {{ who }} - $(date '+%Y-%m-%d %H:%M')"
+      NEW_BODY="${CURRENT_BODY}
+
+      ---
+      **Update (${COMMIT_NOTE})**"
+      gh pr edit "$PR_NUMBER" --body "$NEW_BODY" 2>/dev/null && echo "updated=true" || echo "updated=false"
+    output: { updated: bool }
+
   - name: report
     if: "{{ check_changes.has_changes }}"
     hidden: true

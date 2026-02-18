@@ -127,53 +127,11 @@ steps:
   - name: inject
     prompt_part: ""
 
-  - name: create_pr
-    bash: |
-      if [ "{{ setup.should_create_branch }}" != "true" ]; then
-        echo "pr_url=skipped"
-        exit 0
-      fi
-
-      BRANCH_NAME="{{ setup.branch_name }}"
-      CHECKOUT_TARGET="{{ setup.checkout_target }}"
-      DEFAULT_BRANCH="${CHECKOUT_TARGET#origin/}"
-
-      # Check if there are commits ahead of the default branch
-      AHEAD=$(git rev-list --count "origin/$DEFAULT_BRANCH".."$BRANCH_NAME" 2>/dev/null || echo "0")
-      if [ "$AHEAD" = "0" ]; then
-        echo "pr_url=no_changes"
-        exit 0
-      fi
-
-      # Check if PR already exists for this branch
-      EXISTING_PR=$(gh pr view "$BRANCH_NAME" --json url --jq '.url' 2>/dev/null || echo "")
-      if [ -n "$EXISTING_PR" ]; then
-        echo "pr_url=$EXISTING_PR"
-        exit 0
-      fi
-
-      # Use first commit message as PR title
-      PR_TITLE=$(git log --format='%s' "origin/$DEFAULT_BRANCH".."$BRANCH_NAME" | tail -1)
-      if [ -z "$PR_TITLE" ]; then
-        PR_TITLE="Agent changes on branch {{ setup.branch_name }}"
-      fi
-
-      PR_URL=$(gh pr create \
-        --base "$DEFAULT_BRANCH" \
-        --head "$BRANCH_NAME" \
-        --title "$PR_TITLE" \
-        --body "Automated PR from sase ace agent run." 2>&1) || true
-      echo "pr_url=${PR_URL:-failed}"
-    output: { pr_url: line }
-
   - name: create_changespec
     if: "{{ setup.should_create_branch }}"
     hidden: true
     python: |
       from sase.workspace_changespec import create_changespec_for_workflow
-
-      pr_url = {{ create_pr.pr_url | tojson }}
-      cl_url = pr_url if pr_url.startswith("http") else None
 
       result = create_changespec_for_workflow(
           project_name={{ setup.project_name | tojson }},
@@ -183,7 +141,6 @@ steps:
           prompt={{ _prompt | tojson }},
           response={{ _response | tojson }},
           workflow_name="gh-{{ gh_ref }}",
-          cl_url=cl_url,
       )
 
       if result:

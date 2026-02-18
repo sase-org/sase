@@ -13,6 +13,9 @@ STATUS_REVERTED = "Reverted"
 # Status that triggers archive workflow
 STATUS_ARCHIVED = "Archived"
 
+# Status that triggers submission workflow
+STATUS_SUBMITTED = "Submitted"
+
 
 def get_available_statuses(current_status: str) -> list[str]:
     """Get list of available statuses for selection.
