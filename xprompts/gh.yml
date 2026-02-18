@@ -127,6 +127,12 @@ steps:
     python: |
       from sase.workspace_changespec import create_changespec_for_workflow
 
+      # Build CL name from branch name (e.g., "calm-elm" -> "sase_calm_elm")
+      cl_name = None
+      if {{ setup.should_create_branch | tojson }}:
+          safe = {{ setup.branch_name | tojson }}.replace("-", "_")
+          cl_name = f"{{ setup.project_name }}_{safe}"
+
       result = create_changespec_for_workflow(
           project_name={{ setup.project_name | tojson }},
           project_file={{ setup.project_file | tojson }},
@@ -135,6 +141,7 @@ steps:
           prompt={{ _prompt | tojson }},
           response={{ _response | tojson }},
           workflow_name="gh-{{ gh_ref }}",
+          cl_name=cl_name,
       )
 
       if result:

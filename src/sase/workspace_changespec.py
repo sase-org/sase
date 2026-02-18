@@ -114,6 +114,7 @@ def create_changespec_for_workflow(
     response: str,
     workflow_name: str,
     cl_url: str | None = None,
+    cl_name: str | None = None,
 ) -> str | None:
     """Create a ChangeSpec for commits produced by an agent workflow.
 
@@ -124,7 +125,8 @@ def create_changespec_for_workflow(
     if not commits:
         return None
 
-    cl_name = _derive_cl_name(project_name, commits)
+    if cl_name is None:
+        cl_name = _derive_cl_name(project_name, commits)
     description = _build_description(commits)
     ts = generate_timestamp()
 
