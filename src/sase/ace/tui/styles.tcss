@@ -5,12 +5,24 @@
     display: none;
 }
 
+/* Top bar (tab bar + notification indicator) */
+#top-bar {
+    height: auto;
+    max-height: 1;
+}
+
 /* Tab bar styling */
 #tab-bar {
+    width: 1fr;
     height: auto;
     max-height: 1;
     padding: 0 1;
     background: $surface;
+}
+
+#notification-indicator {
+    width: auto;
+    content-align: right middle;
 }
 
 #main-container {

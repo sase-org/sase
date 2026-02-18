@@ -46,6 +46,7 @@ from .widgets import (
     ChangeSpecInfoPanel,
     ChangeSpecList,
     KeybindingFooter,
+    NotificationIndicator,
     SearchQueryPanel,
     TabBar,
 )
@@ -311,7 +312,9 @@ class AceApp(
     def compose(self) -> ComposeResult:
         """Compose the app layout."""
         yield Header()
-        yield TabBar(id="tab-bar")
+        with Horizontal(id="top-bar"):
+            yield TabBar(id="tab-bar")
+            yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
             # ChangeSpecs Tab (default visible)
             with Horizontal(id="changespecs-view"):
@@ -376,6 +379,9 @@ class AceApp(
         notifications = load_notifications()
         unread_count = sum(1 for n in notifications if not n.read)
         self._last_unread_count = unread_count
+
+        indicator = self.query_one("#notification-indicator", NotificationIndicator)
+        indicator.set_count(unread_count)
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""

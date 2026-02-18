@@ -47,6 +47,14 @@ class AgentNotificationMixin:
         self._last_unread_count = unread_count
         self._pending_attention_count = unread_count
 
+        # Update persistent notification indicator
+        from ...widgets import NotificationIndicator
+
+        indicator = self.query_one(  # type: ignore[attr-defined]
+            "#notification-indicator", NotificationIndicator
+        )
+        indicator.set_count(unread_count)
+
         if unread_count > 0 and self.current_tab != "agents":
             self._update_tab_bar_emphasis()
         elif unread_count == 0:
@@ -111,6 +119,14 @@ class AgentNotificationMixin:
                 self._update_tab_bar_emphasis()
             else:
                 self._clear_tab_bar_emphasis()
+
+            # Update persistent notification indicator
+            from ...widgets import NotificationIndicator
+
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#notification-indicator", NotificationIndicator
+            )
+            indicator.set_count(self._last_unread_count)
 
             # Dispatch action
             if result.action == "JumpToChangeSpec":
