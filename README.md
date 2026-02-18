@@ -154,11 +154,15 @@ just build         # Build wheel + sdist
 
 ## Documentation
 
+- [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
-- [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format
-- [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
+- [`docs/configuration.md`](docs/configuration.md) — Configuration reference
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
+- [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
+- [`docs/query_language.md`](docs/query_language.md) — Query language reference
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation
+- [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format
+- [`docs/xprompt.md`](docs/xprompt.md) — XPrompt template reference
 
 ## License
 
