@@ -19,7 +19,7 @@ def _create_test_workflow(
         steps = [
             WorkflowStep(
                 name="step1",
-                prompt="Test prompt",
+                agent="Test prompt",
                 output=OutputSpec(
                     type="json_schema",
                     schema={
@@ -406,7 +406,7 @@ class TestOutputTypesPreservation:
 
         step = WorkflowStep(
             name="step1",
-            prompt="Test",
+            agent="Test",
             output=OutputSpec(
                 type="json_schema",
                 schema={
@@ -435,7 +435,7 @@ class TestOutputTypesPreservation:
             executor._save_prompt_step_marker(
                 "step1",
                 step_state,
-                "prompt",
+                "agent",
                 step_index=0,
                 output_types={"diff_file": "path", "summary": "text"},
             )
@@ -450,7 +450,7 @@ class TestOutputTypesPreservation:
             executor._save_prompt_step_marker(
                 "step1",
                 step_state,
-                "prompt",
+                "agent",
             )
 
             with open(marker_path, encoding="utf-8") as f:
@@ -463,7 +463,7 @@ class TestOutputTypesPreservation:
         import json
         import os
 
-        step = WorkflowStep(name="step1", prompt="Test")
+        step = WorkflowStep(name="step1", agent="Test")
         workflow = _create_test_workflow(steps=[step])
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -481,7 +481,7 @@ class TestOutputTypesPreservation:
             executor._save_prompt_step_marker(
                 "step1",
                 step_state,
-                "prompt",
+                "agent",
                 output_types={"old_field": "text"},
             )
 
@@ -489,7 +489,7 @@ class TestOutputTypesPreservation:
             executor._save_prompt_step_marker(
                 "step1",
                 step_state,
-                "prompt",
+                "agent",
                 output_types={"new_field": "path"},
             )
 
@@ -568,14 +568,14 @@ class TestParentStepContext:
         # Call on_step_start without parent context
         handler.on_step_start(
             step_name="test_step",
-            step_type="prompt",
+            step_type="agent",
             step_index=2,
             total_steps=5,
         )
 
         # Check output contains the expected format "3/5" (0-indexed + 1)
         result = output.getvalue()
-        assert "Step 3/5: test_step (prompt)" in result
+        assert "Step 3/5: test_step (agent)" in result
 
     def test_on_step_start_multiple_substeps(self) -> None:
         """Test formatting of multiple embedded substeps."""

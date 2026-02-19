@@ -309,12 +309,12 @@ def execute_standalone_steps(
                 os.chdir(chdir_path)
             context[step.name] = output
 
-        elif step.is_prompt_step() and step.prompt:
+        elif step.is_agent_step() and step.agent:
             from sase.llm_provider import invoke_agent
             from sase.shared_utils import ensure_str_content
             from sase.xprompt import process_xprompt_references
 
-            rendered_prompt = render_template(step.prompt, context)
+            rendered_prompt = render_template(step.agent, context)
             expanded_prompt = process_xprompt_references(rendered_prompt)
 
             # Create temp artifacts dir if not provided

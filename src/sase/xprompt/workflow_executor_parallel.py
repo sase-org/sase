@@ -82,7 +82,7 @@ class ParallelMixin:
 
         try:
             # Execute based on step type
-            if nested_step.is_prompt_step():
+            if nested_step.is_agent_step():
                 success = self._execute_prompt_step(nested_step, temp_step_state)
             elif nested_step.is_python_step():
                 success = self._execute_python_step(nested_step, temp_step_state)
@@ -124,12 +124,12 @@ class ParallelMixin:
         cumulative_pre_step_offset = 0
 
         for ns in nested_steps:
-            if not (ns.is_prompt_step() and ns.prompt):
+            if not (ns.is_agent_step() and ns.agent):
                 modified_steps.append(ns)
                 continue
 
             # Full prompt expansion pipeline (same as _execute_prompt_step)
-            rendered = render_template(ns.prompt, self.context)
+            rendered = render_template(ns.agent, self.context)
             expanded = process_xprompt_references(
                 rendered, extra_xprompts=self.workflow.xprompts
             )
@@ -146,10 +146,10 @@ class ParallelMixin:
                     ewf.nested_step_name = ns.name
                 all_embedded_workflows.extend(embedded_wfs)
 
-            if expanded != ns.prompt:
+            if expanded != ns.agent:
                 # Prompt was modified by expansion — use a deep copy with new prompt
                 ns_copy = copy.deepcopy(ns)
-                ns_copy.prompt = expanded
+                ns_copy.agent = expanded
                 modified_steps.append(ns_copy)
             else:
                 modified_steps.append(ns)

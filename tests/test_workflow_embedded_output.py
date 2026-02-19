@@ -164,7 +164,7 @@ def test_propagate_basic_matching_output() -> None:
 
     parent_step = WorkflowStep(
         name="plan",
-        prompt="write a plan",
+        agent="write a plan",
         output=_make_output_spec({"file_path": "path"}),
     )
     step_state = _make_step_state("plan", output={"_raw": "some response"})
@@ -193,7 +193,7 @@ def test_propagate_remaps_different_key_names() -> None:
     # Parent uses a different key name but same type
     parent_step = WorkflowStep(
         name="plan",
-        prompt="write a plan",
+        agent="write a plan",
         output=_make_output_spec({"plan_path": "path"}),
     )
     step_state = _make_step_state("plan", output={"_raw": "response"})
@@ -219,7 +219,7 @@ def test_propagate_noop_when_parent_has_no_output() -> None:
         workflow_name="file",
     )
 
-    parent_step = WorkflowStep(name="plan", prompt="write a plan")  # no output
+    parent_step = WorkflowStep(name="plan", agent="write a plan")  # no output
     step_state = _make_step_state("plan", output={"_raw": "response"})
     context: dict[str, Any] = {"plan": {"_raw": "response"}}
 
@@ -245,7 +245,7 @@ def test_propagate_noop_when_embedded_post_step_has_no_output() -> None:
 
     parent_step = WorkflowStep(
         name="plan",
-        prompt="write a plan",
+        agent="write a plan",
         output=_make_output_spec({"file_path": "path"}),
     )
     step_state = _make_step_state("plan", output={"_raw": "response"})
@@ -272,7 +272,7 @@ def test_propagate_noop_when_output_types_dont_match() -> None:
 
     parent_step = WorkflowStep(
         name="plan",
-        prompt="write a plan",
+        agent="write a plan",
         output=_make_output_spec({"file_path": "path"}),  # wants path, not text
     )
     step_state = _make_step_state("plan", output={"_raw": "response"})
@@ -287,7 +287,7 @@ def test_propagate_noop_when_no_embedded_workflows() -> None:
     """Test no propagation when embedded_workflows is empty."""
     parent_step = WorkflowStep(
         name="plan",
-        prompt="write a plan",
+        agent="write a plan",
         output=_make_output_spec({"file_path": "path"}),
     )
     step_state = _make_step_state("plan", output={"_raw": "response"})
@@ -309,7 +309,7 @@ def test_propagate_noop_when_no_post_steps() -> None:
 
     parent_step = WorkflowStep(
         name="plan",
-        prompt="write a plan",
+        agent="write a plan",
         output=_make_output_spec({"file_path": "path"}),
     )
     step_state = _make_step_state("plan", output={"_raw": "response"})
@@ -347,7 +347,7 @@ def test_propagate_uses_last_embedded_workflow() -> None:
 
     parent_step = WorkflowStep(
         name="plan",
-        prompt="write a plan",
+        agent="write a plan",
         output=_make_output_spec({"file_path": "path"}),
     )
     step_state = _make_step_state("plan", output={"_raw": "response"})

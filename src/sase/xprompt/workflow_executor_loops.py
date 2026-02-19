@@ -199,7 +199,7 @@ class LoopMixin:
 
             try:
                 # Execute the step with iteration context
-                if step.is_prompt_step():
+                if step.is_agent_step():
                     success = self._execute_prompt_step(step, step_state)
                 elif step.is_python_step():
                     success = self._execute_python_step(step, step_state)
@@ -250,7 +250,7 @@ class LoopMixin:
 
         for iteration_idx in range(config.max_iterations):
             # Execute the step
-            if step.is_prompt_step():
+            if step.is_agent_step():
                 success = self._execute_prompt_step(step, step_state)
             elif step.is_python_step():
                 success = self._execute_python_step(step, step_state)
@@ -306,7 +306,7 @@ class LoopMixin:
 
         for iteration_idx in range(config.max_iterations):
             # Execute the step first
-            if step.is_prompt_step():
+            if step.is_agent_step():
                 success = self._execute_prompt_step(step, step_state)
             elif step.is_python_step():
                 success = self._execute_python_step(step, step_state)

@@ -68,7 +68,7 @@ class TUIHITLHandler:
 
         Args:
             step_name: Name of the step being reviewed.
-            step_type: Either "prompt" or "bash".
+            step_type: Either "agent" or "bash".
             output: The step's output data.
             has_output: Whether the step has an output field defined.
             output_types: Mapping of field names to their types (e.g. "path").
@@ -168,7 +168,7 @@ class CLIHITLHandler:
 
         Args:
             step_name: Name of the step being reviewed.
-            step_type: Either "prompt" or "bash".
+            step_type: Either "agent" or "bash".
             output: The step's output data.
             has_output: Whether the step has an output field defined.
             output_types: Mapping of field names to their types (e.g. "path").
@@ -208,14 +208,14 @@ class CLIHITLHandler:
         self.console.print("[bold cyan]What would you like to do?[/bold cyan]")
         self.console.print("  [green]a[/green] - Accept and continue")
 
-        # Edit option available for prompt steps, or bash/python with output field
-        can_edit = step_type == "prompt" or (
+        # Edit option available for agent steps, or bash/python with output field
+        can_edit = step_type == "agent" or (
             step_type in ("bash", "python") and has_output
         )
         if can_edit:
             self.console.print("  [yellow]e[/yellow] - Edit the output")
 
-        if step_type == "prompt":
+        if step_type == "agent":
             self.console.print("  [blue]<text>[/blue] - Provide feedback to regenerate")
         elif step_type in ("bash", "python"):
             self.console.print("  [yellow]r[/yellow] - Re-run the command")
@@ -239,7 +239,7 @@ class CLIHITLHandler:
                 return HITLResult(action="reject")
         elif response.lower() == "r" and step_type in ("bash", "python"):
             return HITLResult(action="rerun")
-        elif response and step_type == "prompt":
+        elif response and step_type == "agent":
             # Treat any other input as feedback for regeneration
             return HITLResult(action="feedback", feedback=response)
         else:

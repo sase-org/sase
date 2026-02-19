@@ -243,7 +243,7 @@ def create_anonymous_workflow(query: str) -> Workflow:
         steps=[
             WorkflowStep(
                 name="main",
-                prompt=query,  # Note: prompt, not prompt_part
+                agent=query,  # Note: agent, not prompt_part
             )
         ],
         source_path=None,

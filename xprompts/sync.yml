@@ -23,7 +23,7 @@ steps:
     repeat:
       until: "{{ resolve.all_resolved }}"
       max: 20
-    prompt: |
+    agent: |
       A {{ setup.vcs_type }} sync/rebase operation has resulted in merge conflicts
       that need to be resolved.
 

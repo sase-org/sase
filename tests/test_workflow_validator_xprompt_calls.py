@@ -182,7 +182,7 @@ def test_detect_unused_xprompts_used_in_step() -> None:
     """Xprompt referenced in step content → no error."""
     workflow = Workflow(
         name="test",
-        steps=[WorkflowStep(name="step1", prompt="Use #_helper here")],
+        steps=[WorkflowStep(name="step1", agent="Use #_helper here")],
         xprompts={
             "_helper": XPrompt(name="_helper", content="I help"),
         },
@@ -196,7 +196,7 @@ def test_detect_unused_xprompts_used_by_other_xprompt() -> None:
     """Xprompt referenced by another xprompt → no error."""
     workflow = Workflow(
         name="test",
-        steps=[WorkflowStep(name="step1", prompt="Use #_outer here")],
+        steps=[WorkflowStep(name="step1", agent="Use #_outer here")],
         xprompts={
             "_base": XPrompt(name="_base", content="base content"),
             "_outer": XPrompt(name="_outer", content="wraps #_base"),
@@ -315,7 +315,7 @@ def test_validate_workflow_raises_on_unused_xprompt_input() -> None:
     """Integration: validate_workflow() raises on unused xprompt input."""
     workflow = Workflow(
         name="test",
-        steps=[WorkflowStep(name="step1", prompt="Use #_helper here")],
+        steps=[WorkflowStep(name="step1", agent="Use #_helper here")],
         xprompts={
             "_helper": XPrompt(
                 name="_helper",

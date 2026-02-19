@@ -383,7 +383,7 @@ def _make_anonymous_workflow(prompt: str) -> Workflow:
     """Helper to create an anonymous workflow with a single prompt step."""
     return Workflow(
         name="tmp_abc123",
-        steps=[WorkflowStep(name="main", prompt=prompt)],
+        steps=[WorkflowStep(name="main", agent=prompt)],
     )
 
 
@@ -392,8 +392,8 @@ def test_flatten_anonymous_workflow_returns_none_for_non_single_step() -> None:
     workflow = Workflow(
         name="tmp_abc",
         steps=[
-            WorkflowStep(name="step1", prompt="first"),
-            WorkflowStep(name="step2", prompt="second"),
+            WorkflowStep(name="step1", agent="first"),
+            WorkflowStep(name="step2", agent="second"),
         ],
     )
     result = _flatten_anonymous_workflow(workflow)
@@ -453,8 +453,8 @@ def test_flatten_anonymous_workflow_returns_workflow_for_pure_multistep(
         name="split",
         inputs=[InputArg(name="desc", type=InputType.LINE)],
         steps=[
-            WorkflowStep(name="analyze", prompt="Analyze: {{ desc }}"),
-            WorkflowStep(name="execute", prompt="Execute based on analysis"),
+            WorkflowStep(name="analyze", agent="Analyze: {{ desc }}"),
+            WorkflowStep(name="execute", agent="Execute based on analysis"),
         ],
     )
     mock_get_all_prompts.return_value = {"split": target_wf}
@@ -476,8 +476,8 @@ def test_flatten_anonymous_workflow_passes_positional_args(
         name="split",
         inputs=[InputArg(name="split_desc", type=InputType.LINE)],
         steps=[
-            WorkflowStep(name="analyze", prompt="Analyze: {{ split_desc }}"),
-            WorkflowStep(name="execute", prompt="Execute"),
+            WorkflowStep(name="analyze", agent="Analyze: {{ split_desc }}"),
+            WorkflowStep(name="execute", agent="Execute"),
         ],
     )
     mock_get_all_prompts.return_value = {"split": target_wf}
@@ -499,8 +499,8 @@ def test_flatten_anonymous_workflow_passes_named_args(
         name="split",
         inputs=[InputArg(name="split_desc", type=InputType.LINE)],
         steps=[
-            WorkflowStep(name="analyze", prompt="Analyze: {{ split_desc }}"),
-            WorkflowStep(name="execute", prompt="Execute"),
+            WorkflowStep(name="analyze", agent="Analyze: {{ split_desc }}"),
+            WorkflowStep(name="execute", agent="Execute"),
         ],
     )
     mock_get_all_prompts.return_value = {"split": target_wf}

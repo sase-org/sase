@@ -258,7 +258,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                     success = self._execute_while_step(step, step_state)
                 elif step.parallel_config:
                     success = self._execute_parallel_step(step, step_state)
-                elif step.is_prompt_step():
+                elif step.is_agent_step():
                     success = self._execute_prompt_step(step, step_state)
                 elif step.is_python_step():
                     success = self._execute_python_step(step, step_state)
@@ -334,8 +334,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         """
         if step.is_parallel_step():
             return "parallel"
-        elif step.is_prompt_step():
-            return "prompt"
+        elif step.is_agent_step():
+            return "agent"
         elif step.is_python_step():
             return "python"
         else:
@@ -399,7 +399,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self,
         step_name: str,
         step_state: StepState,
-        step_type: str = "prompt",
+        step_type: str = "agent",
         step_source: str | None = None,
         step_index: int | None = None,
         parent_step_index: int | None = None,
@@ -414,9 +414,9 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         """Save a marker file for prompt steps to track them in the TUI.
 
         Args:
-            step_name: Name of the prompt step.
+            step_name: Name of the step.
             step_state: The runtime state for this step.
-            step_type: Type of step ("prompt", "bash", or "python").
+            step_type: Type of step ("agent", "bash", or "python").
             step_source: Source code/command for bash/python steps.
             step_index: Index of the step in the workflow (0-based).
             parent_step_index: Index of the parent step for embedded workflow steps.

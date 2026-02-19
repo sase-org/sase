@@ -99,7 +99,7 @@ def _make_workflow(
         steps.append(WorkflowStep(name="inject", prompt_part=""))
         steps.append(WorkflowStep(name="teardown", bash="echo teardown"))
     else:
-        steps.append(WorkflowStep(name="run", prompt="Do thing"))
+        steps.append(WorkflowStep(name="run", agent="Do thing"))
     return Workflow(name=name, steps=steps, wraps_all=wraps_all)
 
 
@@ -110,7 +110,7 @@ class _FakeExecutor(EmbeddedWorkflowMixin):
         self._workflows = workflows
         self.workflow = Workflow(
             name="parent",
-            steps=[WorkflowStep(name="main", prompt="test prompt")],
+            steps=[WorkflowStep(name="main", agent="test prompt")],
         )
         self.context: dict[str, Any] = {}
         self.artifacts_dir = "/nonexistent"
@@ -132,7 +132,7 @@ class _FakeExecutor(EmbeddedWorkflowMixin):
             return "bash"
         if step.is_python_step():
             return "python"
-        return "prompt"
+        return "agent"
 
     def _evaluate_condition(self, condition: str) -> bool:
         return True

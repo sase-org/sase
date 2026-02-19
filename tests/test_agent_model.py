@@ -30,7 +30,7 @@ def test_agent_display_type_running() -> None:
         workspace_num=1,
         workflow="crs",
     )
-    assert agent.display_type == "run"
+    assert agent.display_type == "agent"
 
 
 def test_agent_display_type_mentor() -> None:
@@ -298,7 +298,7 @@ def test_agent_display_type_with_appears_as_agent() -> None:
 
 
 def test_agent_display_type_with_appears_as_agent_no_workflow() -> None:
-    """Test Agent.display_type returns 'run' when appears_as_agent is True but no workflow."""
+    """Test Agent.display_type returns 'agent' when appears_as_agent is True but no workflow."""
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
@@ -308,8 +308,8 @@ def test_agent_display_type_with_appears_as_agent_no_workflow() -> None:
         workflow=None,
         appears_as_agent=True,
     )
-    # When appears_as_agent is True but workflow is None, should fall back to "run"
-    assert agent.display_type == "run"
+    # When appears_as_agent is True but workflow is None, should fall back to "agent"
+    assert agent.display_type == "agent"
 
 
 def test_agent_display_type_workflow_without_appears_as_agent() -> None:
@@ -331,7 +331,7 @@ def test_agent_display_type_workflow_without_appears_as_agent() -> None:
 
 
 def test_agent_display_type_anonymous_collapsed() -> None:
-    """Test anonymous workflow shows 'run' when collapsed (default)."""
+    """Test anonymous workflow shows 'agent' when collapsed (default)."""
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
@@ -341,7 +341,7 @@ def test_agent_display_type_anonymous_collapsed() -> None:
         appears_as_agent=True,
         is_anonymous=True,
     )
-    assert agent.display_type == "run"
+    assert agent.display_type == "agent"
 
 
 def test_agent_get_display_type_anonymous_expanded() -> None:

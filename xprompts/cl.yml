@@ -56,7 +56,7 @@ steps:
 
   - name: gen_cl_desc
     if: "{{ check_changes.has_changes and check_sase_new_cl_desc.has_sase_new_cl_desc }}"
-    prompt: "#sase_new_cl_desc #file:new_cl_desc"
+    agent: "#sase_new_cl_desc #file:new_cl_desc"
     output: { desc_file: path }
 
   - name: create_cl

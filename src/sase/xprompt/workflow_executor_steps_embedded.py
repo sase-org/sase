@@ -254,7 +254,7 @@ class EmbeddedWorkflowMixin:
 
                 self._current_embedded_workflow_name = embedded_workflow_name
 
-                if step.is_prompt_step():
+                if step.is_agent_step():
                     success = self._execute_prompt_step(step, temp_state)
                 elif step.is_python_step():
                     success = self._execute_python_step(step, temp_state)

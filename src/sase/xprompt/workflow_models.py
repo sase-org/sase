@@ -50,12 +50,12 @@ class WorkflowStep:
 
     Attributes:
         name: Step identifier (defaults to step_{index} if not specified).
-        prompt: Prompt template for prompt steps (supports Jinja2 and xprompt refs).
+        agent: Agent prompt template for agent steps (supports Jinja2 and xprompt refs).
             Mutually exclusive with bash/python/parallel/prompt_part.
-        bash: Bash command to execute (mutually exclusive with prompt/python/parallel/prompt_part).
-        python: Python code to execute (mutually exclusive with prompt/bash/parallel/prompt_part).
+        bash: Bash command to execute (mutually exclusive with agent/python/parallel/prompt_part).
+        python: Python code to execute (mutually exclusive with agent/bash/parallel/prompt_part).
         prompt_part: Content to append to containing prompt when workflow is embedded.
-            Mutually exclusive with prompt/bash/python/parallel.
+            Mutually exclusive with agent/bash/python/parallel.
         output: Output specification for validation.
         hitl: Whether to require human-in-the-loop approval.
         hidden: If true, this step is hidden by default in the Agents tab TUI.
@@ -68,7 +68,7 @@ class WorkflowStep:
     """
 
     name: str
-    prompt: str | None = None
+    agent: str | None = None
     bash: str | None = None
     python: str | None = None
     prompt_part: str | None = None
@@ -82,9 +82,9 @@ class WorkflowStep:
     parallel_config: ParallelConfig | None = None
     join: str | None = None
 
-    def is_prompt_step(self) -> bool:
-        """Return True if this is a prompt step."""
-        return self.prompt is not None
+    def is_agent_step(self) -> bool:
+        """Return True if this is an agent step."""
+        return self.agent is not None
 
     def is_bash_step(self) -> bool:
         """Return True if this is a bash step."""
@@ -194,11 +194,11 @@ class Workflow:
     def appears_as_agent(self) -> bool:
         """Check if workflow should appear as an 'agent' entry.
 
-        Returns True if all non-prompt steps are hidden, meaning the workflow
-        should display as a simple [run] entry instead of [workflow:name].
+        Returns True if all non-agent steps are hidden, meaning the workflow
+        should display as a simple [agent] entry instead of [workflow:name].
         """
         visible_steps = [s for s in self.steps if not s.hidden]
-        return len(visible_steps) == 1 and visible_steps[0].is_prompt_step()
+        return len(visible_steps) == 1 and visible_steps[0].is_agent_step()
 
     def is_anonymous(self) -> bool:
         """Check if this is an anonymous (temporary) workflow."""
@@ -212,7 +212,7 @@ class Workflow:
 
         A simple xprompt has:
         - Exactly one step
-        - That step is a prompt_part step (not prompt, bash, python, or parallel)
+        - That step is a prompt_part step (not agent, bash, python, or parallel)
 
         These workflows can be:
         - Expanded inline when embedded in other prompts

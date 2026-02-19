@@ -14,7 +14,7 @@ def test_workflow_appears_as_agent_with_hidden_steps() -> None:
         name="json",
         steps=[
             WorkflowStep(name="setup", bash="setup.sh", hidden=True),
-            WorkflowStep(name="inject", prompt="Do the thing"),
+            WorkflowStep(name="inject", agent="Do the thing"),
             WorkflowStep(name="validate", bash="validate.sh", hidden=True),
         ],
     )
@@ -26,7 +26,7 @@ def test_workflow_appears_as_agent_single_visible_prompt() -> None:
     workflow = Workflow(
         name="simple",
         steps=[
-            WorkflowStep(name="main", prompt="Do something"),
+            WorkflowStep(name="main", agent="Do something"),
         ],
     )
     assert workflow.appears_as_agent() is True
@@ -38,7 +38,7 @@ def test_workflow_not_appears_as_agent_with_visible_non_prompt() -> None:
         name="workflow_with_setup",
         steps=[
             WorkflowStep(name="setup", bash="setup.sh", hidden=False),
-            WorkflowStep(name="main", prompt="Do something"),
+            WorkflowStep(name="main", agent="Do something"),
         ],
     )
     assert workflow.appears_as_agent() is False
@@ -49,8 +49,8 @@ def test_workflow_not_appears_as_agent_multiple_visible() -> None:
     workflow = Workflow(
         name="multi_step",
         steps=[
-            WorkflowStep(name="step1", prompt="Step 1"),
-            WorkflowStep(name="step2", prompt="Step 2"),
+            WorkflowStep(name="step1", agent="Step 1"),
+            WorkflowStep(name="step2", agent="Step 2"),
         ],
     )
     assert workflow.appears_as_agent() is False
@@ -113,7 +113,7 @@ def test_workflow_not_simple_xprompt_prompt_step() -> None:
     workflow = Workflow(
         name="adhoc",
         steps=[
-            WorkflowStep(name="main", prompt="Do something"),
+            WorkflowStep(name="main", agent="Do something"),
         ],
     )
     assert workflow.is_simple_xprompt() is False

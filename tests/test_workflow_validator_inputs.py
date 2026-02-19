@@ -35,7 +35,7 @@ def test_collect_used_variables_multiple_sources() -> None:
         ],
         steps=[
             WorkflowStep(name="s1", bash="echo {{ bash_var }}"),
-            WorkflowStep(name="s2", prompt="{{ prompt_var }}"),
+            WorkflowStep(name="s2", agent="{{ prompt_var }}"),
             WorkflowStep(name="s3", python="print({{ python_var }})"),
         ],
     )

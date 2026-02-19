@@ -327,20 +327,20 @@ def test_create_anonymous_workflow_basic() -> None:
     assert workflow.name.startswith("tmp_")
     assert len(workflow.steps) == 1
     assert workflow.steps[0].name == "main"
-    assert workflow.steps[0].prompt == "Hello world"
-    assert workflow.steps[0].is_prompt_step()
+    assert workflow.steps[0].agent == "Hello world"
+    assert workflow.steps[0].is_agent_step()
     assert workflow.source_path is None
     assert workflow.inputs == []
 
 
 def test_create_anonymous_workflow_not_simple_xprompt() -> None:
-    """Test that anonymous workflow is NOT a simple xprompt (uses prompt, not prompt_part)."""
+    """Test that anonymous workflow is NOT a simple xprompt (uses agent, not prompt_part)."""
     workflow = create_anonymous_workflow("Test query")
 
-    # Anonymous workflows use 'prompt' (full prompt step), not 'prompt_part'
+    # Anonymous workflows use 'agent' (full agent step), not 'prompt_part'
     assert not workflow.is_simple_xprompt()
     assert not workflow.has_prompt_part()
-    assert workflow.steps[0].prompt is not None
+    assert workflow.steps[0].agent is not None
 
 
 def test_create_anonymous_workflow_multiline_query() -> None:
@@ -351,4 +351,4 @@ def foo():
     pass"""
     workflow = create_anonymous_workflow(query)
 
-    assert workflow.steps[0].prompt == query
+    assert workflow.steps[0].agent == query

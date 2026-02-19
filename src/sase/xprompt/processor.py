@@ -252,11 +252,11 @@ def _flatten_anonymous_workflow(
     """
     from .loader import get_all_prompts
 
-    # Only flatten single-step prompt workflows
-    if len(workflow.steps) != 1 or not workflow.steps[0].is_prompt_step():
+    # Only flatten single-step agent workflows
+    if len(workflow.steps) != 1 or not workflow.steps[0].is_agent_step():
         return None
 
-    prompt_text = (workflow.steps[0].prompt or "").strip()
+    prompt_text = (workflow.steps[0].agent or "").strip()
 
     # Must be exactly a single #name or #name(args) reference
     if not prompt_text.startswith("#"):
@@ -414,7 +414,7 @@ def execute_workflow(
         workflow = WfModel(
             name=workflow.name,
             inputs=[],
-            steps=[WorkflowStep(name="main", prompt=rendered)],
+            steps=[WorkflowStep(name="main", agent=rendered)],
             source_path=workflow.source_path,
             xprompts=workflow.xprompts,
         )

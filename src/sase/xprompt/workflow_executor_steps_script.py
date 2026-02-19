@@ -53,7 +53,7 @@ class ScriptStepMixin:
         self,
         step_name: str,
         step_state: StepState,
-        step_type: str = "prompt",
+        step_type: str = "agent",
         step_source: str | None = None,
         step_index: int | None = None,
         parent_step_index: int | None = None,

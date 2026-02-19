@@ -339,7 +339,7 @@ def test_pre_expand_parallel_no_embedded_workflows() -> None:
     """Test that steps without embedded workflows pass through unchanged."""
     nested_steps = [
         WorkflowStep(name="step_a", bash='echo "a=done"'),
-        WorkflowStep(name="step_b", prompt="Plain prompt with no refs"),
+        WorkflowStep(name="step_b", agent="Plain prompt with no refs"),
     ]
 
     workflow = _create_workflow("test", [])
@@ -372,7 +372,7 @@ def test_pre_expand_parallel_expands_prompt_part_inline() -> None:
     )
 
     nested_steps = [
-        WorkflowStep(name="step_a", prompt="Do something. #inject"),
+        WorkflowStep(name="step_a", agent="Do something. #inject"),
     ]
 
     workflow = _create_workflow("test", [])
@@ -385,9 +385,9 @@ def test_pre_expand_parallel_expands_prompt_part_inline() -> None:
         )
 
     # prompt_part content should be expanded inline
-    assert modified[0].prompt is not None
-    assert "INJECTED CONTENT HERE" in modified[0].prompt
-    assert "#inject" not in modified[0].prompt
+    assert modified[0].agent is not None
+    assert "INJECTED CONTENT HERE" in modified[0].agent
+    assert "#inject" not in modified[0].agent
     # No post-steps to collect (only prompt_part)
     assert collected == []
 
@@ -413,10 +413,10 @@ def test_pre_expand_parallel_collects_post_steps() -> None:
 
     nested_steps = [
         WorkflowStep(
-            name="agent_a", prompt="Research topic A. #test_embed(name=topicA)"
+            name="agent_a", agent="Research topic A. #test_embed(name=topicA)"
         ),
         WorkflowStep(
-            name="agent_b", prompt="Research topic B. #test_embed(name=topicB)"
+            name="agent_b", agent="Research topic B. #test_embed(name=topicB)"
         ),
     ]
 
@@ -430,18 +430,18 @@ def test_pre_expand_parallel_collects_post_steps() -> None:
         )
 
     # Both prompts should have prompt_part expanded inline
-    assert modified[0].prompt is not None
-    assert modified[1].prompt is not None
-    assert "Write output to file" in modified[0].prompt
-    assert "#test_embed" not in modified[0].prompt
-    assert "Write output to file" in modified[1].prompt
-    assert "#test_embed" not in modified[1].prompt
+    assert modified[0].agent is not None
+    assert modified[1].agent is not None
+    assert "Write output to file" in modified[0].agent
+    assert "#test_embed" not in modified[0].agent
+    assert "Write output to file" in modified[1].agent
+    assert "#test_embed" not in modified[1].agent
 
     # Original steps should not be mutated
-    assert nested_steps[0].prompt is not None
-    assert nested_steps[1].prompt is not None
-    assert "#test_embed" in nested_steps[0].prompt
-    assert "#test_embed" in nested_steps[1].prompt
+    assert nested_steps[0].agent is not None
+    assert nested_steps[1].agent is not None
+    assert "#test_embed" in nested_steps[0].agent
+    assert "#test_embed" in nested_steps[1].agent
 
     # Should have collected 2 sets of post-steps (one per embedded ref)
     assert len(collected) == 2
@@ -462,7 +462,7 @@ def test_pre_expand_parallel_preserves_non_prompt_steps() -> None:
 
     nested_steps = [
         WorkflowStep(name="bash_step", bash='echo "done=true"'),
-        WorkflowStep(name="prompt_step", prompt="Hello #inject"),
+        WorkflowStep(name="prompt_step", agent="Hello #inject"),
     ]
 
     workflow = _create_workflow("test", [])
@@ -476,8 +476,8 @@ def test_pre_expand_parallel_preserves_non_prompt_steps() -> None:
     assert modified[0] is nested_steps[0]
     # Prompt step should be a new copy with expanded content
     assert modified[1] is not nested_steps[1]
-    assert modified[1].prompt is not None
-    assert "EXTRA" in modified[1].prompt
+    assert modified[1].agent is not None
+    assert "EXTRA" in modified[1].agent
 
 
 # ============================================================================

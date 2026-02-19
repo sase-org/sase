@@ -175,8 +175,8 @@ def _collect_step_content(step: WorkflowStep) -> list[str]:
     """
     contents: list[str] = []
 
-    if step.prompt:
-        contents.append(step.prompt)
+    if step.agent:
+        contents.append(step.agent)
     if step.bash:
         contents.append(step.bash)
     if step.python:

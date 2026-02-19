@@ -178,11 +178,13 @@ class PromptStepMixin:
             process_xprompt_references,
         )
 
-        if not step.prompt:
-            raise WorkflowExecutionError(f"Prompt step '{step.name}' has no prompt")
+        if not step.agent:
+            raise WorkflowExecutionError(
+                f"Agent step '{step.name}' has no agent prompt"
+            )
 
         # Render prompt with Jinja2 context
-        rendered_prompt = render_template(step.prompt, self.context)
+        rendered_prompt = render_template(step.agent, self.context)
 
         # Expand xprompt references FIRST
         # This allows xprompts to contain embedded workflow references (like #json:...)
@@ -287,7 +289,7 @@ class PromptStepMixin:
 
             result = self.hitl_handler.prompt(
                 step.name,
-                "prompt",
+                "agent",
                 output,
                 has_output=step.output is not None,
                 output_types=output_types_from_step(step),

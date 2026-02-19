@@ -110,15 +110,17 @@ class Agent:
     def get_display_type(self, *, is_expanded: bool = False) -> str:
         """Compute display type with optional fold-state context.
 
-        For anonymous workflows: [run] when collapsed, [workflow] when expanded.
+        For anonymous workflows: [agent] when collapsed, [workflow] when expanded.
         For non-anonymous: unchanged behavior.
         """
         if self.appears_as_agent:
             if self.is_anonymous:
-                return "workflow" if is_expanded else "run"
-            return self.workflow if self.workflow else "run"
+                return "workflow" if is_expanded else "agent"
+            return self.workflow if self.workflow else "agent"
         if self.is_workflow_child and self.step_type:
             return self.step_type
+        if self.agent_type == AgentType.RUNNING:
+            return "agent"
         return self.agent_type.value
 
     @property

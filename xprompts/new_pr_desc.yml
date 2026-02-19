@@ -96,7 +96,7 @@ steps:
 
   - name: generate
     if: "{{ not get_context.error }}"
-    prompt: |
+    agent: |
       Generate a PR title and body for the following changes.
 
       ## ChangeSpec Description

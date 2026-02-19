@@ -81,25 +81,25 @@ def _parse_workflow_step(
     """
     name = str(step_data.get("name", f"step_{index}"))
 
-    prompt = step_data.get("prompt")
+    agent = step_data.get("agent") or step_data.get("prompt")  # backward compat
     bash = step_data.get("bash")
     python = step_data.get("python")
     prompt_part = step_data.get("prompt_part")
     parallel_data = step_data.get("parallel")
 
-    # Validate mutually exclusive fields - must have exactly one of prompt, bash, python,
+    # Validate mutually exclusive fields - must have exactly one of agent, bash, python,
     # prompt_part, parallel
-    step_types = [prompt, bash, python, prompt_part, parallel_data]
+    step_types = [agent, bash, python, prompt_part, parallel_data]
     num_step_types = sum(1 for t in step_types if t is not None)
 
     if num_step_types > 1:
         raise WorkflowValidationError(
-            f"Step '{name}' can only have one of 'prompt', 'bash', 'python', "
+            f"Step '{name}' can only have one of 'agent', 'bash', 'python', "
             "'prompt_part', or 'parallel' fields"
         )
     if num_step_types == 0:
         raise WorkflowValidationError(
-            f"Step '{name}' must have one of 'prompt', 'bash', 'python', "
+            f"Step '{name}' must have one of 'agent', 'bash', 'python', "
             "'prompt_part', or 'parallel' field"
         )
 
@@ -253,7 +253,7 @@ def _parse_workflow_step(
 
     return WorkflowStep(
         name=name,
-        prompt=str(prompt) if prompt else None,
+        agent=str(agent) if agent else None,
         bash=str(bash) if bash else None,
         python=str(python) if python else None,
         prompt_part=str(prompt_part) if prompt_part is not None else None,
@@ -307,8 +307,8 @@ def validate_workflow_variables(workflow: Workflow) -> None:
         if step.for_loop:
             loop_vars = set(step.for_loop.keys())
 
-        # Check variable references in prompt, bash, or python
-        content = step.prompt or step.bash or step.python
+        # Check variable references in agent, bash, or python
+        content = step.agent or step.bash or step.python
         if content:
             # Match {{ var }} and {{ step.output }}
             refs = re.findall(
