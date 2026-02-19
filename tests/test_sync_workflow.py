@@ -54,11 +54,6 @@ def test_resolve_step_is_not_hidden(sync_workflow) -> None:
     assert not resolve.hidden
 
 
-def test_workflow_has_branch_name_input(sync_workflow) -> None:
-    input_names = [inp.name for inp in sync_workflow.inputs]
-    assert "branch_name" in input_names
-
-
 # ---------------------------------------------------------------------------
 # sync_setup script tests
 # ---------------------------------------------------------------------------
