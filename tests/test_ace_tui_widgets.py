@@ -362,10 +362,15 @@ async def test_update_display_hides_file_for_done_workflow_without_diff() -> Non
 async def test_tab_bar_integration_tab_key() -> None:
     """Test that pressing TAB key cycles through all tabs."""
     mock_changespecs = [_make_changespec()]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
+    with (
+        patch(
+            "sase.ace.changespec.find_all_changespecs",
+            return_value=mock_changespecs,
+        ),
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
     ):
-        app = AceApp()
+        app = AceApp(refresh_interval=0)
         async with app.run_test() as pilot:
             # Initial state - changespecs tab
             assert app.current_tab == "changespecs"
