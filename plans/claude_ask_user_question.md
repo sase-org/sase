@@ -1,3 +1,7 @@
+---
+bead_id: sase-5qu
+---
+
 # Answer AskUserQuestion from SASE Ace TUI
 
 ## Context
