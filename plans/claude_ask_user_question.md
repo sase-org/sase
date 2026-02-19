@@ -22,7 +22,7 @@ with the answers.
 ```
 handle_user_question_command():
   1. Read JSON from stdin (contains tool_input with questions array, session_id)
-  2. If SASE_AGENT not set: send desktop notification + ring bell + emit `_emit_hook_decision("allow", "...")` + exit 0
+  2. If SASE_AGENT not set: send desktop notification + ring bell + exit 0 (let CLI handle it)
   3. If SASE_AGENT=1:
      a. Write request file: ~/.sase/user_question/{session_id}/question_request.json
         Contents: the full tool_input (questions array with options, multiSelect, etc.)
