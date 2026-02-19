@@ -2,6 +2,8 @@
 
 import os
 import subprocess
+import uuid
+from pathlib import Path
 
 from sase.rich_utils import gemini_timer
 
@@ -49,6 +51,7 @@ class ClaudeCodeProvider(LLMProvider):
         model_alias = model_override if model_override else _TIER_TO_MODEL[model_tier]
 
         # Build base command arguments
+        session_uuid = str(uuid.uuid4())
         base_args = [
             "claude",
             "-p",
@@ -58,6 +61,8 @@ class ClaudeCodeProvider(LLMProvider):
             "--output-format",
             "stream-json",
             "--dangerously-skip-permissions",
+            "--session-id",
+            session_uuid,
         ]
 
         # Parse additional args from environment variable based on tier
@@ -103,6 +108,60 @@ class ClaudeCodeProvider(LLMProvider):
                 output=response_content,
                 stderr=stderr_content,
             )
+
+        # Check if plan was approved — if so, resume session for implementation
+        marker_path = (
+            Path.home()
+            / ".sase"
+            / "plan_approval"
+            / session_uuid
+            / "plan_approved.marker"
+        )
+        if marker_path.exists():
+            marker_path.unlink()
+
+            resume_args = [
+                "claude",
+                "-p",
+                "--resume",
+                session_uuid,
+                "--verbose",
+                "--model",
+                model_alias,
+                "--output-format",
+                "stream-json",
+                "--dangerously-skip-permissions",
+            ]
+            if extra_args_env:
+                for arg in extra_args_env.split():
+                    resume_args.append(arg)
+
+            resume_prompt = (
+                "Your plan has been reviewed and approved by the user. "
+                "Proceed with implementing the plan now."
+            )
+
+            if timer_context:
+                with gemini_timer("Implementing plan"):
+                    impl_content, impl_stderr, impl_rc = self._run_subprocess(
+                        resume_args, resume_prompt, suppress_output
+                    )
+                    print()
+            else:
+                impl_content, impl_stderr, impl_rc = self._run_subprocess(
+                    resume_args, resume_prompt, suppress_output
+                )
+
+            if impl_rc != 0:
+                raise subprocess.CalledProcessError(
+                    impl_rc,
+                    resume_args,
+                    output=impl_content,
+                    stderr=impl_stderr,
+                )
+
+            # Combine phase 1 + phase 2 response text
+            response_content = response_content.strip() + "\n\n" + impl_content.strip()
 
         return response_content.strip()
 
