@@ -19,6 +19,7 @@ from .rename_cl_modal import RenameCLModal
 from .runners_modal import RunnersModal, get_runner_count
 from .status_modal import StatusModal
 from .tag_input_modal import TagInputModal
+from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
@@ -32,6 +33,8 @@ __all__ = [
     "HookHistoryModal",
     "NotificationModal",
     "ParentSelectModal",
+    "PlanApprovalModal",
+    "PlanApprovalResult",
     "ProcessSelectModal",
     "ProcessSelection",
     "ProjectSelectModal",

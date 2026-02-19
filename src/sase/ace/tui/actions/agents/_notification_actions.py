@@ -150,3 +150,63 @@ def handle_hitl(app: object, notification: Notification) -> bool:
 
     app.push_screen(WorkflowHITLModal(input_data), on_dismiss)  # type: ignore[attr-defined]
     return True
+
+
+def handle_plan_approval(app: object, notification: Notification) -> bool:
+    """Show the plan approval modal for a Claude Code plan.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing
+            response_dir and session_id.
+
+    Returns:
+        True if the plan approval modal was pushed.
+    """
+    import json
+    from pathlib import Path
+
+    from ...modals import PlanApprovalModal, PlanApprovalResult
+
+    response_dir = notification.action_data.get("response_dir")
+    if not response_dir:
+        app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    response_path = Path(response_dir)
+    request_path = response_path / "plan_request.json"
+
+    if not request_path.exists():
+        app.notify("Plan approval request expired or not found", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    # Get plan file path from notification files
+    if not notification.files:
+        app.notify("No plan file in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    plan_file = notification.files[0]
+
+    def on_dismiss(result: object) -> None:
+        if result is None:
+            return
+        if not isinstance(result, PlanApprovalResult):
+            return
+
+        # Write response file
+        plan_response_path = response_path / "plan_response.json"
+        response_data: dict[str, object] = {
+            "action": result.action,
+        }
+        if result.feedback is not None:
+            response_data["feedback"] = result.feedback
+
+        try:
+            with open(plan_response_path, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, indent=2)
+            app.notify(f"Sent plan {result.action} response")  # type: ignore[attr-defined]
+        except Exception as e:
+            app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
+
+    app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
+    return True

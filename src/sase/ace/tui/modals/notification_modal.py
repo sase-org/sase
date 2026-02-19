@@ -29,6 +29,7 @@ _ACTION_BADGES: dict[str | None, str] = {
     "JumpToChangeSpec": "[CL]",
     "Tmux": "[tmux]",
     "HITL": "[HITL]",
+    "PlanApproval": "[plan]",
 }
 
 

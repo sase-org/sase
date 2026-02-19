@@ -257,6 +257,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Notification sender name (overrides sender in JSON input)",
     )
 
+    # --- plan-approve ---
+    top_level_subparsers.add_parser(
+        "plan-approve",
+        help="Handle plan approval from Claude Code hook (reads JSON from stdin)",
+    )
+
     # --- restore ---
     restore_parser = top_level_subparsers.add_parser(
         "restore",

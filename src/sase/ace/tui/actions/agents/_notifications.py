@@ -79,6 +79,7 @@ class AgentNotificationMixin:
         from ._notification_actions import (
             handle_hitl,
             handle_jump_to_changespec,
+            handle_plan_approval,
             handle_tmux,
         )
         from ...modals import NotificationModal
@@ -109,5 +110,7 @@ class AgentNotificationMixin:
                 handle_tmux(self, result)
             elif result.action == "HITL":
                 handle_hitl(self, result)
+            elif result.action == "PlanApproval":
+                handle_plan_approval(self, result)
 
         self.push_screen(NotificationModal(unread), callback=_on_dismiss)  # type: ignore[attr-defined]

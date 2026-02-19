@@ -180,6 +180,46 @@ WorkflowHITLModal {
     padding-top: 1;
 }
 
+/* Plan Approval Modal styling */
+PlanApprovalModal {
+    align: center middle;
+}
+
+#plan-approval-container {
+    width: 90%;
+    max-width: 150;
+    height: 85%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#plan-approval-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#plan-approval-scroll {
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+#plan-approval-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+#plan-approval-feedback {
+    width: 100%;
+    margin-top: 1;
+}
+
 /* Confirm Kill Modal styling */
 ConfirmKillModal #confirm-message {
     margin: 1 0;

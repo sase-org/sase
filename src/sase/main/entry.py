@@ -59,6 +59,12 @@ def main() -> NoReturn:
 
         handle_notify_command(args)
 
+    # --- plan-approve ---
+    if args.command == "plan-approve":
+        from .plan_approve_handler import handle_plan_approve_command
+
+        handle_plan_approve_command()
+
     # --- restore ---
     if args.command == "restore":
         handle_restore_command(args)
