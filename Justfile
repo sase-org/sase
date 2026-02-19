@@ -57,9 +57,9 @@ fmt-md-check:
     prettier --check --prose-wrap=always --print-width=120 "**/*.md"
 
 # Run tests with coverage
-test: _setup (_header "test")
+test *args: _setup (_header "test")
     @printf "\n---------- Running pytest with coverage... ----------\n"
-    {{ venv_bin }}/pytest
+    {{ venv_bin }}/pytest {{ args }}
 
 # Run tests across all Python versions
 test-tox: _setup
