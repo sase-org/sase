@@ -1,3 +1,7 @@
+---
+bead_id: sase-cvb
+---
+
 # Git Change Specs v3: Clones Replace Worktrees, Direct Master Commits
 
 ## Context
