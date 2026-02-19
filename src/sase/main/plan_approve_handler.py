@@ -105,7 +105,9 @@ def handle_plan_approve_command() -> NoReturn:
     """Handle the plan-approve subcommand.
 
     Reads JSON from stdin, finds the plan file, creates a notification,
-    and polls for a response.
+    and polls for a response. Only activates the TUI approval flow for
+    agents launched by sase (SASE_AGENT=1); otherwise falls back to
+    desktop notification + exit 0.
     """
     # Read JSON from stdin
     data: dict = {}
@@ -119,6 +121,16 @@ def handle_plan_approve_command() -> NoReturn:
                 sys.exit(1)
 
     session_id = data.get("session_id", "unknown")
+
+    # If not launched by sase, just notify and approve
+    if not os.environ.get("SASE_AGENT"):
+        prefix = _get_tmux_prefix()
+        _send_desktop_notification(
+            f"{prefix} Plan Complete",
+            "Planning phase finished - ready for review",
+        )
+        _ring_tmux_bell()
+        sys.exit(0)
 
     # Find plan file
     plan_file = _find_plan_file(session_id)

@@ -342,6 +342,7 @@ class AgentLaunchMixin:
 
         # Build subprocess environment (copy to avoid mutating os.environ)
         subprocess_env = dict(os.environ)
+        subprocess_env["SASE_AGENT"] = "1"
         if gh_ref is not None:
             subprocess_env["SASE_GH_PRE_ALLOCATED"] = "1"
             subprocess_env["SASE_GH_WORKSPACE_NUM"] = str(workspace_num)
