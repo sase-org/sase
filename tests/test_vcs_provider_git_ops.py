@@ -11,64 +11,25 @@ from sase.vcs_provider._git import _GitProvider
 
 
 @patch("sase.vcs_provider._git.subprocess.run")
-def test_git_commit_new_branch(mock_run: MagicMock) -> None:
-    """Test _GitProvider.commit creates new branch when needed."""
-    mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="main\n", stderr=""),  # rev-parse
-        MagicMock(returncode=0, stdout="", stderr=""),  # checkout -b
-        MagicMock(returncode=0, stdout="", stderr=""),  # commit
-    ]
+def test_git_commit_success(mock_run: MagicMock) -> None:
+    """Test _GitProvider.commit commits on current branch."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
     provider = _GitProvider()
     success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")
 
     assert success is True
     assert error is None
-    assert mock_run.call_args_list[1][0][0] == ["git", "checkout", "-b", "feature"]
-    assert mock_run.call_args_list[2][0][0] == ["git", "commit", "-F", "/tmp/msg.txt"]
-
-
-@patch("sase.vcs_provider._git.subprocess.run")
-def test_git_commit_same_branch(mock_run: MagicMock) -> None:
-    """Test _GitProvider.commit skips branch creation when already on branch."""
-    mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="feature\n", stderr=""),  # rev-parse
-        MagicMock(returncode=0, stdout="", stderr=""),  # commit
-    ]
-
-    provider = _GitProvider()
-    success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_count == 2  # No checkout -b call
-
-
-@patch("sase.vcs_provider._git.subprocess.run")
-def test_git_commit_branch_creation_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.commit when branch creation fails."""
-    mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="main\n", stderr=""),  # rev-parse
-        MagicMock(
-            returncode=1, stdout="", stderr="branch already exists"
-        ),  # checkout -b fails
-    ]
-
-    provider = _GitProvider()
-    success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")
-
-    assert success is False
-    assert error is not None
-    assert "git checkout -b failed" in error
+    assert mock_run.call_count == 1
+    assert mock_run.call_args[0][0] == ["git", "commit", "-F", "/tmp/msg.txt"]
 
 
 @patch("sase.vcs_provider._git.subprocess.run")
 def test_git_commit_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.commit when commit itself fails."""
-    mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="feature\n", stderr=""),  # rev-parse
-        MagicMock(returncode=1, stdout="", stderr="nothing to commit"),  # commit fails
-    ]
+    """Test _GitProvider.commit when commit fails."""
+    mock_run.return_value = MagicMock(
+        returncode=1, stdout="", stderr="nothing to commit"
+    )
 
     provider = _GitProvider()
     success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")

@@ -145,13 +145,6 @@ class _GitProvider(VCSProvider):
         return (True, None)
 
     def commit(self, name: str, logfile: str, cwd: str) -> tuple[bool, str | None]:
-        # Check current branch; create new branch if not already on `name`
-        branch_out = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd)
-        current_branch = branch_out.stdout.strip() if branch_out.success else ""
-        if current_branch != name:
-            checkout_out = self._run(["git", "checkout", "-b", name], cwd)
-            if not checkout_out.success:
-                return self._to_result(checkout_out, "git checkout -b")
         out = self._run(["git", "commit", "-F", logfile], cwd)
         return self._to_result(out, "git commit")
 

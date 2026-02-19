@@ -131,8 +131,8 @@ def test_integration_has_local_changes_dirty(git_repo: str) -> None:
 # === Tests for commit ===
 
 
-def test_integration_commit_creates_branch(git_repo: str) -> None:
-    """commit creates a new branch and commits."""
+def test_integration_commit_on_current_branch(git_repo: str) -> None:
+    """commit commits on the current branch without creating a new one."""
     # Stage a file
     new_file = os.path.join(git_repo, "feature.txt")
     with open(new_file, "w") as f:
@@ -152,10 +152,10 @@ def test_integration_commit_creates_branch(git_repo: str) -> None:
     assert success is True
     assert error is None
 
-    # Verify branch was created
+    # Verify we stayed on the original branch (master/main), not "my-feature"
     branch_success, branch_name = provider.get_branch_name(git_repo)
     assert branch_success is True
-    assert branch_name == "my-feature"
+    assert branch_name != "my-feature"
 
 
 # === Tests for amend ===

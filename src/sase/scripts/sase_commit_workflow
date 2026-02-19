@@ -10,7 +10,6 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 
 
 def _get_project_from_workspace() -> str | None:
@@ -35,6 +34,35 @@ def _get_cl_name_from_branch() -> str | None:
     return name
 
 
+def _build_note(
+    who: str,
+    note: str,
+    response: str,
+) -> str:
+    """Build commit note with [who] prefix, auto-generating if needed."""
+    from sase.summarize_utils import get_file_summary
+
+    if note:
+        return f"[{who}] {note}"
+
+    # Auto-generate summary from response
+    fd, response_tmp = tempfile.mkstemp(suffix=".md", prefix="sase_amend_response_")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(response)
+        summary = get_file_summary(
+            response_tmp,
+            usage="a concise description of the changes made",
+            fallback="Agent changes",
+        )
+    finally:
+        try:
+            os.unlink(response_tmp)
+        except OSError:
+            pass
+    return f"[{who}] {summary}"
+
+
 def _amend_cl(
     who: str,
     note: str,
@@ -50,11 +78,152 @@ def _amend_cl(
     Returns:
         Tuple of (success, entry_id, cl_name, error_message, diff_path)
     """
+    from sase.vcs_provider import detect_vcs
+
+    vcs_type = detect_vcs(os.getcwd())
+
+    if vcs_type == "git":
+        return _amend_cl_git(who, note, data_file)
+    else:
+        return _amend_cl_hg(who, note, data_file)
+
+
+def _amend_cl_git(
+    who: str,
+    note: str,
+    data_file: str,
+) -> tuple[bool, str, str, str, str]:
+    """Git-specific commit workflow.
+
+    On master/main: commit directly and auto-push.
+    On PR branch: commit, push, and add HISTORY entry to ChangeSpec.
+    """
+    from sase.chat_history import save_chat_history
+    from sase.commit_utils.workspace import save_diff
+    from sase.sase_utils import generate_timestamp
+
+    # Detect branch
+    branch = _get_cl_name_from_branch()
+    is_default_branch = branch in ("master", "main", None)
+
+    # Load prompt and response from data file
+    with open(data_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    prompt = data["prompt"]
+    response = data["response"]
+
+    # Get project name
+    project = _get_project_from_workspace()
+    if not project:
+        return False, "", "", "Could not determine project from workspace", ""
+
+    # Generate timestamp
+    timestamp = generate_timestamp()
+
+    # Save diff for audit trail (save_diff internally calls git add -A)
+    diff_label = f"master_{project}" if is_default_branch else (branch or project)
+    diff_path = save_diff(diff_label, target_dir=None, timestamp=timestamp)
+    if not diff_path:
+        return False, "", "", "No changes to commit (diff is empty)", ""
+
+    # Build note
+    commit_note = _build_note(who, note, response)
+
+    # Save chat history
+    save_chat_history(
+        prompt=prompt,
+        response=response,
+        workflow="amend",
+        timestamp=timestamp,
+    )
+
+    # Commit
+    result = subprocess.run(
+        ["git", "commit", "-m", commit_note],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False, "", "", f"git commit failed: {result.stderr}", ""
+
+    # Auto-push with rebase-retry
+    for _attempt in range(3):
+        push_result = subprocess.run(
+            ["git", "push", "origin", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if push_result.returncode == 0:
+            break
+        # Pull with rebase and retry
+        subprocess.run(
+            ["git", "pull", "--rebase", "--quiet"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    if is_default_branch:
+        # Get short SHA
+        sha_result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        short_sha = sha_result.stdout.strip() if sha_result.returncode == 0 else ""
+        return True, short_sha, "", "", diff_path or ""
+    else:
+        # PR branch path: add HISTORY entry to ChangeSpec
+        from sase.commit_utils.entries import add_commit_entry, get_next_commit_number
+        from sase.workflow_utils import (
+            add_test_hooks_if_available,
+            get_project_file_path,
+        )
+
+        project_file = get_project_file_path(project)
+        if not os.path.exists(project_file):
+            return False, "", "", f"Project file not found: {project_file}", ""
+
+        # Use the branch name as cl_name
+        cl_name = branch or ""
+
+        # Add HISTORY entry
+        success = add_commit_entry(
+            project_file=project_file,
+            cl_name=cl_name,
+            note=commit_note,
+            diff_path=diff_path,
+            chat_path="",
+            end_timestamp=timestamp,
+        )
+
+        if not success:
+            return False, "", "", f"Failed to add HISTORY entry for {cl_name}", ""
+
+        # Add test hooks if available
+        add_test_hooks_if_available(project_file, cl_name)
+
+        # Get entry ID
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+        entry_id = str(get_next_commit_number(lines, cl_name) - 1)
+
+        return True, entry_id, cl_name, "", diff_path or ""
+
+
+def _amend_cl_hg(
+    who: str,
+    note: str,
+    data_file: str,
+) -> tuple[bool, str, str, str, str]:
+    """Hg-specific commit workflow (original _amend_cl logic)."""
     from sase.chat_history import save_chat_history
     from sase.commit_utils.entries import add_commit_entry
     from sase.commit_utils.workspace import save_diff
     from sase.sase_utils import generate_timestamp
-    from sase.summarize_utils import get_file_summary
     from sase.workflow_utils import add_test_hooks_if_available, get_project_file_path
 
     # Load prompt and response from data file
@@ -87,25 +256,7 @@ def _amend_cl(
         return False, "", "", "No changes to amend (diff is empty)", ""
 
     # Build note with [who] prefix
-    if note:
-        note = f"[{who}] {note}"
-    else:
-        # Auto-generate summary from response
-        fd, response_tmp = tempfile.mkstemp(suffix=".md", prefix="sase_amend_response_")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(response)
-            summary = get_file_summary(
-                response_tmp,
-                usage="a concise description of the changes made",
-                fallback="Agent changes",
-            )
-        finally:
-            try:
-                os.unlink(response_tmp)
-            except OSError:
-                pass
-        note = f"[{who}] {summary}"
+    commit_note = _build_note(who, note, response)
 
     # Save chat history with actual prompt
     chat_path = save_chat_history(
@@ -118,7 +269,7 @@ def _amend_cl(
     # Run bb_hg_amend
     try:
         result = subprocess.run(
-            ["bb_hg_amend", note],
+            ["bb_hg_amend", commit_note],
             capture_output=True,
             text=True,
             check=False,
@@ -132,7 +283,7 @@ def _amend_cl(
     success = add_commit_entry(
         project_file=project_file,
         cl_name=cl_name,
-        note=note,
+        note=commit_note,
         diff_path=diff_path,
         chat_path=chat_path,
         end_timestamp=timestamp,
