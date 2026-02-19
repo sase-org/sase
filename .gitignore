@@ -51,3 +51,6 @@ explore/
 
 # Private Claude Instructions
 CLAUDE.local.md
+
+# Copied context files (from @ file references)
+.sase/

@@ -111,10 +111,8 @@ def _parse_file_refs(prompt: str) -> _ParsedFileRefs:
                 result.parent_dir_paths.append(file_path)
             continue
 
-        # Check if the file path is in bb/sase/context/ (reserved directory)
-        if file_path.startswith("bb/sase/context/") or file_path.startswith(
-            "./bb/sase/context/"
-        ):
+        # Check if the file path is in .sase/ (reserved directory)
+        if file_path.startswith(".sase/") or file_path.startswith("./.sase/"):
             if file_path not in result.context_dir_paths:
                 result.context_dir_paths.append(file_path)
             continue
@@ -155,12 +153,14 @@ def _print_validation_errors(parsed: _ParsedFileRefs, check_context_dir: bool) -
     if check_context_dir and parsed.context_dir_paths:
         has_errors = True
         print(
-            "\n❌ ERROR: The following file(s) reference the reserved 'bb/sase/context/' directory:"
+            "\n❌ ERROR: The following file(s) reference the reserved '.sase/' directory:"
         )
         for file_path in parsed.context_dir_paths:
             print(f"  - @{file_path}")
-        print("\n⚠️ The 'bb/sase/context/' directory is reserved for system use.")
-        print("⚠️ This directory is cleared and recreated on each agent invocation.")
+        print("\n⚠️ The '.sase/' directory is reserved for system use.")
+        print(
+            "⚠️ This directory stores copies of home-directory files for agent access."
+        )
         print("⚠️ Please reference files from other locations.\n")
 
     if parsed.missing_files:
@@ -215,8 +215,8 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
     Process file paths prefixed with '@' in the prompt.
 
     For absolute paths (when is_home_mode=False):
-    - Copy the file to bb/sase/context/ directory
-    - Replace the path in the prompt with the relative path
+    - Home-directory files (~/ paths): copy to .sase/<path_relative_to_home>/
+    - Non-home absolute files: leave the absolute path in the prompt unchanged
 
     For absolute paths (when is_home_mode=True):
     - Just expand ~ to the full home directory path (no copying)
@@ -225,10 +225,11 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
 
     This function extracts all file paths from the prompt that are prefixed
     with '@' and verifies that:
-    1. Absolute paths exist and are copied to bb/sase/context/ (or just expanded in home mode)
-    2. Relative paths do not start with '..' (to prevent escaping CWD)
-    3. All files exist
-    4. There are no duplicate file path references
+    1. Home-dir absolute paths are copied to .sase/ (or just expanded in home mode)
+    2. Non-home absolute paths are left unchanged in the prompt
+    3. Relative paths do not start with '..' (to prevent escaping CWD)
+    4. All files exist
+    5. There are no duplicate file path references
 
     If any file starts with '..', does not exist, or is duplicated,
     it prints an error message and terminates the script.
@@ -238,7 +239,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
         is_home_mode: If True, skip copying files and just expand tilde paths
 
     Returns:
-        The modified prompt with absolute paths replaced by relative paths to bb/sase/context/
+        The modified prompt with home-dir paths replaced by relative paths to .sase/
         (or expanded paths in home mode)
 
     Raises:
@@ -265,67 +266,39 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
                 )
         return modified_prompt
 
-    # Notify user that we're processing absolute file paths
-    file_count = len(parsed.absolute_paths)
-    file_word = "file" if file_count == 1 else "files"
-    print_status(
-        f"Processing {file_count} absolute {file_word} - copying to bb/sase/context/",
-        "info",
-    )
-
-    # Prepare process-specific context directory to avoid race conditions
-    # when multiple sase processes run in parallel (e.g., summarize-hook workflows)
-    base_context_dir = "bb/sase/context"
-    pid = os.getpid()
-    bb_sase_context_dir = f"{base_context_dir}/{pid}"
-
-    # Clean up stale context directories from dead processes
-    if os.path.exists(base_context_dir):
-        for subdir in os.listdir(base_context_dir):
-            subdir_path = os.path.join(base_context_dir, subdir)
-            if os.path.isdir(subdir_path):
-                try:
-                    old_pid = int(subdir)
-                    # Signal 0 doesn't kill, just checks if process exists
-                    try:
-                        os.kill(old_pid, 0)
-                    except OSError:
-                        # Process doesn't exist, safe to clean up
-                        shutil.rmtree(subdir_path)
-                except ValueError:
-                    pass  # Not a PID-named directory, leave it
-
-    # Clear and recreate this process's context directory
-    if os.path.exists(bb_sase_context_dir):
-        shutil.rmtree(bb_sase_context_dir)
-    Path(bb_sase_context_dir).mkdir(parents=True, exist_ok=True)
-
-    # Copy absolute paths and track replacements
-    replacements: dict[str, str] = {}
-    basename_counts: dict[str, int] = {}
+    # Split absolute paths into home-dir vs non-home
+    home_dir = os.path.expanduser("~")
+    home_paths: list[tuple[str, str]] = []
+    non_home_paths: list[tuple[str, str]] = []
 
     for original_path, expanded_path in parsed.absolute_paths:
-        # Generate unique filename in bb/sase/context/
-        basename = os.path.basename(expanded_path)
-        base_name, ext = os.path.splitext(basename)
-
-        # Handle filename conflicts with counter
-        count = basename_counts.get(basename, 0)
-        basename_counts[basename] = count + 1
-
-        if count == 0:
-            dest_filename = basename
+        if expanded_path.startswith(home_dir + "/") or expanded_path == home_dir:
+            home_paths.append((original_path, expanded_path))
         else:
-            dest_filename = f"{base_name}_{count}{ext}"
+            non_home_paths.append((original_path, expanded_path))
 
-        dest_path = os.path.join(bb_sase_context_dir, dest_filename)
+    # Copy home-directory files to .sase/<relative_path>
+    if home_paths:
+        file_count = len(home_paths)
+        file_word = "file" if file_count == 1 else "files"
+        print_status(
+            f"Processing {file_count} home-dir {file_word} - copying to .sase/",
+            "info",
+        )
 
-        # Copy the file using expanded path
+    replacements: dict[str, str] = {}
+
+    for original_path, expanded_path in home_paths:
+        rel_path = os.path.relpath(expanded_path, home_dir)
+        dest_path = os.path.join(".sase", rel_path)
+
+        # Create parent directories as needed
+        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+
         try:
             shutil.copy2(expanded_path, dest_path)
-            # Track replacement using original path (for prompt substitution)
             replacements[original_path] = dest_path
-            # Notify user of successful copy
+            basename = os.path.basename(expanded_path)
             print_file_operation(f"Copied for Gemini: {basename}", dest_path, True)
         except Exception as e:
             print_status(f"Failed to copy {expanded_path} to {dest_path}: {e}", "error")

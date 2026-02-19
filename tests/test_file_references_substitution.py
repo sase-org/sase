@@ -185,7 +185,7 @@ def test_process_file_references_home_mode_expands_tilde() -> None:
 def test_process_file_references_home_mode_no_copy(
     tmp_path: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that home mode does NOT create bb/sase/context directory."""
+    """Test that home mode does NOT create .sase directory."""
     monkeypatch.chdir(tmp_path)
 
     # Create a temp file with absolute path
@@ -197,8 +197,8 @@ def test_process_file_references_home_mode_no_copy(
         prompt = f"Check @{temp_path}"
         result = process_file_references(prompt, is_home_mode=True)
 
-        # bb/sase/context should NOT be created in home mode
-        context_dir = os.path.join(tmp_path, "bb/sase/context")
+        # .sase should NOT be created in home mode
+        context_dir = os.path.join(tmp_path, ".sase")
         assert not os.path.exists(context_dir)
 
         # Prompt should be unchanged for non-tilde absolute paths
@@ -242,33 +242,62 @@ def test_process_file_references_home_mode_relative_path_unchanged(
     assert "@test_relative.txt" in result
 
 
-def test_process_file_references_normal_mode_copies_files(
+def test_process_file_references_normal_mode_copies_home_files(
     tmp_path: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that normal mode (is_home_mode=False) still copies files."""
+    """Test that normal mode copies home-dir files to .sase/."""
     monkeypatch.chdir(tmp_path)
 
-    # Create a temp file with absolute path
-    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+    home_dir = os.path.expanduser("~")
+
+    # Create a temp file in home directory
+    with tempfile.NamedTemporaryFile(
+        suffix=".txt", dir=home_dir, delete=False, prefix="test_normal_mode_"
+    ) as f:
         temp_path = f.name
         f.write(b"test content")
-        temp_basename = os.path.basename(temp_path)
 
     try:
+        rel_path = os.path.relpath(temp_path, home_dir)
+        tilde_path = "~/" + rel_path
+        prompt = f"Check @{tilde_path}"
+        result = process_file_references(prompt, is_home_mode=False)
+
+        # .sase should be created with home-relative structure
+        dest_path = os.path.join(tmp_path, ".sase", rel_path)
+        assert os.path.exists(dest_path)
+
+        # Prompt should reference the copied file
+        assert f"@.sase/{rel_path}" in result
+    finally:
+        os.unlink(temp_path)
+
+
+def test_process_file_references_normal_mode_non_home_unchanged(
+    tmp_path: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that non-home absolute paths are left unchanged in normal mode."""
+    monkeypatch.chdir(tmp_path)
+
+    # Create a temp file outside home directory (in /tmp)
+    with tempfile.NamedTemporaryFile(
+        suffix=".txt", dir="/tmp", delete=False, prefix="test_non_home_"
+    ) as f:
+        temp_path = f.name
+        f.write(b"test content")
+
+    home_dir = os.path.expanduser("~")
+    try:
+        # Only run if the file is truly outside home dir
+        if temp_path.startswith(home_dir):
+            return
+
         prompt = f"Check @{temp_path}"
         result = process_file_references(prompt, is_home_mode=False)
 
-        # bb/sase/context should be created in normal mode
-        # Note: uses PID-based subdirectory
-        pid = os.getpid()
-        context_dir = os.path.join(tmp_path, f"bb/sase/context/{pid}")
-        assert os.path.exists(context_dir)
-
-        # File should be copied
-        copied_file = os.path.join(context_dir, temp_basename)
-        assert os.path.exists(copied_file)
-
-        # Prompt should reference the copied file
-        assert f"@bb/sase/context/{pid}/{temp_basename}" in result
+        # Non-home absolute path should remain unchanged
+        assert f"@{temp_path}" in result
+        # .sase should NOT be created for non-home files
+        assert not os.path.exists(os.path.join(tmp_path, ".sase"))
     finally:
         os.unlink(temp_path)

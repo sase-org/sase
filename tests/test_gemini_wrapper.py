@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 def testprocess_file_references_tilde_expansion() -> None:
-    """Test that tilde paths are expanded to home directory."""
+    """Test that tilde paths are copied to .sase/ with home-relative structure."""
     # Create a temp file to reference
     with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as f:
         temp_path = f.name
@@ -26,13 +26,14 @@ def testprocess_file_references_tilde_expansion() -> None:
         home_dir = os.path.expanduser("~")
         if temp_path.startswith(home_dir):
             tilde_path = "~" + temp_path[len(home_dir) :]
+            rel_path = os.path.relpath(temp_path, home_dir)
         else:
             # Skip test if temp file is not under home directory
             return
 
         prompt = f"Check this file: @{tilde_path}"
 
-        # Change to a temp directory to avoid issues with bb/sase/context/ in the actual dir
+        # Change to a temp directory to avoid issues with .sase/ in the actual dir
         original_cwd = os.getcwd()
         with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)
@@ -43,14 +44,12 @@ def testprocess_file_references_tilde_expansion() -> None:
                     ):
                         result = process_file_references(prompt)
 
-                # The tilde path should be replaced with a relative path to bb/sase/context/
+                # The tilde path should be replaced with a relative path to .sase/
                 assert f"@{tilde_path}" not in result
-                assert "@bb/sase/context/" in result
+                assert f"@.sase/{rel_path}" in result
 
-                # Check that the file was copied
-                copied_file = os.path.join(
-                    "bb/sase/context", os.path.basename(temp_path)
-                )
+                # Check that the file was copied with home-relative structure
+                copied_file = os.path.join(".sase", rel_path)
                 assert os.path.exists(copied_file)
 
                 # Verify content was copied correctly
@@ -100,16 +99,16 @@ def testprocess_file_references_relative_path_unchanged() -> None:
                 with patch("sase.gemini_wrapper.file_references.print_file_operation"):
                     result = process_file_references(prompt)
 
-            # Relative path should remain unchanged (not copied to bb/sase/context/)
+            # Relative path should remain unchanged (not copied to .sase/)
             assert f"@{test_file}" in result
-            assert "bb/sase/context" not in result
+            assert ".sase/" not in result
         finally:
             os.chdir(original_cwd)
 
 
 def testprocess_file_references_context_dir_blocked() -> None:
-    """Test that referencing bb/sase/context/ directory is blocked."""
-    prompt = "Check this file: @bb/sase/context/test.txt"
+    """Test that referencing .sase/ directory is blocked."""
+    prompt = "Check this file: @.sase/test.txt"
 
     with patch("sase.gemini_wrapper.file_references.print_status"):
         with patch("sase.gemini_wrapper.file_references.print_file_operation"):
@@ -120,8 +119,8 @@ def testprocess_file_references_context_dir_blocked() -> None:
 
 
 def testprocess_file_references_context_dir_with_prefix_blocked() -> None:
-    """Test that referencing ./bb/sase/context/ directory is blocked."""
-    prompt = "Check this file: @./bb/sase/context/test.txt"
+    """Test that referencing ./.sase/ directory is blocked."""
+    prompt = "Check this file: @./.sase/test.txt"
 
     with patch("sase.gemini_wrapper.file_references.print_status"):
         with patch("sase.gemini_wrapper.file_references.print_file_operation"):
