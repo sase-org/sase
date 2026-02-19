@@ -65,6 +65,12 @@ def main() -> NoReturn:
 
         handle_plan_approve_command()
 
+    # --- user-question ---
+    if args.command == "user-question":
+        from .user_question_handler import handle_user_question_command
+
+        handle_user_question_command()
+
     # --- restore ---
     if args.command == "restore":
         handle_restore_command(args)

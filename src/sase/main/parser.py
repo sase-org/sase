@@ -347,6 +347,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Resume a previous conversation. Optionally specify history file basename or path (defaults to most recent).",
     )
 
+    # --- user-question ---
+    top_level_subparsers.add_parser(
+        "user-question",
+        help="Handle user question from Claude Code hook (reads JSON from stdin)",
+    )
+
     # --- xprompt ---
     xprompt_parser = top_level_subparsers.add_parser(
         "xprompt",

@@ -82,6 +82,24 @@ def notify_hitl_request(
     append_notification(n)
 
 
+def notify_user_question(
+    response_dir: str,
+    session_id: str,
+    notes: str,
+) -> None:
+    """Send a notification when Claude Code asks a user question via hook."""
+    n = Notification(
+        id=str(uuid4()),
+        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        sender="question",
+        notes=[notes] if notes else ["Claude is asking a question"],
+        files=[],
+        action="UserQuestion",
+        action_data={"response_dir": response_dir, "session_id": session_id},
+    )
+    append_notification(n)
+
+
 def notify_plan_approval(
     plan_file: str,
     response_dir: str,

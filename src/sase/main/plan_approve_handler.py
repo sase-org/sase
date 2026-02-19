@@ -19,7 +19,7 @@ _POLL_INTERVAL = 0.5
 _TIMEOUT = 600
 
 
-def _emit_hook_decision(decision: str, reason: str = "") -> None:
+def emit_hook_decision(decision: str, reason: str = "") -> None:
     """Print Claude Code PreToolUse hook decision JSON to stdout."""
     output = {
         "hookSpecificOutput": {
@@ -54,7 +54,7 @@ def _find_plan_file(session_id: str) -> str | None:
     return str(max(md_files, key=lambda f: f.stat().st_mtime))
 
 
-def _get_tmux_prefix() -> str:
+def get_tmux_prefix() -> str:
     """Get the tmux window prefix for notifications."""
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
     project_name = os.path.basename(project_dir)
@@ -78,7 +78,7 @@ def _get_tmux_prefix() -> str:
     return prefix
 
 
-def _send_desktop_notification(title: str, message: str) -> None:
+def send_desktop_notification(title: str, message: str) -> None:
     """Send a desktop notification (cross-platform)."""
     import platform
 
@@ -99,7 +99,7 @@ def _send_desktop_notification(title: str, message: str) -> None:
             pass
 
 
-def _ring_tmux_bell() -> None:
+def ring_tmux_bell() -> None:
     """Ring the tmux bell for the window running Claude."""
     tmux_pane = os.environ.get("TMUX_PANE")
     if tmux_pane:
@@ -136,12 +136,12 @@ def handle_plan_approve_command() -> NoReturn:
 
     # If not launched by sase, just notify and approve
     if not os.environ.get("SASE_AGENT"):
-        prefix = _get_tmux_prefix()
-        _send_desktop_notification(
+        prefix = get_tmux_prefix()
+        send_desktop_notification(
             f"{prefix} Plan Complete",
             "Planning phase finished - ready for review",
         )
-        _ring_tmux_bell()
+        ring_tmux_bell()
         sys.exit(0)
 
     # Find plan file
@@ -180,11 +180,11 @@ def handle_plan_approve_command() -> NoReturn:
     )
 
     # Send desktop notification + tmux bell (preserve existing behavior)
-    prefix = _get_tmux_prefix()
-    _send_desktop_notification(
+    prefix = get_tmux_prefix()
+    send_desktop_notification(
         f"{prefix} Plan Complete", "Plan ready for review in sase ace"
     )
-    _ring_tmux_bell()
+    ring_tmux_bell()
 
     # Poll for response file
     start_time = time.time()
@@ -201,12 +201,12 @@ def handle_plan_approve_command() -> NoReturn:
 
                 action = response_data.get("action", "reject")
                 if action == "approve":
-                    _emit_hook_decision("allow", "Plan approved by user in sase ace")
+                    emit_hook_decision("allow", "Plan approved by user in sase ace")
                     sys.exit(0)
                 else:
                     feedback = response_data.get("feedback", "")
                     reason = feedback if feedback else "Plan rejected by user"
-                    _emit_hook_decision("deny", reason)
+                    emit_hook_decision("deny", reason)
                     sys.exit(2)
             except (json.JSONDecodeError, OSError):
                 # Response file exists but couldn't be read, wait and retry
@@ -217,5 +217,5 @@ def handle_plan_approve_command() -> NoReturn:
     # Timeout - clean up and reject
     if request_path.exists():
         request_path.unlink()
-    _emit_hook_decision("deny", "Plan approval timed out")
+    emit_hook_decision("deny", "Plan approval timed out")
     sys.exit(2)
