@@ -87,6 +87,24 @@ class VCSProvider(ABC):
 
     # --- Optional core methods (default raises NotImplementedError) ---
 
+    def resolve_revision(
+        self, changespec_name: str, project_basename: str, cwd: str
+    ) -> str:
+        """Resolve a ChangeSpec name to a valid VCS revision.
+
+        The default implementation returns *changespec_name* unchanged,
+        which is correct for VCS backends (like hg) where the bookmark
+        name matches the ChangeSpec name.
+        """
+        return changespec_name
+
+    def show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+        """Show the patch content for a specific revision.
+
+        Returns ``(True, patch_text)`` on success.
+        """
+        raise NotImplementedError("show_revision is not supported by this VCS provider")
+
     def get_default_parent_revision(self, cwd: str) -> str:
         """Return the default parent revision for this VCS (e.g. p4head, origin/main)."""
         raise NotImplementedError(

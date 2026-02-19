@@ -354,3 +354,72 @@ def test_git_stash_and_clean_clean_fails(mock_run: MagicMock) -> None:
     assert success is False
     assert error is not None
     assert "git clean -fd failed" in error
+
+
+# === Tests for resolve_revision ===
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_resolve_revision_valid_ref(mock_run: MagicMock) -> None:
+    """Test resolve_revision returns name as-is when it's a valid git ref."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="abc123\n", stderr="")
+
+    provider = _GitProvider()
+    result = provider.resolve_revision("sase_dull_basin__1", "sase", "/workspace")
+
+    assert result == "sase_dull_basin__1"
+    assert mock_run.call_args[0][0] == [
+        "git",
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "sase_dull_basin__1",
+    ]
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_resolve_revision_falls_back_to_branch(mock_run: MagicMock) -> None:
+    """Test resolve_revision derives branch name when ref is invalid."""
+    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+
+    provider = _GitProvider()
+    result = provider.resolve_revision("sase_dull_basin__1", "sase", "/workspace")
+
+    assert result == "dull-basin"
+
+
+# === Tests for show_revision ===
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_show_revision_success(mock_run: MagicMock) -> None:
+    """Test show_revision returns patch content on success."""
+    mock_run.return_value = MagicMock(
+        returncode=0, stdout="diff --git a/f b/f\n+hello\n", stderr=""
+    )
+
+    provider = _GitProvider()
+    success, output = provider.show_revision("abc123", "/workspace")
+
+    assert success is True
+    assert output == "diff --git a/f b/f\n+hello\n"
+    assert mock_run.call_args[0][0] == [
+        "git",
+        "show",
+        "--format=",
+        "--patch",
+        "abc123",
+    ]
+
+
+@patch("sase.vcs_provider._git.subprocess.run")
+def test_show_revision_failure(mock_run: MagicMock) -> None:
+    """Test show_revision returns error on failure."""
+    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="bad revision")
+
+    provider = _GitProvider()
+    success, error = provider.show_revision("bad-ref", "/workspace")
+
+    assert success is False
+    assert error is not None
+    assert "git show failed" in error

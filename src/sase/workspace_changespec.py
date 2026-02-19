@@ -135,7 +135,7 @@ def create_changespec_for_workflow(
     hooks = get_initial_hooks_for_changespec(verbose=False)
     cl_label = get_cl_field_label(project_file)
 
-    return add_changespec_to_project_file(
+    result = add_changespec_to_project_file(
         project_name,
         cl_name,
         description,
@@ -145,3 +145,17 @@ def create_changespec_for_workflow(
         initial_commits=[(1, "[run] Initial Commit", chat_path, diff_path)],
         cl_label=cl_label,
     )
+
+    # Rename the git branch to match the derived branch name
+    if result is not None:
+        from sase.sase_utils import changespec_name_to_branch
+
+        derived_branch = changespec_name_to_branch(cl_name, project_name)
+        subprocess.run(
+            ["git", "branch", "-m", derived_branch],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    return result

@@ -87,6 +87,19 @@ def strip_reverted_suffix(name: str) -> str:
     return match.group(1) if match else name
 
 
+def changespec_name_to_branch(name: str, project_basename: str) -> str:
+    """Derive the git branch name from a ChangeSpec NAME.
+
+    Strips project prefix and __<N> suffix, converts underscores to hyphens.
+    Example: changespec_name_to_branch("sase_dull_basin__1", "sase") -> "dull-basin"
+    """
+    name = strip_reverted_suffix(name)
+    prefix = f"{project_basename}_"
+    if name.startswith(prefix):
+        name = name[len(prefix) :]
+    return name.replace("_", "-")
+
+
 def has_suffix(name: str) -> bool:
     """Check if a ChangeSpec name has a __<N> suffix.
 

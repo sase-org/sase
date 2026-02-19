@@ -36,7 +36,10 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
 
     try:
         provider = get_vcs_provider(target_dir)
-        success, diff_text = provider.diff_revision(changespec.name, target_dir)
+        resolved = provider.resolve_revision(
+            changespec.name, changespec.project_basename, target_dir
+        )
+        success, diff_text = provider.diff_revision(resolved, target_dir)
         if not success:
             self.console.print(f"[red]Error showing diff: {diff_text}[/red]")
             return

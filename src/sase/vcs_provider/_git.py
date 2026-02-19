@@ -214,6 +214,30 @@ class _GitProvider(VCSProvider):
 
     # --- Optional core methods ---
 
+    def resolve_revision(
+        self, changespec_name: str, project_basename: str, cwd: str
+    ) -> str:
+        """Resolve a ChangeSpec name to a valid git revision.
+
+        If *changespec_name* is already a valid git ref, return it as-is.
+        Otherwise, derive the branch name via ``changespec_name_to_branch()``.
+        """
+        out = self._run(
+            ["git", "rev-parse", "--verify", "--quiet", changespec_name], cwd
+        )
+        if out.success:
+            return changespec_name
+        from sase.sase_utils import changespec_name_to_branch
+
+        return changespec_name_to_branch(changespec_name, project_basename)
+
+    def show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+        """Show the patch content for a specific git revision."""
+        out = self._run(["git", "show", "--format=", "--patch", revision], cwd)
+        if not out.success:
+            return (False, f"git show failed: {out.stderr.strip()}")
+        return (True, out.stdout)
+
     def get_default_parent_revision(self, cwd: str) -> str:
         # Reuse logic from sync_workspace for detecting default branch
         branch_out = self._run(["git", "symbolic-ref", "refs/remotes/origin/HEAD"], cwd)
