@@ -129,7 +129,7 @@ def submit_git_changespec(
 
         # Bare git or gh without PR: local merge + push
         return _submit_via_local_merge(
-            changespec, ws_dir, default_branch, provider, console
+            changespec, ws_dir, default_branch, provider, workspace_dir, console
         )
 
     finally:
@@ -207,22 +207,24 @@ def _submit_via_local_merge(
     ws_dir: str,
     default_branch: str,
     provider: VCSProvider,
+    primary_ws_dir: str,
     console: Console | None,
 ) -> tuple[bool, str | None]:
-    """Submit by performing a local merge to the default branch."""
+    """Submit by performing a local merge to the default branch.
+
+    The merge, push, and branch cleanup are all done in ``primary_ws_dir``
+    (the primary workspace where the default branch is already checked out)
+    rather than ``ws_dir`` (a worktree that cannot check out the default
+    branch because it is already in use).
+    """
     branch_name = provider.resolve_revision(
         changespec.name, changespec.project_basename, ws_dir
     )
 
-    # Checkout default branch
-    success, error = provider.checkout(default_branch, ws_dir)
-    if not success:
-        return (False, f"git checkout {default_branch} failed: {error}")
-
-    # Merge the branch
+    # Merge the branch (primary workspace already has default branch checked out)
     result = subprocess.run(
         ["git", "merge", branch_name],
-        cwd=ws_dir,
+        cwd=primary_ws_dir,
         capture_output=True,
         text=True,
         check=False,
@@ -231,7 +233,7 @@ def _submit_via_local_merge(
         # Abort the merge on conflict
         subprocess.run(
             ["git", "merge", "--abort"],
-            cwd=ws_dir,
+            cwd=primary_ws_dir,
             capture_output=True,
             text=True,
             check=False,
@@ -244,7 +246,7 @@ def _submit_via_local_merge(
     # Push
     result = subprocess.run(
         ["git", "push"],
-        cwd=ws_dir,
+        cwd=primary_ws_dir,
         capture_output=True,
         text=True,
         check=False,
@@ -258,7 +260,7 @@ def _submit_via_local_merge(
     # Delete local branch
     subprocess.run(
         ["git", "branch", "-d", branch_name],
-        cwd=ws_dir,
+        cwd=primary_ws_dir,
         capture_output=True,
         text=True,
         check=False,
@@ -267,7 +269,7 @@ def _submit_via_local_merge(
     # Delete remote branch
     subprocess.run(
         ["git", "push", "origin", "--delete", branch_name],
-        cwd=ws_dir,
+        cwd=primary_ws_dir,
         capture_output=True,
         text=True,
         check=False,
