@@ -204,7 +204,7 @@ def handle_plan_approve_command() -> NoReturn:
                 if action == "approve":
                     # Write marker so agent runner knows to resume for implementation
                     marker_path = response_dir / "plan_approved.marker"
-                    marker_path.write_text("approved")
+                    marker_path.write_text(plan_file or "")
 
                     emit_hook_decision("allow", "Plan approved by user in sase ace")
                     sys.exit(0)

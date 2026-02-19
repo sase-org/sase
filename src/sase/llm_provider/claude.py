@@ -1,6 +1,7 @@
 """Claude Code LLM provider implementation."""
 
 import os
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -109,53 +110,77 @@ class ClaudeCodeProvider(LLMProvider):
                 stderr=stderr_content,
             )
 
-        # Check if plan was approved — if so, resume session for implementation
-        marker_path = (
-            Path.home()
-            / ".sase"
-            / "plan_approval"
-            / session_uuid
-            / "plan_approved.marker"
-        )
+        # Check if plan was approved — if so, start fresh session for implementation
+        approval_dir = Path.home() / ".sase" / "plan_approval" / session_uuid
+        marker_path = approval_dir / "plan_approved.marker"
         if marker_path.exists():
-            marker_path.unlink()
+            plan_file_path = marker_path.read_text().strip()
+            # Clean up the approval directory
+            shutil.rmtree(approval_dir)
 
-            resume_args = [
+            if plan_file_path:
+                # Copy plan to ~/.sase/plans/ for the new session
+                sase_plans_dir = Path.home() / ".sase" / "plans"
+                sase_plans_dir.mkdir(parents=True, exist_ok=True)
+                src = Path(plan_file_path)
+                dest = sase_plans_dir / src.name
+                # Handle name conflicts by appending a suffix
+                if dest.exists():
+                    stem = src.stem
+                    suffix = src.suffix
+                    counter = 1
+                    while dest.exists():
+                        dest = sase_plans_dir / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                shutil.copy2(src, dest)
+                saved_plan_path = dest
+            else:
+                saved_plan_path = None
+
+            impl_session_uuid = str(uuid.uuid4())
+            impl_args = [
                 "claude",
                 "-p",
-                "--resume",
-                session_uuid,
                 "--verbose",
                 "--model",
                 model_alias,
                 "--output-format",
                 "stream-json",
                 "--dangerously-skip-permissions",
+                "--session-id",
+                impl_session_uuid,
             ]
             if extra_args_env:
                 for arg in extra_args_env.split():
-                    resume_args.append(arg)
+                    impl_args.append(arg)
 
-            resume_prompt = (
-                "Your plan has been reviewed and approved by the user. "
-                "Proceed with implementing the plan now."
-            )
+            if saved_plan_path:
+                impl_prompt = (
+                    f"@{saved_plan_path}\n\n"
+                    "The above plan has been reviewed and approved. "
+                    "Implement it now."
+                )
+            else:
+                impl_prompt = (
+                    "Your plan has been reviewed and approved by the user. "
+                    "Proceed with implementing the plan now."
+                )
 
             if timer_context:
                 with gemini_timer("Implementing plan"):
                     impl_content, impl_stderr, impl_rc = self._run_subprocess(
-                        resume_args, resume_prompt, suppress_output
+                        impl_args, impl_prompt, suppress_output
                     )
                     print()
             else:
                 impl_content, impl_stderr, impl_rc = self._run_subprocess(
-                    resume_args, resume_prompt, suppress_output
+                    impl_args, impl_prompt, suppress_output
                 )
 
             if impl_rc != 0:
                 raise subprocess.CalledProcessError(
                     impl_rc,
-                    resume_args,
+                    impl_args,
                     output=impl_content,
                     stderr=impl_stderr,
                 )
