@@ -89,7 +89,8 @@ def _fetch_cl_description(
         return None
 
     provider = get_vcs_provider(target_dir)
-    success, description = provider.get_description(changespec_name, target_dir)
+    resolved = provider.resolve_revision(changespec_name, project_basename, target_dir)
+    success, description = provider.get_description(resolved, target_dir)
     if not success:
         console.print(f"[red]{description}[/red]")
         return None
@@ -224,8 +225,11 @@ def handle_add_tag(
 
         # Update to the changespec (checkout the CL)
         provider = get_vcs_provider(workspace_dir)
+        resolved = provider.resolve_revision(
+            changespec.name, changespec.project_basename, workspace_dir
+        )
         self.console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
-        checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
+        checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             self.console.print(f"[red]Error checking out CL: {checkout_err}[/red]")
             return
@@ -338,8 +342,11 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
 
         # Update to the changespec (checkout the CL)
         provider = get_vcs_provider(workspace_dir)
+        resolved = provider.resolve_revision(
+            changespec.name, changespec.project_basename, workspace_dir
+        )
         self.console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
-        checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
+        checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             self.console.print(f"[red]Error checking out CL: {checkout_err}[/red]")
             return

@@ -30,6 +30,7 @@ def test_update_to_changespec_with_parent() -> None:
 
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
 
     with patch("sase.ace.operations.get_workspace_dir_from_project") as mock_get_ws:
         mock_get_ws.return_value = "/tmp/project/src"
@@ -52,6 +53,7 @@ def test_update_to_changespec_without_parent() -> None:
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
     mock_provider.get_default_parent_revision.return_value = "p4head"
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
 
     with patch("sase.ace.operations.get_workspace_dir_from_project") as mock_get_ws:
         mock_get_ws.return_value = "/tmp/project/src"
@@ -78,6 +80,7 @@ def test_update_to_changespec_with_revision() -> None:
 
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
 
     with patch("sase.ace.operations.get_workspace_dir_from_project") as mock_get_ws:
         mock_get_ws.return_value = "/tmp/project/src"
@@ -103,6 +106,7 @@ def test_update_to_changespec_with_workspace_dir() -> None:
 
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
 
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("sase.vcs_provider.get_vcs_provider", return_value=mock_provider):

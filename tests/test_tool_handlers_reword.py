@@ -66,6 +66,7 @@ def test_fetch_cl_description_success(
     mock_get_ws.return_value = "/workspace"
     mock_provider = MagicMock()
     mock_provider.get_description.return_value = (True, "My CL description\n")
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
     mock_get_provider.return_value = mock_provider
     console = MagicMock()
 

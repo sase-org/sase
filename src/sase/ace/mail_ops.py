@@ -53,7 +53,10 @@ def _has_valid_parent(changespec: ChangeSpec) -> tuple[bool, ChangeSpec | None]:
 
 
 def _get_cl_description(
-    revision: str, target_dir: str, console: Console
+    revision: str,
+    target_dir: str,
+    console: Console,
+    project_basename: str = "",
 ) -> tuple[bool, str | None]:
     """Get the CL description for a specific revision using cl_desc command.
 
@@ -61,11 +64,14 @@ def _get_cl_description(
         revision: The revision/branch name to get the description for
         target_dir: Directory to run cl_desc in
         console: Rich console for output
+        project_basename: Project basename for resolving ChangeSpec names to git refs
 
     Returns:
         Tuple of (success, description or None)
     """
     provider = get_vcs_provider(target_dir)
+    if project_basename:
+        revision = provider.resolve_revision(revision, project_basename, target_dir)
     success, result = provider.get_description(revision, target_dir)
     if not success:
         console.print(f"[red]{result}[/red]")
@@ -302,7 +308,12 @@ def _prepare_mail_git(
         console.print(f"\n[cyan]Branch: {branch_name}[/cyan]")
 
     # Display current description
-    success, current_desc = _get_cl_description(changespec.name, target_dir, console)
+    success, current_desc = _get_cl_description(
+        changespec.name,
+        target_dir,
+        console,
+        project_basename=changespec.project_basename,
+    )
     if success and current_desc:
         from rich.markup import escape as escape_markup
         from rich.panel import Panel
@@ -369,7 +380,12 @@ def _prepare_mail_hg(
     if reviewers:
         # Get current CL description
         console.print("[cyan]Getting CL description...[/cyan]")
-        success, description = _get_cl_description(changespec.name, target_dir, console)
+        success, description = _get_cl_description(
+            changespec.name,
+            target_dir,
+            console,
+            project_basename=changespec.project_basename,
+        )
         if not success or not description:
             return None
 
@@ -378,6 +394,9 @@ def _prepare_mail_hg(
         parent_branch_number = None
 
         provider = get_vcs_provider(target_dir)
+        current_branch = provider.resolve_revision(
+            changespec.name, changespec.project_basename, target_dir
+        )
 
         if has_valid_parent_flag and parent_cs:
             # Get parent's branch number
@@ -386,11 +405,12 @@ def _prepare_mail_hg(
             )
 
             # We need to temporarily update to the parent to get its branch number
-            # Save current branch name
-            current_branch = changespec.name
+            resolved_parent = provider.resolve_revision(
+                parent_cs.name, changespec.project_basename, target_dir
+            )
 
             # Update to parent branch
-            checkout_ok, checkout_err = provider.checkout(parent_cs.name, target_dir)
+            checkout_ok, checkout_err = provider.checkout(resolved_parent, target_dir)
             if not checkout_ok:
                 console.print(
                     f"[red]Error updating to parent branch: {checkout_err}[/red]"
@@ -425,7 +445,7 @@ def _prepare_mail_hg(
 
         # Ensure we're on the correct branch before rewording
         console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
-        checkout_ok, checkout_err = provider.checkout(changespec.name, target_dir)
+        checkout_ok, checkout_err = provider.checkout(current_branch, target_dir)
         if not checkout_ok:
             console.print(
                 f"[red]Error checking out {changespec.name}: {checkout_err}[/red]"
@@ -444,7 +464,12 @@ def _prepare_mail_hg(
         console.print("[cyan]No reviewers provided - skipping reword step[/cyan]")
 
     # Display current CL description for user review
-    success, current_desc = _get_cl_description(changespec.name, target_dir, console)
+    success, current_desc = _get_cl_description(
+        changespec.name,
+        target_dir,
+        console,
+        project_basename=changespec.project_basename,
+    )
     if success and current_desc:
         from rich.markup import escape as escape_markup
         from rich.panel import Panel
@@ -489,7 +514,10 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
     """
     console.print(f"[cyan]Sending change for review: {changespec.name}[/cyan]")
     provider = get_vcs_provider(target_dir)
-    success, error = provider.mail(changespec.name, target_dir)
+    resolved = provider.resolve_revision(
+        changespec.name, changespec.project_basename, target_dir
+    )
+    success, error = provider.mail(resolved, target_dir)
     if not success:
         console.print(f"[red]{error}[/red]")
         return False

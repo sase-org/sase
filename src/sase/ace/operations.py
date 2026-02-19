@@ -143,6 +143,10 @@ def update_to_changespec(
             else provider.get_default_parent_revision(target_dir)
         )
 
+    update_target = provider.resolve_revision(
+        update_target, changespec.project_basename, target_dir
+    )
+
     return provider.checkout(update_target, target_dir)
 
 
@@ -241,7 +245,10 @@ def save_diff_to_file(
         from sase.vcs_provider import get_vcs_provider
 
         provider = get_vcs_provider(workspace_dir)
-        success, diff_text = provider.diff_revision(changespec.name, workspace_dir)
+        resolved = provider.resolve_revision(
+            changespec.name, changespec.project_basename, workspace_dir
+        )
+        success, diff_text = provider.diff_revision(resolved, workspace_dir)
 
         if not success:
             return (False, f"hg diff failed: {diff_text}")

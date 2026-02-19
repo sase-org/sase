@@ -146,7 +146,10 @@ def revert_changespec(
 
         # Run sase_hg_prune
         provider = get_vcs_provider(workspace_dir)
-        success, error = provider.prune(changespec.name, workspace_dir)
+        resolved = provider.resolve_revision(
+            changespec.name, changespec.project_basename, workspace_dir
+        )
+        success, error = provider.prune(resolved, workspace_dir)
         if not success:
             return (False, f"Failed to prune revision: {error}")
 

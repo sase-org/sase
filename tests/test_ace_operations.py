@@ -249,6 +249,7 @@ def test_update_to_changespec_success_with_revision(
     """Test update_to_changespec succeeds with specified revision."""
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
     mock_get_provider.return_value = mock_provider
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -270,6 +271,7 @@ def test_update_to_changespec_uses_parent_revision(
     """Test update_to_changespec uses parent when no revision specified."""
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
     mock_get_provider.return_value = mock_provider
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -290,6 +292,7 @@ def test_update_to_changespec_uses_provider_default(
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
     mock_provider.get_default_parent_revision.return_value = "p4head"
+    mock_provider.resolve_revision.side_effect = lambda name, *_: name
     mock_get_provider.return_value = mock_provider
 
     with tempfile.TemporaryDirectory() as tmpdir:

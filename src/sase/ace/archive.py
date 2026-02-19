@@ -109,7 +109,10 @@ def archive_changespec(
             console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
 
         provider = get_vcs_provider(workspace_dir)
-        success, error = provider.checkout(changespec.name, workspace_dir)
+        resolved = provider.resolve_revision(
+            changespec.name, project_basename, workspace_dir
+        )
+        success, error = provider.checkout(resolved, workspace_dir)
         if not success:
             return (False, f"Failed to checkout CL: {error}")
 
@@ -134,7 +137,7 @@ def archive_changespec(
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
         # Run sase_hg_archive
-        success, error = provider.archive(changespec.name, workspace_dir)
+        success, error = provider.archive(resolved, workspace_dir)
         if not success:
             return (False, f"Failed to archive revision: {error}")
 
