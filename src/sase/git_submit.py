@@ -22,8 +22,21 @@ from sase.running_field import (
     get_workspace_directory_for_num,
     release_workspace,
 )
-from sase.sase_utils import generate_timestamp
+from sase.sase_utils import generate_timestamp, strip_reverted_suffix
 from sase.status_state_machine import transition_changespec_status
+
+
+def _changespec_name_to_branch(changespec: ChangeSpec) -> str:
+    """Derive the git branch name from a ChangeSpec NAME.
+
+    Strips project prefix and __<N> suffix, converts underscores to hyphens.
+    Example: "sase_dull_basin__1" -> "dull-basin"
+    """
+    name = strip_reverted_suffix(changespec.name)
+    prefix = f"{changespec.project_basename}_"
+    if name.startswith(prefix):
+        name = name[len(prefix):]
+    return name.replace("_", "-")
 
 
 def submit_git_changespec(
@@ -106,7 +119,8 @@ def submit_git_changespec(
         from sase.vcs_provider import get_vcs_provider
 
         provider = get_vcs_provider(ws_dir)
-        success, error = provider.checkout(changespec.name, ws_dir)
+        branch_name = _changespec_name_to_branch(changespec)
+        success, error = provider.checkout(branch_name, ws_dir)
         if not success:
             return (False, f"Failed to checkout branch: {error}")
 
@@ -205,7 +219,7 @@ def _submit_via_local_merge(
     console: Console | None,
 ) -> tuple[bool, str | None]:
     """Submit by performing a local merge to the default branch."""
-    branch_name = changespec.name
+    branch_name = _changespec_name_to_branch(changespec)
 
     # Checkout default branch
     result = subprocess.run(
