@@ -1151,3 +1151,55 @@ RunnersModal #runners-footer {
     border-top: solid $secondary;
     padding-top: 1;
 }
+
+/* ===== User Question Modal Styling ===== */
+
+UserQuestionModal {
+    align: center middle;
+}
+
+#user-question-container {
+    width: 80%;
+    max-width: 120;
+    height: 70%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#user-question-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#user-question-text {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#user-question-options {
+    height: 1fr;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+}
+
+#user-question-other-input {
+    width: 100%;
+    margin-top: 1;
+}
+
+#user-question-global-input {
+    width: 100%;
+    margin-top: 1;
+}
+
+#user-question-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}

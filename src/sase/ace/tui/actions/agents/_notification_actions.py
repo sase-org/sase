@@ -152,6 +152,74 @@ def handle_hitl(app: object, notification: Notification) -> bool:
     return True
 
 
+def handle_user_question(app: object, notification: Notification) -> bool:
+    """Show the user question modal for a Claude Code AskUserQuestion hook.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing
+            response_dir and session_id.
+
+    Returns:
+        True if the user question modal was pushed.
+    """
+    import json
+    from pathlib import Path
+
+    from ...modals import UserQuestionModal, UserQuestionResult
+
+    response_dir = notification.action_data.get("response_dir")
+    if not response_dir:
+        app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    response_path = Path(response_dir)
+    request_path = response_path / "question_request.json"
+
+    if not request_path.exists():
+        app.notify("User question request expired or not found", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    try:
+        with open(request_path, encoding="utf-8") as f:
+            request_data = json.load(f)
+    except Exception as e:
+        app.notify(f"Error reading question request: {e}", severity="error")  # type: ignore[attr-defined]
+        return False
+
+    questions = request_data.get("questions", [])
+
+    def on_dismiss(result: object) -> None:
+        if result is None:
+            return
+        if not isinstance(result, UserQuestionResult):
+            return
+
+        # Build response data matching user_question_handler._format_answers format
+        response_data: dict[str, object] = {
+            "answers": [
+                {
+                    "question": a.question,
+                    "selected": a.selected,
+                    "custom_feedback": a.custom_feedback,
+                }
+                for a in result.answers
+            ],
+            "global_note": result.global_note,
+        }
+
+        question_response_path = response_path / "question_response.json"
+        try:
+            with open(question_response_path, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, indent=2)
+            app.notify("Sent question response")  # type: ignore[attr-defined]
+        except Exception as e:
+            app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
+
+    app.push_screen(UserQuestionModal(questions), on_dismiss)  # type: ignore[attr-defined]
+    return True
+
+
 def handle_plan_approval(app: object, notification: Notification) -> bool:
     """Show the plan approval modal for a Claude Code plan.
 

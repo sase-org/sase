@@ -30,6 +30,7 @@ _ACTION_BADGES: dict[str | None, str] = {
     "Tmux": "[tmux]",
     "HITL": "[HITL]",
     "PlanApproval": "[plan]",
+    "UserQuestion": "[question]",
 }
 
 

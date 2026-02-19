@@ -81,6 +81,7 @@ class AgentNotificationMixin:
             handle_jump_to_changespec,
             handle_plan_approval,
             handle_tmux,
+            handle_user_question,
         )
         from ...modals import NotificationModal
 
@@ -112,5 +113,7 @@ class AgentNotificationMixin:
                 handle_hitl(self, result)
             elif result.action == "PlanApproval":
                 handle_plan_approval(self, result)
+            elif result.action == "UserQuestion":
+                handle_user_question(self, result)
 
         self.push_screen(NotificationModal(unread), callback=_on_dismiss)  # type: ignore[attr-defined]
