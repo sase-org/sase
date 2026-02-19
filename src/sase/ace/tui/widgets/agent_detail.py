@@ -72,7 +72,18 @@ class AgentDetail(Static):
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
 
+        # Detect agent change and reset auto-shown thinking flag
+        prev_agent = self._current_agent
         self._current_agent = agent
+        if (
+            self._thinking_auto_shown
+            and prev_agent is not None
+            and prev_agent.identity != agent.identity
+        ):
+            self._thinking_auto_shown = False
+            thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+            thinking_scroll.add_class("hidden")
+
         prompt_panel.update_display(agent)
 
         # When thinking panel is visible, keep it showing and just refresh data

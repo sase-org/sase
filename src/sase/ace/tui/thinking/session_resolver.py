@@ -1,6 +1,7 @@
 """Resolve an Agent to its Claude Code JSONL session transcript."""
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent
@@ -12,13 +13,33 @@ def resolve_agent_session(agent: Agent) -> Path | None:
     Resolution chain: Agent → project_name → workspace CWD →
     hash CWD → ~/.claude/projects/{hash}/ → most recent .jsonl
     """
+    paths = resolve_agent_sessions(agent)
+    return paths[-1] if paths else None
+
+
+def resolve_agent_sessions(agent: Agent, since: datetime | None = None) -> list[Path]:
+    """Resolve an Agent to all JSONL transcript paths modified since a time.
+
+    When ``since`` is provided, returns all JSONL files modified after that
+    time (sorted oldest-first).  When ``since`` is None, falls back to
+    returning only the single most-recent file (wrapped in a list).
+
+    Resolution chain: Agent → project_name → workspace CWD →
+    hash CWD → ~/.claude/projects/{hash}/ → matching .jsonl files
+    """
     cwd = _get_workspace_cwd(agent)
     if cwd is None:
-        return None
+        return []
     claude_dir = _cwd_to_claude_project_dir(cwd)
     if not claude_dir.is_dir():
-        return None
-    return _find_most_recent_jsonl(claude_dir)
+        return []
+
+    if since is not None:
+        return _find_jsonl_files_since(claude_dir, since)
+
+    # Fallback: single most-recent file
+    newest = _find_most_recent_jsonl(claude_dir)
+    return [newest] if newest is not None else []
 
 
 def _get_workspace_cwd(agent: Agent) -> str | None:
@@ -56,3 +77,11 @@ def _find_most_recent_jsonl(directory: Path) -> Path | None:
     if not jsonl_files:
         return None
     return max(jsonl_files, key=lambda p: p.stat().st_mtime)
+
+
+def _find_jsonl_files_since(directory: Path, since: datetime) -> list[Path]:
+    """Find all JSONL files modified since a given time, sorted oldest-first."""
+    since_ts = since.timestamp()
+    matching = [p for p in directory.glob("*.jsonl") if p.stat().st_mtime >= since_ts]
+    matching.sort(key=lambda p: p.stat().st_mtime)
+    return matching

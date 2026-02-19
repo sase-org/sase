@@ -13,8 +13,8 @@ from textual.worker import Worker, WorkerState
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.thinking import (
     ThinkingBlock,
-    parse_thinking_blocks,
-    resolve_agent_session,
+    parse_thinking_blocks_multi,
+    resolve_agent_sessions,
 )
 
 
@@ -46,12 +46,15 @@ _thinking_cache: dict[str, _ThinkingCacheEntry] = {}
 def _get_cache_key(agent: Agent) -> str:
     """Generate a unique cache key for an agent's thinking output.
 
-    Includes agent type and workspace to ensure different agents
-    don't share cached thinking incorrectly.
+    Includes agent type, workspace, and raw_suffix to ensure different
+    agents don't share cached thinking incorrectly.
     """
+    parts = [agent.cl_name, agent.agent_type.value]
     if agent.workspace_num is not None:
-        return f"{agent.cl_name}:{agent.agent_type.value}:{agent.workspace_num}"
-    return f"{agent.cl_name}:{agent.agent_type.value}"
+        parts.append(str(agent.workspace_num))
+    if agent.raw_suffix:
+        parts.append(agent.raw_suffix)
+    return ":".join(parts)
 
 
 def _format_timestamp(iso_str: str) -> str:
@@ -352,11 +355,11 @@ class AgentThinkingPanel(Static):
         Returns:
             List of ThinkingBlock, None if no session, [] if no blocks.
         """
-        session_path = resolve_agent_session(agent)
-        if session_path is None:
+        session_paths = resolve_agent_sessions(agent, since=agent.start_time)
+        if not session_paths:
             blocks: list[ThinkingBlock] | None = None
         else:
-            blocks = parse_thinking_blocks(session_path)
+            blocks = parse_thinking_blocks_multi(session_paths)
 
         # Store in cache
         cache_key = _get_cache_key(agent)

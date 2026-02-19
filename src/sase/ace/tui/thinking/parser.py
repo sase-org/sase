@@ -32,6 +32,23 @@ def parse_thinking_blocks(jsonl_path: Path) -> list[ThinkingBlock]:
     return _extract_thinking_blocks(events)
 
 
+def parse_thinking_blocks_multi(paths: list[Path]) -> list[ThinkingBlock]:
+    """Parse thinking blocks from multiple JSONL transcripts.
+
+    Reads lines from all paths (oldest-first order expected), merges
+    them, and extracts thinking blocks.  Returns blocks in newest-first
+    order, with indices numbered sequentially across all files.
+    """
+    all_lines: list[str] = []
+    for p in paths:
+        if p.exists():
+            all_lines.extend(_read_jsonl_lines(p))
+    if not all_lines:
+        return []
+    events = _parse_events(all_lines)
+    return _extract_thinking_blocks(events)
+
+
 def _read_jsonl_lines(path: Path) -> list[str]:
     """Read JSONL lines from a file.
 
