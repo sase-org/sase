@@ -32,6 +32,27 @@ def test_vcs_dot_prompt_triggers_history_picker() -> None:
     mock_run.assert_called_once_with("#gh:sase selected prompt")
 
 
+def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:
+    """Test that '#gh:sase .' as a single arg triggers the prompt history picker."""
+    mock_picker = MagicMock(return_value="selected prompt")
+    with (
+        patch(
+            "sase.main.query_handler.special_cases.show_prompt_history_picker",
+            mock_picker,
+        ),
+        patch(
+            "sase.main.query_handler.special_cases._resolve_vcs_project_info",
+            return_value=("sase", "sase"),
+        ),
+        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        pytest.raises(SystemExit),
+    ):
+        handle_run_special_cases(["#gh:sase ."])
+
+    mock_picker.assert_called_once_with(sort_by="sase", workspace="sase")
+    mock_run.assert_called_once_with("#gh:sase selected prompt")
+
+
 def test_resolve_vcs_project_info_repo_path() -> None:
     """Test resolving a user/project repo path."""
     sort_by, workspace = _resolve_vcs_project_info("bbugyi200/sase")
