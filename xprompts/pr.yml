@@ -3,110 +3,107 @@ input:
     type: word
 
 steps:
-  - name: resolve
-    python: |
-      from sase.ace.changespec import find_all_changespecs
-      from sase.gh_workspace import parse_workspace_dir, get_default_branch
-      import os
-
-      name = {{ name | tojson }}
-
-      # Find the ChangeSpec
-      changespec = None
-      for cs in find_all_changespecs():
-          if cs.name == name:
-              changespec = cs
-              break
-
-      if changespec is None:
-          print(f"error=ChangeSpec '{name}' not found")
-          print("project_file=")
-          print("workspace_dir=")
-          print("default_branch=")
-          print("branch_name=")
-      else:
-          project_file = changespec.file_path
-          workspace_dir = parse_workspace_dir(project_file)
-          if not workspace_dir:
-              print("error=WORKSPACE_DIR is not set for this project")
-              print(f"project_file={project_file}")
-              print("workspace_dir=")
-              print("default_branch=")
-              print(f"branch_name={name}")
-          else:
-              default_branch_ref = get_default_branch(workspace_dir)
-              default_branch = default_branch_ref.rsplit("/", 1)[-1]
-              print("error=")
-              print(f"project_file={project_file}")
-              print(f"workspace_dir={workspace_dir}")
-              print(f"default_branch={default_branch}")
-              print(f"branch_name={name}")
-              print(f"_chdir={workspace_dir}")
+  - name: create_branch
+    bash: |
+      BRANCH="{{ name }}"
+      git checkout -b "$BRANCH" 2>&1
+      git push -u origin "$BRANCH" 2>&1
+      echo "branch_name=$BRANCH"
+      echo "meta_changespec=$BRANCH"
     output:
-      error: line
-      project_file: path
-      workspace_dir: path
-      default_branch: word
       branch_name: word
 
-  - name: check_existing
-    if: "{{ not resolve.error }}"
-    bash: |
-      EXISTING_URL=$(gh pr view "{{ resolve.branch_name }}" --json url --jq '.url' 2>/dev/null || echo "")
-      if [ -n "$EXISTING_URL" ]; then
-        echo "existing_url=$EXISTING_URL"
-        echo "has_existing=true"
-      else
-        echo "existing_url="
-        echo "has_existing=false"
-      fi
-    output: { existing_url: line, has_existing: bool }
+  - name: inject
+    prompt_part: ""
 
-  - name: get_diff_context
-    if: "{{ not resolve.error and not check_existing.has_existing }}"
+  - name: create_changespec
     hidden: true
-    bash: |
-      BRANCH_NAME="{{ resolve.branch_name }}"
-      DEFAULT_BRANCH="{{ resolve.default_branch }}"
+    python: |
+      import os
+      from sase.gh_workspace import get_default_branch
+      from sase.vcs_provider import get_vcs_provider
+      from sase.workflow_utils import get_project_file_path
+      from sase.workspace_changespec import create_changespec_for_workflow
 
-      # Get commit subjects (oldest first)
-      COMMITS=$(git log --format='%s' "origin/$DEFAULT_BRANCH".."$BRANCH_NAME" 2>/dev/null | tac)
-      COMMIT_COUNT=$(echo "$COMMITS" | grep -c . 2>/dev/null || echo "0")
+      name = {{ name | tojson }}
+      prompt = {{ _prompt | tojson }}
+      response = {{ _response | tojson }}
 
-      # Use first commit as PR title
-      PR_TITLE=$(echo "$COMMITS" | head -1)
-      if [ -z "$PR_TITLE" ]; then
-        PR_TITLE="Agent changes on branch $BRANCH_NAME"
-      fi
+      # Derive project info from cwd (set by #gh)
+      provider = get_vcs_provider(os.getcwd())
+      ok, project_name = provider.get_workspace_name(os.getcwd())
+      if not ok or not project_name:
+          print("success=false")
+          print("error=Could not determine project name from workspace")
+          print("cl_name=")
+          print("project_file=")
+          print("default_branch=")
+      else:
+          project_file = get_project_file_path(project_name)
 
-      # Build body from commit list
-      if [ "$COMMIT_COUNT" -gt 1 ]; then
-        BODY="## Commits
+          # Determine default branch
+          default_branch_ref = get_default_branch(os.getcwd())
+          default_branch = default_branch_ref.rsplit("/", 1)[-1]
 
-      $(echo "$COMMITS" | while read -r line; do echo "- $line"; done)"
-      else
-        BODY=""
-      fi
+          # Build CL name: {project}_{name_with_underscores}
+          cl_name = f"{project_name}_{name.replace('-', '_')}"
 
-      echo "pr_title=$PR_TITLE"
-      # Encode body for multiline output
-      ENCODED_BODY=$(echo "$BODY" | head -20)
-      echo "pr_body=$ENCODED_BODY"
-      echo "commit_count=$COMMIT_COUNT"
-    output: { pr_title: line, pr_body: text, commit_count: int }
+          result = create_changespec_for_workflow(
+              project_name=project_name,
+              project_file=project_file,
+              checkout_target=f"origin/{default_branch}",
+              branch_name=name,
+              prompt=prompt,
+              response=response,
+              workflow_name="pr",
+              cl_name=cl_name,
+          )
+
+          if result:
+              print("success=true")
+              print(f"cl_name={result}")
+              print(f"project_file={project_file}")
+              print(f"default_branch={default_branch}")
+              print(f"meta_changespec={result}")
+              print("error=")
+          else:
+              print("success=false")
+              print("cl_name=")
+              print(f"project_file={project_file}")
+              print(f"default_branch={default_branch}")
+              print("error=No new commits found")
+    output:
+      success: bool
+      cl_name: word
+      project_file: path
+      default_branch: word
 
   - name: create_pr
-    if: "{{ not resolve.error and not check_existing.has_existing }}"
+    hidden: true
+    if: "{{ create_changespec.success | default(false) }}"
     bash: |
-      BRANCH_NAME="{{ resolve.branch_name }}"
-      DEFAULT_BRANCH="{{ resolve.default_branch }}"
-      PR_TITLE="{{ get_diff_context.pr_title }}"
+      BRANCH="{{ create_branch.branch_name }}"
+      DEFAULT_BRANCH="{{ create_changespec.default_branch }}"
+
+      # Check for existing PR first
+      EXISTING_URL=$(gh pr view "$BRANCH" --json url --jq '.url' 2>/dev/null || echo "")
+      if [ -n "$EXISTING_URL" ]; then
+        echo "pr_url=$EXISTING_URL"
+        echo "success=true"
+        exit 0
+      fi
+
+      # Get PR title from first commit
+      PR_TITLE=$(git log --format='%s' "origin/$DEFAULT_BRANCH".."$BRANCH" 2>/dev/null | tail -1)
+      if [ -z "$PR_TITLE" ]; then
+        PR_TITLE="Agent changes on branch $BRANCH"
+      fi
 
       PR_URL=$(gh pr create \
         --base "$DEFAULT_BRANCH" \
-        --head "$BRANCH_NAME" \
+        --head "$BRANCH" \
         --title "$PR_TITLE" \
-        --body "{{ get_diff_context.pr_body | default('Automated PR from sase.') }}" 2>&1) || true
+        --body "Automated PR from sase." 2>&1) || true
 
       if echo "$PR_URL" | grep -q "^http"; then
         echo "pr_url=$PR_URL"
@@ -119,39 +116,20 @@ steps:
     output: { pr_url: line, success: bool }
 
   - name: update_cl
-    if: "{{ not resolve.error }}"
     hidden: true
+    if: "{{ create_pr.success | default(false) }}"
     python: |
       from sase.status_state_machine import update_changespec_cl_atomic
 
-      project_file = {{ resolve.project_file | tojson }}
-      branch_name = {{ resolve.branch_name | tojson }}
-
-      # Use existing URL or newly created URL
-      existing_url = {{ check_existing.existing_url | default('') | tojson }}
-      new_url = {{ create_pr.pr_url | default('') | tojson }}
-      pr_url = existing_url or new_url
+      project_file = {{ create_changespec.project_file | tojson }}
+      cl_name = {{ create_changespec.cl_name | tojson }}
+      pr_url = {{ create_pr.pr_url | tojson }}
 
       if pr_url and pr_url.startswith("http"):
-          update_changespec_cl_atomic(project_file, branch_name, pr_url)
-          print(f"updated=true")
+          update_changespec_cl_atomic(project_file, cl_name, pr_url)
+          print("updated=true")
           print(f"pr_url={pr_url}")
       else:
           print("updated=false")
           print(f"pr_url={pr_url}")
     output: { updated: bool, pr_url: line }
-
-  - name: report
-    if: "{{ not resolve.error }}"
-    bash: |
-      if [ "{{ check_existing.has_existing | default('false') }}" = "true" ]; then
-        echo "PR already exists: {{ check_existing.existing_url }}"
-      elif [ "{{ create_pr.success | default('false') }}" = "true" ]; then
-        echo "Created PR: {{ create_pr.pr_url }}"
-      else
-        echo "Failed to create PR"
-      fi
-
-      if [ "{{ update_cl.updated | default('false') }}" = "true" ]; then
-        echo "Updated ChangeSpec CL field with PR URL"
-      fi

@@ -126,8 +126,12 @@ def submit_git_changespec(
             has_pr = _check_existing_pr(ws_dir)
             if has_pr:
                 return _submit_via_pr_merge(changespec, ws_dir, console)
+            return (
+                False,
+                "GitHub project has no PR for this branch. Create a PR first with #pr.",
+            )
 
-        # Bare git or gh without PR: local merge + push
+        # Bare git: local merge + push
         return _submit_via_local_merge(
             changespec, ws_dir, default_branch, provider, console
         )

@@ -187,10 +187,11 @@ def _amend_cl_git(
         if not os.path.exists(project_file):
             return False, "", "", f"Project file not found: {project_file}", ""
 
-        # Use the branch name as cl_name
-        cl_name = branch or ""
+        # Convert branch name to ChangeSpec name: {project}_{branch_with_underscores}
+        cl_name = f"{project}_{branch.replace('-', '_')}" if branch else ""
 
-        # Add HISTORY entry
+        # Add HISTORY entry (non-fatal: ChangeSpec may not exist yet if
+        # created in #pr post-steps after the agent finishes)
         success = add_commit_entry(
             project_file=project_file,
             cl_name=cl_name,
@@ -201,7 +202,17 @@ def _amend_cl_git(
         )
 
         if not success:
-            return False, "", "", f"Failed to add HISTORY entry for {cl_name}", ""
+            # ChangeSpec doesn't exist yet — commit+push already happened,
+            # which is what matters. create_changespec_for_workflow() will
+            # capture all commits when it runs later.
+            sha_result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            short_sha = sha_result.stdout.strip() if sha_result.returncode == 0 else ""
+            return True, short_sha, "", "", diff_path or ""
 
         # Add test hooks if available
         add_test_hooks_if_available(project_file, cl_name)
