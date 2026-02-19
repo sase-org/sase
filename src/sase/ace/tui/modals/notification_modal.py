@@ -44,6 +44,8 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
         ("R", "read_all", "Read All"),  # uppercase R
+        ("ctrl+d", "scroll_file_down", "Scroll down"),
+        ("ctrl+u", "scroll_file_up", "Scroll up"),
     ]
 
     def __init__(self, notifications: list[Notification]) -> None:
@@ -77,7 +79,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(
-                "Enter: select  d: dismiss  C-n/C-p: next/prev file  R: read all  q: close",
+                "Enter: select  d: dismiss  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
                 id="notification-hints",
             )
 
@@ -157,6 +159,18 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                 notification.files
             )
             self._display_file(notification)
+
+    def action_scroll_file_down(self) -> None:
+        """Scroll the file content down by half a page."""
+        scroll = self.query_one("#notification-file-scroll", VerticalScroll)
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=height // 2, animate=False)
+
+    def action_scroll_file_up(self) -> None:
+        """Scroll the file content up by half a page."""
+        scroll = self.query_one("#notification-file-scroll", VerticalScroll)
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=-(height // 2), animate=False)
 
     def action_prev_file(self) -> None:
         """Cycle to the previous attached file."""
