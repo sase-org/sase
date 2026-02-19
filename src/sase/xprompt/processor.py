@@ -458,7 +458,7 @@ def execute_workflow(
 
     # Process step inputs: load from @file or parse inline YAML/JSON
     # Step inputs allow users to skip steps by providing their outputs directly
-    processed_args: dict[str, Any] = {}
+    processed_args: dict[str, Any] = dict(args)
     for input_arg in workflow.inputs:
         if input_arg.name not in args:
             continue
@@ -468,8 +468,7 @@ def execute_workflow(
             processed_args[input_arg.name] = load_step_input_value(
                 value, input_arg.output_schema
             )
-        else:
-            processed_args[input_arg.name] = value
+        # Non-step-input args are already preserved from dict(args)
     args = processed_args
 
     # Create handlers based on silent mode

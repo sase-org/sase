@@ -280,7 +280,8 @@ def load_all_agents() -> list[Agent]:
     for agent in agents:
         if (
             agent.agent_type == AgentType.RUNNING
-            and agent.workflow == "ace(run)"
+            and agent.workflow is not None
+            and agent.workflow.startswith("ace(run)")
             and agent.raw_suffix
             and agent.raw_suffix in workflow_by_suffix
         ):
@@ -339,7 +340,7 @@ def load_all_agents() -> list[Agent]:
                 agent.workflow
                 and (
                     agent.workflow.startswith("workflow-")
-                    or agent.workflow == "ace(run)"
+                    or agent.workflow.startswith("ace(run)")
                 )
             ):
                 # Find matching agent steps by timestamp
