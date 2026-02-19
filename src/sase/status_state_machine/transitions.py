@@ -162,7 +162,10 @@ def _handle_suffix_strip(
         provider = get_vcs_provider(workspace_dir)
 
         # First checkout the CL we want to rename
-        checkout_ok, checkout_err = provider.checkout(suffixed_name, workspace_dir)
+        resolved = provider.resolve_revision(
+            suffixed_name, project_basename, workspace_dir
+        )
+        checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             logger.warning(f"Failed to checkout CL {suffixed_name}: {checkout_err}")
         else:
@@ -213,7 +216,8 @@ def _handle_suffix_append(
         provider = get_vcs_provider(workspace_dir)
 
         # First checkout the CL we want to rename
-        checkout_ok, checkout_err = provider.checkout(base_name, workspace_dir)
+        resolved = provider.resolve_revision(base_name, project_basename, workspace_dir)
+        checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             logger.warning(f"Failed to checkout CL {base_name}: {checkout_err}")
         else:

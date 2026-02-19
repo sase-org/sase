@@ -177,6 +177,9 @@ def restore_changespec(
         if changespec.parent
         else provider.get_default_parent_revision(workspace_dir)
     )
+    update_target = provider.resolve_revision(
+        update_target, changespec.project_basename, workspace_dir
+    )
     if console:
         console.print(f"[cyan]Updating to: {update_target}[/cyan]")
     success, error = provider.checkout(update_target, workspace_dir)

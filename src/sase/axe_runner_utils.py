@@ -39,6 +39,7 @@ def prepare_workspace(
     cl_name: str,
     update_target: str,
     backup_suffix: str = "ace",
+    project_basename: str = "",
 ) -> bool:
     """Clean and update workspace before running agent or workflow.
 
@@ -48,6 +49,8 @@ def prepare_workspace(
         update_target: What to checkout (CL name or "p4head").
         backup_suffix: Suffix appended to cl_name for the backup diff name
             (e.g., "ace" produces "{cl_name}-ace").
+        project_basename: Project basename for resolving changespec names to
+            git branch names.
 
     Returns:
         True if successful, False otherwise.
@@ -67,6 +70,10 @@ def prepare_workspace(
     provider = get_vcs_provider(workspace_dir)
     if update_target == VCS_DEFAULT_REVISION:
         update_target = provider.get_default_parent_revision(workspace_dir)
+    elif project_basename:
+        update_target = provider.resolve_revision(
+            update_target, project_basename, workspace_dir
+        )
     print(f"Updating workspace to {update_target}...")
     checkout_ok, checkout_err = provider.checkout(update_target, workspace_dir)
     if not checkout_ok:

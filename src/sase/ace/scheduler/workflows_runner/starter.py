@@ -209,7 +209,10 @@ def _start_crs_workflow(
         provider = get_vcs_provider(workspace_dir)
 
     # Switch to the ChangeSpec's branch
-    checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
+    resolved = provider.resolve_revision(
+        changespec.name, project_basename, workspace_dir
+    )
+    checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
     if not checkout_ok:
         log(
             f"[WS#{workspace_num}] Warning: sase_hg_update failed for "

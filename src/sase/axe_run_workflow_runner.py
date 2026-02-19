@@ -78,6 +78,7 @@ def main() -> None:
     artifacts_dir = sys.argv[7]
     update_target = sys.argv[8]
     is_home_mode_arg = sys.argv[9]
+    project_basename = os.path.basename(project_file).replace(".gp", "")
 
     # Parse JSON args
     positional_args: list[str] = json.loads(positional_args_json)
@@ -112,7 +113,11 @@ def main() -> None:
         if update_target and not is_home_mode:
             print("=== Preparing Workspace ===")
             if not prepare_workspace(
-                workspace_dir, cl_name, update_target, backup_suffix="workflow"
+                workspace_dir,
+                cl_name,
+                update_target,
+                backup_suffix="workflow",
+                project_basename=project_basename,
             ):
                 print("Failed to prepare workspace", file=sys.stderr)
                 _write_workflow_state(

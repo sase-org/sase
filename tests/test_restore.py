@@ -120,6 +120,7 @@ def test_restore_changespec_with_parent(make_changespec) -> None:  # type: ignor
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
     mock_provider.apply_patch.return_value = (True, None)
+    mock_provider.resolve_revision.return_value = "parent_branch"
 
     with patch(
         "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
@@ -136,7 +137,8 @@ def test_restore_changespec_with_parent(make_changespec) -> None:  # type: ignor
                         with patch("pathlib.Path.exists", return_value=True):
                             restore_changespec(changespec)
 
-    # Provider checkout should be called with parent
+    # Provider should resolve and then checkout with parent
+    mock_provider.resolve_revision.assert_called_once()
     mock_provider.checkout.assert_called_once_with("parent_branch", "/tmp")
 
 
@@ -152,6 +154,7 @@ def test_restore_changespec_without_parent_uses_provider_default(  # type: ignor
     mock_provider.checkout.return_value = (True, None)
     mock_provider.apply_patch.return_value = (True, None)
     mock_provider.get_default_parent_revision.return_value = "p4head"
+    mock_provider.resolve_revision.return_value = "p4head"
 
     with patch(
         "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
@@ -170,7 +173,8 @@ def test_restore_changespec_without_parent_uses_provider_default(  # type: ignor
 
     # Provider get_default_parent_revision should be called
     mock_provider.get_default_parent_revision.assert_called_once_with("/tmp")
-    # Provider checkout should be called with the resolved default
+    # Provider should resolve and then checkout with the resolved default
+    mock_provider.resolve_revision.assert_called_once()
     mock_provider.checkout.assert_called_once_with("p4head", "/tmp")
 
 

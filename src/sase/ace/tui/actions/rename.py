@@ -139,7 +139,10 @@ class RenameMixin:
                 # Checkout the CL
                 print(f"Checking out {old_name}...")
                 provider = get_vcs_provider(workspace_dir)
-                checkout_ok, checkout_err = provider.checkout(old_name, workspace_dir)
+                resolved = provider.resolve_revision(
+                    old_name, project_basename, workspace_dir
+                )
+                checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
                 if not checkout_ok:
                     return (
                         False,

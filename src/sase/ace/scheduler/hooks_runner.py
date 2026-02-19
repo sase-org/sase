@@ -342,9 +342,10 @@ def _start_stale_hooks_for_proposal(
                 )
 
             provider = get_vcs_provider(workspace_dir)
-            checkout_ok, checkout_err = provider.checkout(
-                changespec.name, workspace_dir
+            resolved = provider.resolve_revision(
+                changespec.name, project_basename, workspace_dir
             )
+            checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
             if not checkout_ok:
                 log(
                     f"[WS#{workspace_num}] Warning: sase_hg_update failed for "
@@ -574,7 +575,10 @@ def _start_stale_hooks_shared_workspace(
 
         # Run sase_hg_update to switch to the ChangeSpec's branch
         provider = get_vcs_provider(workspace_dir)
-        checkout_ok, checkout_err = provider.checkout(changespec.name, workspace_dir)
+        resolved = provider.resolve_revision(
+            changespec.name, project_basename, workspace_dir
+        )
+        checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             log(
                 f"[WS#{workspace_num}] Warning: sase_hg_update failed for "

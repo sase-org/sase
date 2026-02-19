@@ -480,7 +480,10 @@ class BaseActionsMixin:
             from sase.vcs_provider import get_vcs_provider
 
             provider = get_vcs_provider(workspace_dir)
-            success, error = provider.checkout(changespec.name, workspace_dir)
+            resolved = provider.resolve_revision(
+                changespec.name, project_basename, workspace_dir
+            )
+            success, error = provider.checkout(resolved, workspace_dir)
             if not success:
                 return (False, f"checkout failed: {error}")
 
@@ -543,7 +546,10 @@ class BaseActionsMixin:
             from sase.vcs_provider import get_vcs_provider
 
             provider = get_vcs_provider(workspace_dir)
-            success, error = provider.checkout(changespec.name, workspace_dir)
+            resolved = provider.resolve_revision(
+                changespec.name, project_basename, workspace_dir
+            )
+            success, error = provider.checkout(resolved, workspace_dir)
             if not success:
                 return (False, f"checkout failed: {error}")
 

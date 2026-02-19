@@ -266,7 +266,8 @@ class AxeMixin:
             from sase.vcs_provider import get_vcs_provider
 
             provider = get_vcs_provider(workspace_dir)
-            checkout_ok, checkout_err = provider.checkout(cl_name, workspace_dir)
+            resolved = provider.resolve_revision(cl_name, project, workspace_dir)
+            checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
             if not checkout_ok:
                 self.notify(f"checkout failed: {checkout_err}", severity="error")  # type: ignore[attr-defined]
                 return

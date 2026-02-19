@@ -103,8 +103,9 @@ def main() -> None:
 
     # Optional parameters (empty string = not provided)
     update_target = sys.argv[9]
-    # sys.argv[10] (project_name) and sys.argv[11] (cl_name_for_history)
-    # are no longer used here; prompt history is saved by the TUI before launch.
+    project_name = sys.argv[10]
+    # sys.argv[11] (cl_name_for_history) is no longer used here;
+    # prompt history is saved by the TUI before launch.
     is_home_mode_arg = sys.argv[12]
     is_home_mode: bool = bool(is_home_mode_arg)
 
@@ -142,7 +143,11 @@ def main() -> None:
     if update_target and not is_home_mode:
         print("=== Preparing Workspace ===")
         if not prepare_workspace(
-            workspace_dir, cl_name, update_target, backup_suffix="ace"
+            workspace_dir,
+            cl_name,
+            update_target,
+            backup_suffix="ace",
+            project_basename=project_name,
         ):
             print("Failed to prepare workspace", file=sys.stderr)
             sys.exit(1)

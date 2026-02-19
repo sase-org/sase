@@ -407,9 +407,10 @@ class ProposalRebaseMixin:
                 from sase.vcs_provider import get_vcs_provider
 
                 provider = get_vcs_provider(workspace_dir)
-                checkout_ok, checkout_err = provider.checkout(
-                    changespec.name, workspace_dir
+                resolved = provider.resolve_revision(
+                    changespec.name, project_basename, workspace_dir
                 )
+                checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
                 if not checkout_ok:
                     return (
                         False,
