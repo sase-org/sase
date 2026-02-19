@@ -38,7 +38,7 @@ class AgentLaunchMixin:
         Returns (project_file, project_name, workspace_dir, workspace_num,
         gh_ref) or None if not found or resolution fails.
         """
-        from sase.gh_workspace import ensure_git_worktree, resolve_gh_ref
+        from sase.gh_workspace import ensure_git_clone, resolve_gh_ref
         from sase.running_field import get_first_available_axe_workspace
 
         match = _GH_REF_PATTERN.search(prompt)
@@ -52,7 +52,7 @@ class AgentLaunchMixin:
         try:
             resolved = resolve_gh_ref(gh_ref)
             workspace_num = get_first_available_axe_workspace(resolved.project_file)
-            workspace_dir = ensure_git_worktree(
+            workspace_dir = ensure_git_clone(
                 resolved.primary_workspace_dir, workspace_num
             )
         except (ValueError, RuntimeError):
@@ -74,7 +74,7 @@ class AgentLaunchMixin:
         Returns (project_file, project_name, workspace_dir, workspace_num,
         git_ref) or None if not found or resolution fails.
         """
-        from sase.gh_workspace import ensure_git_worktree
+        from sase.gh_workspace import ensure_git_clone
         from sase.git_workspace import resolve_git_ref
         from sase.running_field import get_first_available_axe_workspace
 
@@ -89,7 +89,7 @@ class AgentLaunchMixin:
         try:
             resolved = resolve_git_ref(git_ref)
             workspace_num = get_first_available_axe_workspace(resolved.project_file)
-            workspace_dir = ensure_git_worktree(
+            workspace_dir = ensure_git_clone(
                 resolved.primary_workspace_dir, workspace_num
             )
         except (ValueError, RuntimeError):

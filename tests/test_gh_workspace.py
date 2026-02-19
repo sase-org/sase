@@ -10,11 +10,11 @@ import pytest
 from sase.gh_workspace import (
     _ResolvedGhRef,
     get_default_branch,
-    _get_git_worktree_dir,
+    _get_git_clone_dir,
     set_workspace_dir,
     detect_vcs_type_for_project,
     detect_workflow_type_for_project,
-    ensure_git_worktree,
+    ensure_git_clone,
     parse_workspace_dir,
     resolve_gh_ref,
 )
@@ -177,71 +177,98 @@ class TestSetWorkspaceDir:
             os.unlink(f.name)
 
 
-# ── _get_git_worktree_dir ─────────────────────────────────────────────
+# ── _get_git_clone_dir ────────────────────────────────────────────────
 
 
-class TestGetGitWorktreeDir:
+class TestGetGitCloneDir:
     def test_primary(self) -> None:
-        assert _get_git_worktree_dir("/repo/", 1) == "/repo/"
+        assert _get_git_clone_dir("/repo/", 1) == "/repo/"
 
     def test_secondary(self) -> None:
-        assert _get_git_worktree_dir("/repo/", 2) == "/repo__2/"
+        assert _get_git_clone_dir("/repo/", 2) == "/repo__2/"
 
     def test_tertiary(self) -> None:
-        assert _get_git_worktree_dir("/repo/", 3) == "/repo__3/"
+        assert _get_git_clone_dir("/repo/", 3) == "/repo__3/"
 
     def test_trailing_slash_handling(self) -> None:
-        assert _get_git_worktree_dir("/repo", 2) == "/repo__2/"
+        assert _get_git_clone_dir("/repo", 2) == "/repo__2/"
 
 
-# ── ensure_git_worktree ──────────────────────────────────────────────
+# ── ensure_git_clone ─────────────────────────────────────────────────
 
 
-class TestEnsureGitWorktree:
+class TestEnsureGitClone:
     def test_primary_exists(self) -> None:
         with tempfile.TemporaryDirectory() as d:
-            result = ensure_git_worktree(d, 1)
+            result = ensure_git_clone(d, 1)
             assert result == d
 
     def test_primary_missing(self) -> None:
         with pytest.raises(RuntimeError, match="does not exist"):
-            ensure_git_worktree("/nonexistent/dir/", 1)
+            ensure_git_clone("/nonexistent/dir/", 1)
 
-    def test_secondary_already_exists(self) -> None:
+    def test_secondary_already_exists_valid(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             primary = os.path.join(d, "repo")
             secondary = os.path.join(d, "repo__2")
             os.makedirs(primary)
             os.makedirs(secondary)
-            result = ensure_git_worktree(primary + "/", 2)
-            assert result == primary + "__2/"
+            with patch("sase.gh_workspace.subprocess.run") as mock_run:
+                # git status succeeds → clone is valid
+                mock_run.return_value = MagicMock(returncode=0)
+                result = ensure_git_clone(primary + "/", 2)
+                assert result == primary + "__2/"
 
     @patch("sase.gh_workspace.subprocess.run")
     def test_secondary_creates(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(returncode=0)
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="https://github.com/u/r.git\n"
+        )
         with tempfile.TemporaryDirectory() as d:
             primary = os.path.join(d, "repo") + "/"
             os.makedirs(primary)
             # secondary doesn't exist, subprocess.run will be called
-            result = ensure_git_worktree(primary, 2)
+            result = ensure_git_clone(primary, 2)
             expected = os.path.join(d, "repo") + "__2/"
             assert result == expected
-            # Should have called prune then add
-            assert mock_run.call_count == 2
+            # Should have called: get-url, clone, set-url, fetch
+            assert mock_run.call_count == 4
 
     @patch("sase.gh_workspace.subprocess.run")
     def test_secondary_fails(self, mock_run: MagicMock) -> None:
         import subprocess as sp
 
         mock_run.side_effect = [
-            MagicMock(returncode=0),  # prune succeeds
-            sp.CalledProcessError(1, "git", stderr="fatal error"),
+            MagicMock(returncode=0, stdout="https://github.com/u/r.git\n"),  # get-url
+            sp.CalledProcessError(1, "git", stderr="fatal error"),  # clone fails
         ]
         with tempfile.TemporaryDirectory() as d:
             primary = os.path.join(d, "repo") + "/"
             os.makedirs(primary)
-            with pytest.raises(RuntimeError, match="git worktree add failed"):
-                ensure_git_worktree(primary, 2)
+            with pytest.raises(RuntimeError, match="git clone failed"):
+                ensure_git_clone(primary, 2)
+
+    @patch("sase.gh_workspace.subprocess.run")
+    def test_secondary_race_condition(self, mock_run: MagicMock) -> None:
+        """If clone fails but dir exists and is valid, return it."""
+        import subprocess as sp
+
+        with tempfile.TemporaryDirectory() as d:
+            primary = os.path.join(d, "repo") + "/"
+            clone = os.path.join(d, "repo__2") + "/"
+            os.makedirs(primary)
+
+            mock_run.side_effect = [
+                MagicMock(
+                    returncode=0, stdout="https://github.com/u/r.git\n"
+                ),  # get-url
+                sp.CalledProcessError(1, "git", stderr="already exists"),  # clone fails
+                MagicMock(returncode=0),  # git status in race-condition check
+            ]
+            # Create the dir to simulate race condition
+            os.makedirs(clone.rstrip("/"))
+            result = ensure_git_clone(primary, 2)
+            assert result == clone
 
 
 # ── detect_vcs_type_for_project ──────────────────────────────────────

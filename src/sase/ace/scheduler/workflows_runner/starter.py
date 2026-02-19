@@ -134,7 +134,7 @@ def _start_crs_workflow(
     """
     from sase.gh_workspace import (
         detect_vcs_type_for_project,
-        ensure_git_worktree,
+        ensure_git_clone,
         parse_workspace_dir,
     )
 
@@ -149,7 +149,7 @@ def _start_crs_workflow(
     raw_vcs = detect_vcs_type_for_project(changespec.file_path)
 
     if raw_vcs == "git":
-        # Git: use worktrees from WORKSPACE_DIR
+        # Git: use clones from WORKSPACE_DIR
         primary_dir = parse_workspace_dir(changespec.file_path)
         if not primary_dir:
             log(
@@ -158,10 +158,10 @@ def _start_crs_workflow(
             )
             return None
         try:
-            workspace_dir = ensure_git_worktree(primary_dir, workspace_num)
+            workspace_dir = ensure_git_clone(primary_dir, workspace_num)
         except RuntimeError as e:
             log(
-                f"[WS#{workspace_num}] Warning: Failed to get git worktree: {e}",
+                f"[WS#{workspace_num}] Warning: Failed to get git clone workspace: {e}",
                 "yellow",
             )
             return None

@@ -13,12 +13,11 @@ input:
 steps:
   - name: setup
     python: |
-      from sase.gh_workspace import resolve_gh_ref, ensure_git_worktree
+      from sase.gh_workspace import resolve_gh_ref, ensure_git_clone
       from sase.running_field import (
           get_first_available_axe_workspace,
           claim_workspace,
       )
-      from sase.branch_names import generate_branch_name
       import os
 
       gh_ref = {{ gh_ref | tojson }}
@@ -35,10 +34,10 @@ steps:
           workspace_dir = os.environ["SASE_GH_WORKSPACE_DIR"]
       elif n_input is not None:
           workspace_num = n_input
-          workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
+          workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
       else:
           workspace_num = get_first_available_axe_workspace(project_file)
-          workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
+          workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
 
       should_release = {{ release | tojson }}
 
@@ -47,10 +46,7 @@ steps:
       claim_workspace(project_file, workspace_num, workflow_name, pid, resolved.branch_name, pinned=not should_release)
 
       should_create_branch = resolved.branch_name is None
-      if should_create_branch:
-          branch_name = generate_branch_name(workspace_dir)
-      else:
-          branch_name = resolved.branch_name
+      branch_name = resolved.branch_name or ""
 
       print(f"project_name={project_name}")
       print(f"project_file={project_file}")

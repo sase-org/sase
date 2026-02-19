@@ -14,12 +14,11 @@ steps:
   - name: setup
     python: |
       from sase.git_workspace import resolve_git_ref
-      from sase.gh_workspace import ensure_git_worktree
+      from sase.gh_workspace import ensure_git_clone
       from sase.running_field import (
           get_first_available_axe_workspace,
           claim_workspace,
       )
-      from sase.branch_names import generate_branch_name
       import os
 
       git_ref = {{ git_ref | tojson }}
@@ -36,10 +35,10 @@ steps:
           workspace_dir = os.environ["SASE_GIT_WORKSPACE_DIR"]
       elif n_input is not None:
           workspace_num = n_input
-          workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
+          workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
       else:
           workspace_num = get_first_available_axe_workspace(project_file)
-          workspace_dir = ensure_git_worktree(resolved.primary_workspace_dir, workspace_num)
+          workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
 
       should_release = {{ release | tojson }}
 
@@ -54,10 +53,7 @@ steps:
       print(f"checkout_target={resolved.checkout_target}")
       print(f"primary_workspace_dir={resolved.primary_workspace_dir}")
       should_create_branch = resolved.branch_name is None
-      if should_create_branch:
-          branch_name = generate_branch_name(workspace_dir)
-      else:
-          branch_name = resolved.branch_name
+      branch_name = resolved.branch_name or ""
       print(f"should_create_branch={'true' if should_create_branch else 'false'}")
       print(f"branch_name={branch_name}")
       print(f"should_release={'true' if should_release else 'false'}")
