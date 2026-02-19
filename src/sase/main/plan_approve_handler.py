@@ -19,6 +19,18 @@ _POLL_INTERVAL = 0.5
 _TIMEOUT = 600
 
 
+def _emit_hook_decision(decision: str, reason: str = "") -> None:
+    """Print Claude Code PreToolUse hook decision JSON to stdout."""
+    output = {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": decision,
+            "permissionDecisionReason": reason,
+        }
+    }
+    print(json.dumps(output))
+
+
 def _find_plan_file(session_id: str) -> str | None:
     """Find the most recently modified .md plan file for this session.
 
@@ -189,25 +201,12 @@ def handle_plan_approve_command() -> NoReturn:
 
                 action = response_data.get("action", "reject")
                 if action == "approve":
+                    _emit_hook_decision("allow", "Plan approved by user in sase ace")
                     sys.exit(0)
                 else:
-                    # Reject - write feedback to stderr as JSON
                     feedback = response_data.get("feedback", "")
-                    if feedback:
-                        print(
-                            json.dumps({"decision": "reject", "reason": feedback}),
-                            file=sys.stderr,
-                        )
-                    else:
-                        print(
-                            json.dumps(
-                                {
-                                    "decision": "reject",
-                                    "reason": "Plan rejected by user",
-                                }
-                            ),
-                            file=sys.stderr,
-                        )
+                    reason = feedback if feedback else "Plan rejected by user"
+                    _emit_hook_decision("deny", reason)
                     sys.exit(2)
             except (json.JSONDecodeError, OSError):
                 # Response file exists but couldn't be read, wait and retry
@@ -218,8 +217,5 @@ def handle_plan_approve_command() -> NoReturn:
     # Timeout - clean up and reject
     if request_path.exists():
         request_path.unlink()
-    print(
-        json.dumps({"decision": "reject", "reason": "Plan approval timed out"}),
-        file=sys.stderr,
-    )
+    _emit_hook_decision("deny", "Plan approval timed out")
     sys.exit(2)
