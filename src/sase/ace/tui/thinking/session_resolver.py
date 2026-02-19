@@ -51,7 +51,22 @@ def _get_workspace_cwd(agent: Agent) -> str | None:
     from sase.running_field import get_workspace_directory
 
     project_name = Path(agent.project_file).parent.name
-    workspace_num = agent.workspace_num if agent.workspace_num is not None else 1
+
+    # Check workspace_num first, then meta_workspace from step_output
+    workspace_num = agent.workspace_num
+    if (
+        workspace_num is None
+        and agent.step_output
+        and isinstance(agent.step_output, dict)
+    ):
+        meta_ws = agent.step_output.get("meta_workspace")
+        if meta_ws is not None:
+            try:
+                workspace_num = int(meta_ws)
+            except (ValueError, TypeError):
+                pass
+    if workspace_num is None:
+        workspace_num = 1
 
     try:
         cwd = get_workspace_directory(project_name, workspace_num)

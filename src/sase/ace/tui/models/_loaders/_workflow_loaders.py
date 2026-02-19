@@ -40,7 +40,10 @@ def load_workflow_states() -> list[WorkflowEntry]:
         for workflow_dir in artifacts_dir.iterdir():
             if not workflow_dir.is_dir():
                 continue
-            if not workflow_dir.name.startswith("workflow-"):
+            if not (
+                workflow_dir.name.startswith("workflow-")
+                or workflow_dir.name == "ace-run"
+            ):
                 continue
 
             # Look for timestamp directories with workflow_state.json
@@ -185,6 +188,14 @@ def load_workflow_agents() -> list[Agent]:
                     step_output = step.output
                     break
 
+        # Extract workspace_num from step output meta_workspace
+        workspace_num = None
+        if step_output and step_output.get("meta_workspace"):
+            try:
+                workspace_num = int(step_output["meta_workspace"])
+            except (ValueError, TypeError):
+                pass
+
         agent = Agent(
             agent_type=AgentType.WORKFLOW,
             cl_name=entry.cl_name,
@@ -200,6 +211,7 @@ def load_workflow_agents() -> list[Agent]:
             diff_path=entry.diff_path,
             error_message=entry.error_message,
             step_output=step_output,
+            workspace_num=workspace_num,
         )
         enrich_agent_from_meta(agent, entry.artifacts_dir)
         agents.append(agent)
