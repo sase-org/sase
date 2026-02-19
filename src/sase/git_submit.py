@@ -22,7 +22,8 @@ from sase.running_field import (
     get_workspace_directory_for_num,
     release_workspace,
 )
-from sase.sase_utils import changespec_name_to_branch, generate_timestamp
+from sase.sase_utils import generate_timestamp
+from sase.vcs_provider import VCSProvider, get_vcs_provider
 from sase.status_state_machine import transition_changespec_status
 
 
@@ -103,11 +104,9 @@ def submit_git_changespec(
         if console:
             console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
 
-        from sase.vcs_provider import get_vcs_provider
-
         provider = get_vcs_provider(ws_dir)
-        branch_name = changespec_name_to_branch(
-            changespec.name, changespec.project_basename
+        branch_name = provider.resolve_revision(
+            changespec.name, changespec.project_basename, ws_dir
         )
         success, error = provider.checkout(branch_name, ws_dir)
         if not success:
@@ -129,7 +128,9 @@ def submit_git_changespec(
                 return _submit_via_pr_merge(changespec, ws_dir, console)
 
         # Bare git or gh without PR: local merge + push
-        return _submit_via_local_merge(changespec, ws_dir, default_branch, console)
+        return _submit_via_local_merge(
+            changespec, ws_dir, default_branch, provider, console
+        )
 
     finally:
         release_workspace(
@@ -205,23 +206,18 @@ def _submit_via_local_merge(
     changespec: ChangeSpec,
     ws_dir: str,
     default_branch: str,
+    provider: VCSProvider,
     console: Console | None,
 ) -> tuple[bool, str | None]:
     """Submit by performing a local merge to the default branch."""
-    branch_name = changespec_name_to_branch(
-        changespec.name, changespec.project_basename
+    branch_name = provider.resolve_revision(
+        changespec.name, changespec.project_basename, ws_dir
     )
 
     # Checkout default branch
-    result = subprocess.run(
-        ["git", "checkout", default_branch],
-        cwd=ws_dir,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return (False, f"git checkout {default_branch} failed: {result.stderr.strip()}")
+    success, error = provider.checkout(default_branch, ws_dir)
+    if not success:
+        return (False, f"git checkout {default_branch} failed: {error}")
 
     # Merge the branch
     result = subprocess.run(
