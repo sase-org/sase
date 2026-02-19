@@ -265,7 +265,15 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
         # Remove from local list and rebuild
         self._notifications.pop(idx)
-        self._rebuild_list()
+
+        # Determine which index to highlight after removal:
+        # same index (now the next item), or last item if we dismissed the tail
+        if self._notifications:
+            highlight = min(idx, len(self._notifications) - 1)
+        else:
+            highlight = None
+
+        self._rebuild_list(highlight_index=highlight)
 
     def action_read_all(self) -> None:
         """Mark all notifications as read and rebuild the display."""
@@ -277,7 +285,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
         self._rebuild_list()
 
-    def _rebuild_list(self) -> None:
+    def _rebuild_list(self, highlight_index: int | None = None) -> None:
         """Rebuild the option list from current notifications."""
         try:
             option_list = self.query_one("#notification-list", OptionList)
@@ -306,6 +314,10 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
         for option in self._create_options():
             option_list.add_option(option)
+
+        # Restore highlight to the requested index
+        if highlight_index is not None:
+            option_list.highlighted = highlight_index
 
         # Update right pane for whatever is now highlighted
         self._current_file_index = 0
