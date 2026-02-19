@@ -34,7 +34,6 @@ dev = [
 
 [project.scripts]
 sase = "sase.main.entry:main"
-tmux_sase = "sase.scripts.tmux_sase:main"
 sase_hg_amend = "sase.scripts:sase_hg_amend"
 sase_hg_archive = "sase.scripts:sase_hg_archive"
 sase_hg_branch_bug = "sase.scripts:sase_hg_branch_bug"
