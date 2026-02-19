@@ -56,6 +56,21 @@ def create_parser() -> argparse.ArgumentParser:
         help="Auto-refresh interval in seconds (default: 10, 0 to disable)",
     )
     ace_parser.add_argument(
+        "--agent",
+        action="store_true",
+        help="Run in headless agent mode (returns JSON to stdout)",
+    )
+    ace_parser.add_argument(
+        "--keys",
+        nargs="*",
+        help="Key names to press in agent mode (e.g., j j Enter)",
+    )
+    ace_parser.add_argument(
+        "--size",
+        default="120x40",
+        help="Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40)",
+    )
+    ace_parser.add_argument(
         "--vcs-provider",
         choices=["git", "hg", "auto"],
         default=None,

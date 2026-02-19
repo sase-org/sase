@@ -77,8 +77,7 @@ all: fmt lint pylimit pyvision test
 
 # Find unused Python function/class definitions
 pyvision: _setup (_header "pyvision")
-    {{ venv_bin }}/python tools/pyvision-260217 src/sase \
-        --epic-symbol 'sase-oqr(run_agent_mode)'
+    {{ venv_bin }}/python tools/pyvision-260217 src/sase
 
 # Check Python file line counts
 pylimit: (_header "pylimit")
