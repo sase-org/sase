@@ -49,14 +49,34 @@ def test_has_children_ignores_reverted_children(make_changespec) -> None:  # typ
     Path(reverted_child.file_path).unlink()
 
 
-def test_revert_changespec_fails_without_cl(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test revert_changespec fails when CL is not set."""
+def test_revert_changespec_succeeds_without_cl(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test revert_changespec succeeds without a CL, skipping VCS operations."""
     changespec = make_changespec.create_with_file(cl=None)
 
-    success, error = revert_changespec(changespec)
+    with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
+        with patch(
+            "sase.ace.revert.transition_changespec_status",
+            return_value=(True, "Draft", None, []),
+        ):
+            with patch(
+                "sase.ace.revert.rename_changespec_with_references"
+            ) as mock_rename:
+                with patch("sase.ace.revert.save_diff_to_file") as mock_save_diff:
+                    with patch("sase.ace.revert.get_vcs_provider") as mock_get_vcs:
+                        with patch(
+                            "sase.ace.revert.reset_changespec_cl"
+                        ) as mock_reset_cl:
+                            success, error = revert_changespec(changespec)
 
-    assert success is False
-    assert error == "ChangeSpec does not have a valid CL set"
+    assert success is True
+    assert error is None
+    # VCS operations should NOT be called when CL is None
+    mock_save_diff.assert_not_called()
+    mock_get_vcs.assert_not_called()
+    mock_reset_cl.assert_not_called()
+    # Rename and status transition should still be called
+    mock_rename.assert_called_once()
+
     Path(changespec.file_path).unlink()
 
 

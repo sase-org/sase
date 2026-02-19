@@ -97,10 +97,6 @@ def revert_changespec(
     Returns:
         Tuple of (success, error_message)
     """
-    # Validate CL is set
-    if changespec.cl is None:
-        return (False, "ChangeSpec does not have a valid CL set")
-
     # Kill any running processes before reverting
     log_fn = (lambda msg: console.print(f"[cyan]{msg}[/cyan]")) if console else None
     kill_and_persist_all_running_processes(
@@ -121,37 +117,41 @@ def revert_changespec(
             "Cannot revert: other ChangeSpecs have this one as their parent",
         )
 
-    # Get workspace directory
-    workspace_dir = get_workspace_directory_for_changespec(changespec)
-    if not workspace_dir:
-        return (False, "Could not determine workspace directory")
-
-    if not os.path.isdir(workspace_dir):
-        return (False, f"Workspace directory does not exist: {workspace_dir}")
-
     # Calculate new name with suffix
     new_name = calculate_lifecycle_new_name(changespec, all_changespecs)
 
     if console:
         console.print(f"[cyan]Renaming ChangeSpec to: {new_name}[/cyan]")
 
-    # Save diff to file
-    success, error = save_diff_to_file(changespec, new_name, workspace_dir, "reverted")
-    if not success:
-        return (False, f"Failed to save diff: {error}")
+    # CL-dependent operations: save diff, prune VCS revision, reset CL
+    if changespec.cl is not None:
+        # Get workspace directory
+        workspace_dir = get_workspace_directory_for_changespec(changespec)
+        if not workspace_dir:
+            return (False, "Could not determine workspace directory")
 
-    if console:
-        diff_path = Path.home() / ".sase" / "reverted" / f"{new_name}.diff"
-        console.print(f"[green]Saved diff to: {diff_path}[/green]")
+        if not os.path.isdir(workspace_dir):
+            return (False, f"Workspace directory does not exist: {workspace_dir}")
 
-    # Run sase_hg_prune
-    provider = get_vcs_provider(workspace_dir)
-    success, error = provider.prune(changespec.name, workspace_dir)
-    if not success:
-        return (False, f"Failed to prune revision: {error}")
+        # Save diff to file
+        success, error = save_diff_to_file(
+            changespec, new_name, workspace_dir, "reverted"
+        )
+        if not success:
+            return (False, f"Failed to save diff: {error}")
 
-    if console:
-        console.print(f"[green]Pruned revision: {changespec.name}[/green]")
+        if console:
+            diff_path = Path.home() / ".sase" / "reverted" / f"{new_name}.diff"
+            console.print(f"[green]Saved diff to: {diff_path}[/green]")
+
+        # Run sase_hg_prune
+        provider = get_vcs_provider(workspace_dir)
+        success, error = provider.prune(changespec.name, workspace_dir)
+        if not success:
+            return (False, f"Failed to prune revision: {error}")
+
+        if console:
+            console.print(f"[green]Pruned revision: {changespec.name}[/green]")
 
     # Rename the ChangeSpec (skip if name is unchanged, e.g., WIP with existing suffix)
     if new_name != changespec.name:
@@ -177,8 +177,9 @@ def revert_changespec(
     if not success:
         return (False, f"Failed to update status: {error}")
 
-    # Reset CL to None
-    reset_changespec_cl(changespec.file_path, new_name)
+    # Reset CL to None (only if there was a CL to reset)
+    if changespec.cl is not None:
+        reset_changespec_cl(changespec.file_path, new_name)
 
     if console:
         console.print("[green]Status updated to Reverted, CL removed[/green]")
