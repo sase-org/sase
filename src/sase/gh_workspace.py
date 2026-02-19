@@ -329,7 +329,6 @@ class _ResolvedGhRef:
     project_file: str
     project_name: str
     primary_workspace_dir: str
-    branch_name: str | None
     checkout_target: str
 
 
@@ -382,7 +381,6 @@ def resolve_gh_ref(gh_ref: str) -> _ResolvedGhRef:
             project_file=project_file,
             project_name=project,
             primary_workspace_dir=primary_workspace_dir,
-            branch_name=None,
             checkout_target=checkout_target,
         )
 
@@ -397,7 +395,6 @@ def resolve_gh_ref(gh_ref: str) -> _ResolvedGhRef:
                 project_file=str(project_file_path),
                 project_name=gh_ref,
                 primary_workspace_dir=workspace_dir,
-                branch_name=None,
                 checkout_target=checkout_target,
             )
 
@@ -414,7 +411,6 @@ def resolve_gh_ref(gh_ref: str) -> _ResolvedGhRef:
                 project_file=cs.file_path,
                 project_name=cs.project_basename,
                 primary_workspace_dir=workspace_dir,
-                branch_name=gh_ref,
                 checkout_target=f"origin/{gh_ref}",
             )
 

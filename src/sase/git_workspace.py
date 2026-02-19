@@ -113,7 +113,6 @@ class _ResolvedGitRef:
     project_name: str
     primary_workspace_dir: str
     bare_repo_dir: str
-    branch_name: str | None
     checkout_target: str
 
 
@@ -155,7 +154,6 @@ def resolve_git_ref(git_ref: str) -> _ResolvedGitRef:
                     project_name=git_ref,
                     primary_workspace_dir=workspace_dir,
                     bare_repo_dir=bare_repo_dir,
-                    branch_name=None,
                     checkout_target=checkout_target,
                 )
 
@@ -179,7 +177,6 @@ def resolve_git_ref(git_ref: str) -> _ResolvedGitRef:
                     project_name=cs.project_basename,
                     primary_workspace_dir=workspace_dir,
                     bare_repo_dir=bare_repo_dir,
-                    branch_name=git_ref,
                     checkout_target=f"origin/{git_ref}",
                 )
 
@@ -204,7 +201,6 @@ def resolve_git_ref(git_ref: str) -> _ResolvedGitRef:
         project_name=project_name,
         primary_workspace_dir=clone_dir,
         bare_repo_dir=bare_path,
-        branch_name=None,
         checkout_target=checkout_target,
     )
 

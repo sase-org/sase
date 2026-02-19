@@ -2,6 +2,8 @@
 bead_id: sase-py2
 ---
 
+> **Superseded**: This plan has been superseded by [Git Change Specs v3](git_change_specs_v3.md).
+
 # ChangeSpec + Git/GitHub Improvements Plan
 
 ## Context

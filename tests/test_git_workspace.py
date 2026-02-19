@@ -153,7 +153,6 @@ class TestResolveGitRef:
                 assert result.project_name == "myproj"
                 assert result.primary_workspace_dir == "/work/myproj/"
                 assert result.bare_repo_dir == "/repos/myproj.git"
-                assert result.branch_name is None
                 assert result.checkout_target == "origin/main"
 
     @patch("sase.git_workspace.get_default_branch", return_value="origin/main")
@@ -181,7 +180,6 @@ class TestResolveGitRef:
                 return_value=Path("/nonexistent"),
             ):
                 result = resolve_git_ref("my-feature")
-                assert result.branch_name == "my-feature"
                 assert result.checkout_target == "origin/my-feature"
                 assert result.project_name == "proj"
                 assert result.bare_repo_dir == "/repos/proj.git"
@@ -200,7 +198,6 @@ class TestResolveGitRef:
                 result = resolve_git_ref("/repos/myproject.git")
                 assert result.project_name == "myproject"
                 assert result.bare_repo_dir == "/repos/myproject.git"
-                assert result.branch_name is None
                 mock_set_bare.assert_called_once()
                 mock_set_ws.assert_called_once()
 

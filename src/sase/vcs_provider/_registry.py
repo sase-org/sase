@@ -21,8 +21,8 @@ def detect_vcs(cwd: str) -> str | None:
     Returns the provider name (``"hg"`` or ``"git"``) or ``None``.
 
     Note: ``.git`` is checked with ``os.path.exists`` rather than
-    ``os.path.isdir`` because git worktrees use a ``.git`` *file*
-    (containing a ``gitdir:`` pointer) instead of a directory.
+    ``os.path.isdir`` because some git setups (e.g. submodules) use a
+    ``.git`` *file* (containing a ``gitdir:`` pointer) instead of a directory.
     """
     directory = os.path.abspath(cwd)
     while True:

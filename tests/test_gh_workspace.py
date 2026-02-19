@@ -318,7 +318,6 @@ class TestResolveGhRef:
     ) -> None:
         result = resolve_gh_ref("alice/myrepo")
         assert result.project_name == "myrepo"
-        assert result.branch_name is None
         assert result.checkout_target == "origin/main"
         assert "alice/myrepo" in result.primary_workspace_dir
         mock_set.assert_called_once()
@@ -349,7 +348,6 @@ class TestResolveGhRef:
                 result = resolve_gh_ref("myproj")
                 assert result.project_name == "myproj"
                 assert result.primary_workspace_dir == "/work/myproj/"
-                assert result.branch_name is None
                 assert result.checkout_target == "origin/main"
 
     @patch("sase.gh_workspace.get_default_branch", return_value="origin/main")
@@ -376,7 +374,6 @@ class TestResolveGhRef:
                 return_value=Path("/nonexistent"),
             ):
                 result = resolve_gh_ref("my-feature")
-                assert result.branch_name == "my-feature"
                 assert result.checkout_target == "origin/my-feature"
                 assert result.project_name == "proj"
 
