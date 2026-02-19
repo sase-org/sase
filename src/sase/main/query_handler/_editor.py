@@ -106,13 +106,22 @@ def _open_editor_with_content(initial_content: str) -> str | None:
         return None
 
 
-def show_prompt_history_picker() -> str | None:
+def show_prompt_history_picker(
+    sort_by: str | None = None,
+    workspace: str | None = None,
+) -> str | None:
     """Show fzf picker for prompt history, open editor, return edited prompt.
+
+    Args:
+        sort_by: Optional branch/CL name to prioritize in sorting.
+            If None, uses current branch detection.
+        workspace: Optional workspace/project name for secondary sorting.
+            If None, uses current workspace detection.
 
     Returns:
         The edited prompt content, or None if cancelled or no history.
     """
-    return _show_prompt_history_picker_for_branch(sort_by=None)
+    return _show_prompt_history_picker_for_branch(sort_by=sort_by, workspace=workspace)
 
 
 def _show_prompt_history_picker_for_branch(

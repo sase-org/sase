@@ -1,6 +1,7 @@
 """Special case handling for sase run command."""
 
 import sys
+from pathlib import Path
 
 from sase.chat_history import list_chat_histories
 from sase.shared_utils import create_artifacts_directory
@@ -8,6 +9,9 @@ from sase.shared_utils import create_artifacts_directory
 from ._editor import open_editor_for_prompt, show_prompt_history_picker
 from ._query import run_query
 from ._resume import handle_run_with_resume
+
+# The three VCS xprompt workflow names that support the dot-prompt shortcut.
+_VCS_WORKFLOW_NAMES = {"gh", "git", "hg"}
 
 
 def handle_run_special_cases(args_after_run: list[str]) -> bool:
@@ -31,6 +35,31 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             for history in histories:
                 print(f"  {history}")
         sys.exit(0)
+
+    # Handle VCS workflow prefix + '.' (e.g., "#gh(sase) ." or "#hg:my_cl .")
+    # Opens prompt history picker with the specified project's prompts sorted to top,
+    # then runs the selected prompt wrapped in the VCS workflow.
+    if args_after_run and args_after_run[0].endswith(" ."):
+        potential_query = args_after_run[0]
+        vcs_prefix = potential_query[:-2]  # Strip trailing " ."
+        if vcs_prefix.startswith("#"):
+            from sase.xprompt import parse_workflow_reference, strip_hitl_suffix
+
+            workflow_ref = vcs_prefix[1:]  # Strip leading "#"
+            workflow_ref, _ = strip_hitl_suffix(workflow_ref)
+            workflow_name, positional_args, _ = parse_workflow_reference(workflow_ref)
+
+            if workflow_name in _VCS_WORKFLOW_NAMES and positional_args:
+                ref = positional_args[0]
+                sort_by, workspace = _resolve_vcs_project_info(ref)
+                prompt = show_prompt_history_picker(
+                    sort_by=sort_by, workspace=workspace
+                )
+                if prompt is None:
+                    print("No prompt selected. Aborting.")
+                    sys.exit(1)
+                run_query(f"{vcs_prefix} {prompt}")
+                sys.exit(0)
 
     # Handle '.' - show prompt history picker
     if args_after_run == ["."]:
@@ -126,3 +155,33 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
 
     # No special case handled
     return False
+
+
+def _resolve_vcs_project_info(ref: str) -> tuple[str, str]:
+    """Resolve a VCS ref to sorting parameters for prompt history.
+
+    Returns:
+        Tuple of (sort_by, workspace) where sort_by is the branch/CL name
+        for '*' marker sorting and workspace is the project name for '~'
+        marker sorting.
+    """
+    # Repo path like user/project → project name is the last component
+    if "/" in ref:
+        project_name = ref.strip("/").split("/")[-1]
+        return ref, project_name
+
+    # Check if ref matches a known project shorthand
+    projects_base = Path.home() / ".sase" / "projects"
+    project_dir = projects_base / ref
+    if project_dir.is_dir():
+        return ref, ref
+
+    # Check ChangeSpec names for the project association
+    from sase.ace.changespec import find_all_changespecs
+
+    for cs in find_all_changespecs():
+        if cs.name == ref:
+            return ref, cs.project_basename
+
+    # Fallback: use ref as both sort_by and workspace
+    return ref, ref
