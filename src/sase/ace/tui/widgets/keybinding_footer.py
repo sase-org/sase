@@ -167,6 +167,7 @@ class KeybindingFooter(Horizontal):
         *,
         file_visible: bool = False,
         thinking_visible: bool = False,
+        thinking_forced: bool = False,
         has_always_visible: bool = False,
         hidden_count: int = 0,
         hide_non_run: bool = True,
@@ -178,6 +179,7 @@ class KeybindingFooter(Horizontal):
             agent: Current Agent or None if no agents
             file_visible: Whether the file panel is currently visible
             thinking_visible: Whether the thinking panel is currently visible
+            thinking_forced: Whether the user manually forced thinking via "i"
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
             hide_non_run: Whether hideable agents are currently hidden
@@ -187,6 +189,7 @@ class KeybindingFooter(Horizontal):
             agent,
             file_visible=file_visible,
             thinking_visible=thinking_visible,
+            thinking_forced=thinking_forced,
             has_always_visible=has_always_visible,
             hidden_count=hidden_count,
             hide_non_run=hide_non_run,
@@ -232,6 +235,7 @@ class KeybindingFooter(Horizontal):
         *,
         file_visible: bool = False,
         thinking_visible: bool = False,
+        thinking_forced: bool = False,
         has_always_visible: bool = False,
         hidden_count: int = 0,
         hide_non_run: bool = True,
@@ -243,6 +247,7 @@ class KeybindingFooter(Horizontal):
             agent: Current Agent or None
             file_visible: Whether the file panel is currently visible
             thinking_visible: Whether the thinking panel is currently visible
+            thinking_forced: Whether the user manually forced thinking via "i"
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
             hide_non_run: Whether hideable agents are currently hidden
@@ -280,9 +285,14 @@ class KeybindingFooter(Horizontal):
             bindings.append(("h/l", "fold"))
             bindings.append(("H/L", "fold all"))
 
-        # Thinking toggle (only when agent selected)
+        # Thinking/file toggle
         if agent is not None:
-            bindings.append(("i", "thinking"))
+            if thinking_forced:
+                # User forced thinking; pressing "i" toggles back to file
+                bindings.append(("i", "file"))
+            elif not thinking_visible:
+                # File showing or prompt expanded; pressing "i" shows thinking
+                bindings.append(("i", "thinking"))
 
         # Layout toggle (when file or thinking panel is visible)
         if file_visible or thinking_visible:

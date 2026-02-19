@@ -263,6 +263,14 @@ class AgentDetail(Static):
         """
         return self._force_thinking or self._thinking_auto_shown
 
+    def is_thinking_forced(self) -> bool:
+        """Check if the user manually forced the thinking panel via "i" key.
+
+        Returns:
+            True if the user toggled thinking on, False if auto-shown or hidden.
+        """
+        return self._force_thinking
+
     def is_file_visible(self) -> bool:
         """Check if the file panel is currently visible.
 
