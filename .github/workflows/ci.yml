@@ -31,6 +31,8 @@ jobs:
         run: just lint
       - name: Pyvision (unused symbol check)
         run: just pyvision
+        env:
+          BD_NO_DB: "true"
       - name: Pylimit (file line count check)
         run: just pylimit
 
