@@ -1,3 +1,7 @@
+---
+bead_id: sase-xu6
+---
+
 # Plan: Claude Thinking Panel on Agents Tab
 
 ## Context
