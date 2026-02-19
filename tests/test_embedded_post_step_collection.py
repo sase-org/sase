@@ -197,3 +197,17 @@ def test_meta_collected_from_all_steps_while_path_from_last() -> None:
     )
     assert diff_path == "/tmp/final.diff"
     assert meta == {"meta_check": "passed", "meta_saved": "yes", "meta_status": "done"}
+
+
+def test_diff_after_conditional_release_extracts_path() -> None:
+    """diff step after conditional release provides diff_path."""
+    release_step = _make_step("release", {"released": {"type": "bool"}})
+    diff_step = _make_step("diff", {"diff_path": {"type": "path"}})
+    ctx: dict[str, object] = {
+        "release": {},  # Skipped (condition false)
+        "diff": {"diff_path": "/tmp/sase-gh-abc123.diff"},
+    }
+    diff_path, meta = _collect_embedded_step_outputs(
+        [_make_info(ctx, post_steps=[release_step, diff_step])]
+    )
+    assert diff_path == "/tmp/sase-gh-abc123.diff"

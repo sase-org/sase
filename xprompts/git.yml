@@ -73,8 +73,9 @@ steps:
       git checkout . && git clean -fd
       git fetch --quiet
       git pull --rebase --quiet 2>&1 || true
+      echo "head_before=$(git rev-parse HEAD)"
       echo "success=true"
-    output: { success: bool }
+    output: { success: bool, head_before: word }
 
   - name: inject
     prompt_part: ""
@@ -92,3 +93,18 @@ steps:
       )
       print("released=true")
     output: { released: bool }
+
+  - name: diff
+    bash: |
+      head_before="{{ prepare.head_before }}"
+      if [ -z "$head_before" ]; then
+        exit 0
+      fi
+      diff_file=$(mktemp /tmp/sase-git-XXXXXX.diff)
+      git diff "$head_before" > "$diff_file" 2>/dev/null
+      if [ -s "$diff_file" ]; then
+        echo "diff_path=$diff_file"
+      else
+        rm -f "$diff_file"
+      fi
+    output: { diff_path: path }
