@@ -2,7 +2,8 @@
 
 Reads hook JSON from stdin, creates a sase notification, writes a request file,
 and polls for a response file written by the TUI's PlanApprovalModal.
-Exit codes: 0 = approve, 2 = reject (with feedback on stderr).
+Exit codes: 2 = deny with reason (approve sends implementation directive,
+reject sends feedback). Never exits 0 for SASE_AGENT mode.
 """
 
 import json
@@ -201,8 +202,17 @@ def handle_plan_approve_command() -> NoReturn:
 
                 action = response_data.get("action", "reject")
                 if action == "approve":
-                    emit_hook_decision("allow", "Plan approved by user in sase ace")
-                    sys.exit(0)
+                    emit_hook_decision(
+                        "deny",
+                        "PLAN APPROVED BY USER VIA SASE ACE TUI.\n\n"
+                        "Your plan has been reviewed and approved by the user. "
+                        "This is NOT a rejection -- your plan is approved. "
+                        "Proceed immediately with implementing the plan. "
+                        "Do NOT call ExitPlanMode again. "
+                        "Do NOT ask for further confirmation. "
+                        "Begin implementation now.",
+                    )
+                    sys.exit(2)
                 else:
                     feedback = response_data.get("feedback", "")
                     reason = feedback if feedback else "Plan rejected by user"
