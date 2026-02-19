@@ -54,7 +54,7 @@ class FileViewingMixin(HintMixinBase):
         import subprocess
 
         def run_editor() -> None:
-            editor = os.environ.get("EDITOR", "vi")
+            editor = os.environ.get("EDITOR") or "nvim"
             editor_args = build_editor_args(editor, result.files)
             subprocess.run(editor_args, check=False)
 

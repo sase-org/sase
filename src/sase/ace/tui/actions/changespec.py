@@ -367,7 +367,7 @@ class ChangeSpecMixin:
         """Open ChangeSpec in editor with nvim enhancements."""
         import subprocess
 
-        editor = os.environ.get("EDITOR", "vi")
+        editor = os.environ.get("EDITOR") or "nvim"
         file_path = os.path.expanduser(changespec.file_path)
         args = [editor]
         if "/nvim" in editor:

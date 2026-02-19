@@ -118,7 +118,7 @@ class AgentInteractionMixin:
             self.notify("No chat file found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        editor = os.environ.get("EDITOR", "vi")
+        editor = os.environ.get("EDITOR") or "nvim"
         file_path = os.path.expanduser(agent.response_path)
 
         with self.suspend():  # type: ignore[attr-defined]
