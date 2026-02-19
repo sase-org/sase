@@ -26,7 +26,15 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+          cache: false
+      - name: Cache bd binary
+        id: cache-bd
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/bd
+          key: bd-linux-amd64-go-${{ hashFiles('.github/workflows/ci.yml') }}
       - name: Install beads (bd)
+        if: steps.cache-bd.outputs.cache-hit != 'true'
         run: CGO_ENABLED=1 go install github.com/steveyegge/beads/cmd/bd@latest
       - name: Initialize beads database
         run: |
