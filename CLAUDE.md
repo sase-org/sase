@@ -39,11 +39,11 @@ Run `sase_bd onboard` to get started.
 ### Quick Reference
 
 ```bash
-sase_bd ready              # Find available work
-sase_bd show <id>          # View issue details
-sase_bd update <id> --status in_progress  # Claim work
-sase_bd close <id>         # Complete work
-sase_bd sync               # Sync with git
+tools/sase_bd ready              # Find available work
+tools/sase_bd show <id>          # View issue details
+tools/sase_bd update <id> --status in_progress  # Claim work
+tools/sase_bd close <id>         # Complete work
+tools/sase_bd sync               # Sync with git
 ```
 
 ## End-to-End Testing w/ `sase ace --agent`
