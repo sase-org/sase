@@ -1,3 +1,7 @@
+---
+bead_id: sase-z5m
+---
+
 # Plan: PTY-Based Interactive Mode for Claude Code Agent Execution
 
 ## Context
