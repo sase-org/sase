@@ -25,14 +25,16 @@ jobs:
         run: just install
       - name: Install beads (bd)
         run: npm install -g @beads/bd
+      - name: Initialize beads database
+        run: |
+          rm -f .beads/metadata.json
+          bd init --from-jsonl --skip-hooks --quiet --force
       - name: Check Python formatting
         run: just fmt-py-check
       - name: Lint
         run: just lint
       - name: Pyvision (unused symbol check)
         run: just pyvision
-        env:
-          BD_NO_DB: "true"
       - name: Pylimit (file line count check)
         run: just pylimit
 
