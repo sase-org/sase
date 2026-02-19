@@ -123,7 +123,7 @@ addopts = [
     "--import-mode=importlib",
     "--strict-markers",
     "--strict-config",
-    "-n", "auto",
+    "-n", "10",
     "--dist", "worksteal",
     "--cov=sase",
     "--cov-report=term-missing:skip-covered",
