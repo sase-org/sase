@@ -23,12 +23,11 @@ jobs:
         run: uv python install 3.12
       - name: Install dependencies
         run: just install
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
       - name: Install beads (bd)
-        run: |
-          BD_VERSION=$(curl -s https://api.github.com/repos/steveyegge/beads/releases/latest | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
-          curl -L -o /tmp/bd.tar.gz "https://github.com/steveyegge/beads/releases/download/v${BD_VERSION}/beads_${BD_VERSION}_linux_amd64.tar.gz"
-          sudo tar -xzf /tmp/bd.tar.gz -C /usr/local/bin bd
-          sudo chmod +x /usr/local/bin/bd
+        run: CGO_ENABLED=1 go install github.com/steveyegge/beads/cmd/bd@latest
       - name: Initialize beads database
         run: |
           rm -f .beads/metadata.json
