@@ -12,6 +12,8 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    env:
+      BD_NO_DB: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -35,11 +37,7 @@ jobs:
           key: bd-linux-amd64-go-${{ hashFiles('.github/workflows/ci.yml') }}
       - name: Install beads (bd)
         if: steps.cache-bd.outputs.cache-hit != 'true'
-        run: CGO_ENABLED=1 go install github.com/steveyegge/beads/cmd/bd@latest
-      - name: Initialize beads database
-        run: |
-          rm -f .beads/metadata.json
-          bd init --from-jsonl --skip-hooks --quiet --force
+        run: CGO_ENABLED=0 go install github.com/steveyegge/beads/cmd/bd@latest
       - name: Check Python formatting
         run: just fmt-py-check
       - name: Lint
