@@ -57,6 +57,15 @@ class AgentKillingMixin:
     # Agent state (needed for _dismiss_done_agent)
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
 
+    def _persist_dismissed_agent(
+        self, identity: tuple[AgentType, str, str | None]
+    ) -> None:
+        """Add an agent identity to the dismissed set and save to disk."""
+        from ....dismissed_agents import save_dismissed_agents
+
+        self._dismissed_agents.add(identity)
+        save_dismissed_agents(self._dismissed_agents)
+
     def _do_kill_agent(self, agent: Agent) -> None:
         """Perform the actual agent kill after confirmation."""
         from ...models.agent import AgentType
@@ -307,7 +316,7 @@ class AgentKillingMixin:
 
         # Track dismissal as safety net (ensures agent is filtered even if
         # workspace release failed or RUNNING field persists)
-        self._dismissed_agents.add(agent.identity)  # type: ignore[attr-defined]
+        self._persist_dismissed_agent(agent.identity)
 
         # Also dismiss child steps
         if not agent.is_workflow_child:
@@ -317,7 +326,11 @@ class AgentKillingMixin:
                     and step.parent_timestamp == agent.raw_suffix
                     and step.parent_workflow == agent.workflow
                 ):
-                    self._dismissed_agents.add(step.identity)  # type: ignore[attr-defined]
+                    self._dismissed_agents.add(step.identity)
+            # Persist after batching all child dismissals
+            from ....dismissed_agents import save_dismissed_agents
+
+            save_dismissed_agents(self._dismissed_agents)
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
@@ -400,7 +413,7 @@ class AgentKillingMixin:
             # Always track dismissal in _dismissed_agents as a fallback.
             # This ensures the workflow is filtered out even if it's loaded
             # from the RUNNING field or other sources.
-            self._dismissed_agents.add(agent.identity)  # type: ignore[attr-defined]
+            self._persist_dismissed_agent(agent.identity)
 
             # If this is a parent workflow (not a child step), also dismiss all its steps
             if not agent.is_workflow_child:
@@ -410,7 +423,11 @@ class AgentKillingMixin:
                         and step.parent_timestamp == agent.raw_suffix
                         and step.parent_workflow == agent.workflow
                     ):
-                        self._dismissed_agents.add(step.identity)  # type: ignore[attr-defined]
+                        self._dismissed_agents.add(step.identity)
+                # Persist after batching all child dismissals
+                from ....dismissed_agents import save_dismissed_agents
+
+                save_dismissed_agents(self._dismissed_agents)
 
             self._load_agents()  # type: ignore[attr-defined]
             return
@@ -424,7 +441,7 @@ class AgentKillingMixin:
             AgentType.MENTOR,
             AgentType.CRS,
         ):
-            self._dismissed_agents.add(agent.identity)  # type: ignore[attr-defined]
+            self._persist_dismissed_agent(agent.identity)
 
             self.notify(  # type: ignore[attr-defined]
                 f"Dismissed {agent.agent_type.value.lower()} agent for {agent.cl_name}"

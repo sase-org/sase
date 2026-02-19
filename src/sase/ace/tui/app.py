@@ -262,10 +262,10 @@ class AceApp(
         self._fold_counts: dict[str, tuple[int, int]] = {}
 
         # Agent completion tracking for notifications
-        from .models.agent import AgentType
+        from ..dismissed_agents import load_dismissed_agents
 
         self._last_unread_count: int = 0
-        self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._dismissed_agents = load_dismissed_agents()
 
         # Axe state
         self._axe_status: AxeStatus | None = None
