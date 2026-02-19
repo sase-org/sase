@@ -1,0 +1,32 @@
+#!/bin/bash
+set -euo pipefail
+
+# Wrapper for `bd` that redirects non-primary workspace invocations
+# to the primary workspace directory, avoiding duplicate database errors.
+#
+# Workspace pattern:
+#   Primary:     .../sase/
+#   Non-primary: .../sase__100/, sase__101/, etc.
+
+resolve_primary_dir() {
+    local dir="$1"
+    if [[ "$dir" =~ ^(.+)__[0-9]+$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo "$dir"
+    fi
+}
+
+workspace_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+primary_dir="$(resolve_primary_dir "$workspace_dir")"
+
+if [[ ! -d "$primary_dir/.beads" ]]; then
+    echo "sase_bd: warning: '$primary_dir' has no .beads/, falling back to current dir" >&2
+    exec bd "$@"
+fi
+
+if [[ "$primary_dir" != "$workspace_dir" ]]; then
+    cd "$primary_dir"
+fi
+
+exec bd "$@"

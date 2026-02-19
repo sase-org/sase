@@ -24,3 +24,8 @@ said, there are a few exceptions:
   `<path_with_reference>` should be the path to the file that references the symbol, relative to the root of the
   repository. For example, if a symbol is used by `xprompts/foo.yaml`, the pragma comment would be
   `# pyvision: xprompts/foo.yaml`.
+
+## `sase_bd`
+
+Wrapper for the `bd` (beads) issue tracker. Always use `sase_bd` instead of calling `bd` directly. This is NOT a
+vendored script (no date suffix).
