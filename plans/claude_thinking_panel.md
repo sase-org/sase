@@ -1,7 +1,3 @@
----
-bead_id: sase-cnj
----
-
 # Plan: Claude Thinking Panel on Agents Tab
 
 ## Context
