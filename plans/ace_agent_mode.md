@@ -1,3 +1,7 @@
+---
+bead_id: sase-oqr
+---
+
 # Plan: Native Agent Mode for `sase ace`
 
 ## Context
