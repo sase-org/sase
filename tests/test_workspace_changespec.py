@@ -146,6 +146,7 @@ def test_create_changespec_for_workflow_success() -> None:
             "sase.workspace_changespec.add_changespec_to_project_file",
             return_value="proj_add_thing__1",
         ) as mock_add,
+        patch("sase.workspace_changespec.subprocess.run"),  # Prevent real git branch -m
     ):
         result = create_changespec_for_workflow(
             project_name="proj",

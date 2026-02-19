@@ -152,7 +152,7 @@ def create_changespec_for_workflow(
 
         derived_branch = changespec_name_to_branch(cl_name, project_name)
         subprocess.run(
-            ["git", "branch", "-m", derived_branch],
+            ["git", "branch", "-m", branch_name, derived_branch],
             capture_output=True,
             text=True,
             check=False,
