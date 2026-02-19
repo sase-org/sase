@@ -307,7 +307,9 @@ class AgentThinkingPanel(Static):
             # Fixed bottom width of 46 chars; top border adapts
             border_min = len(top_label) + len(action_text) + 4  # ╭─ ... ──╮
             top_width = max(46, border_min)
-            fill_count = top_width - 2 - len(top_label) - len(action_text)  # -2 for ╭╮
+            fill_count = (
+                top_width - 3 - len(top_label) - len(action_text)
+            )  # -3 for ╭─...╮
             fill = "─" * max(fill_count, 3)
 
             # Build top border with mixed styling
