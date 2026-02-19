@@ -39,9 +39,8 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     # Handle VCS workflow prefix + '.' (e.g., "#gh(sase) ." or "#hg:my_cl .")
     # Opens prompt history picker with the specified project's prompts sorted to top,
     # then runs the selected prompt wrapped in the VCS workflow.
-    if args_after_run and args_after_run[0].endswith(" ."):
-        potential_query = args_after_run[0]
-        vcs_prefix = potential_query[:-2]  # Strip trailing " ."
+    if len(args_after_run) >= 2 and args_after_run[-1] == ".":
+        vcs_prefix = " ".join(args_after_run[:-1])
         if vcs_prefix.startswith("#"):
             from sase.xprompt import parse_workflow_reference, strip_hitl_suffix
 
