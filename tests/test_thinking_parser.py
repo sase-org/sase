@@ -10,6 +10,7 @@ from sase.ace.tui.thinking.parser import (
     _read_jsonl_lines,
     parse_thinking_blocks,
 )
+from sase.ace.tui.widgets.thinking_panel import _format_timestamp
 
 
 # --- helpers ---
@@ -287,3 +288,23 @@ def test_large_file_reads_tail(tmp_path: Path) -> None:
     # Last line should be parseable
     last = json.loads(lines[-1])
     assert last["i"] == 9999
+
+
+# --- _format_timestamp ---
+
+
+def test_format_timestamp_utc_to_est() -> None:
+    """UTC timestamp in winter (EST = UTC-5) converts correctly."""
+    # 2026-01-15 20:30:45 UTC → 15:30:45 EST
+    assert _format_timestamp("2026-01-15T20:30:45Z") == "15:30:45"
+
+
+def test_format_timestamp_utc_to_edt() -> None:
+    """UTC timestamp in summer (EDT = UTC-4) converts correctly."""
+    # 2026-07-15 20:30:45 UTC → 16:30:45 EDT
+    assert _format_timestamp("2026-07-15T20:30:45Z") == "16:30:45"
+
+
+def test_format_timestamp_invalid_input() -> None:
+    """Invalid input returns fallback string."""
+    assert _format_timestamp("not-a-timestamp") == "??:??:??"
