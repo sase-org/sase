@@ -7,8 +7,9 @@ the ability to answer these questions from the `sase ace` TUI via the existing n
 approval flow (commits e3363df, f9fb5e8).
 
 **Mechanism**: A PreToolUse hook intercepts `AskUserQuestion`, creates a TUI notification, and blocks until the user
-answers from the modal. The hook exits with code 2 (deny), passing the user's selections as structured text on stderr.
-Claude reads this "denial reason" and proceeds with the answers.
+answers from the modal. The hook emits structured `hookSpecificOutput` JSON on stdout (via `_emit_hook_decision()`) to
+deny the tool and pass the user's answers in `permissionDecisionReason`. Claude reads this denial reason and proceeds
+with the answers.
 
 ---
 
@@ -21,7 +22,7 @@ Claude reads this "denial reason" and proceeds with the answers.
 ```
 handle_user_question_command():
   1. Read JSON from stdin (contains tool_input with questions array, session_id)
-  2. If SASE_AGENT not set: send desktop notification + ring bell + exit 0 (let CLI handle it)
+  2. If SASE_AGENT not set: send desktop notification + ring bell + emit `_emit_hook_decision("allow", "...")` + exit 0
   3. If SASE_AGENT=1:
      a. Write request file: ~/.sase/user_question/{session_id}/question_request.json
         Contents: the full tool_input (questions array with options, multiSelect, etc.)
@@ -29,11 +30,15 @@ handle_user_question_command():
      c. Send desktop notification + ring tmux bell
      d. Poll for response file: ~/.sase/user_question/{session_id}/question_response.json
         (0.5s interval, 10-minute timeout)
-     e. On response: format answers as structured text, exit 2 with text on stderr
-     f. On timeout: exit 2 with timeout message on stderr
+     e. On response: format answers as structured text, call `_emit_hook_decision("deny", formatted_answers)`, exit 2
+     f. On timeout: call `_emit_hook_decision("deny", "User question timed out")`, exit 2
 ```
 
-**Stderr format** (what Claude sees as the denial reason):
+**`_emit_hook_decision` helper**: Import the shared `_emit_hook_decision()` from `sase.main.plan_approve_handler` (see
+`src/sase/main/plan_approve_handler.py:22-31`), or extract it into a common module (e.g., `sase.main._hook_utils`) that
+both handlers import. The helper is only ~6 lines, so duplicating locally is also acceptable.
+
+**`permissionDecisionReason` format** (what Claude sees as the denial reason):
 
 ```
 USER ANSWERS PROVIDED VIA SASE TUI
@@ -93,6 +98,11 @@ def notify_user_question(
 The old `plan_hook` bash script no longer handles AskUserQuestion (it only fires for ExitPlanMode now, which is already
 handled by `sase plan-approve`). Since both matchers now use dedicated `sase` commands, the `plan_hook` bash script's
 AskUserQuestion case is dead code — but we can leave it for now.
+
+**Note on hook timeouts**: The current `~/.claude/settings.json` has `"timeout": 10` for both ExitPlanMode and
+AskUserQuestion hooks. Both should be updated to `600` (10 minutes) since they block while polling for TUI responses.
+The ExitPlanMode hook should already point at `sase plan-approve` with `"timeout": 600`; verify this when updating the
+AskUserQuestion hook.
 
 ### 1.5 Store question data in request file
 
@@ -254,7 +264,8 @@ elif result.action == "UserQuestion":
    `echo '{"session_id":"test","tool_input":{"questions":[{"question":"Pick one","header":"Test","multiSelect":false,"options":[{"label":"A","description":"Option A"},{"label":"B","description":"Option B"}]}]}}' | SASE_AGENT=1 uv run sase user-question`
 2. Verify notification appears in `~/.sase/notifications/notifications.jsonl`
 3. Verify request file created at `~/.sase/user_question/test/question_request.json`
-4. Manually write a response file and verify the handler picks it up and exits 2 with formatted stderr
+4. Manually write a response file and verify the handler picks it up, emits `_emit_hook_decision("deny", ...)` on
+   stdout, and exits 2
 
 ### Phase 2 testing
 
