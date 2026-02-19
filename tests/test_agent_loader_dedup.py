@@ -301,3 +301,90 @@ def test_workflow_dedup_propagates_failed_status() -> None:
     assert result[0].workspace_num == 5
     # PID should be propagated from workflow_state.json
     assert result[0].pid == 121415
+
+
+def test_running_workflow_dedup_ace_run() -> None:
+    """Test RUNNING↔WORKFLOW dedup for ace(run) agents.
+
+    When sase run creates both a done.json (RUNNING agent) and a
+    workflow_state.json (WORKFLOW agent) in the same artifacts directory,
+    the two should be deduplicated into a single WORKFLOW agent with
+    metadata merged from the RUNNING agent.
+    """
+    from sase.ace.tui.models.agent import Agent, AgentType
+
+    # RUNNING agent from done.json (has cl_name, workspace_num, response_path, etc.)
+    running_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        workflow="ace(run)",
+        raw_suffix="20260219120000",
+        workspace_num=3,
+        response_path="/tmp/response.txt",
+        diff_path="/tmp/diff.patch",
+        model="gemini-2.5-pro",
+        vcs_provider="GitHub",
+    )
+
+    # WORKFLOW agent from workflow_state.json (has appears_as_agent, but unknown cl_name)
+    workflow_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="unknown",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        workflow="tmp_ace_run_1234",
+        raw_suffix="20260219120000",
+        appears_as_agent=True,
+        pid=55555,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[running_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[workflow_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=[],
+        ),
+    ):
+        result = load_all_agents()
+
+    # Should be deduplicated to one agent
+    assert len(result) == 1
+    # Should be the WORKFLOW agent (preferred — has step info / appears_as_agent)
+    assert result[0].agent_type == AgentType.WORKFLOW
+    assert result[0].appears_as_agent is True
+    # Metadata should be merged from the RUNNING agent
+    assert result[0].cl_name == "my_feature"
+    assert result[0].workspace_num == 3
+    assert result[0].response_path == "/tmp/response.txt"
+    assert result[0].diff_path == "/tmp/diff.patch"
+    assert result[0].model == "gemini-2.5-pro"
+    assert result[0].vcs_provider == "GitHub"
+    # PID should come from the WORKFLOW agent
+    assert result[0].pid == 55555

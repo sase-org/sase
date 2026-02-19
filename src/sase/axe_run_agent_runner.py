@@ -228,7 +228,7 @@ def main() -> None:
             result = execute_workflow(
                 anon_workflow.name,
                 [],
-                {},
+                {"cl_name": cl_name},
                 artifacts_dir=artifacts_dir,
                 silent=True,
                 workflow_obj=anon_workflow,

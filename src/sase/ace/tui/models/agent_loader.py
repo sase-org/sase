@@ -268,6 +268,47 @@ def load_all_agents() -> list[Agent]:
         or seen_suffixes.get(a.raw_suffix) is a
     ]
 
+    # Deduplicate RUNNING↔WORKFLOW: ace(run) RUNNING agents vs WORKFLOW agents
+    # from the same artifacts directory (matching raw_suffix / timestamp).
+    # Prefer WORKFLOW (has step info / appears_as_agent), merge metadata from RUNNING.
+    workflow_by_suffix: dict[str, Agent] = {}
+    for agent in agents:
+        if agent.agent_type == AgentType.WORKFLOW and agent.raw_suffix:
+            workflow_by_suffix[agent.raw_suffix] = agent
+
+    deduped_agents: list[Agent] = []
+    for agent in agents:
+        if (
+            agent.agent_type == AgentType.RUNNING
+            and agent.workflow == "ace(run)"
+            and agent.raw_suffix
+            and agent.raw_suffix in workflow_by_suffix
+        ):
+            # Match found — merge metadata into the WORKFLOW agent
+            matched = workflow_by_suffix[agent.raw_suffix]
+            if matched.cl_name == "unknown" and agent.cl_name != "unknown":
+                matched.cl_name = agent.cl_name
+            if matched.workspace_num is None and agent.workspace_num is not None:
+                matched.workspace_num = agent.workspace_num
+            if matched.response_path is None and agent.response_path is not None:
+                matched.response_path = agent.response_path
+            if matched.diff_path is None and agent.diff_path is not None:
+                matched.diff_path = agent.diff_path
+            if matched.bug is None and agent.bug is not None:
+                matched.bug = agent.bug
+            if matched.cl_num is None and agent.cl_num is not None:
+                matched.cl_num = agent.cl_num
+            if matched.model is None and agent.model is not None:
+                matched.model = agent.model
+            if matched.vcs_provider is None and agent.vcs_provider is not None:
+                matched.vcs_provider = agent.vcs_provider
+            if matched.error_message is None and agent.error_message is not None:
+                matched.error_message = agent.error_message
+            continue  # Drop the RUNNING entry
+        deduped_agents.append(agent)
+
+    agents = deduped_agents
+
     # Sort by start time (most recent first), with None times at end
     def sort_key(a: Agent) -> tuple[bool, datetime]:
         if a.start_time is None:
