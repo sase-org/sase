@@ -52,6 +52,7 @@ class ClaudeCodeProvider(LLMProvider):
         base_args = [
             "claude",
             "-p",
+            "--verbose",
             "--model",
             model_alias,
             "--output-format",
