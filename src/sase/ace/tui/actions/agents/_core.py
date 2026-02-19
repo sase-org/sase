@@ -221,9 +221,12 @@ class AgentsMixinCore(
             key for key, (non_hidden, _) in self._fold_counts.items() if non_hidden > 0
         )
 
+        thinking_visible = agent_detail.is_thinking_visible()
+
         footer_widget.update_agent_bindings(
             current_agent,
             file_visible=file_visible,
+            thinking_visible=thinking_visible,
             has_always_visible=self._has_always_visible,
             hidden_count=self._hidden_count,
             hide_non_run=self.hide_non_run_agents,

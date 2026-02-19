@@ -12,6 +12,7 @@ from .changespec_info_panel import ChangeSpecInfoPanel
 from .changespec_list import ChangeSpecList
 from .hint_input_bar import HintInputBar
 from .keybinding_footer import KeybindingFooter
+from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
 from .tab_bar import TabBar
@@ -19,6 +20,7 @@ from .tab_bar import TabBar
 __all__ = [
     "AgentDetail",
     "AgentInfoPanel",
+    "AgentThinkingPanel",
     "AgentList",
     "AncestorsChildrenPanel",
     "AxeDashboard",
@@ -33,4 +35,5 @@ __all__ = [
     "PromptInputBar",
     "SearchQueryPanel",
     "TabBar",
+    "ThinkingVisibilityChanged",
 ]

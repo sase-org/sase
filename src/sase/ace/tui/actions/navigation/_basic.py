@@ -84,12 +84,26 @@ class BasicNavigationMixin(NavigationMixinBase):
             # Update view
             self._switch_to_axe_view(items[prev_idx])  # type: ignore[attr-defined]
 
+    def _get_agent_detail_scroll_id(self) -> str:
+        """Get the scroll container ID for the active agent detail panel.
+
+        Returns:
+            CSS selector for the currently visible scroll container.
+        """
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        if agent_detail.is_thinking_visible():
+            return "#agent-thinking-scroll"
+        return "#agent-file-scroll"
+
     def action_scroll_detail_down(self) -> None:
         """Scroll the detail panel down by half a page (vim Ctrl+D style)."""
         if self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
-            scroll_container = self.query_one("#agent-file-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            scroll_id = self._get_agent_detail_scroll_id()
+            scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
         else:  # axe
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -101,7 +115,8 @@ class BasicNavigationMixin(NavigationMixinBase):
         if self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
-            scroll_container = self.query_one("#agent-file-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            scroll_id = self._get_agent_detail_scroll_id()
+            scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
         else:  # axe
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -139,7 +154,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_home(animate=False)
         elif self.current_tab == "agents":
-            scroll_container = self.query_one("#agent-file-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            scroll_id = self._get_agent_detail_scroll_id()
+            scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_home(animate=False)
 
     def action_scroll_to_bottom(self) -> None:
@@ -153,7 +169,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_end(animate=False)
         elif self.current_tab == "agents":
-            scroll_container = self.query_one("#agent-file-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            scroll_id = self._get_agent_detail_scroll_id()
+            scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_end(animate=False)
 
     # --- Tab Switching Actions ---

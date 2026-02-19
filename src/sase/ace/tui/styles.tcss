@@ -459,6 +459,21 @@ HintInputBar #hint-escape-hint {
     height: 30%;
 }
 
+#agent-thinking-scroll {
+    height: 70%;
+    border: solid #af87d7;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+}
+
+#agent-thinking-scroll.hidden {
+    display: none;
+}
+
+#agent-thinking-scroll.layout-secondary {
+    height: 30%;
+}
+
 /* Agent list styling */
 AgentList {
     scrollbar-gutter: stable;

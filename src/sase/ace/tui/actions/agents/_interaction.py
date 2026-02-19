@@ -133,8 +133,30 @@ class AgentInteractionMixin:
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
 
-        if not agent_detail.is_file_visible():
-            self.notify("No file panel to toggle", severity="warning")  # type: ignore[attr-defined]
+        if (
+            not agent_detail.is_file_visible()
+            and not agent_detail.is_thinking_visible()
+        ):
+            self.notify("No panel to toggle layout", severity="warning")  # type: ignore[attr-defined]
             return
 
         agent_detail.toggle_layout()
+
+    def action_toggle_thinking(self) -> None:
+        """Toggle the thinking panel for the selected agent."""
+        if self.current_tab != "agents":
+            return
+
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.toggle_thinking(agent)
+
+        # Refresh footer to reflect new state
+        self._refresh_agents_display()  # type: ignore[attr-defined]

@@ -166,6 +166,7 @@ class KeybindingFooter(Horizontal):
         agent: "Agent | None",
         *,
         file_visible: bool = False,
+        thinking_visible: bool = False,
         has_always_visible: bool = False,
         hidden_count: int = 0,
         hide_non_run: bool = True,
@@ -176,6 +177,7 @@ class KeybindingFooter(Horizontal):
         Args:
             agent: Current Agent or None if no agents
             file_visible: Whether the file panel is currently visible
+            thinking_visible: Whether the thinking panel is currently visible
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
             hide_non_run: Whether hideable agents are currently hidden
@@ -184,6 +186,7 @@ class KeybindingFooter(Horizontal):
         bindings = self._compute_agent_bindings(
             agent,
             file_visible=file_visible,
+            thinking_visible=thinking_visible,
             has_always_visible=has_always_visible,
             hidden_count=hidden_count,
             hide_non_run=hide_non_run,
@@ -228,6 +231,7 @@ class KeybindingFooter(Horizontal):
         agent: "Agent | None",
         *,
         file_visible: bool = False,
+        thinking_visible: bool = False,
         has_always_visible: bool = False,
         hidden_count: int = 0,
         hide_non_run: bool = True,
@@ -238,6 +242,7 @@ class KeybindingFooter(Horizontal):
         Args:
             agent: Current Agent or None
             file_visible: Whether the file panel is currently visible
+            thinking_visible: Whether the thinking panel is currently visible
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
             hide_non_run: Whether hideable agents are currently hidden
@@ -275,8 +280,12 @@ class KeybindingFooter(Horizontal):
             bindings.append(("h/l", "fold"))
             bindings.append(("H/L", "fold all"))
 
-        # Layout toggle (only when file panel is visible)
-        if file_visible:
+        # Thinking toggle (only when agent selected)
+        if agent is not None:
+            bindings.append(("i", "thinking"))
+
+        # Layout toggle (when file or thinking panel is visible)
+        if file_visible or thinking_visible:
             bindings.append(("p", "layout"))
 
         # Show/hide hideable agents (only when both always-visible and hideable exist)

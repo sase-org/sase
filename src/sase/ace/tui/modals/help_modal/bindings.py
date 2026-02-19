@@ -127,6 +127,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("r", "Revive chat as agent"),
             ("x", "Kill / dismiss agent"),
             ("e", "Edit chat in editor"),
+            ("i", "Toggle Claude thinking panel"),
             ("p", "Toggle file/prompt layout"),
         ],
     ),

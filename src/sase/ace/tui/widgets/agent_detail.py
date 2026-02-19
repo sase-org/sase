@@ -9,6 +9,7 @@ from textual.widgets import Static
 from ..models.agent import Agent
 from .file_panel import AgentFilePanel, FileVisibilityChanged
 from .prompt_panel import AgentPromptPanel
+from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 
 
 class AgentDetail(Static):
@@ -18,6 +19,7 @@ class AgentDetail(Static):
         """Initialize the agent detail view."""
         super().__init__(**kwargs)
         self._layout_swapped: bool = False
+        self._thinking_visible: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
@@ -26,6 +28,8 @@ class AgentDetail(Static):
                 yield AgentPromptPanel(id="agent-prompt-panel")
             with VerticalScroll(id="agent-file-scroll"):
                 yield AgentFilePanel(id="agent-file-panel")
+            with VerticalScroll(id="agent-thinking-scroll", classes="hidden"):
+                yield AgentThinkingPanel(id="agent-thinking-panel")
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update panels with agent information.
@@ -44,6 +48,19 @@ class AgentDetail(Static):
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
 
         prompt_panel.update_display(agent)
+
+        # When thinking panel is visible, keep it showing and just refresh data
+        if self._thinking_visible:
+            thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+            thinking_panel.update_display(
+                agent, stale_threshold_seconds=stale_threshold_seconds
+            )
+            # Still update file panel in background (for when thinking is toggled off)
+            if agent.status in ("RUNNING", "WAITING INPUT"):
+                file_panel.update_display(
+                    agent, stale_threshold_seconds=stale_threshold_seconds
+                )
+            return
 
         # Hide file panel for bash/python workflow steps - they don't have files
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):
@@ -71,18 +88,23 @@ class AgentDetail(Static):
                 file_scroll.remove_class("layout-secondary")
 
     def show_empty(self) -> None:
-        """Show empty state for both panels."""
+        """Show empty state for all panels."""
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
 
         prompt_panel.show_empty()
         file_panel.show_empty()
+        thinking_panel.show_empty()
 
-        # Hide file panel when no agent is selected
+        # Hide file and thinking panels when no agent is selected
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
+        thinking_scroll.add_class("hidden")
         prompt_scroll.add_class("expanded")
+        self._thinking_visible = False
 
     def refresh_current_file(self, agent: Agent) -> None:
         """Force refresh the file for the given agent.
@@ -93,12 +115,76 @@ class AgentDetail(Static):
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         file_panel.refresh_file(agent)
 
+    def toggle_thinking(self, agent: Agent) -> None:
+        """Toggle between file panel and thinking panel.
+
+        Args:
+            agent: The currently selected agent.
+        """
+        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+
+        if not self._thinking_visible:
+            # Toggle ON: hide file, show thinking
+            file_scroll.add_class("hidden")
+            thinking_scroll.remove_class("hidden")
+
+            # Mirror layout classes from file to thinking
+            if self._layout_swapped:
+                thinking_scroll.add_class("layout-secondary")
+            else:
+                thinking_scroll.remove_class("layout-secondary")
+
+            self._thinking_visible = True
+            thinking_panel.update_display(agent)
+        else:
+            # Toggle OFF: hide thinking, show file
+            thinking_scroll.add_class("hidden")
+            file_scroll.remove_class("hidden")
+
+            self._thinking_visible = False
+
+            # Trigger a file refresh since we were suppressing updates
+            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+            file_panel.update_display(agent)
+
+    def on_thinking_visibility_changed(
+        self, message: ThinkingVisibilityChanged
+    ) -> None:
+        """Handle thinking panel visibility changes.
+
+        Args:
+            message: The visibility change message.
+        """
+        if not self._thinking_visible:
+            return
+
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+
+        if message.has_thinking:
+            thinking_scroll.remove_class("hidden")
+            prompt_scroll.remove_class("expanded")
+            if self._layout_swapped:
+                prompt_scroll.add_class("layout-priority")
+                thinking_scroll.add_class("layout-secondary")
+        else:
+            thinking_scroll.add_class("hidden")
+            prompt_scroll.add_class("expanded")
+            prompt_scroll.remove_class("layout-priority")
+            thinking_scroll.remove_class("layout-secondary")
+
     def on_file_visibility_changed(self, message: FileVisibilityChanged) -> None:
         """Handle file panel visibility changes.
 
         Args:
             message: The visibility change message.
         """
+        # Skip file visibility changes when thinking panel is active
+        if self._thinking_visible:
+            return
+
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
 
@@ -121,16 +207,29 @@ class AgentDetail(Static):
     def toggle_layout(self) -> None:
         """Toggle between default (30/70) and swapped (70/30) layout."""
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
-        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
 
         self._layout_swapped = not self._layout_swapped
 
+        # Apply layout classes to whichever panel (file or thinking) is visible
+        if self._thinking_visible:
+            secondary_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
+        else:
+            secondary_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+
         if self._layout_swapped:
             prompt_scroll.add_class("layout-priority")
-            file_scroll.add_class("layout-secondary")
+            secondary_scroll.add_class("layout-secondary")
         else:
             prompt_scroll.remove_class("layout-priority")
-            file_scroll.remove_class("layout-secondary")
+            secondary_scroll.remove_class("layout-secondary")
+
+    def is_thinking_visible(self) -> bool:
+        """Check if the thinking panel is currently visible.
+
+        Returns:
+            True if the thinking panel is visible, False otherwise.
+        """
+        return self._thinking_visible
 
     def is_file_visible(self) -> bool:
         """Check if the file panel is currently visible.
