@@ -22,77 +22,93 @@ gets back JSON containing both the rendered screen text and structured state.
 Claude Code's Bash tool (one command = one step). Multi-step debugging is done with sequential commands, each starting
 from real disk state.
 
-## Files to Create/Modify
+---
 
-### 1. NEW: `src/sase/ace/agent_runner.py`
+## Phased Implementation
 
-Core module with ~120 lines. Three public functions + two helpers:
+Each phase is independently committable and leaves the codebase in a working state. Phases can be completed by separate
+Claude Code instances.
+
+### Phase 1: Core agent runner module + tests
+
+**Goal**: Create the standalone `agent_runner.py` module and its tests. No CLI wiring yet — the module is importable but
+not reachable via `sase ace`.
+
+**Files**:
+
+- **NEW**: `src/sase/ace/agent_runner.py` — core module (~120 lines)
+- **NEW**: `tests/test_agent_runner.py` — tests using mocked changespecs
+
+**What to implement in `agent_runner.py`**:
 
 ```
 async run_agent_mode(query, keys, size, model_tier_override) -> str
     Creates AceApp, runs headlessly, sends keys, returns JSON string.
 
-async _run_headless(app, keys, size) -> str
-    Runs app.run_test(size=size), sends each key via pilot.press(),
-    calls pilot.pause() after each key, captures screen + state.
-
-_capture_screen(app, size) -> str
+_capture_screen(app, height) -> str
     Loops screen.render_line(y).text for y in range(height), joins with \n.
 
 _extract_state(app) -> dict
     Reads reactive properties and returns structured dict (see State section below).
-
-_serialize_result(screen, state, error) -> str
-    json.dumps the output dict.
 ```
 
-### 2. MODIFY: `src/sase/main/parser.py`
+**Test cases** (follow pattern from `tests/test_ace_tui_app.py` — patch `find_all_changespecs`):
 
-Add to the `ace_parser` argument group:
+- No keys → returns initial screen + state with idx=0
+- Send `j j` → state.idx == 2
+- Send `slash` → state.modal == "QueryEditModal"
+- Send `tab` → state.tab changes
+- Send `m` → state.marked is populated
+- Output is valid JSON with required fields (screen, state, error)
+- Custom size → correct number of screen lines
+- Invalid query → error field is populated
+
+**Verification**: `just test -- tests/test_agent_runner.py` and `just lint`
+
+### Phase 2: Wire up CLI
+
+**Goal**: Connect the agent runner to the `sase ace` CLI so it's usable via `sase ace --agent`.
+
+**Files**:
+
+- **MODIFY**: `src/sase/main/parser.py` — add `--agent`, `--keys`, `--size` args to ace subparser
+- **MODIFY**: `src/sase/main/entry.py` — add agent mode branch before `app.run()`
+
+**Parser additions** (add to `ace_parser`):
 
 - `--agent` — `store_true`, enables headless agent mode
 - `--keys` — `nargs="*"`, Textual key names to send (e.g., `j k enter slash`)
 - `--size` — `default="120x40"`, terminal dimensions as `WxH`
 
-### 3. MODIFY: `src/sase/main/entry.py`
-
-In the `if args.command == "ace":` block (~line 230), add a branch before `app.run()`:
+**Entry point change** (in `if args.command == "ace":` block, ~line 230):
 
 ```python
 if getattr(args, "agent", False):
     from sase.ace.agent_runner import run_agent_mode
     import asyncio
     w, h = (parse the --size arg)
-    result = asyncio.run(run_agent_mode(
-        query=args.query,
-        keys=args.keys or [],
-        size=(w, h),
-        model_tier_override=model_tier_override,
-    ))
+    result = asyncio.run(run_agent_mode(...))
     print(result)
     sys.exit(0)
 ```
 
-### 4. DELETE: `src/sase/scripts/tmux_sase.py`
+**Verification**: Run `sase ace --agent` from the command line and verify JSON output. Run `sase ace --agent --keys j j`
+and check idx. `just check` passes.
 
-Remove the script file entirely.
+### Phase 3: Remove tmux_sase + update docs
 
-### 5. MODIFY: `pyproject.toml`
+**Goal**: Clean up the old script and update documentation.
 
-Remove from `[project.scripts]`:
+**Files**:
 
-```
-tmux_sase = "sase.scripts.tmux_sase:main"
-```
+- **DELETE**: `src/sase/scripts/tmux_sase.py`
+- **MODIFY**: `pyproject.toml` — remove `tmux_sase = "sase.scripts.tmux_sase:main"` from `[project.scripts]`
+- **MODIFY**: `CLAUDE.md` — replace the `## End-to-End Testing w/ tmux_sase` section with new agent mode docs
 
-### 6. MODIFY: `CLAUDE.md`
+**Verification**: `uv run tmux_sase` fails (entry point gone). `just check` passes. CLAUDE.md references
+`sase ace --agent`.
 
-Replace the `## End-to-End Testing w/ tmux_sase` section with documentation for the new agent mode.
-
-### 7. NEW: `tests/test_agent_runner.py`
-
-Tests using the same mock pattern as `tests/test_ace_tui_app.py` — patch `find_all_changespecs`, call
-`run_agent_mode()`, parse JSON output, assert on screen/state/error fields.
+---
 
 ## Output Format
 
@@ -197,11 +213,12 @@ sase ace --agent --keys tab
 sase ace --agent --size 200x50 --keys j
 ```
 
-## Verification
+## Critical File References
 
-1. **Unit tests**: `just test -- tests/test_agent_runner.py`
-2. **Manual E2E**: Run `sase ace --agent` and verify JSON output has screen text + state
-3. **Navigation**: Run `sase ace --agent --keys j j` and verify `state.idx == 2`
-4. **Modal detection**: Run `sase ace --agent --keys slash` and verify `state.modal == "QueryEditModal"`
-5. **Lint**: `just lint` passes (new module has type annotations)
-6. **tmux_sase removed**: Verify `uv run tmux_sase` fails (entry point gone)
+- `src/sase/ace/tui/app.py` — AceApp class, reactive properties (lines 175-185), bindings (lines 89-173), `__init__`
+  (lines 187-309)
+- `src/sase/ace/changespec/models.py:415` — ChangeSpec dataclass fields
+- `src/sase/main/parser.py` — ace subparser argument definitions
+- `src/sase/main/entry.py:230` — ace command handler
+- `tests/test_ace_tui_app.py` — test pattern to follow (mock changespecs + pilot API)
+- `src/sase/scripts/tmux_sase.py` — script being replaced (to delete in Phase 3)
