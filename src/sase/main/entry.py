@@ -53,6 +53,17 @@ def main() -> NoReturn:
         print(f"Initialized git project: {project_file}")
         sys.exit(0)
 
+    # --- path ---
+    if args.command == "path":
+        from sase.xprompt.loader import get_sase_package_xprompts_dir
+
+        xprompts_dir = get_sase_package_xprompts_dir()
+        if args.name == "xprompts-dir":
+            print(xprompts_dir)
+        elif args.name == "xprompts-schema":
+            print(xprompts_dir / "workflow.schema.json")
+        sys.exit(0)
+
     # --- notify ---
     if args.command == "notify":
         from .notify_handler import handle_notify_command

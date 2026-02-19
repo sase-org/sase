@@ -272,6 +272,17 @@ def create_parser() -> argparse.ArgumentParser:
         help="Notification sender name (overrides sender in JSON input)",
     )
 
+    # --- path ---
+    path_parser = top_level_subparsers.add_parser(
+        "path",
+        help="Print well-known sase paths (for editor integration)",
+    )
+    path_parser.add_argument(
+        "name",
+        choices=["xprompts-dir", "xprompts-schema"],
+        help="Which path to print",
+    )
+
     # --- plan-approve ---
     top_level_subparsers.add_parser(
         "plan-approve",

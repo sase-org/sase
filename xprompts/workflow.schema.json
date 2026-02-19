@@ -30,6 +30,11 @@
         ]
       }
     },
+    "wraps_all": {
+      "type": "boolean",
+      "description": "If true, this workflow's pre-steps run before all other embedded workflows and post-steps run after all others. Used for workspace setup/teardown workflows.",
+      "default": false
+    },
     "input": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [
@@ -97,6 +102,10 @@
           "name": {
             "type": "string",
             "description": "Step identifier (defaults to step_{index} if not specified)"
+          },
+          "agent": {
+            "type": "string",
+            "description": "Agent prompt template for agent steps (supports Jinja2 and xprompt refs). Mutually exclusive with prompt/bash/python/prompt_part/parallel."
           },
           "prompt": {
             "type": "string",
@@ -397,9 +406,22 @@
           {
             "oneOf": [
               {
+                "required": ["agent"],
+                "not": {
+                  "anyOf": [
+                    { "required": ["prompt"] },
+                    { "required": ["bash"] },
+                    { "required": ["python"] },
+                    { "required": ["prompt_part"] },
+                    { "required": ["parallel"] }
+                  ]
+                }
+              },
+              {
                 "required": ["prompt"],
                 "not": {
                   "anyOf": [
+                    { "required": ["agent"] },
                     { "required": ["bash"] },
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
@@ -411,6 +433,7 @@
                 "required": ["bash"],
                 "not": {
                   "anyOf": [
+                    { "required": ["agent"] },
                     { "required": ["prompt"] },
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
@@ -422,6 +445,7 @@
                 "required": ["python"],
                 "not": {
                   "anyOf": [
+                    { "required": ["agent"] },
                     { "required": ["prompt"] },
                     { "required": ["bash"] },
                     { "required": ["prompt_part"] },
@@ -433,6 +457,7 @@
                 "required": ["prompt_part"],
                 "not": {
                   "anyOf": [
+                    { "required": ["agent"] },
                     { "required": ["prompt"] },
                     { "required": ["bash"] },
                     { "required": ["python"] },
@@ -450,6 +475,7 @@
                 "required": ["parallel"],
                 "not": {
                   "anyOf": [
+                    { "required": ["agent"] },
                     { "required": ["prompt"] },
                     { "required": ["bash"] },
                     { "required": ["python"] },
