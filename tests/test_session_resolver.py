@@ -9,6 +9,7 @@ from unittest.mock import patch
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.thinking.session_resolver import (
     _cwd_to_claude_project_dir,
+    _expand_linked_sessions,
     _find_jsonl_files_since,
     _find_most_recent_jsonl,
     _first_event_timestamp,
@@ -237,3 +238,61 @@ def test_find_jsonl_files_since_falls_back_on_unreadable(tmp_path: Path) -> None
     result = _find_jsonl_files_since(tmp_path, since)
     assert len(result) == 2
     assert set(result) == {a, b}
+
+
+# --- _expand_linked_sessions ---
+
+
+def test_expand_linked_sessions_follows_sidecar(tmp_path: Path) -> None:
+    """A .impl_session sidecar link includes the implementation JSONL."""
+    plan = tmp_path / "plan-uuid.jsonl"
+    plan.write_text("{}\n")
+    time.sleep(0.05)
+    impl = tmp_path / "impl-uuid.jsonl"
+    impl.write_text("{}\n")
+
+    # Write sidecar link
+    sidecar = tmp_path / "plan-uuid.impl_session"
+    sidecar.write_text("impl-uuid")
+
+    result = _expand_linked_sessions(tmp_path, [plan])
+    assert result == [plan, impl]
+
+
+def test_expand_linked_sessions_no_sidecar(tmp_path: Path) -> None:
+    """Without a sidecar file, the session list is unchanged."""
+    plan = tmp_path / "plan-uuid.jsonl"
+    plan.write_text("{}\n")
+
+    result = _expand_linked_sessions(tmp_path, [plan])
+    assert result == [plan]
+
+
+def test_expand_linked_sessions_missing_impl_jsonl(tmp_path: Path) -> None:
+    """Sidecar points to a non-existent JSONL — gracefully ignored."""
+    plan = tmp_path / "plan-uuid.jsonl"
+    plan.write_text("{}\n")
+
+    sidecar = tmp_path / "plan-uuid.impl_session"
+    sidecar.write_text("missing-uuid")
+
+    result = _expand_linked_sessions(tmp_path, [plan])
+    assert result == [plan]
+
+
+def test_find_jsonl_files_since_with_sidecar_returns_both(tmp_path: Path) -> None:
+    """_find_jsonl_files_since follows sidecar links for a single candidate."""
+    plan = tmp_path / "plan-uuid.jsonl"
+    plan.write_text(json.dumps({"timestamp": "2026-01-15T10:00:00Z"}) + "\n")
+    time.sleep(0.05)
+    impl = tmp_path / "impl-uuid.jsonl"
+    impl.write_text(json.dumps({"timestamp": "2026-01-15T10:05:00Z"}) + "\n")
+
+    sidecar = tmp_path / "plan-uuid.impl_session"
+    sidecar.write_text("impl-uuid")
+
+    since = datetime(2026, 1, 15, 9, 0, 0, tzinfo=UTC)
+    result = _find_jsonl_files_since(tmp_path, since)
+    assert plan in result
+    assert impl in result
+    assert len(result) == 2

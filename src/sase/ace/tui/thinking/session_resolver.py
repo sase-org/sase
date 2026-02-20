@@ -107,14 +107,28 @@ def _find_jsonl_files_since(directory: Path, since: datetime) -> list[Path]:
     matching.sort(key=lambda p: p.stat().st_mtime)
 
     if len(matching) <= 1:
-        return matching
+        return _expand_linked_sessions(directory, matching)
 
     best = _find_best_session_match(matching, since_ts)
     if best is not None:
-        return [best]
+        return _expand_linked_sessions(directory, [best])
 
     # Fallback: timestamp reading failed for all files
     return matching
+
+
+def _expand_linked_sessions(directory: Path, sessions: list[Path]) -> list[Path]:
+    """Follow .impl_session sidecar links to include implementation sessions."""
+    result = list(sessions)
+    for session_path in sessions:
+        link_file = session_path.with_suffix(".impl_session")
+        if link_file.exists():
+            impl_uuid = link_file.read_text().strip()
+            impl_path = directory / f"{impl_uuid}.jsonl"
+            if impl_path.exists() and impl_path not in result:
+                result.append(impl_path)
+    result.sort(key=lambda p: p.stat().st_mtime)
+    return result
 
 
 def _find_best_session_match(candidates: list[Path], target_ts: float) -> Path | None:

@@ -1,6 +1,7 @@
 """Claude Code LLM provider implementation."""
 
 import os
+import re
 import shutil
 import subprocess
 import uuid
@@ -138,6 +139,18 @@ class ClaudeCodeProvider(LLMProvider):
                 saved_plan_path = None
 
             impl_session_uuid = str(uuid.uuid4())
+
+            # Write sidecar link so thinking panel finds both plan + impl sessions
+            try:
+                cwd = os.getcwd()
+                hashed_cwd = re.sub(r"[^a-zA-Z0-9]", "-", cwd)
+                claude_project_dir = Path.home() / ".claude" / "projects" / hashed_cwd
+                if claude_project_dir.is_dir():
+                    link_file = claude_project_dir / f"{session_uuid}.impl_session"
+                    link_file.write_text(impl_session_uuid)
+            except OSError:
+                pass  # Best-effort; thinking panel still works without it
+
             impl_args = [
                 "claude",
                 "-p",
