@@ -39,7 +39,11 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
     _option_list_id = "notification-list"
     BINDINGS = [
-        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        *(
+            b
+            for b in OptionListNavigationMixin.NAVIGATION_BINDINGS
+            if b[0] not in ("ctrl+n", "ctrl+p")
+        ),
         ("d", "dismiss_notification", "Dismiss"),
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
