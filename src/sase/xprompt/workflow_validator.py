@@ -19,7 +19,7 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep, WorkflowValidat
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_./-]*[a-zA-Z0-9_/-])|(\+))?"
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
 )
 
 # Pattern to find {{ ... }} blocks (may contain multiple variable references)
