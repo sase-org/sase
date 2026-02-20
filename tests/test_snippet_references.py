@@ -312,3 +312,47 @@ def test_process_snippet_hr_snippet_after_newline() -> None:
         result = process_xprompt_references(prompt)
     # The --- marker is stripped, content directly follows the newline
     assert result == "First line\nContent below rule"
+
+
+def test_process_xprompt_heading_content_gets_newline_before_inline_text() -> None:
+    """Test that xprompt ending with heading gets newline when followed by inline text."""
+    snippets = {"section": "# New Query"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#section Fix this bug")
+    # The heading should be separated from the following text by a newline
+    assert result == "# New Query\n Fix this bug"
+
+
+def test_process_xprompt_heading_content_no_extra_newline_at_end() -> None:
+    """Test that xprompt ending with heading at end of prompt gets no extra newline."""
+    snippets = {"section": "# New Query"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#section")
+    # No trailing newline when nothing follows
+    assert result == "# New Query"
+
+
+def test_process_xprompt_heading_content_no_extra_newline_before_newline() -> None:
+    """Test that xprompt ending with heading before a newline gets no extra newline."""
+    snippets = {"section": "# New Query"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#section\nFix this bug")
+    # No extra newline added since the next char is already a newline
+    assert result == "# New Query\nFix this bug"
+
+
+def test_process_xprompt_heading_with_trailing_newline_preserved() -> None:
+    """Test that xprompt ending with heading+newline doesn't double newline."""
+    snippets = {"section": "# New Query\n"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#section Fix this bug")
+    # Content already has trailing newline, no extra newline needed
+    assert result == "# New Query\n Fix this bug"

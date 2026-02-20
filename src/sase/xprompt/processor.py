@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING, Any
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 
 from sase.rich_utils import print_status
-from sase.shared_utils import apply_section_marker_handling
+from sase.shared_utils import (
+    apply_section_marker_handling,
+    content_ends_with_markdown_heading,
+)
 
 from ._exceptions import XPromptError
 from ._jinja import (
@@ -251,6 +254,18 @@ def process_xprompt_references(
                     match.start() == 0 or prompt[match.start() - 1] == "\n"
                 )
                 expanded = apply_section_marker_handling(expanded, is_at_line_start)
+
+                # When the expanded content ends with a markdown heading and
+                # there's more content on the same line after the reference,
+                # append a newline so the following text doesn't get
+                # concatenated onto the heading line.
+                if (
+                    expanded
+                    and content_ends_with_markdown_heading(expanded)
+                    and match_end < len(prompt)
+                    and prompt[match_end] != "\n"
+                ):
+                    expanded += "\n"
 
                 prompt = prompt[: match.start()] + expanded + prompt[match_end:]
         except XPromptError as e:

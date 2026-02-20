@@ -11,6 +11,7 @@ from sase.chat_history import save_chat_history
 from sase.running_field import claim_workspace, release_workspace
 from sase.shared_utils import (
     apply_section_marker_handling,
+    content_ends_with_markdown_heading,
     create_artifacts_directory,
 )
 from sase.xprompt.models import UNSET
@@ -152,6 +153,17 @@ def expand_embedded_workflows_in_query(
             prompt_part_content = apply_section_marker_handling(
                 prompt_part_content, is_at_line_start
             )
+
+        # When the expanded content ends with a markdown heading and there's
+        # more content on the same line after the reference, append a newline
+        # so the following text doesn't get concatenated onto the heading line.
+        if (
+            prompt_part_content
+            and content_ends_with_markdown_heading(prompt_part_content)
+            and match_end < len(query)
+            and query[match_end] != "\n"
+        ):
+            prompt_part_content += "\n"
 
         # Replace the workflow reference with the prompt_part content
         query = query[: match.start()] + prompt_part_content + query[match_end:]

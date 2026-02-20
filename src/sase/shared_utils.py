@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import string
 from dataclasses import dataclass
 from datetime import datetime
@@ -95,6 +96,20 @@ def apply_section_marker_handling(content: str, is_at_line_start: bool) -> str:
         content = "\n\n" + content
 
     return content
+
+
+def content_ends_with_markdown_heading(content: str) -> bool:
+    """Check if content ends with a markdown heading without a trailing newline.
+
+    Returns True if the content ends with a markdown heading line (starts
+    with # followed by a space) and does NOT already have a trailing newline.
+    This detects cases where template rendering strips trailing newlines,
+    which would cause subsequent content to be appended onto the heading line.
+    """
+    if not content or content.endswith("\n"):
+        return False
+    last_line = content.rsplit("\n", 1)[-1]
+    return bool(re.match(r"#{1,6}\s", last_line))
 
 
 def ensure_str_content(content: str | list[str | dict[Any, Any]]) -> str:

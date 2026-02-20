@@ -12,6 +12,7 @@ from sase.shared_utils import (
     _finalize_log_file,
     _initialize_log_file,
     apply_section_marker_handling,
+    content_ends_with_markdown_heading,
     convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
     ensure_str_content,
@@ -355,6 +356,52 @@ def test_apply_section_marker_handling_triple_hash_empty_content() -> None:
     assert result == "###"
     result = apply_section_marker_handling(content, is_at_line_start=False)
     assert result == "\n\n###"
+
+
+# Tests for content_ends_with_markdown_heading
+def test_content_ends_with_markdown_heading_h1() -> None:
+    """Test detection of H1 heading at end of content."""
+    assert content_ends_with_markdown_heading("# New Query") is True
+
+
+def test_content_ends_with_markdown_heading_h2() -> None:
+    """Test detection of H2 heading at end of content."""
+    assert content_ends_with_markdown_heading("## Section") is True
+
+
+def test_content_ends_with_markdown_heading_h6() -> None:
+    """Test detection of H6 heading at end of content."""
+    assert content_ends_with_markdown_heading("###### Deep") is True
+
+
+def test_content_ends_with_markdown_heading_multiline() -> None:
+    """Test detection when heading is last line of multiline content."""
+    assert content_ends_with_markdown_heading("Some text\n\n# New Query") is True
+
+
+def test_content_ends_with_markdown_heading_with_trailing_newline() -> None:
+    """Test that content with trailing newline returns False (already separated)."""
+    assert content_ends_with_markdown_heading("# New Query\n") is False
+
+
+def test_content_ends_with_markdown_heading_not_heading() -> None:
+    """Test that non-heading content returns False."""
+    assert content_ends_with_markdown_heading("Regular text") is False
+
+
+def test_content_ends_with_markdown_heading_empty() -> None:
+    """Test that empty content returns False."""
+    assert content_ends_with_markdown_heading("") is False
+
+
+def test_content_ends_with_markdown_heading_hash_no_space() -> None:
+    """Test that # without space is not a heading (e.g., #tag)."""
+    assert content_ends_with_markdown_heading("#tag") is False
+
+
+def test_content_ends_with_markdown_heading_too_many_hashes() -> None:
+    """Test that 7+ hashes is not a valid markdown heading."""
+    assert content_ends_with_markdown_heading("####### Not a heading") is False
 
 
 # Tests for convert_timestamp_to_artifacts_format
