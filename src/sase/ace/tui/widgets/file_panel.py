@@ -10,8 +10,8 @@ from typing import Any
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
+from sase.gh_workspace import detect_vcs_type_for_project
 from sase.running_field import get_workspace_directory
-from sase.vcs_provider._registry import detect_vcs
 from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
@@ -359,8 +359,16 @@ class AgentFilePanel(Static):
                 # Loop agents use workspaces 100+, but we show diff from main
                 workspace_dir = get_workspace_directory(project_basename, 1)
 
-            # Detect VCS type and run appropriate diff command
-            vcs_type = detect_vcs(str(workspace_dir))
+            # Detect VCS type from project config rather than filesystem
+            # detection.  CITC/fig hg workspaces may lack a physical .hg
+            # directory, so detect_vcs() (which walks the directory tree
+            # looking for .hg/.git) can return None even though hg commands
+            # work fine.  detect_vcs_type_for_project() uses the .gp file
+            # configuration (WORKSPACE_DIR + .git check) which is reliable
+            # for both git and hg projects.
+            vcs_type = detect_vcs_type_for_project(
+                os.path.expanduser(agent.project_file)
+            )
             if vcs_type == "git":
                 diff_cmd = ["git", "diff", "HEAD"]
             elif vcs_type == "hg":
