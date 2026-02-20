@@ -44,12 +44,20 @@ def get_default_branch(workspace_dir: str) -> str:
 def _clone_gh_repo(user: str, project: str, target_dir: str) -> None:
     """Clone a GitHub repo to the target directory.
 
-    Creates parent directories as needed.
+    Creates parent directories as needed. Uses SSH URL when cloning repos
+    owned by the configured ``github_username`` so pushes work without
+    authentication prompts.
 
     Raises:
         RuntimeError: If the clone fails.
     """
-    url = f"https://github.com/{user}/{project}.git"
+    from sase.github_config import get_github_username
+
+    gh_user = get_github_username()
+    if gh_user and gh_user == user:
+        url = f"git@github.com:{user}/{project}.git"
+    else:
+        url = f"https://github.com/{user}/{project}.git"
     parent = os.path.dirname(target_dir.rstrip("/"))
     os.makedirs(parent, exist_ok=True)
 
