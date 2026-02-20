@@ -195,9 +195,6 @@ def _create_cl(
         bug_str = str(bug_id) if bug_id > 0 else None
         format_cl_description(desc_file, project, bug=bug_str)
 
-        # Run hg addremove to stage new/deleted files
-        run_shell_command("hg addremove", capture_output=True)
-
         # If we have a parent branch, checkout to it first
         # This handles the case where another agent may have amended the parent CL
         if parent_branch:
@@ -210,6 +207,11 @@ def _create_cl(
             if result.returncode != 0:
                 # Continue anyway, not a fatal error
                 pass
+
+        # Run hg addremove to stage new/deleted files
+        # NOTE: This must run AFTER bb_hg_update, because hg update resets
+        # the "added" state of new files that were staged by a prior addremove.
+        run_shell_command("hg addremove", capture_output=True)
 
         # Create the Mercurial commit
         commit_cmd = f'hg commit --name "{full_cl_name}" --logfile "{desc_file}"'
