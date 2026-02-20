@@ -1,3 +1,7 @@
+---
+bead_id: sase-2tm
+---
+
 # Multi-File Panel Support for Agent Entries
 
 ## Context
