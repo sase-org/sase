@@ -346,9 +346,14 @@ class ChangeSpecMixin:
 
     def _update_info_panel(self) -> None:
         """Update the info panel with current position and countdown."""
+        from textual.css.query import NoMatches
+
         from ..widgets import ChangeSpecInfoPanel
 
-        info_panel = self.query_one("#info-panel", ChangeSpecInfoPanel)  # type: ignore[attr-defined]
+        try:
+            info_panel = self.query_one("#info-panel", ChangeSpecInfoPanel)  # type: ignore[attr-defined]
+        except NoMatches:
+            return
         # Position is 1-based for display (current_idx is 0-based)
         position = self.current_idx + 1 if self.changespecs else 0
         info_panel.update_position(

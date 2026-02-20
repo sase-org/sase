@@ -83,7 +83,7 @@ async def test_navigation_next_key() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Initial state
             assert app.current_idx == 0
@@ -107,7 +107,7 @@ async def test_navigation_prev_key() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Start at index 2 by pressing 'j' twice
             await pilot.press("j")
@@ -132,7 +132,7 @@ async def test_navigation_next_at_end() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Go to last item
             await pilot.press("j")
@@ -152,7 +152,7 @@ async def test_navigation_prev_at_start() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Already at index 0
             assert app.current_idx == 0
@@ -171,7 +171,7 @@ async def test_query_edit_modal_opens() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"test"')
+        app = AceApp(query='"test"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Press '/' to open modal
             await pilot.press("slash")
@@ -187,7 +187,7 @@ async def test_query_edit_modal_cancel() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"original"')
+        app = AceApp(query='"original"', refresh_interval=0)
         async with app.run_test() as pilot:
             original_query = app.query_string
 
@@ -212,7 +212,7 @@ async def test_query_edit_modal_apply() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Initial state - should have 1 changespec matching "feature"
             assert app.query_string == '"feature"'
@@ -239,7 +239,7 @@ async def test_query_edit_modal_invalid_query() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"valid"')
+        app = AceApp(query='"valid"', refresh_interval=0)
         async with app.run_test() as pilot:
             original_query = app.query_string
 
@@ -271,7 +271,7 @@ async def test_mark_navigates_to_next_spec() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Start at index 0
             assert app.current_idx == 0
@@ -293,7 +293,7 @@ async def test_mark_wraps_around() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Navigate to last spec (index 2)
             await pilot.press("j")
@@ -316,7 +316,7 @@ async def test_unmark_navigates_to_next_spec() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"feature"')
+        app = AceApp(query='"feature"', refresh_interval=0)
         async with app.run_test() as pilot:
             # Mark first spec (navigates to second)
             await pilot.press("m")
@@ -338,7 +338,7 @@ async def test_mark_single_spec_stays() -> None:
     with patch(
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
-        app = AceApp(query='"only"')
+        app = AceApp(query='"only"', refresh_interval=0)
         async with app.run_test() as pilot:
             assert app.current_idx == 0
 
