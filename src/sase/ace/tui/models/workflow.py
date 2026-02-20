@@ -36,6 +36,7 @@ class WorkflowEntry:
     is_anonymous: bool = False
     diff_path: str | None = None
     error_message: str | None = None
+    error_traceback: str | None = None
 
     @property
     def display_type(self) -> str:

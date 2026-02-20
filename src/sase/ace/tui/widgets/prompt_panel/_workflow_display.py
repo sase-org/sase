@@ -240,6 +240,9 @@ class WorkflowDisplayMixin:
             # Check for workflow-level error (e.g., validation failure)
             error = data.get("error")
             if error:
+                tb = data.get("traceback")
+                if tb:
+                    return f"Error: {error}\n\nTraceback:\n{tb}"
                 return f"Error: {error}"
             return None
 
@@ -265,6 +268,7 @@ class WorkflowDisplayMixin:
             status = step.get("status", "pending")
             output = step.get("output")
             error = step.get("error")
+            tb = step.get("traceback")
 
             # Step header
             status_indicator = get_status_indicator(status)
@@ -277,6 +281,12 @@ class WorkflowDisplayMixin:
             # Error (if any)
             if error:
                 lines.append(f"  Error: {error}")
+
+            # Traceback (if any)
+            if tb:
+                lines.append("  Traceback:")
+                for line in tb.splitlines():
+                    lines.append(f"    {line}")
 
             # Output (if any)
             if output:

@@ -286,7 +286,8 @@ def main() -> None:
                     "timestamp": timestamp,
                     "artifacts_timestamp": artifacts_timestamp,
                     "outcome": "failed",
-                    "error": str(e),
+                    "error": f"{type(e).__qualname__}: {e}",
+                    "traceback": traceback.format_exc(),
                     "workspace_num": workspace_num,
                 }
                 if agent_model:

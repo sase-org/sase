@@ -256,6 +256,12 @@ def load_all_agents() -> list[Agent]:
                 # Copy PID from workflow_state.json if existing has none
                 if existing.pid is None and agent.pid is not None:
                     existing.pid = agent.pid
+                # Copy error_traceback if existing has none
+                if (
+                    existing.error_traceback is None
+                    and agent.error_traceback is not None
+                ):
+                    existing.error_traceback = agent.error_traceback
             else:
                 seen_suffixes[agent.raw_suffix] = agent
 
@@ -305,6 +311,8 @@ def load_all_agents() -> list[Agent]:
                 matched.vcs_provider = agent.vcs_provider
             if matched.error_message is None and agent.error_message is not None:
                 matched.error_message = agent.error_message
+            if matched.error_traceback is None and agent.error_traceback is not None:
+                matched.error_traceback = agent.error_traceback
             continue  # Drop the RUNNING entry
         deduped_agents.append(agent)
 

@@ -165,8 +165,8 @@ class AgentDisplayMixin:
                 word_wrap=True,
             )
 
-            # For completed agents/steps, also show the response
-            if agent.status == "DONE":
+            # For completed or failed agents/steps, also show the response
+            if agent.status in ("DONE", "FAILED"):
                 reply_header = Text()
                 reply_header.append("\n")
                 reply_header.append("─" * 50 + "\n", style="dim")
@@ -184,6 +184,8 @@ class AgentDisplayMixin:
                 ):
                     response_content = format_output(agent.step_output)
 
+                renderables: list[Text | Syntax] = [header_text, prompt_syntax]
+
                 if response_content:
                     response_syntax = Syntax(
                         response_content,
@@ -191,12 +193,28 @@ class AgentDisplayMixin:
                         theme="monokai",
                         word_wrap=True,
                     )
-                    self.update(  # type: ignore[attr-defined]
-                        Group(header_text, prompt_syntax, reply_header, response_syntax)
-                    )
+                    renderables.extend([reply_header, response_syntax])
                 else:
                     reply_header.append("No response file found.\n", style="dim italic")
-                    self.update(Group(header_text, prompt_syntax, reply_header))  # type: ignore[attr-defined]
+                    renderables.append(reply_header)
+
+                # Show traceback section for failed agents
+                if agent.error_traceback:
+                    tb_header = Text()
+                    tb_header.append("\n")
+                    tb_header.append("─" * 50 + "\n", style="dim")
+                    tb_header.append("\n")
+                    tb_header.append("TRACEBACK\n", style="bold #D7AF5F underline")
+                    tb_header.append("\n")
+                    tb_syntax = Syntax(
+                        agent.error_traceback,
+                        "pytb",
+                        theme="monokai",
+                        word_wrap=True,
+                    )
+                    renderables.extend([tb_header, tb_syntax])
+
+                self.update(Group(*renderables))  # type: ignore[attr-defined]
             else:
                 self.update(Group(header_text, prompt_syntax))  # type: ignore[attr-defined]
         else:

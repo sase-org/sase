@@ -152,6 +152,7 @@ def load_workflow_states() -> list[WorkflowEntry]:
                             is_anonymous=is_anonymous,
                             diff_path=diff_path,
                             error_message=data.get("error"),
+                            error_traceback=data.get("traceback"),
                         )
                     )
                 except Exception:
@@ -210,6 +211,7 @@ def load_workflow_agents() -> list[Agent]:
             artifacts_dir=entry.artifacts_dir,
             diff_path=entry.diff_path,
             error_message=entry.error_message,
+            error_traceback=entry.error_traceback,
             step_output=step_output,
             workspace_num=workspace_num,
         )
@@ -302,10 +304,11 @@ def load_workflow_agent_steps() -> list[Agent]:
                         if is_pre_prompt_step:
                             is_hidden = True
 
-                        # Read artifacts_dir, diff_path, and error from marker
+                        # Read artifacts_dir, diff_path, error, and traceback from marker
                         artifacts_dir_from_marker = data.get("artifacts_dir")
                         diff_path = data.get("diff_path")
                         error_message = data.get("error")
+                        error_traceback = data.get("traceback")
 
                         response_path = data.get("response_path")
 
@@ -342,6 +345,7 @@ def load_workflow_agent_steps() -> list[Agent]:
                             artifacts_dir=artifacts_dir_from_marker,
                             diff_path=diff_path,
                             error_message=error_message,
+                            error_traceback=error_traceback,
                             response_path=response_path,
                         )
                         enrich_agent_from_meta(agent, artifacts_dir_from_marker)

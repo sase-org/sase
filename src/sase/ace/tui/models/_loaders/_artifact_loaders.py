@@ -185,9 +185,11 @@ def load_done_agents(
                 if outcome == "failed":
                     status = "FAILED"
                     error_message = data.get("error")
+                    error_traceback = data.get("traceback")
                 else:
                     status = "DONE"
                     error_message = None
+                    error_traceback = None
                 agents.append(
                     Agent(
                         agent_type=AgentType.RUNNING,
@@ -204,6 +206,7 @@ def load_done_agents(
                         bug=bug_by_cl_name.get(cl_name),
                         cl_num=cl_by_cl_name.get(cl_name),
                         error_message=error_message,
+                        error_traceback=error_traceback,
                         model=data.get("model"),
                         vcs_provider=data.get("vcs_provider"),
                     )

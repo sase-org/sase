@@ -125,6 +125,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                     "status": s.status.value,
                     "output": s.output,
                     "error": s.error,
+                    "traceback": s.traceback,
                     "hidden": self.workflow.steps[i].hidden,
                     "output_types": self._get_output_types(i),
                 }
@@ -304,8 +305,11 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                     )
 
             except Exception as e:
+                import traceback
+
                 step_state.status = StepStatus.FAILED
-                step_state.error = str(e)
+                step_state.error = f"{type(e).__qualname__}: {e}"
+                step_state.traceback = traceback.format_exc()
                 self.state.status = "failed"
                 self._save_state()
                 if self.output_handler:
@@ -483,6 +487,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "embedded_workflow_name": embedded_workflow_name,
             "response_path": response_path,
             "error": step_state.error,
+            "traceback": step_state.traceback,
         }
         try:
             with open(marker_path, "w", encoding="utf-8") as f:

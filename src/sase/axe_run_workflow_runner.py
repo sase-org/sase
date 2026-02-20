@@ -23,6 +23,7 @@ def _write_workflow_state(
     cl_name: str,
     status: str,
     error: str | None = None,
+    traceback_str: str | None = None,
 ) -> None:
     """Write a workflow_state.json so the TUI can track this workflow.
 
@@ -36,6 +37,7 @@ def _write_workflow_state(
         cl_name: CL name for context.
         status: Workflow status ("running" or "failed").
         error: Optional error message (for "failed" status).
+        traceback_str: Optional traceback string (for "failed" status).
     """
     os.makedirs(artifacts_dir, exist_ok=True)
     state_dict: dict[str, object] = {
@@ -50,6 +52,8 @@ def _write_workflow_state(
     }
     if error is not None:
         state_dict["error"] = error
+    if traceback_str is not None:
+        state_dict["traceback"] = traceback_str
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state_dict, f, indent=2)
@@ -164,6 +168,9 @@ def main() -> None:
         traceback.print_exc()
         success = False
 
+        error_str = f"{type(e).__qualname__}: {e}"
+        tb_str = traceback.format_exc()
+
         # Write failed state if the executor hasn't already written one
         # (e.g., workflow not found before executor even starts)
         state_path = os.path.join(artifacts_dir, "workflow_state.json")
@@ -176,7 +183,8 @@ def main() -> None:
                     workflow_name,
                     cl_name,
                     status="failed",
-                    error=str(e),
+                    error=error_str,
+                    traceback_str=tb_str,
                 )
         except (OSError, json.JSONDecodeError):
             _write_workflow_state(
@@ -184,7 +192,8 @@ def main() -> None:
                 workflow_name,
                 cl_name,
                 status="failed",
-                error=str(e),
+                error=error_str,
+                traceback_str=tb_str,
             )
 
     finally:

@@ -98,6 +98,9 @@ class Agent:
     # Error message for failed agents (from HookStatusLine.suffix)
     error_message: str | None = None
 
+    # Full traceback string for failed agents
+    error_traceback: str | None = None
+
     # Model name from %model directive (only when explicitly set)
     model: str | None = None
 

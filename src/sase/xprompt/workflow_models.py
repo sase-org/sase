@@ -236,6 +236,7 @@ class StepState:
     status: StepStatus = StepStatus.PENDING
     output: dict[str, Any] | None = None
     error: str | None = None
+    traceback: str | None = None
 
 
 @dataclass
