@@ -1174,9 +1174,9 @@ UserQuestionModal {
 }
 
 #user-question-container {
-    width: 80%;
-    max-width: 120;
-    height: 70%;
+    width: 92%;
+    max-width: 180;
+    height: 88%;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -1189,9 +1189,54 @@ UserQuestionModal {
     margin-bottom: 1;
 }
 
-#user-question-text {
+#user-question-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+#user-question-left {
+    width: 30;
+    min-width: 25;
+    max-width: 40;
+    height: 100%;
+}
+
+#user-question-list-label {
+    height: 1;
+    color: $text-muted;
+    text-style: bold;
+}
+
+#user-question-list {
+    height: 1fr;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+}
+
+#user-question-right {
+    width: 1fr;
+    height: 100%;
+    margin-left: 1;
+    padding-left: 1;
+    border-left: solid $secondary;
+}
+
+#user-question-header {
     height: auto;
     margin-bottom: 1;
+}
+
+#user-question-text-scroll {
+    height: auto;
+    max-height: 40%;
+    border: solid $secondary;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+    margin-bottom: 1;
+}
+
+#user-question-text {
+    height: auto;
 }
 
 #user-question-options {

@@ -1,17 +1,20 @@
 """User question modal for the ace TUI.
 
-Displays questions from Claude Code's AskUserQuestion tool and lets
-the user select answers via a SelectionList.
+Displays questions from Claude Code's AskUserQuestion tool in a two-pane
+layout: left pane shows short question summaries, right pane shows the
+full question text with selectable options.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Input, SelectionList, Static
+from textual.widgets import Input, OptionList, SelectionList, Static
+from textual.widgets.option_list import Option
 
 from .base import CopyModeForwardingMixin
 
@@ -38,7 +41,11 @@ class UserQuestionResult:
 class UserQuestionModal(
     CopyModeForwardingMixin, ModalScreen[UserQuestionResult | None]
 ):
-    """Modal for answering Claude Code's AskUserQuestion prompts."""
+    """Modal for answering Claude Code's AskUserQuestion prompts.
+
+    Two-pane layout: left pane lists questions, right pane shows the full
+    question text with selectable answer options.
+    """
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
@@ -46,6 +53,7 @@ class UserQuestionModal(
         ("n", "next_question", "Next"),
         ("p", "prev_question", "Previous"),
         ("g", "global_note", "Global note"),
+        ("S", "submit_all", "Submit"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
@@ -65,37 +73,49 @@ class UserQuestionModal(
         self._input_mode: str | None = None  # None | "other" | "global"
 
     def compose(self) -> ComposeResult:
-        """Compose the modal layout."""
+        """Compose the two-pane modal layout."""
         if not self._questions:
             return
 
-        q = self._questions[0]
-        total = len(self._questions)
-        counter = f"  [{1}/{total}]" if total > 1 else ""
-        header = q.get("header", "")
-        header_display = f"  [dim]({header})[/dim]" if header else ""
-
         with Container(id="user-question-container"):
             yield Static(
-                f"[bold cyan]User Question[/bold cyan]{counter}{header_display}",
+                "[bold cyan]User Questions[/bold cyan]",
                 id="user-question-title",
             )
-            yield Static(
-                q.get("question", ""),
-                id="user-question-text",
-            )
-            yield SelectionList[str](
-                *self._build_selections(q),
-                id="user-question-options",
-            )
-            yield Input(
-                placeholder='Type your "Other" response and press Enter...',
-                id="user-question-other-input",
-            )
-            yield Input(
-                placeholder="Type a global note and press Enter...",
-                id="user-question-global-input",
-            )
+            with Horizontal(id="user-question-panels"):
+                # Left pane: question list
+                with Vertical(id="user-question-left"):
+                    yield Static(
+                        "[dim bold]Questions[/dim bold]",
+                        id="user-question-list-label",
+                    )
+                    yield OptionList(
+                        *self._build_question_list_options(),
+                        id="user-question-list",
+                    )
+                # Right pane: full question + options
+                with Vertical(id="user-question-right"):
+                    yield Static(
+                        self._build_question_header(0),
+                        id="user-question-header",
+                    )
+                    with VerticalScroll(id="user-question-text-scroll"):
+                        yield Static(
+                            self._questions[0].get("question", ""),
+                            id="user-question-text",
+                        )
+                    yield SelectionList[str](
+                        *self._build_selections(self._questions[0]),
+                        id="user-question-options",
+                    )
+                    yield Input(
+                        placeholder='Type your "Other" response and press Enter...',
+                        id="user-question-other-input",
+                    )
+                    yield Input(
+                        placeholder="Type a global note and press Enter...",
+                        id="user-question-global-input",
+                    )
             yield Static(
                 self._build_footer_hints(),
                 id="user-question-footer",
@@ -115,6 +135,45 @@ class UserQuestionModal(
     # Helpers
     # ------------------------------------------------------------------
 
+    def _build_question_list_options(self) -> list[Option]:
+        """Build OptionList items for the left-pane question list."""
+        options: list[Option] = []
+        for idx, q in enumerate(self._questions):
+            text = self._make_question_label(idx, q)
+            options.append(Option(text, id=str(idx)))
+        return options
+
+    def _make_question_label(self, idx: int, q: dict) -> Text:
+        """Create a styled one-line label for a question in the left pane."""
+        text = Text()
+        # Answer status indicator
+        if idx in self._answers and self._answers[idx].selected:
+            text.append(" \u2713 ", style="bold green")
+        else:
+            text.append(" \u2022 ", style="dim")
+        # Question number
+        text.append(f"Q{idx + 1} ", style="bold cyan")
+        # Use header if available, otherwise truncate question text
+        header = q.get("header", "")
+        if header:
+            text.append(header)
+        else:
+            question_text = q.get("question", "")
+            # Truncate to fit in the left pane
+            if len(question_text) > 40:
+                text.append(question_text[:37] + "...")
+            else:
+                text.append(question_text)
+        return text
+
+    def _build_question_header(self, idx: int) -> str:
+        """Build the header text for the right pane."""
+        q = self._questions[idx]
+        total = len(self._questions)
+        header = q.get("header", "")
+        header_display = f"  [dim]({header})[/dim]" if header else ""
+        return f"[bold cyan]Question {idx + 1}/{total}[/bold cyan]{header_display}"
+
     @staticmethod
     def _build_selections(
         question: dict,
@@ -125,7 +184,7 @@ class UserQuestionModal(
         for opt in options:
             label = opt.get("label", "")
             desc = opt.get("description", "")
-            display = f"{label} — {desc}" if desc else label
+            display = f"{label} \u2014 {desc}" if desc else label
             items.append((display, label))
         items.append(("Other...", _OTHER_VALUE))
         return items
@@ -133,9 +192,10 @@ class UserQuestionModal(
     def _build_footer_hints(self) -> str:
         """Build the keybinding hints for the footer."""
         total = len(self._questions)
-        parts = ["[green]Enter[/green]=Confirm"]
+        parts = ["[green]Space[/green]=Toggle"]
         if total > 1:
             parts.append("[cyan]n[/cyan]/[cyan]p[/cyan]=Next/Prev")
+        parts.append("[bold green]S[/bold green]=Submit all")
         parts.append("[yellow]g[/yellow]=Global note")
         parts.append("[dim]q[/dim]=Cancel")
         parts.append("Ctrl+D/U=Scroll")
@@ -175,25 +235,35 @@ class UserQuestionModal(
             custom_feedback=custom_feedback,
         )
 
+    def _refresh_question_list(self) -> None:
+        """Refresh the left-pane question list to update answer indicators."""
+        question_list = self.query_one("#user-question-list", OptionList)
+        question_list.clear_options()
+        for option in self._build_question_list_options():
+            question_list.add_option(option)
+        # Re-highlight current question
+        if 0 <= self._current_idx < len(self._questions):
+            question_list.highlighted = self._current_idx
+
     def _load_question(self, idx: int) -> None:
-        """Load a question by index, rebuilding the UI."""
+        """Load a question by index, rebuilding the right pane UI."""
         if idx < 0 or idx >= len(self._questions):
             return
 
         self._current_idx = idx
         q = self._questions[idx]
-        total = len(self._questions)
-        counter = f"  [{idx + 1}/{total}]" if total > 1 else ""
-        header = q.get("header", "")
-        header_display = f"  [dim]({header})[/dim]" if header else ""
 
-        # Update title
-        title = self.query_one("#user-question-title", Static)
-        title.update(f"[bold cyan]User Question[/bold cyan]{counter}{header_display}")
+        # Update header
+        header = self.query_one("#user-question-header", Static)
+        header.update(self._build_question_header(idx))
 
-        # Update question text
+        # Update full question text
         text = self.query_one("#user-question-text", Static)
         text.update(q.get("question", ""))
+
+        # Scroll question text to top
+        text_scroll = self.query_one("#user-question-text-scroll", VerticalScroll)
+        text_scroll.scroll_home(animate=False)
 
         # Rebuild selection list
         sel_list = self.query_one("#user-question-options", SelectionList)
@@ -209,6 +279,13 @@ class UserQuestionModal(
                     sel_list.select(_OTHER_VALUE)
                 else:
                     sel_list.select(label)
+
+        # Update left pane highlight
+        question_list = self.query_one("#user-question-list", OptionList)
+        question_list.highlighted = idx
+
+        # Refresh left pane labels (answer indicators)
+        self._refresh_question_list()
 
         # Hide inputs, exit input mode
         self._input_mode = None
@@ -257,6 +334,13 @@ class UserQuestionModal(
             self._save_current_answer()
             self._load_question(self._current_idx - 1)
 
+    def action_submit_all(self) -> None:
+        """Submit all answers at once."""
+        if self._input_mode:
+            return
+        self._save_current_answer()
+        self.dismiss(self._build_result())
+
     def action_global_note(self) -> None:
         """Enter global note input mode."""
         if self._input_mode:
@@ -281,6 +365,32 @@ class UserQuestionModal(
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------
+
+    def on_option_list_option_selected(
+        self,
+        event: OptionList.OptionSelected,
+    ) -> None:
+        """Handle clicking/entering a question in the left pane list."""
+        if event.option_list.id != "user-question-list":
+            return
+        if event.option and event.option.id is not None:
+            idx = int(str(event.option.id))
+            if idx != self._current_idx:
+                self._save_current_answer()
+                self._load_question(idx)
+
+    def on_option_list_option_highlighted(
+        self,
+        event: OptionList.OptionHighlighted,
+    ) -> None:
+        """Handle highlighting a question in the left pane list."""
+        if event.option_list.id != "user-question-list":
+            return
+        if event.option and event.option.id is not None:
+            idx = int(str(event.option.id))
+            if idx != self._current_idx:
+                self._save_current_answer()
+                self._load_question(idx)
 
     def on_selection_list_selection_toggled(
         self,
@@ -349,6 +459,11 @@ class UserQuestionModal(
 
         # Enter when not in input mode: advance or submit
         if event.key == "enter" and not self._input_mode:
+            # Only handle Enter when SelectionList has focus (not OptionList)
+            focused = self.app.focused
+            if isinstance(focused, OptionList):
+                # Let the OptionList handle it (question list selection)
+                return
             self._save_current_answer()
             if self._current_idx < len(self._questions) - 1:
                 self._load_question(self._current_idx + 1)
