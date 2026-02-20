@@ -11,6 +11,7 @@ from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 from sase.running_field import get_workspace_directory
+from sase.vcs_provider._registry import detect_vcs
 from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
@@ -353,9 +354,17 @@ class AgentFilePanel(Static):
                 # Loop agents use workspaces 100+, but we show diff from main
                 workspace_dir = get_workspace_directory(project_basename, 1)
 
-            # Run hg diff to show working directory changes
+            # Detect VCS type and run appropriate diff command
+            vcs_type = detect_vcs(str(workspace_dir))
+            if vcs_type == "git":
+                diff_cmd = ["git", "diff", "HEAD"]
+            elif vcs_type == "hg":
+                diff_cmd = ["hg", "diff"]
+            else:
+                return None
+
             result = subprocess.run(
-                ["hg", "diff"],
+                diff_cmd,
                 cwd=workspace_dir,
                 capture_output=True,
                 text=True,
