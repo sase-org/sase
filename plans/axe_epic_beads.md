@@ -1,3 +1,7 @@
+---
+bead_id: sase-dd4
+---
+
 # Add Beads Epic Support to `sase axe`
 
 ## Context
