@@ -301,6 +301,15 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             return
 
         notification = self._notifications[idx]
+
+        # Plan and question notifications require explicit responses —
+        # don't allow silent dismissal.
+        if notification.action in ("PlanApproval", "UserQuestion"):
+            self.notify(
+                "Cannot dismiss plan/question notifications", severity="warning"
+            )
+            return
+
         mark_dismissed(notification.id)
 
         # Remove from local list and rebuild
