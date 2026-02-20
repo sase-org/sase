@@ -420,7 +420,7 @@ class AgentDetail(Static):
         # Thinking indicator
         thinking_active = (
             self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown
-        )
+        ) and self._has_thinking_content
         if thinking_active and self._panel_mode != _DetailPanelMode.INFO:
             text.append("●", style="bold #af87d7")
             text.append(" thinking", style="bold #af87d7")
