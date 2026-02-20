@@ -351,7 +351,23 @@ class ClipboardMixin:
             self.notify("No bug number available", severity="warning")  # type: ignore[attr-defined]
             return None
 
-        return changespec.bug
+        # Match http://b/<number> or https://b/<number>
+        match = re.match(r"https?://b/(\d+)", changespec.bug)
+        if match:
+            return match.group(1)
+
+        # Match b/<number>
+        match = re.match(r"b/(\d+)", changespec.bug)
+        if match:
+            return match.group(1)
+
+        # Plain number
+        match = re.match(r"(\d+)$", changespec.bug)
+        if match:
+            return match.group(1)
+
+        self.notify("Could not extract bug number", severity="warning")  # type: ignore[attr-defined]
+        return None
 
     def _get_project_spec_content(self, changespec: ChangeSpec) -> str | None:
         """Read the entire project spec (.gp) file content.
