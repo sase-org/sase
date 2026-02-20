@@ -327,17 +327,32 @@ def _write_failed_workflow_state(
     workflow_name: str,
     artifacts_dir: str,
     error_message: str,
+    workflow: "Workflow | None" = None,
 ) -> None:
     """Write a workflow_state.json for validation failures.
 
     This ensures that the TUI can display the error when a workflow fails
     validation before execution starts.
+
+    Args:
+        workflow_name: The workflow name.
+        artifacts_dir: Directory for workflow artifacts.
+        error_message: The validation error message.
+        workflow: Optional workflow object to extract step prompts from.
     """
     import json
     import os
     from datetime import datetime
 
-    state_dict = {
+    # Save agent templates from step definitions so the TUI can display
+    # the prompt that was attempted even when no steps ran.
+    step_prompts: list[dict[str, str]] = []
+    if workflow is not None:
+        for step in workflow.steps:
+            if step.agent:
+                step_prompts.append({"name": step.name, "agent": step.agent})
+
+    state_dict: dict[str, Any] = {
         "workflow_name": workflow_name,
         "status": "failed",
         "current_step_index": 0,
@@ -349,6 +364,8 @@ def _write_failed_workflow_state(
         "error": error_message,
         "is_anonymous": workflow_name.startswith("tmp_"),
     }
+    if step_prompts:
+        state_dict["step_prompts"] = step_prompts
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(state_dict, f, indent=2)
@@ -476,6 +493,7 @@ def execute_workflow(
             workflow_name=name,
             artifacts_dir=artifacts_dir,
             error_message=str(e),
+            workflow=workflow,
         )
         raise
 

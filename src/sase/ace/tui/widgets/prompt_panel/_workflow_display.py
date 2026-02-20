@@ -116,18 +116,29 @@ class WorkflowDisplayMixin:
 
         # Load and format workflow steps from workflow_state.json
         steps_content = self._load_workflow_steps(agent)
+        renderables: list[Text | Syntax] = [header_text]
         if steps_content:
-            # Render as YAML with syntax highlighting
-            steps_syntax = Syntax(
-                steps_content,
-                "yaml",
-                theme="monokai",
-                word_wrap=True,
+            renderables.append(
+                Syntax(steps_content, "yaml", theme="monokai", word_wrap=True)
             )
-            self.update(Group(header_text, steps_syntax))  # type: ignore[attr-defined]
         else:
             header_text.append("No workflow state found.\n", style="dim italic")
-            self.update(header_text)  # type: ignore[attr-defined]
+
+        # AGENT PROMPT section - show the prompt that was attempted
+        prompt_content = self._load_workflow_prompt(agent)
+        if prompt_content:
+            prompt_header = Text()
+            prompt_header.append("\n")
+            prompt_header.append("─" * 50 + "\n", style="dim")
+            prompt_header.append("\n")
+            prompt_header.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
+            prompt_header.append("\n")
+            renderables.append(prompt_header)
+            renderables.append(
+                Syntax(prompt_content, "markdown", theme="monokai", word_wrap=True)
+            )
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
 
     def _load_workflow_inputs(self, agent: Agent) -> dict[str, Any] | None:
         """Load workflow inputs from workflow_state.json.
@@ -211,6 +222,62 @@ class WorkflowDisplayMixin:
 
         steps = data.get("steps", [])
         return aggregate_meta_fields(steps)
+
+    def _load_workflow_prompt(self, agent: Agent) -> str | None:
+        """Load prompt content for a workflow.
+
+        Tries prompt files in artifacts first, then falls back to step agent
+        templates saved in workflow_state.json (for validation failures where
+        no steps ran).
+
+        Args:
+            agent: The workflow agent.
+
+        Returns:
+            Prompt content string, or None if not found.
+        """
+        artifacts_dir = agent.get_artifacts_dir()
+        if artifacts_dir is None:
+            return None
+
+        artifacts_path = Path(artifacts_dir)
+
+        # Try *_prompt.md files (saved when steps actually ran)
+        prompt_files = list(artifacts_path.glob("*_prompt.md"))
+        if prompt_files:
+            prompt_files.sort(key=lambda p: p.stat().st_mtime)
+            try:
+                with open(prompt_files[0], encoding="utf-8") as f:
+                    return f.read()
+            except Exception:
+                pass
+
+        # Fallback: step agent templates from workflow_state.json
+        state_file = artifacts_path / "workflow_state.json"
+        if not state_file.exists():
+            return None
+
+        try:
+            with open(state_file, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return None
+
+        step_prompts = data.get("step_prompts", [])
+        if step_prompts:
+            # Collect all agent step prompts
+            prompts = [sp["agent"] for sp in step_prompts if sp.get("agent")]
+            if prompts:
+                if len(prompts) == 1:
+                    return prompts[0]
+                # Multiple steps: label each
+                parts: list[str] = []
+                for sp in step_prompts:
+                    if sp.get("agent"):
+                        parts.append(f"## Step: {sp['name']}\n\n{sp['agent']}")
+                return "\n\n---\n\n".join(parts)
+
+        return None
 
     def _load_workflow_steps(self, agent: Agent) -> str | None:
         """Load and format workflow steps from workflow_state.json.
