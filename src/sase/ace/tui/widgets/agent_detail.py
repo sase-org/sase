@@ -397,8 +397,8 @@ class AgentDetail(Static):
         text = Text()
 
         # Files indicator
-        file_active = self._panel_mode == _DetailPanelMode.AUTO and (
-            self._has_file_content or not self._thinking_auto_shown
+        file_active = (
+            self._panel_mode == _DetailPanelMode.AUTO and self._has_file_content
         )
         if file_active:
             text.append("●", style="bold green")
