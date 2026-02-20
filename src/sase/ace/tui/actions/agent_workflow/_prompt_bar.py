@@ -201,6 +201,14 @@ class PromptBarMixin:
             PromptHistoryResult,
         )
 
+        vcs_prefix = event.vcs_prefix
+
+        def _build_prompt(prompt_text: str) -> str:
+            """Prepend VCS prefix to the selected prompt if present."""
+            if vcs_prefix:
+                return f"{vcs_prefix} {prompt_text}"
+            return prompt_text
+
         def on_history_select(result: PromptHistoryResult | None) -> None:
             if result is None:
                 self.notify("No prompt from history - cancelled", severity="warning")  # type: ignore[attr-defined]
@@ -210,10 +218,11 @@ class PromptBarMixin:
 
             if result.action == PromptHistoryAction.SUBMIT:
                 # Direct submit - skip editor
-                self._finish_agent_launch(result.prompt_text)  # type: ignore[attr-defined]
+                self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
             else:
                 # Edit first - open editor with selected prompt
-                edited_prompt = self._open_editor_for_agent_prompt(result.prompt_text)  # type: ignore[attr-defined]
+                prompt_for_editor = _build_prompt(result.prompt_text)
+                edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
                 if edited_prompt:
                     self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
                 else:

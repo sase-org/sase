@@ -108,7 +108,15 @@ class PromptInputBar(Static):
     class HistoryRequested(Message):
         """Message sent when user requests prompt history picker ('.')."""
 
-        pass
+        def __init__(self, vcs_prefix: str = "") -> None:
+            """Initialize the message.
+
+            Args:
+                vcs_prefix: VCS workflow prefix (e.g., "#gh:sase") to prepend
+                    to the selected prompt. Empty string for plain dot-prompt.
+            """
+            super().__init__()
+            self.vcs_prefix = vcs_prefix
 
     class SnippetRequested(Message):
         """Message sent when user requests snippet modal ('##')."""
@@ -160,6 +168,14 @@ class PromptInputBar(Static):
         # Check for '.' - trigger history picker
         if value == ".":
             self.post_message(self.HistoryRequested())
+            return
+
+        # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .")
+        # The '#' prefix indicates a workflow reference; trailing " ." means
+        # the user wants to pick from prompt history for that VCS context.
+        if value.endswith(" .") and value[0] == "#":
+            vcs_prefix = value[:-2].rstrip()
+            self.post_message(self.HistoryRequested(vcs_prefix=vcs_prefix))
             return
 
         # Normal submission
