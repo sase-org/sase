@@ -301,8 +301,13 @@ class AgentFilePanel(Static):
                 if cache_key in _file_cache:
                     cache_entry = _file_cache[cache_key]
 
-                    # Skip update if content hasn't changed
-                    if cache_entry.diff_output == self._last_file_content:
+                    # Skip update if content hasn't changed (but only
+                    # if we've displayed before — on first load, None==None
+                    # would suppress the visibility message that hides us)
+                    if (
+                        self._has_displayed_content
+                        and cache_entry.diff_output == self._last_file_content
+                    ):
                         # Content unchanged - just update timestamp without scroll reset
                         # Re-display to update the timestamp (removes "refreshing...")
                         scroll_pos = self._save_scroll_position()
