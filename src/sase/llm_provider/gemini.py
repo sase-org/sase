@@ -4,7 +4,6 @@ Extracts only the Gemini-specific subprocess logic from the old
 GeminiCommandWrapper.invoke() method.
 """
 
-import os
 import subprocess
 
 from sase.rich_utils import gemini_timer
@@ -13,19 +12,21 @@ from ._subprocess import stream_process_output
 from .base import LLMProvider
 from .types import ModelTier
 
+_DEFAULT_MODEL = "gemini-3.1-pro-preview"
+
 
 class GeminiProvider(LLMProvider):
     """LLM provider that invokes Google's Gemini CLI tool."""
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:  # noqa: ARG002
         """Return the Gemini model name."""
-        return "gemini"
+        return _DEFAULT_MODEL
 
     def invoke(
         self,
         prompt: str,
         *,
-        model_tier: ModelTier,
+        model_tier: ModelTier,  # noqa: ARG002
         suppress_output: bool = False,
         model_override: str | None = None,
     ) -> str:
@@ -33,10 +34,10 @@ class GeminiProvider(LLMProvider):
 
         Args:
             prompt: The preprocessed prompt to send.
-            model_tier: Which model tier to use ("large" or "small").
+            model_tier: Unused. Accepted for interface compatibility.
             suppress_output: If True, suppress real-time output to console.
-            model_override: If set, add ``--model model_override`` to args
-                instead of relying on tier-based env vars.
+            model_override: If set, use this model instead of the default.
+                Typically comes from the ``%model`` prompt directive.
 
         Returns:
             The response text from Gemini.
@@ -44,29 +45,15 @@ class GeminiProvider(LLMProvider):
         Raises:
             subprocess.CalledProcessError: If the Gemini CLI process fails.
         """
+        model = model_override or _DEFAULT_MODEL
+
         # Build base command arguments
         base_args = [
             "/google/bin/releases/gemini-cli/tools/gemini",
             "--yolo",
+            "--model",
+            model,
         ]
-
-        if model_override:
-            base_args.extend(["--model", model_override])
-
-        # Parse additional args from environment variable based on tier
-        # Check generic SASE_LLM_*_ARGS first, fall back to Gemini-specific
-        if model_tier == "large":
-            extra_args_env = os.environ.get(
-                "SASE_LLM_LARGE_ARGS", os.environ.get("SASE_BIG_GEMINI_ARGS")
-            )
-        else:
-            extra_args_env = os.environ.get(
-                "SASE_LLM_SMALL_ARGS", os.environ.get("SASE_LITTLE_GEMINI_ARGS")
-            )
-
-        if extra_args_env:
-            for arg in extra_args_env.split():
-                base_args.append(arg)
 
         # Start the process and stream output in real-time with timer
         timer_context = (

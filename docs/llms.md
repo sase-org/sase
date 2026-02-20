@@ -145,19 +145,10 @@ The `GeminiProvider` invokes Google's internal Gemini CLI tool.
 
 The prompt is written to stdin, and output is streamed from stdout in real-time.
 
-### Model Mapping
+### Default Model
 
-Gemini does not have a built-in tier-to-model mapping in the provider code. Model selection is controlled entirely via
-the extra args environment variables.
-
-### Environment Variables
-
-| Variable                  | Description                                                |
-| ------------------------- | ---------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`     | Extra CLI args for `large` tier (generic, preferred)       |
-| `SASE_LLM_SMALL_ARGS`     | Extra CLI args for `small` tier (generic, preferred)       |
-| `SASE_BIG_GEMINI_ARGS`    | Extra CLI args for `large` tier (Gemini-specific fallback) |
-| `SASE_LITTLE_GEMINI_ARGS` | Extra CLI args for `small` tier (Gemini-specific fallback) |
+The Gemini provider uses `gemini-3.1-pro-preview` as its default model. This can be overridden per-prompt using the
+`%model` directive (e.g., `%model:gemini-2.5-flash`).
 
 ### Timer Display
 
@@ -265,13 +256,6 @@ Complete reference of environment variables used by the LLM provider layer.
 | ------------------------ | ------------------------------------------- |
 | `SASE_CLAUDE_LARGE_ARGS` | Claude-specific extra args for `large` tier |
 | `SASE_CLAUDE_SMALL_ARGS` | Claude-specific extra args for `small` tier |
-
-### Gemini-Specific
-
-| Variable                  | Description                                          |
-| ------------------------- | ---------------------------------------------------- |
-| `SASE_BIG_GEMINI_ARGS`    | Gemini-specific extra args for `large` tier (legacy) |
-| `SASE_LITTLE_GEMINI_ARGS` | Gemini-specific extra args for `small` tier (legacy) |
 
 ### VCS Provider
 

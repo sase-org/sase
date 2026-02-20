@@ -237,8 +237,6 @@ Source: `src/sase/xprompt/loader.py`
 | `SASE_LLM_SMALL_ARGS`      | Extra CLI args appended for `small` tier invocations (any provider).     |
 | `SASE_CLAUDE_LARGE_ARGS`   | Claude-specific extra args for `large` tier (fallback if generic unset). |
 | `SASE_CLAUDE_SMALL_ARGS`   | Claude-specific extra args for `small` tier (fallback if generic unset). |
-| `SASE_BIG_GEMINI_ARGS`     | Gemini-specific extra args for `large` tier (legacy fallback).           |
-| `SASE_LITTLE_GEMINI_ARGS`  | Gemini-specific extra args for `small` tier (legacy fallback).           |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
 variable is used as a fallback. Values are split on whitespace and appended to the CLI command.
