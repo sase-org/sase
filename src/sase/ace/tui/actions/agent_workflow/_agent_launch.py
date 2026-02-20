@@ -111,21 +111,31 @@ class AgentLaunchMixin:
                 hg_ref_info = hg_match.group(1) or hg_match.group(2)
 
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
-        # Skip if #gh/#git/#hg workspace was detected (embedded workflow, not standalone)
-        if (
-            prompt.startswith("#")
-            and gh_ref_info is None
-            and git_ref_info is None
-            and hg_ref_info is None
-        ):
-            workflow_result = self._try_execute_workflow(prompt)  # type: ignore[attr-defined]
+        # When VCS refs are present, strip them to find the core workflow reference
+        workflow_prompt = prompt
+        has_vcs_ref = (
+            gh_ref_info is not None
+            or git_ref_info is not None
+            or hg_ref_info is not None
+        )
+        if has_vcs_ref:
+            from ._ref_resolution import _GH_REF_PATTERN, _GIT_REF_PATTERN
+
+            workflow_prompt = _GH_REF_PATTERN.sub("", workflow_prompt)
+            workflow_prompt = _GIT_REF_PATTERN.sub("", workflow_prompt)
+            workflow_prompt = _HG_REF_PATTERN.sub("", workflow_prompt)
+            workflow_prompt = workflow_prompt.strip()
+
+        if workflow_prompt.startswith("#"):
+            workflow_result = self._try_execute_workflow(workflow_prompt)  # type: ignore[attr-defined]
             if workflow_result is True:
                 # Full workflow executed successfully
                 self._prompt_context = None
                 self.call_later(self._load_agents)  # type: ignore[attr-defined]
                 return
-            elif isinstance(workflow_result, str):
+            elif not has_vcs_ref and isinstance(workflow_result, str):
                 # Simple xprompt expanded inline — use as regular prompt
+                # (with VCS refs, expansion happens in agent runner instead)
                 prompt = workflow_result
 
         self._prompt_context = None
