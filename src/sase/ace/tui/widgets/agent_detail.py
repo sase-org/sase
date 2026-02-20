@@ -87,6 +87,7 @@ class AgentDetail(Static):
         """
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
 
         # Detect agent change and reset mode + auto-shown flag
         prev_agent = self._current_agent
@@ -102,16 +103,20 @@ class AgentDetail(Static):
         prompt_panel.update_display(agent)
         self._update_panel_indicators()
 
+        # Always probe thinking availability in the background so that
+        # _has_thinking_content is accurate for panel mode cycling.
+        # Without this, done agents with diffs never get their thinking
+        # probed and the 'i' key skips the thinking panel entirely.
+        thinking_panel.update_display(
+            agent, stale_threshold_seconds=stale_threshold_seconds
+        )
+
         # INFO mode: only update prompt, hide both secondary panels
         if self._panel_mode == _DetailPanelMode.INFO:
             return
 
         # When thinking panel is visible, keep it showing and just refresh data
         if self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown:
-            thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
-            thinking_panel.update_display(
-                agent, stale_threshold_seconds=stale_threshold_seconds
-            )
             # Still update file panel in background (for when thinking is toggled off)
             if agent.status in ("RUNNING", "WAITING INPUT"):
                 file_panel.update_display(
