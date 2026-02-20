@@ -5,6 +5,8 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+
 from sase.rich_utils import print_status
 from sase.shared_utils import apply_section_marker_handling
 
@@ -160,6 +162,14 @@ def process_xprompt_references(
     if "#" not in prompt:
         return prompt
 
+    # Protect fenced code blocks from expansion.  Content inside
+    # triple-backtick blocks is replaced with null-byte placeholders so
+    # that neither shorthand preprocessing nor the xprompt regex treats
+    # anything inside them as a reference.  After the loop completes we
+    # restore the original code block content.
+    fenced_blocks: list[str] = []
+    prompt = protect_fenced_blocks(prompt, fenced_blocks)
+
     iteration = 0
     while iteration < _MAX_EXPANSION_ITERATIONS:
         # Pre-process shorthand syntax on each iteration
@@ -247,6 +257,9 @@ def process_xprompt_references(
             print_status(str(e), "error")
             sys.exit(1)
 
+        # Protect any new fenced code blocks introduced by expanded content
+        prompt = protect_fenced_blocks(prompt, fenced_blocks)
+
         iteration += 1
 
     if iteration >= _MAX_EXPANSION_ITERATIONS:
@@ -256,6 +269,9 @@ def process_xprompt_references(
             "error",
         )
         sys.exit(1)
+
+    # Restore all fenced code blocks
+    prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
     return prompt
 
