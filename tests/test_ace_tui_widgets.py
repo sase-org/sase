@@ -337,31 +337,36 @@ async def test_update_display_auto_shows_thinking_for_done_workflow_without_diff
         def compose(self) -> ComposeResult:
             yield AgentDetail(id="agent-detail-panel")
 
-    app = _TestApp()
-    async with app.run_test():
-        detail = app.query_one("#agent-detail-panel", AgentDetail)
-        agent = Agent(
-            agent_type=AgentType.WORKFLOW,
-            cl_name="test_cl",
-            project_file="/tmp/test.gp",
-            status="DONE",
-            start_time=None,
-            workflow="my_workflow",
-        )
-        # Sanity: top-level workflow is NOT a workflow child
-        assert not agent.is_workflow_child
-        assert not agent.appears_as_agent
-        assert agent.diff_path is None
+    # Ensure AUTO mode regardless of environment (CI may lack 'claude' on PATH,
+    # causing Gemini detection and INFO mode which skips auto-show thinking).
+    with patch(
+        "sase.ace.tui.widgets.agent_detail._is_gemini_provider", return_value=False
+    ):
+        app = _TestApp()
+        async with app.run_test():
+            detail = app.query_one("#agent-detail-panel", AgentDetail)
+            agent = Agent(
+                agent_type=AgentType.WORKFLOW,
+                cl_name="test_cl",
+                project_file="/tmp/test.gp",
+                status="DONE",
+                start_time=None,
+                workflow="my_workflow",
+            )
+            # Sanity: top-level workflow is NOT a workflow child
+            assert not agent.is_workflow_child
+            assert not agent.appears_as_agent
+            assert agent.diff_path is None
 
-        detail.update_display(agent)
+            detail.update_display(agent)
 
-        diff_scroll = detail.query_one("#agent-file-scroll")
-        thinking_scroll = detail.query_one("#agent-thinking-scroll")
-        prompt_scroll = detail.query_one("#agent-prompt-scroll")
-        assert diff_scroll.has_class("hidden")
-        assert not thinking_scroll.has_class("hidden")
-        assert not prompt_scroll.has_class("expanded")
-        assert detail.is_thinking_visible()
+            diff_scroll = detail.query_one("#agent-file-scroll")
+            thinking_scroll = detail.query_one("#agent-thinking-scroll")
+            prompt_scroll = detail.query_one("#agent-prompt-scroll")
+            assert diff_scroll.has_class("hidden")
+            assert not thinking_scroll.has_class("hidden")
+            assert not prompt_scroll.has_class("expanded")
+            assert detail.is_thinking_visible()
 
 
 async def test_tab_bar_integration_tab_key() -> None:
