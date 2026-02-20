@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 from rich.syntax import Syntax
@@ -13,6 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.hints import build_editor_args
 from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
 from sase.notifications import (
     Notification,
@@ -45,6 +47,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             if b[0] not in ("ctrl+n", "ctrl+p")
         ),
         ("d", "dismiss_notification", "Dismiss"),
+        ("e", "open_in_editor", "Edit"),
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
         ("R", "read_all", "Read All"),  # uppercase R
@@ -83,7 +86,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(
-                "Enter: select  d: dismiss  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
+                "Enter: select  d: dismiss  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
                 id="notification-hints",
             )
 
@@ -184,6 +187,23 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                 notification.files
             )
             self._display_file(notification)
+
+    def action_open_in_editor(self) -> None:
+        """Open the currently displayed file in $EDITOR."""
+        notification = self._get_highlighted_notification()
+        if not notification or not notification.files:
+            return
+
+        file_path = notification.files[self._current_file_index]
+        expanded = os.path.expanduser(file_path)
+        editor = os.environ.get("EDITOR") or "nvim"
+        editor_args = build_editor_args(editor, [expanded])
+
+        with self.app.suspend():  # type: ignore[attr-defined]
+            subprocess.run(editor_args, check=False)
+
+        # Re-render file pane (content may have changed)
+        self._display_file(notification)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
