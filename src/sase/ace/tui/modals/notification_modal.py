@@ -47,7 +47,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             for b in OptionListNavigationMixin.NAVIGATION_BINDINGS
             if b[0] not in ("ctrl+n", "ctrl+p")
         ),
-        ("d", "dismiss_notification", "Dismiss"),
+        ("x", "dismiss_notification", "Dismiss"),
         ("e", "open_in_editor", "Edit"),
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
@@ -87,7 +87,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
             yield Label(
-                "Enter: select  d: dismiss  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
+                "Enter: select  x: dismiss  e: edit  C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  q: close",
                 id="notification-hints",
             )
 
