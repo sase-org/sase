@@ -68,6 +68,17 @@ sase ace --agent --keys tab
 sase ace --agent --size 200x50 --keys j
 ```
 
+## Multi-Phase Plans and Epics
+
+When writing plans, if the plan seems large enough to benefit from multiple phases (each implemented by a distinct
+Claude instance) **and you are not already working a child bead** (i.e., the current task is not associated with an
+epic's child bead), break the plan into numbered phases.
+
+When asked to implement a plan with multiple distinct phases, use `/bd:new_epic <plan_file>` to create an epic bead,
+child beads for each phase, and set up the bead dependencies correctly. **Then terminate the session WITHOUT
+implementing any of the work.** The `sase axe` scheduler will automatically pick up the child beads and dispatch agents
+to work them.
+
 ## Chezmoi Repo
 
 Some files associated with this project live in the ~/.local/share/chezmoi/ directory. Feel free to modify these if
