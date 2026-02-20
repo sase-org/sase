@@ -233,11 +233,12 @@ class KeybindingFooter(Horizontal):
         prefix.append_text(text)
         self._update_display(prefix)
 
-    def update_copy_bindings(self, tab: str) -> None:
+    def update_copy_bindings(self, tab: str, *, file_visible: bool = False) -> None:
         """Update bindings to show copy mode options for the current tab.
 
         Args:
             tab: Current tab name ("changespecs", "agents", or "axe").
+            file_visible: Whether the file panel is visible (agents tab only).
         """
         if tab == "changespecs":
             bindings = [
@@ -256,6 +257,8 @@ class KeybindingFooter(Horizontal):
                 ("s", "snap"),
                 ("Esc", "cancel"),
             ]
+            if file_visible:
+                bindings.insert(-1, ("E", "file path"))
         else:  # axe
             bindings = [
                 ("o", "visible"),

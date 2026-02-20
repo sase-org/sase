@@ -77,7 +77,13 @@ class ClipboardMixin:
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            footer.update_copy_bindings(self.current_tab)
+            file_visible = False
+            if self.current_tab == "agents":
+                from ..widgets import AgentDetail
+
+                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+                file_visible = agent_detail.is_file_visible()
+            footer.update_copy_bindings(self.current_tab, file_visible=file_visible)
         except Exception:
             pass
 
@@ -125,10 +131,12 @@ class ClipboardMixin:
         """
         if key == "c":  # %c
             self._copy_chat_path()
+        elif key == "E":  # %E
+            self._copy_file_path()
         elif key == "s":  # %s
             self._copy_snapshot()
         else:
-            self.notify("Unknown copy key (agents: c, s)", severity="warning")  # type: ignore[attr-defined]
+            self.notify("Unknown copy key (agents: c, E, s)", severity="warning")  # type: ignore[attr-defined]
             return False
         return True
 
@@ -276,6 +284,40 @@ class ClipboardMixin:
         if _copy_to_system_clipboard(chat_path):
             display_path = (
                 chat_path if len(chat_path) <= 50 else "..." + chat_path[-47:]
+            )
+            self.notify(f"Copied: {display_path}")  # type: ignore[attr-defined]
+        else:
+            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+
+    def _copy_file_path(self) -> None:
+        """Copy the file path from the file panel (%E on agents tab)."""
+        from ..widgets import AgentDetail
+        from ..widgets.file_panel import AgentFilePanel
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except Exception:
+            self.notify("Agent detail panel not found", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if not agent_detail.is_file_visible():
+            self.notify("File panel is not visible", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
+        file_path = file_panel.get_current_file_path()
+        if file_path is None:
+            self.notify("No file path (showing diff output)", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Convert to use ~ for home directory
+        home = os.path.expanduser("~")
+        if file_path.startswith(home):
+            file_path = "~" + file_path[len(home) :]
+
+        if _copy_to_system_clipboard(file_path):
+            display_path = (
+                file_path if len(file_path) <= 50 else "..." + file_path[-47:]
             )
             self.notify(f"Copied: {display_path}")  # type: ignore[attr-defined]
         else:

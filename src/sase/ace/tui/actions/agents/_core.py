@@ -226,7 +226,9 @@ class AgentsMixinCore(
         next_panel_label = agent_detail.next_panel_label()
 
         if getattr(self, "_copy_mode_active", False):
-            footer_widget.update_copy_bindings(self.current_tab)
+            footer_widget.update_copy_bindings(
+                self.current_tab, file_visible=file_visible
+            )
         else:
             footer_widget.update_agent_bindings(
                 current_agent,
