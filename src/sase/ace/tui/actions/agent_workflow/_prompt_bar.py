@@ -204,8 +204,16 @@ class PromptBarMixin:
         vcs_prefix = event.vcs_prefix
 
         def _build_prompt(prompt_text: str) -> str:
-            """Prepend VCS prefix to the selected prompt if present."""
+            """Prepend VCS prefix to the selected prompt if present.
+
+            Strips any existing VCS prefix from the prompt text first to
+            avoid doubling (e.g., "#gh:sase #gh:sase Do the thing").
+            """
             if vcs_prefix:
+                # Strip existing VCS prefix if already present
+                prefix_with_space = vcs_prefix + " "
+                if prompt_text.startswith(prefix_with_space):
+                    prompt_text = prompt_text[len(prefix_with_space) :]
                 return f"{vcs_prefix} {prompt_text}"
             return prompt_text
 
