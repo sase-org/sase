@@ -61,6 +61,24 @@ def test_extract_xprompt_calls_colon_syntax() -> None:
     assert calls[0].named_args == {}
 
 
+def test_extract_xprompt_calls_colon_command_substitution() -> None:
+    """Test extracting xprompt with colon syntax using $(cmd) substitution."""
+    calls = _extract_xprompt_calls("#bug:$(branch_bug)")
+    assert len(calls) == 1
+    assert calls[0].name == "bug"
+    assert calls[0].positional_args == ["$(branch_bug)"]
+    assert calls[0].named_args == {}
+
+
+def test_extract_xprompt_calls_colon_backtick_syntax() -> None:
+    """Test extracting xprompt with colon syntax using backtick-delimited arg."""
+    calls = _extract_xprompt_calls("#foo:`some complex arg`")
+    assert len(calls) == 1
+    assert calls[0].name == "foo"
+    assert calls[0].positional_args == ["`some complex arg`"]
+    assert calls[0].named_args == {}
+
+
 def test_extract_xprompt_calls_plus_syntax() -> None:
     """Test extracting xprompt with plus syntax."""
     calls = _extract_xprompt_calls("#foo+")
