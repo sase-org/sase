@@ -16,7 +16,7 @@ scale.
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
 - **AXE** — Schedule-based daemon for continuous automation of ChangeSpec status updates
 - **XPrompt** — Typed prompt templates with reference expansion and YAML front matter
-- **Workflows** — YAML-defined multi-step pipelines with prompt, bash, and python steps, control flow, parallel
+- **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
 - **LLM Providers** — Pluggable AI abstraction (Claude, Gemini) with pre/post-processing
@@ -65,18 +65,22 @@ sase
 
 ## CLI Commands
 
-| Command         | Description                                                  |
-| --------------- | ------------------------------------------------------------ |
-| `sase ace`      | Interactive TUI for navigating and managing ChangeSpecs      |
-| `sase axe`      | Schedule-based daemon for continuous automation              |
-| `sase search`   | Search and filter ChangeSpecs with query expressions         |
-| `sase run`      | Execute workflows or run a query directly                    |
-| `sase xprompt`  | Expand prompt templates with sase references                 |
-| `sase commit`   | Create a commit with formatted CL description and metadata   |
-| `sase amend`    | Amend a commit with COMMITS tracking                         |
-| `sase revert`   | Revert a ChangeSpec by pruning its CL and archiving its diff |
-| `sase restore`  | Restore a reverted ChangeSpec by re-applying its diff        |
-| `sase init-git` | Initialize a new bare-repo-backed git project                |
+| Command              | Description                                                  |
+| -------------------- | ------------------------------------------------------------ |
+| `sase ace`           | Interactive TUI for navigating and managing ChangeSpecs      |
+| `sase axe`           | Schedule-based daemon for continuous automation              |
+| `sase search`        | Search and filter ChangeSpecs with query expressions         |
+| `sase run`           | Execute workflows or run a query directly                    |
+| `sase xprompt`       | Expand prompt templates with sase references                 |
+| `sase commit`        | Create a commit with formatted CL description and metadata   |
+| `sase amend`         | Amend a commit with COMMITS tracking                         |
+| `sase revert`        | Revert a ChangeSpec by pruning its CL and archiving its diff |
+| `sase restore`       | Restore a reverted ChangeSpec by re-applying its diff        |
+| `sase init-git`      | Initialize a new bare-repo-backed git project                |
+| `sase path`          | Print well-known sase paths (for editor integration)         |
+| `sase notify`        | Create a notification (reads JSON from stdin or uses flags)  |
+| `sase user-question` | Handle user question from Claude Code hook                   |
+| `sase plan-approve`  | Handle plan approval from Claude Code hook                   |
 
 ## Core Concepts
 
@@ -88,7 +92,7 @@ Submitted) and carries structured metadata such as reviewers, tags, and comments
 
 ### Workflows
 
-Workflows are YAML-defined multi-step pipelines that can include prompt steps (LLM calls), bash steps, and python steps.
+Workflows are YAML-defined multi-step pipelines that can include agent steps (LLM calls), bash steps, and python steps.
 They support control flow (conditionals, loops), parallel execution, and human-in-the-loop checkpoints. See
 [`docs/workflow_spec.md`](docs/workflow_spec.md) for the format specification.
 
@@ -107,6 +111,7 @@ src/sase/
 │   ├── changespec/      # ChangeSpec data model and parsing
 │   ├── query/           # Query language (boolean expressions, filters)
 │   ├── tui/             # Textual-based TUI interface
+│   │   └── thinking/    # Claude thinking block parser and display
 │   ├── handlers/        # Event and action handlers
 │   ├── hooks/           # Lifecycle hooks
 │   ├── comments/        # Comment management
@@ -121,6 +126,7 @@ src/sase/
 ├── accept_workflow/     # Change acceptance workflows
 ├── rewind_workflow/     # Revert and restore operations
 ├── gemini_wrapper/      # Gemini-specific integration
+├── notifications/       # Notification system and delivery
 ├── status_state_machine/ # ChangeSpec status transitions
 tests/                   # Test suite (mirrors src/sase/ structure)
 docs/                    # Detailed documentation

@@ -35,19 +35,19 @@ Key design principles:
 
 ### Source Layout
 
-| File                                 | Purpose                             |
-| ------------------------------------ | ----------------------------------- |
-| `src/llm_provider/__init__.py`       | Public API exports                  |
-| `src/llm_provider/base.py`           | `LLMProvider` abstract base class   |
-| `src/llm_provider/claude.py`         | Claude Code provider implementation |
-| `src/llm_provider/gemini.py`         | Gemini CLI provider implementation  |
-| `src/llm_provider/registry.py`       | Provider registration and lookup    |
-| `src/llm_provider/config.py`         | Config file reader (`sase.yml`)     |
-| `src/llm_provider/types.py`          | `ModelTier`, `LoggingContext` types |
-| `src/llm_provider/_invoke.py`        | `invoke_agent()` orchestrator       |
-| `src/llm_provider/_subprocess.py`    | `stream_process_output()`           |
-| `src/llm_provider/preprocessing.py`  | 6-step preprocessing pipeline       |
-| `src/llm_provider/postprocessing.py` | Logging, chat history, audio        |
+| File                                      | Purpose                             |
+| ----------------------------------------- | ----------------------------------- |
+| `src/sase/llm_provider/__init__.py`       | Public API exports                  |
+| `src/sase/llm_provider/base.py`           | `LLMProvider` abstract base class   |
+| `src/sase/llm_provider/claude.py`         | Claude Code provider implementation |
+| `src/sase/llm_provider/gemini.py`         | Gemini CLI provider implementation  |
+| `src/sase/llm_provider/registry.py`       | Provider registration and lookup    |
+| `src/sase/llm_provider/config.py`         | Config file reader (`sase.yml`)     |
+| `src/sase/llm_provider/types.py`          | `ModelTier`, `LoggingContext` types |
+| `src/sase/llm_provider/_invoke.py`        | `invoke_agent()` orchestrator       |
+| `src/sase/llm_provider/_subprocess.py`    | `stream_process_output()`           |
+| `src/sase/llm_provider/preprocessing.py`  | 6-step preprocessing pipeline       |
+| `src/sase/llm_provider/postprocessing.py` | Logging, chat history, audio        |
 
 ## Provider Architecture
 

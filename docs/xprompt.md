@@ -225,7 +225,7 @@ input:
 
 ## Output Specification
 
-XPrompts used as prompt steps in workflows can declare an output schema for structured output validation. See the
+XPrompts used as agent steps in workflows can declare an output schema for structured output validation. See the
 [Output Specification](workflow_spec.md#output-specification) section in the workflow spec for full details on the
 format.
 
@@ -331,7 +331,7 @@ XPrompts and [workflows](workflow_spec.md) share the same `#name(args)` calling 
 xprompt is converted to a single-step workflow with a `prompt_part` step, so both can be invoked uniformly via
 `sase run '#name(args)'`.
 
-Workflow prompt steps can embed xprompt references inline:
+Workflow agent steps can embed xprompt references inline:
 
 ```yaml
 steps:

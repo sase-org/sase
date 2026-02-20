@@ -89,13 +89,13 @@ Parameters without a `default` are required. Parameters with `default: null` or 
 
 Each step must have exactly one of these execution types:
 
-### Prompt Steps
+### Agent Steps
 
 Execute an LLM prompt, optionally referencing xprompts:
 
 ```yaml
 - name: generate_plan
-  prompt: |
+  agent: |
     #plan_generator(
       context="{{ previous_step.output }}",
       requirements="{{ requirements }}"
@@ -103,11 +103,13 @@ Execute an LLM prompt, optionally referencing xprompts:
   output: { plan: text, files: text }
 ```
 
-The `prompt` field contains a prompt template that can:
+The `agent` field contains a prompt template that can:
 
 - Reference xprompts using `#xprompt_name(args)` syntax
 - Use Jinja2 template variables: `{{ variable }}`
 - Include multi-line content
+
+> **Note:** The keyword `prompt` is still accepted for backward compatibility, but `agent` is the canonical name.
 
 ### Bash Steps
 
@@ -192,7 +194,7 @@ Example:
 
 ```yaml
 - name: generate_items
-  prompt: Generate a list of items
+  agent: Generate a list of items
   output: [{ name: word, description: text, priority: { type: int, default: 0 } }]
 ```
 
@@ -457,7 +459,7 @@ Workflows use Jinja2 for template rendering.
 ### Conditionals in Templates
 
 ```yaml
-prompt: |
+agent: |
   {% if condition %}
   Include this text
   {% endif %}
@@ -473,7 +475,7 @@ The `hitl: true` directive pauses execution for user approval.
 
 ```yaml
 - name: generate_plan
-  prompt: Generate a migration plan
+  agent: Generate a migration plan
   output: { plan: text }
   hitl: true
 ```
@@ -487,7 +489,7 @@ When a HITL step completes:
    - **Accept**: Continue to next step
    - **Edit**: Modify the output before continuing
    - **Reject**: Abort the workflow
-   - **Feedback** (prompt only): Provide feedback for regeneration
+   - **Feedback** (agent steps only): Provide feedback for regeneration
    - **Rerun** (bash/python only): Re-execute the command
 
 ### Accessing Approval Status
@@ -508,7 +510,7 @@ After a HITL step, `step.approved` indicates whether the user accepted:
 ### Restrictions
 
 - HITL steps cannot be nested within `parallel` blocks
-- HITL works with `prompt`, `bash`, and `python` step types
+- HITL works with `agent`, `bash`, and `python` step types
 
 ## Examples
 
@@ -518,7 +520,7 @@ The following workflow files demonstrate these features:
 
 - `eval_ifs_loops.yml` - Conditional execution, for loops, while/repeat loops
 - `eval_parallel.yml` - Parallel execution with different join modes
-- `split.yml` - Real workflow with HITL, prompt steps, and xprompt references
+- `split.yml` - Real workflow with HITL, agent steps, and xprompt references
 
 ### Minimal Example
 

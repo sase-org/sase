@@ -21,6 +21,9 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`) |
 | `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)   |
 | `--vcs-provider`           | Override VCS provider (`git`, `hg`, or `auto`)                 |
+| `--agent`                  | Run in headless agent mode (returns JSON to stdout)            |
+| `--keys`                   | Key names to press in agent mode (e.g., `j j Enter`)           |
+| `--size`                   | Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40) |
 
 ### Examples
 
@@ -29,6 +32,18 @@ sase ace                              # Last query or "!!!"
 sase ace '"feature" AND "Drafted"'    # Filter by name and status
 sase ace '@myproject'                 # Filter by project
 sase ace -m small -r 30 '!!! OR @@@' # Small model, 30s refresh
+```
+
+### Agent Mode (Headless)
+
+The `--agent` flag runs ACE headlessly and returns structured JSON output, useful for end-to-end testing and scripting:
+
+```bash
+sase ace --agent                          # See initial TUI state as JSON
+sase ace --agent --keys j j               # Navigate down two items
+sase ace --agent --keys slash             # Open query modal
+sase ace --agent --keys tab               # Switch to agents tab
+sase ace --agent --size 200x50 --keys j   # Custom terminal size
 ```
 
 ## Tab System
@@ -131,14 +146,15 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Agent Actions
 
-| Key | Action                      |
-| --- | --------------------------- |
-| `@` | Run custom agent            |
-| `!` | Run background command      |
-| `r` | Revive chat as agent        |
-| `x` | Kill / dismiss agent        |
-| `e` | Edit chat in editor         |
-| `p` | Toggle file / prompt layout |
+| Key | Action                                       |
+| --- | -------------------------------------------- |
+| `@` | Run custom agent                             |
+| `!` | Run background command                       |
+| `r` | Revive chat as agent                         |
+| `x` | Kill / dismiss agent                         |
+| `e` | Edit chat in editor                          |
+| `p` | Toggle file / prompt layout                  |
+| `i` | Toggle thinking / file panel (context-aware) |
 
 ### Workflow Folding
 

@@ -268,13 +268,16 @@ These are set automatically by sase when launching agent subprocesses and are no
 
 ### `sase ace`
 
-| Flag                     | Values              | Default                   | Description                                  |
-| ------------------------ | ------------------- | ------------------------- | -------------------------------------------- |
-| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.      |
-| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations. |
-| `--model-size`           | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.         |
-| `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).        |
-| `--vcs-provider`         | `git`, `hg`, `auto` | -                         | Override VCS provider.                       |
+| Flag                     | Values              | Default                   | Description                                    |
+| ------------------------ | ------------------- | ------------------------- | ---------------------------------------------- |
+| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.        |
+| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.   |
+| `--model-size`           | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.           |
+| `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).          |
+| `--vcs-provider`         | `git`, `hg`, `auto` | -                         | Override VCS provider.                         |
+| `--agent`                | flag                | -                         | Run in headless agent mode (returns JSON).     |
+| `--keys`                 | strings             | -                         | Key names to press in agent mode.              |
+| `--size`                 | `WxH`               | `120x40`                  | Terminal size for agent mode (e.g., `200x50`). |
 
 ### `sase axe`
 
@@ -359,3 +362,15 @@ the built-in defaults are used.
 | `--bare-dir`   | path   | `~/.sase/repos/<name>.git` | Override bare repo path.                                |
 | `--clone-dir`  | path   | `~/projects/git/<name>/`   | Override clone path.                                    |
 | `--existing`   | path   | -                          | Register an existing bare repo instead of creating one. |
+
+### `sase path`
+
+| Flag   | Values                            | Default    | Description         |
+| ------ | --------------------------------- | ---------- | ------------------- |
+| `name` | `xprompts-dir`, `xprompts-schema` | (required) | Which path to print |
+
+### `sase notify`
+
+| Flag       | Values | Default | Description                                               |
+| ---------- | ------ | ------- | --------------------------------------------------------- |
+| `--sender` | string | -       | Notification sender name (overrides sender in JSON input) |
