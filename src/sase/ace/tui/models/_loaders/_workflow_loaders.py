@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ....hooks.processes import is_process_running
-from ._artifact_loaders import enrich_agent_from_meta
+from ._artifact_loaders import enrich_agent_from_meta, enrich_agent_from_prompt_markers
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
@@ -216,6 +216,8 @@ def load_workflow_agents() -> list[Agent]:
             workspace_num=workspace_num,
         )
         enrich_agent_from_meta(agent, entry.artifacts_dir)
+        if entry.artifacts_dir:
+            enrich_agent_from_prompt_markers(agent, entry.artifacts_dir)
         agents.append(agent)
 
     return agents

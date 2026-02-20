@@ -217,7 +217,7 @@ def load_done_agents(
     return agents
 
 
-def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
+def enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
     """Read prompt_step_*.json markers and populate meta_* fields on step_output.
 
     Args:
@@ -303,7 +303,7 @@ def load_running_home_agents() -> list[Agent]:
                 model=data.get("model"),
                 vcs_provider=data.get("vcs_provider"),
             )
-            _enrich_agent_from_prompt_markers(agent, str(artifact_dir))
+            enrich_agent_from_prompt_markers(agent, str(artifact_dir))
             agents.append(agent)
         except Exception:
             continue
