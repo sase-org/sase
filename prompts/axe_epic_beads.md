@@ -10,9 +10,11 @@ instance.
   directly).
 - We should inform claude, in the CLAUDE.md file, that:
   - When writing plans, if the plan seems large enough to benefit from multiple phases (each implemented by a distinct
-    claude instance), then it should break the plan into phases.
+    claude instance) and it is not already associated with an epic bead (i.e. we are not working a child bead), then it
+    should break the plan into phases.
   - When asked to implement a plan, if the plan has multiple distinct phases, claude should use the `/bd:new_epic` slash
-    command, which will create a new epic bead, child beads for each phase, and set up the bead dependencies correctly.
+    command , which will create a new epic bead, child beads for each phase, and set up the bead dependencies correctly.
+    It should then terminate the session WITHOUT implementing any of the work.
 
 ### `sase axe` Integration
 
