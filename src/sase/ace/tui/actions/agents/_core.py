@@ -225,17 +225,20 @@ class AgentsMixinCore(
         info_mode = agent_detail.is_info_mode()
         next_panel_label = agent_detail.next_panel_label()
 
-        footer_widget.update_agent_bindings(
-            current_agent,
-            file_visible=file_visible,
-            thinking_visible=thinking_visible,
-            info_mode=info_mode,
-            next_panel_label=next_panel_label,
-            has_always_visible=self._has_always_visible,
-            hidden_count=self._hidden_count,
-            hide_non_run=self.hide_non_run_agents,
-            has_foldable=has_foldable,
-        )
+        if getattr(self, "_copy_mode_active", False):
+            footer_widget.update_copy_bindings(self.current_tab)
+        else:
+            footer_widget.update_agent_bindings(
+                current_agent,
+                file_visible=file_visible,
+                thinking_visible=thinking_visible,
+                info_mode=info_mode,
+                next_panel_label=next_panel_label,
+                has_always_visible=self._has_always_visible,
+                hidden_count=self._hidden_count,
+                hide_non_run=self.hide_non_run_agents,
+                has_foldable=has_foldable,
+            )
 
         self._update_agents_info_panel()
 

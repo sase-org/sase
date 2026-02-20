@@ -42,6 +42,7 @@ class ClipboardMixin:
             return
 
         self._copy_mode_active = True  # type: ignore[attr-defined]
+        self._update_copy_footer()
 
     def _handle_copy_key(self, key: str) -> bool:
         """Handle the second key in copy mode sequence.
@@ -55,15 +56,30 @@ class ClipboardMixin:
         self._copy_mode_active = False  # type: ignore[attr-defined]
 
         if key == "escape":
-            # Cancel copy mode silently
+            # Cancel copy mode silently and restore footer
+            self._refresh_display()  # type: ignore[attr-defined]
             return True
 
         if self.current_tab == "changespecs":
-            return self._handle_changespecs_copy_key(key)
+            result = self._handle_changespecs_copy_key(key)
         elif self.current_tab == "agents":
-            return self._handle_agents_copy_key(key)
+            result = self._handle_agents_copy_key(key)
         else:  # axe
-            return self._handle_axe_copy_key(key)
+            result = self._handle_axe_copy_key(key)
+
+        # Restore normal footer
+        self._refresh_display()  # type: ignore[attr-defined]
+        return result
+
+    def _update_copy_footer(self) -> None:
+        """Update the footer to show copy mode bindings."""
+        from ..widgets import KeybindingFooter
+
+        try:
+            footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+            footer.update_copy_bindings(self.current_tab)
+        except Exception:
+            pass
 
     def _handle_changespecs_copy_key(self, key: str) -> bool:
         """Handle copy key for changespecs tab.

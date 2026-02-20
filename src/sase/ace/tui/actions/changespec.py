@@ -323,9 +323,11 @@ class ChangeSpecMixin:
                 self._hidden_reverted_count
                 + ancestors_panel.get_hidden_reverted_count()
             )
-            # Preserve leader mode footer if active
+            # Preserve modal mode footers during auto-refresh
             if getattr(self, "_leader_mode_active", False):
                 footer_widget.update_leader_bindings()
+            elif getattr(self, "_copy_mode_active", False):
+                footer_widget.update_copy_bindings(self.current_tab)
             else:
                 footer_widget.update_bindings(
                     changespec,
@@ -335,7 +337,11 @@ class ChangeSpecMixin:
                 )
         else:
             detail_widget.show_empty(self.canonical_query_string)  # type: ignore[attr-defined]
-            if not getattr(self, "_leader_mode_active", False):
+            if getattr(self, "_leader_mode_active", False):
+                pass  # preserve leader mode footer
+            elif getattr(self, "_copy_mode_active", False):
+                pass  # preserve copy mode footer
+            else:
                 footer_widget.show_empty()
             ancestors_panel.clear()
             self._ancestor_keys = {}

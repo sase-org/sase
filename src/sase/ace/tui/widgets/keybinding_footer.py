@@ -233,6 +233,42 @@ class KeybindingFooter(Horizontal):
         prefix.append_text(text)
         self._update_display(prefix)
 
+    def update_copy_bindings(self, tab: str) -> None:
+        """Update bindings to show copy mode options for the current tab.
+
+        Args:
+            tab: Current tab name ("changespecs", "agents", or "axe").
+        """
+        if tab == "changespecs":
+            bindings = [
+                ("%", "raw"),
+                ("!", "+snap"),
+                ("b", "bug"),
+                ("c", "CL#"),
+                ("n", "name"),
+                ("p", "spec"),
+                ("s", "snap"),
+                ("Esc", "cancel"),
+            ]
+        elif tab == "agents":
+            bindings = [
+                ("c", "chat"),
+                ("s", "snap"),
+                ("Esc", "cancel"),
+            ]
+        else:  # axe
+            bindings = [
+                ("o", "visible"),
+                ("O", "full"),
+                ("s", "snap"),
+                ("Esc", "cancel"),
+            ]
+        text = self._format_bindings(bindings)
+        prefix = Text()
+        prefix.append("COPY ", style="bold #FFD700")
+        prefix.append_text(text)
+        self._update_display(prefix)
+
     def _compute_agent_bindings(
         self,
         agent: "Agent | None",
