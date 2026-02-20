@@ -204,6 +204,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                 condition_result = self._evaluate_condition(step.condition)
                 if not condition_result:
                     step_state.status = StepStatus.SKIPPED
+                    self.context[step.name] = {}
                     self._save_state()
                     # Notify step skipped
                     if self.output_handler:
