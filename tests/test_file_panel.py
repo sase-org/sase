@@ -1,6 +1,7 @@
 """Tests for file panel features and workflow output_types extraction."""
 
 import tempfile
+import types
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -213,9 +214,16 @@ def test_display_static_file_reads_and_renders(tmp_path: Any) -> None:
     panel = MagicMock()
     panel.post_message = MagicMock()
     panel._has_displayed_content = False
+    panel._file_list = []
+    panel._current_file_index = 0
 
     # Import and call the method directly using the unbound function
     from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER, AgentFilePanel
+
+    # Bind real _post_file_visibility so post_message gets called on the mock
+    panel._post_file_visibility = types.MethodType(
+        AgentFilePanel._post_file_visibility, panel
+    )
 
     # Verify the lexer mapping includes .diff
     assert _EXTENSION_TO_LEXER[".diff"] == "diff"
@@ -251,8 +259,14 @@ def test_display_static_file_handles_missing_file(tmp_path: Any) -> None:
     """Test that display_static_file handles missing files gracefully."""
     panel = MagicMock()
     panel.post_message = MagicMock()
+    panel._file_list = []
+    panel._current_file_index = 0
 
     from sase.ace.tui.widgets.file_panel import AgentFilePanel
+
+    panel._post_file_visibility = types.MethodType(
+        AgentFilePanel._post_file_visibility, panel
+    )
 
     AgentFilePanel.display_static_file(panel, str(tmp_path / "nonexistent.diff"))
 
@@ -269,8 +283,14 @@ def test_display_static_file_handles_empty_file(tmp_path: Any) -> None:
 
     panel = MagicMock()
     panel.post_message = MagicMock()
+    panel._file_list = []
+    panel._current_file_index = 0
 
     from sase.ace.tui.widgets.file_panel import AgentFilePanel
+
+    panel._post_file_visibility = types.MethodType(
+        AgentFilePanel._post_file_visibility, panel
+    )
 
     AgentFilePanel.display_static_file(panel, str(empty_file))
 

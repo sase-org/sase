@@ -11,7 +11,7 @@ from textual.widgets import Static
 from sase.llm_provider.registry import get_default_provider_name
 
 from ..models.agent import Agent
-from .file_panel import AgentFilePanel, FileVisibilityChanged
+from .file_panel import AgentFilePanel, FileListChanged, FileVisibilityChanged
 from .prompt_panel import AgentPromptPanel
 from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 
@@ -54,6 +54,8 @@ class AgentDetail(Static):
         self._current_agent: Agent | None = None
         self._has_file_content: bool = False
         self._has_thinking_content: bool = False
+        self._file_count: int = 0
+        self._file_index: int = 0
         self._scroll_thinking_to_bottom: bool = False
 
     def compose(self) -> ComposeResult:
@@ -179,8 +181,9 @@ class AgentDetail(Static):
             )
         else:
             # DONE, FAILED, etc.
-            if agent.diff_path:
-                file_panel.display_static_file(agent.diff_path)
+            files = agent.all_files
+            if files:
+                file_panel.set_file_list(files)
             else:
                 self._auto_show_thinking(agent)
 
@@ -206,6 +209,8 @@ class AgentDetail(Static):
         self._scroll_thinking_to_bottom = False
         self._has_file_content = False
         self._has_thinking_content = False
+        self._file_count = 0
+        self._file_index = 0
         prompt_scroll.border_subtitle = ""
 
     def refresh_current_file(self, agent: Agent) -> None:
@@ -216,6 +221,26 @@ class AgentDetail(Static):
         """
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         file_panel.refresh_file(agent)
+
+    def cycle_next_file(self) -> None:
+        """Cycle to the next file in the file panel."""
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel.next_file()
+
+    def cycle_prev_file(self) -> None:
+        """Cycle to the previous file in the file panel."""
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel.prev_file()
+
+    def on_file_list_changed(self, message: FileListChanged) -> None:
+        """Handle file list changes from the file panel.
+
+        Args:
+            message: The file list change message.
+        """
+        self._file_count = message.file_count
+        self._file_index = message.file_index
+        self._update_panel_indicators()
 
     def toggle_thinking(self, agent: Agent) -> None:
         """Cycle through available panel modes, skipping unavailable ones.
@@ -393,6 +418,8 @@ class AgentDetail(Static):
             message: The visibility change message.
         """
         self._has_file_content = message.has_file
+        self._file_count = message.file_count
+        self._file_index = message.file_index
         self._update_panel_indicators()
 
         # Skip file visibility changes in THINKING or INFO modes

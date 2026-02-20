@@ -1,7 +1,7 @@
 """Agent data model for the Agents tab."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -49,6 +49,9 @@ class Agent:
 
     # Diff file path for completed agents
     diff_path: str | None = None
+
+    # Additional file paths (plans, etc.) for multi-file panel display
+    extra_files: list[str] = field(default_factory=list)
 
     # Bug URL for agents with associated bug IDs
     bug: str | None = None
@@ -165,6 +168,15 @@ class Agent:
             return f"{minutes}m{seconds}s"
         else:
             return f"{seconds}s"
+
+    @property
+    def all_files(self) -> list[str]:
+        """All displayable file paths (diff + extras) for multi-file panel."""
+        files: list[str] = []
+        if self.diff_path:
+            files.append(self.diff_path)
+        files.extend(self.extra_files)
+        return files
 
     @property
     def identity(self) -> tuple["AgentType", str, str | None]:

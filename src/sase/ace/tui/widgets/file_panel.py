@@ -23,14 +23,38 @@ from ..models.agent import Agent
 class FileVisibilityChanged(Message):
     """Message posted when file panel visibility should change."""
 
-    def __init__(self, has_file: bool) -> None:
+    def __init__(
+        self,
+        has_file: bool,
+        file_count: int = 0,
+        file_index: int = 0,
+    ) -> None:
         """Initialize the message.
 
         Args:
             has_file: True if there is a file to display, False if empty.
+            file_count: Total number of files in the file list.
+            file_index: Current file index (0-based).
         """
         super().__init__()
         self.has_file = has_file
+        self.file_count = file_count
+        self.file_index = file_index
+
+
+class FileListChanged(Message):
+    """Message posted when the file list or current index changes."""
+
+    def __init__(self, file_count: int, file_index: int) -> None:
+        """Initialize the message.
+
+        Args:
+            file_count: Total number of files in the file list.
+            file_index: Current file index (0-based).
+        """
+        super().__init__()
+        self.file_count = file_count
+        self.file_index = file_index
 
 
 @dataclass
@@ -86,6 +110,8 @@ class AgentFilePanel(Static):
         self._has_displayed_content: bool = False
         self._last_file_content: str | None = None
         self._is_background_refreshing: bool = False
+        self._file_list: list[str] = []
+        self._current_file_index: int = 0
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update with agent file output.
@@ -132,6 +158,73 @@ class AgentFilePanel(Static):
             return self._fetch_file_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
+
+    def set_file_list(self, files: list[str]) -> None:
+        """Store the file list, reset index to 0, and display the first file.
+
+        Args:
+            files: Ordered list of file paths to make available for cycling.
+        """
+        self._file_list = list(files)
+        self._current_file_index = 0
+        self.post_message(
+            FileListChanged(file_count=len(self._file_list), file_index=0)
+        )
+        if files:
+            self._display_file_at_current_index()
+
+    def next_file(self) -> None:
+        """Cycle to the next file in the list (wraps around)."""
+        if len(self._file_list) <= 1:
+            return
+        self._current_file_index = (self._current_file_index + 1) % len(self._file_list)
+        self._display_file_at_current_index()
+        self.post_message(
+            FileListChanged(
+                file_count=len(self._file_list),
+                file_index=self._current_file_index,
+            )
+        )
+
+    def prev_file(self) -> None:
+        """Cycle to the previous file in the list (wraps around)."""
+        if len(self._file_list) <= 1:
+            return
+        self._current_file_index = (self._current_file_index - 1) % len(self._file_list)
+        self._display_file_at_current_index()
+        self.post_message(
+            FileListChanged(
+                file_count=len(self._file_list),
+                file_index=self._current_file_index,
+            )
+        )
+
+    @property
+    def current_file_count(self) -> int:
+        """Return the number of files in the file list."""
+        return len(self._file_list)
+
+    @property
+    def current_file_index(self) -> int:
+        """Return the current file index (0-based)."""
+        return self._current_file_index
+
+    def _display_file_at_current_index(self) -> None:
+        """Display the file at the current index using static file display."""
+        if not self._file_list:
+            return
+        self.display_static_file(self._file_list[self._current_file_index])
+
+    def _post_file_visibility(self, has_file: bool) -> None:
+        """Post a FileVisibilityChanged message with current file list state."""
+        file_count = len(self._file_list) if self._file_list else (1 if has_file else 0)
+        self.post_message(
+            FileVisibilityChanged(
+                has_file=has_file,
+                file_count=file_count,
+                file_index=self._current_file_index,
+            )
+        )
 
     def refresh_file(self, agent: Agent) -> None:
         """Force refresh the file for an agent.
@@ -233,7 +326,7 @@ class AgentFilePanel(Static):
 
         # Post visibility message to parent (only for fresh fetches to avoid flicker)
         if post_visibility_message:
-            self.post_message(FileVisibilityChanged(has_file=diff_output is not None))
+            self._post_file_visibility(has_file=diff_output is not None)
 
         # Build refresh indicator if stale and background refreshing
         refresh_indicator = ""
@@ -417,13 +510,13 @@ class AgentFilePanel(Static):
         except Exception:
             text = Text("Could not read diff file.\n", style="dim italic")
             self.update(text)
-            self.post_message(FileVisibilityChanged(has_file=False))
+            self._post_file_visibility(has_file=False)
             return
 
         if not diff_content.strip():
             text = Text("Diff file is empty.\n", style="dim italic")
             self.update(text)
-            self.post_message(FileVisibilityChanged(has_file=False))
+            self._post_file_visibility(has_file=False)
             return
 
         # Display diff with file path header
@@ -438,7 +531,7 @@ class AgentFilePanel(Static):
         )
         self.update(Group(header, Text(""), syntax))
         self._has_displayed_content = True
-        self.post_message(FileVisibilityChanged(has_file=True))
+        self._post_file_visibility(has_file=True)
 
     def display_static_file(self, file_path: str) -> None:
         """Display a static file with syntax highlighting (no auto-refresh).
@@ -455,13 +548,13 @@ class AgentFilePanel(Static):
         except Exception:
             text = Text("Could not read file.\n", style="dim italic")
             self.update(text)
-            self.post_message(FileVisibilityChanged(has_file=False))
+            self._post_file_visibility(has_file=False)
             return
 
         if not content.strip():
             text = Text("File is empty.\n", style="dim italic")
             self.update(text)
-            self.post_message(FileVisibilityChanged(has_file=False))
+            self._post_file_visibility(has_file=False)
             return
 
         # Detect lexer from file extension
@@ -478,4 +571,4 @@ class AgentFilePanel(Static):
         )
         self.update(Group(header, Text(""), syntax))
         self._has_displayed_content = True
-        self.post_message(FileVisibilityChanged(has_file=True))
+        self._post_file_visibility(has_file=True)
