@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.shared_utils import apply_section_marker_handling
 
+from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from sase.xprompt.models import UNSET, OutputSpec
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
 from sase.xprompt.workflow_executor_utils import render_template
@@ -339,6 +340,11 @@ class EmbeddedWorkflowMixin:
         workflows = get_all_workflows()
         running_offset = pre_step_offset
 
+        # Protect fenced code blocks so that workflow references like #gh
+        # inside triple-backtick blocks are not treated as real references.
+        fenced_blocks: list[str] = []
+        prompt = protect_fenced_blocks(prompt, fenced_blocks)
+
         # ── Phase 1: Collection ──────────────────────────────────────────
         # Iterate matches left-to-right, parse args, build pending list.
         matches = list(re.finditer(_WORKFLOW_REF_PATTERN, prompt, re.MULTILINE))
@@ -405,6 +411,7 @@ class EmbeddedWorkflowMixin:
             )
 
         if not pending:
+            prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
             return prompt, [], 0
 
         # ── Phase 2: Validation ──────────────────────────────────────────
@@ -469,6 +476,9 @@ class EmbeddedWorkflowMixin:
             prompt = (
                 prompt[: p.match_start] + p.rendered_prompt_part + prompt[p.match_end :]
             )
+
+        # Restore fenced code blocks now that matching and replacement are done.
+        prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
         # ── Phase 5: Post-step list ──────────────────────────────────────
         # Build embedded_workflows: non-wraps_all in right-to-left order, then

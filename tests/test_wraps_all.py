@@ -302,6 +302,48 @@ def test_no_wraps_all_post_step_order_right_to_left() -> None:
 
 
 # ============================================================================
+# Fenced code block protection
+# ============================================================================
+
+
+def test_wraps_all_ref_inside_code_block_not_matched() -> None:
+    """#workflow inside a fenced code block should not be treated as a reference."""
+    wf_gh = _make_workflow("gh", wraps_all=True)
+
+    executor = _FakeExecutor({"gh": wf_gh})
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"gh": wf_gh},
+    ):
+        # #gh outside the code block is real; #gh inside should be ignored
+        prompt, embedded, _ = executor._expand_embedded_workflows_in_prompt(
+            "#gh\n```\n#gh inside code block\n```\n"
+        )
+        # Should succeed (only one #gh detected, not two)
+        assert isinstance(prompt, str)
+        # The code block content should be preserved in the output
+        assert "#gh inside code block" in prompt
+
+
+def test_wraps_all_only_inside_code_block_no_expansion() -> None:
+    """When #workflow only appears inside code blocks, no expansion should happen."""
+    wf_gh = _make_workflow("gh", wraps_all=True)
+
+    executor = _FakeExecutor({"gh": wf_gh})
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"gh": wf_gh},
+    ):
+        prompt, embedded, _ = executor._expand_embedded_workflows_in_prompt(
+            "Do something\n```\n#gh inside code block\n```\n"
+        )
+        assert embedded == []
+        assert "#gh inside code block" in prompt
+
+
+# ============================================================================
 # _PendingEmbeddedWorkflow dataclass tests
 # ============================================================================
 
