@@ -39,11 +39,12 @@ _MAX_EXPANSION_ITERATIONS = 100
 #   - #name( - parenthesis syntax start (matching ) found programmatically)
 #   - #name:arg - colon syntax for single arg (word-like chars only)
 #   - #name:`arg` - colon syntax with backtick-delimited arg (any content)
+#   - #name:$(cmd) - colon syntax with command substitution
 #   - #name+ - plus syntax, equivalent to #name:true
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: xprompt name with optional namespace
-    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_./-]*[a-zA-Z0-9_/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick or word) OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_./-]*[a-zA-Z0-9_/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
 )
 
 
@@ -76,6 +77,41 @@ def _expand_single_xprompt(
     return substitute_placeholders(
         xprompt.content, conv_positional, conv_named, xprompt.name, scope=scope
     )
+
+
+def _resolve_command_substitution_in_args(
+    positional_args: list[str],
+    named_args: dict[str, str],
+) -> tuple[list[str], dict[str, str]]:
+    """Resolve $(cmd) command substitutions in xprompt arguments.
+
+    Args:
+        positional_args: Positional argument values.
+        named_args: Named argument values.
+
+    Returns:
+        Tuple of (resolved_positional, resolved_named) with any $(cmd)
+        patterns replaced by their command output.
+    """
+    has_cmd_sub = any("$(" in a for a in positional_args) or any(
+        "$(" in v for v in named_args.values()
+    )
+    if not has_cmd_sub:
+        return positional_args, named_args
+
+    # Lazy import to avoid circular import:
+    # processor -> gemini_wrapper.__init__ -> xprompt -> processor
+    from sase.gemini_wrapper.file_references import process_command_substitution
+
+    resolved_positional = [
+        process_command_substitution(arg) if "$(" in arg else arg
+        for arg in positional_args
+    ]
+    resolved_named = {
+        k: process_command_substitution(v) if "$(" in v else v
+        for k, v in named_args.items()
+    }
+    return resolved_positional, resolved_named
 
 
 def process_xprompt_references(
@@ -190,6 +226,11 @@ def process_xprompt_references(
                     positional_args, named_args = ["true"], {}
                 else:
                     positional_args, named_args = [], {}
+
+                # Resolve any $(cmd) command substitutions in arguments
+                positional_args, named_args = _resolve_command_substitution_in_args(
+                    positional_args, named_args
+                )
 
                 expanded = _expand_single_xprompt(
                     xprompt, positional_args, named_args, scope=scope

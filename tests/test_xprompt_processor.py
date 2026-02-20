@@ -15,6 +15,8 @@ from sase.xprompt.processor import (
     _XPROMPT_PATTERN,
     WorkflowResult,
     _flatten_anonymous_workflow,
+    _resolve_command_substitution_in_args,
+    process_xprompt_references,
 )
 from sase.xprompt.workflow_executor_utils import render_template
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -618,3 +620,104 @@ def test_simple_xprompt_null_default_renders_as_null() -> None:
     rendered = render_template(content, render_ctx)
 
     assert rendered == "Value is null."
+
+
+# --- Command substitution in xprompt args tests ---
+
+
+def test_xprompt_pattern_colon_arg_command_substitution() -> None:
+    """Test that #bug:$(branch_bug) captures $(branch_bug) as colon arg."""
+    match = re.search(_XPROMPT_PATTERN, "#bug:$(branch_bug)")
+    assert match is not None
+    assert match.group(1) == "bug"
+    assert match.group(3) == "$(branch_bug)"
+
+
+def test_xprompt_pattern_colon_arg_cmd_sub_trailing_punctuation() -> None:
+    """Test that trailing punctuation after $(cmd) is not captured."""
+    match = re.search(_XPROMPT_PATTERN, "#bug:$(branch_bug)?")
+    assert match is not None
+    assert match.group(1) == "bug"
+    assert match.group(3) == "$(branch_bug)"
+
+
+def test_xprompt_pattern_colon_arg_cmd_sub_with_args() -> None:
+    """Test that $(cmd arg) is captured as colon arg."""
+    match = re.search(_XPROMPT_PATTERN, "#foo:$(echo hello)")
+    assert match is not None
+    assert match.group(1) == "foo"
+    assert match.group(3) == "$(echo hello)"
+
+
+_CMD_SUB_PATCH = "sase.gemini_wrapper.file_references.process_command_substitution"
+
+
+def test_resolve_cmd_sub_plain_args_unchanged() -> None:
+    """Test that plain args (no $() ) pass through unchanged."""
+    pos, named = _resolve_command_substitution_in_args(
+        ["plain", "args"], {"key": "value"}
+    )
+    assert pos == ["plain", "args"]
+    assert named == {"key": "value"}
+
+
+@patch(_CMD_SUB_PATCH)
+def test_resolve_cmd_sub_resolves_dollar_paren(
+    mock_cmd_sub: MagicMock,
+) -> None:
+    """Test that args containing $( are resolved via process_command_substitution."""
+    mock_cmd_sub.side_effect = lambda s: s.replace("$(branch_bug)", "PROJ-123")
+    pos, named = _resolve_command_substitution_in_args(
+        ["$(branch_bug)"], {"id": "$(branch_bug)"}
+    )
+    assert pos == ["PROJ-123"]
+    assert named == {"id": "PROJ-123"}
+
+
+@patch(_CMD_SUB_PATCH)
+@patch("sase.xprompt.processor.get_all_xprompts")
+def test_process_xprompt_references_colon_cmd_sub(
+    mock_get_all: MagicMock,
+    mock_cmd_sub: MagicMock,
+) -> None:
+    """Test process_xprompt_references resolves $(cmd) in colon arg."""
+    mock_cmd_sub.side_effect = lambda s: s.replace("$(branch_bug)", "PROJ-42")
+    mock_get_all.return_value = {
+        "bug": XPrompt(name="bug", content="Bug ID: {1}"),
+    }
+    result = process_xprompt_references("#bug:$(branch_bug)")
+    assert result == "Bug ID: PROJ-42"
+
+
+@patch(_CMD_SUB_PATCH)
+@patch("sase.xprompt.processor.get_all_xprompts")
+def test_process_xprompt_references_paren_cmd_sub(
+    mock_get_all: MagicMock,
+    mock_cmd_sub: MagicMock,
+) -> None:
+    """Test process_xprompt_references resolves $(cmd) in paren arg."""
+    mock_cmd_sub.side_effect = lambda s: s.replace("$(branch_bug)", "PROJ-42")
+    mock_get_all.return_value = {
+        "bug": XPrompt(name="bug", content="Bug ID: {1}"),
+    }
+    result = process_xprompt_references("#bug($(branch_bug))")
+    assert result == "Bug ID: PROJ-42"
+
+
+@patch(_CMD_SUB_PATCH)
+@patch("sase.xprompt.processor.get_all_xprompts")
+def test_process_xprompt_references_named_cmd_sub(
+    mock_get_all: MagicMock,
+    mock_cmd_sub: MagicMock,
+) -> None:
+    """Test process_xprompt_references resolves $(cmd) in named arg."""
+    mock_cmd_sub.side_effect = lambda s: s.replace("$(branch_bug)", "PROJ-42")
+    mock_get_all.return_value = {
+        "bug": XPrompt(
+            name="bug",
+            content="{{ bug_id }}",
+            inputs=[InputArg(name="bug_id", type=InputType.LINE)],
+        ),
+    }
+    result = process_xprompt_references("#bug(bug_id=$(branch_bug))")
+    assert result == "PROJ-42"
