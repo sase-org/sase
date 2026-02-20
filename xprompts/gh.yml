@@ -104,6 +104,8 @@ steps:
       if [ "$head_now" != "$head_before" ]; then
         # Commits were made — show only the last commit's diff
         git diff HEAD~1 HEAD > "$diff_file" 2>/dev/null
+        commit_msg=$(git log -1 --format='%s' HEAD)
+        echo "meta_commit_message=$commit_msg"
       else
         # No commits — show uncommitted changes
         git diff HEAD > "$diff_file" 2>/dev/null
@@ -113,4 +115,4 @@ steps:
       else
         rm -f "$diff_file"
       fi
-    output: { diff_path: path }
+    output: { diff_path: path, meta_commit_message: line }
