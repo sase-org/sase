@@ -297,9 +297,10 @@ def load_workflow_agent_steps() -> list[Agent]:
                         is_hidden = data.get("hidden", False)
                         is_pre_prompt_step = data.get("is_pre_prompt_step", False)
 
-                        # Skip pre-prompt steps from embedded workflows
+                        # Pre-prompt steps from embedded workflows are hidden
+                        # by default but still loadable at FULLY_EXPANDED level.
                         if is_pre_prompt_step:
-                            continue
+                            is_hidden = True
 
                         # Read artifacts_dir, diff_path, and error from marker
                         artifacts_dir_from_marker = data.get("artifacts_dir")

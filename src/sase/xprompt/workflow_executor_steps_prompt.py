@@ -197,7 +197,7 @@ class PromptStepMixin:
 
         # Then expand embedded workflows
         # This executes pre-steps and replaces workflow refs with prompt_part content
-        expanded_prompt, embedded_workflows, _ = (
+        expanded_prompt, embedded_workflows, pre_step_count = (
             self._expand_embedded_workflows_in_prompt(expanded_prompt)
         )
 
@@ -344,7 +344,8 @@ class PromptStepMixin:
         )
 
         # Execute post-steps from embedded workflows
-        cumulative_post_offset = 0
+        # Start offset after pre-steps so step indices don't collide
+        cumulative_post_offset = pre_step_count
         for info in embedded_workflows:
             if info.post_steps:
                 from sase.xprompt.workflow_output import ParentStepContext
