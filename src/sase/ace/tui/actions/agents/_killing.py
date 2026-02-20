@@ -103,6 +103,7 @@ class AgentKillingMixin:
             return
 
         _dismiss_notifications_for_agent(agent)
+        self._refresh_notification_count()  # type: ignore[attr-defined]
 
         # Refresh agents list
         self._load_agents()  # type: ignore[attr-defined]
@@ -368,6 +369,7 @@ class AgentKillingMixin:
             return
 
         _dismiss_notifications_for_agent(agent)
+        self._refresh_notification_count()  # type: ignore[attr-defined]
 
         # Extract project name from project_file path
         # Path format: ~/.sase/projects/<project>/<project>.gp

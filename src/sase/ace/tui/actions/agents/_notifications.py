@@ -53,6 +53,27 @@ class AgentNotificationMixin:
         )
         indicator.set_count(unread_count)
 
+    def _refresh_notification_count(self) -> None:
+        """Reload unread notification count from disk and update the indicator.
+
+        Called after notifications are dismissed outside the notification modal
+        (e.g. when an agent is killed or dismissed-done).
+        """
+        from sase.notifications import load_notifications
+
+        from ...widgets import NotificationIndicator
+
+        notifications = load_notifications()
+        unread = [n for n in notifications if not n.read]
+        unread_count = len(unread)
+
+        self._last_unread_count = unread_count
+
+        indicator = self.query_one(  # type: ignore[attr-defined]
+            "#notification-indicator", NotificationIndicator
+        )
+        indicator.set_count(unread_count)
+
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""
         import os
