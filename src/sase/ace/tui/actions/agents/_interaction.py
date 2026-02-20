@@ -198,6 +198,34 @@ class AgentInteractionMixin:
         else:
             self.notify("No content to edit", severity="warning")  # type: ignore[attr-defined]
 
+    def action_resume_agent(self) -> None:
+        """Resume a DONE agent's conversation with a new prompt."""
+        if self.current_tab != "agents":
+            return
+
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+
+        if agent.status != "DONE":
+            self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if not agent.response_path:
+            self.notify("No chat file found", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        chat_path = agent.response_path
+        prefix = f"#resume:{chat_path} "
+
+        self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+            initial_text=prefix,
+            display_name=f"resume({agent.cl_name or 'agent'})",
+            history_sort_key=agent.cl_name or "resume",
+        )
+
     def action_toggle_thinking(self) -> None:
         """Toggle the thinking panel for the selected agent."""
         if self.current_tab != "agents":

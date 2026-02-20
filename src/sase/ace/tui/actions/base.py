@@ -248,6 +248,11 @@ class BaseActionsMixin:
             self.action_show_runners()  # type: ignore[attr-defined]
             return
 
+        # On agents tab, dispatch to resume action
+        if self.current_tab == "agents":
+            self.action_resume_agent()  # type: ignore[attr-defined]
+            return
+
         # Only run on changespecs tab
         if self.current_tab != "changespecs":
             return

@@ -313,6 +313,8 @@ class KeybindingFooter(Horizontal):
                 bindings.append(("x", "dismiss"))
                 if agent.status not in ("FAILED",):
                     bindings.append(("e", "edit chat"))
+                    if agent.response_path:
+                        bindings.append(("r", "resume"))
             elif agent.status == "WAITING INPUT":
                 bindings.append(("a", "answer"))
                 if agent.pid is None:
