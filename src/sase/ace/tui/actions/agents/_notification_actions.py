@@ -1,6 +1,6 @@
 """Notification action handlers for the ace TUI app.
 
-Dispatches notification actions: JumpToChangeSpec, Tmux, HITL.
+Dispatches notification actions: JumpToChangeSpec, JumpToAgent, Tmux, HITL.
 """
 
 from __future__ import annotations
@@ -9,6 +9,42 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
+
+
+def handle_jump_to_agent(app: object, notification: Notification) -> bool:
+    """Jump to the agent referenced in the notification.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing cl_name,
+            and optionally agent_type and raw_suffix for precise matching.
+
+    Returns:
+        True if the agent was found and selected.
+    """
+    cl_name = notification.action_data.get("cl_name")
+    if not cl_name:
+        app.notify("No cl_name in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    app.current_tab = "agents"  # type: ignore[attr-defined]
+
+    agent_type = notification.action_data.get("agent_type")
+    raw_suffix = notification.action_data.get("raw_suffix")
+
+    agents = app._agents  # type: ignore[attr-defined]
+    for idx, agent in enumerate(agents):
+        if agent.cl_name != cl_name:
+            continue
+        if agent_type and agent.agent_type.value != agent_type:
+            continue
+        if raw_suffix and agent.raw_suffix != raw_suffix:
+            continue
+        app.current_idx = idx  # type: ignore[attr-defined]
+        return True
+
+    app.notify(f"Agent '{cl_name}' not found", severity="warning")  # type: ignore[attr-defined]
+    return False
 
 
 def handle_jump_to_changespec(app: object, notification: Notification) -> bool:

@@ -78,6 +78,7 @@ class AgentNotificationMixin:
 
         from ._notification_actions import (
             handle_hitl,
+            handle_jump_to_agent,
             handle_jump_to_changespec,
             handle_plan_approval,
             handle_tmux,
@@ -107,6 +108,8 @@ class AgentNotificationMixin:
             # Dispatch action
             if result.action == "JumpToChangeSpec":
                 handle_jump_to_changespec(self, result)
+            elif result.action == "JumpToAgent":
+                handle_jump_to_agent(self, result)
             elif result.action == "Tmux":
                 handle_tmux(self, result)
             elif result.action == "HITL":
