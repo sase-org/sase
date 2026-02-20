@@ -8,6 +8,7 @@ from typing import Literal
 from rich.text import Text
 from sase.status_state_machine import remove_workspace_suffix
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList
@@ -36,7 +37,7 @@ class ProjectSelectModal(
     _option_list_id = "selection-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        ("ctrl+d", "delete_project", "Delete Project"),
+        Binding("ctrl+d", "delete_project", "Delete Project", priority=True),
     ]
 
     def __init__(self) -> None:
