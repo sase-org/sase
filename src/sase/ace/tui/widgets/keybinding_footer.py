@@ -296,6 +296,10 @@ class KeybindingFooter(Horizontal):
         if agent is not None and next_panel_label is not None:
             bindings.append(("i", next_panel_label))
 
+        # Edit panel content in editor (when file or thinking panel is visible)
+        if file_visible or thinking_visible:
+            bindings.append(("E", "edit panel"))
+
         # Layout toggle (when file or thinking panel is visible, not in info mode)
         if (file_visible or thinking_visible) and not info_mode:
             bindings.append(("p", "layout"))

@@ -556,6 +556,27 @@ class AgentDetail(Static):
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         return not file_scroll.has_class("hidden")
 
+    def get_editor_file_info(self) -> tuple[str | None, str | None, str]:
+        """Get file path, content, and suffix for opening in an editor.
+
+        Returns:
+            (file_path, content, suffix) where:
+            - file_path is set if a real file can be opened directly
+            - content is set if a temp file should be created
+            - suffix is the file extension for the temp file
+        """
+        if self.is_file_visible():
+            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+            return (
+                file_panel.get_current_file_path(),
+                file_panel.get_current_content(),
+                ".diff",
+            )
+        if self.is_thinking_visible():
+            thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+            return (None, thinking_panel.get_thinking_text(), ".md")
+        return (None, None, "")
+
     def is_layout_swapped(self) -> bool:
         """Check if the layout is currently swapped.
 

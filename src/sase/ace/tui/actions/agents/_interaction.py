@@ -162,6 +162,42 @@ class AgentInteractionMixin:
 
         agent_detail.toggle_layout()
 
+    def action_edit_panel(self) -> None:
+        """Open the visible panel's content in $EDITOR."""
+        import os
+        import subprocess
+        import tempfile
+
+        if self.current_tab != "agents":
+            return
+
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        file_path, content, suffix = agent_detail.get_editor_file_info()
+
+        if file_path is not None:
+            editor = os.environ.get("EDITOR") or "nvim"
+            expanded = os.path.expanduser(file_path)
+            with self.suspend():  # type: ignore[attr-defined]
+                subprocess.run([editor, expanded], check=False)
+        elif content is not None:
+            editor = os.environ.get("EDITOR") or "nvim"
+            fd, tmp_path = tempfile.mkstemp(suffix=suffix, prefix="sase_ace_panel_")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    f.write(content)
+                with self.suspend():  # type: ignore[attr-defined]
+                    subprocess.run([editor, tmp_path], check=False)
+            finally:
+                os.unlink(tmp_path)
+        else:
+            self.notify("No content to edit", severity="warning")  # type: ignore[attr-defined]
+
     def action_toggle_thinking(self) -> None:
         """Toggle the thinking panel for the selected agent."""
         if self.current_tab != "agents":

@@ -174,6 +174,7 @@ class AceApp(
         # File cycling (agents tab)
         Binding("ctrl+n", "next_agent_file", "Next File", show=False),
         Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
+        Binding("E", "edit_panel", "Edit Panel", show=False),
     ]
 
     # Reactive properties

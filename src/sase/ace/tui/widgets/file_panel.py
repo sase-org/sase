@@ -491,6 +491,16 @@ class AgentFilePanel(Static):
         except Exception:
             return None
 
+    def get_current_file_path(self) -> str | None:
+        """Return the expanded path of the currently displayed file, or None."""
+        if self._file_list:
+            return os.path.expanduser(self._file_list[self._current_file_index])
+        return None
+
+    def get_current_content(self) -> str | None:
+        """Return the last displayed file content, or None."""
+        return self._last_file_content
+
     def show_empty(self) -> None:
         """Show empty state."""
         self._has_displayed_content = False

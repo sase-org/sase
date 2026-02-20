@@ -195,6 +195,13 @@ class AgentThinkingPanel(Static):
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
 
+    def get_thinking_text(self) -> str | None:
+        """Concatenate all thinking block texts, or return None if no blocks."""
+        if not self._last_blocks:
+            return None
+        separator = "\n\n" + "=" * 60 + "\n\n"
+        return separator.join(block.text for block in self._last_blocks)
+
     def show_empty(self) -> None:
         """Show empty state."""
         self._has_displayed_content = False
