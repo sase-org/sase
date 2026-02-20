@@ -110,17 +110,26 @@ class AgentDetail(Static):
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
 
-        # Detect agent change and reset mode + auto-shown flag
+        # Detect agent change and reset per-agent state, but preserve the
+        # user's explicit panel mode choice so that e.g. pressing 'i' to show
+        # thinking persists across j/k navigation.
         prev_agent = self._current_agent
         self._current_agent = agent
         if prev_agent is not None and prev_agent.identity != agent.identity:
-            self._panel_mode = _default_panel_mode()
             self._thinking_auto_shown = False
-            self._scroll_thinking_to_bottom = False
             self._has_file_content = False
             self._has_thinking_content = False
-            thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
-            thinking_scroll.add_class("hidden")
+            if self._panel_mode == _DetailPanelMode.THINKING:
+                # Keep thinking panel visible; re-enable scroll-to-bottom for
+                # Gemini so the new agent's log starts at the latest entry.
+                if _is_gemini_provider():
+                    self._scroll_thinking_to_bottom = True
+            else:
+                self._scroll_thinking_to_bottom = False
+                thinking_scroll = self.query_one(
+                    "#agent-thinking-scroll", VerticalScroll
+                )
+                thinking_scroll.add_class("hidden")
 
         prompt_panel.update_display(agent)
         self._update_panel_indicators()
