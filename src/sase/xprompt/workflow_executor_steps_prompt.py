@@ -271,9 +271,10 @@ class PromptStepMixin:
         if step_output_types:
             for field_name, field_type in step_output_types.items():
                 if field_type == "path" and field_name in output:
-                    path_val = str(output[field_name])
+                    path_val = os.path.expanduser(str(output[field_name]))
                     if not os.path.isabs(path_val):
-                        output[field_name] = os.path.abspath(path_val)
+                        path_val = os.path.abspath(path_val)
+                    output[field_name] = path_val
 
         # HITL review if required
         if self._should_hitl(step) and self.hitl_handler:
