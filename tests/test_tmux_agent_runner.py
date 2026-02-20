@@ -67,6 +67,18 @@ class TestWaitForStableContent:
         )
         assert result == "stable content"
 
+    @patch("sase.ace.tmux_agent_runner.time.sleep")
+    @patch("sase.ace.tmux_agent_runner._capture_pane")
+    def test_skips_whitespace_only_content(
+        self, mock_capture: MagicMock, _mock_sleep: MagicMock
+    ) -> None:
+        # Whitespace-only captures should not count as stable
+        mock_capture.side_effect = ["\n\n\n", "\n\n\n", "real content", "real content"]
+        result = _wait_for_stable_content(
+            "test-session", timeout=5.0, poll_interval=0.1
+        )
+        assert result == "real content"
+
     @patch("sase.ace.tmux_agent_runner.time.monotonic")
     @patch("sase.ace.tmux_agent_runner.time.sleep")
     @patch("sase.ace.tmux_agent_runner._capture_pane")

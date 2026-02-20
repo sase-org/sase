@@ -81,7 +81,7 @@ def _wait_for_stable_content(
     timeout: float = 10.0,
     poll_interval: float = 0.2,
 ) -> str:
-    """Poll capture-pane until two consecutive captures are identical and non-empty.
+    """Poll capture-pane until two consecutive captures are identical and non-blank.
 
     Returns the last captured content, even on timeout.
     """
@@ -89,7 +89,7 @@ def _wait_for_stable_content(
     prev = ""
     while time.monotonic() < deadline:
         current = _capture_pane(session_name)
-        if current and current == prev:
+        if current.strip() and current == prev:
             return current
         prev = current
         time.sleep(poll_interval)
