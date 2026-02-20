@@ -15,6 +15,21 @@ if TYPE_CHECKING:
 from ....changespec import ChangeSpec
 
 
+def _dismiss_notifications_for_agent(agent: Agent) -> None:
+    """Dismiss any JumpToAgent notifications that reference the given agent."""
+    from sase.notifications import load_notifications, mark_dismissed
+
+    for n in load_notifications():
+        if n.action != "JumpToAgent":
+            continue
+        if n.action_data.get("cl_name") != agent.cl_name:
+            continue
+        n_raw_suffix = n.action_data.get("raw_suffix")
+        if n_raw_suffix is not None and n_raw_suffix != agent.raw_suffix:
+            continue
+        mark_dismissed(n.id)
+
+
 def _find_workflow_workspace_from_running_field(
     project_file: str,
     workflow_name: str,
@@ -86,6 +101,8 @@ class AgentKillingMixin:
                 f"Unknown agent type: {agent.agent_type}", severity="error"
             )
             return
+
+        _dismiss_notifications_for_agent(agent)
 
         # Refresh agents list
         self._load_agents()  # type: ignore[attr-defined]
@@ -349,6 +366,8 @@ class AgentKillingMixin:
         if agent.raw_suffix is None:
             self.notify("Cannot dismiss agent: no timestamp", severity="error")  # type: ignore[attr-defined]
             return
+
+        _dismiss_notifications_for_agent(agent)
 
         # Extract project name from project_file path
         # Path format: ~/.sase/projects/<project>/<project>.gp
