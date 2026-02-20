@@ -11,7 +11,7 @@ import os
 import sys
 from datetime import datetime
 
-from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace
+from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace, was_killed
 from sase.running_field import release_workspace
 
 install_sigterm_handler("workflow")
@@ -202,58 +202,63 @@ def main() -> None:
             except Exception as e:
                 print(f"Error releasing workspace: {e}", file=sys.stderr)
 
-        from sase.chat_history import list_chat_histories
-        from sase.notifications.senders import notify_workflow_complete
-        from sase.sase_utils import get_sase_directory
+        # Skip notification if the workflow was killed by the user (SIGTERM).
+        # The user already knows it died because they killed it from the TUI.
+        if not was_killed():
+            from sase.chat_history import list_chat_histories
+            from sase.notifications.senders import notify_workflow_complete
+            from sase.sase_utils import get_sase_directory
 
-        # Find chat file (most recent chat history)
-        extra_files: list[str] = []
-        try:
-            chats = list_chat_histories()
-            if chats:
-                chats_dir = get_sase_directory("chats")
-                chat_path = os.path.join(chats_dir, f"{chats[0]}.md")
-                from pathlib import Path
+            # Find chat file (most recent chat history)
+            extra_files: list[str] = []
+            try:
+                chats = list_chat_histories()
+                if chats:
+                    chats_dir = get_sase_directory("chats")
+                    chat_path = os.path.join(chats_dir, f"{chats[0]}.md")
+                    from pathlib import Path
 
-                extra_files.append(chat_path.replace(str(Path.home()), "~"))
-        except Exception:
-            pass
+                    extra_files.append(chat_path.replace(str(Path.home()), "~"))
+            except Exception:
+                pass
 
-        # Find diff file from workflow_state.json
-        try:
-            state_path = os.path.join(artifacts_dir, "workflow_state.json")
-            with open(state_path, encoding="utf-8") as f:
-                data = json.load(f)
-            diff_path: str | None = None
-            steps = data.get("steps", [])
-            if steps:
-                last_step = steps[-1]
-                out_types = last_step.get("output_types") or {}
-                step_out = last_step.get("output")
-                if out_types and isinstance(step_out, dict):
-                    for fname, ftype in out_types.items():
-                        if ftype == "path":
-                            diff_path = step_out.get(fname)
-                            break
-                if not diff_path and isinstance(step_out, dict):
-                    diff_path = step_out.get("diff_path")
-            if diff_path:
-                extra_files.append(diff_path)
-        except (OSError, json.JSONDecodeError):
-            pass
+            # Find diff file from workflow_state.json
+            try:
+                state_path = os.path.join(artifacts_dir, "workflow_state.json")
+                with open(state_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                diff_path: str | None = None
+                steps = data.get("steps", [])
+                if steps:
+                    last_step = steps[-1]
+                    out_types = last_step.get("output_types") or {}
+                    step_out = last_step.get("output")
+                    if out_types and isinstance(step_out, dict):
+                        for fname, ftype in out_types.items():
+                            if ftype == "path":
+                                diff_path = step_out.get(fname)
+                                break
+                    if not diff_path and isinstance(step_out, dict):
+                        diff_path = step_out.get("diff_path")
+                if diff_path:
+                    extra_files.append(diff_path)
+            except (OSError, json.JSONDecodeError):
+                pass
 
-        notify_workflow_complete(
-            sender="user-workflow",
-            cl_name=cl_name,
-            success=success,
-            notes=[f"Workflow {'completed' if success else 'failed'}: {workflow_name}"],
-            action="JumpToAgent",
-            action_data={
-                "cl_name": cl_name,
-                "raw_suffix": os.path.basename(artifacts_dir),
-            },
-            extra_files=extra_files,
-        )
+            notify_workflow_complete(
+                sender="user-workflow",
+                cl_name=cl_name,
+                success=success,
+                notes=[
+                    f"Workflow {'completed' if success else 'failed'}: {workflow_name}"
+                ],
+                action="JumpToAgent",
+                action_data={
+                    "cl_name": cl_name,
+                    "raw_suffix": os.path.basename(artifacts_dir),
+                },
+                extra_files=extra_files,
+            )
 
     sys.exit(0 if success else 1)
 

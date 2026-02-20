@@ -12,7 +12,7 @@ import time
 from typing import Any
 
 from sase.ace.hooks import format_duration
-from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace
+from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace, was_killed
 from sase.chat_history import save_chat_history
 from sase.shared_utils import (
     convert_timestamp_to_artifacts_format,
@@ -334,18 +334,23 @@ def main() -> None:
         except Exception as e:
             print(f"Error writing completion marker: {e}", file=sys.stderr)
 
-        from sase.notifications.senders import notify_workflow_complete
+        # Skip notification if the agent was killed by the user (SIGTERM).
+        # The user already knows it died because they killed it from the TUI.
+        if not was_killed():
+            from sase.notifications.senders import notify_workflow_complete
 
-        extra_files = [p for p in [saved_path, diff_path] if p]
-        notify_workflow_complete(
-            sender="user-agent",
-            cl_name=cl_name,
-            success=success,
-            notes=[f"Agent {'completed' if success else 'failed'}: {workflow_name}"],
-            action="JumpToAgent",
-            action_data={"cl_name": cl_name, "raw_suffix": artifacts_timestamp},
-            extra_files=extra_files,
-        )
+            extra_files = [p for p in [saved_path, diff_path] if p]
+            notify_workflow_complete(
+                sender="user-agent",
+                cl_name=cl_name,
+                success=success,
+                notes=[
+                    f"Agent {'completed' if success else 'failed'}: {workflow_name}"
+                ],
+                action="JumpToAgent",
+                action_data={"cl_name": cl_name, "raw_suffix": artifacts_timestamp},
+                extra_files=extra_files,
+            )
 
     sys.exit(0 if success else 1)
 
