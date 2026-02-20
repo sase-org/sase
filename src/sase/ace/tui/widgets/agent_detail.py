@@ -264,7 +264,7 @@ class AgentDetail(Static):
         labels = {
             _DetailPanelMode.AUTO: "file",
             _DetailPanelMode.THINKING: "thinking",
-            _DetailPanelMode.INFO: "metadata",
+            _DetailPanelMode.INFO: "collapse",
         }
         return labels[next_mode]
 
