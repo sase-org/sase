@@ -8,7 +8,9 @@ from sase.ace.tui.thinking.parser import (
     ThinkingBlock,
     _format_tool_action,
     _read_jsonl_lines,
+    _resolve_gemini_log_path,
     parse_thinking_blocks,
+    read_gemini_log,
 )
 from sase.ace.tui.widgets.thinking_panel import _format_timestamp
 
@@ -308,3 +310,75 @@ def test_format_timestamp_utc_to_edt() -> None:
 def test_format_timestamp_invalid_input() -> None:
     """Invalid input returns fallback string."""
     assert _format_timestamp("not-a-timestamp") == "??:??:??"
+
+
+# --- _resolve_gemini_log_path ---
+
+
+def test_resolve_gemini_log_path_sase_env(monkeypatch: Any) -> None:
+    """SASE_GEMINI_CLI_TMP takes highest precedence."""
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", "/custom/sase")
+    monkeypatch.setenv("TMP", "/custom/tmp")
+    assert _resolve_gemini_log_path() == Path("/custom/sase/gemini_api_proxy.par.INFO")
+
+
+def test_resolve_gemini_log_path_tmp_env(monkeypatch: Any) -> None:
+    """TMP is used when SASE_GEMINI_CLI_TMP is not set."""
+    monkeypatch.delenv("SASE_GEMINI_CLI_TMP", raising=False)
+    monkeypatch.setenv("TMP", "/custom/tmp")
+    assert _resolve_gemini_log_path() == Path("/custom/tmp/gemini_api_proxy.par.INFO")
+
+
+def test_resolve_gemini_log_path_default(monkeypatch: Any) -> None:
+    """Falls back to /tmp when no env vars are set."""
+    monkeypatch.delenv("SASE_GEMINI_CLI_TMP", raising=False)
+    monkeypatch.delenv("TMP", raising=False)
+    assert _resolve_gemini_log_path() == Path("/tmp/gemini_api_proxy.par.INFO")
+
+
+# --- read_gemini_log ---
+
+
+def test_read_gemini_log_file_exists(tmp_path: Path, monkeypatch: Any) -> None:
+    """Returns a single ThinkingBlock with log content."""
+    log_file = tmp_path / "gemini_api_proxy.par.INFO"
+    log_file.write_text("line1\nline2\nline3\n")
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+    result = read_gemini_log()
+    assert result is not None
+    assert len(result) == 1
+    assert "line1\nline2\nline3\n" == result[0].text
+    assert result[0].index == 1
+    assert "3 lines" in (result[0].following_action or "")
+
+
+def test_read_gemini_log_file_missing(tmp_path: Path, monkeypatch: Any) -> None:
+    """Returns None when log file doesn't exist."""
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+    result = read_gemini_log()
+    assert result is None
+
+
+def test_read_gemini_log_empty_file(tmp_path: Path, monkeypatch: Any) -> None:
+    """Returns [] for empty log file."""
+    log_file = tmp_path / "gemini_api_proxy.par.INFO"
+    log_file.write_text("")
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+    result = read_gemini_log()
+    assert result == []
+
+
+def test_read_gemini_log_tail_truncation(tmp_path: Path, monkeypatch: Any) -> None:
+    """Only returns the last max_lines lines."""
+    log_file = tmp_path / "gemini_api_proxy.par.INFO"
+    lines = [f"line{i}" for i in range(100)]
+    log_file.write_text("\n".join(lines) + "\n")
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+    result = read_gemini_log(max_lines=10)
+    assert result is not None
+    assert len(result) == 1
+    # Should only contain last 10 lines (line90..line99)
+    text = result[0].text
+    assert "line89\n" not in text
+    assert "line99" in text
+    assert "10 lines" in (result[0].following_action or "")

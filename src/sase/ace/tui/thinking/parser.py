@@ -1,9 +1,11 @@
 """JSONL transcript parser for extracting Claude thinking blocks."""
 
+import collections
 import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import UTC, datetime
 from typing import Any
 
 # Files larger than this use tail-seeking optimization
@@ -18,6 +20,50 @@ class ThinkingBlock:
     timestamp: str
     index: int  # 1-based position (chronological)
     following_action: str | None  # e.g., "Read agent_detail.py"
+
+
+_GEMINI_LOG_FILENAME = "gemini_api_proxy.par.INFO"
+
+
+def _resolve_gemini_log_path() -> Path:
+    """Resolve the path to the Gemini API proxy log file.
+
+    Checks env vars in order: SASE_GEMINI_CLI_TMP → TMP → falls back to /tmp.
+    """
+    tmp_dir = os.environ.get("SASE_GEMINI_CLI_TMP") or os.environ.get("TMP") or "/tmp"
+    return Path(tmp_dir) / _GEMINI_LOG_FILENAME
+
+
+def read_gemini_log(max_lines: int = 500) -> list[ThinkingBlock] | None:
+    """Read the last N lines of the Gemini API proxy log.
+
+    Returns:
+        None if the log file doesn't exist, [] if the file is empty,
+        or a single-element list with the log content as a ThinkingBlock.
+    """
+    log_path = _resolve_gemini_log_path()
+    if not log_path.exists():
+        return None
+
+    with open(log_path, encoding="utf-8", errors="replace") as f:
+        lines = collections.deque(f, maxlen=max_lines)
+
+    if not lines:
+        return []
+
+    content = "".join(lines)
+    mtime = log_path.stat().st_mtime
+    timestamp = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
+    following = f"{log_path.name} ({len(lines)} lines)"
+
+    return [
+        ThinkingBlock(
+            text=content,
+            timestamp=timestamp,
+            index=1,
+            following_action=following,
+        )
+    ]
 
 
 def parse_thinking_blocks(jsonl_path: Path) -> list[ThinkingBlock]:

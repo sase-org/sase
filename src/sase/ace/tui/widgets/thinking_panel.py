@@ -16,8 +16,10 @@ from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.thinking import (
     ThinkingBlock,
     parse_thinking_blocks_multi,
+    read_gemini_log,
     resolve_agent_sessions,
 )
+from sase.llm_provider.registry import get_default_provider_name
 
 
 class ThinkingVisibilityChanged(Message):
@@ -39,6 +41,7 @@ class _ThinkingCacheEntry:
 
     blocks: list[ThinkingBlock] | None
     fetch_time: datetime
+    source: str = "claude"
 
 
 # Module-level cache for thinking outputs
@@ -129,6 +132,7 @@ class AgentThinkingPanel(Static):
                     cache_entry.blocks,
                     cache_entry.fetch_time,
                     post_visibility_message=True,
+                    source=cache_entry.source,
                 )
                 return
 
@@ -139,6 +143,7 @@ class AgentThinkingPanel(Static):
                 cache_entry.fetch_time,
                 post_visibility_message=True,
                 is_stale=True,
+                source=cache_entry.source,
             )
         else:
             # No cache - show loading for first-time loads
@@ -174,6 +179,7 @@ class AgentThinkingPanel(Static):
                 cache_entry.fetch_time,
                 post_visibility_message=True,
                 is_stale=True,
+                source=cache_entry.source,
             )
         else:
             # No cache - show loading for first-time loads
@@ -243,6 +249,7 @@ class AgentThinkingPanel(Static):
         *,
         post_visibility_message: bool = True,
         is_stale: bool = False,
+        source: str = "claude",
     ) -> None:
         """Display thinking blocks with fetch timestamp.
 
@@ -251,6 +258,7 @@ class AgentThinkingPanel(Static):
             fetch_time: When the thinking was fetched.
             post_visibility_message: Whether to post visibility change message.
             is_stale: Whether the content is stale (showing while refreshing).
+            source: Data source — "claude" or "gemini".
         """
         # Track last displayed blocks for change detection
         self._last_blocks = blocks
@@ -271,6 +279,13 @@ class AgentThinkingPanel(Static):
                 self.post_message(ThinkingVisibilityChanged(has_thinking=False))
             return
 
+        # Source-dependent styling
+        is_gemini = source == "gemini"
+        header_text = "GEMINI LOG" if is_gemini else "CLAUDE THINKING"
+        header_color = "#4285F4" if is_gemini else "#AF87D7"
+        border_color = f"dim {header_color}"
+        content_color = "#B4C7E7" if is_gemini else "#D7D7FF"
+
         # Build refresh indicator if stale and background refreshing
         refresh_indicator = ""
         if is_stale and self._is_background_refreshing:
@@ -282,19 +297,26 @@ class AgentThinkingPanel(Static):
         # Build Rich Text output
         output = Text()
 
-        # Header line: "CLAUDE THINKING"
-        output.append("CLAUDE THINKING", style="bold #AF87D7 underline")
+        # Header line
+        output.append(header_text, style=f"bold {header_color} underline")
         if refresh_indicator:
             output.append(refresh_indicator, style="dim italic")
         output.append("\n")
 
         # Summary line
-        block_word = "block" if len(blocks) == 1 else "blocks"
-        output.append(
-            f"{len(blocks)} thinking {block_word} · "
-            f"{_format_char_count(total_chars)} chars\n\n",
-            style="dim",
-        )
+        if is_gemini:
+            total_lines = sum(b.text.count("\n") for b in blocks)
+            output.append(
+                f"{total_lines} lines · global log (not per-agent)\n\n",
+                style="dim",
+            )
+        else:
+            block_word = "block" if len(blocks) == 1 else "blocks"
+            output.append(
+                f"{len(blocks)} thinking {block_word} · "
+                f"{_format_char_count(total_chars)} chars\n\n",
+                style="dim",
+            )
 
         # Render each block
         for block in blocks:
@@ -319,29 +341,29 @@ class AgentThinkingPanel(Static):
             fill = "─" * max(fill_count, 3)
 
             # Build top border with mixed styling
-            output.append("╭─", style="dim #AF87D7")
-            output.append(top_label, style="dim #AF87D7")
-            output.append(fill[:3], style="dim #AF87D7")  # separator
+            output.append("╭─", style=border_color)
+            output.append(top_label, style=border_color)
+            output.append(fill[:3], style=border_color)  # separator
             if action_text:
-                output.append(" ", style="dim #AF87D7")
+                output.append(" ", style=border_color)
                 output.append(action_text, style="#87D7FF")
                 remaining_fill = fill_count - 4  # account for " " + space in action
                 if remaining_fill > 0:
-                    output.append("─" * remaining_fill, style="dim #AF87D7")
+                    output.append("─" * remaining_fill, style=border_color)
             else:
                 if fill_count > 3:
-                    output.append(fill[3:], style="dim #AF87D7")
-            output.append("╮\n", style="dim #AF87D7")
+                    output.append(fill[3:], style=border_color)
+            output.append("╮\n", style=border_color)
 
             # Block content - show full text, no truncation
             for line in block.text.splitlines():
-                output.append("│", style="dim #AF87D7")
-                output.append(f" {line}", style="#D7D7FF")
+                output.append("│", style=border_color)
+                output.append(f" {line}", style=content_color)
                 output.append("\n")
 
             # Bottom border: ╰──...──╯ (fixed 46 chars)
             bottom_fill = "─" * 44  # 46 - 2 for ╰╯
-            output.append(f"╰{bottom_fill}╯\n\n", style="dim #AF87D7")
+            output.append(f"╰{bottom_fill}╯\n\n", style=border_color)
 
         if post_visibility_message:
             self.post_message(ThinkingVisibilityChanged(has_thinking=True))
@@ -358,9 +380,19 @@ class AgentThinkingPanel(Static):
         Returns:
             List of ThinkingBlock, None if no session, [] if no blocks.
         """
+        source = "claude"
         session_paths = resolve_agent_sessions(agent, since=agent.start_time)
         if not session_paths:
-            blocks: list[ThinkingBlock] | None = None
+            # No Claude session — try Gemini log if default provider is gemini
+            try:
+                provider_name = get_default_provider_name()
+            except Exception:
+                provider_name = ""
+            if provider_name == "gemini":
+                blocks = read_gemini_log()
+                source = "gemini"
+            else:
+                blocks = None
         else:
             blocks = parse_thinking_blocks_multi(session_paths)
 
@@ -369,6 +401,7 @@ class AgentThinkingPanel(Static):
         _thinking_cache[cache_key] = _ThinkingCacheEntry(
             blocks=blocks,
             fetch_time=datetime.now(),
+            source=source,
         )
 
         return blocks
@@ -396,13 +429,16 @@ class AgentThinkingPanel(Static):
                             cache_entry.blocks,
                             cache_entry.fetch_time,
                             post_visibility_message=False,
+                            source=cache_entry.source,
                         )
                         self._restore_scroll_position(scroll_pos)
                     else:
                         # Content changed - save scroll, update, restore scroll
                         scroll_pos = self._save_scroll_position()
                         self._display_thinking_with_timestamp(
-                            cache_entry.blocks, cache_entry.fetch_time
+                            cache_entry.blocks,
+                            cache_entry.fetch_time,
+                            source=cache_entry.source,
                         )
                         self._restore_scroll_position(scroll_pos)
         elif event.state == WorkerState.ERROR:

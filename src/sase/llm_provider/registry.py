@@ -31,7 +31,7 @@ def get_provider(name: str | None = None) -> LLMProvider:
         KeyError: If the provider name is not registered.
     """
     if name is None:
-        name = _get_default_provider_name()
+        name = get_default_provider_name()
 
     if name not in _REGISTRY:
         raise KeyError(
@@ -42,7 +42,7 @@ def get_provider(name: str | None = None) -> LLMProvider:
     return _REGISTRY[name]()
 
 
-def _get_default_provider_name() -> str:
+def get_default_provider_name() -> str:
     """Get the default provider name from configuration.
 
     Returns:
