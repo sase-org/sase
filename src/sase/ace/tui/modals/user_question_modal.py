@@ -128,6 +128,8 @@ class UserQuestionModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
+        ("j", "next_option", "Next option"),
+        ("k", "prev_option", "Prev option"),
         ("n", "next_question", "Next"),
         ("p", "prev_question", "Previous"),
         ("g", "global_note", "Global note"),
@@ -270,7 +272,7 @@ class UserQuestionModal(
     def _build_footer_hints(self) -> str:
         """Build the keybinding hints for the footer."""
         total = len(self._questions)
-        parts = ["[green]Space[/green]=Toggle"]
+        parts = ["[green]Space[/green]=Toggle", "[cyan]j[/cyan]/[cyan]k[/cyan]=Up/Down"]
         if total > 1:
             parts.append("[cyan]n[/cyan]/[cyan]p[/cyan]=Next/Prev")
         parts.append("[bold green]S[/bold green]=Submit all")
@@ -411,6 +413,18 @@ class UserQuestionModal(
         if self._current_idx > 0:
             self._save_current_answer()
             self._load_question(self._current_idx - 1)
+
+    def action_next_option(self) -> None:
+        """Move cursor to the next option in the selection list."""
+        if self._input_mode:
+            return
+        self.query_one("#user-question-options", SelectionList).action_cursor_down()
+
+    def action_prev_option(self) -> None:
+        """Move cursor to the previous option in the selection list."""
+        if self._input_mode:
+            return
+        self.query_one("#user-question-options", SelectionList).action_cursor_up()
 
     def action_submit_all(self) -> None:
         """Submit all answers at once."""
