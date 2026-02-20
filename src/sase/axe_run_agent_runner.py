@@ -342,8 +342,8 @@ def main() -> None:
             cl_name=cl_name,
             success=success,
             notes=[f"Agent {'completed' if success else 'failed'}: {workflow_name}"],
-            action="Tmux" if workspace_dir else None,
-            action_data={"workspace_dir": workspace_dir} if workspace_dir else {},
+            action="JumpToAgent",
+            action_data={"cl_name": cl_name, "raw_suffix": timestamp},
             extra_files=extra_files,
         )
 
