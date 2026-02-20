@@ -1244,6 +1244,8 @@ UserQuestionModal {
     height: 1fr;
     border: solid $secondary;
     scrollbar-gutter: stable;
+    text-wrap: wrap;
+    text-overflow: clip;
 }
 
 #user-question-other-input {

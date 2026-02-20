@@ -9,14 +9,92 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from rich.segment import Segment
+from rich.style import Style
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
+from textual.strip import Strip
 from textual.widgets import Input, OptionList, SelectionList, Static
+from textual.widgets._option_list import OptionDoesNotExist
+from textual.widgets._toggle_button import ToggleButton
 from textual.widgets.option_list import Option
 
 from .base import CopyModeForwardingMixin
+
+
+class _WrappingSelectionList(SelectionList[str]):
+    """SelectionList that wraps long option text instead of truncating.
+
+    Textual's built-in SelectionList uses ``text-wrap: nowrap`` and
+    ``text-overflow: ellipsis``, so long labels get truncated with "...".
+    This subclass enables wrapping and fixes ``render_line`` to properly
+    handle multi-line options (checkbox on first line only, continuation
+    lines indented to align with text).
+    """
+
+    DEFAULT_CSS = """
+    _WrappingSelectionList {
+        text-wrap: wrap;
+        text-overflow: clip;
+    }
+    """
+
+    def render_line(self, y: int) -> Strip:
+        """Render a line, adding the checkbox only on the first line."""
+        # Get the correctly rendered content line from OptionList.
+        line = OptionList.render_line(self, y)
+
+        # Use OptionList's line cache to find which option this line
+        # belongs to and whether it's the first line of that option.
+        _, scroll_y = self.scroll_offset
+        line_number = scroll_y + y
+        try:
+            option_index, line_offset = self._lines[line_number]
+            selection = self.get_option_at_index(option_index)
+        except (IndexError, OptionDoesNotExist):
+            return line
+
+        # Determine checkbox style.
+        component_style = "selection-list--button"
+        if selection.value in self._selected:
+            component_style += "-selected"
+        if self.highlighted == option_index:
+            component_style += "-highlighted"
+
+        underlying_style = next(iter(line)).style or self.rich_style
+        assert underlying_style is not None
+        button_style = self.get_component_rich_style(component_style)
+        side_style = Style.from_color(button_style.bgcolor, underlying_style.bgcolor)
+        side_style += Style(meta={"option": option_index})
+        button_style += Style(meta={"option": option_index})
+
+        gutter_width = self._get_left_gutter_width()
+
+        if line_offset == 0:
+            # First line of option: show the checkbox.
+            return Strip(
+                [
+                    Segment(ToggleButton.BUTTON_LEFT, style=side_style),
+                    Segment(ToggleButton.BUTTON_INNER, style=button_style),
+                    Segment(ToggleButton.BUTTON_RIGHT, style=side_style),
+                    Segment(" ", style=underlying_style),
+                    *line,
+                ]
+            )
+        else:
+            # Continuation line: indent to align with text after checkbox.
+            return Strip(
+                [
+                    Segment(
+                        " " * gutter_width,
+                        style=underlying_style + Style(meta={"option": option_index}),
+                    ),
+                    *line,
+                ]
+            )
+
 
 _OTHER_VALUE = "__other__"
 
@@ -104,7 +182,7 @@ class UserQuestionModal(
                             self._questions[0].get("question", ""),
                             id="user-question-text",
                         )
-                    yield SelectionList[str](
+                    yield _WrappingSelectionList(
                         *self._build_selections(self._questions[0]),
                         id="user-question-options",
                     )
