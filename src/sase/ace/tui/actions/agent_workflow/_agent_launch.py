@@ -158,6 +158,7 @@ class AgentLaunchMixin:
         Args:
             prompt: The user's prompt for all agents.
         """
+        from sase.gh_workspace import detect_workflow_type_for_project
         from sase.sase_utils import generate_timestamp
         from sase.running_field import (
             get_first_available_axe_workspace,
@@ -200,17 +201,36 @@ class AgentLaunchMixin:
                 failed_count += 1
                 continue
 
+            # Detect VCS type and build per-CL prompt with prefix
+            workflow_type = detect_workflow_type_for_project(project_file)
+            cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
+
+            # Determine which VCS ref to pass so _launch_background_agent
+            # sets the SASE_*_PRE_ALLOCATED env vars correctly
+            gh_ref: str | None = None
+            git_ref: str | None = None
+            hg_ref: str | None = None
+            if workflow_type == "gh":
+                gh_ref = cl_name
+            elif workflow_type == "git":
+                git_ref = cl_name
+            elif workflow_type == "hg":
+                hg_ref = cl_name
+
             self._launch_background_agent(
                 cl_name=cl_name,
                 project_file=project_file,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
                 workflow_name=workflow_name,
-                prompt=prompt,
+                prompt=cl_prompt,
                 timestamp=timestamp,
                 update_target=cl_name,
                 project_name=project_name,
                 history_sort_key=cl_name,
+                gh_ref=gh_ref,
+                git_ref=git_ref,
+                hg_ref=hg_ref,
             )
             launched_count += 1
 
