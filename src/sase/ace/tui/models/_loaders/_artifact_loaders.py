@@ -190,6 +190,9 @@ def load_done_agents(
                     status = "DONE"
                     error_message = None
                     error_traceback = None
+                plan_path = data.get("plan_path")
+                extra_files = [plan_path] if plan_path else []
+
                 agents.append(
                     Agent(
                         agent_type=AgentType.RUNNING,
@@ -201,6 +204,7 @@ def load_done_agents(
                         raw_suffix=timestamp_str,
                         response_path=data.get("response_path"),
                         diff_path=data.get("diff_path"),
+                        extra_files=extra_files,
                         step_output=data.get("step_output"),
                         workspace_num=data.get("workspace_num"),
                         bug=bug_by_cl_name.get(cl_name),

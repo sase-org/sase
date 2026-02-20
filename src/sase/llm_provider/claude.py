@@ -135,6 +135,16 @@ class ClaudeCodeProvider(LLMProvider):
                         counter += 1
                 shutil.copy2(src, dest)
                 saved_plan_path = dest
+
+                # Write plan_path.json so agent runner can thread it to done.json
+                artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+                if artifacts_dir:
+                    import json
+
+                    plan_path_file = Path(artifacts_dir) / "plan_path.json"
+                    plan_path_file.write_text(
+                        json.dumps({"plan_path": str(saved_plan_path)})
+                    )
             else:
                 saved_plan_path = None
 

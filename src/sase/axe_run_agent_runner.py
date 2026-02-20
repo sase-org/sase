@@ -228,6 +228,8 @@ def main() -> None:
             from sase.xprompt.models import create_anonymous_workflow
             from sase.xprompt.processor import execute_workflow
 
+            os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+
             anon_workflow = create_anonymous_workflow(prompt)
             result = execute_workflow(
                 anon_workflow.name,
@@ -250,6 +252,18 @@ def main() -> None:
             )
             print(f"\nChat history saved to: {saved_path}")
 
+            # Clean up SASE_ARTIFACTS_DIR env var
+            os.environ.pop("SASE_ARTIFACTS_DIR", None)
+
+            # Read plan_path from plan_path.json if written by claude.py
+            plan_path: str | None = None
+            plan_path_file = os.path.join(artifacts_dir, "plan_path.json")
+            try:
+                with open(plan_path_file, encoding="utf-8") as f:
+                    plan_path = json.load(f).get("plan_path")
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                pass
+
             # Extract step_output and diff_path from workflow_state.json
             step_output, diff_path = _extract_step_output_and_diff_path(artifacts_dir)
 
@@ -264,6 +278,7 @@ def main() -> None:
                 "workspace_num": workspace_num,
                 "step_output": step_output,
                 "diff_path": diff_path,
+                "plan_path": plan_path,
             }
             if agent_model:
                 done_marker["model"] = agent_model

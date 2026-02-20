@@ -305,6 +305,27 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         if result.feedback is not None:
             response_data["feedback"] = result.feedback
 
+        # On approval, save plan to workspace .sase/plans/ directory
+        if result.action == "approve" and notification.files:
+            project_dir = notification.action_data.get("project_dir")
+            if project_dir:
+                import os
+                import shutil
+
+                project_basename = os.path.basename(project_dir)
+                try:
+                    from sase.running_field import get_workspace_directory
+
+                    workspace_dir = get_workspace_directory(project_basename, 1)
+                    plans_dir = Path(workspace_dir) / ".sase" / "plans"
+                    plans_dir.mkdir(parents=True, exist_ok=True)
+                    src_plan = Path(notification.files[0])
+                    dest_plan = plans_dir / src_plan.name
+                    shutil.copy2(str(src_plan), str(dest_plan))
+                    response_data["saved_plan_path"] = str(dest_plan)
+                except Exception:
+                    pass  # Best effort
+
         try:
             with open(plan_response_path, "w", encoding="utf-8") as f:
                 json.dump(response_data, f, indent=2)

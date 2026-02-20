@@ -104,9 +104,16 @@ def notify_plan_approval(
     plan_file: str,
     response_dir: str,
     session_id: str,
+    project_dir: str | None = None,
 ) -> None:
     """Send a notification when a Claude Code plan is ready for approval."""
     plan_name = plan_file.rsplit("/", 1)[-1] if "/" in plan_file else plan_file
+    action_data: dict[str, str] = {
+        "response_dir": response_dir,
+        "session_id": session_id,
+    }
+    if project_dir:
+        action_data["project_dir"] = project_dir
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(EASTERN_TZ).isoformat(),
@@ -114,6 +121,6 @@ def notify_plan_approval(
         notes=[f"Plan ready for review: {plan_name}"],
         files=[plan_file],
         action="PlanApproval",
-        action_data={"response_dir": response_dir, "session_id": session_id},
+        action_data=action_data,
     )
     append_notification(n)
