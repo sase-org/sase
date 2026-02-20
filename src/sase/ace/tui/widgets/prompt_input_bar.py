@@ -44,7 +44,9 @@ class _PromptInput(Input):
         parent = self.parent
         while parent is not None:
             if isinstance(parent, PromptInputBar):
-                parent.post_message(PromptInputBar.EditorRequested(self.value))
+                parent.post_message(
+                    PromptInputBar.EditorRequested(self.value, self.cursor_position)
+                )
                 return
             parent = parent.parent
 
@@ -96,14 +98,16 @@ class PromptInputBar(Static):
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
 
-        def __init__(self, current_text: str = "") -> None:
+        def __init__(self, current_text: str = "", cursor_position: int = 0) -> None:
             """Initialize the message.
 
             Args:
                 current_text: The current text in the input field.
+                cursor_position: The cursor column offset (0-indexed).
             """
             super().__init__()
             self.current_text = current_text
+            self.cursor_position = cursor_position
 
     class HistoryRequested(Message):
         """Message sent when user requests prompt history picker ('.')."""

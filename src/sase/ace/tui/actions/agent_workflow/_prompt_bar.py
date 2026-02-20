@@ -177,7 +177,9 @@ class PromptBarMixin:
             return
 
         # Suspend TUI and open editor with current text
-        prompt = self._open_editor_for_agent_prompt(event.current_text)  # type: ignore[attr-defined]
+        prompt = self._open_editor_for_agent_prompt(  # type: ignore[attr-defined]
+            event.current_text, cursor_position=event.cursor_position
+        )
         if prompt:
             self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:

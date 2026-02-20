@@ -8,11 +8,14 @@ import os
 class EditorMixin:
     """Mixin providing editor integration for agent prompts and workflows."""
 
-    def _open_editor_for_agent_prompt(self, initial_content: str = "") -> str | None:
+    def _open_editor_for_agent_prompt(
+        self, initial_content: str = "", cursor_position: int = 0
+    ) -> str | None:
         """Suspend TUI and open editor for prompt input.
 
         Args:
             initial_content: Initial text to populate the editor with.
+            cursor_position: Cursor column offset (0-indexed) from the input bar.
 
         Returns:
             The prompt content, or None if empty/cancelled.
@@ -28,7 +31,14 @@ class EditorMixin:
 
             editor = os.environ.get("EDITOR") or "nvim"
 
-            result = subprocess.run([editor, temp_path], check=False)
+            cmd: list[str] = [editor]
+            # Position cursor in nvim to match the input bar cursor position
+            if os.path.basename(editor) == "nvim" and cursor_position > 0:
+                # nvim's cursor() is 1-indexed for both line and column
+                cmd.extend(["-c", f"call cursor(1, {cursor_position + 1})"])
+            cmd.append(temp_path)
+
+            result = subprocess.run(cmd, check=False)
             if result.returncode != 0:
                 try:
                     os.unlink(temp_path)
