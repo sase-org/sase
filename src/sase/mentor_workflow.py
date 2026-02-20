@@ -25,7 +25,6 @@ from sase.shared_utils import (
     finalize_sase_log,
     generate_workflow_tag,
     initialize_sase_log,
-    run_bam_command,
 )
 from sase.workflow_base import BaseWorkflow
 from sase.workflow_utils import get_cl_name_from_branch
@@ -252,7 +251,6 @@ class MentorWorkflow(BaseWorkflow):
             finalize_sase_log(
                 artifacts_dir, f"mentor-{self.mentor_name}", workflow_tag, True
             )
-            run_bam_command(f"Mentor ({self.mentor_name}) Complete!")
 
             return True
 

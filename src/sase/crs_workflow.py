@@ -21,7 +21,6 @@ from sase.shared_utils import (
     generate_workflow_tag,
     initialize_sase_log,
     initialize_workflow,
-    run_bam_command,
     run_shell_command,
 )
 from sase.workflow_base import BaseWorkflow
@@ -222,9 +221,6 @@ class CrsWorkflow(BaseWorkflow):
 
         # Finalize the sase.md log
         finalize_sase_log(artifacts_dir, "crs", workflow_tag, True)
-
-        # Run bam command to signal completion
-        run_bam_command("CRS Workflow Complete!")
 
         return True
 
