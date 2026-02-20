@@ -161,10 +161,10 @@ class AgentDetail(Static):
                 )
                 return
             # For completed agents: if thinking was auto-shown (not
-            # user-chosen) and the agent has a diff_path, fall through to
-            # display the static file.  FileVisibilityChanged will handle
+            # user-chosen) and the agent has files, fall through to
+            # display them.  FileVisibilityChanged will handle
             # switching from thinking to file view.
-            if not (self._thinking_auto_shown and agent.diff_path):
+            if not (self._thinking_auto_shown and agent.all_files):
                 return
 
         # Bash/python workflow steps don't have files - show thinking as fallback

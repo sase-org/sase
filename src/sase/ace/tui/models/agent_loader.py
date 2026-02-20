@@ -313,6 +313,10 @@ def load_all_agents() -> list[Agent]:
                 matched.error_message = agent.error_message
             if matched.error_traceback is None and agent.error_traceback is not None:
                 matched.error_traceback = agent.error_traceback
+            if not matched.extra_files and agent.extra_files:
+                matched.extra_files = agent.extra_files
+            if matched.step_output is None and agent.step_output is not None:
+                matched.step_output = agent.step_output
             continue  # Drop the RUNNING entry
         deduped_agents.append(agent)
 
