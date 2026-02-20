@@ -124,6 +124,26 @@ class AgentInteractionMixin:
         with self.suspend():  # type: ignore[attr-defined]
             subprocess.run([editor, file_path], check=False)
 
+    def action_next_agent_file(self) -> None:
+        """Cycle to the next file in the agent's file panel."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_next_file()
+
+    def action_prev_agent_file(self) -> None:
+        """Cycle to the previous file in the agent's file panel."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_prev_file()
+
     def action_toggle_layout(self) -> None:
         """Toggle the layout between prompt-priority and file-priority."""
         if self.current_tab != "agents":

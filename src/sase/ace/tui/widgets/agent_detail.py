@@ -494,9 +494,19 @@ class AgentDetail(Static):
         if file_active:
             text.append("●", style="bold green")
             text.append(" files", style="bold green")
+            if self._file_count > 1:
+                text.append(
+                    f" [{self._file_index + 1}/{self._file_count}]",
+                    style="bold green",
+                )
         elif self._has_file_content:
             text.append("●", style="green")
             text.append(" files", style="dim")
+            if self._file_count > 1:
+                text.append(
+                    f" [{self._file_index + 1}/{self._file_count}]",
+                    style="dim",
+                )
         else:
             text.append("○", style="dim")
             text.append(" files", style="dim")

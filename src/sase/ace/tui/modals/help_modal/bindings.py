@@ -129,6 +129,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("e", "Edit chat in editor"),
             ("i", "Cycle panels: file → thinking → metadata"),
             ("p", "Toggle file/prompt layout"),
+            ("Ctrl+N / P", "Next / prev file in panel"),
         ],
     ),
     (

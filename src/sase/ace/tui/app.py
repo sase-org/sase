@@ -171,6 +171,9 @@ class AceApp(
         Binding("full_stop", "toggle_hide_reverted", "Toggle Reverted", show=False),
         # Leader mode (for quick shortcuts)
         Binding("comma", "start_leader_mode", "Leader", show=False),
+        # File cycling (agents tab)
+        Binding("ctrl+n", "next_agent_file", "Next File", show=False),
+        Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
     ]
 
     # Reactive properties
