@@ -100,8 +100,15 @@ steps:
       if [ -z "$head_before" ]; then
         exit 0
       fi
+      head_now=$(git rev-parse HEAD)
       diff_file=$(mktemp /tmp/sase-git-XXXXXX.diff)
-      git diff "$head_before" > "$diff_file" 2>/dev/null
+      if [ "$head_now" != "$head_before" ]; then
+        # Commits were made — show only the last commit's diff
+        git diff HEAD~1 HEAD > "$diff_file" 2>/dev/null
+      else
+        # No commits — show uncommitted changes
+        git diff HEAD > "$diff_file" 2>/dev/null
+      fi
       if [ -s "$diff_file" ]; then
         echo "diff_path=$diff_file"
       else
