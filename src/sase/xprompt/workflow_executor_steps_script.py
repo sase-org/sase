@@ -91,6 +91,14 @@ class ScriptStepMixin:
         # Render command with Jinja2 context
         rendered_command = render_template(step.bash, self.context)
 
+        # Build env with Python's bin dir on PATH so that sase entry-point
+        # scripts (e.g. sase_cl_workflow) are discoverable by /bin/sh.
+        env = os.environ.copy()
+        python_bin_dir = os.path.dirname(sys.executable)
+        current_path = env.get("PATH", "")
+        if python_bin_dir not in current_path.split(os.pathsep):
+            env["PATH"] = python_bin_dir + os.pathsep + current_path
+
         # Execute command
         try:
             result = subprocess.run(
@@ -99,6 +107,7 @@ class ScriptStepMixin:
                 capture_output=True,
                 text=True,
                 cwd=os.getcwd(),
+                env=env,
             )
         except Exception as e:
             raise WorkflowExecutionError(
