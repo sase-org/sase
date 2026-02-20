@@ -1,7 +1,9 @@
 """Agent detail widget for the ace TUI."""
 
+from enum import Enum
 from typing import Any
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static
@@ -12,6 +14,14 @@ from .prompt_panel import AgentPromptPanel
 from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 
 
+class _DetailPanelMode(Enum):
+    """Three-state cycle for the detail panel view mode."""
+
+    AUTO = "auto"  # File shown (or auto-thinking fallback)
+    THINKING = "thinking"  # Thinking panel forced on
+    INFO = "info"  # Metadata only, prompt at 100%
+
+
 class AgentDetail(Static):
     """Combined widget with prompt and file panels."""
 
@@ -19,9 +29,11 @@ class AgentDetail(Static):
         """Initialize the agent detail view."""
         super().__init__(**kwargs)
         self._layout_swapped: bool = False
-        self._force_thinking: bool = False
+        self._panel_mode: _DetailPanelMode = _DetailPanelMode.AUTO
         self._thinking_auto_shown: bool = False
         self._current_agent: Agent | None = None
+        self._has_file_content: bool = False
+        self._has_thinking_content: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
@@ -39,6 +51,10 @@ class AgentDetail(Static):
         Args:
             agent: The Agent to display thinking for.
         """
+        # Don't auto-show thinking if user chose INFO mode
+        if self._panel_mode == _DetailPanelMode.INFO:
+            return
+
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
         thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
@@ -72,22 +88,26 @@ class AgentDetail(Static):
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
 
-        # Detect agent change and reset auto-shown thinking flag
+        # Detect agent change and reset mode + auto-shown flag
         prev_agent = self._current_agent
         self._current_agent = agent
-        if (
-            self._thinking_auto_shown
-            and prev_agent is not None
-            and prev_agent.identity != agent.identity
-        ):
+        if prev_agent is not None and prev_agent.identity != agent.identity:
+            self._panel_mode = _DetailPanelMode.AUTO
             self._thinking_auto_shown = False
+            self._has_file_content = False
+            self._has_thinking_content = False
             thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
             thinking_scroll.add_class("hidden")
 
         prompt_panel.update_display(agent)
+        self._update_panel_indicators()
+
+        # INFO mode: only update prompt, hide both secondary panels
+        if self._panel_mode == _DetailPanelMode.INFO:
+            return
 
         # When thinking panel is visible, keep it showing and just refresh data
-        if self._force_thinking or self._thinking_auto_shown:
+        if self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown:
             thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
             thinking_panel.update_display(
                 agent, stale_threshold_seconds=stale_threshold_seconds
@@ -135,8 +155,11 @@ class AgentDetail(Static):
         file_scroll.add_class("hidden")
         thinking_scroll.add_class("hidden")
         prompt_scroll.add_class("expanded")
-        self._force_thinking = False
+        self._panel_mode = _DetailPanelMode.AUTO
         self._thinking_auto_shown = False
+        self._has_file_content = False
+        self._has_thinking_content = False
+        prompt_scroll.border_subtitle = ""
 
     def refresh_current_file(self, agent: Agent) -> None:
         """Force refresh the file for the given agent.
@@ -148,7 +171,7 @@ class AgentDetail(Static):
         file_panel.refresh_file(agent)
 
     def toggle_thinking(self, agent: Agent) -> None:
-        """Toggle between file panel and thinking panel.
+        """Cycle through panel modes: AUTO → THINKING → INFO → AUTO.
 
         Args:
             agent: The currently selected agent.
@@ -156,28 +179,45 @@ class AgentDetail(Static):
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
         thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
 
-        if not self._force_thinking:
-            # Toggle ON: hide file, show thinking
+        if self._panel_mode == _DetailPanelMode.AUTO:
+            # AUTO → THINKING: hide file, show thinking
             file_scroll.add_class("hidden")
             thinking_scroll.remove_class("hidden")
+            prompt_scroll.remove_class("expanded")
 
-            # Mirror layout classes from file to thinking
             if self._layout_swapped:
                 thinking_scroll.add_class("layout-secondary")
+                prompt_scroll.add_class("layout-priority")
             else:
                 thinking_scroll.remove_class("layout-secondary")
+                prompt_scroll.remove_class("layout-priority")
 
-            self._force_thinking = True
+            self._panel_mode = _DetailPanelMode.THINKING
             self._thinking_auto_shown = False
             thinking_panel.update_display(agent)
-        else:
-            # Toggle OFF: re-evaluate what to show
-            self._force_thinking = False
+
+        elif self._panel_mode == _DetailPanelMode.THINKING:
+            # THINKING → INFO: hide both secondary panels, prompt at 100%
+            file_scroll.add_class("hidden")
+            thinking_scroll.add_class("hidden")
+            prompt_scroll.add_class("expanded")
+            prompt_scroll.remove_class("layout-priority")
+
+            self._panel_mode = _DetailPanelMode.INFO
             self._thinking_auto_shown = False
+
+        else:
+            # INFO → AUTO: re-evaluate what to show
+            self._panel_mode = _DetailPanelMode.AUTO
+            self._thinking_auto_shown = False
+            prompt_scroll.remove_class("expanded")
             thinking_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
             self.update_display(agent)
+
+        self._update_panel_indicators()
 
     def on_thinking_visibility_changed(
         self, message: ThinkingVisibilityChanged
@@ -187,7 +227,16 @@ class AgentDetail(Static):
         Args:
             message: The visibility change message.
         """
-        if not self._force_thinking and not self._thinking_auto_shown:
+        self._has_thinking_content = message.has_thinking
+        self._update_panel_indicators()
+
+        if self._panel_mode == _DetailPanelMode.INFO:
+            return
+
+        if (
+            self._panel_mode != _DetailPanelMode.THINKING
+            and not self._thinking_auto_shown
+        ):
             return
 
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
@@ -214,8 +263,11 @@ class AgentDetail(Static):
         Args:
             message: The visibility change message.
         """
-        # Skip file visibility changes when user forced thinking
-        if self._force_thinking:
+        self._has_file_content = message.has_file
+        self._update_panel_indicators()
+
+        # Skip file visibility changes in THINKING or INFO modes
+        if self._panel_mode in (_DetailPanelMode.THINKING, _DetailPanelMode.INFO):
             return
 
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
@@ -266,13 +318,60 @@ class AgentDetail(Static):
             prompt_scroll.remove_class("layout-priority")
             secondary_scroll.remove_class("layout-secondary")
 
+    def _update_panel_indicators(self) -> None:
+        """Update the border subtitle on the prompt panel to show panel state."""
+        try:
+            prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        except Exception:
+            return
+
+        if self._current_agent is None:
+            prompt_scroll.border_subtitle = ""
+            return
+
+        text = Text()
+
+        # Files indicator
+        file_active = self._panel_mode == _DetailPanelMode.AUTO and (
+            self._has_file_content or not self._thinking_auto_shown
+        )
+        if file_active:
+            text.append("●", style="bold green")
+            text.append(" files", style="bold green")
+        elif self._has_file_content:
+            text.append("●", style="green")
+            text.append(" files", style="dim")
+        else:
+            text.append("○", style="dim")
+            text.append(" files", style="dim")
+
+        text.append("  ")
+
+        # Thinking indicator
+        thinking_active = (
+            self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown
+        )
+        if thinking_active and self._panel_mode != _DetailPanelMode.INFO:
+            text.append("●", style="bold #af87d7")
+            text.append(" thinking", style="bold #af87d7")
+        elif self._has_thinking_content:
+            text.append("●", style="#af87d7")
+            text.append(" thinking", style="dim")
+        else:
+            text.append("○", style="dim")
+            text.append(" thinking", style="dim")
+
+        prompt_scroll.border_subtitle = text
+
     def is_thinking_visible(self) -> bool:
         """Check if the thinking panel is currently visible.
 
         Returns:
             True if the thinking panel is visible, False otherwise.
         """
-        return self._force_thinking or self._thinking_auto_shown
+        return (
+            self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown
+        )
 
     def is_thinking_forced(self) -> bool:
         """Check if the user manually forced the thinking panel via "i" key.
@@ -280,7 +379,15 @@ class AgentDetail(Static):
         Returns:
             True if the user toggled thinking on, False if auto-shown or hidden.
         """
-        return self._force_thinking
+        return self._panel_mode == _DetailPanelMode.THINKING
+
+    def is_info_mode(self) -> bool:
+        """Check if the panel is in info-only mode.
+
+        Returns:
+            True if in INFO mode (prompt at 100%), False otherwise.
+        """
+        return self._panel_mode == _DetailPanelMode.INFO
 
     def is_file_visible(self) -> bool:
         """Check if the file panel is currently visible.

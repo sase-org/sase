@@ -133,7 +133,7 @@ class AgentInteractionMixin:
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
 
-        if (
+        if agent_detail.is_info_mode() or (
             not agent_detail.is_file_visible()
             and not agent_detail.is_thinking_visible()
         ):

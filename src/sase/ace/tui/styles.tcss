@@ -433,6 +433,7 @@ HintInputBar #hint-escape-hint {
     border: solid $secondary;
     padding: 1 2;
     scrollbar-gutter: stable;
+    border-subtitle-align: center;
 }
 
 #agent-file-scroll {
