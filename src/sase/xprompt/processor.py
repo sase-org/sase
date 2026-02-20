@@ -216,6 +216,10 @@ def process_xprompt_references(
         )
         sys.exit(1)
 
+    # Unescape ## → # (doubled prefix to escape xprompt expansion).
+    # Lookahead ensures markdown headings like "## Heading" are preserved.
+    prompt = re.sub(r"##(?=[a-zA-Z_])", "#", prompt)
+
     return prompt
 
 

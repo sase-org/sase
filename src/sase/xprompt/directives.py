@@ -67,7 +67,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     matches = list(re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE))
     if not matches:
-        return prompt, PromptDirectives()
+        return re.sub(r"%%(?=[a-zA-Z_])", "%", prompt), PromptDirectives()
 
     # Collect known directive matches (we'll strip these from the prompt)
     seen: dict[str, str] = {}  # directive name -> raw arg value
@@ -115,7 +115,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         regions_to_remove.append((match.start(), match_end))
 
     if not regions_to_remove:
-        return prompt, PromptDirectives()
+        return re.sub(r"%%(?=[a-zA-Z_])", "%", prompt), PromptDirectives()
 
     # Remove directive regions from prompt (last-to-first to preserve positions)
     cleaned = prompt
@@ -139,4 +139,4 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         model=expanded_args.get("model") or None,
     )
 
-    return cleaned, directives
+    return re.sub(r"%%(?=[a-zA-Z_])", "%", cleaned), directives

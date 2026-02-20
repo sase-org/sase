@@ -347,11 +347,13 @@ def main() -> NoReturn:
             process_xprompt_references,
             validate_file_references,
         )
+        from sase.gemini_wrapper.file_references import restore_at_escapes
 
         prompt = args.prompt if args.prompt else sys.stdin.read()
         prompt = process_xprompt_references(prompt)
         prompt = process_command_substitution(prompt)
         validate_file_references(prompt)  # Validates but doesn't modify
+        prompt = restore_at_escapes(prompt)
         print(format_with_prettier(prompt), end="")
         sys.exit(0)
 

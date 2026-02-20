@@ -15,6 +15,7 @@ from sase.xprompt.processor import (
     _XPROMPT_PATTERN,
     WorkflowResult,
     _flatten_anonymous_workflow,
+    process_xprompt_references,
 )
 from sase.xprompt.workflow_executor_utils import render_template
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -127,6 +128,33 @@ def test_xprompt_pattern_colon_arg_strips_trailing_period() -> None:
     assert match is not None
     assert match.group(1) == "clr"
     assert match.group(3) == "832098883"
+
+
+def test_double_hash_does_not_match_xprompt_pattern() -> None:
+    """Test that ##name does not match the xprompt regex."""
+    match = re.search(_XPROMPT_PATTERN, "##foo")
+    # The first # is not preceded by whitespace/punctuation so lookbehind fails,
+    # but the second # starts a new potential match. However, the second # at
+    # position 1 is preceded by '#' which is not in the allowed set.
+    assert match is None
+
+
+@patch("sase.xprompt.processor.get_all_xprompts")
+def test_double_hash_unescaped_to_single_hash(mock_get_all: MagicMock) -> None:
+    """Test that ##known is unescaped to #known (not expanded)."""
+    mock_get_all.return_value = {
+        "known": XPrompt(name="known", content="EXPANDED"),
+    }
+    result = process_xprompt_references("Use ##known to reference")
+    assert result == "Use #known to reference"
+
+
+@patch("sase.xprompt.processor.get_all_xprompts")
+def test_double_hash_markdown_heading_preserved(mock_get_all: MagicMock) -> None:
+    """Test that ## Heading (markdown) is not unescaped."""
+    mock_get_all.return_value = {"foo": XPrompt(name="foo", content="BAR")}
+    result = process_xprompt_references("## Heading\n#foo")
+    assert result == "## Heading\nBAR"
 
 
 def test_xprompt_pattern_not_after_letter() -> None:
