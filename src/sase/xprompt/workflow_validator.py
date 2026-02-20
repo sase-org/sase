@@ -59,8 +59,15 @@ class _XPromptCall:
     raw_match: str
 
 
+_FENCED_CODE_BLOCK_PATTERN = re.compile(r"```[^\n]*\n[\s\S]*?```")
+
+
 def _extract_xprompt_calls(content: str) -> list[_XPromptCall]:
     """Extract all xprompt references from template string.
+
+    Fenced code blocks are stripped before scanning so that hashtag
+    references inside triple-backtick blocks are not treated as xprompt
+    calls.
 
     Args:
         content: The template content to scan.
@@ -68,6 +75,9 @@ def _extract_xprompt_calls(content: str) -> list[_XPromptCall]:
     Returns:
         List of parsed xprompt calls.
     """
+    # Strip fenced code blocks so their content is never matched
+    content = _FENCED_CODE_BLOCK_PATTERN.sub("", content)
+
     calls: list[_XPromptCall] = []
     matches = list(re.finditer(_XPROMPT_PATTERN, content, re.MULTILINE))
 

@@ -17,6 +17,23 @@ from sase.xprompt.workflow_validator import (
 )
 
 
+def test_extract_xprompt_calls_ignores_fenced_code_blocks() -> None:
+    """Hashtag references inside fenced code blocks should be ignored."""
+    content = "Some text\n```\n#bug\n```\nMore text"
+    calls = _extract_xprompt_calls(content)
+    assert calls == []
+
+
+def test_extract_xprompt_calls_outside_fenced_block_still_found() -> None:
+    """Hashtag refs outside fenced blocks should still be extracted."""
+    content = "#real\n```\n#ignored\n```\n#also_real"
+    calls = _extract_xprompt_calls(content)
+    names = [c.name for c in calls]
+    assert "real" in names
+    assert "also_real" in names
+    assert "ignored" not in names
+
+
 def test_extract_xprompt_calls_simple() -> None:
     """Test extracting a simple xprompt reference."""
     calls = _extract_xprompt_calls("#foo")
