@@ -1,5 +1,6 @@
 """Resolve an Agent to its Claude Code JSONL session transcript."""
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -95,8 +96,76 @@ def _find_most_recent_jsonl(directory: Path) -> Path | None:
 
 
 def _find_jsonl_files_since(directory: Path, since: datetime) -> list[Path]:
-    """Find all JSONL files modified since a given time, sorted oldest-first."""
+    """Find JSONL files modified since a given time, filtering to the best session match.
+
+    When multiple candidates exist (e.g. multiple Claude Code sessions sharing
+    the same project directory), selects the file whose first event timestamp
+    is closest to ``since`` — the agent's start time.
+    """
     since_ts = since.timestamp()
     matching = [p for p in directory.glob("*.jsonl") if p.stat().st_mtime >= since_ts]
     matching.sort(key=lambda p: p.stat().st_mtime)
+
+    if len(matching) <= 1:
+        return matching
+
+    best = _find_best_session_match(matching, since_ts)
+    if best is not None:
+        return [best]
+
+    # Fallback: timestamp reading failed for all files
     return matching
+
+
+def _find_best_session_match(candidates: list[Path], target_ts: float) -> Path | None:
+    """Find the JSONL file whose first event timestamp is closest to target_ts."""
+    best_path: Path | None = None
+    best_diff = float("inf")
+
+    for path in candidates:
+        ts = _first_event_timestamp(path)
+        if ts is None:
+            continue
+        diff = abs(ts - target_ts)
+        if diff < best_diff:
+            best_diff = diff
+            best_path = path
+
+    return best_path
+
+
+def _first_event_timestamp(path: Path) -> float | None:
+    """Read the first event timestamp from a JSONL file.
+
+    Reads only the first few lines (cheap I/O) to extract the earliest
+    timestamp from the session transcript.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            for _ in range(10):
+                line = f.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                ts_str = event.get("timestamp")
+                if not isinstance(ts_str, str) or not ts_str:
+                    continue
+                return _parse_iso_timestamp(ts_str)
+    except OSError:
+        pass
+    return None
+
+
+def _parse_iso_timestamp(ts_str: str) -> float | None:
+    """Parse an ISO 8601 timestamp string to a Unix timestamp."""
+    try:
+        dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        return dt.timestamp()
+    except ValueError:
+        return None
