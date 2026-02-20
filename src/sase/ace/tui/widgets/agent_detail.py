@@ -157,7 +157,13 @@ class AgentDetail(Static):
                 file_panel.update_display(
                     agent, stale_threshold_seconds=stale_threshold_seconds
                 )
-            return
+                return
+            # For completed agents: if thinking was auto-shown (not
+            # user-chosen) and the agent has a diff_path, fall through to
+            # display the static file.  FileVisibilityChanged will handle
+            # switching from thinking to file view.
+            if not (self._thinking_auto_shown and agent.diff_path):
+                return
 
         # Bash/python workflow steps don't have files - show thinking as fallback
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):
