@@ -71,6 +71,19 @@ def create_parser() -> argparse.ArgumentParser:
         default="120x40",
         help="Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40)",
     )
+    tmux_group = ace_parser.add_mutually_exclusive_group()
+    tmux_group.add_argument(
+        "--tmux",
+        action="store_true",
+        default=False,
+        help="Force tmux-based agent mode (requires tmux)",
+    )
+    tmux_group.add_argument(
+        "--no-tmux",
+        action="store_true",
+        default=False,
+        help="Force headless Textual pilot agent mode (skip tmux auto-detection)",
+    )
     ace_parser.add_argument(
         "--vcs-provider",
         choices=["git", "hg", "auto"],

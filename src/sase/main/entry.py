@@ -261,22 +261,45 @@ def main() -> NoReturn:
                     model_tier_override = {"big": "large", "little": "small"}[old_size]
 
             if getattr(args, "agent", False):
-                import asyncio
-
-                from sase.ace.agent_runner import run_agent_mode
+                import shutil
 
                 w, h = args.size.split("x")
-                result = asyncio.run(
-                    run_agent_mode(
+                size = (int(w), int(h))
+                tier = cast(
+                    Literal["large", "small"] | None,
+                    model_tier_override,
+                )
+
+                # Determine whether to use tmux mode
+                use_tmux = False
+                if getattr(args, "tmux", False):
+                    use_tmux = True
+                elif not getattr(args, "no_tmux", False):
+                    # Auto-detect: use tmux if inside tmux and tmux is available
+                    use_tmux = bool(os.environ.get("TMUX") and shutil.which("tmux"))
+
+                if use_tmux:
+                    from sase.ace.tmux_agent_runner import run_tmux_agent_mode
+
+                    result = run_tmux_agent_mode(
                         query=args.query,
                         keys=args.keys,
-                        size=(int(w), int(h)),
-                        model_tier_override=cast(
-                            Literal["large", "small"] | None,
-                            model_tier_override,
-                        ),
+                        size=size,
+                        model_tier_override=tier,
                     )
-                )
+                else:
+                    import asyncio
+
+                    from sase.ace.agent_runner import run_agent_mode
+
+                    result = asyncio.run(
+                        run_agent_mode(
+                            query=args.query,
+                            keys=args.keys,
+                            size=size,
+                            model_tier_override=tier,
+                        )
+                    )
                 print(result)
                 sys.exit(0)
 
