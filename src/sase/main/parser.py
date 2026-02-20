@@ -2,7 +2,7 @@
 
 import argparse
 
-from sase.ace.saved_queries import load_last_query
+from sase.ace.saved_queries import load_first_saved_query, load_last_query
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -29,8 +29,9 @@ def create_parser() -> argparse.ArgumentParser:
     ace_parser.add_argument(
         "query",
         nargs="?",
-        default=load_last_query() or "!!!",
-        help="Query string for filtering ChangeSpecs (default: '!!!' for error suffixes). "
+        default=load_last_query() or load_first_saved_query() or "!!!",
+        help="Query string for filtering ChangeSpecs (default: first saved query, "
+        "or '!!!' for error suffixes). "
         'Examples: \'"feature" AND "Ready"\', \'"myproject" OR "bugfix"\', '
         "'!!! AND @myproject'",
     )

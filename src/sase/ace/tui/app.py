@@ -187,7 +187,7 @@ class AceApp(
 
     def __init__(
         self,
-        query: str = '"(!: "',
+        query: str = "!!!",
         model_tier_override: Literal["large", "small"] | None = None,
         refresh_interval: int = 10,
     ) -> None:

@@ -48,8 +48,8 @@ async def test_app_initialization_default_query() -> None:
         "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
     ):
         app = AceApp()
-        # Default query is '"(!: "'
-        assert app.query_string == '"(!: "'
+        # Default query is '!!!'
+        assert app.query_string == "!!!"
         assert app.parsed_query is not None
 
 

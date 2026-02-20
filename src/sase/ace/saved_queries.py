@@ -102,6 +102,19 @@ def get_next_available_slot(queries: dict[str, str]) -> str | None:
     return None
 
 
+def load_first_saved_query() -> str | None:
+    """Load the first saved query, checking slots 1-9 then 0.
+
+    Returns:
+        The first saved query found, or None if no saved queries exist.
+    """
+    queries = load_saved_queries()
+    for slot in KEY_ORDER[1:] + KEY_ORDER[:1]:
+        if slot in queries:
+            return queries[slot]
+    return None
+
+
 def load_last_query() -> str | None:
     """Load the last used query from disk.
 
