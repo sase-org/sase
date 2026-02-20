@@ -171,9 +171,76 @@ class AgentDetail(Static):
         file_panel.refresh_file(agent)
 
     def toggle_thinking(self, agent: Agent) -> None:
-        """Cycle through panel modes: AUTO → THINKING → INFO → AUTO.
+        """Cycle through available panel modes, skipping unavailable ones.
+
+        Modes without content are skipped:
+        - AUTO (file) is skipped when no file content exists
+        - THINKING is skipped when no thinking content exists
+        - INFO (metadata) is always available
 
         Args:
+            agent: The currently selected agent.
+        """
+        next_mode = self._next_panel_mode()
+        if next_mode is None:
+            return
+        self._apply_panel_mode(next_mode, agent)
+        self._update_panel_indicators()
+
+    def _next_panel_mode(self) -> _DetailPanelMode | None:
+        """Compute the next panel mode, skipping unavailable ones.
+
+        Returns:
+            The next mode to transition to, or None if there's nothing to
+            cycle to.
+        """
+        # Determine effective current mode (AUTO without file content
+        # visually looks like THINKING or INFO, not file view)
+        effective = self._panel_mode
+        if effective == _DetailPanelMode.AUTO and not self._has_file_content:
+            if self._thinking_auto_shown:
+                effective = _DetailPanelMode.THINKING
+            else:
+                effective = _DetailPanelMode.INFO
+
+        # Build list of available modes
+        available: list[_DetailPanelMode] = []
+        if self._has_file_content:
+            available.append(_DetailPanelMode.AUTO)
+        if self._has_thinking_content:
+            available.append(_DetailPanelMode.THINKING)
+        available.append(_DetailPanelMode.INFO)
+
+        if len(available) <= 1:
+            return None
+
+        if effective in available:
+            idx = available.index(effective)
+            return available[(idx + 1) % len(available)]
+        return available[0]
+
+    def next_panel_label(self) -> str | None:
+        """Get the footer label for what pressing 'i' will do next.
+
+        Returns:
+            Label string like "file", "thinking", or "metadata", or None if
+            there's nothing to cycle to.
+        """
+        next_mode = self._next_panel_mode()
+        if next_mode is None:
+            return None
+        labels = {
+            _DetailPanelMode.AUTO: "file",
+            _DetailPanelMode.THINKING: "thinking",
+            _DetailPanelMode.INFO: "metadata",
+        }
+        return labels[next_mode]
+
+    def _apply_panel_mode(self, mode: _DetailPanelMode, agent: Agent) -> None:
+        """Apply visual transition to the given panel mode.
+
+        Args:
+            mode: The target panel mode.
             agent: The currently selected agent.
         """
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
@@ -181,8 +248,8 @@ class AgentDetail(Static):
         thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
 
-        if self._panel_mode == _DetailPanelMode.AUTO:
-            # AUTO → THINKING: hide file, show thinking
+        if mode == _DetailPanelMode.THINKING:
+            # Show thinking, hide file
             file_scroll.add_class("hidden")
             thinking_scroll.remove_class("hidden")
             prompt_scroll.remove_class("expanded")
@@ -198,8 +265,8 @@ class AgentDetail(Static):
             self._thinking_auto_shown = False
             thinking_panel.update_display(agent)
 
-        elif self._panel_mode == _DetailPanelMode.THINKING:
-            # THINKING → INFO: hide both secondary panels, prompt at 100%
+        elif mode == _DetailPanelMode.INFO:
+            # Hide both secondary panels, prompt at 100%
             file_scroll.add_class("hidden")
             thinking_scroll.add_class("hidden")
             prompt_scroll.add_class("expanded")
@@ -209,15 +276,13 @@ class AgentDetail(Static):
             self._thinking_auto_shown = False
 
         else:
-            # INFO → AUTO: re-evaluate what to show
+            # AUTO: re-evaluate what to show
             self._panel_mode = _DetailPanelMode.AUTO
             self._thinking_auto_shown = False
             prompt_scroll.remove_class("expanded")
             thinking_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
             self.update_display(agent)
-
-        self._update_panel_indicators()
 
     def on_thinking_visibility_changed(
         self, message: ThinkingVisibilityChanged
@@ -372,14 +437,6 @@ class AgentDetail(Static):
         return (
             self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown
         )
-
-    def is_thinking_forced(self) -> bool:
-        """Check if the user manually forced the thinking panel via "i" key.
-
-        Returns:
-            True if the user toggled thinking on, False if auto-shown or hidden.
-        """
-        return self._panel_mode == _DetailPanelMode.THINKING
 
     def is_info_mode(self) -> bool:
         """Check if the panel is in info-only mode.

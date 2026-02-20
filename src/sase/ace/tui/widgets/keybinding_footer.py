@@ -167,8 +167,8 @@ class KeybindingFooter(Horizontal):
         *,
         file_visible: bool = False,
         thinking_visible: bool = False,
-        thinking_forced: bool = False,
         info_mode: bool = False,
+        next_panel_label: str | None = None,
         has_always_visible: bool = False,
         hidden_count: int = 0,
         hide_non_run: bool = True,
@@ -180,8 +180,9 @@ class KeybindingFooter(Horizontal):
             agent: Current Agent or None if no agents
             file_visible: Whether the file panel is currently visible
             thinking_visible: Whether the thinking panel is currently visible
-            thinking_forced: Whether the user manually forced thinking via "i"
             info_mode: Whether the panel is in info-only mode
+            next_panel_label: Label for the next panel mode via 'i' key,
+                or None if cycling is not available
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
             hide_non_run: Whether hideable agents are currently hidden
@@ -191,8 +192,8 @@ class KeybindingFooter(Horizontal):
             agent,
             file_visible=file_visible,
             thinking_visible=thinking_visible,
-            thinking_forced=thinking_forced,
             info_mode=info_mode,
+            next_panel_label=next_panel_label,
             has_always_visible=has_always_visible,
             hidden_count=hidden_count,
             hide_non_run=hide_non_run,
@@ -238,8 +239,8 @@ class KeybindingFooter(Horizontal):
         *,
         file_visible: bool = False,
         thinking_visible: bool = False,
-        thinking_forced: bool = False,
         info_mode: bool = False,
+        next_panel_label: str | None = None,
         has_always_visible: bool = False,
         hidden_count: int = 0,
         hide_non_run: bool = True,
@@ -251,8 +252,9 @@ class KeybindingFooter(Horizontal):
             agent: Current Agent or None
             file_visible: Whether the file panel is currently visible
             thinking_visible: Whether the thinking panel is currently visible
-            thinking_forced: Whether the user manually forced thinking via "i"
             info_mode: Whether the panel is in info-only mode
+            next_panel_label: Label for the next panel mode via 'i' key,
+                or None if cycling is not available
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
             hide_non_run: Whether hideable agents are currently hidden
@@ -290,14 +292,9 @@ class KeybindingFooter(Horizontal):
             bindings.append(("h/l", "fold"))
             bindings.append(("H/L", "fold all"))
 
-        # Panel cycle: i key label shows next mode
-        if agent is not None:
-            if info_mode:
-                bindings.append(("i", "file"))
-            elif thinking_forced:
-                bindings.append(("i", "info"))
-            else:
-                bindings.append(("i", "thinking"))
+        # Panel cycle: i key label shows next mode (skips unavailable modes)
+        if agent is not None and next_panel_label is not None:
+            bindings.append(("i", next_panel_label))
 
         # Layout toggle (when file or thinking panel is visible, not in info mode)
         if (file_visible or thinking_visible) and not info_mode:

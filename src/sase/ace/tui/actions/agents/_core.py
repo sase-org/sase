@@ -222,15 +222,15 @@ class AgentsMixinCore(
         )
 
         thinking_visible = agent_detail.is_thinking_visible()
-        thinking_forced = agent_detail.is_thinking_forced()
         info_mode = agent_detail.is_info_mode()
+        next_panel_label = agent_detail.next_panel_label()
 
         footer_widget.update_agent_bindings(
             current_agent,
             file_visible=file_visible,
             thinking_visible=thinking_visible,
-            thinking_forced=thinking_forced,
             info_mode=info_mode,
+            next_panel_label=next_panel_label,
             has_always_visible=self._has_always_visible,
             hidden_count=self._hidden_count,
             hide_non_run=self.hide_non_run_agents,
