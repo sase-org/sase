@@ -25,24 +25,6 @@ from sase.rich_utils import (
 _FILE_REF_PATTERN = r"(?:^|(?<=\s)|(?<=[\"']))@((?:[^\s,;:()[\]{}\"'`])+)"
 
 # Common TLDs used to skip domain-like patterns
-_AT_ESCAPE_PLACEHOLDER = "\x00ESCAPED_AT\x00"
-
-
-def _protect_at_escapes(prompt: str) -> str:
-    """Replace ``@@`` escape sequences with a placeholder before parsing.
-
-    This prevents ``@@path`` from being treated as an ``@path`` file reference.
-    Call :func:`restore_at_escapes` after processing to convert placeholders
-    back to literal ``@``.
-    """
-    return prompt.replace("@@", _AT_ESCAPE_PLACEHOLDER)
-
-
-def restore_at_escapes(prompt: str) -> str:
-    """Restore ``@@`` escape placeholders back to a single ``@``."""
-    return prompt.replace(_AT_ESCAPE_PLACEHOLDER, "@")
-
-
 _COMMON_TLDS = (
     ".com",
     ".org",
@@ -223,7 +205,6 @@ def validate_file_references(prompt: str) -> None:
     Raises:
         SystemExit: If any validation error is found
     """
-    prompt = _protect_at_escapes(prompt)
     parsed = _parse_file_refs(prompt)
     if _print_validation_errors(parsed, check_context_dir=False):
         sys.exit(1)
@@ -264,7 +245,6 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
     Raises:
         SystemExit: If any referenced file starts with '..', does not exist, or is duplicated
     """
-    prompt = _protect_at_escapes(prompt)
     parsed = _parse_file_refs(prompt)
 
     # Validate and exit on errors (skip context_dir check in home mode since we don't use it)
@@ -273,7 +253,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
 
     # If there are no absolute paths to process, just return the original prompt
     if not parsed.absolute_paths:
-        return restore_at_escapes(prompt)
+        return prompt
 
     # In home mode, just expand tilde paths without copying
     if is_home_mode:
@@ -284,7 +264,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
                 modified_prompt = modified_prompt.replace(
                     f"@{original_path}", f"@{expanded_path}"
                 )
-        return restore_at_escapes(modified_prompt)
+        return modified_prompt
 
     # Split absolute paths into home-dir vs non-home
     home_dir = os.path.expanduser("~")
@@ -337,7 +317,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
             "success",
         )
 
-    return restore_at_escapes(modified_prompt)
+    return modified_prompt
 
 
 # --- Command substitution processing ($(cmd) syntax) ---

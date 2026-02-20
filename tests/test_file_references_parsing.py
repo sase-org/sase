@@ -6,8 +6,6 @@ import tempfile
 import pytest
 from sase.gemini_wrapper.file_references import (
     _parse_file_refs,
-    process_file_references,
-    _protect_at_escapes,
     validate_file_references,
 )
 
@@ -172,26 +170,3 @@ def test_validate_file_references_context_dir_allowed() -> None:
     # This should pass since context_dir check is disabled
     validate_file_references("Check @.sase/file.txt")
     # No exception = pass
-
-
-# --- Escape sequence tests (@@path → @path) ---
-
-
-def test_parse_file_refs_skips_double_at_after_protection() -> None:
-    """Test that _parse_file_refs skips @@path after protect_at_escapes."""
-    prompt = _protect_at_escapes("Check @@/tmp/test")
-    result = _parse_file_refs(prompt)
-    # The @@ was replaced with a placeholder, so no file ref is parsed
-    assert result.seen_paths == {}
-
-
-def test_validate_file_references_no_error_on_double_at() -> None:
-    """Test that validate_file_references doesn't error on @@/path."""
-    # @@/nonexistent should NOT trigger a missing-file error
-    validate_file_references("Check @@/nonexistent/path/file.txt")
-
-
-def test_process_file_references_converts_double_at_to_single() -> None:
-    """Test that process_file_references converts @@path → @path."""
-    result = process_file_references("Check @@/tmp/test")
-    assert result == "Check @/tmp/test"

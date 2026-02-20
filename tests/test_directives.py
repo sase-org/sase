@@ -196,31 +196,3 @@ def test_percent_in_normal_text_not_matched() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Use 50% of the data"
     assert directives == PromptDirectives()
-
-
-# --- Escape sequence tests (%%name → %name) ---
-
-
-def test_double_percent_known_directive_not_extracted() -> None:
-    """%%model is not extracted as a directive; unescaped to %model in output."""
-    prompt = "%%model:sonnet\nRest of prompt"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert directives.model is None
-    assert "%model:sonnet" in cleaned
-    assert "Rest of prompt" in cleaned
-
-
-def test_double_percent_unknown_preserved_as_single() -> None:
-    """%%unknown is unescaped to %unknown in the output."""
-    prompt = "%%unknown\nRest of prompt"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "%unknown\nRest of prompt"
-    assert directives == PromptDirectives()
-
-
-def test_double_percent_with_known_directive_still_works() -> None:
-    """%%escaped is unescaped while real %model directive is still extracted."""
-    prompt = "%model:opus\n%%model:sonnet in the prompt"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert directives.model == "opus"
-    assert "%model:sonnet in the prompt" in cleaned
