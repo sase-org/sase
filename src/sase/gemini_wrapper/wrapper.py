@@ -36,6 +36,8 @@ def invoke_agent(
     suppress_output: bool = False,
     timestamp: str | None = None,
     is_home_mode: bool = False,
+    skip_preprocessing: bool = False,
+    directives: Any = None,
 ) -> AIMessage:
     """Invoke a Gemini agent with standard logging context.
 
@@ -54,6 +56,8 @@ def invoke_agent(
         suppress_output: If True, suppress output display.
         timestamp: Optional timestamp for chat file naming (YYmmdd_HHMMSS format).
         is_home_mode: If True, skip file copying for @ file references.
+        skip_preprocessing: If True, skip preprocessing (caller already did it).
+        directives: Pre-extracted PromptDirectives (used with skip_preprocessing).
 
     Returns:
         The AIMessage response from the agent.
@@ -71,6 +75,8 @@ def invoke_agent(
         suppress_output=suppress_output,
         timestamp=timestamp,
         is_home_mode=is_home_mode,
+        skip_preprocessing=skip_preprocessing,
+        directives=directives,
     )
 
 

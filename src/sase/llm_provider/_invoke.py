@@ -19,6 +19,7 @@ from .postprocessing import (
     save_prompt_to_file,
 )
 from .preprocessing import preprocess_prompt
+from sase.xprompt.directives import PromptDirectives
 from .registry import get_provider
 from .types import (
     _MODEL_SIZE_TO_TIER,
@@ -43,6 +44,8 @@ def invoke_agent(
     is_home_mode: bool = False,
     decision_counts: dict[str, Any] | None = None,
     provider_name: str | None = None,
+    skip_preprocessing: bool = False,
+    directives: PromptDirectives | None = None,
 ) -> AIMessage:
     """Invoke an LLM agent with standard preprocessing, logging, and postprocessing.
 
@@ -71,6 +74,10 @@ def invoke_agent(
         is_home_mode: If True, skip file copying for ``@`` file references.
         decision_counts: Optional planning agent decision counts for display.
         provider_name: Optional provider name override (default from config).
+        skip_preprocessing: If True, skip the ``preprocess_prompt()`` call
+            and use the prompt as-is (caller already preprocessed).
+        directives: Pre-extracted prompt directives to use when
+            ``skip_preprocessing=True``.
 
     Returns:
         The AIMessage response from the agent.
@@ -104,9 +111,14 @@ def invoke_agent(
     )
 
     # 1. Preprocess prompt
-    result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
-    query = result.prompt
-    model_override = result.directives.model
+    if skip_preprocessing:
+        query = prompt
+        result_directives = directives or PromptDirectives()
+    else:
+        result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
+        query = result.prompt
+        result_directives = result.directives
+    model_override = result_directives.model
 
     # 2. Build display label
     if model_override:

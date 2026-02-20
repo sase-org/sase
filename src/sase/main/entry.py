@@ -341,27 +341,15 @@ def main() -> NoReturn:
 
     # --- xprompt ---
     if args.command == "xprompt":
-        from sase.gemini_wrapper import (
-            format_with_prettier,
-            process_command_substitution,
-            process_xprompt_references,
-            validate_file_references,
-        )
-        from sase.xprompt._fenced_blocks import (
-            protect_fenced_blocks,
-            unprotect_fenced_blocks,
+        from sase.llm_provider.preprocessing import (
+            preprocess_prompt_early,
+            preprocess_prompt_late,
         )
 
         prompt = args.prompt if args.prompt else sys.stdin.read()
-        prompt = process_xprompt_references(prompt)
-        # Protect fenced code blocks so that command substitution and file
-        # validation don't process content inside triple-backtick blocks.
-        fenced_blocks: list[str] = []
-        prompt = protect_fenced_blocks(prompt, fenced_blocks)
-        prompt = process_command_substitution(prompt)
-        validate_file_references(prompt)  # Validates but doesn't modify
-        prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
-        print(format_with_prettier(prompt), end="")
+        early = preprocess_prompt_early(prompt)
+        processed = preprocess_prompt_late(early.prompt, file_ref_mode="validate")
+        print(processed, end="")
         sys.exit(0)
 
     print(f"Unknown command: {args.command}")

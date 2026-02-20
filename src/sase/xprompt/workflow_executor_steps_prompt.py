@@ -5,7 +5,6 @@ import subprocess
 from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
-from sase.xprompt.workflow_executor_utils import render_template
 from sase.xprompt.workflow_models import (
     StepState,
     StepStatus,
@@ -171,35 +170,35 @@ class PromptStepMixin:
             True if step succeeded, False if rejected by user.
         """
         from sase.llm_provider import invoke_agent
+        from sase.llm_provider.preprocessing import (
+            preprocess_prompt_early,
+            preprocess_prompt_late,
+        )
         from sase.shared_utils import ensure_str_content
 
-        from sase.xprompt import (
-            extract_structured_content,
-            process_xprompt_references,
-        )
+        from sase.xprompt import extract_structured_content
 
         if not step.agent:
             raise WorkflowExecutionError(
                 f"Agent step '{step.name}' has no agent prompt"
             )
 
-        # Render prompt with Jinja2 context
-        rendered_prompt = render_template(step.agent, self.context)
-
-        # Expand xprompt references FIRST
-        # This allows xprompts to contain embedded workflow references (like #json:...)
-        # which will be expanded in the next step
-        expanded_prompt = process_xprompt_references(
-            rendered_prompt,
+        # Early phase: directives, Jinja2 context rendering, xprompt expansion
+        early = preprocess_prompt_early(
+            step.agent,
             extra_xprompts=self.workflow.xprompts,
             scope=self.context,
+            context=self.context,
         )
 
         # Then expand embedded workflows
         # This executes pre-steps and replaces workflow refs with prompt_part content
         expanded_prompt, embedded_workflows, pre_step_count = (
-            self._expand_embedded_workflows_in_prompt(expanded_prompt)
+            self._expand_embedded_workflows_in_prompt(early.prompt)
         )
+
+        # Late phase: command sub, file refs, Jinja2, prettier, HTML stripping
+        expanded_prompt = preprocess_prompt_late(expanded_prompt)
 
         # Collect meta_* from embedded pre-steps so the TUI can display
         # Workspace/Project/ChangeSpec immediately when the agent starts.
@@ -218,7 +217,7 @@ class PromptStepMixin:
         step_state.status = StepStatus.IN_PROGRESS
         self._save_prompt_step_marker(step.name, step_state, hidden=step.hidden)
 
-        # Invoke agent
+        # Invoke agent (skip preprocessing — we already did early+late)
         # Extract base workflow name (without project prefix) to avoid slashes in filenames
         base_name = (
             self.workflow.name.split("/")[-1]
@@ -230,6 +229,8 @@ class PromptStepMixin:
             agent_type=f"workflow-{base_name}-{step.name}",
             artifacts_dir=self.artifacts_dir,
             workflow=self.workflow.name,
+            skip_preprocessing=True,
+            directives=early.directives,
         )
         response_text = ensure_str_content(response.content)
 
@@ -239,7 +240,7 @@ class PromptStepMixin:
             from sase.chat_history import save_chat_history
 
             response_path = save_chat_history(
-                prompt=rendered_prompt,
+                prompt=expanded_prompt,
                 response=response_text,
                 workflow=self.workflow.name,
                 agent=step.name,
