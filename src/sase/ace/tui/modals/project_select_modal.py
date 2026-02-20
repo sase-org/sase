@@ -1,5 +1,6 @@
 """Project/CL selection modal with filtering for the ace TUI."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -12,8 +13,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
-from ...changespec import find_all_changespecs
+from ...changespec import find_all_changespecs, parse_project_file
 from .base import FilterInput, OptionListNavigationMixin
+from .confirm_delete_modal import ConfirmDeleteModal
 
 
 @dataclass
@@ -32,7 +34,10 @@ class ProjectSelectModal(
     """Modal for selecting project or CL with filtering."""
 
     _option_list_id = "selection-list"
-    BINDINGS = [*OptionListNavigationMixin.NAVIGATION_BINDINGS]
+    BINDINGS = [
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("ctrl+d", "delete_project", "Delete Project"),
+    ]
 
     def __init__(self) -> None:
         """Initialize the project selection modal."""
@@ -168,3 +173,71 @@ class ProjectSelectModal(
             idx = int(event.option.id)
             if 0 <= idx < len(filtered_items):
                 self.dismiss(filtered_items[idx])
+
+    def _get_highlighted_item(self) -> SelectionItem | None:
+        """Get the currently highlighted SelectionItem."""
+        option_list = self.query_one("#selection-list", OptionList)
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return None
+        filter_input = self.query_one("#filter-input", FilterInput)
+        filtered_items = self._get_filtered_items(filter_input.value)
+        if 0 <= highlighted < len(filtered_items):
+            return filtered_items[highlighted]
+        return None
+
+    def action_delete_project(self) -> None:
+        """Delete the project file for the highlighted item."""
+        item = self._get_highlighted_item()
+        if item is None:
+            self.notify("No item selected", severity="error")
+            return
+
+        if item.item_type != "project":
+            self.notify(
+                "Can only delete project files, not ChangeSpecs/home",
+                severity="error",
+            )
+            return
+
+        # Check if project file contains any ChangeSpecs
+        gp_path = (
+            Path.home()
+            / ".sase"
+            / "projects"
+            / item.project_name
+            / f"{item.project_name}.gp"
+        )
+        changespecs = parse_project_file(str(gp_path))
+        if changespecs:
+            self.notify(
+                f"Cannot delete project '{item.project_name}': file contains ChangeSpecs",
+                severity="error",
+            )
+            return
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            # Delete the .gp file
+            os.unlink(gp_path)
+            # Remove parent directory if empty
+            try:
+                os.rmdir(gp_path.parent)
+            except OSError:
+                pass  # Directory not empty, that's fine
+            # Remove from all_items and refresh display
+            self.all_items.remove(item)
+            filter_input = self.query_one("#filter-input", FilterInput)
+            filtered_items = self._get_filtered_items(filter_input.value)
+            option_list = self.query_one("#selection-list", OptionList)
+            option_list.clear_options()
+            for i, fi in enumerate(filtered_items):
+                option_list.add_option(
+                    Option(self._create_styled_label(fi.display_name), id=str(i))
+                )
+            self.notify(
+                f"Deleted project '{item.project_name}'", severity="information"
+            )
+
+        self.app.push_screen(ConfirmDeleteModal(item.project_name), _on_confirm)

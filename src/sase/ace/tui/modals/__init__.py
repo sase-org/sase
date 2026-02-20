@@ -2,6 +2,7 @@
 
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
+from .confirm_delete_modal import ConfirmDeleteModal
 from .confirm_kill_modal import ConfirmKillModal
 from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryModal
@@ -29,6 +30,7 @@ from .xprompt_select_modal import XPromptSelectModal
 __all__ = [
     "CommandHistoryModal",
     "CommandInputModal",
+    "ConfirmDeleteModal",
     "ConfirmKillModal",
     "HelpModal",
     "HookHistoryModal",
