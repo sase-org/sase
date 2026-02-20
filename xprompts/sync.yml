@@ -67,8 +67,8 @@ steps:
     python: |
       from sase.scripts.sync_report import main
       main(
-          success={{ sync_attempt.success }},
-          has_conflicts={{ sync_attempt.has_conflicts }},
-          all_resolved={{ resolve.all_resolved | default(false) }},
+          success={{ sync_attempt.success | tojson }},
+          has_conflicts={{ sync_attempt.has_conflicts | tojson }},
+          all_resolved={{ resolve.all_resolved | default(false) | tojson }},
       )
     output: { status: word, message: text }

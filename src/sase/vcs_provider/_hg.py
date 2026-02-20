@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 
 from ._base import VCSProvider
 from ._registry import register_provider
@@ -56,6 +57,43 @@ class _HgProvider(VCSProvider):
             return CommandOutput(1, "", "Command timed out")
         except Exception as e:
             return CommandOutput(1, "", f"Error: {e}")
+
+    def _run_streaming(
+        self,
+        cmd: list[str],
+        cwd: str,
+        *,
+        timeout: int = 300,
+    ) -> CommandOutput:
+        """Run a command, streaming combined output to stderr in real-time.
+
+        The output is tee'd: each line is written to stderr so the caller can
+        see progress, and also collected so it can be returned in the
+        :class:`CommandOutput` for error checking.
+        """
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            assert proc.stdout is not None  # for mypy
+            collected: list[str] = []
+            for line in proc.stdout:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+                collected.append(line)
+            proc.wait(timeout=timeout)
+            return CommandOutput(proc.returncode, "".join(collected), "")
+        except subprocess.TimeoutExpired:
+            proc.kill()  # type: ignore[possibly-undefined]
+            return CommandOutput(1, "", f"{cmd[0]} timed out")
+        except FileNotFoundError:
+            return CommandOutput(1, "", f"{cmd[0]} command not found")
+        except Exception as e:
+            return CommandOutput(1, "", f"Error running {cmd[0]}: {e}")
 
     def _to_result(self, out: CommandOutput, op_name: str) -> tuple[bool, str | None]:
         """Convert a :class:`CommandOutput` to ``(success, error_or_none)``."""
@@ -173,7 +211,7 @@ class _HgProvider(VCSProvider):
         return "p4head"
 
     def sync_workspace(self, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["sase_hg_sync"], cwd, timeout=600)
+        out = self._run_streaming(["sase_hg_sync"], cwd, timeout=600)
         return self._to_result(out, "sase_hg_sync")
 
     def is_sync_in_progress(self, cwd: str) -> bool:

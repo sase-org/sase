@@ -6,7 +6,11 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
-from sase.xprompt.workflow_executor_utils import parse_bash_output, render_template
+from sase.xprompt.workflow_executor_utils import (
+    coerce_output_types,
+    parse_bash_output,
+    render_template,
+)
 from sase.xprompt.workflow_models import (
     StepState,
     StepStatus,
@@ -116,6 +120,11 @@ class ScriptStepMixin:
         # Parse output
         output = parse_bash_output(result.stdout)
 
+        # Coerce types based on output schema (e.g. "true" → True for bool fields)
+        step_output_types = output_types_from_step(step)
+        if step_output_types:
+            coerce_output_types(output, step_output_types)
+
         # Validate output against schema if specified
         if step.output and step.output.schema:
             from sase.xprompt.output_validation import validate_against_schema
@@ -129,7 +138,6 @@ class ScriptStepMixin:
                 )
 
         # Make path fields absolute for cross-process HITL communication
-        step_output_types = output_types_from_step(step)
         if step_output_types:
             for field_name, field_type in step_output_types.items():
                 if field_type == "path" and field_name in output:
@@ -223,11 +231,13 @@ class ScriptStepMixin:
         # Render code with Jinja2 context
         rendered_code = render_template(step.python, self.context)
 
-        # Execute python code using the same interpreter
+        # Execute python code using the same interpreter.
+        # stderr is NOT captured so that long-running subprocesses (e.g.
+        # sase_hg_sync) can stream progress output to the terminal.
         try:
             result = subprocess.run(
                 [sys.executable, "-c", rendered_code],
-                capture_output=True,
+                stdout=subprocess.PIPE,
                 text=True,
                 cwd=os.getcwd(),
             )
@@ -238,8 +248,8 @@ class ScriptStepMixin:
 
         if result.returncode != 0:
             error_msg = (
-                result.stderr.strip()
-                if result.stderr
+                result.stdout.strip()
+                if result.stdout
                 else f"Exit code {result.returncode}"
             )
             raise WorkflowExecutionError(
@@ -248,6 +258,11 @@ class ScriptStepMixin:
 
         # Parse output (same formats as bash: JSON, key=value, plain text)
         output = parse_bash_output(result.stdout)
+
+        # Coerce types based on output schema (e.g. "true" → True for bool fields)
+        step_output_types = output_types_from_step(step)
+        if step_output_types:
+            coerce_output_types(output, step_output_types)
 
         # Validate output against schema if specified
         if step.output and step.output.schema:
@@ -263,7 +278,6 @@ class ScriptStepMixin:
                 )
 
         # Make path fields absolute for cross-process HITL communication
-        step_output_types = output_types_from_step(step)
         if step_output_types:
             for field_name, field_type in step_output_types.items():
                 if field_type == "path" and field_name in output:

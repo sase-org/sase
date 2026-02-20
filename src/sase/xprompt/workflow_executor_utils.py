@@ -94,3 +94,34 @@ def parse_bash_output(output: str) -> dict[str, Any]:
                 return {"_output": output}
 
     return result
+
+
+def coerce_output_types(
+    output: dict[str, Any], output_types: dict[str, str]
+) -> dict[str, Any]:
+    """Coerce parsed output values to their declared schema types.
+
+    ``parse_bash_output`` stores key=value pairs as strings.  When the output
+    schema declares a field as ``bool`` or ``int``, the string value must be
+    converted to the corresponding Python type so that downstream Jinja2
+    templates produce valid Python/bash literals.
+
+    Args:
+        output: Parsed output dictionary (may be mutated in place).
+        output_types: Mapping of field names to type strings from the schema.
+
+    Returns:
+        The same *output* dict with coerced values.
+    """
+    for field, declared_type in output_types.items():
+        if field not in output:
+            continue
+        value = output[field]
+        if declared_type == "bool" and isinstance(value, str):
+            output[field] = value.lower() == "true"
+        elif declared_type == "int" and isinstance(value, str):
+            try:
+                output[field] = int(value)
+            except ValueError:
+                pass
+    return output

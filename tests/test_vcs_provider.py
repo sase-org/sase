@@ -285,24 +285,32 @@ def test_hg_command_not_found(mock_run: MagicMock) -> None:
 # === Tests for _HgProvider.sync_workspace ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
-def test_hg_sync_workspace_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.sync_workspace on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+@patch("sase.vcs_provider._hg.subprocess.Popen")
+def test_hg_sync_workspace_success(mock_popen: MagicMock) -> None:
+    """Test _HgProvider.sync_workspace on success (uses streaming)."""
+    mock_proc = MagicMock()
+    mock_proc.stdout = iter([])
+    mock_proc.returncode = 0
+    mock_proc.wait.return_value = 0
+    mock_popen.return_value = mock_proc
 
     provider = _HgProvider()
     success, error = provider.sync_workspace("/workspace")
 
     assert success is True
     assert error is None
-    mock_run.assert_called_once()
-    assert mock_run.call_args[0][0] == ["sase_hg_sync"]
+    mock_popen.assert_called_once()
+    assert mock_popen.call_args[0][0] == ["sase_hg_sync"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
-def test_hg_sync_workspace_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.sync_workspace on failure."""
-    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="sync error")
+@patch("sase.vcs_provider._hg.subprocess.Popen")
+def test_hg_sync_workspace_failure(mock_popen: MagicMock) -> None:
+    """Test _HgProvider.sync_workspace on failure (uses streaming)."""
+    mock_proc = MagicMock()
+    mock_proc.stdout = iter(["sync error\n"])
+    mock_proc.returncode = 1
+    mock_proc.wait.return_value = 1
+    mock_popen.return_value = mock_proc
 
     provider = _HgProvider()
     success, error = provider.sync_workspace("/workspace")
