@@ -74,6 +74,10 @@ def _extract_step_output_and_diff_path(
         if isinstance(last_out, dict) and last_out.get("diff_path"):
             diff_path = str(last_out["diff_path"])
 
+    # Expand tilde in diff_path to prevent path corruption when absolutized
+    if diff_path:
+        diff_path = os.path.expanduser(diff_path)
+
     return step_output, diff_path
 
 
