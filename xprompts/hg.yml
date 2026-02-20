@@ -43,14 +43,19 @@ steps:
               )
 
       n_input = {{ n | tojson }}
-      if n_input is not None:
+
+      # Check if workspace was pre-allocated by the TUI
+      if os.environ.get("SASE_HG_PRE_ALLOCATED") == "1":
+          workspace_num = int(os.environ["SASE_HG_WORKSPACE_NUM"])
+          workspace_dir = os.environ["SASE_HG_WORKSPACE_DIR"]
+      elif n_input is not None:
           workspace_num = n_input
+          workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
       else:
           workspace_num = get_first_available_axe_workspace(project_file)
+          workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
 
       should_release = {{ release | tojson }}
-
-      workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
 
       pid = os.getpid()
       workflow_name = f"hg-{cl_name}"

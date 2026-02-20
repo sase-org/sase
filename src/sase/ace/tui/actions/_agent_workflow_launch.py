@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 _GH_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#gh(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
 _GIT_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#git(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
+_HG_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#hg(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
 
 
 class AgentLaunchMixin:
@@ -103,6 +104,62 @@ class AgentLaunchMixin:
             git_ref,
         )
 
+    def _resolve_hg_from_prompt(
+        self, prompt: str
+    ) -> tuple[str, str, str, int, str] | None:
+        """Extract and resolve a #hg reference from a prompt.
+
+        Returns (project_file, project_name, workspace_dir, workspace_num,
+        hg_ref) or None if not found or resolution fails.
+        """
+        from sase.ace.changespec import find_all_changespecs
+        from sase.running_field import (
+            get_first_available_axe_workspace,
+            get_workspace_directory_for_num,
+        )
+
+        match = _HG_REF_PATTERN.search(prompt)
+        if match is None:
+            return None
+
+        hg_ref = match.group(1) or match.group(2)
+        if not hg_ref:
+            return None
+
+        try:
+            # Resolve hg_ref as changespec name or project shorthand
+            cs_match = None
+            for cs in find_all_changespecs():
+                if cs.name == hg_ref:
+                    cs_match = cs
+                    break
+
+            if cs_match:
+                project_name = cs_match.project_basename
+                project_file = cs_match.file_path
+            else:
+                candidate = os.path.expanduser(f"~/.sase/projects/{hg_ref}/{hg_ref}.gp")
+                if os.path.isfile(candidate):
+                    project_name = hg_ref
+                    project_file = candidate
+                else:
+                    return None
+
+            workspace_num = get_first_available_axe_workspace(project_file)
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, project_name
+            )
+        except (ValueError, RuntimeError):
+            return None
+
+        return (
+            project_file,
+            project_name,
+            workspace_dir,
+            workspace_num,
+            hg_ref,
+        )
+
     def _finish_agent_launch(self, prompt: str) -> None:
         """Complete agent launch with the given prompt.
 
@@ -134,6 +191,7 @@ class AgentLaunchMixin:
         # Detect workspace-managing embedded workflows in home mode
         gh_ref_info: str | None = None
         git_ref_info: str | None = None
+        hg_ref_info: str | None = None
         if ctx.is_home_mode:
             resolved = self._resolve_gh_from_prompt(prompt)
             if resolved is not None:
@@ -162,9 +220,37 @@ class AgentLaunchMixin:
                 ctx.update_target = ""  # git.yml handles checkout
                 ctx.is_home_mode = False  # Enable workspace claiming/releasing
 
+        if ctx.is_home_mode and gh_ref_info is None and git_ref_info is None:
+            hg_resolved = self._resolve_hg_from_prompt(prompt)
+            if hg_resolved is not None:
+                (
+                    ctx.project_file,
+                    ctx.project_name,
+                    ctx.workspace_dir,
+                    ctx.workspace_num,
+                    hg_ref_info,
+                ) = hg_resolved
+                ctx.display_name = ctx.project_name
+                ctx.update_target = ""  # hg.yml handles checkout
+                ctx.is_home_mode = False  # Enable workspace claiming/releasing
+
+        # Also detect #hg in non-home mode: the ace(run) workspace and
+        # the embedded #hg workflow must share the same workspace number,
+        # so pass pre-allocation env vars to prevent #hg from allocating
+        # a different workspace.
+        if hg_ref_info is None and gh_ref_info is None and git_ref_info is None:
+            hg_match = _HG_REF_PATTERN.search(prompt)
+            if hg_match is not None:
+                hg_ref_info = hg_match.group(1) or hg_match.group(2)
+
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
-        # Skip if #gh/#git workspace was detected (embedded workflow, not standalone)
-        if prompt.startswith("#") and gh_ref_info is None and git_ref_info is None:
+        # Skip if #gh/#git/#hg workspace was detected (embedded workflow, not standalone)
+        if (
+            prompt.startswith("#")
+            and gh_ref_info is None
+            and git_ref_info is None
+            and hg_ref_info is None
+        ):
             workflow_result = self._try_execute_workflow(prompt)
             if workflow_result is True:
                 # Full workflow executed successfully
@@ -192,6 +278,7 @@ class AgentLaunchMixin:
             is_home_mode=ctx.is_home_mode,
             gh_ref=gh_ref_info,
             git_ref=git_ref_info,
+            hg_ref=hg_ref_info,
         )
 
         # Refresh agents list (deferred to avoid lag)
@@ -291,6 +378,7 @@ class AgentLaunchMixin:
         is_home_mode: bool = False,
         gh_ref: str | None = None,
         git_ref: str | None = None,
+        hg_ref: str | None = None,
     ) -> None:
         """Launch agent as background process.
 
@@ -308,6 +396,7 @@ class AgentLaunchMixin:
             is_home_mode: If True, skip workspace management (for home directory).
             gh_ref: If set, the #gh reference that was pre-resolved by the TUI.
             git_ref: If set, the #git reference that was pre-resolved by the TUI.
+            hg_ref: If set, the #hg reference that was pre-resolved by the TUI.
         """
         import subprocess
         import tempfile
@@ -351,6 +440,10 @@ class AgentLaunchMixin:
             subprocess_env["SASE_GIT_PRE_ALLOCATED"] = "1"
             subprocess_env["SASE_GIT_WORKSPACE_NUM"] = str(workspace_num)
             subprocess_env["SASE_GIT_WORKSPACE_DIR"] = workspace_dir
+        if hg_ref is not None:
+            subprocess_env["SASE_HG_PRE_ALLOCATED"] = "1"
+            subprocess_env["SASE_HG_WORKSPACE_NUM"] = str(workspace_num)
+            subprocess_env["SASE_HG_WORKSPACE_DIR"] = workspace_dir
 
         # Args: cl_name, project_file, workspace_dir, output_path, workspace_num,
         #       workflow_name, prompt_file, timestamp,
