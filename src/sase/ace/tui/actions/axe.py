@@ -669,7 +669,7 @@ class AxeMixin:
             elif getattr(self, "_copy_mode_active", False):
                 footer.update_copy_bindings(self.current_tab)
             else:
-                footer.update_axe_bindings()
+                footer.update_axe_bindings(axe_current_view=self._axe_current_view)
 
             # Update bgcmd list if visible
             if len(self._bgcmd_slots) > 0:

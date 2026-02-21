@@ -202,13 +202,15 @@ class KeybindingFooter(Horizontal):
         text = self._format_bindings(bindings)
         self._update_display(text)
 
-    def update_axe_bindings(self) -> None:
+    def update_axe_bindings(self, *, axe_current_view: str | int = "axe") -> None:
         """Update bindings for Axe tab context."""
-        bindings = self._compute_axe_bindings()
+        bindings = self._compute_axe_bindings(axe_current_view)
         text = self._format_bindings(bindings)
         self._update_display(text)
 
-    def _compute_axe_bindings(self) -> list[tuple[str, str]]:
+    def _compute_axe_bindings(
+        self, axe_current_view: str | int
+    ) -> list[tuple[str, str]]:
         """Compute available bindings for Axe tab.
 
         Returns:
@@ -218,6 +220,11 @@ class KeybindingFooter(Horizontal):
         if self._runner_count > 0:
             bindings.append(("r", f"runners ({self._runner_count})"))
         bindings.append(("x", "clear"))
+        if axe_current_view == "axe":
+            label = "stop axe" if self._axe_running else "start axe"
+        else:
+            label = "kill"
+        bindings.append(("X", label))
         return bindings
 
     def update_leader_bindings(self) -> None:

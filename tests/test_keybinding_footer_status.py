@@ -138,13 +138,23 @@ def test_keybinding_footer_set_axe_stopping() -> None:
 
 
 def test_keybinding_footer_axe_bindings() -> None:
-    """Test that AXE tab shows clear binding."""
+    """Test that AXE tab shows clear and start/stop bindings."""
     footer = KeybindingFooter()
 
-    bindings = footer._compute_axe_bindings()
-
-    assert len(bindings) == 1
+    # Default: axe not running, on axe view
+    bindings = footer._compute_axe_bindings("axe")
+    assert len(bindings) == 2
     assert bindings[0] == ("x", "clear")
+    assert bindings[1] == ("X", "start axe")
+
+    # Axe running, on axe view
+    footer._axe_running = True
+    bindings = footer._compute_axe_bindings("axe")
+    assert bindings[1] == ("X", "stop axe")
+
+    # On bgcmd view
+    bindings = footer._compute_axe_bindings(1)
+    assert bindings[1] == ("X", "kill")
 
 
 def test_keybinding_footer_set_bgcmd_count() -> None:
