@@ -13,48 +13,12 @@ input:
 steps:
   - name: setup
     python: |
-      from sase.git_workspace import resolve_git_ref
-      from sase.gh_workspace import ensure_git_clone
-      from sase.running_field import (
-          get_first_available_axe_workspace,
-          claim_workspace,
+      from sase.scripts.git_setup import main
+      main(
+          git_ref={{ git_ref | tojson }},
+          n={{ n | tojson }},
+          release={{ release | tojson }},
       )
-      import os
-
-      git_ref = {{ git_ref | tojson }}
-      resolved = resolve_git_ref(git_ref)
-
-      project_name = resolved.project_name
-      project_file = resolved.project_file
-
-      n_input = {{ n | tojson }}
-
-      # Check if workspace was pre-allocated by the TUI
-      if os.environ.get("SASE_GIT_PRE_ALLOCATED") == "1":
-          workspace_num = int(os.environ["SASE_GIT_WORKSPACE_NUM"])
-          workspace_dir = os.environ["SASE_GIT_WORKSPACE_DIR"]
-      elif n_input is not None:
-          workspace_num = n_input
-          workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
-      else:
-          workspace_num = get_first_available_axe_workspace(project_file)
-          workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
-
-      should_release = {{ release | tojson }}
-
-      pid = os.getpid()
-      workflow_name = f"git-{git_ref}"
-      claim_workspace(project_file, workspace_num, workflow_name, pid, None, pinned=not should_release)
-
-      print(f"project_name={project_name}")
-      print(f"project_file={project_file}")
-      print(f"workspace_dir={workspace_dir}")
-      print(f"workspace_num={workspace_num}")
-      print(f"checkout_target={resolved.checkout_target}")
-      print(f"primary_workspace_dir={resolved.primary_workspace_dir}")
-      print(f"should_release={'true' if should_release else 'false'}")
-      print(f"_chdir={workspace_dir}")
-      print(f"meta_workspace={workspace_num}")
     output:
       project_name: word
       project_file: path
