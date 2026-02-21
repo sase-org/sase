@@ -250,6 +250,12 @@ class AgentList(OptionList):
             text.append(agent.status, style="bold #5FD75F")  # Green
         elif agent.status == "FAILED":
             text.append(agent.status, style="bold #FF5F5F")  # Red
+        elif agent.status == "PLANNING":
+            text.append(agent.status, style="bold #FF87AF")  # Pink
+        elif agent.status == "CODING":
+            text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
+        elif agent.status == "QUESTION":
+            text.append(agent.status, style="bold #FFAF00")  # Amber/orange
         else:
             text.append(agent.status, style="dim")
         text.append(")", style="dim")
