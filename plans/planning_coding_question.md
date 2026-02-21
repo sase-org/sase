@@ -1,3 +1,7 @@
+---
+bead_id: sase-0dw
+---
+
 # Plan: Add PLANNING, CODING, and QUESTION agent statuses
 
 ## Context
