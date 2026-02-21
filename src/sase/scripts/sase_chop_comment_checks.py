@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Comment check cycle chop script."""
+
+import argparse
+
+from sase.axe.check_cycles import CheckCycleRunner
+from sase.axe.chop_script_context import read_chop_context
+from sase.ace.query import parse_query
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--context", required=True)
+    args = parser.parse_args()
+
+    ctx = read_chop_context(args.context)
+
+    parsed_query = parse_query(ctx.query) if ctx.query else None
+
+    def log(message: str, style: str | None = None) -> None:
+        print(message)
+
+    runner = CheckCycleRunner(parsed_query, log)
+    runner.run_comment_check_cycle()
+
+
+if __name__ == "__main__":
+    main()

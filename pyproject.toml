@@ -61,6 +61,18 @@ sase_hg_rewind = "sase.scripts:sase_hg_rewind"
 sase_metahook_scuba = "sase.scripts:sase_metahook_scuba"
 sase_metahook_hg_presubmit_tap = "sase.scripts:sase_metahook_hg_presubmit_tap"
 sase_migrate_statuses = "sase.scripts:sase_migrate_statuses"
+sase_chop_hook_checks = "sase.scripts:sase_chop_hook_checks"
+sase_chop_mentor_checks = "sase.scripts:sase_chop_mentor_checks"
+sase_chop_workflow_checks = "sase.scripts:sase_chop_workflow_checks"
+sase_chop_pending_checks_poll = "sase.scripts:sase_chop_pending_checks_poll"
+sase_chop_comment_zombie_checks = "sase.scripts:sase_chop_comment_zombie_checks"
+sase_chop_suffix_transforms = "sase.scripts:sase_chop_suffix_transforms"
+sase_chop_orphan_cleanup = "sase.scripts:sase_chop_orphan_cleanup"
+sase_chop_stale_running_cleanup = "sase.scripts:sase_chop_stale_running_cleanup"
+sase_chop_wait_checks = "sase.scripts:sase_chop_wait_checks"
+sase_chop_cl_submitted_checks = "sase.scripts:sase_chop_cl_submitted_checks"
+sase_chop_comment_checks = "sase.scripts:sase_chop_comment_checks"
+sase_chop_error_digest = "sase.scripts:sase_chop_error_digest"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]

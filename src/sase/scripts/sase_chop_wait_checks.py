@@ -1,26 +1,29 @@
-"""Wait dependency resolution chop.
+#!/usr/bin/env python3
+"""Wait dependency resolution chop script.
 
 Scans all waiting.json markers across projects and resolves dependencies
 by checking if named agents have completed. Writes ready.json when all
 dependencies for a waiting agent are satisfied.
 """
 
+import argparse
 import json
 from pathlib import Path
 
 from sase.agent_names import find_named_agent
-from sase.axe.chop_registry import ChopContext, register_chop
+from sase.axe.chop_script_context import read_chop_context
 
 
-@register_chop("wait_checks")
-def run_wait_checks(ctx: ChopContext) -> None:
-    """Resolve wait dependencies for blocked agents.
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--context", required=True)
+    args = parser.parse_args()
 
-    Scans ``~/.sase/projects/*/artifacts/ace-run/*/waiting.json`` and
-    checks whether each dependency (named agent) has a ``done.json``.
-    When all dependencies are satisfied, writes ``ready.json`` to
-    unblock the waiting agent.
-    """
+    read_chop_context(args.context)  # validate context file
+
+    def log(message: str, style: str | None = None) -> None:
+        print(message)
+
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
         return
@@ -41,7 +44,7 @@ def run_wait_checks(ctx: ChopContext) -> None:
             if not waiting_path.exists():
                 continue
 
-            # Already resolved — skip
+            # Already resolved -- skip
             ready_path = artifact_dir / "ready.json"
             if ready_path.exists():
                 continue
@@ -69,10 +72,9 @@ def run_wait_checks(ctx: ChopContext) -> None:
 
             if all_done:
                 cl_name = data.get("cl_name", "unknown")
-                ctx.log_callback(
+                log(
                     f"[wait_checks] Dependencies satisfied for {cl_name}, "
                     f"waited on: {', '.join(waiting_for)}",
-                    None,
                 )
                 try:
                     with open(ready_path, "w", encoding="utf-8") as f:
@@ -83,3 +85,7 @@ def run_wait_checks(ctx: ChopContext) -> None:
                         )
                 except OSError:
                     pass
+
+
+if __name__ == "__main__":
+    main()

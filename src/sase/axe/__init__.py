@@ -14,13 +14,8 @@ from .process import (
     start_axe_daemon,
     stop_axe_daemon,
 )
-from .chop_registry import (
-    ChopContext,
-    get_all_chops,
-    get_chop,
-    list_chops,
-    register_chop,
-)
+from .chop_script_context import ChopScriptContext
+from .chop_script_runner import discover_chop_script, list_chop_scripts, run_chop_script
 from .config import AxeConfig, LumberjackConfig, load_axe_config
 from .runner_pool import RunnerPool, SharedRunnerPool
 from .state import (
@@ -56,12 +51,11 @@ __all__ = [
     "is_axe_running",
     "start_axe_daemon",
     "stop_axe_daemon",
-    # Chop registry
-    "ChopContext",
-    "get_all_chops",
-    "get_chop",
-    "list_chops",
-    "register_chop",
+    # Chop scripts
+    "ChopScriptContext",
+    "discover_chop_script",
+    "list_chop_scripts",
+    "run_chop_script",
     # Runner pool
     "RunnerPool",
     "SharedRunnerPool",

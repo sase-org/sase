@@ -1,6 +1,7 @@
 """Tests for the Lumberjack class."""
 
 import os
+import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -33,6 +34,20 @@ def axe_config() -> AxeConfig:
     return AxeConfig(max_runners=3, zombie_timeout_seconds=3600, query="")
 
 
+def _ok_result() -> subprocess.CompletedProcess[str]:
+    """Return a successful CompletedProcess for mocking."""
+    return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+
+def _fail_result(
+    code: int = 1, stderr: str = "error"
+) -> subprocess.CompletedProcess[str]:
+    """Return a failed CompletedProcess for mocking."""
+    return subprocess.CompletedProcess(
+        args=[], returncode=code, stdout="", stderr=stderr
+    )
+
+
 # --- Instantiation Tests ---
 
 
@@ -60,66 +75,93 @@ def test_lumberjack_with_query(
 # --- Tick Execution Tests ---
 
 
-@patch("sase.axe.lumberjack.get_chop")
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_invokes_chops(
     mock_find: MagicMock,
-    mock_get_chop: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
     temp_state_dir: Path,
     lj_config: LumberjackConfig,
     axe_config: AxeConfig,
 ) -> None:
-    """Test that _run_tick invokes each configured chop."""
-    mock_chop_func = MagicMock()
-    mock_get_chop.return_value = mock_chop_func
+    """Test that _run_tick discovers and runs each configured chop script."""
+    mock_discover.return_value = Path("/fake/sase_chop_hook_checks")
+    mock_run.return_value = _ok_result()
 
     lj = Lumberjack("test_lj", lj_config, axe_config)
     lj._run_tick()
 
-    mock_get_chop.assert_called_once_with("hook_checks")
-    mock_chop_func.assert_called_once()
+    mock_discover.assert_called_once_with("hook_checks", [])
+    mock_run.assert_called_once()
     assert lj._metrics.cycles_run == 1
     assert lj._metrics.chops_executed == 1
 
 
-@patch("sase.axe.lumberjack.get_chop")
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_multiple_chops(
     mock_find: MagicMock,
-    mock_get_chop: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """Test that _run_tick invokes multiple chops."""
+    """Test that _run_tick invokes multiple chop scripts."""
     multi_config = LumberjackConfig(
         name="multi", interval=5, chops=["hook_checks", "mentor_checks"]
     )
-    mock_chop_func = MagicMock()
-    mock_get_chop.return_value = mock_chop_func
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _ok_result()
 
     lj = Lumberjack("multi", multi_config, axe_config)
     lj._run_tick()
 
-    assert mock_get_chop.call_count == 2
+    assert mock_discover.call_count == 2
     assert lj._metrics.chops_executed == 2
 
 
-@patch("sase.axe.lumberjack.get_chop")
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_error_handling(
     mock_find: MagicMock,
-    mock_get_chop: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
     temp_state_dir: Path,
     lj_config: LumberjackConfig,
     axe_config: AxeConfig,
 ) -> None:
-    """Test that errors in chops are caught and recorded."""
-    mock_get_chop.return_value = MagicMock(side_effect=ValueError("boom"))
+    """Test that chop script failures are caught and recorded."""
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _fail_result()
 
     lj = Lumberjack("test_lj", lj_config, axe_config)
     lj._run_tick()
 
     assert lj._metrics.errors_encountered == 1
+    assert lj._metrics.cycles_run == 1
+
+
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_run_tick_missing_script(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    temp_state_dir: Path,
+    lj_config: LumberjackConfig,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that missing chop scripts are recorded as errors."""
+    mock_discover.return_value = None
+
+    lj = Lumberjack("test_lj", lj_config, axe_config)
+    lj._run_tick()
+
+    assert lj._metrics.errors_encountered == 1
+    assert lj._metrics.chops_executed == 0
     assert lj._metrics.cycles_run == 1
 
 

@@ -14,6 +14,23 @@ from sase.axe.cli import (
 )
 from sase.axe.config import AxeConfig, LumberjackConfig
 
+ALL_12_CHOP_NAMES = sorted(
+    [
+        "hook_checks",
+        "mentor_checks",
+        "workflow_checks",
+        "pending_checks_poll",
+        "comment_zombie_checks",
+        "suffix_transforms",
+        "orphan_cleanup",
+        "stale_running_cleanup",
+        "cl_submitted_checks",
+        "comment_checks",
+        "error_digest",
+        "wait_checks",
+    ]
+)
+
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
@@ -49,8 +66,15 @@ def default_axe_config() -> AxeConfig:
 # --- handle_axe_chop_list Tests ---
 
 
-def test_handle_axe_chop_list_prints_chops(capsys: pytest.CaptureFixture[str]) -> None:
-    """Test that chop list prints all 12 registered chop names."""
+@patch("sase.axe.cli.list_chop_scripts", return_value=ALL_12_CHOP_NAMES)
+@patch("sase.axe.cli.load_axe_config")
+def test_handle_axe_chop_list_prints_chops(
+    mock_load: MagicMock,
+    mock_list: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that chop list prints all 12 chop script names."""
+    mock_load.return_value = AxeConfig()
     args = argparse.Namespace()
     with pytest.raises(SystemExit) as exc_info:
         handle_axe_chop_list(args)

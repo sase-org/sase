@@ -152,3 +152,75 @@ def sase_metahook_hg_presubmit_tap() -> NoReturn:
 
 def sase_migrate_statuses() -> NoReturn:
     _exec_script("sase_migrate_statuses")
+
+
+def sase_chop_hook_checks() -> None:
+    from sase.scripts.sase_chop_hook_checks import main
+
+    main()
+
+
+def sase_chop_mentor_checks() -> None:
+    from sase.scripts.sase_chop_mentor_checks import main
+
+    main()
+
+
+def sase_chop_workflow_checks() -> None:
+    from sase.scripts.sase_chop_workflow_checks import main
+
+    main()
+
+
+def sase_chop_pending_checks_poll() -> None:
+    from sase.scripts.sase_chop_pending_checks_poll import main
+
+    main()
+
+
+def sase_chop_comment_zombie_checks() -> None:
+    from sase.scripts.sase_chop_comment_zombie_checks import main
+
+    main()
+
+
+def sase_chop_suffix_transforms() -> None:
+    from sase.scripts.sase_chop_suffix_transforms import main
+
+    main()
+
+
+def sase_chop_orphan_cleanup() -> None:
+    from sase.scripts.sase_chop_orphan_cleanup import main
+
+    main()
+
+
+def sase_chop_stale_running_cleanup() -> None:
+    from sase.scripts.sase_chop_stale_running_cleanup import main
+
+    main()
+
+
+def sase_chop_wait_checks() -> None:
+    from sase.scripts.sase_chop_wait_checks import main
+
+    main()
+
+
+def sase_chop_cl_submitted_checks() -> None:
+    from sase.scripts.sase_chop_cl_submitted_checks import main
+
+    main()
+
+
+def sase_chop_comment_checks() -> None:
+    from sase.scripts.sase_chop_comment_checks import main
+
+    main()
+
+
+def sase_chop_error_digest() -> None:
+    from sase.scripts.sase_chop_error_digest import main
+
+    main()

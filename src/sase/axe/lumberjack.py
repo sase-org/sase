@@ -20,7 +20,12 @@ from sase.ace.query import QueryExpr, parse_query
 from sase.sase_utils import EASTERN_TZ
 
 from .check_cycles import CheckCycleRunner
-from .chop_registry import ChopContext, get_chop
+from .chop_script_context import (
+    ChopScriptContext,
+    serialize_changespecs,
+    write_chop_context,
+)
+from .chop_script_runner import discover_chop_script, run_chop_script
 from .config import AxeConfig, LumberjackConfig
 from .runner_pool import RunnerPool
 from .state import (
@@ -89,30 +94,61 @@ class Lumberjack:
             f.write(text)
 
     def _run_tick(self) -> None:
-        """Execute one tick: refresh changespecs, build context, invoke chops."""
+        """Execute one tick: refresh changespecs, serialize context, invoke chop scripts."""
         all_changespecs = self._check_runner.get_all_changespecs()
         filtered_changespecs = self._check_runner.get_filtered_changespecs(
             all_changespecs
         )
 
-        ctx = ChopContext(
-            log_callback=self._log,
-            runner_pool=self.runner_pool,
-            metrics=self._axe_metrics,
-            parsed_query=self.parsed_query,
+        # Serialize changespecs and context to disk for chop scripts
+        tick_dir = self._state_dir / "tick"
+        tick_dir.mkdir(parents=True, exist_ok=True)
+
+        all_cs_file = str(tick_dir / "all_changespecs.json")
+        filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
+        context_file = str(tick_dir / "context.json")
+
+        serialize_changespecs(all_changespecs, all_cs_file)
+        serialize_changespecs(filtered_changespecs, filtered_cs_file)
+
+        ctx = ChopScriptContext(
             max_runners=self.axe_config.max_runners,
             zombie_timeout_seconds=self.axe_config.zombie_timeout_seconds,
-            all_changespecs=all_changespecs,
-            filtered_changespecs=filtered_changespecs,
+            query=self.axe_config.query,
             lumberjack_name=self.name,
-            state_dir=self._state_dir,
+            state_dir=str(self._state_dir),
+            all_changespecs_file=all_cs_file,
+            filtered_changespecs_file=filtered_cs_file,
         )
+        write_chop_context(ctx, context_file)
 
         for chop_name in self.config.chops:
             try:
-                chop_func = get_chop(chop_name)
-                chop_func(ctx)
-                self._metrics.chops_executed += 1
+                script = discover_chop_script(
+                    chop_name, self.axe_config.chop_script_dirs
+                )
+                if script is None:
+                    self._handle_error(
+                        chop_name,
+                        RuntimeError(f"Chop script not found: {chop_name}"),
+                    )
+                    continue
+                result = run_chop_script(script, context_file)
+                if result.stdout:
+                    for line in result.stdout.strip().splitlines():
+                        if line:
+                            self._log(line)
+                if result.returncode == 0:
+                    self._metrics.chops_executed += 1
+                else:
+                    stderr = result.stderr.strip() if result.stderr else ""
+                    self._handle_error(
+                        chop_name,
+                        RuntimeError(
+                            f"exit code {result.returncode}"
+                            + (f": {stderr}" if stderr else "")
+                        ),
+                    )
             except Exception as e:
                 self._handle_error(chop_name, e)
 

@@ -9,18 +9,23 @@ import sys
 
 from sase.ace.hooks.processes import is_process_running
 
-from .chop_registry import ChopContext, get_chop, list_chops
+from .chop_script_context import (
+    ChopScriptContext,
+    serialize_changespecs,
+    write_chop_context,
+)
+from .chop_script_runner import discover_chop_script, list_chop_scripts, run_chop_script
 from .config import AxeConfig, LumberjackConfig, load_axe_config
 from .state import (
-    AxeMetrics,
     ensure_lumberjack_dirs,
     read_lumberjack_status,
 )
 
 
 def handle_axe_chop_list(args: argparse.Namespace) -> None:
-    """Print all registered chop names."""
-    for name in list_chops():
+    """Print all available chop script names."""
+    config = load_axe_config()
+    for name in list_chop_scripts(config.chop_script_dirs):
         print(name)
     sys.exit(0)
 
@@ -28,22 +33,17 @@ def handle_axe_chop_list(args: argparse.Namespace) -> None:
 def handle_axe_chop_run(args: argparse.Namespace) -> None:
     """Run a single chop once in the foreground, then exit."""
     from sase.ace.changespec import find_all_changespecs
-    from sase.ace.query import QueryExpr, parse_query
-
-    from .runner_pool import RunnerPool
+    from sase.ace.query import evaluate_query, parse_query
 
     chop_name: str = args.chop_name
-    try:
-        chop_func = get_chop(chop_name)
-    except KeyError:
+    config = load_axe_config()
+
+    script = discover_chop_script(chop_name, config.chop_script_dirs)
+    if script is None:
         print(f"Error: unknown chop '{chop_name}'")
         sys.exit(1)
 
-    config = load_axe_config()
-    parsed_query: QueryExpr | None = None
     query: str = getattr(args, "query", "") or config.query
-    if query:
-        parsed_query = parse_query(query)
 
     max_runners: int = getattr(args, "max_runners", None) or config.max_runners
     zombie_timeout: int = (
@@ -52,35 +52,40 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
 
     all_changespecs = find_all_changespecs()
     filtered_changespecs = all_changespecs
-    if parsed_query:
-        from sase.ace.query import evaluate_query
-
+    if query:
+        parsed = parse_query(query)
         filtered_changespecs = [
-            cs
-            for cs in all_changespecs
-            if evaluate_query(parsed_query, cs, all_changespecs)
+            cs for cs in all_changespecs if evaluate_query(parsed, cs, all_changespecs)
         ]
 
     state_dir = ensure_lumberjack_dirs("_oneshot")
+    tick_dir = state_dir / "tick"
+    tick_dir.mkdir(parents=True, exist_ok=True)
 
-    def _log(message: str, style: str | None = None) -> None:
-        print(message)
+    all_cs_file = str(tick_dir / "all_changespecs.json")
+    filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
+    context_file = str(tick_dir / "context.json")
 
-    ctx = ChopContext(
-        log_callback=_log,
-        runner_pool=RunnerPool(max_runners),
-        metrics=AxeMetrics(),
-        parsed_query=parsed_query,
+    serialize_changespecs(all_changespecs, all_cs_file)
+    serialize_changespecs(filtered_changespecs, filtered_cs_file)
+
+    ctx = ChopScriptContext(
         max_runners=max_runners,
         zombie_timeout_seconds=zombie_timeout,
-        all_changespecs=all_changespecs,
-        filtered_changespecs=filtered_changespecs,
+        query=query,
         lumberjack_name="_oneshot",
-        state_dir=state_dir,
+        state_dir=str(state_dir),
+        all_changespecs_file=all_cs_file,
+        filtered_changespecs_file=filtered_cs_file,
     )
+    write_chop_context(ctx, context_file)
 
-    chop_func(ctx)
-    sys.exit(0)
+    result = run_chop_script(script, context_file)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    sys.exit(result.returncode)
 
 
 def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
@@ -112,6 +117,7 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
         max_runners=max_runners,
         zombie_timeout_seconds=zombie_timeout,
         query=query,
+        chop_script_dirs=config.chop_script_dirs,
         lumberjacks=config.lumberjacks,
     )
 
