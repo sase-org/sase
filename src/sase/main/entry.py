@@ -346,9 +346,12 @@ def main() -> NoReturn:
             preprocess_prompt_late,
         )
 
+        from sase.main.query_handler import expand_embedded_workflows_in_query
+
         prompt = args.prompt if args.prompt else sys.stdin.read()
         early = preprocess_prompt_early(prompt)
-        processed = preprocess_prompt_late(early.prompt, file_ref_mode="validate")
+        expanded, _post_workflows = expand_embedded_workflows_in_query(early.prompt)
+        processed = preprocess_prompt_late(expanded, file_ref_mode="validate")
         print(processed, end="")
         sys.exit(0)
 
