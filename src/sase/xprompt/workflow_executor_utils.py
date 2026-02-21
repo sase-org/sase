@@ -73,7 +73,9 @@ def parse_bash_output(output: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # Try key=value format
+    # Try key=value format — collect all key=value lines, ignoring
+    # non-matching lines (e.g. incidental output from git commands).
+    # Only fall back to plain-text mode when NO key=value lines exist.
     result: dict[str, Any] = {}
     lines = output.split("\n")
 
@@ -87,13 +89,12 @@ def parse_bash_output(output: str) -> dict[str, Any]:
         if match:
             key, value = match.groups()
             result[key] = value
-        else:
-            # If we find a line without =, treat whole output as text
-            # This handles multi-line values
-            if not result:
-                return {"_output": output}
 
-    return result
+    if result:
+        return result
+
+    # No key=value lines found — treat as plain text
+    return {"_output": output} if output else {}
 
 
 def coerce_output_types(
