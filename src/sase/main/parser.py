@@ -83,25 +83,7 @@ def create_parser() -> argparse.ArgumentParser:
         "axe",
         help="Schedule-based daemon for continuous ChangeSpec status updates",
     )
-    # Options for 'axe' (keep sorted alphabetically by long option name)
-    axe_parser.add_argument(
-        "--comment-check-interval",
-        type=int,
-        default=None,
-        help="Comment check interval in seconds (default: 60 = 1 minute)",
-    )
-    axe_parser.add_argument(
-        "--full-check-interval",
-        type=int,
-        default=None,
-        help="Full check interval in seconds (default: 300 = 5 minutes)",
-    )
-    axe_parser.add_argument(
-        "--hook-interval",
-        type=int,
-        default=None,
-        help="Hook check interval in seconds (default: 1)",
-    )
+    # Options on root axe parser (for orchestrator mode = bare `sase axe`)
     axe_parser.add_argument(
         "-r",
         "--max-runners",
@@ -129,6 +111,48 @@ def create_parser() -> argparse.ArgumentParser:
         help="Zombie detection timeout in seconds (default: 7200 = 2 hours). "
         "Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
     )
+
+    # Nested subparsers for axe
+    axe_subparsers = axe_parser.add_subparsers(
+        dest="axe_subcommand", help="Axe subcommands"
+    )
+
+    # --- axe chop ---
+    axe_chop_parser = axe_subparsers.add_parser("chop", help="Chop management commands")
+    axe_chop_subparsers = axe_chop_parser.add_subparsers(
+        dest="axe_chop_subcommand", help="Chop subcommands"
+    )
+
+    # sase axe chop list
+    axe_chop_subparsers.add_parser("list", help="List all registered chops")
+
+    # sase axe chop run <name>
+    axe_chop_run_parser = axe_chop_subparsers.add_parser(
+        "run", help="Run a single chop once in the foreground"
+    )
+    axe_chop_run_parser.add_argument("chop_name", help="Name of the chop to run")
+
+    # --- axe lumberjack ---
+    axe_lj_parser = axe_subparsers.add_parser(
+        "lumberjack", help="Lumberjack management commands"
+    )
+    axe_lj_subparsers = axe_lj_parser.add_subparsers(
+        dest="axe_lj_subcommand", help="Lumberjack subcommands"
+    )
+
+    # sase axe lumberjack list
+    axe_lj_subparsers.add_parser("list", help="List configured lumberjacks")
+
+    # sase axe lumberjack run <name>
+    axe_lj_run_parser = axe_lj_subparsers.add_parser(
+        "run", help="Run a single lumberjack in the foreground"
+    )
+    axe_lj_run_parser.add_argument(
+        "lumberjack_name", help="Name of the lumberjack to run"
+    )
+
+    # sase axe lumberjack status
+    axe_lj_subparsers.add_parser("status", help="Show status of all lumberjacks")
 
     # --- ax ---
     ax_parser = top_level_subparsers.add_parser(

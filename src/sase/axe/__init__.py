@@ -5,9 +5,12 @@ running hooks, managing workflows, and checking CL status.
 """
 
 from .core import AxeScheduler
+from .lumberjack import Lumberjack
+from .orchestrator import Orchestrator
 from .process import (
     get_axe_pid,
     get_axe_status,
+    get_lumberjack_names,
     is_axe_running,
     start_axe_daemon,
     stop_axe_daemon,
@@ -42,6 +45,8 @@ from .state import (
 __all__ = [
     # Core
     "AxeScheduler",
+    "Lumberjack",
+    "Orchestrator",
     # Config
     "AxeConfig",
     "LumberjackConfig",
@@ -49,6 +54,7 @@ __all__ = [
     # Process control
     "get_axe_pid",
     "get_axe_status",
+    "get_lumberjack_names",
     "is_axe_running",
     "start_axe_daemon",
     "stop_axe_daemon",

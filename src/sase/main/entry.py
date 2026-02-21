@@ -341,49 +341,75 @@ def main() -> NoReturn:
 
     # --- axe ---
     if args.command == "axe":
-        from sase.axe import AxeScheduler
-        from sase.axe_config import load_axe_config
-
         # Wire --vcs-provider to env var for downstream resolution
         vcs_provider = getattr(args, "vcs_provider", None)
         if vcs_provider is not None:
             os.environ["SASE_VCS_PROVIDER"] = vcs_provider
 
-        config = load_axe_config()
-        try:
-            scheduler = AxeScheduler(
-                full_check_interval=(
-                    args.full_check_interval
-                    if args.full_check_interval is not None
-                    else config.full_check_interval
-                ),
-                hook_interval=(
-                    args.hook_interval
-                    if args.hook_interval is not None
-                    else config.hook_interval
-                ),
-                zombie_timeout_seconds=(
-                    args.zombie_timeout
-                    if args.zombie_timeout is not None
-                    else config.zombie_timeout_seconds
-                ),
-                max_runners=(
-                    args.max_runners
-                    if args.max_runners is not None
-                    else config.max_runners
-                ),
-                query=args.query,
-                comment_check_interval=(
-                    args.comment_check_interval
-                    if args.comment_check_interval is not None
-                    else config.comment_check_interval
-                ),
+        axe_sub = getattr(args, "axe_subcommand", None)
+
+        if axe_sub == "chop":
+            from sase.axe.cli import handle_axe_chop_list, handle_axe_chop_run
+
+            chop_sub = getattr(args, "axe_chop_subcommand", None)
+            if chop_sub == "list":
+                handle_axe_chop_list(args)
+            elif chop_sub == "run":
+                handle_axe_chop_run(args)
+            else:
+                print("Usage: sase axe chop {list,run}")
+                sys.exit(1)
+
+        elif axe_sub == "lumberjack":
+            from sase.axe.cli import (
+                handle_axe_lumberjack_list,
+                handle_axe_lumberjack_run,
+                handle_axe_lumberjack_status,
             )
-        except QueryParseError as e:
-            print(f"Error: Invalid query: {e}")
-            sys.exit(1)
-        success = scheduler.run()
-        sys.exit(0 if success else 1)
+
+            lj_sub = getattr(args, "axe_lj_subcommand", None)
+            if lj_sub == "list":
+                handle_axe_lumberjack_list(args)
+            elif lj_sub == "run":
+                handle_axe_lumberjack_run(args)
+            elif lj_sub == "status":
+                handle_axe_lumberjack_status(args)
+            else:
+                print("Usage: sase axe lumberjack {list,run,status}")
+                sys.exit(1)
+
+        else:
+            # Bare `sase axe` — orchestrator mode
+            from sase.axe.config import AxeConfig, load_axe_config
+            from sase.axe.orchestrator import Orchestrator
+
+            config = load_axe_config()
+
+            # Apply CLI overrides
+            max_runners = (
+                args.max_runners if args.max_runners is not None else config.max_runners
+            )
+            zombie_timeout = (
+                args.zombie_timeout
+                if args.zombie_timeout is not None
+                else config.zombie_timeout_seconds
+            )
+            query = args.query or config.query
+
+            config = AxeConfig(
+                max_runners=max_runners,
+                zombie_timeout_seconds=zombie_timeout,
+                query=query,
+                lumberjacks=config.lumberjacks,
+            )
+
+            try:
+                orchestrator = Orchestrator(config)
+            except QueryParseError as e:
+                print(f"Error: Invalid query: {e}")
+                sys.exit(1)
+            success = orchestrator.run()
+            sys.exit(0 if success else 1)
 
     # --- xprompt ---
     if args.command == "xprompt":
