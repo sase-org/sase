@@ -9,7 +9,7 @@ from .hook_history_modal import HookHistoryModal
 from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
-from .project_select_modal import ProjectSelectModal, SelectionItem
+from .project_select_modal import ProjectSelectModal, ProjectSelectResult, SelectionItem
 from .prompt_history_modal import (
     PromptHistoryAction,
     PromptHistoryModal,
@@ -41,6 +41,7 @@ __all__ = [
     "ProcessSelectModal",
     "ProcessSelection",
     "ProjectSelectModal",
+    "ProjectSelectResult",
     "PromptHistoryAction",
     "PromptHistoryModal",
     "PromptHistoryResult",

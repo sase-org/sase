@@ -139,6 +139,50 @@ class PromptBarMixin:
         # Show prompt input bar
         self.mount(PromptInputBar(initial_value=initial_text, id="prompt-input-bar"))  # type: ignore[attr-defined]
 
+    def _select_and_open_editor_for_home(
+        self,
+        initial_text: str = "",
+        display_name: str = "~",
+        history_sort_key: str = "home",
+    ) -> None:
+        """Set up home-mode prompt context and open editor directly.
+
+        Combines ``_show_prompt_input_bar_for_home`` + ``ctrl+g`` into a
+        single step so the user never sees the prompt input bar.
+
+        Args:
+            initial_text: Pre-populated text for the editor.
+            display_name: Display name shown in the prompt context.
+            history_sort_key: Key used to sort/filter prompt history.
+        """
+        from pathlib import Path
+
+        from sase.sase_utils import generate_timestamp
+
+        timestamp = generate_timestamp()
+        workflow_name = f"ace(run)-{timestamp}"
+
+        self._prompt_context = PromptContext(
+            project_name="home",
+            cl_name=None,
+            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            workspace_dir=str(Path.home()),
+            workspace_num=0,
+            workflow_name=workflow_name,
+            timestamp=timestamp,
+            history_sort_key=history_sort_key,
+            display_name=display_name,
+            update_target="",
+            is_home_mode=True,
+        )
+
+        prompt = self._open_editor_for_agent_prompt(initial_text)  # type: ignore[attr-defined]
+        if prompt:
+            self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+        else:
+            self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
+            self._prompt_context = None
+
     def on_prompt_input_bar_submitted(self, event: object) -> None:
         """Handle prompt submission from the input bar."""
         from ...widgets import PromptInputBar

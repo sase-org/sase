@@ -29,8 +29,16 @@ class SelectionItem:
     cl_name: str | None  # CL name if type is "cl", None for projects/home
 
 
+@dataclass
+class ProjectSelectResult:
+    """Result from the project selection modal."""
+
+    selection: SelectionItem | str
+    open_in_editor: bool = False
+
+
 class ProjectSelectModal(
-    OptionListNavigationMixin, ModalScreen[SelectionItem | str | None]
+    OptionListNavigationMixin, ModalScreen[ProjectSelectResult | None]
 ):
     """Modal for selecting project or CL with filtering."""
 
@@ -38,6 +46,7 @@ class ProjectSelectModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("ctrl+d", "delete_project", "Delete Project", priority=True),
+        Binding("ctrl+g", "select_and_edit", "Select & Edit", priority=True),
     ]
 
     def __init__(self) -> None:
@@ -145,6 +154,17 @@ class ProjectSelectModal(
                 Option(self._create_styled_label(item.display_name), id=str(i))
             )
 
+    def _dismiss_selection(
+        self, item: SelectionItem | str, *, open_in_editor: bool = False
+    ) -> None:
+        """Dismiss the modal with a ProjectSelectResult.
+
+        Args:
+            item: The selected item or custom string.
+            open_in_editor: Whether to open the prompt in an editor.
+        """
+        self.dismiss(ProjectSelectResult(selection=item, open_in_editor=open_in_editor))
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input - select highlighted item or use as custom CL."""
         filter_text = event.value.strip()
@@ -155,12 +175,12 @@ class ProjectSelectModal(
             option_list = self.query_one("#selection-list", OptionList)
             highlighted = option_list.highlighted
             if highlighted is not None and 0 <= highlighted < len(filtered_items):
-                self.dismiss(filtered_items[highlighted])
+                self._dismiss_selection(filtered_items[highlighted])
             else:
-                self.dismiss(filtered_items[0])
+                self._dismiss_selection(filtered_items[0])
         elif filter_text:
             # No match but user typed something - use input as custom CL name
-            self.dismiss(filter_text)
+            self._dismiss_selection(filter_text)
         else:
             # Empty input and no items - cancel
             self.dismiss(None)
@@ -173,7 +193,7 @@ class ProjectSelectModal(
             filtered_items = self._get_filtered_items(filter_input.value)
             idx = int(event.option.id)
             if 0 <= idx < len(filtered_items):
-                self.dismiss(filtered_items[idx])
+                self._dismiss_selection(filtered_items[idx])
 
     def _get_highlighted_item(self) -> SelectionItem | None:
         """Get the currently highlighted SelectionItem."""
@@ -186,6 +206,25 @@ class ProjectSelectModal(
         if 0 <= highlighted < len(filtered_items):
             return filtered_items[highlighted]
         return None
+
+    def action_select_and_edit(self) -> None:
+        """Select the highlighted item and open the prompt in an editor."""
+        filter_text = self.query_one("#filter-input", FilterInput).value.strip()
+        filtered_items = self._get_filtered_items(filter_text)
+
+        if filtered_items:
+            option_list = self.query_one("#selection-list", OptionList)
+            highlighted = option_list.highlighted
+            if highlighted is not None and 0 <= highlighted < len(filtered_items):
+                self._dismiss_selection(
+                    filtered_items[highlighted], open_in_editor=True
+                )
+            else:
+                self._dismiss_selection(filtered_items[0], open_in_editor=True)
+        elif filter_text:
+            self._dismiss_selection(filter_text, open_in_editor=True)
+        else:
+            self.dismiss(None)
 
     def action_delete_project(self) -> None:
         """Delete the project file for the highlighted item."""

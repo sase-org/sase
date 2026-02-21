@@ -121,45 +121,69 @@ class EntryPointsMixin:
         """Start a custom agent by selecting project or CL (works on all tabs)."""
         from ...modals import (
             ProjectSelectModal,
+            ProjectSelectResult,
             SelectionItem,
         )
 
-        def on_project_select(result: SelectionItem | str | None) -> None:
+        def on_project_select(result: ProjectSelectResult | None) -> None:
             if result is None:
                 self.notify("Selection cancelled")  # type: ignore[attr-defined]
                 return
 
+            selection = result.selection
+            open_in_editor = result.open_in_editor
+
             # Handle home directory selection
-            if isinstance(result, SelectionItem) and result.item_type == "home":
-                self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+            if isinstance(selection, SelectionItem) and selection.item_type == "home":
+                if open_in_editor:
+                    self._select_and_open_editor_for_home()  # type: ignore[attr-defined]
+                else:
+                    self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
 
             # Determine selection type and details
-            if isinstance(result, str):
+            if isinstance(selection, str):
                 # Custom name entered - no project file, use plain home mode
-                self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+                if open_in_editor:
+                    self._select_and_open_editor_for_home()  # type: ignore[attr-defined]
+                else:
+                    self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
 
-            project_name: str = result.project_name
+            project_name: str = selection.project_name
             project_file = os.path.expanduser(
                 f"~/.sase/projects/{project_name}/{project_name}.gp"
             )
 
-            if result.item_type == "cl" and result.cl_name:
-                prefix = _vcs_prompt_prefix(project_file, result.cl_name)
-                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-                    initial_text=prefix,
-                    display_name=result.cl_name,
-                    history_sort_key=result.cl_name,
-                )
+            if selection.item_type == "cl" and selection.cl_name:
+                prefix = _vcs_prompt_prefix(project_file, selection.cl_name)
+                if open_in_editor:
+                    self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
+                        initial_text=prefix,
+                        display_name=selection.cl_name,
+                        history_sort_key=selection.cl_name,
+                    )
+                else:
+                    self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                        initial_text=prefix,
+                        display_name=selection.cl_name,
+                        history_sort_key=selection.cl_name,
+                    )
             else:
                 # Project selection
                 prefix = _vcs_prompt_prefix(project_file, project_name)
-                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-                    initial_text=prefix,
-                    display_name=project_name,
-                    history_sort_key=project_name,
-                )
+                if open_in_editor:
+                    self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
+                        initial_text=prefix,
+                        display_name=project_name,
+                        history_sort_key=project_name,
+                    )
+                else:
+                    self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                        initial_text=prefix,
+                        display_name=project_name,
+                        history_sort_key=project_name,
+                    )
 
         self.push_screen(ProjectSelectModal(), on_project_select)  # type: ignore[attr-defined]
 
