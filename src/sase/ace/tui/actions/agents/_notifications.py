@@ -81,6 +81,14 @@ class AgentNotificationMixin:
 
             agent_timestamp = notification.action_data.get("agent_timestamp")
 
+            # Normalize timestamp to 14-digit format for comparison with
+            # agent.raw_suffix (which is always normalized to 14-digit).
+            # The env var SASE_AGENT_TIMESTAMP uses YYmmdd_HHMMSS (13-char)
+            # but raw_suffix uses YYYYmmddHHMMSS (14-digit).
+            from ...models._timestamps import normalize_to_14_digit
+
+            agent_timestamp = normalize_to_14_digit(agent_timestamp)
+
             # Find matching agent
             for agent in self._agents:
                 if agent.cl_name != cl_name:

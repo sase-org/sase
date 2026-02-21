@@ -35,6 +35,12 @@ def _find_agent_for_notification(
 
     agent_timestamp = notification.action_data.get("agent_timestamp")
 
+    # Normalize timestamp to 14-digit format for comparison with
+    # agent.raw_suffix (which is always normalized to 14-digit).
+    from ...models._timestamps import normalize_to_14_digit
+
+    agent_timestamp = normalize_to_14_digit(agent_timestamp)
+
     agents: list[Agent] = app._agents  # type: ignore[attr-defined]
     for agent in agents:
         if agent.cl_name != cl_name:
@@ -421,6 +427,12 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         return
 
     agent_timestamp = notification.action_data.get("agent_timestamp")
+
+    # Normalize timestamp to 14-digit format for comparison with
+    # agent.raw_suffix (which is always normalized to 14-digit).
+    from ...models._timestamps import normalize_to_14_digit
+
+    agent_timestamp = normalize_to_14_digit(agent_timestamp)
 
     # Find matching agent to get identity
     for agent in app._agents:  # type: ignore[attr-defined]
