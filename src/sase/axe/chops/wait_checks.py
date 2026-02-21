@@ -70,9 +70,9 @@ def run_wait_checks(ctx: ChopContext) -> None:
             if all_done:
                 cl_name = data.get("cl_name", "unknown")
                 ctx.log_callback(
-                    "wait_checks",
-                    f"Dependencies satisfied for {cl_name}, "
+                    f"[wait_checks] Dependencies satisfied for {cl_name}, "
                     f"waited on: {', '.join(waiting_for)}",
+                    None,
                 )
                 try:
                     with open(ready_path, "w", encoding="utf-8") as f:

@@ -77,10 +77,7 @@ class Lumberjack:
     def _log(self, message: str, style: str | None = None) -> None:
         timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
         full_message = f"[{timestamp}] [{self.name}] {message}"
-        if style:
-            self.console.print(f"[{style}]{full_message}[/{style}]")
-        else:
-            self.console.print(full_message)
+        self.console.print(full_message, style=style, markup=False)
         self._flush_log_to_file()
 
     def _flush_log_to_file(self) -> None:
