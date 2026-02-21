@@ -150,6 +150,26 @@ def create_parser() -> argparse.ArgumentParser:
     axe_lj_run_parser.add_argument(
         "lumberjack_name", help="Name of the lumberjack to run"
     )
+    # These flags are forwarded by the orchestrator when spawning lumberjacks
+    axe_lj_run_parser.add_argument(
+        "-q",
+        "--query",
+        default="",
+        help="Query string for filtering ChangeSpecs",
+    )
+    axe_lj_run_parser.add_argument(
+        "-r",
+        "--max-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent runners globally",
+    )
+    axe_lj_run_parser.add_argument(
+        "--zombie-timeout",
+        type=int,
+        default=None,
+        help="Zombie detection timeout in seconds",
+    )
 
     # sase axe lumberjack status
     axe_lj_subparsers.add_parser("status", help="Show status of all lumberjacks")
