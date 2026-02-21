@@ -123,7 +123,7 @@ class AgentsMixinCore(
     _last_unread_count: int
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
 
-    # Agent status override system (for PLANNING/CODING/QUESTION statuses)
+    # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
@@ -167,7 +167,7 @@ class AgentsMixinCore(
             self._agents, self._fold_manager
         )
 
-        # Apply status overrides (PLANNING/CODING/QUESTION)
+        # Apply status overrides (PLANNING/PLAN APPROVED/QUESTION)
         loaded_identities = {a.identity for a in self._agents}
         for agent in self._agents:
             if agent.status in DISMISSABLE_STATUSES:

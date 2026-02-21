@@ -407,7 +407,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         # Update status override based on action
         if agent is not None:
             if result.action == "approve":
-                app._agent_status_overrides[agent.identity] = "CODING"  # type: ignore[attr-defined]
+                app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
             # For reject with feedback: keep "PLANNING" override (no change)
             app._load_agents()  # type: ignore[attr-defined]
 
@@ -419,7 +419,7 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
     """Restore agent status override after a user question is answered.
 
     Looks up the agent's pre-question status and either restores it as the
-    override (e.g. "CODING") or removes the override entirely (reverting
+    override (e.g. "PLAN APPROVED") or removes the override entirely (reverting
     the agent to its disk status, e.g. "RUNNING").
     """
     cl_name = notification.action_data.get("agent_cl_name")
@@ -444,7 +444,7 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         identity = agent.identity
         pre_status = app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
         if pre_status is not None:
-            # Restore previous override (e.g. "CODING")
+            # Restore previous override (e.g. "PLAN APPROVED")
             app._agent_status_overrides[identity] = pre_status  # type: ignore[attr-defined]
         else:
             # No previous override — remove it so agent reverts to disk status
