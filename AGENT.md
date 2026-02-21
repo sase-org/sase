@@ -13,9 +13,12 @@ just fmt           # Auto-format code
 just test          # pytest with coverage
 just check         # All checks (fmt-check + lint + test)
 just test-tox      # Multi-version testing (3.12, 3.13, 3.14)
-sase               # Run CLI
-python -m sase     # Alternative CLI invocation
+.venv/bin/sase     # Run CLI (always use .venv/bin/sase, NEVER bare `sase`)
 ```
+
+**IMPORTANT — Running the `sase` CLI**: Always use `.venv/bin/sase` (or `just` commands which use the venv
+automatically). **Never** run bare `sase`, `pip install`, or `python -m sase` — these resolve outside the project venv
+and can pollute the system Python (pyenv). If `.venv` doesn't exist yet, run `just install` first.
 
 ## Architecture
 
@@ -65,19 +68,19 @@ keystrokes and `--size` to control terminal dimensions.
 
 ```bash
 # See initial TUI state
-sase ace --agent
+.venv/bin/sase ace --agent
 
 # Navigate down two items
-sase ace --agent --keys j j
+.venv/bin/sase ace --agent --keys j j
 
 # Open query modal
-sase ace --agent --keys slash
+.venv/bin/sase ace --agent --keys slash
 
 # Switch to agents tab
-sase ace --agent --keys tab
+.venv/bin/sase ace --agent --keys tab
 
 # Custom terminal size
-sase ace --agent --size 200x50 --keys j
+.venv/bin/sase ace --agent --size 200x50 --keys j
 ```
 
 ## Chezmoi Repo
