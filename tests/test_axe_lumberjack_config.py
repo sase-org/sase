@@ -7,7 +7,6 @@ import yaml
 from sase.axe.config import (
     AxeConfig,
     LumberjackConfig,
-    _default_lumberjacks,
     _parse_lumberjacks,
     load_axe_config,
 )
@@ -75,17 +74,25 @@ def test_parse_lumberjacks_default_chops() -> None:
     assert result["test"].chops == []
 
 
-def test_default_lumberjacks_has_four_entries() -> None:
-    """Test that default lumberjacks match the plan (4 lumberjacks)."""
-    defaults = _default_lumberjacks()
-    assert len(defaults) == 4
-    assert set(defaults.keys()) == {"hooks", "checks", "comments", "housekeeping"}
+def test_load_axe_config_gets_defaults_from_default_config() -> None:
+    """Test that load_axe_config picks up defaults from default_config.yml."""
+    # With no user overrides, default_config.yml provides everything
+    config = load_axe_config()
+    assert config.max_runners == 5
+    assert config.zombie_timeout_seconds == 7200
+    assert len(config.lumberjacks) == 4
+    assert set(config.lumberjacks.keys()) == {
+        "hooks",
+        "checks",
+        "comments",
+        "housekeeping",
+    }
 
 
-def test_default_lumberjacks_hooks() -> None:
-    """Test default hooks lumberjack configuration."""
-    defaults = _default_lumberjacks()
-    hooks = defaults["hooks"]
+def test_load_axe_config_default_hooks_lumberjack() -> None:
+    """Test default hooks lumberjack has expected chops from default_config.yml."""
+    config = load_axe_config()
+    hooks = config.lumberjacks["hooks"]
     assert hooks.interval == 1
     assert "hook_checks" in hooks.chops
     assert "mentor_checks" in hooks.chops
@@ -94,27 +101,27 @@ def test_default_lumberjacks_hooks() -> None:
     assert len(hooks.chops) == 8
 
 
-def test_default_lumberjacks_checks() -> None:
+def test_load_axe_config_default_checks_lumberjack() -> None:
     """Test default checks lumberjack configuration."""
-    defaults = _default_lumberjacks()
-    checks = defaults["checks"]
+    config = load_axe_config()
+    checks = config.lumberjacks["checks"]
     assert checks.interval == 300
     assert "cl_submitted_checks" in checks.chops
     assert "stale_running_cleanup" in checks.chops
 
 
-def test_default_lumberjacks_comments() -> None:
+def test_load_axe_config_default_comments_lumberjack() -> None:
     """Test default comments lumberjack configuration."""
-    defaults = _default_lumberjacks()
-    comments = defaults["comments"]
+    config = load_axe_config()
+    comments = config.lumberjacks["comments"]
     assert comments.interval == 60
     assert comments.chops == ["comment_checks"]
 
 
-def test_default_lumberjacks_housekeeping() -> None:
+def test_load_axe_config_default_housekeeping_lumberjack() -> None:
     """Test default housekeeping lumberjack configuration."""
-    defaults = _default_lumberjacks()
-    hk = defaults["housekeeping"]
+    config = load_axe_config()
+    hk = config.lumberjacks["housekeeping"]
     assert hk.interval == 3600
     assert hk.chops == ["error_digest"]
 
@@ -149,27 +156,8 @@ axe:
     assert config.lumberjacks["checks"].interval == 600
 
 
-def test_load_axe_config_without_lumberjacks_uses_defaults() -> None:
-    """Test loading config without lumberjacks key falls back to defaults."""
-    data = yaml.safe_load("""
-axe:
-  max_runners: 10
-  zombie_timeout_seconds: 5000
-""")
-    with patch("sase.axe.config.load_merged_config", return_value=data):
-        config = load_axe_config()
-
-    assert config.max_runners == 10
-    assert config.zombie_timeout_seconds == 5000
-    assert len(config.lumberjacks) == 4
-    assert "hooks" in config.lumberjacks
-    assert "checks" in config.lumberjacks
-    assert "comments" in config.lumberjacks
-    assert "housekeeping" in config.lumberjacks
-
-
 def test_load_axe_config_no_axe_section() -> None:
-    """Test loading config with no axe section returns defaults."""
+    """Test loading config with no axe section returns AxeConfig defaults."""
     data = yaml.safe_load("""
 metahooks:
   - name: test
@@ -178,15 +166,15 @@ metahooks:
         config = load_axe_config()
 
     assert config.max_runners == 5
-    assert len(config.lumberjacks) == 4
+    assert config.lumberjacks == {}
 
 
 def test_load_axe_config_empty_data() -> None:
-    """Test loading config with empty data returns defaults."""
+    """Test loading config with empty data returns AxeConfig defaults."""
     with patch("sase.axe.config.load_merged_config", return_value={}):
         config = load_axe_config()
 
-    assert config == AxeConfig(lumberjacks=_default_lumberjacks())
+    assert config == AxeConfig()
 
 
 def test_load_axe_config_axe_not_dict() -> None:
@@ -196,11 +184,11 @@ def test_load_axe_config_axe_not_dict() -> None:
         config = load_axe_config()
 
     assert config.max_runners == 5
-    assert len(config.lumberjacks) == 4
+    assert config.lumberjacks == {}
 
 
 def test_load_axe_config_lumberjacks_not_dict() -> None:
-    """Test that non-dict lumberjacks value falls back to defaults."""
+    """Test that non-dict lumberjacks value results in empty lumberjacks."""
     data = yaml.safe_load("""
 axe:
   max_runners: 3
@@ -210,7 +198,7 @@ axe:
         config = load_axe_config()
 
     assert config.max_runners == 3
-    assert len(config.lumberjacks) == 4
+    assert config.lumberjacks == {}
 
 
 def test_load_axe_config_partial_fields_use_defaults() -> None:

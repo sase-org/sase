@@ -116,9 +116,14 @@ def test_get_axe_status_initializing(
 @patch("sase.axe.process.load_axe_config")
 def test_get_lumberjack_names_returns_defaults(mock_load: MagicMock) -> None:
     """Test that get_lumberjack_names returns configured names."""
-    from sase.axe.config import _default_lumberjacks
+    from sase.axe.config import LumberjackConfig
 
-    mock_load.return_value = MagicMock(lumberjacks=_default_lumberjacks())
+    mock_load.return_value = MagicMock(
+        lumberjacks={
+            name: LumberjackConfig(name=name, interval=1)
+            for name in ("hooks", "checks", "comments", "housekeeping")
+        }
+    )
     names = get_lumberjack_names()
     assert sorted(names) == ["checks", "comments", "hooks", "housekeeping"]
 

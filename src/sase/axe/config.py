@@ -1,48 +1,13 @@
 """Configuration for the lumberjack-based axe architecture.
 
-Loads lumberjack definitions from the ``axe:`` section of sase.yml.
-When the ``lumberjacks:`` key is absent, generates a default config.
+Loads lumberjack definitions from the ``axe:`` section of the merged
+config (default_config.yml → sase.yml → overlays).  Defaults are now
+guaranteed by the base config layer in ``default_config.yml``.
 """
 
 from dataclasses import dataclass, field
 
 from sase.config import load_merged_config
-
-# Default lumberjack definitions matching the plan's YAML schema.
-_DEFAULT_LUMBERJACKS: dict[str, dict] = {
-    "hooks": {
-        "interval": 1,
-        "chops": [
-            "hook_checks",
-            "mentor_checks",
-            "workflow_checks",
-            "pending_checks_poll",
-            "comment_zombie_checks",
-            "suffix_transforms",
-            "orphan_cleanup",
-            "wait_checks",
-        ],
-    },
-    "checks": {
-        "interval": 300,
-        "chops": [
-            "cl_submitted_checks",
-            "stale_running_cleanup",
-        ],
-    },
-    "comments": {
-        "interval": 60,
-        "chops": [
-            "comment_checks",
-        ],
-    },
-    "housekeeping": {
-        "interval": 3600,
-        "chops": [
-            "error_digest",
-        ],
-    },
-}
 
 
 @dataclass
@@ -85,38 +50,31 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
     return result
 
 
-def _default_lumberjacks() -> dict[str, LumberjackConfig]:
-    """Build default lumberjack configs from the plan's schema."""
-    return _parse_lumberjacks(_DEFAULT_LUMBERJACKS)
-
-
 def load_axe_config() -> AxeConfig:
-    """Load axe config from sase.yml.
+    """Load axe config from the merged config layers.
 
-    If the ``lumberjacks:`` key is present, parse it directly.
-    Otherwise, generate defaults.
+    Defaults are provided by ``default_config.yml``, so the ``axe``
+    section is always present.  Inline ``.get()`` calls remain as
+    safety nets.
 
     Returns:
         Fully populated AxeConfig.
     """
     data = load_merged_config()
 
-    if not isinstance(data, dict) or "axe" not in data:
-        return AxeConfig(lumberjacks=_default_lumberjacks())
-
-    axe_data = data["axe"]
+    axe_data = data.get("axe")
     if not isinstance(axe_data, dict):
-        return AxeConfig(lumberjacks=_default_lumberjacks())
+        return AxeConfig()
 
     max_runners = axe_data.get("max_runners", 5)
     zombie_timeout = axe_data.get("zombie_timeout_seconds", 7200)
     query = axe_data.get("query", "")
-    # Parse lumberjacks if present, otherwise use defaults
+
     raw_lumberjacks = axe_data.get("lumberjacks")
     if isinstance(raw_lumberjacks, dict):
         lumberjacks = _parse_lumberjacks(raw_lumberjacks)
     else:
-        lumberjacks = _default_lumberjacks()
+        lumberjacks = {}
 
     return AxeConfig(
         max_runners=max_runners,

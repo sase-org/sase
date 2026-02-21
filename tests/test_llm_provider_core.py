@@ -139,10 +139,15 @@ def test_get_default_provider_falls_back_to_gemini(mock_which: MagicMock) -> Non
 
 
 @patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")
+@patch(
+    "sase.llm_provider.registry.get_llm_provider_config",
+    return_value={},
+)
 def test_get_default_provider_prefers_claude_when_available(
+    mock_config: MagicMock,
     mock_which: MagicMock,
 ) -> None:
-    """Test that the default provider is 'claude' when claude is on PATH."""
+    """Test that the default provider is 'claude' when claude is on PATH and no config."""
     provider = get_provider()
     assert isinstance(provider, ClaudeCodeProvider)
 

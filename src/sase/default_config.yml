@@ -1,0 +1,35 @@
+axe:
+  max_runners: 5
+  zombie_timeout_seconds: 7200
+  query: ""
+  lumberjacks:
+    hooks:
+      interval: 1
+      chops:
+        - hook_checks
+        - mentor_checks
+        - workflow_checks
+        - pending_checks_poll
+        - comment_zombie_checks
+        - suffix_transforms
+        - orphan_cleanup
+        - wait_checks
+    checks:
+      interval: 300
+      chops:
+        - cl_submitted_checks
+        - stale_running_cleanup
+    comments:
+      interval: 60
+      chops:
+        - comment_checks
+    housekeeping:
+      interval: 3600
+      chops:
+        - error_digest
+
+llm_provider:
+  provider: "gemini"
+
+vcs_provider:
+  provider: "auto"

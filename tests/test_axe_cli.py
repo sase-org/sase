@@ -32,9 +32,18 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 @pytest.fixture
 def default_axe_config() -> AxeConfig:
     """Return a default AxeConfig with 4 lumberjacks."""
-    from sase.axe.config import _default_lumberjacks
+    from sase.axe.config import _parse_lumberjacks
 
-    return AxeConfig(lumberjacks=_default_lumberjacks())
+    return AxeConfig(
+        lumberjacks=_parse_lumberjacks(
+            {
+                "hooks": {"interval": 1, "chops": ["hook_checks"]},
+                "checks": {"interval": 300, "chops": ["cl_submitted_checks"]},
+                "comments": {"interval": 60, "chops": ["comment_checks"]},
+                "housekeeping": {"interval": 3600, "chops": ["error_digest"]},
+            }
+        )
+    )
 
 
 # --- handle_axe_chop_list Tests ---
