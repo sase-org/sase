@@ -1,3 +1,7 @@
+---
+bead_id: sase-gdt
+---
+
 # Plan: `%name:<name>` and `%wait:<name>` Prompt Directives
 
 ## Context
