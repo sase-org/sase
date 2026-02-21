@@ -84,8 +84,8 @@ pyvision *args: _setup (_header "pyvision")
 
 # Check Python file line counts
 pylimit *args: (_header "pylimit")
-    tools/pylimit-260217 src 1000 850 700 {{ args }}
-    tools/pylimit-260217 tests 1000 850 700 {{ args }}
+    tools/pylimit-260217 src {{ if args == "" { "1000 850 700" } else { args } }}
+    tools/pylimit-260217 tests {{ if args == "" { "1000 850 700" } else { args } }}
 
 # Remove build artifacts
 clean:
