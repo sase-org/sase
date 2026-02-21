@@ -34,6 +34,41 @@
           "type": "integer",
           "description": "Maximum concurrent runners (hooks, agents, mentors) globally",
           "default": 5
+        },
+        "query": {
+          "type": "string",
+          "description": "Default query filter for axe operations",
+          "default": ""
+        },
+        "chop_script_dirs": {
+          "type": "array",
+          "description": "Additional directories to search for chop scripts (searched before PATH lookup)",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "lumberjacks": {
+          "type": "object",
+          "description": "Named lumberjack definitions. Each key is a lumberjack name with interval and chops config.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "interval": {
+                "type": "integer",
+                "description": "Tick interval in seconds for this lumberjack",
+                "default": 1
+              },
+              "chops": {
+                "type": "array",
+                "description": "List of chop script names to run on each tick",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       }
     },
