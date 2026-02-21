@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Vendored from https://github.com/bbugyi200/dotfiles via pyvendor on 2026-02-17
+# Vendored from https://github.com/bbugyi200/dotfiles via pyvendor on 2026-02-21
 """Find unused public Python function and class definitions."""
 
 import argparse
