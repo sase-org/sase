@@ -358,6 +358,9 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         # Reject without feedback: kill agent, no response file needed
         # (killing the process group also kills the plan_approve_handler)
         if result.action == "reject" and result.feedback is None:
+            from sase.notifications import mark_dismissed
+
+            mark_dismissed(notification.id)
             if agent is not None:
                 # Clear overrides before kill (_do_kill_agent calls _load_agents)
                 app._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
@@ -403,6 +406,11 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
             return
+
+        # Dismiss notification to prevent re-polling
+        from sase.notifications import mark_dismissed
+
+        mark_dismissed(notification.id)
 
         # Update status override based on action
         if agent is not None:

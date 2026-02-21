@@ -29,7 +29,7 @@ def emit_hook_decision(decision: str, reason: str = "") -> None:
             "permissionDecisionReason": reason,
         }
     }
-    print(json.dumps(output))
+    print(json.dumps(output), flush=True)
 
 
 def _find_plan_file(session_id: str) -> str | None:
@@ -145,55 +145,71 @@ def handle_plan_approve_command() -> NoReturn:
         ring_tmux_bell()
         sys.exit(0)
 
-    # Find plan file
-    plan_file = _find_plan_file(session_id)
-    if not plan_file:
-        # No plan file found - still allow approval but without file content
-        print("Warning: no plan file found in ~/.claude/plans/", file=sys.stderr)
-
-    # Set up response directory
+    # Set up response directory early (needed for marker check)
     response_dir = Path.home() / ".sase" / "plan_approval" / session_id
     response_dir.mkdir(parents=True, exist_ok=True)
+
+    # Idempotency guard: if plan was already approved, skip notification
+    marker_path = response_dir / "plan_approved.marker"
+    if marker_path.exists():
+        emit_hook_decision("allow", "Plan already approved (marker exists)")
+        sys.exit(0)
 
     request_path = response_dir / "plan_request.json"
     response_path = response_dir / "plan_response.json"
 
-    # Clean stale response file
-    if response_path.exists():
-        response_path.unlink()
+    # Only create notification if request doesn't already exist (idempotency)
+    if not request_path.exists():
+        # Find plan file
+        plan_file = _find_plan_file(session_id)
+        if not plan_file:
+            # No plan file found - still allow approval but without file content
+            print("Warning: no plan file found in ~/.claude/plans/", file=sys.stderr)
 
-    # Write request file
-    request_data = {
-        "plan_file": plan_file,
-        "session_id": session_id,
-        "timestamp": time.time(),
-    }
-    with open(request_path, "w", encoding="utf-8") as f:
-        json.dump(request_data, f, indent=2)
+        # Clean stale response file
+        if response_path.exists():
+            response_path.unlink()
 
-    # Create sase notification
-    from sase.notifications.senders import notify_plan_approval
+        # Write request file
+        request_data = {
+            "plan_file": plan_file,
+            "session_id": session_id,
+            "timestamp": time.time(),
+        }
+        with open(request_path, "w", encoding="utf-8") as f:
+            json.dump(request_data, f, indent=2)
 
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
-    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
-    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
-    notify_plan_approval(
-        plan_file=plan_file or "(no plan file)",
-        response_dir=str(response_dir),
-        session_id=session_id,
-        project_dir=project_dir,
-        agent_cl_name=agent_cl_name,
-        agent_project_file=agent_project_file,
-        agent_timestamp=agent_timestamp,
-    )
+        # Create sase notification
+        from sase.notifications.senders import notify_plan_approval
 
-    # Send desktop notification + tmux bell (preserve existing behavior)
-    prefix = get_tmux_prefix()
-    send_desktop_notification(
-        f"{prefix} Plan Complete", "Plan ready for review in sase ace"
-    )
-    ring_tmux_bell()
+        project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+        agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
+        agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+        agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
+        notify_plan_approval(
+            plan_file=plan_file or "(no plan file)",
+            response_dir=str(response_dir),
+            session_id=session_id,
+            project_dir=project_dir,
+            agent_cl_name=agent_cl_name,
+            agent_project_file=agent_project_file,
+            agent_timestamp=agent_timestamp,
+        )
+
+        # Send desktop notification + tmux bell (preserve existing behavior)
+        prefix = get_tmux_prefix()
+        send_desktop_notification(
+            f"{prefix} Plan Complete", "Plan ready for review in sase ace"
+        )
+        ring_tmux_bell()
+    else:
+        # Concurrent/retry invocation — read plan_file from existing request
+        try:
+            with open(request_path, encoding="utf-8") as f:
+                existing_request = json.load(f)
+            plan_file = existing_request.get("plan_file")
+        except (json.JSONDecodeError, OSError):
+            plan_file = None
 
     # Poll for response file
     start_time = time.time()
