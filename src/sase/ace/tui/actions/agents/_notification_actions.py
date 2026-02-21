@@ -302,7 +302,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             import os
             import subprocess
 
-            editor = os.environ.get("EDITOR", "nvim")
+            editor = os.environ.get("EDITOR") or "nvim"
             with app.suspend():  # type: ignore[attr-defined]
                 subprocess.run([editor, plan_file], check=False)
             app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
