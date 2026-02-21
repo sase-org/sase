@@ -246,7 +246,9 @@ class AgentsMixinCore(
         info_mode = agent_detail.is_info_mode()
         next_panel_label = agent_detail.next_panel_label()
 
-        if getattr(self, "_copy_mode_active", False):
+        if getattr(self, "_bang_mode_active", False):
+            footer_widget.update_bang_bindings()
+        elif getattr(self, "_copy_mode_active", False):
             footer_widget.update_copy_bindings(
                 self.current_tab, file_visible=file_visible
             )

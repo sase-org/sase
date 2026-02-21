@@ -326,6 +326,8 @@ class ChangeSpecMixin:
             # Preserve modal mode footers during auto-refresh
             if getattr(self, "_leader_mode_active", False):
                 footer_widget.update_leader_bindings()
+            elif getattr(self, "_bang_mode_active", False):
+                footer_widget.update_bang_bindings()
             elif getattr(self, "_copy_mode_active", False):
                 footer_widget.update_copy_bindings(self.current_tab)
             else:
@@ -339,6 +341,8 @@ class ChangeSpecMixin:
             detail_widget.show_empty(self.canonical_query_string)  # type: ignore[attr-defined]
             if getattr(self, "_leader_mode_active", False):
                 pass  # preserve leader mode footer
+            elif getattr(self, "_bang_mode_active", False):
+                pass  # preserve bang mode footer
             elif getattr(self, "_copy_mode_active", False):
                 pass  # preserve copy mode footer
             else:
