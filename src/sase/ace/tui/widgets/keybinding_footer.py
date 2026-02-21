@@ -371,6 +371,10 @@ class KeybindingFooter(Horizontal):
                 else:
                     bindings.append(("x", "kill"))
 
+        # Name agent
+        if agent is not None:
+            bindings.append(("n", "name"))
+
         # Workflow fold controls (only when foldable workflows exist)
         if has_foldable:
             bindings.append(("h/l", "fold"))

@@ -262,6 +262,9 @@ def load_all_agents() -> list[Agent]:
                     and agent.error_traceback is not None
                 ):
                     existing.error_traceback = agent.error_traceback
+                # Copy agent_name if existing has none
+                if existing.agent_name is None and agent.agent_name is not None:
+                    existing.agent_name = agent.agent_name
             else:
                 seen_suffixes[agent.raw_suffix] = agent
 
@@ -317,6 +320,8 @@ def load_all_agents() -> list[Agent]:
                 matched.extra_files = agent.extra_files
             if matched.step_output is None and agent.step_output is not None:
                 matched.step_output = agent.step_output
+            if matched.agent_name is None and agent.agent_name is not None:
+                matched.agent_name = agent.agent_name
             continue  # Drop the RUNNING entry
         deduped_agents.append(agent)
 

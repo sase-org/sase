@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from typing import TYPE_CHECKING
 
@@ -9,6 +10,7 @@ from sase.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
 
 if TYPE_CHECKING:
+    from ..models.agent import Agent
     from ...changespec import ChangeSpec
 
 
@@ -17,14 +19,20 @@ class RenameMixin:
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
     changespecs: list[ChangeSpec]
+    _agents: list[Agent]
     current_idx: int
     current_tab: str
 
     def action_rename_cl(self) -> None:
-        """Show rename modal for the current ChangeSpec.
+        """Show rename modal for the current ChangeSpec or name an agent.
 
-        Only available on the CLs tab for non-Submitted ChangeSpecs.
+        On the CLs tab: rename the CL (non-Submitted ChangeSpecs only).
+        On the Agents tab: set/change the agent name.
         """
+        if self.current_tab == "agents":
+            self._set_agent_name()
+            return
+
         from ...changespec import get_base_status
         from ..modals import RenameCLModal
 
@@ -194,3 +202,40 @@ class RenameMixin:
             self.notify(f"Rename failed: {message}", severity="error")  # type: ignore[attr-defined]
 
         self._reload_and_reposition()  # type: ignore[attr-defined]
+
+    def _set_agent_name(self) -> None:
+        """Open AgentNameModal and write the name to agent_meta.json."""
+        from ..modals import AgentNameModal
+
+        if not self._agents or self.current_idx >= len(self._agents):
+            return
+
+        agent = self._agents[self.current_idx]
+        artifacts_dir = agent.get_artifacts_dir()  # type: ignore[union-attr]
+        if artifacts_dir is None:
+            self.notify(  # type: ignore[attr-defined]
+                "Cannot name this agent (no artifacts directory)",
+                severity="warning",
+            )
+            return
+
+        def handle_name_result(new_name: str | None) -> None:
+            if new_name is None:
+                return
+            meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+            # Read existing meta or create new
+            meta: dict[str, object] = {}
+            if os.path.exists(meta_path):
+                with open(meta_path) as f:
+                    meta = json.load(f)
+            meta["name"] = new_name
+            with open(meta_path, "w") as f:
+                json.dump(meta, f, indent=2)
+            agent.agent_name = new_name
+            self.notify(f"Agent named: {new_name}")  # type: ignore[attr-defined]
+            self._reload_and_reposition()  # type: ignore[attr-defined]
+
+        self.push_screen(  # type: ignore[attr-defined]
+            AgentNameModal(current_name=agent.agent_name),
+            handle_name_result,
+        )
