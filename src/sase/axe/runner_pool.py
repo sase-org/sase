@@ -1,12 +1,24 @@
 """Concurrency management for sase axe scheduler.
 
-This module provides a runner pool that enforces the max_runners limit
-across all scheduled jobs within a single tick of the scheduler.
+This module provides two runner pool implementations:
+
+- **RunnerPool**: Thread-safe, single-process pool used by the legacy
+  monolithic scheduler (``AxeScheduler``).
+- **SharedRunnerPool**: File-based, cross-process pool using ``fcntl.flock``
+  for the new lumberjack architecture where each lumberjack runs as a
+  separate subprocess.
 """
 
+import fcntl
+import logging
+from pathlib import Path
 from threading import Lock
+from typing import IO
 
 from sase.ace.changespec import count_all_runners_global
+from sase.axe.state import ensure_shared_dir
+
+log = logging.getLogger(__name__)
 
 
 class RunnerPool:
@@ -109,3 +121,128 @@ class RunnerPool:
             True if no more runners can be started, False otherwise.
         """
         return self.get_available_slots() == 0
+
+
+class SharedRunnerPool:
+    """Cross-process runner pool using file-based locking.
+
+    Uses ``fcntl.flock`` on ``~/.sase/axe/shared/runner_count`` to
+    coordinate the max_runners limit across multiple lumberjack
+    subprocesses.
+
+    The counter file stores the current number of in-flight runners as
+    a plain integer.  Each ``reserve_slot`` / ``release_slot`` call
+    acquires an exclusive lock, reads the count, updates it, and
+    releases the lock.
+    """
+
+    def __init__(self, max_runners: int = 5) -> None:
+        """Initialize the shared runner pool.
+
+        Args:
+            max_runners: Maximum concurrent runners allowed globally.
+        """
+        self.max_runners = max_runners
+        shared_dir = ensure_shared_dir()
+        self._counter_path = shared_dir / "runner_count"
+        # Seed the file if it doesn't exist
+        if not self._counter_path.exists():
+            self._counter_path.write_text("0")
+
+    # -- internal helpers ---------------------------------------------------
+
+    def _read_count(self, fh: IO[str]) -> int:
+        """Read count from the already-locked file handle."""
+        fh.seek(0)
+        raw = fh.read().strip()
+        return int(raw) if raw else 0
+
+    def _write_count(self, fh: IO[str], value: int) -> None:
+        """Write count to the already-locked file handle."""
+        fh.seek(0)
+        fh.truncate()
+        fh.write(str(value))
+        fh.flush()
+
+    # -- public API ---------------------------------------------------------
+
+    def get_current_runners(self) -> int:
+        """Read the current runner count (includes global runners).
+
+        Combines the file counter with ``count_all_runners_global()``
+        for backward compatibility.
+
+        Returns:
+            Total number of runners currently active.
+        """
+        try:
+            with open(self._counter_path, "r+") as f:
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    count = self._read_count(f)
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+        except OSError:
+            count = 0
+        return count_all_runners_global() + count
+
+    def reserve_slot(self) -> bool:
+        """Try to reserve a runner slot across all lumberjack processes.
+
+        Returns:
+            True if a slot was reserved, False if at the limit.
+        """
+        try:
+            with open(self._counter_path, "r+") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
+                    current = self._read_count(f)
+                    global_runners = count_all_runners_global()
+                    if global_runners + current >= self.max_runners:
+                        return False
+                    self._write_count(f, current + 1)
+                    return True
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+        except OSError:
+            log.warning("Failed to reserve runner slot", exc_info=True)
+            return False
+
+    def release_slot(self) -> None:
+        """Release a previously reserved runner slot."""
+        try:
+            with open(self._counter_path, "r+") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
+                    current = self._read_count(f)
+                    self._write_count(f, max(0, current - 1))
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+        except OSError:
+            log.warning("Failed to release runner slot", exc_info=True)
+
+    def is_at_limit(self) -> bool:
+        """Check if runner limit has been reached.
+
+        Returns:
+            True if no more runners can be started.
+        """
+        try:
+            with open(self._counter_path, "r+") as f:
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    current = self._read_count(f)
+                    global_runners = count_all_runners_global()
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+            return global_runners + current >= self.max_runners
+        except OSError:
+            return False
+
+    def get_counter_path(self) -> Path:
+        """Return the path to the counter file (for testing).
+
+        Returns:
+            Path to ``~/.sase/axe/shared/runner_count``.
+        """
+        return self._counter_path

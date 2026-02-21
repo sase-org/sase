@@ -12,13 +12,21 @@ from .process import (
     start_axe_daemon,
     stop_axe_daemon,
 )
-from .runner_pool import RunnerPool
+from .config import AxeConfig, LumberjackConfig, load_axe_config
+from .runner_pool import RunnerPool, SharedRunnerPool
 from .state import (
     AxeMetrics,
     AxeStatus,
     CycleResult,
+    LumberjackMetrics,
+    LumberjackStatus,
+    list_lumberjack_names,
     read_cycle_result,
     read_errors,
+    read_lumberjack_log_tail,
+    read_lumberjack_metrics,
+    read_lumberjack_pid,
+    read_lumberjack_status,
     read_metrics,
     read_pid_file,
     read_status,
@@ -27,6 +35,10 @@ from .state import (
 __all__ = [
     # Core
     "AxeScheduler",
+    # Config
+    "AxeConfig",
+    "LumberjackConfig",
+    "load_axe_config",
     # Process control
     "get_axe_pid",
     "get_axe_status",
@@ -35,12 +47,20 @@ __all__ = [
     "stop_axe_daemon",
     # Runner pool
     "RunnerPool",
+    "SharedRunnerPool",
     # State reading (for TUI)
     "AxeMetrics",
     "AxeStatus",
     "CycleResult",
+    "LumberjackMetrics",
+    "LumberjackStatus",
+    "list_lumberjack_names",
     "read_cycle_result",
     "read_errors",
+    "read_lumberjack_log_tail",
+    "read_lumberjack_metrics",
+    "read_lumberjack_pid",
+    "read_lumberjack_status",
     "read_metrics",
     "read_pid_file",
     "read_status",

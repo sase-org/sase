@@ -77,7 +77,13 @@ all: fmt lint pylimit pyvision test
 
 # Find unused Python function/class definitions
 pyvision: _setup (_header "pyvision")
-    BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase
+    BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase \
+        --epic-symbol "sase-0xd(ensure_lumberjack_dirs)" \
+        --epic-symbol "sase-0xd(lumberjack_log_path)" \
+        --epic-symbol "sase-0xd(remove_lumberjack_pid)" \
+        --epic-symbol "sase-0xd(write_lumberjack_metrics)" \
+        --epic-symbol "sase-0xd(write_lumberjack_pid)" \
+        --epic-symbol "sase-0xd(write_lumberjack_status)"
 
 # Check Python file line counts
 pylimit: (_header "pylimit")
