@@ -34,10 +34,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin/bd
-          key: bd-linux-amd64-go-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: bd-v2-linux-amd64-go-${{ hashFiles('.github/workflows/ci.yml') }}
       - name: Install beads (bd)
         if: steps.cache-bd.outputs.cache-hit != 'true'
         run: CGO_ENABLED=0 go install github.com/steveyegge/beads/cmd/bd@latest
+      - name: Verify bd installation
+        run: |
+          echo "--- bd location ---"
+          which bd
+          echo "--- bd version ---"
+          bd --version || echo "bd --version exited with $?"
+          echo "--- bd show sase-0xd ---"
+          bd show sase-0xd || echo "bd show failed with $? (fallback will handle this)"
       - name: Check Python formatting
         run: just fmt-py-check
       - name: Lint

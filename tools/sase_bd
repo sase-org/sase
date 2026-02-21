@@ -29,4 +29,45 @@ if [[ "$primary_dir" != "$workspace_dir" ]]; then
     cd "$primary_dir"
 fi
 
+# For `show` subcommand, capture exit code and fall back to JSONL parsing on failure.
+# This handles CI environments where the `bd` binary may be incompatible.
+jsonl_show_fallback() {
+    local bead_id="$1"
+    local jsonl="$primary_dir/.beads/issues.jsonl"
+    if [[ ! -f "$jsonl" ]]; then
+        echo "sase_bd: fallback failed: $jsonl not found" >&2
+        return 1
+    fi
+    python3 -c "
+import json, sys
+bead_id = sys.argv[1]
+with open(sys.argv[2]) as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        rec = json.loads(line)
+        if rec.get('id') == bead_id:
+            status = rec.get('status', 'unknown').upper()
+            title = rec.get('title', '')
+            print(f'{bead_id} [{status}] {title}')
+            sys.exit(0)
+print(f'bead {bead_id} not found in issues.jsonl', file=sys.stderr)
+sys.exit(1)
+" "$bead_id" "$jsonl"
+}
+
+if [[ "${1:-}" == "show" && -n "${2:-}" ]]; then
+    set +e
+    bd "$@"
+    rc=$?
+    set -e
+    if [[ $rc -eq 0 ]]; then
+        exit 0
+    fi
+    echo "sase_bd: 'bd show' failed (exit $rc), falling back to JSONL parsing" >&2
+    jsonl_show_fallback "$2"
+    exit $?
+fi
+
 exec bd "$@"
