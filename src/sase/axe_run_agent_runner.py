@@ -219,6 +219,11 @@ def main() -> None:
                 with open(meta_path, "w", encoding="utf-8") as f:
                     json.dump(agent_meta, f, indent=2)
 
+                if agent_name:
+                    from sase.agent_names import claim_agent_name
+
+                    claim_agent_name(agent_name, artifacts_dir)
+
             # Write running marker for home mode (no workspace tracking available)
             if is_home_mode:
                 running_marker_path = os.path.join(artifacts_dir, "running.json")

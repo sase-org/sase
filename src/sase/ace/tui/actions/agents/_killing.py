@@ -498,9 +498,18 @@ class AgentKillingMixin:
             / "done.json"
         )
 
+        meta_path = done_path.parent / "agent_meta.json"
+
         try:
+            dismissed = False
             if done_path.exists():
                 done_path.unlink()
+                dismissed = True
+            if meta_path.exists():
+                meta_path.unlink()
+                dismissed = True
+
+            if dismissed:
                 self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
             else:
                 self.notify("Agent already dismissed", severity="warning")  # type: ignore[attr-defined]

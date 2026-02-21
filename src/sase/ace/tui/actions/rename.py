@@ -231,6 +231,10 @@ class RenameMixin:
             meta["name"] = new_name
             with open(meta_path, "w") as f:
                 json.dump(meta, f, indent=2)
+
+            from sase.agent_names import claim_agent_name
+
+            claim_agent_name(new_name, artifacts_dir)
             agent.agent_name = new_name
             self.notify(f"Agent named: {new_name}")  # type: ignore[attr-defined]
             self._reload_and_reposition()  # type: ignore[attr-defined]
