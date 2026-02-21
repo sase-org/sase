@@ -79,6 +79,14 @@ all: fmt lint pylimit pyvision test
 pyvision *args: _setup (_header "pyvision")
     BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase \
         --exclude-decorator register_chop \
+        --epic-symbol 'sase-bta(ChopScriptContext)' \
+        --epic-symbol 'sase-bta(write_chop_context)' \
+        --epic-symbol 'sase-bta(read_chop_context)' \
+        --epic-symbol 'sase-bta(serialize_changespecs)' \
+        --epic-symbol 'sase-bta(load_changespecs_from_file)' \
+        --epic-symbol 'sase-bta(discover_chop_script)' \
+        --epic-symbol 'sase-bta(run_chop_script)' \
+        --epic-symbol 'sase-bta(list_chop_scripts)' \
         {{ args }}
 
 # Check Python file line counts

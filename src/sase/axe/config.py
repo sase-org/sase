@@ -26,6 +26,7 @@ class AxeConfig:
     max_runners: int = 5
     zombie_timeout_seconds: int = 7200
     query: str = ""
+    chop_script_dirs: list[str] = field(default_factory=list)
     lumberjacks: dict[str, LumberjackConfig] = field(default_factory=dict)
 
 
@@ -69,6 +70,7 @@ def load_axe_config() -> AxeConfig:
     max_runners = axe_data.get("max_runners", 5)
     zombie_timeout = axe_data.get("zombie_timeout_seconds", 7200)
     query = axe_data.get("query", "")
+    chop_script_dirs = axe_data.get("chop_script_dirs", [])
 
     raw_lumberjacks = axe_data.get("lumberjacks")
     if isinstance(raw_lumberjacks, dict):
@@ -80,5 +82,6 @@ def load_axe_config() -> AxeConfig:
         max_runners=max_runners,
         zombie_timeout_seconds=zombie_timeout,
         query=query,
+        chop_script_dirs=chop_script_dirs,
         lumberjacks=lumberjacks,
     )

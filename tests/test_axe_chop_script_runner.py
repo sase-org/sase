@@ -1,0 +1,151 @@
+"""Tests for sase.axe.chop_script_runner."""
+
+import os
+import stat
+import subprocess
+import textwrap
+
+import pytest
+
+from sase.axe.chop_script_runner import (
+    discover_chop_script,
+    list_chop_scripts,
+    run_chop_script,
+)
+
+
+def _make_executable(path, content="#!/bin/sh\necho ok"):
+    """Helper: write a script and make it executable."""
+    path.write_text(content)
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+class TestDiscoverChopScript:
+    """Tests for discover_chop_script."""
+
+    def test_finds_in_search_dir(self, tmp_path):
+        d = tmp_path / "scripts"
+        d.mkdir()
+        script = d / "my_chop"
+        _make_executable(script)
+        result = discover_chop_script("my_chop", [str(d)])
+        assert result == script
+
+    def test_first_dir_wins(self, tmp_path):
+        d1 = tmp_path / "first"
+        d2 = tmp_path / "second"
+        d1.mkdir()
+        d2.mkdir()
+        s1 = d1 / "my_chop"
+        s2 = d2 / "my_chop"
+        _make_executable(s1, "#!/bin/sh\necho first")
+        _make_executable(s2, "#!/bin/sh\necho second")
+        result = discover_chop_script("my_chop", [str(d1), str(d2)])
+        assert result == s1
+
+    def test_skips_non_executable(self, tmp_path):
+        d = tmp_path / "scripts"
+        d.mkdir()
+        script = d / "my_chop"
+        script.write_text("#!/bin/sh\necho ok")  # not executable
+        result = discover_chop_script("my_chop", [str(d)])
+        assert result is None
+
+    def test_falls_back_to_path(self, tmp_path, monkeypatch):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        script = bin_dir / "sase_chop_my_chop"
+        _make_executable(script)
+        monkeypatch.setenv(
+            "PATH", str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
+        )
+        result = discover_chop_script("my_chop", [])
+        assert result is not None
+        assert result.name == "sase_chop_my_chop"
+
+    def test_returns_none_when_not_found(self, tmp_path):
+        result = discover_chop_script("nonexistent", [str(tmp_path)])
+        assert result is None
+
+
+class TestRunChopScript:
+    """Tests for run_chop_script."""
+
+    def test_captures_stdout(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(script, "#!/bin/sh\necho hello_stdout")
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        result = run_chop_script(script, str(ctx_file))
+        assert result.stdout.strip() == "hello_stdout"
+        assert result.returncode == 0
+
+    def test_captures_stderr(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(script, "#!/bin/sh\necho err_msg >&2")
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        result = run_chop_script(script, str(ctx_file))
+        assert "err_msg" in result.stderr
+
+    def test_passes_context_arg(self, tmp_path):
+        script = tmp_path / "my_chop"
+        # Script prints its arguments so we can verify --context was passed
+        _make_executable(
+            script,
+            textwrap.dedent("""\
+                #!/bin/sh
+                echo "$@"
+            """),
+        )
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        result = run_chop_script(script, str(ctx_file))
+        assert "--context" in result.stdout
+        assert str(ctx_file) in result.stdout
+
+    def test_timeout_enforcement(self, tmp_path):
+        script = tmp_path / "my_chop"
+        _make_executable(script, "#!/bin/sh\nsleep 60")
+        ctx_file = tmp_path / "ctx.json"
+        ctx_file.write_text("{}")
+        with pytest.raises(subprocess.TimeoutExpired):
+            run_chop_script(script, str(ctx_file), timeout=0.1)
+
+
+class TestListChopScripts:
+    """Tests for list_chop_scripts."""
+
+    def test_from_dirs(self, tmp_path, monkeypatch):
+        # Isolate PATH so we only see our scripts
+        monkeypatch.setenv("PATH", "")
+        d = tmp_path / "scripts"
+        d.mkdir()
+        _make_executable(d / "alpha")
+        _make_executable(d / "beta")
+        result = list_chop_scripts([str(d)])
+        assert result == ["alpha", "beta"]
+
+    def test_from_path_strips_prefix(self, tmp_path, monkeypatch):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        _make_executable(bin_dir / "sase_chop_gamma")
+        monkeypatch.setenv("PATH", str(bin_dir))
+        result = list_chop_scripts([])
+        assert "gamma" in result
+
+    def test_deduplication(self, tmp_path, monkeypatch):
+        d = tmp_path / "scripts"
+        d.mkdir()
+        _make_executable(d / "delta")
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        _make_executable(bin_dir / "sase_chop_delta")
+        monkeypatch.setenv("PATH", str(bin_dir))
+        result = list_chop_scripts([str(d)])
+        assert result.count("delta") == 1
+
+    def test_empty(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PATH", "")
+        result = list_chop_scripts([str(tmp_path)])
+        assert result == []

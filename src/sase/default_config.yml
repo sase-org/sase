@@ -2,6 +2,7 @@ axe:
   max_runners: 5
   zombie_timeout_seconds: 7200
   query: ""
+  chop_script_dirs: []
   lumberjacks:
     hooks:
       interval: 1
