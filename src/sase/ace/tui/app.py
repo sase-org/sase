@@ -34,6 +34,7 @@ from .actions import (
     SyncMixin,
 )
 from .models import Agent
+from .models.agent import AgentType
 from .widgets import (
     AgentDetail,
     AgentInfoPanel,
@@ -270,6 +271,12 @@ class AceApp(
 
         self._last_unread_count: int = 0
         self._dismissed_agents = load_dismissed_agents()
+
+        # Agent status override system (for PLANNING/CODING/QUESTION statuses)
+        self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
+        self._agent_pre_question_status: dict[
+            tuple[AgentType, str, str | None], str | None
+        ] = {}
 
         # Axe state
         self._axe_status: AxeStatus | None = None

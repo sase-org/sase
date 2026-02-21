@@ -123,6 +123,10 @@ class AgentsMixinCore(
     _last_unread_count: int
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
 
+    # Agent status override system (for PLANNING/CODING/QUESTION statuses)
+    _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
+    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+
     def _load_agents(self) -> None:
         """Load agents from all sources."""
         from ...models import load_all_agents
@@ -162,6 +166,23 @@ class AgentsMixinCore(
         self._agents, self._fold_counts = filter_agents_by_fold_state(
             self._agents, self._fold_manager
         )
+
+        # Apply status overrides (PLANNING/CODING/QUESTION)
+        loaded_identities = {a.identity for a in self._agents}
+        for agent in self._agents:
+            if agent.status in DISMISSABLE_STATUSES:
+                # Agent finished (DONE/FAILED, including dead-PID detection)
+                # — clear any override
+                self._agent_status_overrides.pop(agent.identity, None)
+                self._agent_pre_question_status.pop(agent.identity, None)
+            elif agent.identity in self._agent_status_overrides:
+                agent.status = self._agent_status_overrides[agent.identity]
+
+        # Clean overrides for agents that no longer exist in the loaded list
+        for identity in list(self._agent_status_overrides):
+            if identity not in loaded_identities:
+                self._agent_status_overrides.pop(identity, None)
+                self._agent_pre_question_status.pop(identity, None)
 
         # Calculate the new index
         # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
