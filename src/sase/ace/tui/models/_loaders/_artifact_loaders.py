@@ -40,6 +40,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.llm_provider = data["llm_provider"]
     if data.get("vcs_provider"):
         agent.vcs_provider = data["vcs_provider"]
+    if data.get("name"):
+        agent.agent_name = data["name"]
 
 
 def get_all_project_files() -> list[str]:
@@ -216,6 +218,7 @@ def load_done_agents(
                         model=data.get("model"),
                         llm_provider=data.get("llm_provider"),
                         vcs_provider=data.get("vcs_provider"),
+                        agent_name=data.get("name"),
                     )
                 )
             except Exception:

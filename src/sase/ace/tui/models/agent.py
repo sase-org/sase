@@ -113,6 +113,9 @@ class Agent:
     # VCS provider display name (e.g., "GitHub", "Mercurial")
     vcs_provider: str | None = None
 
+    # Agent name assigned via %name directive or manual TUI naming
+    agent_name: str | None = None
+
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None
 

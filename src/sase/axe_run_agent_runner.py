@@ -190,6 +190,8 @@ def main() -> None:
             from sase.xprompt.directives import extract_prompt_directives
 
             _, directives = extract_prompt_directives(prompt)
+            agent_name = directives.name
+            agent_wait_names = directives.wait
             agent_model = directives.model
             agent_llm_provider = get_default_provider_name()
             if not agent_model:
@@ -200,8 +202,12 @@ def main() -> None:
             vcs_display_map = {"git": "GitHub", "hg": "Mercurial"}
             agent_vcs_provider = vcs_display_map.get(vcs_name) if vcs_name else None
 
-            # Persist model, provider, and VCS to agent_meta.json
+            # Persist model, provider, VCS, name, and wait_for to agent_meta.json
             agent_meta: dict[str, Any] = {}
+            if agent_name:
+                agent_meta["name"] = agent_name
+            if agent_wait_names:
+                agent_meta["wait_for"] = agent_wait_names
             if agent_model:
                 agent_meta["model"] = agent_model
             if agent_llm_provider:
@@ -287,6 +293,8 @@ def main() -> None:
                 "diff_path": diff_path,
                 "plan_path": plan_path,
             }
+            if agent_name:
+                done_marker["name"] = agent_name
             if agent_model:
                 done_marker["model"] = agent_model
             if agent_llm_provider:
@@ -318,6 +326,8 @@ def main() -> None:
                     "traceback": traceback.format_exc(),
                     "workspace_num": workspace_num,
                 }
+                if agent_name:
+                    error_done["name"] = agent_name
                 if agent_model:
                     error_done["model"] = agent_model
                 if agent_llm_provider:

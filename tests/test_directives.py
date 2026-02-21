@@ -196,3 +196,57 @@ def test_percent_in_normal_text_not_matched() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Use 50% of the data"
     assert directives == PromptDirectives()
+
+
+# --- %name directive tests ---
+
+
+def test_name_directive() -> None:
+    """%name:builder assigns name='builder'."""
+    prompt = "%name:builder\nDo some work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do some work"
+    assert directives.name == "builder"
+
+
+def test_name_directive_backtick_syntax() -> None:
+    """%name:`my-agent` works with backtick syntax."""
+    prompt = "%name:`my-agent`\nDo some work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do some work"
+    assert directives.name == "my-agent"
+
+
+def test_duplicate_name_raises() -> None:
+    """Two %name directives raise DirectiveError."""
+    prompt = "%name:alpha\n%name:beta\nDo some work"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%name'"):
+        extract_prompt_directives(prompt)
+
+
+# --- %wait directive tests ---
+
+
+def test_wait_directive_single() -> None:
+    """%wait:builder yields wait=['builder']."""
+    prompt = "%wait:builder\nDo some work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do some work"
+    assert directives.wait == ["builder"]
+
+
+def test_wait_directive_multiple() -> None:
+    """Two %wait lines yield wait=['a', 'b']."""
+    prompt = "%wait:a\n%wait:b\nDo some work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do some work"
+    assert directives.wait == ["a", "b"]
+
+
+def test_name_and_wait_combined() -> None:
+    """Both %name and %wait in one prompt."""
+    prompt = "%name:processor\n%wait:fetcher\nProcess the data"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Process the data"
+    assert directives.name == "processor"
+    assert directives.wait == ["fetcher"]

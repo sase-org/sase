@@ -13,7 +13,7 @@ The ``%model`` directive overrides the LLM model used for that prompt.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ._exceptions import DirectiveError
 from ._parsing import find_matching_paren_for_args, parse_args
@@ -29,7 +29,10 @@ _DIRECTIVE_PATTERN = (
 )
 
 # Known directive names
-_KNOWN_DIRECTIVES = frozenset({"model"})
+_KNOWN_DIRECTIVES = frozenset({"model", "name", "wait"})
+
+# Directives that allow multiple occurrences (values are collected into a list)
+_MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
 
 # Short aliases for directives (alias -> canonical name)
 _DIRECTIVE_ALIASES: dict[str, str] = {"m": "model"}
@@ -41,9 +44,13 @@ class PromptDirectives:
 
     Attributes:
         model: Model override string, or None to use the default.
+        name: Agent name assigned via %name directive, or None.
+        wait: List of agent names to wait for via %wait directives.
     """
 
     model: str | None = None
+    name: str | None = None
+    wait: list[str] = field(default_factory=list)
 
 
 def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
@@ -70,7 +77,10 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         return prompt, PromptDirectives()
 
     # Collect known directive matches (we'll strip these from the prompt)
-    seen: dict[str, str] = {}  # directive name -> raw arg value
+    seen: dict[str, str] = {}  # directive name -> raw arg value (single-value)
+    seen_multi: dict[
+        str, list[str]
+    ] = {}  # directive name -> raw arg values (multi-value)
     # Regions to remove: list of (start, end) character positions
     regions_to_remove: list[tuple[int, int]] = []
 
@@ -80,8 +90,10 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         if name not in _KNOWN_DIRECTIVES:
             continue
 
-        # Check for duplicates
-        if name in seen:
+        # Check for duplicates (multi-value directives are allowed to repeat)
+        if name in _MULTI_VALUE_DIRECTIVES:
+            pass  # handled below after arg extraction
+        elif name in seen:
             raise DirectiveError(f"Duplicate directive '%{name}' in prompt")
 
         # Extract argument value
@@ -111,7 +123,10 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         else:
             raw_arg = ""
 
-        seen[name] = raw_arg
+        if name in _MULTI_VALUE_DIRECTIVES:
+            seen_multi.setdefault(name, []).append(raw_arg)
+        else:
+            seen[name] = raw_arg
         regions_to_remove.append((match.start(), match_end))
 
     if not regions_to_remove:
@@ -134,9 +149,22 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         else:
             expanded_args[directive_name] = raw_arg
 
+    # Expand xprompt references in multi-value directive arguments
+    expanded_multi: dict[str, list[str]] = {}
+    for directive_name, raw_args in seen_multi.items():
+        expanded_list: list[str] = []
+        for raw_arg in raw_args:
+            if raw_arg and "#" in raw_arg:
+                expanded_list.append(process_xprompt_references(raw_arg).strip())
+            else:
+                expanded_list.append(raw_arg)
+        expanded_multi[directive_name] = expanded_list
+
     # Build PromptDirectives from expanded args
     directives = PromptDirectives(
         model=expanded_args.get("model") or None,
+        name=expanded_args.get("name") or None,
+        wait=expanded_multi.get("wait", []),
     )
 
     return cleaned, directives
