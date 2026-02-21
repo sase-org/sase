@@ -1,5 +1,5 @@
 ---
-status: wip
+status: done
 ---
 
 Can you help me rewrite the `sase axe` command to make it easier to replicate each periodic check it performs and make
