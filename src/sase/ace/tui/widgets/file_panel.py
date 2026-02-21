@@ -463,7 +463,9 @@ class AgentFilePanel(Static):
                 os.path.expanduser(agent.project_file)
             )
             if vcs_type == "git":
-                diff_cmd = ["git", "diff", "HEAD"]
+                from sase.git_utils import git_diff_with_untracked
+
+                return git_diff_with_untracked(workspace_dir, timeout=10)
             elif vcs_type == "hg":
                 diff_cmd = ["hg", "diff"]
             else:

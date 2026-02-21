@@ -1,7 +1,6 @@
 """Prompt step execution mixin."""
 
 import os
-import subprocess
 from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
@@ -20,23 +19,14 @@ if TYPE_CHECKING:
 
 
 def capture_git_diff() -> str | None:
-    """Capture uncommitted changes as a git diff.
+    """Capture uncommitted changes as a git diff, including untracked files.
 
     Returns:
         The git diff output, or None if no changes or an error occurred.
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=os.getcwd(),
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout
-    except Exception:
-        pass
-    return None
+    from sase.git_utils import git_diff_with_untracked
+
+    return git_diff_with_untracked(os.getcwd())
 
 
 def _collect_embedded_step_outputs(
