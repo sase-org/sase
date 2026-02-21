@@ -111,20 +111,14 @@ class AgentNotificationMixin:
         unread = [n for n in notifications if not n.read]
 
         def _on_dismiss(result: Notification | None) -> None:
+            if result is not None:
+                mark_read(result.id)
+
+            # Always refresh count from disk — covers x-dismiss, R-read-all, Enter-select
+            self._refresh_notification_count()
+
             if result is None:
                 return
-            # Mark the selected notification as read
-            mark_read(result.id)
-            # Update badge count
-            self._last_unread_count = max(0, self._last_unread_count - 1)
-
-            # Update persistent notification indicator
-            from ...widgets import NotificationIndicator
-
-            indicator = self.query_one(  # type: ignore[attr-defined]
-                "#notification-indicator", NotificationIndicator
-            )
-            indicator.set_count(self._last_unread_count)
 
             # Dispatch action
             if result.action == "JumpToChangeSpec":
