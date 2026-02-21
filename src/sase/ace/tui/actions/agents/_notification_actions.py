@@ -252,6 +252,9 @@ def handle_user_question(app: object, notification: Notification) -> bool:
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
 
+        # Restore agent status override to pre-question value
+        _restore_pre_question_status(app, notification)
+
     app.push_screen(UserQuestionModal(questions), on_dismiss)  # type: ignore[attr-defined]
     return True
 
@@ -346,3 +349,37 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
 
     app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
     return True
+
+
+def _restore_pre_question_status(app: object, notification: Notification) -> None:
+    """Restore agent status override after a user question is answered.
+
+    Looks up the agent's pre-question status and either restores it as the
+    override (e.g. "CODING") or removes the override entirely (reverting
+    the agent to its disk status, e.g. "RUNNING").
+    """
+    cl_name = notification.action_data.get("agent_cl_name")
+    if not cl_name:
+        return
+
+    agent_timestamp = notification.action_data.get("agent_timestamp")
+
+    # Find matching agent to get identity
+    for agent in app._agents:  # type: ignore[attr-defined]
+        if agent.cl_name != cl_name:
+            continue
+        if agent_timestamp and agent.raw_suffix != agent_timestamp:
+            continue
+
+        identity = agent.identity
+        pre_status = app._agent_pre_question_status.pop(identity, None)  # type: ignore[attr-defined]
+        if pre_status is not None:
+            # Restore previous override (e.g. "CODING")
+            app._agent_status_overrides[identity] = pre_status  # type: ignore[attr-defined]
+        else:
+            # No previous override — remove it so agent reverts to disk status
+            app._agent_status_overrides.pop(identity, None)  # type: ignore[attr-defined]
+
+        # Reload agents to apply the restored status
+        app._load_agents()  # type: ignore[attr-defined]
+        break
