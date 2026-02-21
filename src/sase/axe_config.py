@@ -14,7 +14,6 @@ class _AxeConfig:
     hook_interval: int = 1
     zombie_timeout_seconds: int = 7200
     max_runners: int = 5
-    use_legacy_axe: bool = True
 
 
 def load_axe_config() -> _AxeConfig:
@@ -40,5 +39,4 @@ def load_axe_config() -> _AxeConfig:
             "zombie_timeout_seconds", _AxeConfig.zombie_timeout_seconds
         ),
         max_runners=axe_data.get("max_runners", _AxeConfig.max_runners),
-        use_legacy_axe=axe_data.get("use_legacy_axe", _AxeConfig.use_legacy_axe),
     )

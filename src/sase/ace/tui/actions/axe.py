@@ -45,14 +45,10 @@ AxeViewType = Literal["axe"] | int
 
 
 def _get_axe_process_module() -> types.ModuleType:
-    """Return the appropriate process module based on use_legacy_axe config."""
+    """Return the axe process module."""
     import importlib
 
-    from sase.axe_config import load_axe_config
-
-    config = load_axe_config()
-    module_name = "sase.ax.process" if config.use_legacy_axe else "sase.axe.process"
-    return importlib.import_module(module_name)
+    return importlib.import_module("sase.axe.process")
 
 
 class AxeMixin:
@@ -609,14 +605,11 @@ class AxeMixin:
         self._update_axe_keybinding()
 
     def _load_lumberjack_names(self) -> None:
-        """Load lumberjack names from axe config (new architecture only)."""
+        """Load lumberjack names from axe config."""
         from sase.axe.config import load_axe_config as load_new_axe_config
 
         config = load_new_axe_config()
-        if not config.use_legacy_axe:
-            self._axe_lumberjack_names = sorted(config.lumberjacks.keys())
-        else:
-            self._axe_lumberjack_names = []
+        self._axe_lumberjack_names = sorted(config.lumberjacks.keys())
 
         # Reset index if it's now out of bounds
         if self._axe_lumberjack_idx is not None and self._axe_lumberjack_idx >= len(

@@ -33,7 +33,6 @@ def test_axe_config_defaults() -> None:
     assert cfg.max_runners == 5
     assert cfg.zombie_timeout_seconds == 7200
     assert cfg.query == ""
-    assert cfg.use_legacy_axe is True
     assert cfg.lumberjacks == {}
 
 
@@ -126,7 +125,6 @@ axe:
   max_runners: 8
   zombie_timeout_seconds: 3600
   query: "my_query"
-  use_legacy_axe: false
   lumberjacks:
     hooks:
       interval: 2
@@ -144,7 +142,6 @@ axe:
     assert config.max_runners == 8
     assert config.zombie_timeout_seconds == 3600
     assert config.query == "my_query"
-    assert config.use_legacy_axe is False
     assert len(config.lumberjacks) == 2
     assert config.lumberjacks["hooks"].interval == 2
     assert config.lumberjacks["hooks"].chops == ["hook_checks", "mentor_checks"]
@@ -180,7 +177,6 @@ metahooks:
         config = load_axe_config()
 
     assert config.max_runners == 5
-    assert config.use_legacy_axe is True
     assert len(config.lumberjacks) == 4
 
 
@@ -228,4 +224,3 @@ axe:
     assert config.max_runners == 7
     assert config.zombie_timeout_seconds == 7200
     assert config.query == ""
-    assert config.use_legacy_axe is True

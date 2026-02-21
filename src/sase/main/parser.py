@@ -154,58 +154,6 @@ def create_parser() -> argparse.ArgumentParser:
     # sase axe lumberjack status
     axe_lj_subparsers.add_parser("status", help="Show status of all lumberjacks")
 
-    # --- ax ---
-    ax_parser = top_level_subparsers.add_parser(
-        "ax",
-        help="Legacy axe scheduler (quarantined)",
-    )
-    # Options for 'ax' (keep sorted alphabetically by long option name)
-    ax_parser.add_argument(
-        "--comment-check-interval",
-        type=int,
-        default=None,
-        help="Comment check interval in seconds (default: 60 = 1 minute)",
-    )
-    ax_parser.add_argument(
-        "--full-check-interval",
-        type=int,
-        default=None,
-        help="Full check interval in seconds (default: 300 = 5 minutes)",
-    )
-    ax_parser.add_argument(
-        "--hook-interval",
-        type=int,
-        default=None,
-        help="Hook check interval in seconds (default: 1)",
-    )
-    ax_parser.add_argument(
-        "-r",
-        "--max-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent runners (hooks, agents, mentors) globally (default: 5)",
-    )
-    ax_parser.add_argument(
-        "-q",
-        "--query",
-        default="",
-        help="Query string for filtering ChangeSpecs (empty = all ChangeSpecs). "
-        "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
-    )
-    ax_parser.add_argument(
-        "--vcs-provider",
-        choices=["git", "hg", "auto"],
-        default=None,
-        help="Override VCS provider ('git', 'hg', or 'auto' for auto-detection)",
-    )
-    ax_parser.add_argument(
-        "--zombie-timeout",
-        type=int,
-        default=None,
-        help="Zombie detection timeout in seconds (default: 7200 = 2 hours). "
-        "Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
-    )
-
     # --- amend ---
     amend_parser = top_level_subparsers.add_parser(
         "amend",

@@ -1,8 +1,7 @@
-"""Configuration for the new lumberjack-based axe architecture.
+"""Configuration for the lumberjack-based axe architecture.
 
 Loads lumberjack definitions from the ``axe:`` section of sase.yml.
-When the new ``lumberjacks:`` key is absent, generates a default config
-from the flat legacy fields for backward compatibility.
+When the ``lumberjacks:`` key is absent, generates a default config.
 """
 
 from dataclasses import dataclass, field
@@ -61,7 +60,6 @@ class AxeConfig:
     max_runners: int = 5
     zombie_timeout_seconds: int = 7200
     query: str = ""
-    use_legacy_axe: bool = True
     lumberjacks: dict[str, LumberjackConfig] = field(default_factory=dict)
 
 
@@ -95,8 +93,7 @@ def load_axe_config() -> AxeConfig:
     """Load axe config from sase.yml.
 
     If the ``lumberjacks:`` key is present, parse it directly.
-    Otherwise, generate defaults from the flat legacy fields for
-    backward compatibility.
+    Otherwise, generate defaults.
 
     Returns:
         Fully populated AxeConfig.
@@ -113,8 +110,6 @@ def load_axe_config() -> AxeConfig:
     max_runners = axe_data.get("max_runners", 5)
     zombie_timeout = axe_data.get("zombie_timeout_seconds", 7200)
     query = axe_data.get("query", "")
-    use_legacy = axe_data.get("use_legacy_axe", True)
-
     # Parse lumberjacks if present, otherwise use defaults
     raw_lumberjacks = axe_data.get("lumberjacks")
     if isinstance(raw_lumberjacks, dict):
@@ -126,6 +121,5 @@ def load_axe_config() -> AxeConfig:
         max_runners=max_runners,
         zombie_timeout_seconds=zombie_timeout,
         query=query,
-        use_legacy_axe=use_legacy,
         lumberjacks=lumberjacks,
     )
