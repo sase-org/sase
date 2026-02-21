@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sase.axe.state import AxeStatus
+from sase.axe.state import AxeStatus, LumberjackStatus
 from sase.sase_utils import EASTERN_TZ
 from rich.text import Text
 from textual.app import ComposeResult
@@ -28,6 +28,12 @@ class _AxeStatusSection(Static):
         # State for bgcmd mode
         self._bgcmd_info: BackgroundCommandInfo | None = None
         self._bgcmd_running = False
+        # State for lumberjack mode
+        self._lumberjack_mode = False
+        self._lumberjack_status: LumberjackStatus | None = None
+        self._lumberjack_name: str = ""
+        self._lumberjack_idx: int = 0
+        self._lumberjack_total: int = 0
         # Shared state
         self._countdown = 0
 
@@ -47,6 +53,7 @@ class _AxeStatusSection(Static):
             countdown: Seconds until next auto-refresh.
         """
         self._axe_mode = True
+        self._lumberjack_mode = False
         self._status = status
         self._is_running = is_running
         self._full_cycles = full_cycles
@@ -67,8 +74,35 @@ class _AxeStatusSection(Static):
             countdown: Seconds until next auto-refresh.
         """
         self._axe_mode = False
+        self._lumberjack_mode = False
         self._bgcmd_info = info
         self._bgcmd_running = is_running
+        self._countdown = countdown
+        self._refresh_display()
+
+    def update_lumberjack_display(
+        self,
+        status: LumberjackStatus | None,
+        name: str,
+        idx: int,
+        total: int,
+        countdown: int = 0,
+    ) -> None:
+        """Update the status section for a specific lumberjack.
+
+        Args:
+            status: Lumberjack status, or None if not available.
+            name: Lumberjack name.
+            idx: Current index (0-based).
+            total: Total number of lumberjacks.
+            countdown: Seconds until next auto-refresh.
+        """
+        self._lumberjack_mode = True
+        self._axe_mode = False
+        self._lumberjack_status = status
+        self._lumberjack_name = name
+        self._lumberjack_idx = idx
+        self._lumberjack_total = total
         self._countdown = countdown
         self._refresh_display()
 
@@ -85,7 +119,9 @@ class _AxeStatusSection(Static):
 
     def _refresh_display(self) -> None:
         """Refresh the display based on current state."""
-        if self._axe_mode:
+        if self._lumberjack_mode:
+            self._render_lumberjack_display()
+        elif self._axe_mode:
             self._render_axe_display()
         else:
             self._render_bgcmd_display()
@@ -197,6 +233,63 @@ class _AxeStatusSection(Static):
 
         self.update(text)
 
+    def _render_lumberjack_display(self) -> None:
+        """Render the lumberjack-specific status display."""
+        text = Text()
+        status = self._lumberjack_status
+
+        # Lumberjack name with index
+        text.append(f"[{self._lumberjack_name}]", style="bold #FFD700")
+        text.append(
+            f" ({self._lumberjack_idx + 1}/{self._lumberjack_total})",
+            style="dim",
+        )
+
+        if status:
+            # Status
+            text.append("  │  ", style="dim")
+            if status.status == "running":
+                text.append("RUNNING", style="bold green")
+            elif status.status == "error":
+                text.append("ERROR", style="bold red")
+            else:
+                text.append("STOPPED", style="bold #FFD700")
+
+            # PID
+            text.append("  │  ", style="dim")
+            text.append("PID: ", style="bold #87D7FF")
+            text.append(f"{status.pid}", style="#FF87D7 bold")
+
+            # Interval
+            text.append("  │  ", style="dim")
+            text.append("Interval: ", style="bold #87D7FF")
+            text.append(f"{status.interval}s", style="#00D7AF")
+
+            # Cycles
+            text.append("  │  ", style="dim")
+            text.append("Cycles: ", style="bold #87D7FF")
+            text.append(f"{status.cycles_run}", style="#00D7AF bold")
+
+            # Errors
+            if status.errors_encountered > 0:
+                text.append("  │  ", style="dim")
+                text.append("Errors: ", style="bold #87D7FF")
+                text.append(f"{status.errors_encountered}", style="bold red")
+
+            # Chops count
+            text.append("  │  ", style="dim")
+            text.append("Chops: ", style="bold #87D7FF")
+            text.append(f"{len(status.chops)}", style="#00D7AF")
+
+        # Countdown
+        if self._countdown > 0:
+            text.append("  │  ", style="dim")
+            text.append("(auto-refresh in ", style="dim")
+            text.append(f"{self._countdown}s", style="bold #FFD700")
+            text.append(")", style="dim")
+
+        self.update(text)
+
 
 class _AxeOutputSection(Static):
     """Section showing live axe output log."""
@@ -296,6 +389,31 @@ class AxeDashboard(Static):
             # Convert ANSI codes to Rich Text for proper rendering
             text = Text.from_ansi(output)
             output_section.update(text)
+
+    def update_lumberjack_display(
+        self,
+        name: str,
+        idx: int,
+        total: int,
+        status: LumberjackStatus | None,
+        output: str,
+        countdown: int = 0,
+    ) -> None:
+        """Update the dashboard to show a specific lumberjack's output.
+
+        Args:
+            name: Lumberjack name.
+            idx: Current index (0-based).
+            total: Total number of lumberjacks.
+            status: Lumberjack status, or None if not available.
+            output: Raw output log with ANSI codes.
+            countdown: Seconds until next auto-refresh.
+        """
+        status_section = self.query_one("#axe-status-section", _AxeStatusSection)
+        output_section = self.query_one("#axe-output-section", _AxeOutputSection)
+
+        status_section.update_lumberjack_display(status, name, idx, total, countdown)
+        output_section.update_display(output)
 
     def update_countdown(self, countdown: int) -> None:
         """Update just the countdown display.

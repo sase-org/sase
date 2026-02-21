@@ -293,6 +293,10 @@ class AceApp(
         self._axe_current_view: Literal["axe"] | int = "axe"
         self._bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
 
+        # Lumberjack cycling state (new axe architecture)
+        self._axe_lumberjack_names: list[str] = []
+        self._axe_lumberjack_idx: int | None = None
+
         # Query history stacks for prev/next navigation
         from ..query_history import load_query_history
 

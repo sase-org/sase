@@ -530,6 +530,20 @@ def read_lumberjack_log_tail(name: str, lines: int = 1000) -> str:
         return ""
 
 
+def clear_lumberjack_output_log(name: str) -> None:
+    """Clear a lumberjack's output log file.
+
+    Args:
+        name: Lumberjack name.
+    """
+    log_file = lumberjack_log_path(name)
+    if log_file.exists():
+        try:
+            log_file.write_text("")
+        except OSError:
+            pass
+
+
 def list_lumberjack_names() -> list[str]:
     """List all lumberjack names that have state directories.
 

@@ -202,14 +202,27 @@ class KeybindingFooter(Horizontal):
         text = self._format_bindings(bindings)
         self._update_display(text)
 
-    def update_axe_bindings(self, *, axe_current_view: str | int = "axe") -> None:
+    def update_axe_bindings(
+        self,
+        *,
+        axe_current_view: str | int = "axe",
+        lumberjack_name: str | None = None,
+        lumberjack_idx: int | None = None,
+        lumberjack_total: int = 0,
+    ) -> None:
         """Update bindings for Axe tab context."""
-        bindings = self._compute_axe_bindings(axe_current_view)
+        bindings = self._compute_axe_bindings(
+            axe_current_view, lumberjack_name, lumberjack_idx, lumberjack_total
+        )
         text = self._format_bindings(bindings)
         self._update_display(text)
 
     def _compute_axe_bindings(
-        self, axe_current_view: str | int
+        self,
+        axe_current_view: str | int,
+        lumberjack_name: str | None = None,
+        lumberjack_idx: int | None = None,
+        lumberjack_total: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute available bindings for Axe tab.
 
@@ -225,6 +238,15 @@ class KeybindingFooter(Horizontal):
         else:
             label = "kill"
         bindings.append(("X", label))
+        # Show lumberjack cycling hint when lumberjacks are available
+        if lumberjack_total > 0 and axe_current_view == "axe":
+            if lumberjack_name is not None and lumberjack_idx is not None:
+                lj_label = (
+                    f"{lumberjack_name} ({lumberjack_idx + 1}/{lumberjack_total})"
+                )
+            else:
+                lj_label = f"lumberjacks ({lumberjack_total})"
+            bindings.append(("^N/P", lj_label))
         return bindings
 
     def update_leader_bindings(self) -> None:

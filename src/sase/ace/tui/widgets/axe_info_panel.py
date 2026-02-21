@@ -22,6 +22,10 @@ class AxeInfoPanel(Static):
         self._bgcmd_slot: int | None = None
         self._bgcmd_info: BackgroundCommandInfo | None = None
         self._bgcmd_running = False
+        self._lumberjack_mode = False
+        self._lumberjack_name: str = ""
+        self._lumberjack_idx: int = 0
+        self._lumberjack_total: int = 0
 
     def update_status(self, is_running: bool) -> None:
         """Update the running status display for axe daemon.
@@ -31,6 +35,22 @@ class AxeInfoPanel(Static):
         """
         self._is_running = is_running
         self._bgcmd_mode = False
+        self._lumberjack_mode = False
+        self._update_display()
+
+    def update_lumberjack_status(self, name: str, idx: int, total: int) -> None:
+        """Update the status display for a lumberjack view.
+
+        Args:
+            name: Lumberjack name.
+            idx: Current index (0-based).
+            total: Total number of lumberjacks.
+        """
+        self._bgcmd_mode = False
+        self._lumberjack_mode = True
+        self._lumberjack_name = name
+        self._lumberjack_idx = idx
+        self._lumberjack_total = total
         self._update_display()
 
     def update_bgcmd_status(
@@ -47,6 +67,7 @@ class AxeInfoPanel(Static):
             is_running: Whether the command is still running.
         """
         self._bgcmd_mode = True
+        self._lumberjack_mode = False
         self._bgcmd_slot = slot
         self._bgcmd_info = info
         self._bgcmd_running = is_running
@@ -67,7 +88,15 @@ class AxeInfoPanel(Static):
         """Refresh the displayed text."""
         text = Text()
 
-        if self._bgcmd_mode:
+        if self._lumberjack_mode:
+            # Show lumberjack name with index
+            text.append(f"[{self._lumberjack_name}]", style="bold #FFD700")
+            text.append(
+                f" ({self._lumberjack_idx + 1}/{self._lumberjack_total})",
+                style="dim",
+            )
+            text.append("  ", style="")
+        elif self._bgcmd_mode:
             # Show bgcmd info (just project name)
             if self._bgcmd_info:
                 text.append(self._bgcmd_info.project, style="#87D7FF")

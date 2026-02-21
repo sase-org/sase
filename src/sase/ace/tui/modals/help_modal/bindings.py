@@ -172,6 +172,7 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Navigation",
         [
             ("j / k", "Move to next / previous command"),
+            ("Ctrl+N / P", "Next / prev lumberjack output"),
             ("g", "Scroll to top"),
             ("G", "Scroll to bottom"),
             ("r", "Show runners info"),

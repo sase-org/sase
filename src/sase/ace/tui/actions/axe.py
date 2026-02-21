@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING, Literal
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
+    LumberjackStatus,
+    clear_lumberjack_output_log,
     clear_output_log,
+    read_lumberjack_log_tail,
+    read_lumberjack_status,
     read_metrics,
     read_output_log_tail,
 )
@@ -71,6 +75,10 @@ class AxeMixin:
     # Background command state
     _axe_current_view: AxeViewType
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
+
+    # Lumberjack cycling state
+    _axe_lumberjack_names: list[str]
+    _axe_lumberjack_idx: int | None
 
     def action_toggle_axe(self) -> None:
         """Toggle the axe daemon on or off (AXE tab only).
@@ -194,9 +202,14 @@ class AxeMixin:
             return
 
         if self._axe_current_view == "axe":
-            # Clear axe output
-            clear_output_log()
-            self._axe_output = ""
+            if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
+                # Clear lumberjack-specific output
+                lj_name = self._axe_lumberjack_names[self._axe_lumberjack_idx]
+                clear_lumberjack_output_log(lj_name)
+            else:
+                # Clear main axe output
+                clear_output_log()
+                self._axe_output = ""
         else:
             # Clear bgcmd output
             slot = self._axe_current_view
@@ -491,6 +504,42 @@ class AxeMixin:
         self._axe_current_view = view
         self._refresh_axe_display()
 
+    def _next_lumberjack(self) -> None:
+        """Cycle to the next lumberjack output view.
+
+        Cycles: main → first lumberjack → ... → last → main → ...
+        Does nothing if no lumberjacks are configured.
+        """
+        if not self._axe_lumberjack_names:
+            return
+        if self._axe_lumberjack_idx is None:
+            self._axe_lumberjack_idx = 0
+        else:
+            next_idx = self._axe_lumberjack_idx + 1
+            if next_idx >= len(self._axe_lumberjack_names):
+                self._axe_lumberjack_idx = None
+            else:
+                self._axe_lumberjack_idx = next_idx
+        self._refresh_axe_display()
+
+    def _prev_lumberjack(self) -> None:
+        """Cycle to the previous lumberjack output view.
+
+        Cycles: main → last lumberjack → ... → first → main → ...
+        Does nothing if no lumberjacks are configured.
+        """
+        if not self._axe_lumberjack_names:
+            return
+        if self._axe_lumberjack_idx is None:
+            self._axe_lumberjack_idx = len(self._axe_lumberjack_names) - 1
+        else:
+            prev_idx = self._axe_lumberjack_idx - 1
+            if prev_idx < 0:
+                self._axe_lumberjack_idx = None
+            else:
+                self._axe_lumberjack_idx = prev_idx
+        self._refresh_axe_display()
+
     def _start_axe(self) -> None:
         """Start the axe daemon."""
         try:
@@ -546,6 +595,9 @@ class AxeMixin:
         # Load output log (always, for display even when stopped)
         self._axe_output = read_output_log_tail(500)
 
+        # Load lumberjack names from config (new architecture only)
+        self._load_lumberjack_names()
+
         # Also load bgcmd state
         self._load_bgcmd_state()
 
@@ -555,6 +607,22 @@ class AxeMixin:
 
         # Update keybinding footer for all tabs (X binding changes label)
         self._update_axe_keybinding()
+
+    def _load_lumberjack_names(self) -> None:
+        """Load lumberjack names from axe config (new architecture only)."""
+        from sase.axe.config import load_axe_config as load_new_axe_config
+
+        config = load_new_axe_config()
+        if not config.use_legacy_axe:
+            self._axe_lumberjack_names = sorted(config.lumberjacks.keys())
+        else:
+            self._axe_lumberjack_names = []
+
+        # Reset index if it's now out of bounds
+        if self._axe_lumberjack_idx is not None and self._axe_lumberjack_idx >= len(
+            self._axe_lumberjack_names
+        ):
+            self._axe_lumberjack_idx = None
 
     def _load_bgcmd_state(self) -> None:
         """Load background command state from disk (running + done commands)."""
@@ -636,20 +704,39 @@ class AxeMixin:
 
             # Update info panel based on current view
             if self._axe_current_view == "axe":
-                axe_info.update_status(self.axe_running)
+                if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
+                    # Show lumberjack-specific view
+                    lj_name = self._axe_lumberjack_names[self._axe_lumberjack_idx]
+                    lj_output = read_lumberjack_log_tail(lj_name, 500)
+                    lj_status = read_lumberjack_status(lj_name)
+                    lj_idx = self._axe_lumberjack_idx
+                    lj_total = len(self._axe_lumberjack_names)
 
-                # Get full cycles from metrics if available
-                full_cycles = 0
-                if self._axe_metrics:
-                    full_cycles = self._axe_metrics.full_cycles_run
+                    axe_info.update_lumberjack_status(lj_name, lj_idx, lj_total)
+                    axe_dashboard.update_lumberjack_display(
+                        name=lj_name,
+                        idx=lj_idx,
+                        total=lj_total,
+                        status=lj_status,
+                        output=lj_output,
+                        countdown=self._countdown_remaining,
+                    )
+                else:
+                    # Show main output (legacy behavior)
+                    axe_info.update_status(self.axe_running)
 
-                axe_dashboard.update_display(
-                    is_running=self.axe_running,
-                    status=self._axe_status,
-                    output=self._axe_output,
-                    full_cycles=full_cycles,
-                    countdown=self._countdown_remaining,
-                )
+                    # Get full cycles from metrics if available
+                    full_cycles = 0
+                    if self._axe_metrics:
+                        full_cycles = self._axe_metrics.full_cycles_run
+
+                    axe_dashboard.update_display(
+                        is_running=self.axe_running,
+                        status=self._axe_status,
+                        output=self._axe_output,
+                        full_cycles=full_cycles,
+                        countdown=self._countdown_remaining,
+                    )
             else:
                 # Showing a bgcmd view
                 slot = self._axe_current_view
@@ -679,7 +766,21 @@ class AxeMixin:
             elif getattr(self, "_copy_mode_active", False):
                 footer.update_copy_bindings(self.current_tab)
             else:
-                footer.update_axe_bindings(axe_current_view=self._axe_current_view)
+                # Compute lumberjack info for footer
+                footer_lj_name: str | None = None
+                footer_lj_idx: int | None = None
+                footer_lj_total = len(self._axe_lumberjack_names)
+                if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
+                    footer_lj_name = self._axe_lumberjack_names[
+                        self._axe_lumberjack_idx
+                    ]
+                    footer_lj_idx = self._axe_lumberjack_idx
+                footer.update_axe_bindings(
+                    axe_current_view=self._axe_current_view,
+                    lumberjack_name=footer_lj_name,
+                    lumberjack_idx=footer_lj_idx,
+                    lumberjack_total=footer_lj_total,
+                )
 
             # Update bgcmd list if visible
             if len(self._bgcmd_slots) > 0:
