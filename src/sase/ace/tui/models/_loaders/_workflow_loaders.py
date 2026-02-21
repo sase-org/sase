@@ -300,6 +300,7 @@ def load_workflow_agent_steps() -> list[Agent]:
                         parent_total_steps = data.get("parent_total_steps")
                         is_hidden = data.get("hidden", False)
                         is_pre_prompt_step = data.get("is_pre_prompt_step", False)
+                        embedded_workflow_name = data.get("embedded_workflow_name")
 
                         # Pre-prompt steps from embedded workflows are hidden
                         # by default but still loadable at FULLY_EXPANDED level.
@@ -349,6 +350,8 @@ def load_workflow_agent_steps() -> list[Agent]:
                             error_message=error_message,
                             error_traceback=error_traceback,
                             response_path=response_path,
+                            embedded_workflow_name=embedded_workflow_name,
+                            is_pre_prompt_step=is_pre_prompt_step,
                         )
                         enrich_agent_from_meta(agent, artifacts_dir_from_marker)
                         agents.append(agent)

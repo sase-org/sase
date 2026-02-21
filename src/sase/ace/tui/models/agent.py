@@ -113,6 +113,12 @@ class Agent:
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None
 
+    # Embedded workflow name for steps within embedded workflows (e.g., "git", "propose")
+    embedded_workflow_name: str | None = None
+
+    # Whether this is a pre-prompt step from an embedded workflow
+    is_pre_prompt_step: bool = False
+
     def get_display_type(self, *, is_expanded: bool = False) -> str:
         """Compute display type with optional fold-state context.
 

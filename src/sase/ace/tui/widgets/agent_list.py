@@ -83,6 +83,9 @@ def _calculate_entry_display_width(
     parts.extend([f"[{dt}] ", agent.cl_name, " ", f"({agent.status})"])
     if fold_annotation:
         parts.append(fold_annotation)
+    if agent.embedded_workflow_name:
+        # "  ▲ #name" or "  ▼ #name"
+        parts.append(f"  \u25b2 #{agent.embedded_workflow_name}")
     text = Text("".join(parts))
     return text.cell_len
 
@@ -259,6 +262,15 @@ class AgentList(OptionList):
             else:
                 # EXPANDED/FULLY_EXPANDED: "(+N hidden)" or "(+N shown)" in dim
                 text.append(fold_annotation, style="dim")
+
+        # Embedded workflow annotation for child steps
+        if agent.embedded_workflow_name:
+            text.append("  ", style="")
+            if agent.is_pre_prompt_step:
+                text.append("\u25b2 ", style="bold #5F87AF")
+            else:
+                text.append("\u25bc ", style="bold #D7AF5F")
+            text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
         return Option(text, id=f"{index}:{agent.agent_type.value}:{agent.cl_name}")
 

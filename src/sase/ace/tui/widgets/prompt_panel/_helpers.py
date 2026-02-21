@@ -7,24 +7,24 @@ from typing import Any
 from ...models.agent import Agent
 
 
-def get_status_indicator(status: str) -> str:
-    """Get a status indicator emoji/symbol.
+def get_rich_status_indicator(status: str) -> tuple[str, str]:
+    """Get a status indicator symbol and Rich style string.
 
     Args:
-        status: The status string.
+        status: The status string (e.g. "completed", "failed").
 
     Returns:
-        A status indicator character.
+        A (symbol, style) tuple for use with Rich Text.
     """
-    indicators = {
-        "completed": "[OK]",
-        "in_progress": "[...]",
-        "pending": "[ ]",
-        "skipped": "[SKIP]",
-        "failed": "[FAIL]",
-        "waiting_hitl": "[WAIT]",
+    indicators: dict[str, tuple[str, str]] = {
+        "completed": ("\u2713", "bold #5FD75F"),
+        "failed": ("\u2717", "bold #FF5F5F"),
+        "in_progress": ("\u25cc", "bold #87D7FF"),
+        "pending": ("\u25cb", "dim"),
+        "waiting_hitl": ("\u25c8", "bold #FFAF5F"),
+        "skipped": ("\u2298", "dim"),
     }
-    return indicators.get(status, f"[{status}]")
+    return indicators.get(status, ("?", "dim"))
 
 
 def format_output(output: Any) -> str:
