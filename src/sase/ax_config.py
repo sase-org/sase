@@ -1,4 +1,4 @@
-"""Axe scheduler configuration loading."""
+"""Legacy axe scheduler configuration loading (quarantined)."""
 
 from dataclasses import dataclass
 
@@ -7,14 +7,13 @@ from sase.config import load_merged_config
 
 @dataclass
 class _AxeConfig:
-    """Configuration for the axe scheduler."""
+    """Configuration for the legacy axe scheduler."""
 
     full_check_interval: int = 300
     comment_check_interval: int = 60
     hook_interval: int = 1
     zombie_timeout_seconds: int = 7200
     max_runners: int = 5
-    use_legacy_axe: bool = True
 
 
 def load_axe_config() -> _AxeConfig:
@@ -40,5 +39,4 @@ def load_axe_config() -> _AxeConfig:
             "zombie_timeout_seconds", _AxeConfig.zombie_timeout_seconds
         ),
         max_runners=axe_data.get("max_runners", _AxeConfig.max_runners),
-        use_legacy_axe=axe_data.get("use_legacy_axe", _AxeConfig.use_legacy_axe),
     )

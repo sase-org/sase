@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
+import types
 from typing import TYPE_CHECKING, Literal
 
-from sase.axe.process import (
-    get_axe_status,
-    is_axe_running,
-    start_axe_daemon,
-    stop_axe_daemon,
-)
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
@@ -43,6 +38,17 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
+
+
+def _get_axe_process_module() -> types.ModuleType:
+    """Return the appropriate process module based on use_legacy_axe config."""
+    import importlib
+
+    from sase.axe_config import load_axe_config
+
+    config = load_axe_config()
+    module_name = "sase.ax.process" if config.use_legacy_axe else "sase.axe.process"
+    return importlib.import_module(module_name)
 
 
 class AxeMixin:
@@ -489,7 +495,8 @@ class AxeMixin:
         """Start the axe daemon."""
         try:
             self._set_axe_starting(True)
-            start_axe_daemon()
+            proc = _get_axe_process_module()
+            proc.start_axe_daemon()
             self._load_axe_status()
         except Exception as e:
             self._set_axe_starting(False)
@@ -499,7 +506,8 @@ class AxeMixin:
         """Stop the axe daemon."""
         try:
             self._set_axe_stopping(True)
-            stop_axe_daemon()
+            proc = _get_axe_process_module()
+            proc.stop_axe_daemon()
             self._load_axe_status()
         except Exception as e:
             self._set_axe_stopping(False)
@@ -507,8 +515,10 @@ class AxeMixin:
 
     def _load_axe_status(self) -> None:
         """Load axe status from disk and update display."""
+        proc = _get_axe_process_module()
+
         # Check if axe is running
-        self.axe_running = is_axe_running()
+        self.axe_running = proc.is_axe_running()
 
         # Clear starting state once confirmed running
         if self.axe_running:
@@ -520,7 +530,7 @@ class AxeMixin:
 
         # Load status data
         if self.axe_running:
-            status_dict = get_axe_status()
+            status_dict = proc.get_axe_status()
             if status_dict:
                 try:
                     self._axe_status = AxeStatus(**status_dict)

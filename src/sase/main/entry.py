@@ -293,6 +293,52 @@ def main() -> NoReturn:
         app.run()
         sys.exit(0)
 
+    # --- ax ---
+    if args.command == "ax":
+        from sase.ax import AxeScheduler as LegacyAxeScheduler
+        from sase.ax_config import load_axe_config as load_legacy_axe_config
+
+        # Wire --vcs-provider to env var for downstream resolution
+        vcs_provider = getattr(args, "vcs_provider", None)
+        if vcs_provider is not None:
+            os.environ["SASE_VCS_PROVIDER"] = vcs_provider
+
+        legacy_config = load_legacy_axe_config()
+        try:
+            legacy_scheduler = LegacyAxeScheduler(
+                full_check_interval=(
+                    args.full_check_interval
+                    if args.full_check_interval is not None
+                    else legacy_config.full_check_interval
+                ),
+                hook_interval=(
+                    args.hook_interval
+                    if args.hook_interval is not None
+                    else legacy_config.hook_interval
+                ),
+                zombie_timeout_seconds=(
+                    args.zombie_timeout
+                    if args.zombie_timeout is not None
+                    else legacy_config.zombie_timeout_seconds
+                ),
+                max_runners=(
+                    args.max_runners
+                    if args.max_runners is not None
+                    else legacy_config.max_runners
+                ),
+                query=args.query,
+                comment_check_interval=(
+                    args.comment_check_interval
+                    if args.comment_check_interval is not None
+                    else legacy_config.comment_check_interval
+                ),
+            )
+        except QueryParseError as e:
+            print(f"Error: Invalid query: {e}")
+            sys.exit(1)
+        success = legacy_scheduler.run()
+        sys.exit(0 if success else 1)
+
     # --- axe ---
     if args.command == "axe":
         from sase.axe import AxeScheduler
