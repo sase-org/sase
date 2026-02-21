@@ -12,6 +12,11 @@ invoke_agent, workflow executor) can insert logic between the two phases
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from sase.xprompt._disabled_regions import (
+    protect_disabled_regions,
+    strip_disabled_region_markers,
+    unprotect_disabled_regions,
+)
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
 
@@ -123,6 +128,10 @@ def preprocess_prompt_late(
     )
     from sase.xprompt import is_jinja2_template, render_toplevel_jinja2
 
+    # 0. Protect disabled regions (%xprompts_enabled:false/true pairs)
+    disabled_regions: list[str] = []
+    prompt = protect_disabled_regions(prompt, disabled_regions)
+
     # 1. Protect fenced code blocks
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
@@ -148,6 +157,10 @@ def preprocess_prompt_late(
 
     # 7. Restore fenced code blocks
     prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
+
+    # 8. Restore disabled regions and strip markers
+    prompt = unprotect_disabled_regions(prompt, disabled_regions)
+    prompt = strip_disabled_region_markers(prompt)
 
     return prompt
 

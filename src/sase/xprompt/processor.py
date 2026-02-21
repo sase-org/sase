@@ -5,6 +5,10 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from sase.xprompt._disabled_regions import (
+    protect_disabled_regions,
+    unprotect_disabled_regions,
+)
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 
 from sase.rich_utils import print_status
@@ -173,6 +177,10 @@ def process_xprompt_references(
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
+    # Protect disabled regions (%xprompts_enabled:false/true pairs).
+    disabled_regions: list[str] = []
+    prompt = protect_disabled_regions(prompt, disabled_regions)
+
     iteration = 0
     while iteration < _MAX_EXPANSION_ITERATIONS:
         # Pre-process shorthand syntax on each iteration
@@ -284,6 +292,9 @@ def process_xprompt_references(
             "error",
         )
         sys.exit(1)
+
+    # Restore disabled regions (markers preserved for downstream stages)
+    prompt = unprotect_disabled_regions(prompt, disabled_regions)
 
     # Restore all fenced code blocks
     prompt = unprotect_fenced_blocks(prompt, fenced_blocks)

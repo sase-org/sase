@@ -14,11 +14,13 @@ steps:
 
   - name: inject
     prompt_part: |
+      %xprompts_enabled:false
       # Previous Conversation
 
       {{ load_history.previous_history }}
 
       ---
 
+      %xprompts_enabled:true
       # New Query
 
