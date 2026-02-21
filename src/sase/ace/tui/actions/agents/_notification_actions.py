@@ -10,6 +10,41 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
+    from ...models import Agent
+
+
+def _find_agent_for_notification(
+    app: object, notification: Notification
+) -> Agent | None:
+    """Find the agent matching a notification's identity fields.
+
+    Matches by agent_cl_name + agent_timestamp in action_data against
+    the currently loaded agents list.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing
+            agent_cl_name and optionally agent_timestamp.
+
+    Returns:
+        The matching Agent, or None if not found.
+    """
+    cl_name = notification.action_data.get("agent_cl_name")
+    if not cl_name:
+        return None
+
+    agent_timestamp = notification.action_data.get("agent_timestamp")
+
+    agents: list[Agent] = app._agents  # type: ignore[attr-defined]
+    for agent in agents:
+        if agent.cl_name != cl_name:
+            continue
+        if agent_timestamp and agent.raw_suffix != agent_timestamp:
+            continue
+        return agent
+
+    return None
+
 
 def handle_jump_to_agent(app: object, notification: Notification) -> bool:
     """Jump to the agent referenced in the notification.
@@ -311,7 +346,22 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
             return
 
-        # Write response file
+        # Find matching agent for status override updates
+        agent = _find_agent_for_notification(app, notification)
+
+        # Reject without feedback: kill agent, no response file needed
+        # (killing the process group also kills the plan_approve_handler)
+        if result.action == "reject" and result.feedback is None:
+            if agent is not None:
+                # Clear overrides before kill (_do_kill_agent calls _load_agents)
+                app._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
+                app._agent_pre_question_status.pop(agent.identity, None)  # type: ignore[attr-defined]
+                app._do_kill_agent(agent)  # type: ignore[attr-defined]
+            else:
+                app.notify("Rejected plan (agent not found)")  # type: ignore[attr-defined]
+            return
+
+        # Write response file (for approve and reject with feedback)
         plan_response_path = response_path / "plan_response.json"
         response_data: dict[str, object] = {
             "action": result.action,
@@ -346,6 +396,14 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             app.notify(f"Sent plan {result.action} response")  # type: ignore[attr-defined]
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
+            return
+
+        # Update status override based on action
+        if agent is not None:
+            if result.action == "approve":
+                app._agent_status_overrides[agent.identity] = "CODING"  # type: ignore[attr-defined]
+            # For reject with feedback: keep "PLANNING" override (no change)
+            app._load_agents()  # type: ignore[attr-defined]
 
     app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
     return True
