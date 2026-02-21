@@ -1,5 +1,6 @@
 ---
 bead_id: sase-bta
+status: done
 ---
 
 # Axe Lumberjack/Chops v2: Executable Scripts + Default Config

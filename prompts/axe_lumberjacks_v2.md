@@ -1,5 +1,5 @@
 ---
-status: wip
+status: done
 ---
 
 Can you help me improve upon the recently added `sase axe` lumberjacks / chops functionality (see the
