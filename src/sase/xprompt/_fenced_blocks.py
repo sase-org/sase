@@ -7,7 +7,7 @@ code blocks from being treated as xprompt references.
 
 import re
 
-_FENCED_CODE_BLOCK_RE = re.compile(r"```[^\n]*\n[\s\S]*?```")
+_FENCED_CODE_BLOCK_RE = re.compile(r"(`{3,})[^\n]*\n[\s\S]*?\1")
 _PLACEHOLDER_PREFIX = "\x00XPF_"
 _PLACEHOLDER_SUFFIX = "\x00"
 

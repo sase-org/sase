@@ -66,6 +66,50 @@ class TestProtectUnprotectRoundTrip:
         protected = protect_fenced_blocks(text, blocks)
         assert "#my_xprompt" not in protected
 
+    def test_four_backtick_fence_round_trip(self) -> None:
+        original = "before\n````\ncode\n````\nafter"
+        blocks: list[str] = []
+        protected = protect_fenced_blocks(original, blocks)
+        assert len(blocks) == 1
+        assert "code" not in protected
+        restored = unprotect_fenced_blocks(protected, blocks)
+        assert restored == original
+
+    def test_four_backtick_fence_with_triple_inside(self) -> None:
+        """4-backtick fence containing triple backticks should be one block."""
+        original = "before\n````\n```\ninner\n```\n````\nafter"
+        blocks: list[str] = []
+        protected = protect_fenced_blocks(original, blocks)
+        assert len(blocks) == 1
+        assert "inner" not in protected
+        assert "```" not in protected
+        restored = unprotect_fenced_blocks(protected, blocks)
+        assert restored == original
+
+    def test_four_backtick_fence_with_language_spec(self) -> None:
+        original = "text\n````python\ndef foo():\n    pass\n````\nmore"
+        blocks: list[str] = []
+        protected = protect_fenced_blocks(original, blocks)
+        assert "def foo" not in protected
+        restored = unprotect_fenced_blocks(protected, blocks)
+        assert restored == original
+
+    def test_xprompt_ref_inside_four_backtick_fence_not_visible(self) -> None:
+        text = "outside\n````\n#my_xprompt some text\n````\n"
+        blocks: list[str] = []
+        protected = protect_fenced_blocks(text, blocks)
+        assert "#my_xprompt" not in protected
+
+    def test_mixed_three_and_four_backtick_fences(self) -> None:
+        original = "a\n```\nblock1\n```\nb\n````\nblock2\n````\nc"
+        blocks: list[str] = []
+        protected = protect_fenced_blocks(original, blocks)
+        assert len(blocks) == 2
+        assert "block1" not in protected
+        assert "block2" not in protected
+        restored = unprotect_fenced_blocks(protected, blocks)
+        assert restored == original
+
 
 class TestProcessXpromptReferencesCodeBlocks:
     """Integration: process_xprompt_references skips code block content."""
@@ -174,3 +218,29 @@ class TestProcessXpromptReferencesCodeBlocks:
         result = process_xprompt_references(prompt)
         assert "#foo" in result
         assert "FOO" not in result
+
+    @patch("sase.xprompt.processor.get_all_xprompts")
+    def test_ref_inside_four_backtick_fence_not_expanded(
+        self, mock_get_all: MagicMock
+    ) -> None:
+        mock_get_all.return_value = {
+            "greeting": XPrompt(name="greeting", content="Hello!"),
+        }
+        prompt = "before\n````\n#greeting\n````\nafter"
+        result = process_xprompt_references(prompt)
+        assert "#greeting" in result
+        assert "Hello!" not in result
+
+    @patch("sase.xprompt.processor.get_all_xprompts")
+    def test_four_backtick_fence_containing_triple_backticks(
+        self, mock_get_all: MagicMock
+    ) -> None:
+        """4-backtick fence with triple backticks inside should protect all content."""
+        mock_get_all.return_value = {
+            "foo": XPrompt(name="foo", content="FOO"),
+        }
+        prompt = "before\n````\n```\n#foo\n```\n````\nafter"
+        result = process_xprompt_references(prompt)
+        assert "#foo" in result
+        assert "FOO" not in result
+        assert "```" in result

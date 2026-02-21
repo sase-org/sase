@@ -59,7 +59,7 @@ class _XPromptCall:
     raw_match: str
 
 
-_FENCED_CODE_BLOCK_PATTERN = re.compile(r"```[^\n]*\n[\s\S]*?```")
+_FENCED_CODE_BLOCK_PATTERN = re.compile(r"(`{3,})[^\n]*\n[\s\S]*?\1")
 
 
 def _extract_xprompt_calls(content: str) -> list[_XPromptCall]:
