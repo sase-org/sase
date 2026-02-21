@@ -25,8 +25,8 @@ said, there are a few exceptions:
   repository. For example, if a symbol is used by `xprompts/foo.yaml`, the pragma comment would be
   `# pyvision: xprompts/foo.yaml`.
 - When all functions/classes decorated with a specific decorator should be excluded from analysis, use the
-  `--exclude-decorator <name>` option. This can be repeated for multiple decorator names. The decorator is matched by its
-  simple name (e.g. `--exclude-decorator hook` matches `@hook`, `@hook(...)`, and `@hook.sub`).
+  `--exclude-decorator <name>` option. This can be repeated for multiple decorator names. The decorator is matched by
+  its simple name (e.g. `--exclude-decorator hook` matches `@hook`, `@hook(...)`, and `@hook.sub`).
 
 ## `sase_bd`
 
