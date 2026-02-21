@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
+    from ...models import Agent
+    from ...models.agent import AgentType
+
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -19,6 +22,9 @@ class AgentNotificationMixin:
 
     _last_unread_count: int
     current_tab: TabName
+    _agents: list[Agent]
+    _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
+    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
     def _poll_agent_completions(self) -> None:
         """Poll notification store for new unread notifications.
@@ -52,6 +58,49 @@ class AgentNotificationMixin:
             "#notification-indicator", NotificationIndicator
         )
         indicator.set_count(unread_count)
+
+        # Scan unread notifications for PLANNING/QUESTION status overrides
+        self._apply_notification_status_overrides(unread)
+
+    def _apply_notification_status_overrides(self, unread: list[Notification]) -> None:
+        """Scan unread notifications and set PLANNING/QUESTION status overrides.
+
+        For PlanApproval notifications, sets the matching agent's override to
+        PLANNING. For UserQuestion notifications, sets the override to QUESTION
+        and conditionally saves the pre-question status (only if not already
+        saved, to preserve the original status across multiple questions).
+        """
+        for notification in unread:
+            if notification.action not in ("PlanApproval", "UserQuestion"):
+                continue
+
+            # Extract agent identity fields from notification
+            cl_name = notification.action_data.get("agent_cl_name")
+            if not cl_name:
+                continue
+
+            agent_timestamp = notification.action_data.get("agent_timestamp")
+
+            # Find matching agent
+            for agent in self._agents:
+                if agent.cl_name != cl_name:
+                    continue
+                if agent_timestamp and agent.raw_suffix != agent_timestamp:
+                    continue
+
+                # Skip finished agents — overrides don't apply
+                if agent.status in ("DONE", "FAILED"):
+                    break
+
+                if notification.action == "PlanApproval":
+                    self._agent_status_overrides[agent.identity] = "PLANNING"
+                elif notification.action == "UserQuestion":
+                    # Save pre-question status only if not already saved
+                    if agent.identity not in self._agent_pre_question_status:
+                        self._agent_pre_question_status[agent.identity] = agent.status
+                    self._agent_status_overrides[agent.identity] = "QUESTION"
+
+                break
 
     def _refresh_notification_count(self) -> None:
         """Reload unread notification count from disk and update the indicator.
