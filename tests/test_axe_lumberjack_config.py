@@ -90,7 +90,8 @@ def test_default_lumberjacks_hooks() -> None:
     assert "hook_checks" in hooks.chops
     assert "mentor_checks" in hooks.chops
     assert "suffix_transforms" in hooks.chops
-    assert len(hooks.chops) == 7
+    assert "wait_checks" in hooks.chops
+    assert len(hooks.chops) == 8
 
 
 def test_default_lumberjacks_checks() -> None:

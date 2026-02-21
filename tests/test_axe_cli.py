@@ -41,7 +41,7 @@ def default_axe_config() -> AxeConfig:
 
 
 def test_handle_axe_chop_list_prints_chops(capsys: pytest.CaptureFixture[str]) -> None:
-    """Test that chop list prints all 11 registered chop names."""
+    """Test that chop list prints all 12 registered chop names."""
     args = argparse.Namespace()
     with pytest.raises(SystemExit) as exc_info:
         handle_axe_chop_list(args)
@@ -49,7 +49,7 @@ def test_handle_axe_chop_list_prints_chops(capsys: pytest.CaptureFixture[str]) -
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    assert len(lines) == 11
+    assert len(lines) == 12
     assert "hook_checks" in output
     assert "error_digest" in output
     assert "comment_checks" in output

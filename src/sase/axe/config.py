@@ -20,6 +20,7 @@ _DEFAULT_LUMBERJACKS: dict[str, dict] = {
             "comment_zombie_checks",
             "suffix_transforms",
             "orphan_cleanup",
+            "wait_checks",
         ],
     },
     "checks": {

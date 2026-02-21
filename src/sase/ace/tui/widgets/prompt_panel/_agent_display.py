@@ -115,6 +115,11 @@ class AgentDisplayMixin:
             header_text.append("BUG: ", style="bold #87D7FF")
             header_text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
+        # Waiting info (when agent is waiting for dependencies)
+        if agent.waiting_for:
+            header_text.append("Waiting for: ", style="bold #87D7FF")
+            header_text.append(f"{', '.join(agent.waiting_for)}\n", style="#FF87D7")
+
         # Timestamp (when agent started)
         header_text.append("Timestamp: ", style="bold #87D7FF")
         header_text.append(f"{agent.start_time_display}\n", style="#D7D7FF")

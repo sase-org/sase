@@ -237,6 +237,49 @@ def main() -> None:
                 with open(running_marker_path, "w", encoding="utf-8") as f:
                     json.dump(running_marker, f, indent=2)
 
+            # Wait for dependencies if %wait directives are present
+            if agent_wait_names:
+                waiting_path = os.path.join(artifacts_dir, "waiting.json")
+                waiting_data = {
+                    "waiting_for": agent_wait_names,
+                    "cl_name": cl_name,
+                    "timestamp": timestamp,
+                }
+                with open(waiting_path, "w", encoding="utf-8") as f:
+                    json.dump(waiting_data, f, indent=2)
+
+                print(f"Waiting for agents: {', '.join(agent_wait_names)}")
+
+                # Poll for ready.json (written by wait_checks lumberjack chop)
+                ready_path = os.path.join(artifacts_dir, "ready.json")
+                _WAIT_POLL_INTERVAL = 2  # seconds
+                _WAIT_MAX_TIMEOUT = 86400  # 24 hours
+                wait_elapsed = 0.0
+                while not os.path.exists(ready_path):
+                    if was_killed():
+                        break
+                    if wait_elapsed >= _WAIT_MAX_TIMEOUT:
+                        print(
+                            "Wait timeout exceeded, proceeding anyway",
+                            file=sys.stderr,
+                        )
+                        break
+                    time.sleep(_WAIT_POLL_INTERVAL)
+                    wait_elapsed += _WAIT_POLL_INTERVAL
+
+                # Clean up wait markers
+                for path in (waiting_path, ready_path):
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
+
+                if was_killed():
+                    print("Agent killed while waiting", file=sys.stderr)
+                    sys.exit(128 + 15)  # SIGTERM
+
+                print("All dependencies satisfied, proceeding with workflow")
+
             # Create anonymous workflow and execute through WorkflowExecutor
             from sase.xprompt.models import create_anonymous_workflow
             from sase.xprompt.processor import execute_workflow

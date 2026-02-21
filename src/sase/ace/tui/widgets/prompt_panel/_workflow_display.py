@@ -97,6 +97,7 @@ class WorkflowDisplayMixin:
         header_text.append("Status: ", style="bold #87D7FF")
         status_style = {
             "RUNNING": "#87D7FF",
+            "WAITING": "#FF87D7",
             "WAITING INPUT": "#FFAF5F",
             "DONE": "#5FD75F",
             "FAILED": "#FF5F5F",

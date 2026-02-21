@@ -42,6 +42,13 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.vcs_provider = data["vcs_provider"]
     if data.get("name"):
         agent.agent_name = data["name"]
+    if data.get("wait_for"):
+        agent.waiting_for = data["wait_for"]
+
+    # Check for waiting.json to set WAITING status
+    waiting_path = Path(artifacts_dir) / "waiting.json"
+    if waiting_path.exists() and agent.status == "RUNNING":
+        agent.status = "WAITING"
 
 
 def get_all_project_files() -> list[str]:
@@ -314,6 +321,7 @@ def load_running_home_agents() -> list[Agent]:
                 llm_provider=data.get("llm_provider"),
                 vcs_provider=data.get("vcs_provider"),
             )
+            enrich_agent_from_meta(agent, str(artifact_dir))
             enrich_agent_from_prompt_markers(agent, str(artifact_dir))
             agents.append(agent)
         except Exception:

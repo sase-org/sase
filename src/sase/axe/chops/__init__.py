@@ -15,5 +15,6 @@ from . import (
     pending_checks_poll as pending_checks_poll,
     stale_running_cleanup as stale_running_cleanup,
     suffix_transforms as suffix_transforms,
+    wait_checks as wait_checks,
     workflow_checks as workflow_checks,
 )

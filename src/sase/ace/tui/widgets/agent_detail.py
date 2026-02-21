@@ -17,7 +17,7 @@ from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 
 
 _ACTIVE_STATUSES = frozenset(
-    {"RUNNING", "WAITING INPUT", "PLANNING", "PLAN APPROVED", "QUESTION"}
+    {"RUNNING", "WAITING", "WAITING INPUT", "PLANNING", "PLAN APPROVED", "QUESTION"}
 )
 
 

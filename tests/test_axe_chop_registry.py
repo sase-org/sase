@@ -10,7 +10,7 @@ from sase.axe.chop_registry import (
     register_chop,
 )
 
-# All 11 expected chop names
+# All 12 expected chop names
 EXPECTED_CHOPS = sorted(
     [
         "hook_checks",
@@ -24,12 +24,13 @@ EXPECTED_CHOPS = sorted(
         "cl_submitted_checks",
         "comment_checks",
         "error_digest",
+        "wait_checks",
     ]
 )
 
 
-def test_list_chops_returns_all_11_names() -> None:
-    """list_chops() should return all 11 registered chop names."""
+def test_list_chops_returns_all_12_names() -> None:
+    """list_chops() should return all 12 registered chop names."""
     names = list_chops()
     assert names == EXPECTED_CHOPS
 
@@ -49,11 +50,11 @@ def test_get_chop_raises_key_error_for_unknown() -> None:
         get_chop("nonexistent")
 
 
-def test_get_all_chops_returns_dict_with_11_entries() -> None:
-    """get_all_chops() should return a dict with 11 entries."""
+def test_get_all_chops_returns_dict_with_12_entries() -> None:
+    """get_all_chops() should return a dict with 12 entries."""
     all_chops = get_all_chops()
     assert isinstance(all_chops, dict)
-    assert len(all_chops) == 11
+    assert len(all_chops) == 12
     assert sorted(all_chops.keys()) == EXPECTED_CHOPS
 
 

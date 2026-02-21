@@ -116,6 +116,9 @@ class Agent:
     # Agent name assigned via %name directive or manual TUI naming
     agent_name: str | None = None
 
+    # Names this agent is waiting for (from %wait directives)
+    waiting_for: list[str] = field(default_factory=list)
+
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None
 
