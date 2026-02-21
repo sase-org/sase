@@ -79,7 +79,6 @@ all: fmt lint pylimit pyvision test
 pyvision *args: _setup (_header "pyvision")
     BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase \
         --exclude-decorator register_chop \
-        --epic-symbol "sase-0xd(read_orchestrator_pid)" \
         {{ args }}
 
 # Check Python file line counts

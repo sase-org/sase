@@ -1,5 +1,6 @@
 ---
 bead_id: sase-0xd
+status: done
 ---
 
 # Plan: Rewrite `sase axe` with Lumberjack/Chop Architecture

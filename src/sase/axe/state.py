@@ -125,13 +125,6 @@ def _read_json(path: Path) -> dict | None:
 # --- PID File ---
 
 
-def write_pid_file() -> None:
-    """Write PID file for process management."""
-    _ensure_state_dir()
-    pid_file = AXE_STATE_DIR / "pid"
-    pid_file.write_text(str(os.getpid()))
-
-
 def read_pid_file() -> int | None:
     """Read PID from file.
 
@@ -157,16 +150,6 @@ def remove_pid_file() -> None:
 
 
 # --- Status ---
-
-
-def write_status(status: AxeStatus) -> None:
-    """Write current status to disk for TUI visibility.
-
-    Args:
-        status: Current scheduler status.
-    """
-    status_file = AXE_STATE_DIR / "status.json"
-    _atomic_write_json(status_file, asdict(status))
 
 
 def read_status() -> AxeStatus | None:
@@ -222,16 +205,6 @@ def read_cycle_result(
 
 
 # --- Metrics ---
-
-
-def write_metrics(metrics: AxeMetrics) -> None:
-    """Write metrics to disk.
-
-    Args:
-        metrics: Current metrics.
-    """
-    metrics_file = AXE_STATE_DIR / "metrics.json"
-    _atomic_write_json(metrics_file, asdict(metrics))
 
 
 def read_metrics() -> AxeMetrics | None:

@@ -14,8 +14,6 @@ import sys
 import time
 from pathlib import Path
 
-from sase.ace.hooks.processes import is_process_running
-
 from .config import AxeConfig
 from .state import AXE_STATE_DIR
 
@@ -151,24 +149,3 @@ class Orchestrator:
             self._remove_pid()
 
         return True
-
-
-def read_orchestrator_pid() -> int | None:
-    """Read the orchestrator PID from its PID file.
-
-    Returns:
-        PID if found and valid, None otherwise.
-    """
-    if not ORCHESTRATOR_PID_FILE.exists():
-        return None
-    try:
-        pid = int(ORCHESTRATOR_PID_FILE.read_text().strip())
-    except (ValueError, OSError):
-        return None
-    if not is_process_running(pid):
-        try:
-            ORCHESTRATOR_PID_FILE.unlink()
-        except OSError:
-            pass
-        return None
-    return pid

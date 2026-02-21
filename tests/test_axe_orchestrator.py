@@ -12,7 +12,6 @@ from sase.axe.config import AxeConfig, LumberjackConfig
 from sase.axe.orchestrator import (
     ORCHESTRATOR_PID_FILE,
     Orchestrator,
-    read_orchestrator_pid,
 )
 
 
@@ -161,36 +160,3 @@ def test_handle_shutdown_forwards_sigterm(
     assert pids_killed == {100, 200}
     for c in calls:
         assert c[0][1] == signal.SIGTERM
-
-
-# --- read_orchestrator_pid Tests ---
-
-
-def test_read_orchestrator_pid_no_file(temp_state_dir: Path) -> None:
-    """Test that read_orchestrator_pid returns None when no PID file."""
-    pid_file = temp_state_dir / "orchestrator.pid"
-    with patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", pid_file):
-        assert read_orchestrator_pid() is None
-
-
-@patch("sase.axe.orchestrator.is_process_running", return_value=True)
-def test_read_orchestrator_pid_running(
-    mock_running: MagicMock, temp_state_dir: Path
-) -> None:
-    """Test that read_orchestrator_pid returns PID when process is running."""
-    pid_file = temp_state_dir / "orchestrator.pid"
-    pid_file.write_text("42")
-    with patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", pid_file):
-        assert read_orchestrator_pid() == 42
-
-
-@patch("sase.axe.orchestrator.is_process_running", return_value=False)
-def test_read_orchestrator_pid_stale(
-    mock_running: MagicMock, temp_state_dir: Path
-) -> None:
-    """Test that stale PID file is cleaned up."""
-    pid_file = temp_state_dir / "orchestrator.pid"
-    pid_file.write_text("99999")
-    with patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", pid_file):
-        assert read_orchestrator_pid() is None
-        assert not pid_file.exists()

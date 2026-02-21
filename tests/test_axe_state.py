@@ -1,7 +1,6 @@
 """Tests for the axe state management module."""
 
 import json
-import os
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
@@ -9,7 +8,6 @@ from unittest.mock import patch
 import pytest
 from sase.axe.state import (
     AxeMetrics,
-    AxeStatus,
     CycleResult,
     _atomic_write_json,
     _read_json,
@@ -22,9 +20,6 @@ from sase.axe.state import (
     read_status,
     remove_pid_file,
     write_cycle_result,
-    write_metrics,
-    write_pid_file,
-    write_status,
 )
 
 
@@ -37,15 +32,6 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 
 
 # --- PID File Tests ---
-
-
-def test_write_pid_file_creates_file(temp_state_dir: Path) -> None:
-    """Test that write_pid_file creates a PID file with current PID."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
-        write_pid_file()
-        pid_file = temp_state_dir / "pid"
-        assert pid_file.exists()
-        assert int(pid_file.read_text().strip()) == os.getpid()
 
 
 def test_read_pid_file_returns_pid(temp_state_dir: Path) -> None:
@@ -91,36 +77,6 @@ def test_remove_pid_file_no_error_when_missing(temp_state_dir: Path) -> None:
 
 
 # --- Status Tests ---
-
-
-def test_write_and_read_status(temp_state_dir: Path) -> None:
-    """Test writing and reading status."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
-        status = AxeStatus(
-            pid=12345,
-            started_at="2025-01-15T10:00:00-05:00",
-            status="running",
-            full_check_interval=300,
-            hook_interval=1,
-            max_runners=5,
-            query="",
-            zombie_timeout=7200,
-            current_runners=2,
-            last_full_cycle="2025-01-15T10:00:00-05:00",
-            last_hook_cycle="2025-01-15T10:00:05-05:00",
-            next_full_cycle="2025-01-15T10:05:00-05:00",
-            total_changespecs=10,
-            filtered_changespecs=8,
-            uptime_seconds=300,
-        )
-        write_status(status)
-
-        result = read_status()
-        assert result is not None
-        assert result.pid == 12345
-        assert result.status == "running"
-        assert result.max_runners == 5
-        assert result.uptime_seconds == 300
 
 
 def test_read_status_returns_none_when_missing(temp_state_dir: Path) -> None:
@@ -188,31 +144,6 @@ def test_read_cycle_result_returns_none_when_missing(temp_state_dir: Path) -> No
 
 
 # --- Metrics Tests ---
-
-
-def test_write_and_read_metrics(temp_state_dir: Path) -> None:
-    """Test writing and reading metrics."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
-        metrics = AxeMetrics(
-            full_cycles_run=100,
-            hook_cycles_run=30000,
-            total_updates=450,
-            hooks_started=120,
-            hooks_completed=118,
-            mentors_started=25,
-            mentors_completed=25,
-            workflows_started=50,
-            workflows_completed=48,
-            zombies_detected=2,
-            errors_encountered=5,
-        )
-        write_metrics(metrics)
-
-        result = read_metrics()
-        assert result is not None
-        assert result.full_cycles_run == 100
-        assert result.hooks_started == 120
-        assert result.errors_encountered == 5
 
 
 def test_read_metrics_returns_none_when_missing(temp_state_dir: Path) -> None:

@@ -4,7 +4,6 @@ This package provides schedule-based ChangeSpec monitoring for automatically
 running hooks, managing workflows, and checking CL status.
 """
 
-from .core import AxeScheduler
 from .lumberjack import Lumberjack
 from .orchestrator import Orchestrator
 from .process import (
@@ -44,7 +43,6 @@ from .state import (
 
 __all__ = [
     # Core
-    "AxeScheduler",
     "Lumberjack",
     "Orchestrator",
     # Config
