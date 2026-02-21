@@ -100,6 +100,9 @@ class WorkflowDisplayMixin:
             "WAITING INPUT": "#FFAF5F",
             "DONE": "#5FD75F",
             "FAILED": "#FF5F5F",
+            "PLANNING": "#FF87AF",
+            "CODING": "#00D7AF",
+            "QUESTION": "#FFAF00",
         }.get(agent.status, "#D7D7FF")
         header_text.append(f"{agent.status}\n", style=status_style)
 
