@@ -182,14 +182,17 @@ def main() -> None:
             )
 
             # Extract model directive and detect VCS before preprocessing
+            from sase.llm_provider.registry import (
+                get_default_provider_name,
+                get_provider,
+            )
             from sase.vcs_provider._registry import detect_vcs
             from sase.xprompt.directives import extract_prompt_directives
 
             _, directives = extract_prompt_directives(prompt)
             agent_model = directives.model
+            agent_llm_provider = get_default_provider_name()
             if not agent_model:
-                from sase.llm_provider.registry import get_provider
-
                 provider = get_provider()
                 agent_model = provider.resolve_model_name()
 
@@ -197,10 +200,12 @@ def main() -> None:
             vcs_display_map = {"git": "GitHub", "hg": "Mercurial"}
             agent_vcs_provider = vcs_display_map.get(vcs_name) if vcs_name else None
 
-            # Persist model and VCS to agent_meta.json
+            # Persist model, provider, and VCS to agent_meta.json
             agent_meta: dict[str, Any] = {}
             if agent_model:
                 agent_meta["model"] = agent_model
+            if agent_llm_provider:
+                agent_meta["llm_provider"] = agent_llm_provider
             if agent_vcs_provider:
                 agent_meta["vcs_provider"] = agent_vcs_provider
             if agent_meta:
@@ -219,6 +224,8 @@ def main() -> None:
                 }
                 if agent_model:
                     running_marker["model"] = agent_model
+                if agent_llm_provider:
+                    running_marker["llm_provider"] = agent_llm_provider
                 if agent_vcs_provider:
                     running_marker["vcs_provider"] = agent_vcs_provider
                 with open(running_marker_path, "w", encoding="utf-8") as f:
@@ -282,6 +289,8 @@ def main() -> None:
             }
             if agent_model:
                 done_marker["model"] = agent_model
+            if agent_llm_provider:
+                done_marker["llm_provider"] = agent_llm_provider
             if agent_vcs_provider:
                 done_marker["vcs_provider"] = agent_vcs_provider
             done_path = os.path.join(artifacts_dir, "done.json")
@@ -311,6 +320,8 @@ def main() -> None:
                 }
                 if agent_model:
                     error_done["model"] = agent_model
+                if agent_llm_provider:
+                    error_done["llm_provider"] = agent_llm_provider
                 if agent_vcs_provider:
                     error_done["vcs_provider"] = agent_vcs_provider
                 done_path = os.path.join(artifacts_dir, "done.json")

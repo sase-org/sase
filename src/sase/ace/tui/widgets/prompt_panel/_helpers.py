@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from rich.text import Text
+
 from ...models.agent import Agent
 
 
@@ -129,6 +131,50 @@ def aggregate_meta_fields(
             display_name = f"{display_name} #{counters[raw_key]}"
         results.append((display_name, value))
     return results
+
+
+def append_model_field(
+    header_text: Text,
+    model: str | None,
+    llm_provider: str | None,
+) -> None:
+    """Append the Model field with provider-themed styling.
+
+    Format: ``Model: PROVIDER(model)`` with provider-specific colors.
+    Falls back to plain model display when provider is unknown.
+
+    Args:
+        header_text: Rich Text object to append to.
+        model: Model name string (e.g., "opus", "gemini-3.1-pro-preview").
+        llm_provider: Provider name (e.g., "claude", "gemini"), or None.
+    """
+    if not model:
+        return
+
+    # Infer provider from model name if not explicitly stored
+    provider = llm_provider
+    if not provider:
+        if model in ("opus", "sonnet", "haiku"):
+            provider = "claude"
+        elif "gemini" in model.lower():
+            provider = "gemini"
+
+    header_text.append("Model: ", style="bold #87D7FF")
+
+    if provider == "claude":
+        # Hotrod theme: flame orange for name, amber/gold for model
+        header_text.append("CLAUDE", style="bold #FF5F00")
+        header_text.append("(", style="#D75F00")
+        header_text.append(model, style="#FFAF00")
+        header_text.append(")\n", style="#D75F00")
+    elif provider == "gemini":
+        # Google theme: Google blue for name, lighter blue for model
+        header_text.append("GEMINI", style="bold #4285F4")
+        header_text.append("(", style="#5F87D7")
+        header_text.append(model, style="#87AFFF")
+        header_text.append(")\n", style="#5F87D7")
+    else:
+        header_text.append(f"{model}\n", style="#AF87D7")
 
 
 def load_embedded_workflows(agent: Agent) -> list[dict[str, Any]] | None:

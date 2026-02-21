@@ -107,6 +107,9 @@ class Agent:
     # Model name from %model directive (only when explicitly set)
     model: str | None = None
 
+    # LLM provider name (e.g., "claude", "gemini")
+    llm_provider: str | None = None
+
     # VCS provider display name (e.g., "GitHub", "Mercurial")
     vcs_provider: str | None = None
 

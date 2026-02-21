@@ -11,6 +11,7 @@ from rich.text import Text
 from ...models.agent import Agent
 from ._helpers import (
     aggregate_meta_fields,
+    append_model_field,
     format_output,
     get_rich_status_indicator,
 )
@@ -84,10 +85,8 @@ class WorkflowDisplayMixin:
             header_text.append("Workspace: ", style="bold #87D7FF")
             header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 
-        # Model (if explicitly set via %model directive)
-        if agent.model:
-            header_text.append("Model: ", style="bold #87D7FF")
-            header_text.append(f"{agent.model}\n", style="#AF87D7")
+        # Model (with provider-themed styling)
+        append_model_field(header_text, agent.model, agent.llm_provider)
 
         # VCS provider
         if agent.vcs_provider:

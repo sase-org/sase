@@ -36,6 +36,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
 
     if data.get("model"):
         agent.model = data["model"]
+    if data.get("llm_provider"):
+        agent.llm_provider = data["llm_provider"]
     if data.get("vcs_provider"):
         agent.vcs_provider = data["vcs_provider"]
 
@@ -212,6 +214,7 @@ def load_done_agents(
                         error_message=error_message,
                         error_traceback=error_traceback,
                         model=data.get("model"),
+                        llm_provider=data.get("llm_provider"),
                         vcs_provider=data.get("vcs_provider"),
                     )
                 )
@@ -305,6 +308,7 @@ def load_running_home_agents() -> list[Agent]:
                 pid=pid,
                 raw_suffix=timestamp_str,
                 model=data.get("model"),
+                llm_provider=data.get("llm_provider"),
                 vcs_provider=data.get("vcs_provider"),
             )
             enrich_agent_from_prompt_markers(agent, str(artifact_dir))

@@ -8,6 +8,7 @@ from rich.text import Text
 
 from ...models.agent import Agent, AgentType
 from ._helpers import (
+    append_model_field,
     extract_meta_fields,
     format_embedded_workflows,
     format_output,
@@ -96,10 +97,8 @@ class AgentDisplayMixin:
                 header_text.append("Embedded Workflows: ", style="bold #87D7FF")
                 header_text.append(f"{format_embedded_workflows(embedded_workflows)}\n")
 
-        # Model (if explicitly set via %model directive)
-        if agent.model:
-            header_text.append("Model: ", style="bold #87D7FF")
-            header_text.append(f"{agent.model}\n", style="#AF87D7")
+        # Model (with provider-themed styling)
+        append_model_field(header_text, agent.model, agent.llm_provider)
 
         # VCS provider
         if agent.vcs_provider:
