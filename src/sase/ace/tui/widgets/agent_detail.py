@@ -16,6 +16,11 @@ from .prompt_panel import AgentPromptPanel
 from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 
 
+_ACTIVE_STATUSES = frozenset(
+    {"RUNNING", "WAITING INPUT", "PLANNING", "CODING", "QUESTION"}
+)
+
+
 class _DetailPanelMode(Enum):
     """Three-state cycle for the detail panel view mode."""
 
@@ -155,7 +160,7 @@ class AgentDetail(Static):
         # When thinking panel is visible, keep it showing and just refresh data
         if self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown:
             # Still update file panel in background (for when thinking is toggled off)
-            if agent.status in ("RUNNING", "WAITING INPUT"):
+            if agent.status in _ACTIVE_STATUSES:
                 file_panel.update_display(
                     agent, stale_threshold_seconds=stale_threshold_seconds
                 )
@@ -172,7 +177,7 @@ class AgentDetail(Static):
             self._auto_show_thinking(agent)
             return
 
-        if agent.status in ("RUNNING", "WAITING INPUT"):
+        if agent.status in _ACTIVE_STATUSES:
             # Show auto-refreshing file panel for active agents
             # Don't change visibility here - let update_display() handle it
             # via FileVisibilityChanged message after fetching/validating the file
