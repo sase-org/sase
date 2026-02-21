@@ -297,6 +297,17 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         if not isinstance(result, PlanApprovalResult):
             return
 
+        # Handle edit action: open editor, then re-push modal
+        if result.action == "edit":
+            import os
+            import subprocess
+
+            editor = os.environ.get("EDITOR", "nvim")
+            with app.suspend():  # type: ignore[attr-defined]
+                subprocess.run([editor, plan_file], check=False)
+            app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
+            return
+
         # Write response file
         plan_response_path = response_path / "plan_response.json"
         response_data: dict[str, object] = {

@@ -31,6 +31,7 @@ class PlanApprovalModal(
         ("a", "approve", "Approve"),
         ("r", "reject", "Reject"),
         ("f", "feedback", "Reject w/ feedback"),
+        ("e", "edit", "Edit"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
@@ -51,6 +52,7 @@ class PlanApprovalModal(
         hints = (
             "[green]a[/green]=Approve  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Reject w/ feedback  "
+            "[blue]e[/blue]=Edit  "
             "[dim]q[/dim]=Cancel  |  Ctrl+D/U to scroll"
         )
 
@@ -118,6 +120,12 @@ class PlanApprovalModal(
         if self._feedback_mode:
             return
         self.dismiss(PlanApprovalResult(action="reject"))
+
+    def action_edit(self) -> None:
+        """Edit the plan file in an external editor."""
+        if self._feedback_mode:
+            return
+        self.dismiss(PlanApprovalResult(action="edit"))
 
     def action_feedback(self) -> None:
         """Enter feedback mode to reject with feedback."""
