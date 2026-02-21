@@ -7,7 +7,10 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from sase.shared_utils import apply_section_marker_handling
+from sase.shared_utils import (
+    apply_section_marker_handling,
+    content_ends_with_markdown_heading,
+)
 
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from sase.xprompt.models import UNSET, OutputSpec
@@ -468,6 +471,16 @@ class EmbeddedWorkflowMixin:
                 prompt_part_content = apply_section_marker_handling(
                     prompt_part_content, is_at_line_start
                 )
+                # When the expanded content ends with a markdown heading and
+                # there's more content on the same line after the reference,
+                # append a newline so the following text doesn't get
+                # concatenated onto the heading line.
+                if (
+                    content_ends_with_markdown_heading(prompt_part_content)
+                    and p.match_end < len(prompt)
+                    and prompt[p.match_end] != "\n"
+                ):
+                    prompt_part_content += "\n"
             p.rendered_prompt_part = prompt_part_content
 
         # ── Phase 4: Text replacement ────────────────────────────────────
