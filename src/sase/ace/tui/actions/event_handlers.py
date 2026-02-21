@@ -45,6 +45,19 @@ class EventHandlersMixin:
     _leader_mode_active: bool
     _bang_mode_active: bool
 
+    def _refresh_current_tab(self) -> None:
+        """Refresh the display for whichever tab is currently active.
+
+        Use this instead of _refresh_display() when the caller may be on any tab
+        (e.g. exiting bang/copy mode).
+        """
+        if self.current_tab == "changespecs":
+            self._refresh_display()  # type: ignore[attr-defined]
+        elif self.current_tab == "agents":
+            self._refresh_agents_display()  # type: ignore[attr-defined]
+        else:  # axe
+            self._refresh_axe_display()  # type: ignore[attr-defined]
+
     def _on_auto_refresh(self) -> None:
         """Auto-refresh handler called by timer."""
         self._countdown_remaining = self.refresh_interval

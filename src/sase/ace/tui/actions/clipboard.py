@@ -57,7 +57,7 @@ class ClipboardMixin:
 
         if key == "escape":
             # Cancel copy mode silently and restore footer
-            self._refresh_display()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if self.current_tab == "changespecs":
@@ -68,7 +68,7 @@ class ClipboardMixin:
             result = self._handle_axe_copy_key(key)
 
         # Restore normal footer
-        self._refresh_display()  # type: ignore[attr-defined]
+        self._refresh_current_tab()  # type: ignore[attr-defined]
         return result
 
     def _update_copy_footer(self) -> None:

@@ -148,7 +148,7 @@ class AxeMixin:
 
         if key == "escape":
             # Cancel silently and restore footer
-            self._refresh_display()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == "x":
@@ -162,7 +162,7 @@ class AxeMixin:
             return True
 
         # Unknown key - just exit mode and restore footer
-        self._refresh_display()  # type: ignore[attr-defined]
+        self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
 
     def _update_bang_footer(self) -> None:
