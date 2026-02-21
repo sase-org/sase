@@ -175,11 +175,17 @@ def handle_plan_approve_command() -> NoReturn:
     from sase.notifications.senders import notify_plan_approval
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
+    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
     notify_plan_approval(
         plan_file=plan_file or "(no plan file)",
         response_dir=str(response_dir),
         session_id=session_id,
         project_dir=project_dir,
+        agent_cl_name=agent_cl_name,
+        agent_project_file=agent_project_file,
+        agent_timestamp=agent_timestamp,
     )
 
     # Send desktop notification + tmux bell (preserve existing behavior)

@@ -120,10 +120,16 @@ def handle_user_question_command() -> NoReturn:
     if len(first_question) > 80:
         first_question = first_question[:77] + "..."
 
+    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
+    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
     notify_user_question(
         response_dir=str(response_dir),
         session_id=session_id,
         notes=first_question,
+        agent_cl_name=agent_cl_name,
+        agent_project_file=agent_project_file,
+        agent_timestamp=agent_timestamp,
     )
 
     # Send desktop notification + tmux bell

@@ -86,8 +86,21 @@ def notify_user_question(
     response_dir: str,
     session_id: str,
     notes: str,
+    agent_cl_name: str | None = None,
+    agent_project_file: str | None = None,
+    agent_timestamp: str | None = None,
 ) -> None:
     """Send a notification when Claude Code asks a user question via hook."""
+    action_data: dict[str, str] = {
+        "response_dir": response_dir,
+        "session_id": session_id,
+    }
+    if agent_cl_name:
+        action_data["agent_cl_name"] = agent_cl_name
+    if agent_project_file:
+        action_data["agent_project_file"] = agent_project_file
+    if agent_timestamp:
+        action_data["agent_timestamp"] = agent_timestamp
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(EASTERN_TZ).isoformat(),
@@ -95,7 +108,7 @@ def notify_user_question(
         notes=[notes] if notes else ["Claude is asking a question"],
         files=[],
         action="UserQuestion",
-        action_data={"response_dir": response_dir, "session_id": session_id},
+        action_data=action_data,
     )
     append_notification(n)
 
@@ -105,6 +118,9 @@ def notify_plan_approval(
     response_dir: str,
     session_id: str,
     project_dir: str | None = None,
+    agent_cl_name: str | None = None,
+    agent_project_file: str | None = None,
+    agent_timestamp: str | None = None,
 ) -> None:
     """Send a notification when a Claude Code plan is ready for approval."""
     plan_name = plan_file.rsplit("/", 1)[-1] if "/" in plan_file else plan_file
@@ -114,6 +130,12 @@ def notify_plan_approval(
     }
     if project_dir:
         action_data["project_dir"] = project_dir
+    if agent_cl_name:
+        action_data["agent_cl_name"] = agent_cl_name
+    if agent_project_file:
+        action_data["agent_project_file"] = agent_project_file
+    if agent_timestamp:
+        action_data["agent_timestamp"] = agent_timestamp
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(EASTERN_TZ).isoformat(),
