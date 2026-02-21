@@ -11,6 +11,16 @@ from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
 
+_ACTIVE_STATUSES = frozenset(
+    {
+        "RUNNING",
+        "WAITING INPUT",
+        "PLANNING",
+        "CODING",
+        "QUESTION",
+    }
+)
+
 
 def load_workflow_states() -> list[WorkflowEntry]:
     """Load running/completed workflows from workflow_state.json marker files.
@@ -103,7 +113,7 @@ def load_workflow_states() -> list[WorkflowEntry]:
 
                     # Check PID liveness for active workflows
                     if (
-                        display_status in ("RUNNING", "WAITING INPUT")
+                        display_status in _ACTIVE_STATUSES
                         and pid is not None
                         and not is_process_running(pid)
                     ):
