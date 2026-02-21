@@ -16,18 +16,28 @@ from ....changespec import ChangeSpec
 
 
 def _dismiss_notifications_for_agent(agent: Agent) -> None:
-    """Dismiss any JumpToAgent notifications that reference the given agent."""
+    """Dismiss notifications that reference the given agent.
+
+    Handles JumpToAgent (cl_name/raw_suffix), PlanApproval and UserQuestion
+    (agent_cl_name/agent_timestamp) notification types.
+    """
     from sase.notifications import load_notifications, mark_dismissed
 
     for n in load_notifications():
-        if n.action != "JumpToAgent":
-            continue
-        if n.action_data.get("cl_name") != agent.cl_name:
-            continue
-        n_raw_suffix = n.action_data.get("raw_suffix")
-        if n_raw_suffix is not None and n_raw_suffix != agent.raw_suffix:
-            continue
-        mark_dismissed(n.id)
+        if n.action == "JumpToAgent":
+            if n.action_data.get("cl_name") != agent.cl_name:
+                continue
+            n_raw_suffix = n.action_data.get("raw_suffix")
+            if n_raw_suffix is not None and n_raw_suffix != agent.raw_suffix:
+                continue
+            mark_dismissed(n.id)
+        elif n.action in ("PlanApproval", "UserQuestion"):
+            if n.action_data.get("agent_cl_name") != agent.cl_name:
+                continue
+            n_timestamp = n.action_data.get("agent_timestamp")
+            if n_timestamp is not None and n_timestamp != agent.raw_suffix:
+                continue
+            mark_dismissed(n.id)
 
 
 def _find_workflow_workspace_from_running_field(
@@ -71,6 +81,8 @@ class AgentKillingMixin:
 
     # Agent state (needed for _dismiss_done_agent)
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
+    _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
+    _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
     def _persist_dismissed_agent(
         self, identity: tuple[AgentType, str, str | None]
@@ -103,6 +115,8 @@ class AgentKillingMixin:
             return
 
         _dismiss_notifications_for_agent(agent)
+        self._agent_status_overrides.pop(agent.identity, None)
+        self._agent_pre_question_status.pop(agent.identity, None)
         self._refresh_notification_count()  # type: ignore[attr-defined]
 
         # Refresh agents list
@@ -369,6 +383,8 @@ class AgentKillingMixin:
             return
 
         _dismiss_notifications_for_agent(agent)
+        self._agent_status_overrides.pop(agent.identity, None)
+        self._agent_pre_question_status.pop(agent.identity, None)
         self._refresh_notification_count()  # type: ignore[attr-defined]
 
         # Extract project name from project_file path
