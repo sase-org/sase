@@ -58,8 +58,14 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("r", "Run workflow"),
             ("@", "Run an agent"),
-            ("!", "Run background command"),
             ("<space>", "Run agent from current CL"),
+        ],
+    ),
+    (
+        "Bang Mode (!)",
+        [
+            ("!!", "Run background command"),
+            ("!x", "Start / stop axe (or select process)"),
         ],
     ),
     (
@@ -75,13 +81,6 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("0-9", "Load saved query"),
             ("^", "Previous query"),
             ("_", "Next query"),
-        ],
-    ),
-    (
-        "Axe Control",
-        [
-            ("X", "Start / stop axe (or select process)"),
-            ("Q", "Stop axe and quit"),
         ],
     ),
     (
@@ -102,6 +101,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("Tab / Shift+Tab", "Switch tabs"),
             (".", "Show/hide reverted CLs"),
             ("N", "Show notifications"),
+            ("Q", "Stop axe and quit"),
             ("y", "Refresh"),
             ("q", "Quit"),
             ("?", "Show this help"),
@@ -123,7 +123,6 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Agent Actions",
         [
             ("@", "Run custom agent"),
-            ("!", "Run background command"),
             ("r", "Revive chat as agent"),
             ("x", "Kill / dismiss agent"),
             ("e", "Edit chat in editor"),
@@ -141,17 +140,17 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
+        "Bang Mode (!)",
+        [
+            ("!!", "Run background command"),
+            ("!x", "Start / stop axe (or select process)"),
+        ],
+    ),
+    (
         "Copy Mode (%)",
         [
             ("%c", "Copy chat file path"),
             ("%s", "Copy sase ace snapshot"),
-        ],
-    ),
-    (
-        "Axe Control",
-        [
-            ("X", "Start / stop axe (or select process)"),
-            ("Q", "Stop axe and quit"),
         ],
     ),
     (
@@ -160,6 +159,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("Tab / Shift+Tab", "Switch tabs"),
             (".", "Show/hide non-run agents"),
             ("N", "Show notifications"),
+            ("Q", "Stop axe and quit"),
             ("y", "Refresh"),
             ("q", "Quit"),
             ("?", "Show this help"),
@@ -181,8 +181,14 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Background Commands",
         [
             ("@", "Run agent"),
-            ("!", "Run background command"),
             ("X", "Kill current command (or toggle axe)"),
+        ],
+    ),
+    (
+        "Bang Mode (!)",
+        [
+            ("!!", "Run background command"),
+            ("!x", "Start / stop axe (or select process)"),
         ],
     ),
     (
@@ -223,5 +229,5 @@ TAB_DISPLAY_NAMES = {
 COLUMN_SPLITS = {
     "changespecs": 2,  # Left: Navigation, CL Actions; Right: rest
     "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
-    "axe": 3,  # Left: Navigation, BgCmds, Axe Control; Right: rest
+    "axe": 3,  # Left: Navigation, BgCmds, Bang Mode; Right: rest
 }

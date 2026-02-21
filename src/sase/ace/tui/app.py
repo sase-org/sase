@@ -131,15 +131,15 @@ class AceApp(
         # Tab switching
         Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
         Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),
-        # Axe control (global)
+        # Axe control (AXE tab only - global access via !x)
         Binding("X", "toggle_axe", "Start/Stop Axe", show=False),
         Binding("Q", "stop_axe_and_quit", "Stop & Quit", show=False),
         # Agent workflow (all tabs) - shows project/CL selection modals
         Binding("at", "start_custom_agent", "Run Agent", show=False),
         # Run agent from ChangeSpec (CLs tab only)
         Binding("space", "start_agent_from_changespec", "Run Agent (CL)", show=False),
-        # Background command (all tabs)
-        Binding("exclamation_mark", "start_bgcmd", "Run Cmd", show=False),
+        # Bang mode prefix (all tabs) - !x = toggle axe, !! = run bgcmd
+        Binding("exclamation_mark", "start_bang_mode", "Bang Mode", show=False),
         # Marking (CLs tab only)
         Binding("m", "toggle_mark", "Mark", show=False),
         Binding("n", "rename_cl", "Rename", show=False),
@@ -241,6 +241,9 @@ class AceApp(
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
+
+        # Bang mode state (for ! key sub-commands)
+        self._bang_mode_active: bool = False
 
         # Ancestor/child/sibling navigation state
         self._ancestor_mode_active: bool = False

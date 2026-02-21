@@ -43,6 +43,7 @@ class EventHandlersMixin:
     _hint_mode_active: bool
     _accept_mode_active: bool
     _leader_mode_active: bool
+    _bang_mode_active: bool
 
     def _on_auto_refresh(self) -> None:
         """Auto-refresh handler called by timer."""
@@ -106,6 +107,10 @@ class EventHandlersMixin:
                 event.stop()
         elif self._leader_mode_active:
             if self._handle_leader_key(event.key):  # type: ignore[attr-defined]
+                event.prevent_default()
+                event.stop()
+        elif self._bang_mode_active:
+            if self._handle_bang_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
 

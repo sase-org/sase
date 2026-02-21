@@ -233,6 +233,20 @@ class KeybindingFooter(Horizontal):
         prefix.append_text(text)
         self._update_display(prefix)
 
+    def update_bang_bindings(self) -> None:
+        """Update bindings to show bang mode options."""
+        bindings = [
+            ("!", "run cmd"),
+            ("x", "start/stop axe"),
+            ("Esc", "cancel"),
+        ]
+        text = self._format_bindings(bindings)
+        # Add bang mode indicator prefix
+        prefix = Text()
+        prefix.append("BANG ", style="bold #FFD700")
+        prefix.append_text(text)
+        self._update_display(prefix)
+
     def update_copy_bindings(self, tab: str, *, file_visible: bool = False) -> None:
         """Update bindings to show copy mode options for the current tab.
 

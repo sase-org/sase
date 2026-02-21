@@ -60,13 +60,38 @@ class AxeMixin:
     _axe_output: str
     _axe_pinned_to_bottom: bool
     _leader_mode_active: bool
+    _bang_mode_active: bool
 
     # Background command state
     _axe_current_view: AxeViewType
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
 
     def action_toggle_axe(self) -> None:
-        """Toggle the axe daemon on or off.
+        """Toggle the axe daemon on or off (AXE tab only).
+
+        On AXE tab:
+          - View 0 (axe): Toggle axe daemon
+          - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
+
+        On other tabs: no-op (use !x bang mode instead).
+        """
+        if self.current_tab != "axe":
+            return
+
+        # On AXE tab, behavior depends on current view
+        if self._axe_current_view == "axe":
+            # Toggle axe daemon
+            if self.axe_running:
+                self._stop_axe()
+            else:
+                self._start_axe()
+        else:
+            # Current view is a bgcmd slot - kill or clear
+            slot = self._axe_current_view
+            self._confirm_kill_bgcmd(slot)
+
+    def _toggle_axe_global(self) -> None:
+        """Toggle axe or select process (works on all tabs, triggered by !x).
 
         When on AXE tab:
           - View 0 (axe): Toggle axe daemon
@@ -103,6 +128,52 @@ class AxeMixin:
             else:
                 # Either only bgcmd or both running - show selector
                 self._show_process_selector()
+
+    def action_start_bang_mode(self) -> None:
+        """Enter bang mode prefix (! key on all tabs)."""
+        self._bang_mode_active = True
+        self._update_bang_footer()
+
+    def _handle_bang_key(self, key: str) -> bool:
+        """Handle a key press in bang mode.
+
+        Args:
+            key: The key that was pressed.
+
+        Returns:
+            True if the key was handled, False otherwise.
+        """
+        # Always exit bang mode
+        self._bang_mode_active = False
+
+        if key == "escape":
+            # Cancel silently and restore footer
+            self._refresh_display()  # type: ignore[attr-defined]
+            return True
+
+        if key == "x":
+            # !x → toggle axe / select process (global)
+            self._toggle_axe_global()
+            return True
+
+        if key == "exclamation_mark":
+            # !! → start background command
+            self.action_start_bgcmd()
+            return True
+
+        # Unknown key - just exit mode and restore footer
+        self._refresh_display()  # type: ignore[attr-defined]
+        return True
+
+    def _update_bang_footer(self) -> None:
+        """Update the footer to show bang mode bindings."""
+        from ..widgets import KeybindingFooter
+
+        try:
+            footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+            footer.update_bang_bindings()
+        except Exception:
+            pass
 
     def action_stop_axe_and_quit(self) -> None:
         """Stop the axe daemon and quit the application."""
