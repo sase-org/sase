@@ -32,7 +32,7 @@ class _DetailPanelMode(Enum):
 _MODE_LABELS: dict[_DetailPanelMode, str] = {
     _DetailPanelMode.AUTO: "file",
     _DetailPanelMode.THINKING: "thinking",
-    _DetailPanelMode.INFO: "none",
+    _DetailPanelMode.INFO: "collapsed",
 }
 
 
@@ -290,7 +290,7 @@ class AgentDetail(Static):
         """Get the footer label for what pressing 'i' will do next.
 
         Returns:
-            Label string like "file", "thinking", or "none".
+            Label string like "file", "thinking", or "collapsed".
         """
         return _MODE_LABELS[self._next_panel_mode()]
 
@@ -299,7 +299,7 @@ class AgentDetail(Static):
         """Get a human-readable label for the current panel mode.
 
         Returns:
-            ``"file"``, ``"thinking"``, or ``"none"``.
+            ``"file"``, ``"thinking"``, or ``"collapsed"``.
         """
         return _MODE_LABELS[self._panel_mode]
 

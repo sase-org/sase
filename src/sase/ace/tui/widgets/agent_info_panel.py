@@ -45,7 +45,7 @@ class AgentInfoPanel(Static):
 
         Args:
             mode: The current view mode label (``"file"``, ``"thinking"``,
-                or ``"none"``). Empty string hides the indicator.
+                or ``"collapsed"``). Empty string hides the indicator.
         """
         self._view_mode = mode
         self._update_display()
@@ -53,7 +53,7 @@ class AgentInfoPanel(Static):
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
         "thinking": "bold #af87d7",
-        "none": "dim italic",
+        "collapsed": "dim italic",
     }
 
     def _update_display(self) -> None:
@@ -63,9 +63,11 @@ class AgentInfoPanel(Static):
         text.append(f"{self._position}/{self._total}", style="#00D7AF")
         if self._view_mode:
             text.append("   ")
+            text.append("[", style="dim")
             text.append("view: ", style="dim")
             style = self._VIEW_MODE_STYLES.get(self._view_mode, "dim")
             text.append(self._view_mode, style=style)
+            text.append("]", style="dim")
         if self._interval > 0:
             text.append("   ")
             text.append("(auto-refresh in ", style="dim")
