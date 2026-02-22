@@ -14,7 +14,7 @@ scale.
 ## Key Features
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
-- **AXE** — Schedule-based daemon for continuous automation of ChangeSpec status updates
+- **AXE** — Lumberjack-based daemon for continuous automation via configurable chop scripts
 - **XPrompt** — Typed prompt templates with reference expansion and YAML front matter
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
@@ -65,22 +65,24 @@ sase
 
 ## CLI Commands
 
-| Command              | Description                                                  |
-| -------------------- | ------------------------------------------------------------ |
-| `sase ace`           | Interactive TUI for navigating and managing ChangeSpecs      |
-| `sase axe`           | Schedule-based daemon for continuous automation              |
-| `sase search`        | Search and filter ChangeSpecs with query expressions         |
-| `sase run`           | Execute workflows or run a query directly                    |
-| `sase xprompt`       | Expand prompt templates with sase references                 |
-| `sase commit`        | Create a commit with formatted CL description and metadata   |
-| `sase amend`         | Amend a commit with COMMITS tracking                         |
-| `sase revert`        | Revert a ChangeSpec by pruning its CL and archiving its diff |
-| `sase restore`       | Restore a reverted ChangeSpec by re-applying its diff        |
-| `sase init-git`      | Initialize a new bare-repo-backed git project                |
-| `sase path`          | Print well-known sase paths (for editor integration)         |
-| `sase notify`        | Create a notification (reads JSON from stdin or uses flags)  |
-| `sase user-question` | Handle user question from Claude Code hook                   |
-| `sase plan-approve`  | Handle plan approval from Claude Code hook                   |
+| Command               | Description                                                  |
+| --------------------- | ------------------------------------------------------------ |
+| `sase ace`            | Interactive TUI for navigating and managing ChangeSpecs      |
+| `sase axe`            | Lumberjack-based daemon (orchestrator mode)                  |
+| `sase axe chop`       | List or run individual chop scripts                          |
+| `sase axe lumberjack` | List, run, or check status of lumberjacks                    |
+| `sase search`         | Search and filter ChangeSpecs with query expressions         |
+| `sase run`            | Execute workflows or run a query directly                    |
+| `sase xprompt`        | Expand prompt templates with sase references                 |
+| `sase commit`         | Create a commit with formatted CL description and metadata   |
+| `sase amend`          | Amend a commit with COMMITS tracking                         |
+| `sase revert`         | Revert a ChangeSpec by pruning its CL and archiving its diff |
+| `sase restore`        | Restore a reverted ChangeSpec by re-applying its diff        |
+| `sase init-git`       | Initialize a new bare-repo-backed git project                |
+| `sase path`           | Print well-known sase paths (for editor integration)         |
+| `sase notify`         | Create a notification (reads JSON from stdin or uses flags)  |
+| `sase user-question`  | Handle user question from Claude Code hook                   |
+| `sase plan-approve`   | Handle plan approval from Claude Code hook                   |
 
 ## Core Concepts
 
@@ -117,7 +119,13 @@ src/sase/
 │   ├── comments/        # Comment management
 │   ├── scheduler/       # Task scheduling within ACE
 │   └── workflows/       # ACE-specific workflow integrations
-├── axe/                 # Schedule-based daemon
+├── axe/                 # Lumberjack-based daemon (orchestrator, chops, runner pool)
+│   ├── orchestrator.py  # Multi-lumberjack supervisor
+│   ├── lumberjack.py    # Single-lumberjack scheduler loop
+│   ├── chop_script_runner.py # External chop script discovery and execution
+│   ├── config.py        # Lumberjack and chop configuration
+│   ├── runner_pool.py   # Shared concurrent runner pool
+│   └── chops/           # Built-in chop implementations
 ├── xprompt/             # Prompt templates and workflow execution
 ├── llm_provider/        # Pluggable LLM abstraction (Claude, Gemini)
 ├── vcs_provider/        # VCS abstraction (git, Mercurial)
@@ -128,6 +136,7 @@ src/sase/
 ├── gemini_wrapper/      # Gemini-specific integration
 ├── notifications/       # Notification system and delivery
 ├── status_state_machine/ # ChangeSpec status transitions
+├── scripts/             # Extracted Python utility scripts
 tests/                   # Test suite (mirrors src/sase/ structure)
 docs/                    # Detailed documentation
 ```

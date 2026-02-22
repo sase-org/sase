@@ -56,17 +56,17 @@ full LLM provider architecture, preprocessing pipeline, and invocation lifecycle
 
 ```yaml
 llm_provider:
-  provider: claude # or "gemini" (default: "gemini")
+  provider: claude # or "gemini" (default: auto-detect)
   model_tier_map:
     large: opus
     small: sonnet
 ```
 
-| Field                               | Type   | Default    | Description                            |
-| ----------------------------------- | ------ | ---------- | -------------------------------------- |
-| `llm_provider.provider`             | string | `"gemini"` | Which registered provider to use.      |
-| `llm_provider.model_tier_map.large` | string | -          | Model identifier for the `large` tier. |
-| `llm_provider.model_tier_map.small` | string | -          | Model identifier for the `small` tier. |
+| Field                               | Type   | Default     | Description                                                                     |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, else gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                          |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                          |
 
 Source: `src/sase/llm_provider/config.py`
 
@@ -96,29 +96,63 @@ Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
 ### axe
 
-Configures the `sase axe` background scheduler daemon. All values have sensible defaults; this section is entirely
-optional.
+Configures the `sase axe` lumberjack-based daemon. The axe architecture uses an orchestrator that spawns multiple
+lumberjacks, each running a set of chops on a fixed interval. Defaults are provided by `src/sase/default_config.yml`.
 
 ```yaml
 axe:
-  full_check_interval: 300 # seconds (default: 300 = 5 minutes)
-  comment_check_interval: 60 # seconds (default: 60 = 1 minute)
-  hook_interval: 1 # seconds (default: 1)
-  zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
   max_runners: 5 # concurrent runners (default: 5)
+  zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
+  query: "" # query filter for ChangeSpecs (default: all)
+  chop_script_dirs: [] # additional directories to search for chop scripts
+  lumberjacks:
+    hooks:
+      interval: 1
+      chops:
+        - hook_checks
+        - mentor_checks
+        - workflow_checks
+        - pending_checks_poll
+        - comment_zombie_checks
+        - suffix_transforms
+        - orphan_cleanup
+        - wait_checks
+    checks:
+      interval: 300
+      chops:
+        - cl_submitted_checks
+        - stale_running_cleanup
+    comments:
+      interval: 60
+      chops:
+        - comment_checks
+    housekeeping:
+      interval: 3600
+      chops:
+        - error_digest
 ```
 
-| Field                    | Type | Default | Description                                                                 |
-| ------------------------ | ---- | ------- | --------------------------------------------------------------------------- |
-| `full_check_interval`    | int  | `300`   | Seconds between full CL-submitted check cycles.                             |
-| `comment_check_interval` | int  | `60`    | Seconds between reviewer/author comment check cycles.                       |
-| `hook_interval`          | int  | `1`     | Seconds between hook/mentor/workflow polling cycles.                        |
-| `zombie_timeout_seconds` | int  | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.      |
-| `max_runners`            | int  | `5`     | Maximum concurrent runners (hooks, agents, mentors) across all ChangeSpecs. |
+**Top-level fields:**
 
-CLI flags on `sase axe` override these values for a single run (see [CLI Flags](#cli-flags)).
+| Field                    | Type         | Default | Description                                                                 |
+| ------------------------ | ------------ | ------- | --------------------------------------------------------------------------- |
+| `max_runners`            | int          | `5`     | Maximum concurrent runners (hooks, agents, mentors) across all ChangeSpecs. |
+| `zombie_timeout_seconds` | int          | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.      |
+| `query`                  | string       | `""`    | Query string for filtering ChangeSpecs (empty = all).                       |
+| `chop_script_dirs`       | list[string] | `[]`    | Additional directories to search for external chop scripts.                 |
+| `lumberjacks`            | dict         | -       | Mapping of lumberjack name → config (see below).                            |
 
-Source: `src/sase/axe_config.py`, `src/sase/axe/core.py`
+**Lumberjack fields** (per entry under `lumberjacks`):
+
+| Field      | Type         | Default | Description                              |
+| ---------- | ------------ | ------- | ---------------------------------------- |
+| `interval` | int          | `1`     | Seconds between chop polling cycles.     |
+| `chops`    | list[string] | `[]`    | List of chop names to run on each cycle. |
+
+CLI flags on `sase axe` override `max_runners`, `zombie_timeout_seconds`, and `query` for a single run (see
+[CLI Flags](#cli-flags)).
+
+Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
 
 ### mentor_profiles
 
@@ -279,18 +313,15 @@ These are set automatically by sase when launching agent subprocesses and are no
 
 ### `sase axe`
 
-| Flag                       | Values              | Default          | Description                                         |
-| -------------------------- | ------------------- | ---------------- | --------------------------------------------------- |
-| `-q, --query`              | string              | `""` (all)       | Query string for filtering ChangeSpecs.             |
-| `--full-check-interval`    | int (seconds)       | config or `300`  | Full CL-submitted check interval.                   |
-| `--comment-check-interval` | int (seconds)       | config or `60`   | Comment check interval.                             |
-| `--hook-interval`          | int (seconds)       | config or `1`    | Hook/mentor/workflow polling interval.              |
-| `-r, --max-runners`        | int                 | config or `5`    | Maximum concurrent runners globally.                |
-| `--zombie-timeout`         | int (seconds)       | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
-| `--vcs-provider`           | `git`, `hg`, `auto` | -                | Override VCS provider.                              |
+| Flag                | Values              | Default          | Description                                         |
+| ------------------- | ------------------- | ---------------- | --------------------------------------------------- |
+| `-q, --query`       | string              | `""` (all)       | Query string for filtering ChangeSpecs.             |
+| `-r, --max-runners` | int                 | config or `5`    | Maximum concurrent runners globally.                |
+| `--zombie-timeout`  | int (seconds)       | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
+| `--vcs-provider`    | `git`, `hg`, `auto` | -                | Override VCS provider.                              |
 
 For `sase axe`, CLI flags take precedence over values from the `axe` config section in `sase.yml`. If neither is set,
-the built-in defaults are used.
+the built-in defaults from `default_config.yml` are used.
 
 ### `sase commit`
 

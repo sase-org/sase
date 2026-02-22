@@ -69,33 +69,27 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### CL Actions
 
-| Key           | Action                                                      |
-| ------------- | ----------------------------------------------------------- |
-| `s`           | Change status (opens status modal)                          |
-| `S`           | Bulk status change for all marked CLs                       |
-| `d`           | Show diff                                                   |
-| `w`           | Reword CL description                                       |
-| `W`           | Add tag to CL description                                   |
-| `M`           | Mail CL (must have ready-to-mail suffix)                    |
-| `e`           | Edit spec file                                              |
-| `v`           | View files (hint mode)                                      |
-| `h`           | Edit hooks                                                  |
-| `H`           | Add hooks from failed targets                               |
-| `a`           | Accept proposal (`!` = spec only, `@` = mark ready to mail) |
-| `b`           | Rebase CL onto parent                                       |
-| `R`           | Rewind to previous commit (non-Sub/Rev CLs only)            |
-| `n`           | Rename CL (non-Sub/Rev CLs only)                            |
-| `C`           | Checkout CL in primary workspace                            |
-| `c` + `1`-`9` | Checkout CL in workspace 1-9                                |
-| `T`           | Checkout CL + open tmux (primary workspace)                 |
-| `t` + `1`-`9` | Checkout CL + open tmux in workspace 1-9                    |
-
-### Marking
-
-| Key | Action                                           |
-| --- | ------------------------------------------------ |
-| `m` | Mark / unmark current CL (auto-advances to next) |
-| `u` | Clear all marks                                  |
+| Key             | Action                                                      |
+| --------------- | ----------------------------------------------------------- |
+| `a`             | Accept proposal (`!` = spec only, `@` = mark ready to mail) |
+| `b`             | Rebase CL onto parent                                       |
+| `C` / `c1`-`c9` | Checkout CL (primary / workspace 1-9)                       |
+| `d`             | Show diff                                                   |
+| `e`             | Edit spec file                                              |
+| `h`             | Edit hooks                                                  |
+| `H`             | Add hooks from failed targets                               |
+| `M`             | Mail CL                                                     |
+| `m`             | Mark / unmark current CL (auto-advances to next)            |
+| `n`             | Rename CL (non-Sub/Rev CLs only)                            |
+| `R`             | Rewind to previous commit (non-Sub/Rev CLs only)            |
+| `s`             | Change status (opens status modal)                          |
+| `S`             | Bulk status change for all marked CLs                       |
+| `T` / `t1`-`t9` | Checkout + tmux (primary / workspace 1-9)                   |
+| `u`             | Clear all marks                                             |
+| `v`             | View files (hint mode)                                      |
+| `w`             | Reword CL description                                       |
+| `W`             | Add tag to CL description                                   |
+| `Y`             | Sync workspace                                              |
 
 ### Fold Mode (`z` prefix)
 
@@ -113,25 +107,31 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `r`     | Run workflow on current CL                      |
 | `@`     | Run a custom agent (opens project/CL selection) |
 | `Space` | Run agent from current CL                       |
-| `!`     | Run background command                          |
+
+### Bang Mode (`!` prefix)
+
+| Key  | Action                               |
+| ---- | ------------------------------------ |
+| `!!` | Run background command               |
+| `!x` | Start / stop axe (or select process) |
 
 ### Leader Mode (`,` prefix)
 
-| Key     | Action                               |
-| ------- | ------------------------------------ |
-| `,` `!` | Run command using current CL context |
+| Key  | Action                               |
+| ---- | ------------------------------------ |
+| `,!` | Run command using current CL context |
 
 ### Copy Mode (`%` prefix)
 
-| Key     | Action                     |
-| ------- | -------------------------- |
-| `%` `%` | Copy ChangeSpec            |
-| `%` `!` | Copy ChangeSpec + snapshot |
-| `%` `b` | Copy bug number            |
-| `%` `c` | Copy CL number             |
-| `%` `n` | Copy CL name               |
-| `%` `p` | Copy project spec file     |
-| `%` `s` | Copy sase ace snapshot     |
+| Key  | Action                     |
+| ---- | -------------------------- |
+| `%%` | Copy ChangeSpec            |
+| `%!` | Copy ChangeSpec + snapshot |
+| `%b` | Copy bug number            |
+| `%c` | Copy CL number             |
+| `%n` | Copy CL name               |
+| `%p` | Copy project spec file     |
+| `%s` | Copy sase ace snapshot     |
 
 ## Keybindings: Agents Tab
 
@@ -146,15 +146,17 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Agent Actions
 
-| Key | Action                                       |
-| --- | -------------------------------------------- |
-| `@` | Run custom agent                             |
-| `!` | Run background command                       |
-| `r` | Revive chat as agent                         |
-| `x` | Kill / dismiss agent                         |
-| `e` | Edit chat in editor                          |
-| `p` | Toggle file / prompt layout                  |
-| `i` | Toggle thinking / file panel (context-aware) |
+| Key                 | Action                                   |
+| ------------------- | ---------------------------------------- |
+| `@`                 | Run custom agent                         |
+| `n`                 | Name agent                               |
+| `r`                 | Revive chat as agent                     |
+| `x`                 | Kill / dismiss agent                     |
+| `e`                 | Edit chat in editor                      |
+| `E`                 | Edit panel content in editor             |
+| `i`                 | Cycle panels: file → thinking → metadata |
+| `p`                 | Toggle file / prompt layout              |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel            |
 
 ### Workflow Folding
 
@@ -163,39 +165,53 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `l` / `h` | Expand / collapse workflow steps |
 | `L` / `H` | Expand / collapse all workflows  |
 
+### Bang Mode (`!` prefix)
+
+| Key  | Action                               |
+| ---- | ------------------------------------ |
+| `!!` | Run background command               |
+| `!x` | Start / stop axe (or select process) |
+
 ### Copy Mode (`%` prefix)
 
-| Key     | Action                 |
-| ------- | ---------------------- |
-| `%` `c` | Copy chat file path    |
-| `%` `s` | Copy sase ace snapshot |
+| Key  | Action                 |
+| ---- | ---------------------- |
+| `%c` | Copy chat file path    |
+| `%s` | Copy sase ace snapshot |
 
 ## Keybindings: Axe Tab
 
 ### Navigation
 
-| Key       | Action                              |
-| --------- | ----------------------------------- |
-| `j` / `k` | Move to next / previous command     |
-| `g`       | Scroll to top                       |
-| `G`       | Scroll to bottom (pins auto-scroll) |
-| `r`       | Show runners info                   |
+| Key                 | Action                              |
+| ------------------- | ----------------------------------- |
+| `j` / `k`           | Move to next / previous command     |
+| `Ctrl+N` / `Ctrl+P` | Next / previous lumberjack output   |
+| `g`                 | Scroll to top                       |
+| `G`                 | Scroll to bottom (pins auto-scroll) |
+| `r`                 | Show runners info                   |
 
 ### Background Commands
 
 | Key | Action                               |
 | --- | ------------------------------------ |
 | `@` | Run agent                            |
-| `!` | Run background command               |
 | `X` | Kill current command (or toggle axe) |
+
+### Bang Mode (`!` prefix)
+
+| Key  | Action                               |
+| ---- | ------------------------------------ |
+| `!!` | Run background command               |
+| `!x` | Start / stop axe (or select process) |
 
 ### Copy Mode (`%` prefix)
 
-| Key     | Action                 |
-| ------- | ---------------------- |
-| `%` `o` | Copy visible output    |
-| `%` `O` | Copy full output       |
-| `%` `s` | Copy sase ace snapshot |
+| Key  | Action                 |
+| ---- | ---------------------- |
+| `%o` | Copy visible output    |
+| `%O` | Copy full output       |
+| `%s` | Copy sase ace snapshot |
 
 ### Axe Control
 
@@ -239,10 +255,8 @@ These work on all tabs:
 | `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                   |
 | `.`                 | Toggle visibility of reverted CLs (CLs tab) or non-run agents (Agents tab) |
 | `N`                 | Show notifications                                                         |
-| `X`                 | Start / stop axe daemon (or select process)                                |
 | `Q`                 | Stop axe daemon and quit                                                   |
 | `y`                 | Refresh current tab                                                        |
-| `Y`                 | Sync workspace (CLs tab)                                                   |
 | `q`                 | Quit                                                                       |
 | `?`                 | Show help modal                                                            |
 

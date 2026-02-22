@@ -96,7 +96,8 @@ provider = get_provider("claude")  # Explicit provider name
 
 1. If `provider_name` is passed to `invoke_agent()`, use that.
 2. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
-3. If no config exists, fall back to `"gemini"`.
+3. If no config exists (or provider is empty), auto-detect: prefer `claude` if available on PATH, fall back to
+   `"gemini"`.
 
 ## Claude Code Integration
 
@@ -163,45 +164,19 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 
 ```yaml
 llm_provider:
-  provider: claude # or "gemini" (default)
+  provider: claude # or "gemini" (default: auto-detect)
   model_tier_map:
     large: opus
     small: sonnet
 ```
 
-### JSON Schema
-
-The config is validated against `sase.schema.json`:
-
-```json
-{
-  "llm_provider": {
-    "type": "object",
-    "properties": {
-      "provider": {
-        "type": "string",
-        "description": "Name of the LLM provider to use (e.g., 'gemini', 'claude')",
-        "default": "gemini"
-      },
-      "model_tier_map": {
-        "type": "object",
-        "properties": {
-          "large": { "type": "string" },
-          "small": { "type": "string" }
-        }
-      }
-    }
-  }
-}
-```
-
 ### Config Fields
 
-| Field                               | Type   | Default    | Description                           |
-| ----------------------------------- | ------ | ---------- | ------------------------------------- |
-| `llm_provider.provider`             | string | `"gemini"` | Which registered provider to use      |
-| `llm_provider.model_tier_map.large` | string | -          | Model identifier for the `large` tier |
-| `llm_provider.model_tier_map.small` | string | -          | Model identifier for the `small` tier |
+| Field                               | Type   | Default     | Description                                                                     |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, else gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                           |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                           |
 
 ## Model Tier System
 
