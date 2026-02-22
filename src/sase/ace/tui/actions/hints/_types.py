@@ -29,6 +29,7 @@ class HintMixinBase:
     _hint_mappings: dict[int, str]
     _hook_hint_to_idx: dict[int, int]
     _hint_to_entry_id: dict[int, str]
+    _mentor_hint_to_info: dict[int, tuple[str, str]]
     _hint_changespec_name: str
 
     # Accept mode state

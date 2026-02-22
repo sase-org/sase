@@ -1,6 +1,9 @@
 """Hook history selection modal with filtering for the ace TUI."""
 
-from sase.hook_history import HookHistoryEntry, get_hooks_for_display
+from dataclasses import dataclass
+from enum import Enum, auto
+
+from sase.hook_history import HookHistoryEntry, delete_hook, get_hooks_for_display
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical
@@ -11,12 +14,31 @@ from textual.widgets.option_list import Option
 from .base import FilterInput, OptionListNavigationMixin
 
 
-class HookHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
+class HookHistoryAction(Enum):
+    """Action type for hook history modal result."""
+
+    SUBMIT = auto()  # Enter - submit hook directly
+    EDIT_FIRST = auto()  # Ctrl+G - open in hooks input bar first
+
+
+@dataclass
+class HookHistoryResult:
+    """Result from HookHistoryModal."""
+
+    action: HookHistoryAction
+    command: str
+
+
+class HookHistoryModal(
+    OptionListNavigationMixin, ModalScreen[HookHistoryResult | None]
+):
     """Modal for selecting a hook from history with filtering."""
 
     _option_list_id = "hook-history-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("ctrl+d", "delete_hook", "Delete hook"),
+        ("ctrl+g", "edit_first", "Edit first"),
     ]
 
     def __init__(self) -> None:
@@ -46,7 +68,7 @@ class HookHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
                     id="hook-history-list",
                 )
             yield Static(
-                "j/k ^n/^p: navigate | Enter: select | Esc/q: cancel",
+                "j/k ^n/^p: navigate | Enter: select | ^d: delete | ^g: edit | Esc/q: cancel",
                 id="hook-history-hints",
             )
 
@@ -102,17 +124,59 @@ class HookHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if self._filtered_items:
             command = self._get_selected_command()
             if command:
-                self.dismiss(command)
+                self.dismiss(
+                    HookHistoryResult(action=HookHistoryAction.SUBMIT, command=command)
+                )
                 return
 
         # If no items match, don't submit anything
         typed_text = event.value.strip()
         if typed_text:
-            self.dismiss(typed_text)
+            self.dismiss(
+                HookHistoryResult(action=HookHistoryAction.SUBMIT, command=typed_text)
+            )
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (click/double-click) - submit directly."""
         if event.option and event.option.id is not None:
             idx = int(event.option.id)
             if 0 <= idx < len(self._filtered_items):
-                self.dismiss(self._filtered_items[idx].command)
+                self.dismiss(
+                    HookHistoryResult(
+                        action=HookHistoryAction.SUBMIT,
+                        command=self._filtered_items[idx].command,
+                    )
+                )
+
+    def action_delete_hook(self) -> None:
+        """Handle Ctrl+D - delete the highlighted hook from history."""
+        if not self._filtered_items:
+            return
+
+        option_list = self.query_one("#hook-history-list", OptionList)
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return
+
+        if highlighted >= len(self._filtered_items):
+            return
+
+        entry = self._filtered_items[highlighted]
+        delete_hook(entry.command)
+
+        # Remove from both lists
+        self._all_items = [h for h in self._all_items if h.command != entry.command]
+        del self._filtered_items[highlighted]
+
+        # Remove from OptionList
+        option_list.remove_option_at_index(highlighted)
+
+        self.notify(f"Deleted: {entry.command}")
+
+    def action_edit_first(self) -> None:
+        """Handle Ctrl+G - select and open in hooks input bar for editing."""
+        command = self._get_selected_command()
+        if command:
+            self.dismiss(
+                HookHistoryResult(action=HookHistoryAction.EDIT_FIRST, command=command)
+            )

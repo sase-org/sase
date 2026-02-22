@@ -8,6 +8,7 @@ from sase.hook_history import (
     _load_hook_history,
     _save_hook_history,
     add_or_update_hook,
+    delete_hook,
     get_hooks_for_display,
 )
 
@@ -178,6 +179,54 @@ def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
         result = _load_hook_history()
         assert len(result) == 1
         assert result[0].command == "valid"
+
+
+def test_delete_hook_removes_entry(tmp_path: Path) -> None:
+    """Test that delete_hook removes the matching entry."""
+    test_file = tmp_path / "hook_history.json"
+    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+        entries = [
+            HookHistoryEntry(
+                command="make test",
+                timestamp="251231_100000",
+                last_used="251231_100000",
+            ),
+            HookHistoryEntry(
+                command="make build",
+                timestamp="251231_200000",
+                last_used="251231_200000",
+            ),
+        ]
+        _save_hook_history(entries)
+
+        result = delete_hook("make test")
+        assert result is True
+
+        remaining = _load_hook_history()
+        assert len(remaining) == 1
+        assert remaining[0].command == "make build"
+
+
+def test_delete_hook_nonexistent_returns_true(tmp_path: Path) -> None:
+    """Test that deleting a nonexistent command returns True (no-op)."""
+    test_file = tmp_path / "hook_history.json"
+    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+        entries = [
+            HookHistoryEntry(
+                command="make test",
+                timestamp="251231_100000",
+                last_used="251231_100000",
+            ),
+        ]
+        _save_hook_history(entries)
+
+        result = delete_hook("nonexistent command")
+        assert result is True
+
+        # Original entry should still be there
+        remaining = _load_hook_history()
+        assert len(remaining) == 1
+        assert remaining[0].command == "make test"
 
 
 def test_save_creates_parent_directory(tmp_path: Path) -> None:

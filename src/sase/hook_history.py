@@ -92,6 +92,23 @@ def add_or_update_hook(command: str) -> None:
     _save_hook_history(hooks)
 
 
+def delete_hook(command: str) -> bool:
+    """Delete a hook from history by command string.
+
+    Args:
+        command: The hook command to delete.
+
+    Returns:
+        True if deletion was successful (or command didn't exist).
+    """
+    hooks = _load_hook_history()
+    original_len = len(hooks)
+    hooks = [h for h in hooks if h.command != command]
+    if len(hooks) < original_len:
+        return _save_hook_history(hooks)
+    return True
+
+
 def get_hooks_for_display() -> list[HookHistoryEntry]:
     """Get hooks sorted by last_used descending (most recent first).
 

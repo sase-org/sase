@@ -6,7 +6,7 @@ from .command_input_modal import CommandInputModal
 from .confirm_delete_modal import ConfirmDeleteModal
 from .confirm_kill_modal import ConfirmKillModal
 from .help_modal import HelpModal, TabName
-from .hook_history_modal import HookHistoryModal
+from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
 from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
@@ -37,7 +37,9 @@ __all__ = [
     "ConfirmKillModal",
     "DismissedAgentSelectModal",
     "HelpModal",
+    "HookHistoryAction",
     "HookHistoryModal",
+    "HookHistoryResult",
     "NotificationModal",
     "ParentSelectModal",
     "PlanApprovalModal",

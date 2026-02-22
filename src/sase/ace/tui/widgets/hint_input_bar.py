@@ -96,6 +96,7 @@ class HintInputBar(Static):
         self,
         mode: Literal["view", "hooks", "accept", "failed_hooks", "rewind"],
         placeholder: str | None = None,
+        initial_value: str = "",
         **kwargs: Any,
     ) -> None:
         """Initialize the hint input bar.
@@ -103,11 +104,13 @@ class HintInputBar(Static):
         Args:
             mode: The current hint mode ("view", "hooks", "accept", "failed_hooks", or "rewind")
             placeholder: Optional custom placeholder text (used for "accept" and "rewind" modes)
+            initial_value: Optional initial value to pre-fill the input with
             **kwargs: Additional arguments for Static
         """
         super().__init__(**kwargs)
         self.mode = mode
         self._custom_placeholder = placeholder
+        self._initial_value = initial_value
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
@@ -122,6 +125,7 @@ class HintInputBar(Static):
                 yield Label("Hooks: ", id="hint-label")
                 yield _HintInput(
                     placeholder="1-5 or 2@ (@ to delete) or //target or command",
+                    value=self._initial_value,
                     id="hint-input",
                 )
             elif self.mode == "failed_hooks":
@@ -143,6 +147,8 @@ class HintInputBar(Static):
     def on_mount(self) -> None:
         """Focus the input on mount."""
         hint_input = self.query_one("#hint-input", _HintInput)
+        if self._initial_value:
+            hint_input.cursor_position = len(self._initial_value)
         hint_input.focus()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
