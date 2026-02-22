@@ -91,8 +91,12 @@ def list_chop_scripts(search_dirs: list[str]) -> list[str]:
         if not dir_path.is_dir():
             continue
         for entry in dir_path.iterdir():
+            try:
+                is_file = entry.is_file()
+            except OSError:
+                continue
             if (
-                entry.is_file()
+                is_file
                 and entry.name.startswith("sase_chop_")
                 and os.access(entry, os.X_OK)
             ):
