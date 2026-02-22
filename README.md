@@ -60,7 +60,7 @@ source .venv/bin/activate
 just install
 
 # Run the CLI
-.venv/bin/sase
+sase
 ```
 
 ## CLI Commands

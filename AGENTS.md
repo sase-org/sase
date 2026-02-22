@@ -20,6 +20,9 @@ just test-tox      # Multi-version testing (3.12, 3.13, 3.14)
 use the venv automatically). **Never** run bare `sase`, `pip install`, or `python -m sase` — these resolve outside the
 project venv and can pollute the system Python (pyenv). If `.venv` doesn't exist yet, run `just install` first.
 
+> **Note**: `.venv/bin/sase` is for agents only. Users activate the venv (`source .venv/bin/activate`) and run `sase`
+> directly. Do not recommend `.venv/bin/sase` to users in documentation or help output.
+
 ## Architecture
 
 - **Layout**: `src/sase/` (src layout with hatchling build backend)
