@@ -345,12 +345,13 @@ class AceApp(
                     with VerticalScroll(id="detail-scroll"):
                         yield ChangeSpecDetail(id="detail-panel")
             # Agents Tab (hidden by default)
-            with Horizontal(id="agents-view", classes="hidden"):
-                with Vertical(id="agent-list-container"):
-                    yield AgentInfoPanel(id="agent-info-panel")
-                    yield AgentList(id="agent-list-panel")
-                with Vertical(id="agent-detail-container"):
-                    yield AgentDetail(id="agent-detail-panel")
+            with Vertical(id="agents-view", classes="hidden"):
+                yield AgentInfoPanel(id="agent-info-panel")
+                with Horizontal(id="agents-content"):
+                    with Vertical(id="agent-list-container"):
+                        yield AgentList(id="agent-list-panel")
+                    with Vertical(id="agent-detail-container"):
+                        yield AgentDetail(id="agent-detail-panel")
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
                 # Left panel (bgcmd list) - hidden by default, shown when bgcmds exist

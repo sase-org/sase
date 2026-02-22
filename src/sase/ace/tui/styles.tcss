@@ -392,6 +392,11 @@ HintInputBar #hint-escape-hint {
     height: 100%;
 }
 
+#agents-content {
+    width: 100%;
+    height: 1fr;
+}
+
 #agent-list-container {
     width: 40;  /* Default, will be set programmatically */
     min-width: 40;
