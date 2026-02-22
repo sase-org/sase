@@ -190,6 +190,37 @@ def test_alias_m_and_model_duplicate_raises() -> None:
         extract_prompt_directives(prompt)
 
 
+def test_alias_n_resolves_to_name() -> None:
+    """%n:builder works the same as %name:builder."""
+    prompt = "%n:builder\nDo some work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do some work"
+    assert directives.name == "builder"
+
+
+def test_alias_n_and_name_duplicate_raises() -> None:
+    """%n + %name in the same prompt raises DirectiveError."""
+    prompt = "%n:alpha\n%name:beta\nDo some work"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%name'"):
+        extract_prompt_directives(prompt)
+
+
+def test_alias_w_resolves_to_wait() -> None:
+    """%w:builder works the same as %wait:builder."""
+    prompt = "%w:builder\nDo some work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do some work"
+    assert directives.wait == ["builder"]
+
+
+def test_alias_w_multiple() -> None:
+    """%w can be used multiple times like %wait."""
+    prompt = "%w:a\n%w:b\nDo some work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do some work"
+    assert directives.wait == ["a", "b"]
+
+
 def test_percent_in_normal_text_not_matched() -> None:
     """Percent signs in normal text (not followed by name) are left alone."""
     prompt = "Use 50% of the data"

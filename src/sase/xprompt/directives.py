@@ -35,7 +35,7 @@ _KNOWN_DIRECTIVES = frozenset({"model", "name", "wait"})
 _MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
 
 # Short aliases for directives (alias -> canonical name)
-_DIRECTIVE_ALIASES: dict[str, str] = {"m": "model"}
+_DIRECTIVE_ALIASES: dict[str, str] = {"m": "model", "n": "name", "w": "wait"}
 
 
 @dataclass
