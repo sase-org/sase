@@ -8,8 +8,8 @@ import os
 import subprocess
 import tempfile
 
-# Test with fast delays to speed up tests
-_TEST_RETRY_DELAY = 1  # 1 second instead of 60
+# Test with zero delay to avoid flakiness from sleep in CI
+_TEST_RETRY_DELAY = 0
 
 
 def _create_test_wrapper_script(
@@ -81,7 +81,6 @@ echo ""
 # Log end timestamp in YYmmdd_HHMMSS format (America/New_York timezone)
 end_timestamp=$(TZ="America/New_York" date +"%y%m%d_%H%M%S")
 echo "===HOOK_COMPLETE=== END_TIMESTAMP: $end_timestamp EXIT_CODE: $exit_code"
-sync
 exit $exit_code
 """
 
