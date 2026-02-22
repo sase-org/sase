@@ -71,7 +71,7 @@ def test_load_all_agents_deduplicates_by_timestamp() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -147,7 +147,7 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -221,7 +221,7 @@ def test_load_all_agents_dedup_mentor_by_timestamp() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -288,7 +288,7 @@ def test_workflow_dedup_propagates_failed_status() -> None:
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         result = load_all_agents()
@@ -369,7 +369,7 @@ def test_running_workflow_dedup_ace_run() -> None:
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         result = load_all_agents()

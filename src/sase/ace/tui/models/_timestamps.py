@@ -1,6 +1,7 @@
 """Timestamp parsing and extraction utilities for agent loading."""
 
 from datetime import datetime
+from functools import lru_cache
 
 
 def extract_timestamp_str_from_suffix(suffix: str | None) -> str | None:
@@ -108,6 +109,17 @@ def parse_timestamp_from_workflow_name(workflow: str | None) -> datetime | None:
     return None
 
 
+@lru_cache(maxsize=512)
+def _parse_timestamp_14_digit_cached(timestamp_str: str) -> datetime | None:
+    """Inner cached parser for 14-digit timestamps."""
+    if len(timestamp_str) != 14 or not timestamp_str.isdigit():
+        return None
+    try:
+        return datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+
+
 def parse_timestamp_14_digit(timestamp_str: str | None) -> datetime | None:
     """Parse a 14-digit timestamp string (YYYYmmddHHMMSS).
 
@@ -117,12 +129,9 @@ def parse_timestamp_14_digit(timestamp_str: str | None) -> datetime | None:
     Returns:
         Parsed datetime, or None if parsing fails.
     """
-    if timestamp_str is None or len(timestamp_str) != 14 or not timestamp_str.isdigit():
+    if timestamp_str is None:
         return None
-    try:
-        return datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
-    except ValueError:
-        return None
+    return _parse_timestamp_14_digit_cached(timestamp_str)
 
 
 def normalize_to_14_digit(ts: str | None) -> str | None:

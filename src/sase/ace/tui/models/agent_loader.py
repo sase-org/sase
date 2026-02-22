@@ -151,11 +151,13 @@ def load_all_agents() -> list[Agent]:
     # 1b. Load running home mode agents (from running.json markers)
     agents.extend(load_running_home_agents())
 
-    # 1c. Load workflow entries as agents
-    agents.extend(load_workflow_agents())
+    # 1d. Load workflow agent steps first — also collects meta_* fields
+    # per parent timestamp so load_workflow_agents() can skip redundant
+    # prompt_step_*.json reads.
+    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps()
 
-    # 1d. Load workflow agent steps (individual agent steps within workflows)
-    workflow_agent_steps = load_workflow_agent_steps()
+    # 1c. Load workflow entries as agents (with pre-collected meta fields)
+    agents.extend(load_workflow_agents(step_meta_by_parent=step_meta_by_parent))
 
     # 2. Load from each ChangeSpec's fields
     for cs in all_changespecs:

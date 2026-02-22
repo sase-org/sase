@@ -21,7 +21,7 @@ def test_load_all_agents_empty() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -53,7 +53,7 @@ def test_load_all_agents_with_running_claims() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -95,7 +95,7 @@ def test_load_all_agents_sorting() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -153,7 +153,7 @@ def test_load_all_agents_with_hook_agents() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -211,7 +211,7 @@ def test_load_all_agents_with_summarize_agents() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -270,7 +270,7 @@ def test_load_all_agents_with_mentor_agents() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -321,7 +321,7 @@ def test_load_all_agents_with_crs_agents() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -358,7 +358,7 @@ def test_load_all_agents_filters_hook_processes() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()
@@ -394,7 +394,7 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
         patch("sase.ace.tui.models.agent_loader.load_workflow_agents", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
-            return_value=[],
+            return_value=([], {}),
         ),
     ):
         agents = load_all_agents()

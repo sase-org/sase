@@ -35,13 +35,19 @@ _MODE_LABELS: dict[_DetailPanelMode, str] = {
     _DetailPanelMode.INFO: "collapsed",
 }
 
+# Cached result of provider detection (doesn't change during a TUI session)
+_gemini_provider_cache: bool | None = None
+
 
 def _is_gemini_provider() -> bool:
-    """Check if the default LLM provider is Gemini."""
-    try:
-        return get_default_provider_name() == "gemini"
-    except Exception:
-        return False
+    """Check if the default LLM provider is Gemini (cached)."""
+    global _gemini_provider_cache
+    if _gemini_provider_cache is None:
+        try:
+            _gemini_provider_cache = get_default_provider_name() == "gemini"
+        except Exception:
+            _gemini_provider_cache = False
+    return _gemini_provider_cache
 
 
 def _default_panel_mode() -> _DetailPanelMode:
