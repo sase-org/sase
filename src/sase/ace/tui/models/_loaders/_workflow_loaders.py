@@ -271,6 +271,22 @@ def load_workflow_agent_steps() -> list[Agent]:
                 if not timestamp_dir.is_dir():
                     continue
 
+                # Read parent workflow state for error propagation to child steps
+                parent_wf_error: str | None = None
+                parent_wf_traceback: str | None = None
+                parent_wf_failed = False
+                parent_state_file = timestamp_dir / "workflow_state.json"
+                if parent_state_file.exists():
+                    try:
+                        with open(parent_state_file, encoding="utf-8") as f:
+                            parent_state = json.load(f)
+                        if parent_state.get("status") == "failed":
+                            parent_wf_failed = True
+                            parent_wf_error = parent_state.get("error")
+                            parent_wf_traceback = parent_state.get("traceback")
+                    except Exception:
+                        pass
+
                 # Find all prompt step marker files
                 for marker_file in timestamp_dir.glob("prompt_step_*.json"):
                     try:
@@ -363,6 +379,17 @@ def load_workflow_agent_steps() -> list[Agent]:
                             embedded_workflow_name=embedded_workflow_name,
                             is_pre_prompt_step=is_pre_prompt_step,
                         )
+                        # If step is still RUNNING but parent workflow failed,
+                        # mark step as FAILED and propagate the workflow error
+                        if (
+                            parent_wf_failed
+                            and agent.status == "RUNNING"
+                            and not agent.error_message
+                        ):
+                            agent.status = "FAILED"
+                            agent.error_message = parent_wf_error
+                            agent.error_traceback = parent_wf_traceback
+
                         enrich_agent_from_meta(agent, artifacts_dir_from_marker)
                         agents.append(agent)
                     except Exception:

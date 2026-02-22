@@ -116,6 +116,15 @@ class WorkflowDisplayMixin:
             header_text.append("PID: ", style="bold #87D7FF")
             header_text.append(f"{agent.pid}\n", style="#FF87D7 bold")
 
+        # Error message (for failed workflows)
+        if agent.error_message:
+            header_text.append("\n")
+            header_text.append("ERROR\n", style="bold #FF5F5F underline")
+            header_text.append(f"{agent.error_message}\n", style="bold #FF5F5F")
+            if agent.output_path:
+                header_text.append("Output: ", style="bold #87D7FF")
+                header_text.append(f"{agent.output_path}\n", style="dim")
+
         # Meta fields aggregated from all step outputs
         meta_fields = self._load_workflow_meta_fields(agent)
         if meta_fields:
@@ -164,6 +173,22 @@ class WorkflowDisplayMixin:
             renderables.append(
                 Syntax(prompt_content, "markdown", theme="monokai", word_wrap=True)
             )
+
+        # Show traceback section for failed workflows
+        if agent.error_traceback:
+            tb_header = Text()
+            tb_header.append("\n")
+            tb_header.append("─" * 50 + "\n", style="dim")
+            tb_header.append("\n")
+            tb_header.append("TRACEBACK\n", style="bold #D7AF5F underline")
+            tb_header.append("\n")
+            tb_syntax = Syntax(
+                agent.error_traceback,
+                "pytb",
+                theme="monokai",
+                word_wrap=True,
+            )
+            renderables.extend([tb_header, tb_syntax])
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]
 
