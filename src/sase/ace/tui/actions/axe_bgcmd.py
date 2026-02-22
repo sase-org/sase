@@ -19,7 +19,7 @@ from ..bgcmd import (
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
-    from ..modals.project_select_modal import SelectionItem
+    from ..modals.project_select_modal import ProjectSelectResult
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -47,18 +47,20 @@ class AxeBgCmdMixin:
         from ..modals import ProjectSelectModal
 
         def on_project_selected(
-            result: SelectionItem | str | None,
+            result: ProjectSelectResult | None,
         ) -> None:
             if result is None:
                 return
 
+            selection = result.selection
+
             # Extract project name and optional CL name
-            if isinstance(result, str):
-                project = result
+            if isinstance(selection, str):
+                project = selection
                 cl_name = None
             else:
-                project = result.project_name
-                cl_name = result.cl_name
+                project = selection.project_name
+                cl_name = selection.cl_name
 
             # Show workspace input modal
             self._show_workspace_input(slot, project, cl_name)
