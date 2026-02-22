@@ -16,9 +16,9 @@ just test-tox      # Multi-version testing (3.12, 3.13, 3.14)
 .venv/bin/sase     # Run CLI (always use .venv/bin/sase, NEVER bare `sase`)
 ```
 
-**IMPORTANT — Running the `sase` CLI**: Always use `.venv/bin/sase` (or `just` commands which use the venv
-automatically). **Never** run bare `sase`, `pip install`, or `python -m sase` — these resolve outside the project venv
-and can pollute the system Python (pyenv). If `.venv` doesn't exist yet, run `just install` first.
+**IMPORTANT — Running the `sase` CLI**: Agents (like you) should always use `.venv/bin/sase` (or `just` commands which
+use the venv automatically). **Never** run bare `sase`, `pip install`, or `python -m sase` — these resolve outside the
+project venv and can pollute the system Python (pyenv). If `.venv` doesn't exist yet, run `just install` first.
 
 ## Architecture
 
