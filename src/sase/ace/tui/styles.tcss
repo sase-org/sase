@@ -1271,3 +1271,75 @@ UserQuestionModal {
     border-top: solid $secondary;
     padding-top: 1;
 }
+
+/* Dismissed agent (revive) modal styling */
+DismissedAgentSelectModal {
+    align: center middle;
+}
+
+DismissedAgentSelectModal > Container {
+    width: 90%;
+    height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+DismissedAgentSelectModal #modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+DismissedAgentSelectModal #dismissed-filter {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+DismissedAgentSelectModal #dismissed-agent-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+DismissedAgentSelectModal #dismissed-agent-list-panel {
+    width: 1fr;
+    height: 100%;
+}
+
+DismissedAgentSelectModal OptionList {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+DismissedAgentSelectModal #dismissed-agent-preview-panel {
+    width: 1fr;
+    height: 100%;
+    margin-left: 1;
+}
+
+DismissedAgentSelectModal #dismissed-preview-label {
+    color: $text-muted;
+    text-style: bold;
+    height: 1;
+}
+
+DismissedAgentSelectModal #dismissed-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+DismissedAgentSelectModal #dismissed-preview-metadata {
+    height: auto;
+}
+
+DismissedAgentSelectModal #dismissed-preview-content {
+    height: auto;
+    color: $text-muted;
+}
+
+DismissedAgentSelectModal #dismissed-agent-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
