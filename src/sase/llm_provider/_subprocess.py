@@ -134,7 +134,9 @@ def stream_and_parse_json_output(
         if process.poll() is not None:
             if process.stdout:
                 for line in process.stdout:
-                    _process_json_line(line, assistant_texts, suppress_output, error_events)
+                    _process_json_line(
+                        line, assistant_texts, suppress_output, error_events
+                    )
             if process.stderr:
                 for line in process.stderr:
                     stderr_lines.append(line)
