@@ -168,11 +168,14 @@ def test_handle_axe_lumberjack_list_prints_lumberjacks(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    assert len(lines) == 4
+    # 4 lumberjacks × (name + interval + "chops:" + 1 chop) = 16 non-empty lines
+    assert len(lines) == 16
     assert "hooks" in output
     assert "checks" in output
     assert "comments" in output
     assert "housekeeping" in output
+    assert "interval:" in output
+    assert "chops:" in output
 
 
 # --- handle_axe_lumberjack_status Tests ---

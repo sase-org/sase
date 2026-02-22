@@ -100,10 +100,19 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
 
 def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
     """Print configured lumberjack names and their chops."""
+    from rich.console import Console
+
+    console = Console()
     config = load_axe_config()
-    for name, lj in sorted(config.lumberjacks.items()):
-        chops_str = ", ".join(lj.chop_names)
-        print(f"{name}  (interval={lj.interval}s, chops=[{chops_str}])")
+    for i, (name, lj) in enumerate(sorted(config.lumberjacks.items())):
+        if i > 0:
+            console.print()
+        console.print(f"[bold cyan]{name}[/bold cyan]")
+        console.print(f"  [dim]interval:[/dim] {lj.interval}s")
+        if lj.chops:
+            console.print("  [dim]chops:[/dim]")
+            for chop in lj.chops:
+                console.print(f"    [green]{chop.name}[/green]")
     sys.exit(0)
 
 
