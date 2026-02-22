@@ -199,43 +199,33 @@ class AgentLaunchMixin:
                 failed_count += 1
                 continue
 
-            timestamp = generate_timestamp()
-            workflow_name = f"ace(run)-{timestamp}"
-
-            # Try to pre-allocate a workspace.  When resolution fails
-            # (e.g. sase_hg_get_workspace can't reach srcfsd), fall back
-            # to home mode so the agent still launches and the embedded
-            # VCS workflow (#hg / #gh / #git) can retry workspace
-            # creation inside the runner.
-            workspace_resolved = True
             try:
                 workspace_num = get_first_available_axe_workspace(project_file)
+                timestamp = generate_timestamp()
+                workflow_name = f"ace(run)-{timestamp}"
                 workspace_dir, _ = get_workspace_directory_for_num(
                     workspace_num, project_name
                 )
-            except RuntimeError:
-                workspace_num = 0
-                workspace_dir = os.path.expanduser("~")
-                workspace_resolved = False
+            except RuntimeError as e:
+                self.notify(f"Workspace error for {cl_name}: {e}", severity="warning")  # type: ignore[attr-defined]
+                failed_count += 1
+                continue
 
             # Detect VCS type and build per-CL prompt with prefix
             workflow_type = detect_workflow_type_for_project(project_file)
             cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
-            # When workspace was pre-allocated, pass VCS ref so
-            # _launch_background_agent sets SASE_*_PRE_ALLOCATED env
-            # vars.  In the fallback case, omit refs so the VCS
-            # workflow resolves the workspace on its own.
+            # Determine which VCS ref to pass so _launch_background_agent
+            # sets the SASE_*_PRE_ALLOCATED env vars correctly
             gh_ref: str | None = None
             git_ref: str | None = None
             hg_ref: str | None = None
-            if workspace_resolved:
-                if workflow_type == "gh":
-                    gh_ref = cl_name
-                elif workflow_type == "git":
-                    git_ref = cl_name
-                elif workflow_type == "hg":
-                    hg_ref = cl_name
+            if workflow_type == "gh":
+                gh_ref = cl_name
+            elif workflow_type == "git":
+                git_ref = cl_name
+            elif workflow_type == "hg":
+                hg_ref = cl_name
 
             self._launch_background_agent(
                 cl_name=cl_name,
@@ -248,7 +238,6 @@ class AgentLaunchMixin:
                 update_target=cl_name,
                 project_name=project_name,
                 history_sort_key=cl_name,
-                is_home_mode=not workspace_resolved,
                 gh_ref=gh_ref,
                 git_ref=git_ref,
                 hg_ref=hg_ref,
