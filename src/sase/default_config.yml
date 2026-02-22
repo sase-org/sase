@@ -30,7 +30,7 @@ axe:
         - error_digest
 
 llm_provider:
-  provider: "gemini"
+  provider: ""
 
 vcs_provider:
   provider: "auto"
