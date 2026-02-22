@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from sase.xprompt.models import InputArg, InputType
-from sase.xprompt.processor import (
+from sase.xprompt.workflow_runner import (
     WorkflowResult,
     _flatten_anonymous_workflow,
 )

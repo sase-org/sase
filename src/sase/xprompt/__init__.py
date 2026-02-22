@@ -39,13 +39,15 @@ from .output_validation import (
     validate_response,
 )
 from .processor import (
+    is_jinja2_template,
+    process_xprompt_references,
+    render_toplevel_jinja2,
+)
+from .workflow_runner import (
     WorkflowResult,
     execute_workflow,
     expand_workflow_for_embedding,
-    is_jinja2_template,
     is_workflow_reference,
-    process_xprompt_references,
-    render_toplevel_jinja2,
 )
 from .workflow_executor import HITLHandler, HITLResult, WorkflowExecutor
 from .workflow_hitl import CLIHITLHandler

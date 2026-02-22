@@ -366,7 +366,7 @@ def run_query(
     """
     from sase.sase_utils import generate_timestamp
     from sase.xprompt.models import create_anonymous_workflow
-    from sase.xprompt.processor import execute_workflow
+    from sase.xprompt.workflow_runner import execute_workflow
 
     # Get project info for workspace claiming (creates project file if needed)
     project_file, workspace_num, _ = ensure_project_file_and_get_workspace_num()

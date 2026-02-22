@@ -289,7 +289,7 @@ def main() -> None:
 
             # Create anonymous workflow and execute through WorkflowExecutor
             from sase.xprompt.models import create_anonymous_workflow
-            from sase.xprompt.processor import execute_workflow
+            from sase.xprompt.workflow_runner import execute_workflow
 
             os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
 
