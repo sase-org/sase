@@ -176,7 +176,12 @@ def invoke_agent(
         return AIMessage(content=response_content)
 
     except subprocess.CalledProcessError as e:
-        error_content = f"Error running LLM provider command: {e.stderr}"
+        parts = [f"Error running LLM provider command (exit code {e.returncode})"]
+        if e.stderr:
+            parts.append(f"stderr: {e.stderr.strip()}")
+        if e.output:
+            parts.append(f"output: {e.output.strip()}")
+        error_content = "\n".join(parts)
 
         postprocess_error(
             prompt=query,

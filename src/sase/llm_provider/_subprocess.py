@@ -98,6 +98,7 @@ def stream_and_parse_json_output(
         Tuple of (assistant_text, stderr_content, return_code).
     """
     assistant_texts: list[str] = []
+    error_events: list[str] = []
     stderr_lines: list[str] = []
 
     # Set stdout and stderr to non-blocking mode
@@ -121,7 +122,7 @@ def stream_and_parse_json_output(
         if process.stdout and process.stdout in ready:
             line = process.stdout.readline()
             if line:
-                _process_json_line(line, assistant_texts, suppress_output)
+                _process_json_line(line, assistant_texts, suppress_output, error_events)
 
         if process.stderr and process.stderr in ready:
             line = process.stderr.readline()
@@ -133,7 +134,7 @@ def stream_and_parse_json_output(
         if process.poll() is not None:
             if process.stdout:
                 for line in process.stdout:
-                    _process_json_line(line, assistant_texts, suppress_output)
+                    _process_json_line(line, assistant_texts, suppress_output, error_events)
             if process.stderr:
                 for line in process.stderr:
                     stderr_lines.append(line)
@@ -145,6 +146,15 @@ def stream_and_parse_json_output(
     combined_text = "\n\n".join(assistant_texts)
     stderr_content = "".join(stderr_lines)
 
+    # If process failed, append any captured error/result events to stderr
+    # so the caller has full diagnostic context
+    if return_code != 0 and error_events:
+        error_info = "\n".join(error_events)
+        if stderr_content:
+            stderr_content += "\n" + error_info
+        else:
+            stderr_content = error_info
+
     return combined_text, stderr_content, return_code
 
 
@@ -152,8 +162,13 @@ def _process_json_line(
     line: str,
     assistant_texts: list[str],
     suppress_output: bool,
+    error_events: list[str] | None = None,
 ) -> None:
-    """Parse a single JSON line and extract assistant text if present."""
+    """Parse a single JSON line and extract assistant text if present.
+
+    Also captures ``error`` and ``result`` events into *error_events* (when
+    provided) so callers have diagnostic context when the process fails.
+    """
     line = line.strip()
     if not line:
         return
@@ -163,14 +178,21 @@ def _process_json_line(
     except json.JSONDecodeError:
         return
 
-    if event.get("type") != "assistant":
-        return
+    event_type = event.get("type")
 
-    message = event.get("message", {})
-    content_blocks = message.get("content", [])
-    for block in content_blocks:
-        if block.get("type") == "text":
-            text = block["text"]
-            assistant_texts.append(text)
-            if not suppress_output:
-                print(text, flush=True)
+    if event_type == "assistant":
+        message = event.get("message", {})
+        content_blocks = message.get("content", [])
+        for block in content_blocks:
+            if block.get("type") == "text":
+                text = block["text"]
+                assistant_texts.append(text)
+                if not suppress_output:
+                    print(text, flush=True)
+    elif event_type in ("error", "result") and error_events is not None:
+        # Extract the most useful diagnostic string from the event
+        detail = event.get("error") or event.get("message") or event.get("result", "")
+        if isinstance(detail, dict):
+            detail = detail.get("message", json.dumps(detail))
+        if detail:
+            error_events.append(f"[{event_type}] {detail}")
