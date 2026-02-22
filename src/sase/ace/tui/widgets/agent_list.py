@@ -179,6 +179,20 @@ class AgentList(OptionList):
         # Clear flag after event loop processes pending events
         self.call_later(self._clear_programmatic_flag)
 
+    def update_highlight(self, current_idx: int) -> None:
+        """Move the highlight without clearing/rebuilding options.
+
+        Use this for j/k navigation where the agent list hasn't changed,
+        only the selection index.
+
+        Args:
+            current_idx: Index to highlight.
+        """
+        if self._agents and 0 <= current_idx < len(self._agents):
+            self._programmatic_update = True
+            self.highlighted = current_idx
+            self.call_later(self._clear_programmatic_flag)
+
     def _clear_programmatic_flag(self) -> None:
         """Clear programmatic update flag after event processing."""
         self._programmatic_update = False

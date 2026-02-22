@@ -211,19 +211,29 @@ class AgentsMixinCore(
 
         # Only refresh display if on agents tab
         if on_agents_tab:
-            self._refresh_agents_display()
+            self._refresh_agents_display(list_changed=True)
 
-    def _refresh_agents_display(self) -> None:
-        """Refresh the agents tab display."""
+    def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
+        """Refresh the agents tab display.
+
+        Args:
+            list_changed: If True, the agent list has changed and needs a full
+                rebuild (called from _load_agents). If False, only the selection
+                index moved (j/k navigation) — skip the expensive OptionList
+                clear-and-rebuild.
+        """
         from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
         agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
 
-        agent_list.update_list(
-            self._agents, self.current_idx, fold_counts=self._fold_counts
-        )
+        if list_changed:
+            agent_list.update_list(
+                self._agents, self.current_idx, fold_counts=self._fold_counts
+            )
+        else:
+            agent_list.update_highlight(self.current_idx)
 
         current_agent = None
         if self._agents and 0 <= self.current_idx < len(self._agents):

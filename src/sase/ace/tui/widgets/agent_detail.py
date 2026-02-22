@@ -141,13 +141,16 @@ class AgentDetail(Static):
         prompt_panel.update_display(agent)
         self._update_panel_indicators()
 
-        # Always probe thinking availability in the background so that
+        # Probe thinking availability in the background so that
         # _has_thinking_content is accurate for panel mode cycling.
-        # Without this, done agents with diffs never get their thinking
-        # probed and the 'i' key skips the thinking panel entirely.
-        thinking_panel.update_display(
-            agent, stale_threshold_seconds=stale_threshold_seconds
-        )
+        # Skip the probe when the same agent is still selected and we're in
+        # INFO mode — the thinking panel is hidden anyway and the cache will
+        # be checked when the user toggles to thinking mode.
+        same_agent = prev_agent is not None and prev_agent.identity == agent.identity
+        if not (same_agent and self._panel_mode == _DetailPanelMode.INFO):
+            thinking_panel.update_display(
+                agent, stale_threshold_seconds=stale_threshold_seconds
+            )
 
         # INFO mode: only update prompt, hide both secondary panels
         if self._panel_mode == _DetailPanelMode.INFO:
