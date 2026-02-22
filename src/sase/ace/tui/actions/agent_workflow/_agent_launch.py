@@ -70,7 +70,7 @@ class AgentLaunchMixin:
                     ctx.workspace_num,
                     gh_ref_info,
                 ) = resolved
-                ctx.display_name = ctx.project_name
+                ctx.display_name = gh_ref_info
                 ctx.update_target = ""  # gh.yml handles checkout
                 ctx.is_home_mode = False  # Enable workspace claiming/releasing
 
@@ -84,7 +84,7 @@ class AgentLaunchMixin:
                     ctx.workspace_num,
                     git_ref_info,
                 ) = git_resolved
-                ctx.display_name = ctx.project_name
+                ctx.display_name = git_ref_info
                 ctx.update_target = ""  # git.yml handles checkout
                 ctx.is_home_mode = False  # Enable workspace claiming/releasing
 
@@ -98,7 +98,7 @@ class AgentLaunchMixin:
                     ctx.workspace_num,
                     hg_ref_info,
                 ) = hg_resolved
-                ctx.display_name = ctx.project_name
+                ctx.display_name = hg_ref_info
                 ctx.update_target = ""  # hg.yml handles checkout
                 ctx.is_home_mode = False  # Enable workspace claiming/releasing
 
