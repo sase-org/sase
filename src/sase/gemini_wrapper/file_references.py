@@ -44,7 +44,6 @@ class _ParsedFileRefs:
 
     absolute_paths: list[tuple[str, str]] = field(default_factory=list)
     parent_dir_paths: list[str] = field(default_factory=list)
-    context_dir_paths: list[str] = field(default_factory=list)
     missing_files: list[str] = field(default_factory=list)
     seen_paths: dict[str, int] = field(default_factory=dict)
 
@@ -111,12 +110,6 @@ def _parse_file_refs(prompt: str) -> _ParsedFileRefs:
                 result.parent_dir_paths.append(file_path)
             continue
 
-        # Check if the file path is in .sase/ (reserved directory)
-        if file_path.startswith(".sase/") or file_path.startswith("./.sase/"):
-            if file_path not in result.context_dir_paths:
-                result.context_dir_paths.append(file_path)
-            continue
-
         # Check if the file exists (relative path)
         if not os.path.exists(file_path) and file_path not in result.missing_files:
             result.missing_files.append(file_path)
@@ -124,13 +117,12 @@ def _parse_file_refs(prompt: str) -> _ParsedFileRefs:
     return result
 
 
-def _print_validation_errors(parsed: _ParsedFileRefs, check_context_dir: bool) -> bool:
+def _print_validation_errors(parsed: _ParsedFileRefs) -> bool:
     """
     Print validation errors and return True if any errors were found.
 
     Args:
         parsed: The parsed file references
-        check_context_dir: Whether to check for reserved context directory usage
 
     Returns:
         True if validation errors were found, False otherwise
@@ -149,19 +141,6 @@ def _print_validation_errors(parsed: _ParsedFileRefs, check_context_dir: bool) -
             "⚠️ This ensures agents can only access files within the project directory."
         )
         print("⚠️ File validation failed. Terminating workflow to prevent errors.\n")
-
-    if check_context_dir and parsed.context_dir_paths:
-        has_errors = True
-        print(
-            "\n❌ ERROR: The following file(s) reference the reserved '.sase/' directory:"
-        )
-        for file_path in parsed.context_dir_paths:
-            print(f"  - @{file_path}")
-        print("\n⚠️ The '.sase/' directory is reserved for system use.")
-        print(
-            "⚠️ This directory stores copies of home-directory files for agent access."
-        )
-        print("⚠️ Please reference files from other locations.\n")
 
     if parsed.missing_files:
         has_errors = True
@@ -206,7 +185,7 @@ def validate_file_references(prompt: str) -> None:
         SystemExit: If any validation error is found
     """
     parsed = _parse_file_refs(prompt)
-    if _print_validation_errors(parsed, check_context_dir=False):
+    if _print_validation_errors(parsed):
         sys.exit(1)
 
 
@@ -247,8 +226,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
     """
     parsed = _parse_file_refs(prompt)
 
-    # Validate and exit on errors (skip context_dir check in home mode since we don't use it)
-    if _print_validation_errors(parsed, check_context_dir=not is_home_mode):
+    if _print_validation_errors(parsed):
         sys.exit(1)
 
     # If there are no absolute paths to process, just return the original prompt

@@ -106,30 +106,6 @@ def testprocess_file_references_relative_path_unchanged() -> None:
             os.chdir(original_cwd)
 
 
-def testprocess_file_references_context_dir_blocked() -> None:
-    """Test that referencing .sase/ directory is blocked."""
-    prompt = "Check this file: @.sase/test.txt"
-
-    with patch("sase.gemini_wrapper.file_references.print_status"):
-        with patch("sase.gemini_wrapper.file_references.print_file_operation"):
-            # Should exit with error for reserved directory
-            with pytest.raises(SystemExit) as exc_info:
-                process_file_references(prompt)
-            assert exc_info.value.code == 1
-
-
-def testprocess_file_references_context_dir_with_prefix_blocked() -> None:
-    """Test that referencing ./.sase/ directory is blocked."""
-    prompt = "Check this file: @./.sase/test.txt"
-
-    with patch("sase.gemini_wrapper.file_references.print_status"):
-        with patch("sase.gemini_wrapper.file_references.print_file_operation"):
-            # Should exit with error for reserved directory
-            with pytest.raises(SystemExit) as exc_info:
-                process_file_references(prompt)
-            assert exc_info.value.code == 1
-
-
 def testprocess_file_references_at_only_after_space_or_newline() -> None:
     """Test that @ is only recognized at start of line or after whitespace."""
     # Create a temp directory and file

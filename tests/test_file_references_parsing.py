@@ -73,12 +73,6 @@ def test_parse_file_refs_parent_dir_path() -> None:
     assert "../some/file.txt" in result.parent_dir_paths
 
 
-def test_parse_file_refs_context_dir_path() -> None:
-    """Test parsing path in reserved context directory."""
-    result = _parse_file_refs("Check @.sase/file.txt")
-    assert ".sase/file.txt" in result.context_dir_paths
-
-
 def test_parse_file_refs_duplicate_paths() -> None:
     """Test detecting duplicate file references."""
     result = _parse_file_refs("Check @file.txt and again @file.txt")
@@ -161,12 +155,3 @@ def test_validate_file_references_duplicate_exits() -> None:
         assert exc_info.value.code == 1
     finally:
         os.unlink(temp_path)
-
-
-def test_validate_file_references_context_dir_allowed() -> None:
-    """Test that context dir refs are allowed by validate (not checked)."""
-    # validate_file_references should NOT check context_dir paths
-    # (only process_file_references does)
-    # This should pass since context_dir check is disabled
-    validate_file_references("Check @.sase/file.txt")
-    # No exception = pass
