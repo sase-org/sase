@@ -200,7 +200,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     def _next_lumberjack(self) -> None:
         """Cycle to the next lumberjack output view.
 
-        Cycles: main → first lumberjack → ... → last → main → ...
+        Wraps from last lumberjack back to first.
         Does nothing if no lumberjacks are configured.
         """
         if not self._axe_lumberjack_names:
@@ -210,7 +210,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         else:
             next_idx = self._axe_lumberjack_idx + 1
             if next_idx >= len(self._axe_lumberjack_names):
-                self._axe_lumberjack_idx = None
+                self._axe_lumberjack_idx = 0
             else:
                 self._axe_lumberjack_idx = next_idx
         self._refresh_axe_display()
@@ -218,7 +218,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     def _prev_lumberjack(self) -> None:
         """Cycle to the previous lumberjack output view.
 
-        Cycles: main → last lumberjack → ... → first → main → ...
+        Wraps from first lumberjack back to last.
         Does nothing if no lumberjacks are configured.
         """
         if not self._axe_lumberjack_names:
@@ -228,7 +228,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         else:
             prev_idx = self._axe_lumberjack_idx - 1
             if prev_idx < 0:
-                self._axe_lumberjack_idx = None
+                self._axe_lumberjack_idx = len(self._axe_lumberjack_names) - 1
             else:
                 self._axe_lumberjack_idx = prev_idx
         self._refresh_axe_display()

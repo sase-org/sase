@@ -244,9 +244,7 @@ class KeybindingFooter(Horizontal):
                 lj_label = (
                     f"{lumberjack_name} ({lumberjack_idx + 1}/{lumberjack_total})"
                 )
-            else:
-                lj_label = f"lumberjacks ({lumberjack_total})"
-            bindings.append(("^N/P", lj_label))
+                bindings.append(("^N/P", lj_label))
         return bindings
 
     def update_leader_bindings(self) -> None:

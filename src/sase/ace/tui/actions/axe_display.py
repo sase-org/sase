@@ -114,6 +114,10 @@ class AxeDisplayMixin:
         ):
             self._axe_lumberjack_idx = None
 
+        # Default to first lumberjack when lumberjacks exist (skip main view)
+        if self._axe_lumberjack_idx is None and self._axe_lumberjack_names:
+            self._axe_lumberjack_idx = 0
+
     def _load_bgcmd_state(self) -> None:
         """Load background command state from disk (running + done commands)."""
         active_slots = get_active_slots()
