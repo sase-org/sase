@@ -473,14 +473,15 @@ class EmbeddedWorkflowMixin:
                 )
                 # When the expanded content ends with a markdown heading and
                 # there's more content on the same line after the reference,
-                # append a newline so the following text doesn't get
-                # concatenated onto the heading line.
+                # append a blank line so the following text appears below the
+                # heading.  We use two newlines (\n\n) rather than one because
+                # a single \n gets collapsed by the prettier formatting pass.
                 if (
                     content_ends_with_markdown_heading(prompt_part_content)
                     and p.match_end < len(prompt)
                     and prompt[p.match_end] != "\n"
                 ):
-                    prompt_part_content += "\n"
+                    prompt_part_content += "\n\n"
             p.rendered_prompt_part = prompt_part_content
 
         # ── Phase 4: Text replacement ────────────────────────────────────

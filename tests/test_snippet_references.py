@@ -321,8 +321,9 @@ def test_process_xprompt_heading_content_gets_newline_before_inline_text() -> No
         "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#section Fix this bug")
-    # The heading should be separated from the following text by a newline
-    assert result == "# New Query\n Fix this bug"
+    # The heading should be separated from the following text by a blank line
+    # (two newlines so that prettier doesn't collapse the separation)
+    assert result == "# New Query\n\n Fix this bug"
 
 
 def test_process_xprompt_heading_content_no_extra_newline_at_end() -> None:

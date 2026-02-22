@@ -265,15 +265,16 @@ def process_xprompt_references(
 
                 # When the expanded content ends with a markdown heading and
                 # there's more content on the same line after the reference,
-                # append a newline so the following text doesn't get
-                # concatenated onto the heading line.
+                # append a blank line so the following text appears below the
+                # heading.  We use two newlines (\n\n) rather than one because
+                # a single \n gets collapsed by the prettier formatting pass.
                 if (
                     expanded
                     and content_ends_with_markdown_heading(expanded)
                     and match_end < len(prompt)
                     and prompt[match_end] != "\n"
                 ):
-                    expanded += "\n"
+                    expanded += "\n\n"
 
                 prompt = prompt[: match.start()] + expanded + prompt[match_end:]
         except XPromptError as e:

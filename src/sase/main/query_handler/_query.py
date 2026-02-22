@@ -155,15 +155,17 @@ def expand_embedded_workflows_in_query(
             )
 
         # When the expanded content ends with a markdown heading and there's
-        # more content on the same line after the reference, append a newline
-        # so the following text doesn't get concatenated onto the heading line.
+        # more content on the same line after the reference, append a blank
+        # line so the following text appears below the heading.  We use two
+        # newlines (\n\n) rather than one because a single \n gets collapsed
+        # by the prettier formatting pass in preprocess_prompt_late.
         if (
             prompt_part_content
             and content_ends_with_markdown_heading(prompt_part_content)
             and match_end < len(query)
             and query[match_end] != "\n"
         ):
-            prompt_part_content += "\n"
+            prompt_part_content += "\n\n"
 
         # Replace the workflow reference with the prompt_part content
         query = query[: match.start()] + prompt_part_content + query[match_end:]
