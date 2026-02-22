@@ -165,6 +165,8 @@ class AgentFilePanel(Static):
         Args:
             files: Ordered list of file paths to make available for cycling.
         """
+        if files == self._file_list:
+            return
         self._file_list = list(files)
         self._current_file_index = 0
         self.post_message(
