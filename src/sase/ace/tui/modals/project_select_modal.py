@@ -24,7 +24,7 @@ class SelectionItem:
     """An item that can be selected in the modal."""
 
     display_name: str  # What to show in the list (e.g., "[P] myproject")
-    item_type: Literal["project", "cl", "home"]  # Type for processing
+    item_type: Literal["project", "cl", "home", "all"]  # Type for processing
     project_name: str  # Project name
     cl_name: str | None  # CL name if type is "cl", None for projects/home
 
@@ -49,15 +49,31 @@ class ProjectSelectModal(
         Binding("ctrl+g", "select_and_edit", "Select & Edit", priority=True),
     ]
 
-    def __init__(self) -> None:
-        """Initialize the project selection modal."""
+    def __init__(self, *, include_all: bool = False) -> None:
+        """Initialize the project selection modal.
+
+        Args:
+            include_all: If True, insert an "ALL" item at position 0.
+        """
         super().__init__()
         self.all_items: list[SelectionItem] = []
+        self._include_all = include_all
         self._load_items()
 
     def _load_items(self) -> None:
         """Load all projects and CLs."""
-        # Add home directory option first
+        # Add "ALL" option first when requested
+        if self._include_all:
+            self.all_items.append(
+                SelectionItem(
+                    display_name="[*] ALL",
+                    item_type="all",
+                    project_name="",
+                    cl_name=None,
+                )
+            )
+
+        # Add home directory option
         self.all_items.append(
             SelectionItem(
                 display_name="[H] ~ (home directory)",
@@ -110,7 +126,10 @@ class ProjectSelectModal(
     def _create_styled_label(self, display_name: str) -> Text:
         """Create styled text for an option label."""
         text = Text()
-        if display_name.startswith("[H]"):
+        if display_name.startswith("[*]"):
+            text.append("[*]", style="bold #D787FF")  # Magenta for ALL
+            text.append(display_name[3:])
+        elif display_name.startswith("[H]"):
             text.append("[H]", style="bold #FFD700")  # Gold for home
             text.append(display_name[3:])
         elif display_name.startswith("[P]"):

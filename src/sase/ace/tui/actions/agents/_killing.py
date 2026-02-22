@@ -367,15 +367,12 @@ class AgentKillingMixin:
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
 
-        For workflow agents: removes the workflow artifacts directory.
-        For other agents: removes the done.json file.
+        Tracks the agent in the dismissed set so it's filtered from the
+        Agents tab. Artifacts are preserved on disk to support revive.
 
         Args:
             agent: The DONE or completed agent to dismiss.
         """
-        import shutil
-        from pathlib import Path
-
         from ...models.agent import AgentType
 
         if agent.raw_suffix is None:
@@ -387,12 +384,7 @@ class AgentKillingMixin:
         self._agent_pre_question_status.pop(agent.identity, None)
         self._refresh_notification_count()  # type: ignore[attr-defined]
 
-        # Extract project name from project_file path
-        # Path format: ~/.sase/projects/<project>/<project>.gp
-        project_path = Path(agent.project_file)
-        project_name = project_path.parent.name
-
-        # Handle workflow agents - delete entire workflow artifacts directory
+        # Handle workflow agents - preserve artifacts, track dismissal only
         if agent.agent_type == AgentType.WORKFLOW:
             # Release the workspace claim first (workflow claims use
             # "workflow(name)" format in RUNNING field)
@@ -430,26 +422,9 @@ class AgentKillingMixin:
                         release_cl_name,
                     )
 
-            workflow_dir = (
-                Path.home()
-                / ".sase"
-                / "projects"
-                / project_name
-                / "artifacts"
-                / f"workflow-{workflow_name or agent.workflow}"
-                / (agent.parent_timestamp or agent.raw_suffix)
-            )
-            try:
-                if workflow_dir.exists():
-                    shutil.rmtree(workflow_dir)
-                self.notify(f"Dismissed workflow {agent.workflow}")  # type: ignore[attr-defined]
-            except Exception as e:
-                self.notify(f"Error dismissing workflow: {e}", severity="error")  # type: ignore[attr-defined]
-                return
+            self.notify(f"Dismissed workflow {agent.workflow}")  # type: ignore[attr-defined]
 
-            # Always track dismissal in _dismissed_agents as a fallback.
-            # This ensures the workflow is filtered out even if it's loaded
-            # from the RUNNING field or other sources.
+            # Track dismissal (artifacts preserved for revive support)
             self._persist_dismissed_agent(agent.identity)
 
             # If this is a parent workflow (not a child step), also dismiss all its steps
@@ -486,36 +461,9 @@ class AgentKillingMixin:
             self._load_agents()  # type: ignore[attr-defined]
             return
 
-        # Build path to done.json for ace-run agents
-        done_path = (
-            Path.home()
-            / ".sase"
-            / "projects"
-            / project_name
-            / "artifacts"
-            / "ace-run"
-            / agent.raw_suffix
-            / "done.json"
-        )
-
-        meta_path = done_path.parent / "agent_meta.json"
-
-        try:
-            dismissed = False
-            if done_path.exists():
-                done_path.unlink()
-                dismissed = True
-            if meta_path.exists():
-                meta_path.unlink()
-                dismissed = True
-
-            if dismissed:
-                self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
-            else:
-                self.notify("Agent already dismissed", severity="warning")  # type: ignore[attr-defined]
-        except Exception as e:
-            self.notify(f"Error dismissing agent: {e}", severity="error")  # type: ignore[attr-defined]
-            return
+        # Track dismissal for ace-run agents (artifacts preserved for revive support)
+        self._persist_dismissed_agent(agent.identity)
+        self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
 
         # Refresh agents list
         self._load_agents()  # type: ignore[attr-defined]

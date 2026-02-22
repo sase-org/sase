@@ -274,6 +274,7 @@ class AceApp(
 
         self._last_unread_count: int = 0
         self._dismissed_agents = load_dismissed_agents()
+        self._dismissed_agent_objects: list[Agent] = []
 
         # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}

@@ -390,6 +390,9 @@ class KeybindingFooter(Horizontal):
         if (file_visible or thinking_visible) and not info_mode:
             bindings.append(("p", "layout"))
 
+        # Revive dismissed agents
+        bindings.append(("R", "revive"))
+
         # Show/hide hideable agents (only when both always-visible and hideable exist)
         if has_always_visible and (hidden_count > 0 or not hide_non_run):
             if hide_non_run:

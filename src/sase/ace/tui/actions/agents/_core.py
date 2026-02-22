@@ -8,6 +8,7 @@ from ._folding import AgentFoldingMixin
 from ._interaction import AgentInteractionMixin
 from ._killing import AgentKillingMixin
 from ._notifications import AgentNotificationMixin
+from ._revive import AgentRevivalMixin
 from ._workflow_hitl import AgentWorkflowHITLMixin
 
 if TYPE_CHECKING:
@@ -96,6 +97,7 @@ class AgentsMixinCore(
     AgentWorkflowHITLMixin,
     AgentNotificationMixin,
     AgentKillingMixin,
+    AgentRevivalMixin,
 ):
     """Core mixin providing agent loading, display, and user interaction methods.
 
@@ -122,6 +124,7 @@ class AgentsMixinCore(
     _pending_attention_count: int
     _last_unread_count: int
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
+    _dismissed_agent_objects: list[Agent]
 
     # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
@@ -142,6 +145,11 @@ class AgentsMixinCore(
 
         # Load fresh agent list
         all_agents = load_all_agents()
+
+        # Capture dismissed agents before filtering (for revive support)
+        self._dismissed_agent_objects = [
+            a for a in all_agents if a.identity in self._dismissed_agents
+        ]
 
         # Filter out dismissed agents
         all_agents = [a for a in all_agents if a.identity not in self._dismissed_agents]
