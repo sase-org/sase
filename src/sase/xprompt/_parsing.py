@@ -335,6 +335,18 @@ def strip_hitl_suffix(workflow_ref: str) -> tuple[str, bool | None]:
     return workflow_ref, None
 
 
+_VCS_TAG_PATTERN = re.compile(r"^#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|:[^\s]*|)\s")
+
+
+def strip_vcs_workflow_tag(prompt: str) -> str:
+    """Strip a leading VCS workflow tag from a prompt string.
+
+    Removes prefixes like ``#gh:sase``, ``#git(repo)``, ``#hg!!:cl``, etc.
+    so the prompt can be re-wrapped with a different VCS workflow.
+    """
+    return _VCS_TAG_PATTERN.sub("", prompt)
+
+
 def parse_workflow_reference(
     workflow_ref: str,
 ) -> tuple[str, list[str], dict[str, str]]:

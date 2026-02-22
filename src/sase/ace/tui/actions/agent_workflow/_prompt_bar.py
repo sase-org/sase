@@ -257,14 +257,15 @@ class PromptBarMixin:
         def _build_prompt(prompt_text: str) -> str:
             """Prepend VCS prefix to the selected prompt if present.
 
-            Strips any existing VCS prefix from the prompt text first to
-            avoid doubling (e.g., "#gh:sase #gh:sase Do the thing").
+            Strips any existing VCS workflow tag from the prompt text
+            first to avoid doubling (e.g., "#gh:sase #gh:sase Do the
+            thing") and to handle cross-VCS reuse (e.g., a prompt
+            originally used with ``#git`` being reused via ``#gh``).
             """
             if vcs_prefix:
-                # Strip existing VCS prefix if already present
-                prefix_with_space = vcs_prefix + " "
-                if prompt_text.startswith(prefix_with_space):
-                    prompt_text = prompt_text[len(prefix_with_space) :]
+                from sase.xprompt import strip_vcs_workflow_tag
+
+                prompt_text = strip_vcs_workflow_tag(prompt_text)
                 return f"{vcs_prefix} {prompt_text}"
             return prompt_text
 

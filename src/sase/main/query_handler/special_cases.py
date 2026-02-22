@@ -63,11 +63,11 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 if prompt is None:
                     print("No prompt selected. Aborting.")
                     sys.exit(1)
-                # Strip existing VCS prefix from the selected prompt
-                # to avoid doubling (e.g., "#gh:sase #gh:sase ...")
-                prefix_with_space = vcs_prefix + " "
-                if prompt.startswith(prefix_with_space):
-                    prompt = prompt[len(prefix_with_space) :]
+                # Strip any existing VCS workflow tag from the selected
+                # prompt to avoid doubling and handle cross-VCS reuse.
+                from sase.xprompt import strip_vcs_workflow_tag
+
+                prompt = strip_vcs_workflow_tag(prompt)
                 run_query(f"{vcs_prefix} {prompt}")
                 sys.exit(0)
 

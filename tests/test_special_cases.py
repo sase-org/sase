@@ -74,6 +74,31 @@ def test_vcs_dot_prompt_strips_existing_vcs_prefix() -> None:
     mock_run.assert_called_once_with("#gh:sase already has prefix")
 
 
+def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
+    """Test that a different VCS tag is stripped when reusing via another VCS.
+
+    E.g., selecting a prompt originally used with #git:repo while now
+    using #gh:sase should strip the #git:repo prefix.
+    """
+    mock_picker = MagicMock(return_value="#git:repo do something cool")
+    with (
+        patch(
+            "sase.main.query_handler.special_cases.show_prompt_history_picker",
+            mock_picker,
+        ),
+        patch(
+            "sase.main.query_handler.special_cases._resolve_vcs_project_info",
+            return_value=("sase", "sase"),
+        ),
+        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        pytest.raises(SystemExit),
+    ):
+        handle_run_special_cases(["#gh:sase", "."])
+
+    # Should strip #git:repo and prepend #gh:sase
+    mock_run.assert_called_once_with("#gh:sase do something cool")
+
+
 def test_resolve_vcs_project_info_repo_path() -> None:
     """Test resolving a user/project repo path."""
     sort_by, workspace = _resolve_vcs_project_info("bbugyi200/sase")

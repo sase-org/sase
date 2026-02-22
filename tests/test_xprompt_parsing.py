@@ -13,6 +13,7 @@ from sase.xprompt._parsing import (
     parse_workflow_reference,
     preprocess_shorthand_syntax,
     strip_hitl_suffix,
+    strip_vcs_workflow_tag,
 )
 
 
@@ -515,3 +516,66 @@ def test_mixed_double_colon_and_single_colon() -> None:
     prompt = "#foo:: para one\n\npara two\n#bar: single line"
     result = preprocess_shorthand_syntax(prompt, {"foo", "bar"})
     assert result == "#foo([[para one\n\n  para two]])\n#bar([[single line]])"
+
+
+# Tests for strip_vcs_workflow_tag
+
+
+def test_strip_vcs_workflow_tag_colon_syntax() -> None:
+    """Test stripping #gh:repo prefix."""
+    assert strip_vcs_workflow_tag("#gh:sase do the thing") == "do the thing"
+
+
+def test_strip_vcs_workflow_tag_paren_syntax() -> None:
+    """Test stripping #git(repo) prefix."""
+    assert strip_vcs_workflow_tag("#git(myrepo) do the thing") == "do the thing"
+
+
+def test_strip_vcs_workflow_tag_plus_syntax() -> None:
+    """Test stripping #hg+ prefix."""
+    assert strip_vcs_workflow_tag("#hg+ do the thing") == "do the thing"
+
+
+def test_strip_vcs_workflow_tag_bare_name() -> None:
+    """Test stripping bare #gh prefix."""
+    assert strip_vcs_workflow_tag("#gh do the thing") == "do the thing"
+
+
+def test_strip_vcs_workflow_tag_hitl_double_bang() -> None:
+    """Test stripping #gh!! prefix with HITL suffix."""
+    assert strip_vcs_workflow_tag("#gh!!:sase do the thing") == "do the thing"
+
+
+def test_strip_vcs_workflow_tag_hitl_double_question() -> None:
+    """Test stripping #git??:repo prefix with HITL suffix."""
+    assert strip_vcs_workflow_tag("#git??:repo do the thing") == "do the thing"
+
+
+def test_strip_vcs_workflow_tag_hitl_with_paren() -> None:
+    """Test stripping #gh!!(repo) prefix."""
+    assert strip_vcs_workflow_tag("#gh!!(repo) do the thing") == "do the thing"
+
+
+def test_strip_vcs_workflow_tag_non_vcs_left_alone() -> None:
+    """Test that non-VCS tags are not stripped."""
+    assert strip_vcs_workflow_tag("#foo:bar do the thing") == "#foo:bar do the thing"
+
+
+def test_strip_vcs_workflow_tag_empty_string() -> None:
+    """Test with empty string."""
+    assert strip_vcs_workflow_tag("") == ""
+
+
+def test_strip_vcs_workflow_tag_no_content_after_tag() -> None:
+    """Test that a bare tag without trailing space is not stripped."""
+    assert strip_vcs_workflow_tag("#gh:sase") == "#gh:sase"
+
+
+def test_strip_vcs_workflow_tag_git_colon_syntax() -> None:
+    """Test stripping #git:repo prefix."""
+    assert strip_vcs_workflow_tag("#git:myrepo do stuff") == "do stuff"
+
+
+def test_strip_vcs_workflow_tag_hg_colon_syntax() -> None:
+    """Test stripping #hg:cl prefix."""
+    assert strip_vcs_workflow_tag("#hg:my_cl do stuff") == "do stuff"
