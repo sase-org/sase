@@ -8,38 +8,38 @@ axe:
       interval: 1
       chops:
         - name: hook_checks
-          description: "Process pending hooks and update completion status"
+          description: "Complete finished hooks and start stale ones, with zombie detection"
         - name: mentor_checks
-          description: "Run mentor review checks on eligible changespecs"
+          description: "Start mentor workflows once all hook prerequisites are met"
         - name: workflow_checks
-          description: "Validate workflow state transitions and rules"
+          description: "Complete finished CRS/fix-hook workflows and start stale ones"
         - name: pending_checks_poll
-          description: "Poll for pending check results and update status"
+          description: "Poll background is_cl_submitted and critique_comments checks for results"
         - name: comment_zombie_checks
-          description: "Detect and clean up zombie comment threads"
+          description: "Mark comment threads older than zombie_timeout as ZOMBIE"
         - name: suffix_transforms
-          description: "Apply suffix-based transformations to changespecs"
+          description: "Strip stale suffixes from older proposals and update mail-readiness markers"
         - name: orphan_cleanup
-          description: "Remove orphaned resources with no parent changespec"
+          description: "Release workspace claims orphaned by reverted CLs with dead PIDs"
         - name: wait_checks
-          description: "Monitor wait conditions and unblock ready changespecs"
+          description: "Resolve agent wait dependencies and write ready.json when satisfied"
     checks:
       interval: 300
       chops:
         - name: cl_submitted_checks
-          description: "Verify submitted changelists pass required checks"
+          description: "Start background is_cl_submitted checks for leaf CLs with a submitted parent"
         - name: stale_running_cleanup
-          description: "Clean up stale runners that exceeded timeout"
+          description: "Release workspace claims held by dead processes"
     comments:
       interval: 60
       chops:
         - name: comment_checks
-          description: "Process and route new comments on changespecs"
+          description: "Start background critique_comments checks for mailed leaf CLs"
     housekeeping:
       interval: 3600
       chops:
         - name: error_digest
-          description: "Compile and summarize recent errors into a digest"
+          description: "Send a notification digest of errors from the last hour"
 
 llm_provider:
   provider: ""
