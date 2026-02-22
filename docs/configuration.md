@@ -109,27 +109,39 @@ axe:
     hooks:
       interval: 1
       chops:
-        - hook_checks
-        - mentor_checks
-        - workflow_checks
-        - pending_checks_poll
-        - comment_zombie_checks
-        - suffix_transforms
-        - orphan_cleanup
-        - wait_checks
+        - name: hook_checks
+          description: Check for completed or failed hooks
+        - name: mentor_checks
+          description: Check for completed mentor agents
+        - name: workflow_checks
+          description: Check for completed workflows
+        - name: pending_checks_poll
+          description: Poll for pending check results
+        - name: comment_zombie_checks
+          description: Detect zombie comment processes
+        - name: suffix_transforms
+          description: Apply suffix transformations
+        - name: orphan_cleanup
+          description: Clean up orphaned workspaces
+        - name: wait_checks
+          description: Check wait coordination status
     checks:
       interval: 300
       chops:
-        - cl_submitted_checks
-        - stale_running_cleanup
+        - name: cl_submitted_checks
+          description: Check if CLs have been submitted
+        - name: stale_running_cleanup
+          description: Clean up stale RUNNING entries
     comments:
       interval: 60
       chops:
-        - comment_checks
+        - name: comment_checks
+          description: Check for new comments on CLs
     housekeeping:
       interval: 3600
       chops:
-        - error_digest
+        - name: error_digest
+          description: Summarize recent errors into a notification
 ```
 
 **Top-level fields:**
@@ -144,10 +156,22 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field      | Type         | Default | Description                              |
-| ---------- | ------------ | ------- | ---------------------------------------- |
-| `interval` | int          | `1`     | Seconds between chop polling cycles.     |
-| `chops`    | list[string] | `[]`    | List of chop names to run on each cycle. |
+| Field      | Type                 | Default | Description                                     |
+| ---------- | -------------------- | ------- | ----------------------------------------------- |
+| `interval` | int                  | `1`     | Seconds between chop polling cycles.            |
+| `chops`    | list[string\|object] | `[]`    | List of chops to run on each cycle (see below). |
+
+**Chop format**: Each chop entry can be either a plain string (chop name only) or an object with `name` and
+`description` fields. Descriptions are required for all chops.
+
+```yaml
+chops:
+  # Object format (required for new chops)
+  - name: hook_checks
+    description: Check for completed or failed hooks
+  # String format (legacy, description defaults to empty)
+  - hook_checks
+```
 
 CLI flags on `sase axe` override `max_runners`, `zombie_timeout_seconds`, and `query` for a single run (see
 [CLI Flags](#cli-flags)).

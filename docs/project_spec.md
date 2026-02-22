@@ -66,9 +66,9 @@ Each ChangeSpec within a ProjectSpec must contain the following fields:
    - Plain ID: `CL: 12345`
    - Legacy format: `CL: cl/12345`
    - URL format: `CL: http://cl/12345` or `CL: https://cl/12345`
-5. **STATUS**: Must be "Blocked" (if the ChangeSpec has a PARENT) or "Not Started" (if PARENT is None) when created by
-   the workflow (can be updated to "In Progress", "Drafted", "Mailed", or "Submitted" during tracking). A ChangeSpec
-   should remain "Blocked" until its PARENT has reached "Drafted" status or beyond.
+5. **STATUS**: Must be "Blocked" (if the ChangeSpec has a PARENT) or "Unstarted" (if PARENT is None) when created by the
+   workflow (can be updated to "In Progress", "Drafted", "Mailed", or "Submitted" during tracking). A ChangeSpec should
+   remain "Blocked" until its PARENT has reached "Drafted" status or beyond.
 
 ## Example
 
@@ -88,7 +88,7 @@ DESCRIPTION:
   file handling.
 PARENT: None
 CL: None
-STATUS: Not Started
+STATUS: Unstarted
 
 
 NAME: my-project_integrate_parser
@@ -102,7 +102,7 @@ DESCRIPTION:
   valid and invalid config scenarios.
 PARENT: my-project_add_config_parser
 CL: None
-STATUS: Not Started
+STATUS: Unstarted
 
 
 NAME: my-project_add_docs
@@ -115,7 +115,7 @@ DESCRIPTION:
   and document all available configuration options.
 PARENT: my-project_integrate_parser
 CL: None
-STATUS: Not Started
+STATUS: Unstarted
 ```
 
 ## Important Notes
@@ -125,8 +125,7 @@ STATUS: Not Started
 - **NAME field**: All ChangeSpecs in a project MUST start with `<basename>_` where basename is the project filename
   (without .gp), followed by a descriptive suffix (words separated by underscores, strive for shorter names)
 - **CL field**: Always set to "None" when created by the workflow (updated later when CL is created)
-- **STATUS field**: Set to "Blocked" when created by the workflow if the ChangeSpec has a PARENT, otherwise "Not
-  Started"
+- **STATUS field**: Set to "Blocked" when created by the workflow if the ChangeSpec has a PARENT, otherwise "Unstarted"
 - **PARENT field**: Used to establish dependencies between CLs in the project plan
 - **Filename requirement**: The filename argument to `sase create-project` must NOT include the .gp extension
 - **No file modifications**: The DESCRIPTION should NOT include specific file modification lists - that will be handled

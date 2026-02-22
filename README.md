@@ -60,7 +60,7 @@ source .venv/bin/activate
 just install
 
 # Run the CLI
-sase
+.venv/bin/sase
 ```
 
 ## CLI Commands
@@ -125,7 +125,10 @@ src/sase/
 │   ├── chop_script_runner.py # External chop script discovery and execution
 │   ├── config.py        # Lumberjack and chop configuration
 │   ├── runner_pool.py   # Shared concurrent runner pool
-│   └── chops/           # Built-in chop implementations
+│   ├── hook_jobs.py     # 1-second interval hook/mentor/workflow jobs
+│   ├── state.py         # Lumberjack state persistence
+│   ├── process.py       # Process management utilities
+│   └── cli.py           # Axe CLI argument parsing
 ├── xprompt/             # Prompt templates and workflow execution
 ├── llm_provider/        # Pluggable LLM abstraction (Claude, Gemini)
 ├── vcs_provider/        # VCS abstraction (git, Mercurial)
