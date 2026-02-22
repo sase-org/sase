@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
-from sase.sase_utils import EASTERN_TZ, run_shell_command
+from sase.sase_utils import EASTERN_TZ, get_vendored_tool, run_shell_command
 from sase.rich_utils import (
     print_file_operation,
     print_status,
@@ -215,7 +215,8 @@ def run_bam_command(message: str, delay: float = 0.1) -> None:
         delay: Delay in seconds for the bam sound (default: 0.1)
     """
     try:
-        run_shell_command(f'bam 3 {delay} "{message}"', capture_output=False)
+        bam = get_vendored_tool("bam")
+        run_shell_command(f'{bam} 3 {delay} "{message}"', capture_output=False)
     except Exception as e:
         print(f"Warning: Failed to run bam command: {e}")
 

@@ -15,6 +15,22 @@ if TYPE_CHECKING:
 EASTERN_TZ = ZoneInfo("America/New_York")
 
 
+def get_vendored_tool(name: str) -> str:
+    """Get the path to a vendored tool script in tools/{name}-YYMMDD.
+
+    Searches the repo's tools/ directory for date-stamped versions of the
+    named script. Falls back to the bare name (assumed on PATH) if not found.
+    """
+    # src/sase/sase_utils.py -> src/sase -> src -> repo_root
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    tools_dir = repo_root / "tools"
+    if tools_dir.is_dir():
+        matches = sorted(tools_dir.glob(f"{name}-*"))
+        if matches:
+            return str(matches[-1])
+    return name
+
+
 def run_shell_command(
     cmd: str, capture_output: bool = True
 ) -> subprocess.CompletedProcess:

@@ -136,6 +136,8 @@ class AgentNotificationMixin:
         import os
         import subprocess
 
+        from sase.sase_utils import get_vendored_tool
+
         # Get current tmux pane from environment
         tmux_pane = os.environ.get("TMUX_PANE")
         if not tmux_pane:
@@ -143,7 +145,7 @@ class AgentNotificationMixin:
 
         try:
             subprocess.run(
-                ["tmux_ring_bell", tmux_pane, "3", "0.1"],
+                [get_vendored_tool("tmux_ring_bell"), tmux_pane, "3", "0.1"],
                 check=False,
                 capture_output=True,
             )

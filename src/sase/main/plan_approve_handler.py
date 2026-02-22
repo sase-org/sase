@@ -14,6 +14,8 @@ import time
 from pathlib import Path
 from typing import NoReturn
 
+from sase.sase_utils import get_vendored_tool
+
 # Poll interval for plan approval (seconds)
 _POLL_INTERVAL = 0.5
 # Timeout for plan approval (seconds) - 10 minutes
@@ -106,7 +108,7 @@ def ring_tmux_bell() -> None:
     if tmux_pane:
         try:
             subprocess.run(
-                ["tmux_ring_bell", tmux_pane],
+                [get_vendored_tool("tmux_ring_bell"), tmux_pane],
                 check=False,
                 capture_output=True,
             )
