@@ -101,11 +101,15 @@ def test_handle_axe_chop_list_prints_chops_with_descriptions(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    assert len(lines) == 4
-    assert "cl_submitted_checks: Check CLs" in output
-    assert "comment_checks: Check comments" in output
-    assert "error_digest: Digest errors" in output
-    assert "hook_checks: Check hooks" in output
+    assert len(lines) == 8  # name + indented description per chop
+    assert "cl_submitted_checks" in output
+    assert "Check CLs" in output
+    assert "comment_checks" in output
+    assert "Check comments" in output
+    assert "error_digest" in output
+    assert "Digest errors" in output
+    assert "hook_checks" in output
+    assert "Check hooks" in output
 
 
 @patch("sase.axe.cli.load_axe_config")
@@ -142,7 +146,7 @@ def test_handle_axe_chop_list_deduplicates(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    assert len(lines) == 1
+    assert len(lines) == 2  # name + indented description
     assert "shared_chop" in output
 
 

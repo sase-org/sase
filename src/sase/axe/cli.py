@@ -24,6 +24,9 @@ from .state import (
 
 def handle_axe_chop_list(args: argparse.Namespace) -> None:
     """Print all available chops with their descriptions."""
+    from rich.console import Console
+
+    console = Console()
     config = load_axe_config()
     seen: dict[str, ChopConfig] = {}
     for lj in config.lumberjacks.values():
@@ -31,10 +34,9 @@ def handle_axe_chop_list(args: argparse.Namespace) -> None:
             if chop.name not in seen:
                 seen[chop.name] = chop
     for chop in sorted(seen.values(), key=lambda c: c.name):
+        console.print(f"[bold cyan]{chop.name}[/bold cyan]")
         if chop.description:
-            print(f"{chop.name}: {chop.description}")
-        else:
-            print(chop.name)
+            console.print(f"  [dim]{chop.description}[/dim]")
     sys.exit(0)
 
 
