@@ -143,43 +143,45 @@ def main() -> None:
     print("==============")
     print()
 
-    # Prepare workspace before running agent (skip for home mode)
-    if update_target and not is_home_mode:
-        print("=== Preparing Workspace ===")
-        if not prepare_workspace(
-            workspace_dir,
-            cl_name,
-            update_target,
-            backup_suffix="ace",
-            project_basename=project_name,
-        ):
-            print("Failed to prepare workspace", file=sys.stderr)
-            sys.exit(1)
-        print("===========================")
-        print()
-
     # Track running marker path for cleanup (home mode only)
     running_marker_path: str | None = None
 
+    # Compute artifacts early so error handler can write done.json
+    if is_home_mode:
+        project_name = "home"
+    else:
+        project_name = os.path.basename(os.path.dirname(project_file))
+    artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
+    artifacts_dir = create_artifacts_directory(
+        "ace-run",
+        project_name=project_name,
+        timestamp=timestamp,
+    )
+
+    # Defaults for agent metadata (populated later, but needed by error handler)
+    agent_name: str | None = None
+    agent_model: str | None = None
+    agent_llm_provider: str | None = None
+    agent_vcs_provider: str | None = None
+
     try:
         try:
+            # Prepare workspace before running agent (skip for home mode)
+            if update_target and not is_home_mode:
+                print("=== Preparing Workspace ===")
+                if not prepare_workspace(
+                    workspace_dir,
+                    cl_name,
+                    update_target,
+                    backup_suffix="ace",
+                    project_basename=project_name,
+                ):
+                    raise RuntimeError("Failed to prepare workspace")
+                print("===========================")
+                print()
+
             # Change to workspace directory
             os.chdir(workspace_dir)
-
-            # Get project name from project_file path (or use "home" for home mode)
-            # Path format: ~/.sase/projects/<project>/<project>.gp
-            if is_home_mode:
-                project_name = "home"
-            else:
-                project_name = os.path.basename(os.path.dirname(project_file))
-
-            # Create artifacts directory using shared timestamp
-            artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
-            artifacts_dir = create_artifacts_directory(
-                "ace-run",
-                project_name=project_name,
-                timestamp=timestamp,
-            )
 
             # Extract model directive and detect VCS before preprocessing
             from sase.llm_provider.registry import (
@@ -340,6 +342,7 @@ def main() -> None:
                 "step_output": step_output,
                 "diff_path": diff_path,
                 "plan_path": plan_path,
+                "output_path": output_path,
             }
             if agent_name:
                 done_marker["name"] = agent_name
@@ -373,6 +376,7 @@ def main() -> None:
                     "error": f"{type(e).__qualname__}: {e}",
                     "traceback": traceback.format_exc(),
                     "workspace_num": workspace_num,
+                    "output_path": output_path,
                 }
                 if agent_name:
                     error_done["name"] = agent_name

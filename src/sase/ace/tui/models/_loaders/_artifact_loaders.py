@@ -222,6 +222,7 @@ def load_done_agents(
                         cl_num=cl_by_cl_name.get(cl_name),
                         error_message=error_message,
                         error_traceback=error_traceback,
+                        output_path=data.get("output_path"),
                         model=data.get("model"),
                         llm_provider=data.get("llm_provider"),
                         vcs_provider=data.get("vcs_provider"),

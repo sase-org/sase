@@ -138,6 +138,9 @@ class AgentDisplayMixin:
             header_text.append("\n")
             header_text.append("ERROR\n", style="bold #FF5F5F underline")
             header_text.append(f"{agent.error_message}\n", style="bold #FF5F5F")
+            if agent.output_path:
+                header_text.append("Output: ", style="bold #87D7FF")
+                header_text.append(f"{agent.output_path}\n", style="dim")
 
         # Separator
         header_text.append("\n")

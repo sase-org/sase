@@ -104,6 +104,9 @@ class Agent:
     # Full traceback string for failed agents
     error_traceback: str | None = None
 
+    # Runner stdout/stderr output file path (for debugging failed agents)
+    output_path: str | None = None
+
     # Model name from %model directive (only when explicitly set)
     model: str | None = None
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from typing import TYPE_CHECKING
 
 from ._ref_resolution import _HG_REF_PATTERN
@@ -186,7 +187,9 @@ class AgentLaunchMixin:
         launched_count = 0
         failed_count = 0
 
-        for cs in changespecs:
+        for i, cs in enumerate(changespecs):
+            if i > 0:
+                time.sleep(1)
             project_name = cs.project_basename
             cl_name = cs.name
 
@@ -235,7 +238,7 @@ class AgentLaunchMixin:
                 workflow_name=workflow_name,
                 prompt=cl_prompt,
                 timestamp=timestamp,
-                update_target=cl_name,
+                update_target="" if workflow_type else cl_name,
                 project_name=project_name,
                 history_sort_key=cl_name,
                 gh_ref=gh_ref,
