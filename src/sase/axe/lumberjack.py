@@ -122,7 +122,7 @@ class Lumberjack:
         )
         write_chop_context(ctx, context_file)
 
-        for chop_name in self.config.chops:
+        for chop_name in self.config.chop_names:
             try:
                 script = discover_chop_script(
                     chop_name, self.axe_config.chop_script_dirs
@@ -175,7 +175,7 @@ class Lumberjack:
             started_at=self._start_time.isoformat(),
             status="running",
             interval=self.config.interval,
-            chops=self.config.chops,
+            chops=self.config.chop_names,
             last_cycle=now.isoformat(),
             cycles_run=self._metrics.cycles_run,
             errors_encountered=self._metrics.errors_encountered,
@@ -209,7 +209,7 @@ class Lumberjack:
         self._log(
             f"Lumberjack '{self.name}' started (PID: {os.getpid()}, "
             f"interval: {self.config.interval}s, "
-            f"chops: {', '.join(self.config.chops)})"
+            f"chops: {', '.join(self.config.chop_names)})"
         )
 
         # Write initial status

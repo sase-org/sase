@@ -12,7 +12,7 @@ from sase.axe.cli import (
     handle_axe_lumberjack_list,
     handle_axe_lumberjack_status,
 )
-from sase.axe.config import AxeConfig, LumberjackConfig
+from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 
 ALL_12_CHOP_NAMES = sorted(
     [
@@ -54,10 +54,30 @@ def default_axe_config() -> AxeConfig:
     return AxeConfig(
         lumberjacks=_parse_lumberjacks(
             {
-                "hooks": {"interval": 1, "chops": ["hook_checks"]},
-                "checks": {"interval": 300, "chops": ["cl_submitted_checks"]},
-                "comments": {"interval": 60, "chops": ["comment_checks"]},
-                "housekeeping": {"interval": 3600, "chops": ["error_digest"]},
+                "hooks": {
+                    "interval": 1,
+                    "chops": [
+                        {"name": "hook_checks", "description": "Check hooks"},
+                    ],
+                },
+                "checks": {
+                    "interval": 300,
+                    "chops": [
+                        {"name": "cl_submitted_checks", "description": "Check CLs"},
+                    ],
+                },
+                "comments": {
+                    "interval": 60,
+                    "chops": [
+                        {"name": "comment_checks", "description": "Check comments"},
+                    ],
+                },
+                "housekeeping": {
+                    "interval": 3600,
+                    "chops": [
+                        {"name": "error_digest", "description": "Digest errors"},
+                    ],
+                },
             }
         )
     )
@@ -66,15 +86,14 @@ def default_axe_config() -> AxeConfig:
 # --- handle_axe_chop_list Tests ---
 
 
-@patch("sase.axe.cli.list_chop_scripts", return_value=ALL_12_CHOP_NAMES)
 @patch("sase.axe.cli.load_axe_config")
-def test_handle_axe_chop_list_prints_chops(
+def test_handle_axe_chop_list_prints_chops_with_descriptions(
     mock_load: MagicMock,
-    mock_list: MagicMock,
+    default_axe_config: AxeConfig,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Test that chop list prints all 12 chop script names."""
-    mock_load.return_value = AxeConfig()
+    """Test that chop list prints chop names with descriptions."""
+    mock_load.return_value = default_axe_config
     args = argparse.Namespace()
     with pytest.raises(SystemExit) as exc_info:
         handle_axe_chop_list(args)
@@ -82,10 +101,49 @@ def test_handle_axe_chop_list_prints_chops(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    assert len(lines) == 12
-    assert "hook_checks" in output
-    assert "error_digest" in output
-    assert "comment_checks" in output
+    assert len(lines) == 4
+    assert "cl_submitted_checks: Check CLs" in output
+    assert "comment_checks: Check comments" in output
+    assert "error_digest: Digest errors" in output
+    assert "hook_checks: Check hooks" in output
+
+
+@patch("sase.axe.cli.load_axe_config")
+def test_handle_axe_chop_list_deduplicates(
+    mock_load: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test that chops appearing in multiple lumberjacks are deduplicated."""
+    from sase.axe.config import _parse_lumberjacks
+
+    config = AxeConfig(
+        lumberjacks=_parse_lumberjacks(
+            {
+                "lj1": {
+                    "interval": 1,
+                    "chops": [
+                        {"name": "shared_chop", "description": "From lj1"},
+                    ],
+                },
+                "lj2": {
+                    "interval": 60,
+                    "chops": [
+                        {"name": "shared_chop", "description": "From lj2"},
+                    ],
+                },
+            }
+        )
+    )
+    mock_load.return_value = config
+    args = argparse.Namespace()
+    with pytest.raises(SystemExit) as exc_info:
+        handle_axe_chop_list(args)
+    assert exc_info.value.code == 0
+
+    output = capsys.readouterr().out
+    lines = [line for line in output.strip().split("\n") if line.strip()]
+    assert len(lines) == 1
+    assert "shared_chop" in output
 
 
 # --- handle_axe_lumberjack_list Tests ---
@@ -149,7 +207,11 @@ def test_handle_axe_lumberjack_status_with_running(
 
     mock_load.return_value = AxeConfig(
         lumberjacks={
-            "hooks": LumberjackConfig(name="hooks", interval=1, chops=["hook_checks"])
+            "hooks": LumberjackConfig(
+                name="hooks",
+                interval=1,
+                chops=[ChopConfig(name="hook_checks", description="Check hooks")],
+            )
         }
     )
     mock_status.return_value = LumberjackStatus(

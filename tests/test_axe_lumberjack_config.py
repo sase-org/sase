@@ -6,24 +6,49 @@ import yaml
 
 from sase.axe.config import (
     AxeConfig,
+    ChopConfig,
     LumberjackConfig,
     _parse_lumberjacks,
     load_axe_config,
 )
 
 
+def test_chop_config_basic() -> None:
+    """Test ChopConfig dataclass creation."""
+    chop = ChopConfig(name="hook_checks", description="Check hooks")
+    assert chop.name == "hook_checks"
+    assert chop.description == "Check hooks"
+
+
 def test_lumberjack_config_basic() -> None:
     """Test LumberjackConfig dataclass creation."""
-    cfg = LumberjackConfig(name="hooks", interval=1, chops=["hook_checks"])
+    chops = [ChopConfig(name="hook_checks", description="Check hooks")]
+    cfg = LumberjackConfig(name="hooks", interval=1, chops=chops)
     assert cfg.name == "hooks"
     assert cfg.interval == 1
-    assert cfg.chops == ["hook_checks"]
+    assert cfg.chops == chops
 
 
 def test_lumberjack_config_default_chops() -> None:
     """Test LumberjackConfig defaults to empty chops list."""
     cfg = LumberjackConfig(name="test", interval=10)
     assert cfg.chops == []
+
+
+def test_lumberjack_config_chop_names() -> None:
+    """Test chop_names property returns list of name strings."""
+    chops = [
+        ChopConfig(name="hook_checks", description="Check hooks"),
+        ChopConfig(name="mentor_checks", description="Review mentors"),
+    ]
+    cfg = LumberjackConfig(name="hooks", interval=1, chops=chops)
+    assert cfg.chop_names == ["hook_checks", "mentor_checks"]
+
+
+def test_lumberjack_config_chop_names_empty() -> None:
+    """Test chop_names property with empty chops list."""
+    cfg = LumberjackConfig(name="test", interval=10)
+    assert cfg.chop_names == []
 
 
 def test_axe_config_defaults() -> None:
@@ -36,17 +61,38 @@ def test_axe_config_defaults() -> None:
 
 
 def test_parse_lumberjacks_basic() -> None:
-    """Test parsing a simple lumberjacks dict."""
+    """Test parsing a simple lumberjacks dict with dict-style chops."""
     raw = {
-        "hooks": {"interval": 1, "chops": ["hook_checks", "mentor_checks"]},
-        "checks": {"interval": 300, "chops": ["cl_submitted_checks"]},
+        "hooks": {
+            "interval": 1,
+            "chops": [
+                {"name": "hook_checks", "description": "Check hooks"},
+                {"name": "mentor_checks", "description": "Review mentors"},
+            ],
+        },
+        "checks": {
+            "interval": 300,
+            "chops": [{"name": "cl_submitted_checks", "description": "Check CLs"}],
+        },
     }
     result = _parse_lumberjacks(raw)
     assert len(result) == 2
     assert result["hooks"].name == "hooks"
     assert result["hooks"].interval == 1
-    assert result["hooks"].chops == ["hook_checks", "mentor_checks"]
+    assert result["hooks"].chop_names == ["hook_checks", "mentor_checks"]
+    assert result["hooks"].chops[0].description == "Check hooks"
     assert result["checks"].interval == 300
+
+
+def test_parse_lumberjacks_string_chops_backward_compat() -> None:
+    """Test that plain string chops are parsed with empty descriptions."""
+    raw = {
+        "hooks": {"interval": 1, "chops": ["hook_checks", "mentor_checks"]},
+    }
+    result = _parse_lumberjacks(raw)
+    assert result["hooks"].chop_names == ["hook_checks", "mentor_checks"]
+    assert result["hooks"].chops[0].description == ""
+    assert result["hooks"].chops[1].description == ""
 
 
 def test_parse_lumberjacks_skips_non_dict_entries() -> None:
@@ -62,7 +108,7 @@ def test_parse_lumberjacks_skips_non_dict_entries() -> None:
 
 def test_parse_lumberjacks_default_interval() -> None:
     """Test that missing interval defaults to 1."""
-    raw = {"test": {"chops": ["foo"]}}
+    raw = {"test": {"chops": [{"name": "foo", "description": "Do foo"}]}}
     result = _parse_lumberjacks(raw)
     assert result["test"].interval == 1
 
@@ -94,11 +140,14 @@ def test_load_axe_config_default_hooks_lumberjack() -> None:
     config = load_axe_config()
     hooks = config.lumberjacks["hooks"]
     assert hooks.interval == 1
-    assert "hook_checks" in hooks.chops
-    assert "mentor_checks" in hooks.chops
-    assert "suffix_transforms" in hooks.chops
-    assert "wait_checks" in hooks.chops
+    assert "hook_checks" in hooks.chop_names
+    assert "mentor_checks" in hooks.chop_names
+    assert "suffix_transforms" in hooks.chop_names
+    assert "wait_checks" in hooks.chop_names
     assert len(hooks.chops) == 8
+    # Verify descriptions are populated
+    hook_checks = next(c for c in hooks.chops if c.name == "hook_checks")
+    assert hook_checks.description != ""
 
 
 def test_load_axe_config_default_checks_lumberjack() -> None:
@@ -106,8 +155,8 @@ def test_load_axe_config_default_checks_lumberjack() -> None:
     config = load_axe_config()
     checks = config.lumberjacks["checks"]
     assert checks.interval == 300
-    assert "cl_submitted_checks" in checks.chops
-    assert "stale_running_cleanup" in checks.chops
+    assert "cl_submitted_checks" in checks.chop_names
+    assert "stale_running_cleanup" in checks.chop_names
 
 
 def test_load_axe_config_default_comments_lumberjack() -> None:
@@ -115,7 +164,7 @@ def test_load_axe_config_default_comments_lumberjack() -> None:
     config = load_axe_config()
     comments = config.lumberjacks["comments"]
     assert comments.interval == 60
-    assert comments.chops == ["comment_checks"]
+    assert comments.chop_names == ["comment_checks"]
 
 
 def test_load_axe_config_default_housekeeping_lumberjack() -> None:
@@ -123,7 +172,7 @@ def test_load_axe_config_default_housekeeping_lumberjack() -> None:
     config = load_axe_config()
     hk = config.lumberjacks["housekeeping"]
     assert hk.interval == 3600
-    assert hk.chops == ["error_digest"]
+    assert hk.chop_names == ["error_digest"]
 
 
 def test_load_axe_config_with_lumberjacks_key() -> None:
@@ -137,12 +186,15 @@ axe:
     hooks:
       interval: 2
       chops:
-        - hook_checks
-        - mentor_checks
+        - name: hook_checks
+          description: "Check hooks"
+        - name: mentor_checks
+          description: "Review mentors"
     checks:
       interval: 600
       chops:
-        - cl_submitted_checks
+        - name: cl_submitted_checks
+          description: "Check CLs"
 """)
     with patch("sase.axe.config.load_merged_config", return_value=data):
         config = load_axe_config()
@@ -152,7 +204,7 @@ axe:
     assert config.query == "my_query"
     assert len(config.lumberjacks) == 2
     assert config.lumberjacks["hooks"].interval == 2
-    assert config.lumberjacks["hooks"].chops == ["hook_checks", "mentor_checks"]
+    assert config.lumberjacks["hooks"].chop_names == ["hook_checks", "mentor_checks"]
     assert config.lumberjacks["checks"].interval == 600
 
 

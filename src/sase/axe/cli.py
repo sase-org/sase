@@ -14,8 +14,8 @@ from .chop_script_context import (
     serialize_changespecs,
     write_chop_context,
 )
-from .chop_script_runner import discover_chop_script, list_chop_scripts, run_chop_script
-from .config import AxeConfig, LumberjackConfig, load_axe_config
+from .chop_script_runner import discover_chop_script, run_chop_script
+from .config import AxeConfig, ChopConfig, load_axe_config
 from .state import (
     ensure_lumberjack_dirs,
     read_lumberjack_status,
@@ -23,10 +23,18 @@ from .state import (
 
 
 def handle_axe_chop_list(args: argparse.Namespace) -> None:
-    """Print all available chop script names."""
+    """Print all available chops with their descriptions."""
     config = load_axe_config()
-    for name in list_chop_scripts(config.chop_script_dirs):
-        print(name)
+    seen: dict[str, ChopConfig] = {}
+    for lj in config.lumberjacks.values():
+        for chop in lj.chops:
+            if chop.name not in seen:
+                seen[chop.name] = chop
+    for chop in sorted(seen.values(), key=lambda c: c.name):
+        if chop.description:
+            print(f"{chop.name}: {chop.description}")
+        else:
+            print(chop.name)
     sys.exit(0)
 
 
@@ -92,7 +100,7 @@ def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
     """Print configured lumberjack names and their chops."""
     config = load_axe_config()
     for name, lj in sorted(config.lumberjacks.items()):
-        chops_str = ", ".join(lj.chops)
+        chops_str = ", ".join(lj.chop_names)
         print(f"{name}  (interval={lj.interval}s, chops=[{chops_str}])")
     sys.exit(0)
 

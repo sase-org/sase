@@ -11,12 +11,25 @@ from sase.config import load_merged_config
 
 
 @dataclass
+class ChopConfig:
+    """Configuration for a single chop (name + description)."""
+
+    name: str
+    description: str
+
+
+@dataclass
 class LumberjackConfig:
     """Configuration for a single lumberjack."""
 
     name: str
     interval: int
-    chops: list[str] = field(default_factory=list)
+    chops: list[ChopConfig] = field(default_factory=list)
+
+    @property
+    def chop_names(self) -> list[str]:
+        """Return just the chop names as strings."""
+        return [c.name for c in self.chops]
 
 
 @dataclass
@@ -43,10 +56,22 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
     for name, cfg in raw.items():
         if not isinstance(cfg, dict):
             continue
+        raw_chops = cfg.get("chops", [])
+        chops: list[ChopConfig] = []
+        for entry in raw_chops:
+            if isinstance(entry, dict):
+                chops.append(
+                    ChopConfig(
+                        name=entry["name"],
+                        description=entry.get("description", ""),
+                    )
+                )
+            elif isinstance(entry, str):
+                chops.append(ChopConfig(name=entry, description=""))
         result[name] = LumberjackConfig(
             name=name,
             interval=cfg.get("interval", 1),
-            chops=cfg.get("chops", []),
+            chops=chops,
         )
     return result
 

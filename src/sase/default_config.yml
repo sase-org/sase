@@ -7,27 +7,39 @@ axe:
     hooks:
       interval: 1
       chops:
-        - hook_checks
-        - mentor_checks
-        - workflow_checks
-        - pending_checks_poll
-        - comment_zombie_checks
-        - suffix_transforms
-        - orphan_cleanup
-        - wait_checks
+        - name: hook_checks
+          description: "Process pending hooks and update completion status"
+        - name: mentor_checks
+          description: "Run mentor review checks on eligible changespecs"
+        - name: workflow_checks
+          description: "Validate workflow state transitions and rules"
+        - name: pending_checks_poll
+          description: "Poll for pending check results and update status"
+        - name: comment_zombie_checks
+          description: "Detect and clean up zombie comment threads"
+        - name: suffix_transforms
+          description: "Apply suffix-based transformations to changespecs"
+        - name: orphan_cleanup
+          description: "Remove orphaned resources with no parent changespec"
+        - name: wait_checks
+          description: "Monitor wait conditions and unblock ready changespecs"
     checks:
       interval: 300
       chops:
-        - cl_submitted_checks
-        - stale_running_cleanup
+        - name: cl_submitted_checks
+          description: "Verify submitted changelists pass required checks"
+        - name: stale_running_cleanup
+          description: "Clean up stale runners that exceeded timeout"
     comments:
       interval: 60
       chops:
-        - comment_checks
+        - name: comment_checks
+          description: "Process and route new comments on changespecs"
     housekeeping:
       interval: 3600
       chops:
-        - error_digest
+        - name: error_digest
+          description: "Compile and summarize recent errors into a digest"
 
 llm_provider:
   provider: ""
