@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.config import AxeConfig, LumberjackConfig
+from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
 
 
@@ -26,7 +26,11 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 
 @pytest.fixture
 def lj_config() -> LumberjackConfig:
-    return LumberjackConfig(name="test_lj", interval=10, chops=["hook_checks"])
+    return LumberjackConfig(
+        name="test_lj",
+        interval=10,
+        chops=[ChopConfig(name="hook_checks", description="")],
+    )
 
 
 @pytest.fixture
@@ -111,7 +115,12 @@ def test_run_tick_multiple_chops(
 ) -> None:
     """Test that _run_tick invokes multiple chop scripts."""
     multi_config = LumberjackConfig(
-        name="multi", interval=5, chops=["hook_checks", "mentor_checks"]
+        name="multi",
+        interval=5,
+        chops=[
+            ChopConfig(name="hook_checks", description=""),
+            ChopConfig(name="mentor_checks", description=""),
+        ],
     )
     mock_discover.return_value = Path("/fake/script")
     mock_run.return_value = _ok_result()
