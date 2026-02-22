@@ -29,6 +29,13 @@ class _DetailPanelMode(Enum):
     INFO = "info"  # Metadata only, prompt at 100%
 
 
+_MODE_LABELS: dict[_DetailPanelMode, str] = {
+    _DetailPanelMode.AUTO: "file",
+    _DetailPanelMode.THINKING: "thinking",
+    _DetailPanelMode.INFO: "none",
+}
+
+
 def _is_gemini_provider() -> bool:
     """Check if the default LLM provider is Gemini."""
     try:
@@ -251,70 +258,50 @@ class AgentDetail(Static):
         self._update_panel_indicators()
 
     def toggle_thinking(self, agent: Agent) -> None:
-        """Cycle through available panel modes, skipping unavailable ones.
+        """Cycle to the next panel mode.
 
-        Modes without content are skipped:
-        - AUTO (file) is skipped when no file content exists
-        - THINKING is skipped when no thinking content exists
-        - INFO (metadata) is always available
+        Always cycles through file → thinking → none → file so the
+        ``i`` key behaves consistently regardless of content availability.
 
         Args:
             agent: The currently selected agent.
         """
-        next_mode = self._next_panel_mode()
-        if next_mode is None:
-            return
-        self._apply_panel_mode(next_mode, agent)
+        self._apply_panel_mode(self._next_panel_mode(), agent)
         self._update_panel_indicators()
 
-    def _next_panel_mode(self) -> _DetailPanelMode | None:
-        """Compute the next panel mode, skipping unavailable ones.
+    def _next_panel_mode(self) -> _DetailPanelMode:
+        """Compute the next panel mode in the fixed cycle.
+
+        Always cycles: AUTO → THINKING → INFO → AUTO regardless of
+        content availability, so the ``i`` key behaves consistently.
 
         Returns:
-            The next mode to transition to, or None if there's nothing to
-            cycle to.
+            The next mode to transition to.
         """
-        # Determine effective current mode (AUTO without file content
-        # visually looks like THINKING or INFO, not file view)
-        effective = self._panel_mode
-        if effective == _DetailPanelMode.AUTO and not self._has_file_content:
-            if self._thinking_auto_shown:
-                effective = _DetailPanelMode.THINKING
-            else:
-                effective = _DetailPanelMode.INFO
+        cycle = [
+            _DetailPanelMode.AUTO,
+            _DetailPanelMode.THINKING,
+            _DetailPanelMode.INFO,
+        ]
+        idx = cycle.index(self._panel_mode)
+        return cycle[(idx + 1) % len(cycle)]
 
-        # Build list of available modes
-        available: list[_DetailPanelMode] = []
-        if self._has_file_content:
-            available.append(_DetailPanelMode.AUTO)
-        if self._has_thinking_content:
-            available.append(_DetailPanelMode.THINKING)
-        available.append(_DetailPanelMode.INFO)
-
-        if len(available) <= 1:
-            return None
-
-        if effective in available:
-            idx = available.index(effective)
-            return available[(idx + 1) % len(available)]
-        return available[0]
-
-    def next_panel_label(self) -> str | None:
+    def next_panel_label(self) -> str:
         """Get the footer label for what pressing 'i' will do next.
 
         Returns:
-            Label string like "file", "thinking", or "metadata", or None if
-            there's nothing to cycle to.
+            Label string like "file", "thinking", or "none".
         """
-        next_mode = self._next_panel_mode()
-        if next_mode is None:
-            return None
-        labels = {
-            _DetailPanelMode.AUTO: "file",
-            _DetailPanelMode.THINKING: "thinking",
-            _DetailPanelMode.INFO: "collapse",
-        }
-        return labels[next_mode]
+        return _MODE_LABELS[self._next_panel_mode()]
+
+    @property
+    def panel_mode_label(self) -> str:
+        """Get a human-readable label for the current panel mode.
+
+        Returns:
+            ``"file"``, ``"thinking"``, or ``"none"``.
+        """
+        return _MODE_LABELS[self._panel_mode]
 
     def _apply_panel_mode(self, mode: _DetailPanelMode, agent: Agent) -> None:
         """Apply visual transition to the given panel mode.

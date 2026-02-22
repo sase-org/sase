@@ -284,7 +284,7 @@ class AgentsMixinCore(
 
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
-        from ...widgets import AgentInfoPanel
+        from ...widgets import AgentDetail, AgentInfoPanel
 
         agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
         # Position is 1-based for display (current_idx is 0-based)
@@ -293,3 +293,9 @@ class AgentsMixinCore(
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )
+        # Show current panel view mode when an agent is selected
+        if self._agents and 0 <= self.current_idx < len(self._agents):
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            agent_info_panel.update_view_mode(agent_detail.panel_mode_label)
+        else:
+            agent_info_panel.update_view_mode("")

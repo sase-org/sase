@@ -16,6 +16,7 @@ class AgentInfoPanel(Static):
         self._total = 0
         self._countdown = 0
         self._interval = 0
+        self._view_mode: str = ""
 
     def update_position(self, position: int, total: int) -> None:
         """Update the position display.
@@ -39,13 +40,34 @@ class AgentInfoPanel(Static):
         self._interval = interval
         self._update_display()
 
+    def update_view_mode(self, mode: str) -> None:
+        """Update the panel view mode indicator.
+
+        Args:
+            mode: The current view mode label (``"file"``, ``"thinking"``,
+                or ``"none"``). Empty string hides the indicator.
+        """
+        self._view_mode = mode
+        self._update_display()
+
+    _VIEW_MODE_STYLES: dict[str, str] = {
+        "file": "bold green",
+        "thinking": "bold #af87d7",
+        "none": "dim italic",
+    }
+
     def _update_display(self) -> None:
         """Refresh the displayed text."""
         text = Text()
         text.append("Agents: ", style="bold #87D7FF")
         text.append(f"{self._position}/{self._total}", style="#00D7AF")
+        if self._view_mode:
+            text.append("   ")
+            text.append("view: ", style="dim")
+            style = self._VIEW_MODE_STYLES.get(self._view_mode, "dim")
+            text.append(self._view_mode, style=style)
         if self._interval > 0:
-            text.append("   ", style="")
+            text.append("   ")
             text.append("(auto-refresh in ", style="dim")
             text.append(f"{self._countdown}s", style="bold #FFD700")
             text.append(")", style="dim")
