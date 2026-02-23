@@ -2,7 +2,7 @@
 
 import sys
 
-from sase.chat_history import list_chat_histories, load_chat_history
+from sase.chat_history import list_chat_histories, load_chat_for_resume
 
 from ._query import run_query
 
@@ -62,9 +62,9 @@ def handle_run_with_resume(
         history_file = histories[0]
         print(f"Using most recent chat history: {history_file}")
 
-    # Load previous chat history (with heading levels incremented)
+    # Load previous chat history as flat turns
     try:
-        previous_history = load_chat_history(history_file, increment_headings=True)
+        previous_history = load_chat_for_resume(history_file)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         sys.exit(1)

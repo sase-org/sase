@@ -6,6 +6,7 @@ that encode the branch/workspace, workflow, optional agent name, and timestamp.
 """
 
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -161,7 +162,87 @@ def _increment_markdown_headings(content: str) -> str:
     return "\n".join(result_lines)
 
 
-def load_chat_history(file_ref: str, increment_headings: bool = False) -> str:
+def _parse_chat_turns(content: str) -> list[tuple[str, str]]:
+    """Parse chat history content into chronological (prompt, response) turns.
+
+    Finds all Prompt/Response heading pairs at any markdown heading level,
+    extracts their content, and sorts by heading depth (deepest = oldest)
+    to produce chronological order.
+
+    Args:
+        content: Raw markdown content from a chat history file.
+
+    Returns:
+        List of (prompt_text, response_text) tuples in chronological order.
+    """
+    heading_pattern = re.compile(r"^(#{1,6})\s+(Prompt|Response)\s*$", re.MULTILINE)
+    matches = list(heading_pattern.finditer(content))
+
+    turns: list[tuple[int, str, str]] = []  # (level, prompt_text, response_text)
+
+    i = 0
+    while i < len(matches) - 1:
+        m_prompt = matches[i]
+        m_response = matches[i + 1]
+
+        # Expect Prompt followed by Response at the same heading level
+        if m_prompt.group(2) != "Prompt" or m_response.group(2) != "Response":
+            i += 1
+            continue
+
+        prompt_level = len(m_prompt.group(1))
+        response_level = len(m_response.group(1))
+        if prompt_level != response_level:
+            i += 1
+            continue
+
+        # Extract prompt text
+        prompt_text = content[m_prompt.end() : m_response.start()].strip()
+
+        # Extract response text (until next match or end of content)
+        response_start = m_response.end()
+        response_end = matches[i + 2].start() if i + 2 < len(matches) else len(content)
+        response_text = content[response_start:response_end].strip()
+
+        # Strip trailing --- separator
+        response_text = re.sub(r"\n---\s*$", "", response_text).strip()
+
+        turns.append((prompt_level, prompt_text, response_text))
+        i += 2
+
+    # Sort by depth (deepest = oldest → first in chronological order)
+    turns.sort(key=lambda t: t[0], reverse=True)
+
+    return [(prompt, response) for _, prompt, response in turns]
+
+
+def load_chat_for_resume(file_ref: str) -> str:
+    """Load a chat history file and format it as flat turns for resume.
+
+    Loads the file without heading increment, parses all (prompt, response)
+    turns in chronological order, and formats them with bold markers instead
+    of heading levels to prevent heading inflation on repeated resumes.
+
+    Args:
+        file_ref: Either a basename or full path to the chat history file.
+
+    Returns:
+        Formatted string with flat **User:**/**Assistant:** turns.
+    """
+    content = _load_chat_history(file_ref)
+    turns = _parse_chat_turns(content)
+
+    if not turns:
+        return content  # Fallback to raw content if parsing fails
+
+    parts = []
+    for prompt, response in turns:
+        parts.append(f"**User:**\n\n{prompt}\n\n**Assistant:**\n\n{response}")
+
+    return "\n\n---\n\n".join(parts)
+
+
+def _load_chat_history(file_ref: str, increment_headings: bool = False) -> str:
     """Load a chat history from a file.
 
     Args:

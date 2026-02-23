@@ -10,8 +10,10 @@ from sase.chat_history import (
     _get_branch_or_workspace_name,
     _get_chat_file_path,
     _increment_markdown_headings,
+    _parse_chat_turns,
     list_chat_histories,
-    load_chat_history,
+    load_chat_for_resume,
+    _load_chat_history,
     save_chat_history,
 )
 from sase.sase_utils import (
@@ -186,8 +188,8 @@ def test_save_chat_history_with_previous_history() -> None:
                     assert "Follow up question" in content
 
 
-def test_load_chat_history_by_basename() -> None:
-    """Test load_chat_history with basename."""
+def test__load_chat_history_by_basename() -> None:
+    """Test _load_chat_history with basename."""
     with tempfile.TemporaryDirectory() as tmpdir:
         test_chats_dir = os.path.join(tmpdir, "chats")
         os.makedirs(test_chats_dir)
@@ -198,30 +200,30 @@ def test_load_chat_history_by_basename() -> None:
             f.write("Test content")
 
         with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
-            result = load_chat_history("test-run-251128120000")
+            result = _load_chat_history("test-run-251128120000")
             assert result == "Test content"
 
 
-def test_load_chat_history_by_full_path() -> None:
-    """Test load_chat_history with full path."""
+def test__load_chat_history_by_full_path() -> None:
+    """Test _load_chat_history with full path."""
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "test.md")
         with open(test_file, "w") as f:
             f.write("Full path content")
 
-        result = load_chat_history(test_file)
+        result = _load_chat_history(test_file)
         assert result == "Full path content"
 
 
-def test_load_chat_history_not_found() -> None:
-    """Test load_chat_history with non-existent file."""
+def test__load_chat_history_not_found() -> None:
+    """Test _load_chat_history with non-existent file."""
     with tempfile.TemporaryDirectory() as tmpdir:
         test_chats_dir = os.path.join(tmpdir, "chats")
         os.makedirs(test_chats_dir)
 
         with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
             with pytest.raises(FileNotFoundError):
-                load_chat_history("nonexistent-run-251128120000")
+                _load_chat_history("nonexistent-run-251128120000")
 
 
 def test_list_chat_histories_empty() -> None:
@@ -281,8 +283,8 @@ def test_increment_markdown_headings_no_headings() -> None:
     assert result == content
 
 
-def test_load_chat_history_with_increment_headings() -> None:
-    """Test load_chat_history with increment_headings=True."""
+def test__load_chat_history_with_increment_headings() -> None:
+    """Test _load_chat_history with increment_headings=True."""
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "test.md")
         content = """# Main Title
@@ -301,7 +303,7 @@ Even more."""
         with open(test_file, "w") as f:
             f.write(content)
 
-        result = load_chat_history(test_file, increment_headings=True)
+        result = _load_chat_history(test_file, increment_headings=True)
 
         # All headings should be incremented by one level
         assert "## Main Title" in result
@@ -312,16 +314,172 @@ Even more."""
         assert "\n# Main Title" not in result
 
 
-def test_load_chat_history_without_increment_headings() -> None:
-    """Test load_chat_history with increment_headings=False (default)."""
+def test__load_chat_history_without_increment_headings() -> None:
+    """Test _load_chat_history with increment_headings=False (default)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "test.md")
         content = "# Main Title\n\n## Section 1"
         with open(test_file, "w") as f:
             f.write(content)
 
-        result = load_chat_history(test_file, increment_headings=False)
+        result = _load_chat_history(test_file, increment_headings=False)
 
         # Headings should remain unchanged
         assert "# Main Title" in result
         assert "## Section 1" in result
+
+
+# --- Tests for parse_chat_turns and load_chat_for_resume ---
+
+
+def test_parse_chat_turns_single_turn() -> None:
+    """Test _parse_chat_turns with a simple single-turn file."""
+    content = """\
+# Chat History - run
+
+**Timestamp:** 2024-01-01 12:00:00 EST
+
+## Prompt
+
+Hello, how are you?
+
+## Response
+
+I am fine, thank you!
+"""
+    turns = _parse_chat_turns(content)
+    assert len(turns) == 1
+    assert turns[0] == ("Hello, how are you?", "I am fine, thank you!")
+
+
+def test_parse_chat_turns_multi_turn_nested() -> None:
+    """Test _parse_chat_turns with a nested file from multiple resumes."""
+    # Simulate a file after two resumes:
+    # - Oldest turn at level 4 (####)
+    # - Middle turn at level 3 (###)
+    # - Newest turn at level 2 (##)
+    content = """\
+# Chat History - run
+
+**Timestamp:** 2024-01-03
+
+## Previous Conversation
+
+## Chat History - run
+
+**Timestamp:** 2024-01-02
+
+### Previous Conversation
+
+### Chat History - run
+
+**Timestamp:** 2024-01-01
+
+#### Prompt
+
+First question
+
+#### Response
+
+First answer
+
+---
+
+### Prompt
+
+Second question
+
+### Response
+
+Second answer
+
+---
+
+## Prompt
+
+Third question
+
+## Response
+
+Third answer
+"""
+    turns = _parse_chat_turns(content)
+    assert len(turns) == 3
+    # Chronological order: oldest (deepest) first
+    assert turns[0] == ("First question", "First answer")
+    assert turns[1] == ("Second question", "Second answer")
+    assert turns[2] == ("Third question", "Third answer")
+
+
+def test_parse_chat_turns_empty_content() -> None:
+    """Test _parse_chat_turns with content that has no Prompt/Response headings."""
+    content = "# Just a title\n\nSome text without prompts or responses."
+    turns = _parse_chat_turns(content)
+    assert turns == []
+
+
+def test_load_chat_for_resume_format() -> None:
+    """Test load_chat_for_resume produces flat User/Assistant format."""
+    content = """\
+# Chat History - run
+
+**Timestamp:** 2024-01-02
+
+## Previous Conversation
+
+## Chat History - run
+
+**Timestamp:** 2024-01-01
+
+### Prompt
+
+Hello
+
+### Response
+
+World
+
+---
+
+## Prompt
+
+Follow up
+
+## Response
+
+Follow up answer
+"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test.md")
+        with open(test_file, "w") as f:
+            f.write(content)
+
+        result = load_chat_for_resume(test_file)
+
+    # Should have flat format with no markdown headings
+    assert "**User:**" in result
+    assert "**Assistant:**" in result
+    assert "## Prompt" not in result
+    assert "## Response" not in result
+    assert "### Prompt" not in result
+
+    # Content should be in chronological order
+    hello_pos = result.index("Hello")
+    followup_pos = result.index("Follow up")
+    assert hello_pos < followup_pos
+
+    # Turns should be separated by ---
+    assert "---" in result
+
+
+def test_load_chat_for_resume_fallback() -> None:
+    """Test load_chat_for_resume falls back to raw content if no turns found."""
+    content = "Just some raw text with no prompt/response structure."
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test.md")
+        with open(test_file, "w") as f:
+            f.write(content)
+
+        result = load_chat_for_resume(test_file)
+
+    assert result == content
