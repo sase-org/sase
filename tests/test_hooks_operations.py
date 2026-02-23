@@ -346,6 +346,118 @@ def test_format_hooks_field_summarize_complete_with_empty_suffix() -> None:
     assert "(% | Some test summary)" in result_str
 
 
+def test_format_hooks_field_multiline_suffix_collapsed() -> None:
+    """Test that multi-line suffix content is collapsed to a single line."""
+    status_line = HookStatusLine(
+        commit_entry_num="1",
+        timestamp="240601_123456",
+        status="FAILED",
+        duration="30s",
+        suffix="Line one\n\n**`CheckTests/0 failed`**",
+        suffix_type="error",
+    )
+    hooks = [HookEntry(command="pytest tests", status_lines=[status_line])]
+    result = _format_hooks_field(hooks)
+    result_str = "".join(result)
+    # Verify the output is a single line per status (no embedded newlines in suffix)
+    for line in result_str.split("\n"):
+        if "| (1)" in line:
+            # The status line should contain the collapsed suffix
+            assert "Line one" in line
+            assert "CheckTests/0 failed" in line
+            # No embedded newlines - the suffix should be on this single line
+            break
+    else:
+        raise AssertionError("Status line not found in output")
+
+
+def test_format_hooks_field_multiline_summary_collapsed() -> None:
+    """Test that multi-line summary content is collapsed to a single line."""
+    status_line = HookStatusLine(
+        commit_entry_num="1",
+        timestamp="240601_123456",
+        status="FAILED",
+        duration="30s",
+        suffix="",
+        suffix_type="metahook_complete",
+        summary="Multi\nline\nsummary",
+    )
+    hooks = [HookEntry(command="pytest tests", status_lines=[status_line])]
+    result = _format_hooks_field(hooks)
+    result_str = "".join(result)
+    for line in result_str.split("\n"):
+        if "| (1)" in line:
+            assert "Multi line summary" in line
+            break
+    else:
+        raise AssertionError("Status line not found in output")
+
+
+# Tests for _apply_hooks_update with corrupt content
+def test_apply_hooks_update_skips_corrupt_lines() -> None:
+    """Test that _apply_hooks_update skips corrupt/orphaned text in HOOKS section."""
+    from sase.ace.hooks.execution import _apply_hooks_update
+
+    # Simulate a file where multi-line suffixes left orphaned text
+    lines = [
+        "NAME: test_cl\n",
+        "HOOKS:\n",
+        "  old_command\n",
+        "      | (1) [240601_100000] PASSED (1m0s)\n",
+        "some orphaned text from a multi-line suffix\n",
+        "\n",
+        "**bold markdown leftover**\n",
+        "STATUS: Ready\n",
+    ]
+    new_hooks = [
+        _make_hook(
+            command="new_command",
+            timestamp="240601_123456",
+            status="FAILED",
+            duration="2m30s",
+        ),
+    ]
+    result = _apply_hooks_update(lines, "test_cl", new_hooks)
+    result_str = "".join(result)
+
+    # Old hook and corrupt text should be gone
+    assert "old_command" not in result_str
+    assert "orphaned text" not in result_str
+    assert "bold markdown leftover" not in result_str
+    # New hook should be present
+    assert "new_command" in result_str
+    # STATUS field should be preserved
+    assert "STATUS: Ready" in result_str
+
+
+def test_apply_hooks_update_stops_at_field_header() -> None:
+    """Test that _apply_hooks_update stops skipping at known field headers."""
+    from sase.ace.hooks.execution import _apply_hooks_update
+
+    lines = [
+        "NAME: test_cl\n",
+        "HOOKS:\n",
+        "  old_command\n",
+        "      | (1) [240601_100000] PASSED (1m0s)\n",
+        "COMMITS:\n",
+        "  (1) Some commit message\n",
+    ]
+    new_hooks = [
+        _make_hook(
+            command="new_command",
+            timestamp="240601_123456",
+            status="PASSED",
+        ),
+    ]
+    result = _apply_hooks_update(lines, "test_cl", new_hooks)
+    result_str = "".join(result)
+
+    # COMMITS section should be fully preserved
+    assert "COMMITS:" in result_str
+    assert "Some commit message" in result_str
+    assert "new_command" in result_str
+
+
 # Tests for update_changespec_hooks_field
 def test_update_changespec_hooks_field_basic() -> None:
     """Test updating hooks field in a project file."""

@@ -56,7 +56,11 @@ def _extract_summary(response_content: str) -> str:
     if summary.startswith("'") and summary.endswith("'"):
         summary = summary[1:-1]
 
-    return summary.strip()
+    # Collapse any internal newlines to single spaces so that multi-line
+    # LLM responses don't break downstream consumers expecting single-line text
+    summary = " ".join(summary.split())
+
+    return summary
 
 
 class SummarizeWorkflow(BaseWorkflow):

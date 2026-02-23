@@ -255,6 +255,22 @@ def test_extract_summary_whitespace_only() -> None:
     assert result == ""
 
 
+def test_extract_summary_multiline_input() -> None:
+    """Test that multi-line LLM responses are collapsed to single line."""
+    result = _extract_summary(
+        "A concise summary suitable for...\n\n**`CheckTests/0 failed...`**"
+    )
+    assert "\n" not in result
+    assert result == "A concise summary suitable for... **`CheckTests/0 failed...`**"
+
+
+def test_extract_summary_multiline_with_preamble() -> None:
+    """Test multi-line response with preamble is collapsed after stripping."""
+    result = _extract_summary("Here is the summary: Line one\nLine two\n\nLine three")
+    assert "\n" not in result
+    assert result == "Line one Line two Line three"
+
+
 # Tests for SummarizeWorkflow.run() method
 @patch("sase.summarize_workflow.invoke_agent")
 def test_workflow_run_success(mock_invoke: MagicMock, tmp_path: Path) -> None:

@@ -47,6 +47,24 @@ def get_hook_output_path(name: str, timestamp: str) -> str:
     return os.path.join(hooks_dir, filename)
 
 
+_CHANGESPEC_FIELD_HEADERS = (
+    "NAME:",
+    "DESCRIPTION:",
+    "STATUS:",
+    "HOOKS:",
+    "COMMITS:",
+    "COMMENTS:",
+    "MENTORS:",
+    "KICKSTART:",
+    "TEST TARGETS:",
+)
+
+
+def _is_field_header(line: str) -> bool:
+    """Check if a line is a known ChangeSpec field header."""
+    return any(line.startswith(header) for header in _CHANGESPEC_FIELD_HEADERS)
+
+
 def _format_hooks_field(hooks: list[HookEntry]) -> list[str]:
     """Format hooks as lines for the HOOKS field.
 
@@ -134,6 +152,9 @@ def _format_hooks_field(hooks: list[HookEntry]) -> list[str]:
                         else:
                             suffix_content = sl.summary
 
+                    # Sanitize: collapse any newlines to spaces so status
+                    # lines stay on a single line in the file
+                    suffix_content = " ".join(suffix_content.split())
                     line_parts.append(f" - ({suffix_content})")
                 line_parts.append("\n")
                 lines.append("".join(line_parts))
@@ -190,14 +211,23 @@ def _apply_hooks_update(
                 # Skip old hooks content
                 while i < len(lines):
                     next_line = lines[i]
-                    # Check if still in hooks field:
-                    # - 2-space indented command lines
-                    # - "      | " prefixed status lines (start with ( after prefix)
                     stripped = next_line.strip()
+
+                    # Check if we've exited the HOOKS section:
+                    # - Known field headers end the section
+                    # - Two consecutive blank lines end the ChangeSpec
+                    if _is_field_header(next_line) or (
+                        stripped == ""
+                        and i + 1 < len(lines)
+                        and lines[i + 1].strip() == ""
+                    ):
+                        break
+
+                    # Known HOOKS content patterns - skip them
                     if next_line.startswith("      | ") and (
                         stripped[2:].startswith("(") if len(stripped) > 2 else False
                     ):
-                        # Status line ("      | " prefixed, starts with ( after prefix)
+                        # Status line
                         i += 1
                     elif (
                         next_line.startswith("  ")
@@ -209,7 +239,9 @@ def _apply_hooks_update(
                         # Command line (2-space indented, not 4-space, not empty)
                         i += 1
                     else:
-                        break
+                        # Unrecognized line within HOOKS section (corrupt/orphaned
+                        # text from multi-line suffixes) - skip it
+                        i += 1
                 continue
 
             # Check for end of ChangeSpec (another field or 2 blank lines)
@@ -313,6 +345,16 @@ def merge_hook_updates(
                 if cs.name == changespec_name:
                     current_hooks = list(cs.hooks) if cs.hooks else []
                     break
+
+            # Deduplicate by command name (keep first occurrence) to self-heal
+            # corrupted files where multi-line suffixes caused duplicate hooks
+            seen_commands: set[str] = set()
+            deduped_hooks: list[HookEntry] = []
+            for hook in current_hooks:
+                if hook.command not in seen_commands:
+                    seen_commands.add(hook.command)
+                    deduped_hooks.append(hook)
+            current_hooks = deduped_hooks
 
             # Merge: use updated version if available, otherwise keep disk version
             merged_hooks: list[HookEntry] = []
