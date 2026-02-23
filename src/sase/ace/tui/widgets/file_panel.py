@@ -260,16 +260,23 @@ class AgentFilePanel(Static):
         """Compute the number of lines to show based on container height.
 
         Returns:
-            The trim size, or 0 if container is unavailable.
+            The trim size (>= 10), or 0 if the container is hidden /
+            not yet laid out and the caller should defer trimming.
         """
         container = self._get_scroll_container()
         if container is None:
+            return 0
+        # A hidden container has no meaningful height — signal the caller
+        # to render full content now and re-trim after layout.
+        if container.has_class("hidden"):
             return 0
         try:
             height = container.scrollable_content_region.height
         except Exception:
             return 0
-        return max(10, height - 4)
+        if height <= 4:
+            return 0
+        return height - 4
 
     def _reset_trim_state(self) -> None:
         """Reset all trim-related fields to defaults."""
@@ -302,6 +309,23 @@ class AgentFilePanel(Static):
                 is_trimmed=self._is_trimmed,
             )
         )
+
+    def _apply_deferred_trim(self) -> None:
+        """Recompute trim size after layout and apply trimming if needed.
+
+        Called via ``call_after_refresh`` when the initial render could
+        not determine the container height (e.g. container was hidden).
+        """
+        if self._full_content is None or self._is_trimmed:
+            return
+        trim_size = self._compute_trim_size()
+        if trim_size <= 0:
+            return  # Still not available
+        self._base_trim_size = trim_size
+        if self._total_line_count > trim_size:
+            self._visible_line_count = trim_size
+            self._is_trimmed = True
+            self._render_trimmed_content()
 
     def _render_trimmed_content(self) -> None:
         """Re-render full_content with current trim state."""
@@ -622,6 +646,9 @@ class AgentFilePanel(Static):
                     word_wrap=True,
                 )
                 self.update(syntax)
+                # Container was hidden/not laid out — trim after layout
+                if trim_size == 0:
+                    self.call_after_refresh(self._apply_deferred_trim)
 
             self._post_trim_changed()
         else:
@@ -858,6 +885,9 @@ class AgentFilePanel(Static):
                 word_wrap=True,
             )
             self.update(Group(header, Text(""), syntax))
+            # Container was hidden/not laid out — trim after layout
+            if trim_size == 0:
+                self.call_after_refresh(self._apply_deferred_trim)
 
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)
@@ -933,6 +963,9 @@ class AgentFilePanel(Static):
                 word_wrap=True,
             )
             self.update(Group(header, Text(""), syntax))
+            # Container was hidden/not laid out — trim after layout
+            if trim_size == 0:
+                self.call_after_refresh(self._apply_deferred_trim)
 
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)
