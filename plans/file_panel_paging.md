@@ -1,5 +1,5 @@
 ---
-bead_id: sase-uwq
+bead_id: sase-614
 ---
 
 # File Content Trimming for Agents Tab File Panel
