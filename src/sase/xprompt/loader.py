@@ -1,5 +1,7 @@
 """XPrompt discovery and loading from files and configuration."""
 
+import importlib.resources
+import logging
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -7,8 +9,11 @@ from typing import TYPE_CHECKING, Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.config import load_merged_config
+from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 from .models import UNSET, InputArg, InputType, OutputSpec, XPrompt
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
@@ -538,6 +543,58 @@ def _load_xprompts_from_internal() -> dict[str, XPrompt]:
     return xprompts
 
 
+def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
+    """Load xprompts from plugin packages via ``sase_xprompts`` entry points.
+
+    Each entry point should reference a module whose package contains an
+    ``xprompts/`` resource directory with ``.md`` files.
+
+    Returns:
+        Dictionary mapping xprompt name to XPrompt object.
+    """
+    if is_plugin_disabled("XPROMPTS"):
+        return {}
+
+    xprompts: dict[str, XPrompt] = {}
+    for module in discover_plugin_resources("sase_xprompts"):
+        try:
+            xprompts_dir = importlib.resources.files(module).joinpath("xprompts")
+        except (TypeError, AttributeError):
+            continue
+
+        try:
+            entries = list(xprompts_dir.iterdir())  # type: ignore[union-attr]
+        except (FileNotFoundError, OSError, TypeError):
+            continue
+
+        for entry in entries:
+            if not entry.name.endswith(".md"):  # type: ignore[union-attr]
+                continue
+            try:
+                text = entry.read_text(encoding="utf-8")  # type: ignore[union-attr]
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            front_matter, body = _parse_yaml_front_matter(text)
+            name = entry.name.removesuffix(".md")  # type: ignore[union-attr]
+            if front_matter and "name" in front_matter:
+                name = str(front_matter["name"])
+
+            inputs: list[InputArg] = []
+            if front_matter and "input" in front_matter:
+                inputs = _parse_inputs_from_front_matter(front_matter["input"])
+
+            source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
+            xprompts[name] = XPrompt(
+                name=name,
+                content=body,
+                inputs=inputs,
+                source_path=source,
+            )
+
+    return xprompts
+
+
 def _load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     """Load xprompts from a project-specific directory.
 
@@ -580,7 +637,8 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     4. ~/xprompts/*.md (home, non-hidden)
     5. ~/.config/sase/xprompts/{project}/*.md (project-specific, if project given)
     6. sase.yml xprompts:/snippets: section
-    7. <sase_package>/xprompts/*.md (internal)
+    7. Plugin packages (via sase_xprompts entry points)
+    8. <sase_package>/xprompts/*.md (internal)
 
     Args:
         project: Optional project name to include project-specific xprompts.
@@ -591,8 +649,11 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     # Start with lowest priority and let higher priority override
     all_xprompts: dict[str, XPrompt] = {}
 
-    # 7. Internal xprompts (lowest priority)
+    # 8. Internal xprompts (lowest priority)
     all_xprompts.update(_load_xprompts_from_internal())
+
+    # 7. Plugin xprompts
+    all_xprompts.update(_load_xprompts_from_plugins())
 
     # 6. Config-based xprompts
     config_xprompts = _load_xprompts_from_config()

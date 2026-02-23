@@ -1,7 +1,8 @@
 """Centralized configuration loading with multi-file merge support.
 
 Loads ``default_config.yml`` (bundled in the package) as the base layer,
-then deep-merges ``~/.config/sase/sase.yml`` (with list replacement), then
+then deep-merges plugin ``default_config.yml`` files, then
+``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
 alphabetically, with list concatenation) on top.
 """
@@ -12,6 +13,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml  # type: ignore[import-untyped]
+
+from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 log = logging.getLogger(__name__)
 
@@ -90,17 +93,47 @@ def _get_overlay_paths() -> list[Path]:
     return sorted(CONFIG_DIR.glob("sase_*.yml"))
 
 
+def _load_plugin_configs() -> list[dict[str, Any]]:
+    """Load ``default_config.yml`` from each plugin in the ``sase_config`` group.
+
+    Returns config dicts sorted by entry-point name for determinism.
+    """
+    if is_plugin_disabled("CONFIG"):
+        return []
+
+    configs: list[dict[str, Any]] = []
+    for module in discover_plugin_resources("sase_config"):
+        try:
+            ref = importlib.resources.files(module).joinpath("default_config.yml")
+            text = ref.read_text(encoding="utf-8")
+            data = yaml.safe_load(text)
+            if isinstance(data, dict):
+                configs.append(data)
+        except Exception:
+            log.debug(
+                "Failed to load plugin config from %s",
+                getattr(module, "__name__", module),
+                exc_info=True,
+            )
+    return configs
+
+
 def load_merged_config() -> dict[str, Any]:
     """Load and merge all sase config files.
 
     Merge chain (each layer merges on top of the previous):
     1. ``default_config.yml`` (bundled package defaults)
-    2. ``sase.yml`` (user config — lists **replace** defaults)
-    3. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
+    2. Plugin ``default_config.yml`` files (sorted by EP name, lists concatenate)
+    3. ``sase.yml`` (user config — lists **replace** defaults)
+    4. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
 
     Returns at least the defaults even when no user config files exist.
     """
     result = _load_default_config()
+
+    # 2. Plugin configs (between defaults and user config)
+    for plugin_config in _load_plugin_configs():
+        result = _deep_merge(result, plugin_config)
 
     base_path = CONFIG_DIR / "sase.yml"
     user_base = _load_yaml_file(base_path)

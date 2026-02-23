@@ -13,6 +13,9 @@ class VCSOperationError(Exception):
 class VCSProviderNotFoundError(Exception):
     """Raised when no VCS provider can be detected for a directory."""
 
-    def __init__(self, directory: str) -> None:
+    def __init__(self, directory: str, message: str | None = None) -> None:
         self.directory = directory
-        super().__init__(f"No VCS provider found for directory: {directory}")
+        if message:
+            super().__init__(message)
+        else:
+            super().__init__(f"No VCS provider found for directory: {directory}")

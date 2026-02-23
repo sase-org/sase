@@ -1,9 +1,12 @@
 """Workflow discovery and loading from YAML files."""
 
+import importlib.resources
+import logging
 from pathlib import Path
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     get_sase_package_xprompts_dir,
     get_xprompt_search_paths,
@@ -20,6 +23,8 @@ from sase.xprompt.workflow_models import (
     WorkflowStep,
     WorkflowValidationError,
 )
+
+log = logging.getLogger(__name__)
 
 
 def _load_workflow_from_file(file_path: Path) -> Workflow | None:
@@ -190,6 +195,65 @@ def _load_workflows_from_internal() -> dict[str, Workflow]:
     return workflows
 
 
+def _load_workflows_from_plugins() -> dict[str, Workflow]:
+    """Load workflows from plugin packages via ``sase_xprompts`` entry points.
+
+    Each entry point should reference a module whose package contains an
+    ``xprompts/`` resource directory with ``.yml``/``.yaml`` files.
+
+    Returns:
+        Dictionary mapping workflow name to Workflow object.
+    """
+    if is_plugin_disabled("XPROMPTS"):
+        return {}
+
+    workflows: dict[str, Workflow] = {}
+    for module in discover_plugin_resources("sase_xprompts"):
+        try:
+            xprompts_dir = importlib.resources.files(module).joinpath("xprompts")
+        except (TypeError, AttributeError):
+            continue
+
+        try:
+            entries = list(xprompts_dir.iterdir())  # type: ignore[union-attr]
+        except (FileNotFoundError, OSError, TypeError):
+            continue
+
+        for entry in entries:
+            entry_name: str = entry.name  # type: ignore[union-attr]
+            if not (entry_name.endswith(".yml") or entry_name.endswith(".yaml")):
+                continue
+            try:
+                text = entry.read_text(encoding="utf-8")  # type: ignore[union-attr]
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            # Write to a temp dir with the original filename so
+            # _load_workflow_from_file derives the correct workflow name.
+            import tempfile
+
+            tmpdir = Path(tempfile.mkdtemp())
+            tmp_path = tmpdir / entry_name
+            try:
+                tmp_path.write_text(text, encoding="utf-8")
+                workflow = _load_workflow_from_file(tmp_path)
+                if workflow:
+                    source = f"plugin:{module.__name__}/{entry_name}"
+                    workflows[workflow.name] = Workflow(
+                        name=workflow.name,
+                        inputs=workflow.inputs,
+                        steps=workflow.steps,
+                        source_path=source,
+                        xprompts=workflow.xprompts,
+                        wraps_all=workflow.wraps_all,
+                    )
+            finally:
+                tmp_path.unlink(missing_ok=True)
+                tmpdir.rmdir()
+
+    return workflows
+
+
 def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
     """Load workflows from a project-specific directory.
 
@@ -254,7 +318,8 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     3. ~/.xprompts/*.yml (home, hidden)
     4. ~/xprompts/*.yml (home, non-hidden)
     5. ~/.config/sase/xprompts/{project}/*.yml (project-specific, if project given)
-    6. <sase_package>/xprompts/*.yml (internal)
+    6. Plugin packages (via sase_xprompts entry points)
+    7. <sase_package>/xprompts/*.yml (internal)
 
     Args:
         project: Optional project name to include project-specific workflows.
@@ -264,10 +329,13 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     """
     all_workflows: dict[str, Workflow] = {}
 
-    # Internal workflows (lowest priority)
+    # 7. Internal workflows (lowest priority)
     all_workflows.update(_load_workflows_from_internal())
 
-    # Project-specific workflows (if project provided)
+    # 6. Plugin workflows
+    all_workflows.update(_load_workflows_from_plugins())
+
+    # 5. Project-specific workflows (if project provided)
     if project:
         project_workflows = _load_workflows_from_project(project)
         all_workflows.update(project_workflows)

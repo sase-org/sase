@@ -1,5 +1,6 @@
 """Factory and auto-detection for VCS providers."""
 
+import importlib.metadata
 import os
 import subprocess
 
@@ -118,7 +119,8 @@ def get_vcs_provider(cwd: str) -> VCSProvider:
     Uses :func:`_resolve_vcs_name` to determine the provider, which
     checks env var, config, and auto-detection in that order.
 
-    All providers are routed through the pluggy plugin system.
+    All providers are routed through the pluggy plugin system via
+    entry-point discovery.
 
     Raises:
         VCSProviderNotFoundError: If no VCS directory is found or no
@@ -128,46 +130,45 @@ def get_vcs_provider(cwd: str) -> VCSProvider:
     if vcs_name is None:
         raise VCSProviderNotFoundError(cwd)
 
-    if vcs_name == "hg":
-        return _create_hg_plugin_provider()
-    if vcs_name == "github":
-        return _create_github_plugin_provider()
-    if vcs_name == "bare_git":
-        return _create_bare_git_plugin_provider()
-
-    raise VCSProviderNotFoundError(cwd)
+    return _create_provider_for(vcs_name, cwd)
 
 
-def _create_plugin_manager() -> pluggy.PluginManager:
-    """Create a base :class:`pluggy.PluginManager` with hookspecs registered."""
+def _find_plugin_class(vcs_name: str) -> type | None:
+    """Look up a VCS plugin class by name from ``sase_vcs`` entry points.
+
+    Args:
+        vcs_name: The entry-point name to find (e.g. ``"github"``).
+
+    Returns:
+        The plugin class, or ``None`` if no matching entry point exists.
+    """
+    for ep in importlib.metadata.entry_points(group="sase_vcs"):
+        if ep.name == vcs_name:
+            return ep.load()  # type: ignore[no-any-return]
+    return None
+
+
+def _create_provider_for(vcs_name: str, cwd: str) -> VCSPluginManager:
+    """Create a :class:`VCSPluginManager` for *vcs_name* via entry points.
+
+    Args:
+        vcs_name: Provider name (e.g. ``"github"``, ``"hg"``, ``"bare_git"``).
+        cwd: Working directory (used only for the error message).
+
+    Raises:
+        VCSProviderNotFoundError: If no entry point matches *vcs_name*.
+    """
     pm = pluggy.PluginManager("sase_vcs")
     pm.add_hookspecs(VCSHookSpec)
-    pm.load_setuptools_entrypoints("sase_vcs")
-    return pm
 
+    plugin_class = _find_plugin_class(vcs_name)
+    if plugin_class is None:
+        raise VCSProviderNotFoundError(
+            cwd,
+            f"No VCS plugin found for '{vcs_name}'. "
+            f"Install the plugin package that provides a '{vcs_name}' "
+            f"entry point in the 'sase_vcs' group.",
+        )
 
-def _create_hg_plugin_provider() -> VCSPluginManager:
-    """Create a :class:`VCSPluginManager` backed by :class:`HgPlugin`."""
-    from .plugins.hg import HgPlugin
-
-    pm = _create_plugin_manager()
-    pm.register(HgPlugin())
-    return VCSPluginManager(pm)
-
-
-def _create_github_plugin_provider() -> VCSPluginManager:
-    """Create a :class:`VCSPluginManager` backed by :class:`GitHubPlugin`."""
-    from .plugins.github import GitHubPlugin
-
-    pm = _create_plugin_manager()
-    pm.register(GitHubPlugin())
-    return VCSPluginManager(pm)
-
-
-def _create_bare_git_plugin_provider() -> VCSPluginManager:
-    """Create a :class:`VCSPluginManager` backed by :class:`BareGitPlugin`."""
-    from .plugins.bare_git import BareGitPlugin
-
-    pm = _create_plugin_manager()
-    pm.register(BareGitPlugin())
+    pm.register(plugin_class())
     return VCSPluginManager(pm)
