@@ -13,6 +13,7 @@ dependencies = [
     "jsonschema",
     "langgraph",
     "langchain-core",
+    "pluggy",
     "pyyaml",
     "rich",
     "schedule",
@@ -126,6 +127,10 @@ module = [
     "sase.ace.tui.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sase.vcs_provider._hookspec"]
+disable_error_code = ["empty-body"]
 
 # --- Pytest ---
 [tool.pytest.ini_options]
