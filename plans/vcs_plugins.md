@@ -1,5 +1,6 @@
 ---
 bead_id: sase-cjj
+status: done
 ---
 
 # Plan: Migrate VCS Provider to Pluggy Plugin Architecture
