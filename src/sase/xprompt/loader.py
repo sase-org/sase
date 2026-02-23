@@ -20,14 +20,53 @@ if TYPE_CHECKING:
 
 
 def get_sase_package_xprompts_dir() -> Path:
-    """Get the path to the internal sase xprompts directory."""
+    """Get the path to the internal sase xprompts directory.
+
+    Tries multiple resolution strategies to handle different install layouts:
+    1. ``importlib.resources`` — works for wheel installs where xprompts are
+       shipped as package data via ``force-include`` in ``pyproject.toml``.
+    2. ``__file__`` path traversal — works for editable (``pip install -e``)
+       installs where the source tree is used directly.
+    3. Ancestor walk — fallback for unusual directory layouts (e.g. extra
+       nesting). Uses ``workflow.schema.json`` as a sentinel to avoid false
+       positives from unrelated ``xprompts/`` directories.
+    """
+    import importlib.resources
+
+    # Method 1: importlib.resources (wheel installs with force-include)
+    try:
+        candidate_resource = importlib.resources.files("sase").joinpath("_xprompts")
+        candidate = Path(str(candidate_resource))
+        if candidate.is_dir():
+            return candidate
+    except Exception:
+        pass
+
+    # Method 2: __file__ path traversal (editable installs)
     # This file is in src/sase/xprompt/loader.py
     # xprompts dir is at <repo_root>/xprompts/
     loader_path = Path(__file__).resolve()
-    xprompt_pkg = loader_path.parent  # src/sase/xprompt/
-    sase_pkg = xprompt_pkg.parent  # src/sase/
-    src_dir = sase_pkg.parent  # src/
-    repo_root = src_dir.parent  # repo root
+    repo_root = loader_path.parent.parent.parent.parent
+    candidate = repo_root / "xprompts"
+    if candidate.is_dir():
+        return candidate
+
+    # Method 3: Walk up from __file__ looking for xprompts/ with sentinel
+    current = loader_path.parent
+    for _ in range(8):
+        check = current / "xprompts"
+        if check.is_dir() and (check / "workflow.schema.json").is_file():
+            return check
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+
+    log.warning(
+        "Internal xprompts directory not found. "
+        "Tried importlib.resources('sase/_xprompts') and path traversal from %s",
+        loader_path,
+    )
     return repo_root / "xprompts"
 
 
