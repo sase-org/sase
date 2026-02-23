@@ -96,3 +96,9 @@ Chezmoi iles related to sase that I know about:
 
 - The sase.yml files that I use to configure sase can be found in the ~/.local/share/chezmoi/home/dot_config/sase/
   directory.
+
+## sase-github and sase-hg Plugin Repos
+
+The ../sase-github and ../sase-hg directories are git repositories that contain plugins for GitHub and Mercurial VCS
+providers, respectively. You can edit files in these repos if necessary. Just make sure to commit your changes to the
+corresponding repo using your commit skill (NOT `git commit`) after making them.
