@@ -158,7 +158,7 @@ def test_kill_running_processes_for_hooks_handles_process_not_found(
 # Tests for kill_and_persist_all_running_processes
 
 
-@patch("sase.ace.hooks.execution.update_changespec_hooks_field")
+@patch("sase.ace.hooks.persistence.update_changespec_hooks_field")
 @patch("sase.ace.hooks.processes.mark_hooks_as_killed")
 @patch("sase.ace.hooks.processes.kill_running_mentor_processes")
 @patch("sase.ace.hooks.processes.kill_running_agent_processes")
@@ -209,7 +209,7 @@ def test_kill_and_persist_with_running_hooks(
     assert any("hook process" in msg for msg in log_messages)
 
 
-@patch("sase.ace.hooks.execution.update_changespec_hooks_field")
+@patch("sase.ace.hooks.persistence.update_changespec_hooks_field")
 @patch("sase.ace.hooks.processes.mark_hook_agents_as_killed")
 @patch("sase.ace.comments.operations.update_changespec_comments_field")
 @patch("sase.ace.comments.operations.mark_comment_agents_as_killed")

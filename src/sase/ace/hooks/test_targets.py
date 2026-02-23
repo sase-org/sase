@@ -1,7 +1,7 @@
 """Test target hook utilities - helpers, queries, and mutations."""
 
 from ..changespec import HookEntry, changespec_lock
-from .execution import update_changespec_hooks_field, write_hooks_unlocked
+from .persistence import update_changespec_hooks_field, write_hooks_unlocked
 
 # Test target hook helpers
 TEST_TARGET_HOOK_PREFIX = "bb_rabbit_test "

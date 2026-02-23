@@ -16,8 +16,8 @@ from sase.ace.hooks import (
     hook_needs_run,
     update_changespec_hooks_field,
 )
-from sase.ace.hooks.execution import (
-    _format_hooks_field,
+from sase.ace.hooks.formatting import (
+    format_hooks_field,
 )
 from sase.ace.hooks.test_targets import expand_test_target_shorthand
 from sase.sase_utils import get_sase_directory
@@ -115,14 +115,14 @@ def test_get_hook_output_path_special_chars() -> None:
 
 
 # Tests for format_timestamp_display
-# Tests for _format_hooks_field
-def test_format_hooks_field_empty() -> None:
+# Tests for format_hooks_field
+def testformat_hooks_field_empty() -> None:
     """Test formatting empty hooks list."""
-    result = _format_hooks_field([])
+    result = format_hooks_field([])
     assert result == []
 
 
-def test_format_hooks_field_summarize_complete_with_empty_suffix() -> None:
+def testformat_hooks_field_summarize_complete_with_empty_suffix() -> None:
     """Test that summarize_complete suffix_type preserves prefix even with empty suffix."""
     status_line = HookStatusLine(
         commit_entry_num="1",
@@ -134,13 +134,13 @@ def test_format_hooks_field_summarize_complete_with_empty_suffix() -> None:
         summary="Some test summary",
     )
     hooks = [HookEntry(command="pytest tests", status_lines=[status_line])]
-    result = _format_hooks_field(hooks)
+    result = format_hooks_field(hooks)
     result_str = "".join(result)
     # The % prefix should be preserved even with empty suffix
     assert "(% | Some test summary)" in result_str
 
 
-def test_format_hooks_field_multiline_suffix_collapsed() -> None:
+def testformat_hooks_field_multiline_suffix_collapsed() -> None:
     """Test that multi-line suffix content is collapsed to a single line."""
     status_line = HookStatusLine(
         commit_entry_num="1",
@@ -151,7 +151,7 @@ def test_format_hooks_field_multiline_suffix_collapsed() -> None:
         suffix_type="error",
     )
     hooks = [HookEntry(command="pytest tests", status_lines=[status_line])]
-    result = _format_hooks_field(hooks)
+    result = format_hooks_field(hooks)
     result_str = "".join(result)
     # Verify the output is a single line per status (no embedded newlines in suffix)
     for line in result_str.split("\n"):
@@ -165,7 +165,7 @@ def test_format_hooks_field_multiline_suffix_collapsed() -> None:
         raise AssertionError("Status line not found in output")
 
 
-def test_format_hooks_field_multiline_summary_collapsed() -> None:
+def testformat_hooks_field_multiline_summary_collapsed() -> None:
     """Test that multi-line summary content is collapsed to a single line."""
     status_line = HookStatusLine(
         commit_entry_num="1",
@@ -177,7 +177,7 @@ def test_format_hooks_field_multiline_summary_collapsed() -> None:
         summary="Multi\nline\nsummary",
     )
     hooks = [HookEntry(command="pytest tests", status_lines=[status_line])]
-    result = _format_hooks_field(hooks)
+    result = format_hooks_field(hooks)
     result_str = "".join(result)
     for line in result_str.split("\n"):
         if "| (1)" in line:
@@ -187,10 +187,10 @@ def test_format_hooks_field_multiline_summary_collapsed() -> None:
         raise AssertionError("Status line not found in output")
 
 
-# Tests for _apply_hooks_update with corrupt content
-def test_apply_hooks_update_skips_corrupt_lines() -> None:
-    """Test that _apply_hooks_update skips corrupt/orphaned text in HOOKS section."""
-    from sase.ace.hooks.execution import _apply_hooks_update
+# Tests for apply_hooks_update with corrupt content
+def testapply_hooks_update_skips_corrupt_lines() -> None:
+    """Test that apply_hooks_update skips corrupt/orphaned text in HOOKS section."""
+    from sase.ace.hooks.formatting import apply_hooks_update
 
     # Simulate a file where multi-line suffixes left orphaned text
     lines = [
@@ -211,7 +211,7 @@ def test_apply_hooks_update_skips_corrupt_lines() -> None:
             duration="2m30s",
         ),
     ]
-    result = _apply_hooks_update(lines, "test_cl", new_hooks)
+    result = apply_hooks_update(lines, "test_cl", new_hooks)
     result_str = "".join(result)
 
     # Old hook and corrupt text should be gone
@@ -224,9 +224,9 @@ def test_apply_hooks_update_skips_corrupt_lines() -> None:
     assert "STATUS: Ready" in result_str
 
 
-def test_apply_hooks_update_stops_at_field_header() -> None:
-    """Test that _apply_hooks_update stops skipping at known field headers."""
-    from sase.ace.hooks.execution import _apply_hooks_update
+def testapply_hooks_update_stops_at_field_header() -> None:
+    """Test that apply_hooks_update stops skipping at known field headers."""
+    from sase.ace.hooks.formatting import apply_hooks_update
 
     lines = [
         "NAME: test_cl\n",
@@ -243,7 +243,7 @@ def test_apply_hooks_update_stops_at_field_header() -> None:
             status="PASSED",
         ),
     ]
-    result = _apply_hooks_update(lines, "test_cl", new_hooks)
+    result = apply_hooks_update(lines, "test_cl", new_hooks)
     result_str = "".join(result)
 
     # COMMITS section should be fully preserved

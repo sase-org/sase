@@ -445,7 +445,7 @@ def kill_and_persist_all_running_processes(
         update_changespec_comments_field,
     )
     from ..mentors import update_changespec_mentors_field
-    from .execution import update_changespec_hooks_field
+    from .persistence import update_changespec_hooks_field
 
     # Kill running hook processes
     killed_processes = kill_running_hook_processes(changespec)

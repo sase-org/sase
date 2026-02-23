@@ -9,7 +9,7 @@ from sase.ace.comments.operations import (
     mark_comment_agents_as_killed,
     update_changespec_comments_field,
 )
-from sase.ace.hooks.execution import update_changespec_hooks_field
+from sase.ace.hooks.persistence import update_changespec_hooks_field
 from sase.ace.hooks.processes import (
     kill_running_agent_processes,
     kill_running_hook_processes,

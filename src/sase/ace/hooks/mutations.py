@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ..changespec import HookEntry, HookStatusLine, changespec_lock
-from .execution import update_changespec_hooks_field, write_hooks_unlocked
+from .persistence import update_changespec_hooks_field, write_hooks_unlocked
 
 if TYPE_CHECKING:
     from ..changespec import ChangeSpec

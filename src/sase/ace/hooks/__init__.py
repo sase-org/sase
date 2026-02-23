@@ -12,9 +12,11 @@ from sase.sase_utils import generate_timestamp
 
 from .execution import (
     check_hook_completion,
+    start_hook_background,
+)
+from .persistence import (
     get_hook_output_path,
     merge_hook_updates,
-    start_hook_background,
     update_changespec_hooks_field,
     update_hook_status_line_suffix_type,
 )
