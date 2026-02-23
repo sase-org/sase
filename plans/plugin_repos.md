@@ -1,3 +1,7 @@
+---
+bead_id: sase-dx8
+---
+
 # Plan: Extract VCS Plugins into Separate Repos
 
 ## Context
