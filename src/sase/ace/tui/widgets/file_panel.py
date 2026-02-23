@@ -146,12 +146,31 @@ class AgentFilePanel(Static):
             agent: The Agent to display file for.
             stale_threshold_seconds: Files older than this are refetched.
         """
-        self._reset_trim_state()
-        self._current_agent = agent
+        same_agent = (
+            self._current_agent is not None
+            and self._current_agent.identity == agent.identity
+        )
 
-        # Check cache
         cache_key = _get_cache_key(agent)
         cache_entry = _file_cache.get(cache_key)
+
+        if same_agent and cache_entry is not None:
+            age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
+            if age_seconds < stale_threshold_seconds:
+                self._current_agent = agent
+                return  # Fresh cache, same agent -- preserve trim state
+            # Stale cache, same agent -- start background worker only
+            self._current_agent = agent
+            self._is_background_refreshing = True
+            if self._current_worker is not None and self._current_worker.is_running:
+                self._current_worker.cancel()
+
+            self._start_background_fetch(agent)
+            return
+
+        # Different agent or no cache -- full reset (existing behavior)
+        self._reset_trim_state()
+        self._current_agent = agent
 
         if cache_entry is not None:
             age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
@@ -176,15 +195,7 @@ class AgentFilePanel(Static):
             # No cache - show loading for first-time loads
             self._show_loading()
 
-        # Cancel any existing worker
-        if self._current_worker is not None and self._current_worker.is_running:
-            self._current_worker.cancel()
-
-        # Start background worker using closure to capture agent
-        def fetch_task() -> str | None:
-            return self._fetch_file_in_background(agent)
-
-        self._current_worker = self.run_worker(fetch_task, thread=True)
+        self._start_background_fetch(agent)
 
     def set_file_list(self, files: list[str]) -> None:
         """Store the file list, reset index to 0, and display the first file.
@@ -315,6 +326,17 @@ class AgentFilePanel(Static):
             )
         )
 
+    def _update_timestamp_header(
+        self, fetch_time: datetime, *, refreshing: bool = False
+    ) -> None:
+        """Update the timestamp line in _full_content without resetting trim state."""
+        if self._full_content is None or self._content_mode != "diff":
+            return
+        newline_idx = self._full_content.index("\n")
+        suffix = " (refreshing...)" if refreshing else ""
+        new_header = f"# Last fetched: {fetch_time.strftime('%H:%M:%S')}{suffix}"
+        self._full_content = new_header + self._full_content[newline_idx:]
+
     def _apply_deferred_trim(self) -> None:
         """Recompute trim size after layout and apply trimming if needed.
 
@@ -338,61 +360,31 @@ class AgentFilePanel(Static):
             return
 
         visible = self._visible_line_count
-        total = self._total_line_count
-
-        if self._content_mode == "static":
+        lexer = (
+            "diff"
+            if self._content_mode in ("diff", "static_diff")
+            else self._full_content_lexer
+        )
+        syntax = Syntax(
+            self._full_content,
+            lexer,
+            theme="monokai",
+            line_numbers=True,
+            word_wrap=True,
+            line_range=(1, visible),
+        )
+        remaining = self._total_line_count - visible
+        indicator = Text(
+            f"\n  \u25be {remaining} more lines below",
+            style="dim italic #87D7FF",
+        )
+        if self._content_mode in ("static", "static_diff"):
             header = Text(
                 self._static_header_path or "", style="bold #D7AF5F underline"
             )
-            syntax = Syntax(
-                self._full_content,
-                self._full_content_lexer,
-                theme="monokai",
-                line_numbers=True,
-                word_wrap=True,
-                line_range=(1, visible),
-            )
-            remaining = total - visible
-            indicator = Text(
-                f"\n  \u25be {remaining} more lines below",
-                style="dim italic #87D7FF",
-            )
             self.update(Group(header, Text(""), syntax, indicator))
-        elif self._content_mode in ("diff", "static_diff"):
-            if self._content_mode == "static_diff":
-                header = Text(
-                    self._static_header_path or "",
-                    style="bold #D7AF5F underline",
-                )
-                syntax = Syntax(
-                    self._full_content,
-                    "diff",
-                    theme="monokai",
-                    line_numbers=True,
-                    word_wrap=True,
-                    line_range=(1, visible),
-                )
-                remaining = total - visible
-                indicator = Text(
-                    f"\n  \u25be {remaining} more lines below",
-                    style="dim italic #87D7FF",
-                )
-                self.update(Group(header, Text(""), syntax, indicator))
-            else:
-                syntax = Syntax(
-                    self._full_content,
-                    "diff",
-                    theme="monokai",
-                    line_numbers=True,
-                    word_wrap=True,
-                    line_range=(1, visible),
-                )
-                remaining = total - visible
-                indicator = Text(
-                    f"\n  \u25be {remaining} more lines below",
-                    style="dim italic #87D7FF",
-                )
-                self.update(Group(syntax, indicator))
+        else:
+            self.update(Group(syntax, indicator))
 
         self._is_trimmed = True
         self._post_trim_changed()
@@ -406,6 +398,10 @@ class AgentFilePanel(Static):
         """Expand visible lines by one page (base_trim_size)."""
         if not self._full_content or not self._is_trimmed:
             return
+        if self._base_trim_size <= 0:
+            self._base_trim_size = self._compute_trim_size()
+            if self._base_trim_size <= 0:
+                return
         self._visible_line_count = min(
             self._visible_line_count + self._base_trim_size,
             self._total_line_count,
@@ -421,6 +417,10 @@ class AgentFilePanel(Static):
         """Collapse visible lines by one page (base_trim_size)."""
         if not self._full_content:
             return
+        if self._base_trim_size <= 0:
+            self._base_trim_size = self._compute_trim_size()
+            if self._base_trim_size <= 0:
+                return
         scroll_pos = self._save_scroll_position()
         self._visible_line_count = max(
             self._visible_line_count - self._base_trim_size,
@@ -439,6 +439,8 @@ class AgentFilePanel(Static):
         if not self._full_content:
             return
         self._base_trim_size = self._compute_trim_size()
+        if self._base_trim_size <= 0:
+            return
         self._visible_line_count = min(self._base_trim_size, self._total_line_count)
         if self._visible_line_count < self._total_line_count:
             self._is_trimmed = True
@@ -460,41 +462,25 @@ class AgentFilePanel(Static):
         if self._full_content is None:
             return
 
-        if self._content_mode == "static":
+        lexer = (
+            "diff"
+            if self._content_mode in ("diff", "static_diff")
+            else self._full_content_lexer
+        )
+        syntax = Syntax(
+            self._full_content,
+            lexer,
+            theme="monokai",
+            line_numbers=True,
+            word_wrap=True,
+        )
+        if self._content_mode in ("static", "static_diff"):
             header = Text(
                 self._static_header_path or "", style="bold #D7AF5F underline"
             )
-            syntax = Syntax(
-                self._full_content,
-                self._full_content_lexer,
-                theme="monokai",
-                line_numbers=True,
-                word_wrap=True,
-            )
             self.update(Group(header, Text(""), syntax))
-        elif self._content_mode in ("diff", "static_diff"):
-            if self._content_mode == "static_diff":
-                header = Text(
-                    self._static_header_path or "",
-                    style="bold #D7AF5F underline",
-                )
-                syntax = Syntax(
-                    self._full_content,
-                    "diff",
-                    theme="monokai",
-                    line_numbers=True,
-                    word_wrap=True,
-                )
-                self.update(Group(header, Text(""), syntax))
-            else:
-                syntax = Syntax(
-                    self._full_content,
-                    "diff",
-                    theme="monokai",
-                    line_numbers=True,
-                    word_wrap=True,
-                )
-                self.update(syntax)
+        else:
+            self.update(syntax)
 
         self._post_trim_changed()
 
@@ -510,8 +496,16 @@ class AgentFilePanel(Static):
         cache_key = _get_cache_key(agent)
         cache_entry = _file_cache.get(cache_key)
 
-        if cache_entry is not None:
-            # Show existing content with "(refreshing...)" indicator
+        if cache_entry is not None and self._full_content is not None:
+            # Existing content displayed -- update timestamp in-place
+            self._is_background_refreshing = True
+            self._update_timestamp_header(cache_entry.fetch_time, refreshing=True)
+            if self._is_trimmed:
+                self._render_trimmed_content()
+            else:
+                self._render_full_content()
+        elif cache_entry is not None:
+            # Cache exists but not yet displayed -- full display
             self._is_background_refreshing = True
             self._display_file_with_timestamp(
                 cache_entry.diff_output,
@@ -523,11 +517,13 @@ class AgentFilePanel(Static):
             # No cache - show loading for first-time loads
             self._show_loading()
 
-        # Cancel any existing worker
+        self._start_background_fetch(agent)
+
+    def _start_background_fetch(self, agent: Agent) -> None:
+        """Cancel any running worker and start a new background fetch."""
         if self._current_worker is not None and self._current_worker.is_running:
             self._current_worker.cancel()
 
-        # Start background worker using closure to capture agent
         def fetch_task() -> str | None:
             return self._fetch_file_in_background(agent)
 
@@ -711,18 +707,14 @@ class AgentFilePanel(Static):
                         self._has_displayed_content
                         and cache_entry.diff_output == self._last_file_content
                     ):
-                        # Content unchanged - just update timestamp without scroll reset
-                        # Re-display to update the timestamp (removes "refreshing...")
-                        # Preserve user's visible line count (e.g. if they
-                        # paged down) instead of resetting to _base_trim_size
-                        saved_visible = self._visible_line_count
+                        # Content unchanged - just update timestamp header
+                        # and re-render with current trim state preserved
                         scroll_pos = self._save_scroll_position()
-                        self._display_file_with_timestamp(
-                            cache_entry.diff_output,
-                            cache_entry.fetch_time,
-                            post_visibility_message=False,
-                        )
-                        self._visible_line_count = saved_visible
+                        self._update_timestamp_header(cache_entry.fetch_time)
+                        if self._is_trimmed:
+                            self._render_trimmed_content()
+                        else:
+                            self._render_full_content()
                         self._restore_scroll_position(scroll_pos)
                     else:
                         # Content changed - save scroll, update, restore scroll
