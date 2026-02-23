@@ -621,6 +621,35 @@ class AgentDetail(Static):
             return (None, thinking_panel.get_thinking_text(), ".md")
         return (None, None, "")
 
+    def expand_file_trim(self) -> None:
+        """Expand file content by one page."""
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel.expand_by_page()
+
+    def collapse_file_trim(self) -> None:
+        """Collapse file content by one page."""
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel.collapse_by_page()
+
+    def reset_file_trim(self) -> None:
+        """Reset file trim to default page size."""
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel.reset_trim()
+
+    def show_all_file_lines(self) -> None:
+        """Show all file lines (remove trimming)."""
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        file_panel.show_all_lines()
+
+    def is_file_trimmed(self) -> bool:
+        """Check if file content is currently trimmed.
+
+        Returns:
+            True if the file content is trimmed, False otherwise.
+        """
+        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+        return file_panel.is_trimmed
+
     def is_layout_swapped(self) -> bool:
         """Check if the layout is currently swapped.
 

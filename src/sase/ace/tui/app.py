@@ -176,6 +176,10 @@ class AceApp(
         Binding("ctrl+n", "next_agent_file", "Next File", show=False),
         Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
         Binding("E", "edit_panel", "Edit Panel", show=False),
+        Binding("plus", "expand_file_trim", "Expand", show=False),
+        Binding("minus", "collapse_file_trim", "Collapse", show=False),
+        Binding("equals_sign", "reset_file_trim", "Reset Trim", show=False),
+        Binding("asterisk", "show_all_file_lines", "Show All", show=False),
     ]
 
     # Reactive properties

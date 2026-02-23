@@ -368,6 +368,107 @@ class AgentFilePanel(Static):
         self._is_trimmed = True
         self._post_trim_changed()
 
+    @property
+    def is_trimmed(self) -> bool:
+        """Whether the content is currently trimmed."""
+        return self._is_trimmed
+
+    def expand_by_page(self) -> None:
+        """Expand visible lines by one page (base_trim_size)."""
+        if not self._full_content or not self._is_trimmed:
+            return
+        self._visible_line_count = min(
+            self._visible_line_count + self._base_trim_size,
+            self._total_line_count,
+        )
+        if self._visible_line_count >= self._total_line_count:
+            self._visible_line_count = self._total_line_count
+            self._is_trimmed = False
+            self._render_full_content()
+        else:
+            self._render_trimmed_content()
+
+    def collapse_by_page(self) -> None:
+        """Collapse visible lines by one page (base_trim_size)."""
+        if not self._full_content:
+            return
+        scroll_pos = self._save_scroll_position()
+        self._visible_line_count = max(
+            self._visible_line_count - self._base_trim_size,
+            self._base_trim_size,
+        )
+        if self._visible_line_count < self._total_line_count:
+            self._is_trimmed = True
+            self._render_trimmed_content()
+        else:
+            self._is_trimmed = False
+            self._render_full_content()
+        self._restore_scroll_position(scroll_pos)
+
+    def reset_trim(self) -> None:
+        """Reset trim to the default page size for current viewport."""
+        if not self._full_content:
+            return
+        self._base_trim_size = self._compute_trim_size()
+        self._visible_line_count = min(self._base_trim_size, self._total_line_count)
+        if self._visible_line_count < self._total_line_count:
+            self._is_trimmed = True
+            self._render_trimmed_content()
+        else:
+            self._is_trimmed = False
+            self._render_full_content()
+
+    def show_all_lines(self) -> None:
+        """Show all lines (remove trimming)."""
+        if not self._full_content:
+            return
+        self._visible_line_count = self._total_line_count
+        self._is_trimmed = False
+        self._render_full_content()
+
+    def _render_full_content(self) -> None:
+        """Re-render full_content without trimming."""
+        if self._full_content is None:
+            return
+
+        if self._content_mode == "static":
+            header = Text(
+                self._static_header_path or "", style="bold #D7AF5F underline"
+            )
+            syntax = Syntax(
+                self._full_content,
+                self._full_content_lexer,
+                theme="monokai",
+                line_numbers=True,
+                word_wrap=True,
+            )
+            self.update(Group(header, Text(""), syntax))
+        elif self._content_mode in ("diff", "static_diff"):
+            if self._content_mode == "static_diff":
+                header = Text(
+                    self._static_header_path or "",
+                    style="bold #D7AF5F underline",
+                )
+                syntax = Syntax(
+                    self._full_content,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=True,
+                    word_wrap=True,
+                )
+                self.update(Group(header, Text(""), syntax))
+            else:
+                syntax = Syntax(
+                    self._full_content,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=True,
+                    word_wrap=True,
+                )
+                self.update(syntax)
+
+        self._post_trim_changed()
+
     def refresh_file(self, agent: Agent) -> None:
         """Force refresh the file for an agent.
 
