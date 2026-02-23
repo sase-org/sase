@@ -70,6 +70,9 @@ def _flatten_anonymous_workflow(
     # Only flatten pure multi-step workflows (no prompt_part)
     # Workflows with prompt_part are handled by embedded workflow expansion
     if referenced.has_prompt_part():
+        # Rename so workflow_state.json shows the real workflow name
+        # instead of the anonymous "tmp_*" name (e.g., "resume" not "tmp_260223_115114")
+        workflow.name = wf_name
         return None
 
     return referenced, positional_args, named_args
@@ -235,7 +238,9 @@ def execute_workflow(
         flattened = _flatten_anonymous_workflow(workflow, project=project)
         if flattened is not None:
             workflow, positional_args, named_args = flattened
-            name = workflow.name
+        # Sync name — _flatten may rename the workflow even when not flattening
+        # (e.g., prompt_part workflows like #resume get named but not replaced)
+        name = workflow.name
 
     # Compile-time validation with error state on failure
     try:
