@@ -47,3 +47,24 @@ def git_diff_with_untracked(cwd: str, timeout: int = 10) -> str | None:
         return combined if combined.strip() else None
     except (subprocess.TimeoutExpired, Exception):
         return None
+
+
+def git_committed_diff(cwd: str, timeout: int = 10) -> str | None:
+    """Get the diff from the most recent commit (for agents that already committed).
+
+    Returns:
+        Diff output from the last commit, or None if unavailable.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "HEAD~1..HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout
+        return None
+    except (subprocess.TimeoutExpired, Exception):
+        return None

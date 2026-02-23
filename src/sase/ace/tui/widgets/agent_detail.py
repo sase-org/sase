@@ -190,10 +190,14 @@ class AgentDetail(Static):
                 )
                 return
             # For completed agents: if thinking was auto-shown (not
-            # user-chosen) and the agent has files, fall through to
-            # display them.  FileVisibilityChanged will handle
-            # switching from thinking to file view.
-            if not (self._thinking_auto_shown and agent.all_files):
+            # user-chosen) and the agent has files or a workspace to
+            # fetch committed diffs from, fall through to display them.
+            # FileVisibilityChanged will handle switching from thinking
+            # to file view.
+            has_displayable_content = agent.all_files or (
+                agent.workspace_num is not None
+            )
+            if not (self._thinking_auto_shown and has_displayable_content):
                 return
 
         # Bash/python workflow steps don't have files - show thinking as fallback
@@ -213,6 +217,11 @@ class AgentDetail(Static):
             files = agent.all_files
             if files:
                 file_panel.set_file_list(files)
+            elif agent.workspace_num is not None:
+                # No saved diff file — try fetching committed diff from workspace
+                file_panel.update_display(
+                    agent, stale_threshold_seconds=stale_threshold_seconds
+                )
             else:
                 self._auto_show_thinking(agent)
 

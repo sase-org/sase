@@ -192,6 +192,11 @@ class AgentFilePanel(Static):
         Args:
             files: Ordered list of file paths to make available for cycling.
         """
+        # Cancel any running background worker to prevent it from overwriting
+        # the static file display (e.g. stale live-diff from RUNNING phase)
+        if self._current_worker is not None and self._current_worker.is_running:
+            self._current_worker.cancel()
+
         self._reset_trim_state()
         if files == self._file_list:
             return
@@ -660,6 +665,7 @@ class AgentFilePanel(Static):
             text.append("\n\n")
             text.append("No changes detected.\n", style="dim italic")
             self.update(text)
+            self._post_trim_changed()
 
         self._has_displayed_content = True
 
@@ -771,9 +777,15 @@ class AgentFilePanel(Static):
                 os.path.expanduser(agent.project_file)
             )
             if vcs_type == "git":
-                from sase.git_utils import git_diff_with_untracked
+                from sase.git_utils import git_committed_diff, git_diff_with_untracked
 
-                return git_diff_with_untracked(workspace_dir, timeout=10)
+                git_diff = git_diff_with_untracked(workspace_dir, timeout=10)
+                if git_diff:
+                    return git_diff
+                # For completed agents, fall back to the last committed diff
+                if agent.status in ("DONE", "FAILED"):
+                    return git_committed_diff(workspace_dir, timeout=10)
+                return None
             elif vcs_type == "hg":
                 diff_cmd = ["hg", "diff"]
             else:
