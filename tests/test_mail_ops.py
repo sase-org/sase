@@ -4,7 +4,7 @@ from sase.ace.mail_ops import (
     MailPrepResult,
     _modify_description_for_mailing,
 )
-from sase.vcs_provider._hg import _HgProvider
+from sase.vcs_provider.plugins.hg import HgPlugin
 
 
 def test_mail_prep_result_should_mail_true() -> None:
@@ -280,20 +280,20 @@ WANT_LGTM=all"""
 
 def test_hg_prepare_description_for_reword_newlines() -> None:
     """Test that actual newlines are escaped to literal \\n."""
-    provider = _HgProvider()
-    assert provider.prepare_description_for_reword("line1\nline2") == "line1\\nline2"
+    plugin = HgPlugin()
+    assert plugin.vcs_prepare_description_for_reword("line1\nline2") == "line1\\nline2"
 
 
 def test_hg_prepare_description_for_reword_tabs() -> None:
     """Test that actual tabs are escaped to literal \\t."""
-    provider = _HgProvider()
-    assert provider.prepare_description_for_reword("col1\tcol2") == "col1\\tcol2"
+    plugin = HgPlugin()
+    assert plugin.vcs_prepare_description_for_reword("col1\tcol2") == "col1\\tcol2"
 
 
 def test_hg_prepare_description_for_reword_single_quotes() -> None:
     """Test that single quotes are escaped."""
-    provider = _HgProvider()
-    assert provider.prepare_description_for_reword("it's") == "it\\'s"
+    plugin = HgPlugin()
+    assert plugin.vcs_prepare_description_for_reword("it's") == "it\\'s"
 
 
 def test_hg_prepare_description_for_reword_backslashes() -> None:
@@ -302,28 +302,28 @@ def test_hg_prepare_description_for_reword_backslashes() -> None:
     Backslashes must be escaped before newlines, otherwise a literal
     backslash followed by 'n' would become '\\\\n' instead of '\\\\n'.
     """
-    provider = _HgProvider()
-    assert provider.prepare_description_for_reword("path\\to") == "path\\\\to"
+    plugin = HgPlugin()
+    assert plugin.vcs_prepare_description_for_reword("path\\to") == "path\\\\to"
     # Verify ordering: backslash-then-n should NOT become \\n (escaped newline)
-    assert provider.prepare_description_for_reword("\\n") == "\\\\n"
+    assert plugin.vcs_prepare_description_for_reword("\\n") == "\\\\n"
 
 
 def test_hg_prepare_description_for_reword_carriage_returns() -> None:
     """Test that carriage returns are escaped to literal \\r."""
-    provider = _HgProvider()
-    assert provider.prepare_description_for_reword("line1\rline2") == "line1\\rline2"
+    plugin = HgPlugin()
+    assert plugin.vcs_prepare_description_for_reword("line1\rline2") == "line1\\rline2"
 
 
 def test_hg_prepare_description_for_reword_no_special_chars() -> None:
     """Test that strings without special chars pass through unchanged."""
-    provider = _HgProvider()
+    plugin = HgPlugin()
     plain = "A simple description with no special characters."
-    assert provider.prepare_description_for_reword(plain) == plain
+    assert plugin.vcs_prepare_description_for_reword(plain) == plain
 
 
 def test_hg_prepare_description_for_reword_mixed_content() -> None:
     """Test a realistic multi-line description with mixed special chars."""
-    provider = _HgProvider()
+    plugin = HgPlugin()
     description = "Fix the bug\n\nDetails:\n\tUse 'new' approach\\old"
     expected = "Fix the bug\\n\\nDetails:\\n\\tUse \\'new\\' approach\\\\old"
-    assert provider.prepare_description_for_reword(description) == expected
+    assert plugin.vcs_prepare_description_for_reword(description) == expected

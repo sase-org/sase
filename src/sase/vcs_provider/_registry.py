@@ -11,14 +11,6 @@ from ._hookspec import VCSHookSpec
 from ._plugin_manager import VCSPluginManager
 from .config import get_vcs_provider_config
 
-# provider-name → provider-class (used for non-plugin providers during migration)
-_PROVIDERS: dict[str, type[VCSProvider]] = {}
-
-
-def register_provider(name: str, cls: type[VCSProvider]) -> None:
-    """Register a VCS provider class under *name* (e.g. ``"hg"``)."""
-    _PROVIDERS[name] = cls
-
 
 def _classify_git_repo(git_dir: str) -> str:
     """Classify a git repo as ``"github"`` or ``"bare_git"``.
@@ -143,20 +135,22 @@ def get_vcs_provider(cwd: str) -> VCSProvider:
     if vcs_name == "bare_git":
         return _create_bare_git_plugin_provider()
 
-    # Legacy fallback for unknown provider names from env/config overrides
-    _ensure_providers_loaded()
-    cls = _PROVIDERS.get(vcs_name)
-    if cls is None:
-        raise VCSProviderNotFoundError(cwd)
-    return cls()
+    raise VCSProviderNotFoundError(cwd)
+
+
+def _create_plugin_manager() -> pluggy.PluginManager:
+    """Create a base :class:`pluggy.PluginManager` with hookspecs registered."""
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    pm.load_setuptools_entrypoints("sase_vcs")
+    return pm
 
 
 def _create_hg_plugin_provider() -> VCSPluginManager:
     """Create a :class:`VCSPluginManager` backed by :class:`HgPlugin`."""
     from .plugins.hg import HgPlugin
 
-    pm = pluggy.PluginManager("sase_vcs")
-    pm.add_hookspecs(VCSHookSpec)
+    pm = _create_plugin_manager()
     pm.register(HgPlugin())
     return VCSPluginManager(pm)
 
@@ -165,8 +159,7 @@ def _create_github_plugin_provider() -> VCSPluginManager:
     """Create a :class:`VCSPluginManager` backed by :class:`GitHubPlugin`."""
     from .plugins.github import GitHubPlugin
 
-    pm = pluggy.PluginManager("sase_vcs")
-    pm.add_hookspecs(VCSHookSpec)
+    pm = _create_plugin_manager()
     pm.register(GitHubPlugin())
     return VCSPluginManager(pm)
 
@@ -175,16 +168,6 @@ def _create_bare_git_plugin_provider() -> VCSPluginManager:
     """Create a :class:`VCSPluginManager` backed by :class:`BareGitPlugin`."""
     from .plugins.bare_git import BareGitPlugin
 
-    pm = pluggy.PluginManager("sase_vcs")
-    pm.add_hookspecs(VCSHookSpec)
+    pm = _create_plugin_manager()
     pm.register(BareGitPlugin())
     return VCSPluginManager(pm)
-
-
-def _ensure_providers_loaded() -> None:
-    """Import provider modules so they self-register."""
-    if _PROVIDERS:
-        return
-    # Import triggers register_provider() at module level
-    from . import _git as _git  # noqa: F401
-    from . import _hg as _hg  # noqa: F401

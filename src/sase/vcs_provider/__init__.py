@@ -17,7 +17,6 @@ from ._registry import (
     detect_vcs,
     detect_vcs_family,
     get_vcs_provider,
-    register_provider,
 )
 from .config import get_workspace_root
 
@@ -37,5 +36,4 @@ __all__ = [
     "get_workspace_root",
     "hookimpl",
     "hookspec",
-    "register_provider",
 ]

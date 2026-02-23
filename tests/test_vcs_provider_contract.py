@@ -1,8 +1,7 @@
 """Cross-provider contract tests.
 
-Verifies that Git (legacy), Hg, Hg-plugin, GitHub-plugin, and BareGit-plugin
-providers all conform to the same VCSProvider interface contract using
-parameterized tests.
+Verifies that Hg-plugin, GitHub-plugin, and BareGit-plugin providers all
+conform to the same VCSProvider interface contract using parameterized tests.
 """
 
 from collections.abc import Callable
@@ -11,8 +10,6 @@ from unittest.mock import MagicMock, patch
 import pluggy
 import pytest
 from sase.vcs_provider._base import VCSProvider
-from sase.vcs_provider._git import _GitProvider
-from sase.vcs_provider._hg import _HgProvider
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
@@ -48,8 +45,6 @@ def _make_bare_git_plugin_provider() -> VCSPluginManager:
 _PROVIDERS = pytest.mark.parametrize(
     "provider_factory,mock_target",
     [
-        (_GitProvider, "sase.vcs_provider._git.subprocess.run"),
-        (_HgProvider, "sase.vcs_provider._hg.subprocess.run"),
         (_make_hg_plugin_provider, "sase.vcs_provider._command_runner.subprocess.run"),
         (
             _make_github_plugin_provider,
@@ -60,7 +55,7 @@ _PROVIDERS = pytest.mark.parametrize(
             "sase.vcs_provider._command_runner.subprocess.run",
         ),
     ],
-    ids=["git", "hg", "hg_plugin", "github_plugin", "bare_git_plugin"],
+    ids=["hg_plugin", "github_plugin", "bare_git_plugin"],
 )
 
 
@@ -71,7 +66,7 @@ _PROVIDERS = pytest.mark.parametrize(
 def test_provider_is_vcs_provider(
     provider_factory: Callable[[], VCSProvider], mock_target: str
 ) -> None:
-    """Both providers are instances of VCSProvider."""
+    """All providers are instances of VCSProvider."""
     provider = provider_factory()
     assert isinstance(provider, VCSProvider)
 

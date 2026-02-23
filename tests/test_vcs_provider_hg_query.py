@@ -7,20 +7,20 @@ find_reviewers, rewind.
 
 from unittest.mock import MagicMock, patch
 
-from sase.vcs_provider._hg import _HgProvider
+from sase.vcs_provider.plugins.hg import HgPlugin
 
 # === Tests for get_description ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_description_full(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_description returns full description."""
+    """Test HgPlugin.vcs_get_description returns full description."""
     mock_run.return_value = MagicMock(
         returncode=0, stdout="Full commit message\n\nBody text\n", stderr=""
     )
 
-    provider = _HgProvider()
-    success, desc = provider.get_description("abc123", "/workspace")
+    plugin = HgPlugin()
+    success, desc = plugin.vcs_get_description("abc123", "/workspace", short=False)
 
     assert success is True
     assert desc is not None
@@ -28,13 +28,13 @@ def test_hg_get_description_full(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == ["cl_desc", "-r", "abc123"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_description_short(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_description with short=True."""
+    """Test HgPlugin.vcs_get_description with short=True."""
     mock_run.return_value = MagicMock(returncode=0, stdout="Short subject\n", stderr="")
 
-    provider = _HgProvider()
-    success, desc = provider.get_description("abc123", "/workspace", short=True)
+    plugin = HgPlugin()
+    success, desc = plugin.vcs_get_description("abc123", "/workspace", short=True)
 
     assert success is True
     assert desc is not None
@@ -42,15 +42,15 @@ def test_hg_get_description_short(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == ["cl_desc", "-s"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_description_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_description on failure."""
+    """Test HgPlugin.vcs_get_description on failure."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="unknown revision"
     )
 
-    provider = _HgProvider()
-    success, error = provider.get_description("bad_rev", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_get_description("bad_rev", "/workspace", short=False)
 
     assert success is False
     assert error is not None
@@ -60,26 +60,26 @@ def test_hg_get_description_failure(mock_run: MagicMock) -> None:
 # === Tests for has_local_changes ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_has_local_changes_with_changes(mock_run: MagicMock) -> None:
-    """Test _HgProvider.has_local_changes when changes exist."""
+    """Test HgPlugin.vcs_has_local_changes when changes exist."""
     mock_run.return_value = MagicMock(returncode=0, stdout="M file.py\n", stderr="")
 
-    provider = _HgProvider()
-    success, text = provider.has_local_changes("/workspace")
+    plugin = HgPlugin()
+    success, text = plugin.vcs_has_local_changes("/workspace")
 
     assert success is True
     assert text is not None
     assert "file.py" in text
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_has_local_changes_clean(mock_run: MagicMock) -> None:
-    """Test _HgProvider.has_local_changes when workspace is clean."""
+    """Test HgPlugin.vcs_has_local_changes when workspace is clean."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, text = provider.has_local_changes("/workspace")
+    plugin = HgPlugin()
+    success, text = plugin.vcs_has_local_changes("/workspace")
 
     assert success is True
     assert text is None
@@ -88,37 +88,37 @@ def test_hg_has_local_changes_clean(mock_run: MagicMock) -> None:
 # === Tests for get_workspace_name ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_workspace_name_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_workspace_name on success."""
+    """Test HgPlugin.vcs_get_workspace_name on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="my-workspace\n", stderr="")
 
-    provider = _HgProvider()
-    success, name = provider.get_workspace_name("/workspace")
+    plugin = HgPlugin()
+    success, name = plugin.vcs_get_workspace_name("/workspace")
 
     assert success is True
     assert name == "my-workspace"
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_workspace_name_empty(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_workspace_name returns None when empty."""
+    """Test HgPlugin.vcs_get_workspace_name returns None when empty."""
     mock_run.return_value = MagicMock(returncode=0, stdout="\n", stderr="")
 
-    provider = _HgProvider()
-    success, name = provider.get_workspace_name("/workspace")
+    plugin = HgPlugin()
+    success, name = plugin.vcs_get_workspace_name("/workspace")
 
     assert success is True
     assert name is None
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_workspace_name_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_workspace_name on failure."""
+    """Test HgPlugin.vcs_get_workspace_name on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
 
-    provider = _HgProvider()
-    success, error = provider.get_workspace_name("/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_get_workspace_name("/workspace")
 
     assert success is False
     assert error is not None
@@ -128,26 +128,26 @@ def test_hg_get_workspace_name_failure(mock_run: MagicMock) -> None:
 # === Tests for reword ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_reword_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.reword on success."""
+    """Test HgPlugin.vcs_reword on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.reword("new description", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_reword("new description", "/workspace")
 
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == ["sase_hg_reword", "new description"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_reword_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.reword on failure."""
+    """Test HgPlugin.vcs_reword on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="reword error")
 
-    provider = _HgProvider()
-    success, error = provider.reword("desc", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_reword("desc", "/workspace")
 
     assert success is False
     assert error is not None
@@ -157,13 +157,13 @@ def test_hg_reword_failure(mock_run: MagicMock) -> None:
 # === Tests for reword_add_tag ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_reword_add_tag_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.reword_add_tag on success."""
+    """Test HgPlugin.vcs_reword_add_tag on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.reword_add_tag("BUG", "12345", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_reword_add_tag("BUG", "12345", "/workspace")
 
     assert success is True
     assert error is None
@@ -175,13 +175,13 @@ def test_hg_reword_add_tag_success(mock_run: MagicMock) -> None:
     ]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_reword_add_tag_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.reword_add_tag on failure."""
+    """Test HgPlugin.vcs_reword_add_tag on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="reword error")
 
-    provider = _HgProvider()
-    success, error = provider.reword_add_tag("BUG", "12345", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_reword_add_tag("BUG", "12345", "/workspace")
 
     assert success is False
     assert error is not None
@@ -191,37 +191,37 @@ def test_hg_reword_add_tag_failure(mock_run: MagicMock) -> None:
 # === Tests for get_change_url ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_change_url_with_cl(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_change_url when CL number exists."""
+    """Test HgPlugin.vcs_get_change_url when CL number exists."""
     mock_run.return_value = MagicMock(returncode=0, stdout="12345\n", stderr="")
 
-    provider = _HgProvider()
-    success, url = provider.get_change_url("/workspace")
+    plugin = HgPlugin()
+    success, url = plugin.vcs_get_change_url("/workspace")
 
     assert success is True
     assert url == "http://cl/12345"
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_change_url_no_cl(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_change_url when no CL number."""
+    """Test HgPlugin.vcs_get_change_url when no CL number."""
     mock_run.return_value = MagicMock(returncode=0, stdout="not_a_number\n", stderr="")
 
-    provider = _HgProvider()
-    success, url = provider.get_change_url("/workspace")
+    plugin = HgPlugin()
+    success, url = plugin.vcs_get_change_url("/workspace")
 
     assert success is True
     assert url is None
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_change_url_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_change_url when branch_number command fails."""
+    """Test HgPlugin.vcs_get_change_url when branch_number command fails."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
 
-    provider = _HgProvider()
-    success, url = provider.get_change_url("/workspace")
+    plugin = HgPlugin()
+    success, url = plugin.vcs_get_change_url("/workspace")
 
     assert success is False
     assert url is None
@@ -230,25 +230,25 @@ def test_hg_get_change_url_failure(mock_run: MagicMock) -> None:
 # === Tests for get_bug_number ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_bug_number_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_bug_number on success."""
+    """Test HgPlugin.vcs_get_bug_number on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="b/54321\n", stderr="")
 
-    provider = _HgProvider()
-    success, bug = provider.get_bug_number("/workspace")
+    plugin = HgPlugin()
+    success, bug = plugin.vcs_get_bug_number("/workspace")
 
     assert success is True
     assert bug == "b/54321"
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_get_bug_number_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.get_bug_number on failure."""
+    """Test HgPlugin.vcs_get_bug_number on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
 
-    provider = _HgProvider()
-    success, error = provider.get_bug_number("/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_get_bug_number("/workspace")
 
     assert success is False
     assert error is not None
@@ -258,26 +258,26 @@ def test_hg_get_bug_number_failure(mock_run: MagicMock) -> None:
 # === Tests for mail ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_mail_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.mail on success."""
+    """Test HgPlugin.vcs_mail on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.mail("abc123", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_mail("abc123", "/workspace")
 
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == ["hg", "mail", "-r", "abc123"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_mail_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.mail on failure."""
+    """Test HgPlugin.vcs_mail on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="mail error")
 
-    provider = _HgProvider()
-    success, error = provider.mail("abc123", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_mail("abc123", "/workspace")
 
     assert success is False
     assert error is not None
@@ -287,13 +287,13 @@ def test_hg_mail_failure(mock_run: MagicMock) -> None:
 # === Tests for fix ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_fix_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.fix on success."""
+    """Test HgPlugin.vcs_fix on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.fix("/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_fix("/workspace")
 
     assert success is True
     assert error is None
@@ -301,13 +301,13 @@ def test_hg_fix_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == "hg fix"
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_fix_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.fix on failure."""
+    """Test HgPlugin.vcs_fix on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="fix error")
 
-    provider = _HgProvider()
-    success, error = provider.fix("/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_fix("/workspace")
 
     assert success is False
     assert error is not None
@@ -317,13 +317,13 @@ def test_hg_fix_failure(mock_run: MagicMock) -> None:
 # === Tests for upload ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_upload_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.upload on success."""
+    """Test HgPlugin.vcs_upload on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.upload("/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_upload("/workspace")
 
     assert success is True
     assert error is None
@@ -331,13 +331,13 @@ def test_hg_upload_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == "hg upload tree"
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_upload_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.upload on failure."""
+    """Test HgPlugin.vcs_upload on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="upload error")
 
-    provider = _HgProvider()
-    success, error = provider.upload("/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_upload("/workspace")
 
     assert success is False
     assert error is not None
@@ -347,15 +347,15 @@ def test_hg_upload_failure(mock_run: MagicMock) -> None:
 # === Tests for find_reviewers ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_find_reviewers_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.find_reviewers on success."""
+    """Test HgPlugin.vcs_find_reviewers on success."""
     mock_run.return_value = MagicMock(
         returncode=0, stdout="reviewer1,reviewer2\n", stderr=""
     )
 
-    provider = _HgProvider()
-    success, reviewers = provider.find_reviewers("12345", "/workspace")
+    plugin = HgPlugin()
+    success, reviewers = plugin.vcs_find_reviewers("12345", "/workspace")
 
     assert success is True
     assert reviewers is not None
@@ -363,13 +363,13 @@ def test_hg_find_reviewers_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == ["p4", "findreviewers", "-c", "12345"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_find_reviewers_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.find_reviewers on failure."""
+    """Test HgPlugin.vcs_find_reviewers on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="p4 error")
 
-    provider = _HgProvider()
-    success, error = provider.find_reviewers("12345", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_find_reviewers("12345", "/workspace")
 
     assert success is False
     assert error is not None
@@ -379,13 +379,13 @@ def test_hg_find_reviewers_failure(mock_run: MagicMock) -> None:
 # === Tests for rewind ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_rewind_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.rewind on success."""
+    """Test HgPlugin.vcs_rewind on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.rewind(["/tmp/a.diff", "/tmp/b.diff"], "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_rewind(["/tmp/a.diff", "/tmp/b.diff"], "/workspace")
 
     assert success is True
     assert error is None
@@ -398,28 +398,28 @@ def test_hg_rewind_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[1]["timeout"] == 600
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_rewind_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.rewind on failure."""
+    """Test HgPlugin.vcs_rewind on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="rewind error")
 
-    provider = _HgProvider()
-    success, error = provider.rewind(["/tmp/a.diff"], "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_rewind(["/tmp/a.diff"], "/workspace")
 
     assert success is False
     assert error is not None
     assert "sase_hg_rewind failed" in error
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_rewind_timeout(mock_run: MagicMock) -> None:
-    """Test _HgProvider.rewind handles timeout."""
+    """Test HgPlugin.vcs_rewind handles timeout."""
     import subprocess
 
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="sase_hg_rewind", timeout=600)
 
-    provider = _HgProvider()
-    success, error = provider.rewind(["/tmp/a.diff"], "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_rewind(["/tmp/a.diff"], "/workspace")
 
     assert success is False
     assert error is not None

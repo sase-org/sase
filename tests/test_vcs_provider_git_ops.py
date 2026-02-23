@@ -5,18 +5,18 @@ Covers: commit, amend, rename_branch, rebase, archive, prune, stash_and_clean.
 
 from unittest.mock import MagicMock, mock_open, patch
 
-from sase.vcs_provider._git import _GitProvider
+from sase.vcs_provider.plugins.github import GitHubPlugin
 
 # === Tests for commit ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_commit_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.commit commits on current branch."""
+    """Test GitHubPlugin.vcs_commit commits on current branch."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_commit("feature", "/tmp/msg.txt", "/workspace")
 
     assert success is True
     assert error is None
@@ -24,15 +24,15 @@ def test_git_commit_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == ["git", "commit", "-F", "/tmp/msg.txt"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_commit_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.commit when commit fails."""
+    """Test GitHubPlugin.vcs_commit when commit fails."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="nothing to commit"
     )
 
-    provider = _GitProvider()
-    success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_commit("feature", "/tmp/msg.txt", "/workspace")
 
     assert success is False
     assert error is not None
@@ -42,41 +42,41 @@ def test_git_commit_failure(mock_run: MagicMock) -> None:
 # === Tests for amend ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_amend_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.amend on success."""
+    """Test GitHubPlugin.vcs_amend on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.amend("fix typo", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_amend("fix typo", "/workspace", no_upload=False)
 
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == ["git", "commit", "--amend", "-m", "fix typo"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_amend_no_upload_ignored(mock_run: MagicMock) -> None:
-    """Test _GitProvider.amend silently ignores no_upload flag."""
+    """Test GitHubPlugin.vcs_amend silently ignores no_upload flag."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, _ = provider.amend("fix typo", "/workspace", no_upload=True)
+    plugin = GitHubPlugin()
+    success, _ = plugin.vcs_amend("fix typo", "/workspace", no_upload=True)
 
     assert success is True
     # Same command regardless of no_upload
     assert mock_run.call_args[0][0] == ["git", "commit", "--amend", "-m", "fix typo"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_amend_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.amend on failure."""
+    """Test GitHubPlugin.vcs_amend on failure."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="nothing to amend"
     )
 
-    provider = _GitProvider()
-    success, error = provider.amend("note", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_amend("note", "/workspace", no_upload=False)
 
     assert success is False
     assert error is not None
@@ -86,28 +86,28 @@ def test_git_amend_failure(mock_run: MagicMock) -> None:
 # === Tests for rename_branch ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_rename_branch_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.rename_branch on success."""
+    """Test GitHubPlugin.vcs_rename_branch on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.rename_branch("new_name", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_rename_branch("new_name", "/workspace")
 
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == ["git", "branch", "-m", "new_name"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_rename_branch_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.rename_branch on failure."""
+    """Test GitHubPlugin.vcs_rename_branch on failure."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="fatal: rename failed"
     )
 
-    provider = _GitProvider()
-    success, error = provider.rename_branch("bad", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_rename_branch("bad", "/workspace")
 
     assert success is False
     assert error is not None
@@ -117,13 +117,13 @@ def test_git_rename_branch_failure(mock_run: MagicMock) -> None:
 # === Tests for rebase ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_rebase_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.rebase on success."""
+    """Test GitHubPlugin.vcs_rebase on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.rebase("feature", "main", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_rebase("feature", "main", "/workspace")
 
     assert success is True
     assert error is None
@@ -132,13 +132,13 @@ def test_git_rebase_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[1]["timeout"] == 600
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_rebase_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.rebase on failure."""
+    """Test GitHubPlugin.vcs_rebase on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="merge conflict")
 
-    provider = _GitProvider()
-    success, error = provider.rebase("feature", "main", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_rebase("feature", "main", "/workspace")
 
     assert success is False
     assert error is not None
@@ -148,13 +148,13 @@ def test_git_rebase_failure(mock_run: MagicMock) -> None:
 # === Tests for archive ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_archive_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.archive on success."""
+    """Test GitHubPlugin.vcs_archive on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.archive("old-feature", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
 
     assert success is True
     assert error is None
@@ -168,15 +168,15 @@ def test_git_archive_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args_list[1][0][0] == ["git", "branch", "-D", "old-feature"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_archive_tag_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.archive when tagging fails."""
+    """Test GitHubPlugin.vcs_archive when tagging fails."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="tag already exists"
     )
 
-    provider = _GitProvider()
-    success, error = provider.archive("old-feature", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
 
     assert success is False
     assert error is not None
@@ -185,16 +185,16 @@ def test_git_archive_tag_fails(mock_run: MagicMock) -> None:
     mock_run.assert_called_once()
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_archive_branch_delete_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.archive when branch delete fails."""
+    """Test GitHubPlugin.vcs_archive when branch delete fails."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # tag succeeds
         MagicMock(returncode=1, stdout="", stderr="branch not found"),  # delete fails
     ]
 
-    provider = _GitProvider()
-    success, error = provider.archive("old-feature", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
 
     assert success is False
     assert error is not None
@@ -204,28 +204,28 @@ def test_git_archive_branch_delete_fails(mock_run: MagicMock) -> None:
 # === Tests for prune ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_prune_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.prune on success."""
+    """Test GitHubPlugin.vcs_prune on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.prune("dead-branch", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_prune("dead-branch", "/workspace")
 
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == ["git", "branch", "-D", "dead-branch"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_prune_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.prune on failure."""
+    """Test GitHubPlugin.vcs_prune on failure."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="error: branch not found"
     )
 
-    provider = _GitProvider()
-    success, error = provider.prune("nonexistent", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_prune("nonexistent", "/workspace")
 
     assert success is False
     assert error is not None
@@ -236,30 +236,34 @@ def test_git_prune_failure(mock_run: MagicMock) -> None:
 
 
 @patch("builtins.open", mock_open())
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_stash_and_clean_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.stash_and_clean on success."""
+    """Test GitHubPlugin.vcs_stash_and_clean on success."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="diff content", stderr=""),  # diff
         MagicMock(returncode=0, stdout="", stderr=""),  # reset
         MagicMock(returncode=0, stdout="", stderr=""),  # clean
     ]
 
-    provider = _GitProvider()
-    success, error = provider.stash_and_clean("/tmp/backup.diff", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_stash_and_clean(
+        "/tmp/backup.diff", "/workspace", timeout=300
+    )
 
     assert success is True
     assert error is None
     assert mock_run.call_count == 3
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_stash_and_clean_diff_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.stash_and_clean when diff fails."""
+    """Test GitHubPlugin.vcs_stash_and_clean when diff fails."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="diff error")
 
-    provider = _GitProvider()
-    success, error = provider.stash_and_clean("/tmp/backup.diff", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_stash_and_clean(
+        "/tmp/backup.diff", "/workspace", timeout=300
+    )
 
     assert success is False
     assert error is not None
@@ -267,15 +271,17 @@ def test_git_stash_and_clean_diff_fails(mock_run: MagicMock) -> None:
 
 
 @patch("builtins.open", side_effect=OSError("permission denied"))
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_stash_and_clean_write_fails(
     mock_run: MagicMock, mock_open_fn: MagicMock
 ) -> None:
-    """Test _GitProvider.stash_and_clean when file write fails."""
+    """Test GitHubPlugin.vcs_stash_and_clean when file write fails."""
     mock_run.return_value = MagicMock(returncode=0, stdout="diff content", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.stash_and_clean("/tmp/backup.diff", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_stash_and_clean(
+        "/tmp/backup.diff", "/workspace", timeout=300
+    )
 
     assert success is False
     assert error is not None
@@ -283,16 +289,18 @@ def test_git_stash_and_clean_write_fails(
 
 
 @patch("builtins.open", mock_open())
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_stash_and_clean_reset_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.stash_and_clean when reset step fails."""
+    """Test GitHubPlugin.vcs_stash_and_clean when reset step fails."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="diff content", stderr=""),  # diff
         MagicMock(returncode=1, stdout="", stderr="reset error"),  # reset
     ]
 
-    provider = _GitProvider()
-    success, error = provider.stash_and_clean("/tmp/backup.diff", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_stash_and_clean(
+        "/tmp/backup.diff", "/workspace", timeout=300
+    )
 
     assert success is False
     assert error is not None
@@ -300,17 +308,19 @@ def test_git_stash_and_clean_reset_fails(mock_run: MagicMock) -> None:
 
 
 @patch("builtins.open", mock_open())
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_stash_and_clean_clean_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.stash_and_clean when clean step fails."""
+    """Test GitHubPlugin.vcs_stash_and_clean when clean step fails."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="diff content", stderr=""),  # diff
         MagicMock(returncode=0, stdout="", stderr=""),  # reset ok
         MagicMock(returncode=1, stdout="", stderr="clean error"),  # clean fails
     ]
 
-    provider = _GitProvider()
-    success, error = provider.stash_and_clean("/tmp/backup.diff", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_stash_and_clean(
+        "/tmp/backup.diff", "/workspace", timeout=300
+    )
 
     assert success is False
     assert error is not None
@@ -320,13 +330,13 @@ def test_git_stash_and_clean_clean_fails(mock_run: MagicMock) -> None:
 # === Tests for resolve_revision ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_resolve_revision_valid_ref(mock_run: MagicMock) -> None:
-    """Test resolve_revision returns name as-is when it's a valid git ref."""
+    """Test vcs_resolve_revision returns name as-is when it's a valid git ref."""
     mock_run.return_value = MagicMock(returncode=0, stdout="abc123\n", stderr="")
 
-    provider = _GitProvider()
-    result = provider.resolve_revision("sase_dull_basin__1", "sase", "/workspace")
+    plugin = GitHubPlugin()
+    result = plugin.vcs_resolve_revision("sase_dull_basin__1", "sase", "/workspace")
 
     assert result == "sase_dull_basin__1"
     assert mock_run.call_args[0][0] == [
@@ -338,13 +348,13 @@ def test_resolve_revision_valid_ref(mock_run: MagicMock) -> None:
     ]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_resolve_revision_falls_back_to_branch(mock_run: MagicMock) -> None:
-    """Test resolve_revision derives branch name when ref is invalid."""
+    """Test vcs_resolve_revision derives branch name when ref is invalid."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
-    provider = _GitProvider()
-    result = provider.resolve_revision("sase_dull_basin__1", "sase", "/workspace")
+    plugin = GitHubPlugin()
+    result = plugin.vcs_resolve_revision("sase_dull_basin__1", "sase", "/workspace")
 
     assert result == "dull-basin"
 
@@ -352,15 +362,15 @@ def test_resolve_revision_falls_back_to_branch(mock_run: MagicMock) -> None:
 # === Tests for show_revision ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_show_revision_success(mock_run: MagicMock) -> None:
-    """Test show_revision returns patch content on success."""
+    """Test vcs_show_revision returns patch content on success."""
     mock_run.return_value = MagicMock(
         returncode=0, stdout="diff --git a/f b/f\n+hello\n", stderr=""
     )
 
-    provider = _GitProvider()
-    success, output = provider.show_revision("abc123", "/workspace")
+    plugin = GitHubPlugin()
+    success, output = plugin.vcs_show_revision("abc123", "/workspace")
 
     assert success is True
     assert output == "diff --git a/f b/f\n+hello\n"
@@ -373,13 +383,13 @@ def test_show_revision_success(mock_run: MagicMock) -> None:
     ]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_show_revision_failure(mock_run: MagicMock) -> None:
-    """Test show_revision returns error on failure."""
+    """Test vcs_show_revision returns error on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="bad revision")
 
-    provider = _GitProvider()
-    success, error = provider.show_revision("bad-ref", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_show_revision("bad-ref", "/workspace")
 
     assert success is False
     assert error is not None

@@ -1,7 +1,8 @@
 """Integration tests for the Git VCS provider using real git commands.
 
-These tests exercise _GitProvider against actual temporary git repositories
-rather than mocking subprocess. They are skipped when git is not available.
+These tests exercise GitHubPlugin (via VCSPluginManager) against actual
+temporary git repositories rather than mocking subprocess. They are skipped
+when git is not available.
 """
 
 import os
@@ -9,12 +10,22 @@ import shutil
 import subprocess
 import tempfile
 
+import pluggy
 import pytest
-from sase.vcs_provider._git import _GitProvider
+from sase.vcs_provider._hookspec import VCSHookSpec
+from sase.vcs_provider._plugin_manager import VCSPluginManager
+from sase.vcs_provider.plugins.github import GitHubPlugin
 
 _GIT_AVAILABLE = shutil.which("git") is not None
 
 pytestmark = pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+
+
+def _make_github_provider() -> VCSPluginManager:
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    pm.register(GitHubPlugin())
+    return VCSPluginManager(pm)
 
 
 @pytest.fixture()
@@ -59,7 +70,7 @@ def test_integration_diff_detects_changes(git_repo: str) -> None:
     with open(os.path.join(git_repo, "README.md"), "a") as f:
         f.write("new line\n")
 
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, diff_text = provider.diff(git_repo)
 
     assert success is True
@@ -69,7 +80,7 @@ def test_integration_diff_detects_changes(git_repo: str) -> None:
 
 def test_integration_diff_clean_workspace(git_repo: str) -> None:
     """diff returns (True, None) when workspace is clean."""
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, diff_text = provider.diff(git_repo)
 
     assert success is True
@@ -81,7 +92,7 @@ def test_integration_diff_clean_workspace(git_repo: str) -> None:
 
 def test_integration_get_branch_name(git_repo: str) -> None:
     """get_branch_name returns the current branch name."""
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, name = provider.get_branch_name(git_repo)
 
     assert success is True
@@ -95,7 +106,7 @@ def test_integration_get_branch_name(git_repo: str) -> None:
 
 def test_integration_get_description(git_repo: str) -> None:
     """get_description returns the commit message for HEAD."""
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, desc = provider.get_description("HEAD", git_repo)
 
     assert success is True
@@ -108,7 +119,7 @@ def test_integration_get_description(git_repo: str) -> None:
 
 def test_integration_has_local_changes_clean(git_repo: str) -> None:
     """has_local_changes returns (True, None) when clean."""
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, text = provider.has_local_changes(git_repo)
 
     assert success is True
@@ -120,7 +131,7 @@ def test_integration_has_local_changes_dirty(git_repo: str) -> None:
     with open(os.path.join(git_repo, "new_file.txt"), "w") as f:
         f.write("content\n")
 
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, text = provider.has_local_changes(git_repo)
 
     assert success is True
@@ -146,7 +157,7 @@ def test_integration_commit_on_current_branch(git_repo: str) -> None:
     with open(logfile, "w") as f:
         f.write("Add feature\n")
 
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, error = provider.commit("my-feature", logfile, git_repo)
 
     assert success is True
@@ -163,7 +174,7 @@ def test_integration_commit_on_current_branch(git_repo: str) -> None:
 
 def test_integration_amend_changes_message(git_repo: str) -> None:
     """amend changes the commit message."""
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, error = provider.amend("Amended message", git_repo)
 
     assert success is True
@@ -188,7 +199,7 @@ def test_integration_clean_workspace_reverts(git_repo: str) -> None:
     with open(os.path.join(git_repo, "untracked.txt"), "w") as f:
         f.write("untracked\n")
 
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, error = provider.clean_workspace(git_repo)
 
     assert success is True
@@ -208,7 +219,7 @@ def test_integration_clean_workspace_reverts(git_repo: str) -> None:
 
 def test_integration_rename_branch(git_repo: str) -> None:
     """rename_branch renames the current branch."""
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, error = provider.rename_branch("renamed-branch", git_repo)
 
     assert success is True
@@ -243,7 +254,7 @@ def test_integration_apply_patch_roundtrip(git_repo: str) -> None:
         f.write(diff_text)
         patch_file = f.name
 
-    provider = _GitProvider()
+    provider = _make_github_provider()
     try:
         # Revert the change
         clean_ok, _ = provider.clean_workspace(git_repo)
@@ -275,7 +286,7 @@ def test_integration_stash_and_clean(git_repo: str) -> None:
     diff_fd, diff_file = tempfile.mkstemp(suffix=".diff")
     os.close(diff_fd)
     try:
-        provider = _GitProvider()
+        provider = _make_github_provider()
         success, error = provider.stash_and_clean(diff_file, git_repo)
 
         assert success is True
@@ -315,7 +326,7 @@ def test_integration_archive(git_repo: str) -> None:
         check=True,
     )
 
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, error = provider.archive("to-archive", git_repo)
 
     assert success is True
@@ -347,7 +358,7 @@ def test_integration_prune(git_repo: str) -> None:
         check=True,
     )
 
-    provider = _GitProvider()
+    provider = _make_github_provider()
     success, error = provider.prune("to-prune", git_repo)
 
     assert success is True

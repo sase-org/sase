@@ -1,51 +1,51 @@
 """Tests for the git VCS provider — query/info methods and Phase 5 additions.
 
 Covers: get_branch_name, get_description, has_local_changes, get_workspace_name,
-reword, unimplemented methods, get_change_url, get_cl_number, get_bug_number,
+reword, get_change_url, get_cl_number, get_bug_number,
 fix, upload, mail, reword_add_tag.
 """
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-from sase.vcs_provider._git import _GitProvider
+from sase.vcs_provider.plugins.bare_git import BareGitPlugin
+from sase.vcs_provider.plugins.github import GitHubPlugin
 
 # === Tests for get_branch_name ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_branch_name_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_branch_name on success."""
+    """Test GitHubPlugin.vcs_get_branch_name on success."""
     mock_run.return_value = MagicMock(
         returncode=0, stdout="feature-branch\n", stderr=""
     )
 
-    provider = _GitProvider()
-    success, name = provider.get_branch_name("/workspace")
+    plugin = GitHubPlugin()
+    success, name = plugin.vcs_get_branch_name("/workspace")
 
     assert success is True
     assert name == "feature-branch"
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_branch_name_detached_head(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_branch_name returns None in detached HEAD."""
+    """Test GitHubPlugin.vcs_get_branch_name returns None in detached HEAD."""
     mock_run.return_value = MagicMock(returncode=0, stdout="HEAD\n", stderr="")
 
-    provider = _GitProvider()
-    success, name = provider.get_branch_name("/workspace")
+    plugin = GitHubPlugin()
+    success, name = plugin.vcs_get_branch_name("/workspace")
 
     assert success is True
     assert name is None
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_branch_name_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_branch_name on failure."""
+    """Test GitHubPlugin.vcs_get_branch_name on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="not a git repo")
 
-    provider = _GitProvider()
-    success, error = provider.get_branch_name("/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_get_branch_name("/workspace")
 
     assert success is False
     assert error is not None
@@ -55,15 +55,15 @@ def test_git_get_branch_name_failure(mock_run: MagicMock) -> None:
 # === Tests for get_description ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_description_full(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_description returns full description."""
+    """Test GitHubPlugin.vcs_get_description returns full description."""
     mock_run.return_value = MagicMock(
         returncode=0, stdout="Full commit message\n\nBody text\n", stderr=""
     )
 
-    provider = _GitProvider()
-    success, desc = provider.get_description("abc123", "/workspace")
+    plugin = GitHubPlugin()
+    success, desc = plugin.vcs_get_description("abc123", "/workspace", short=False)
 
     assert success is True
     assert desc is not None
@@ -71,13 +71,13 @@ def test_git_get_description_full(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == ["git", "log", "--format=%B", "-n1", "abc123"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_description_short(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_description with short=True."""
+    """Test GitHubPlugin.vcs_get_description with short=True."""
     mock_run.return_value = MagicMock(returncode=0, stdout="Short subject\n", stderr="")
 
-    provider = _GitProvider()
-    success, desc = provider.get_description("abc123", "/workspace", short=True)
+    plugin = GitHubPlugin()
+    success, desc = plugin.vcs_get_description("abc123", "/workspace", short=True)
 
     assert success is True
     assert desc is not None
@@ -85,15 +85,15 @@ def test_git_get_description_short(mock_run: MagicMock) -> None:
     assert mock_run.call_args[0][0] == ["git", "log", "--format=%s", "-n1", "abc123"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_description_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_description on failure."""
+    """Test GitHubPlugin.vcs_get_description on failure."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="unknown revision"
     )
 
-    provider = _GitProvider()
-    success, error = provider.get_description("bad_rev", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_get_description("bad_rev", "/workspace", short=False)
 
     assert success is False
     assert error is not None
@@ -103,40 +103,40 @@ def test_git_get_description_failure(mock_run: MagicMock) -> None:
 # === Tests for has_local_changes ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_has_local_changes_with_changes(mock_run: MagicMock) -> None:
-    """Test _GitProvider.has_local_changes when changes exist."""
+    """Test GitHubPlugin.vcs_has_local_changes when changes exist."""
     mock_run.return_value = MagicMock(
         returncode=0, stdout=" M file.py\n?? new.py\n", stderr=""
     )
 
-    provider = _GitProvider()
-    success, text = provider.has_local_changes("/workspace")
+    plugin = GitHubPlugin()
+    success, text = plugin.vcs_has_local_changes("/workspace")
 
     assert success is True
     assert text is not None
     assert "file.py" in text
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_has_local_changes_clean(mock_run: MagicMock) -> None:
-    """Test _GitProvider.has_local_changes when workspace is clean."""
+    """Test GitHubPlugin.vcs_has_local_changes when workspace is clean."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, text = provider.has_local_changes("/workspace")
+    plugin = GitHubPlugin()
+    success, text = plugin.vcs_has_local_changes("/workspace")
 
     assert success is True
     assert text is None
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_has_local_changes_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.has_local_changes on failure."""
+    """Test GitHubPlugin.vcs_has_local_changes on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="not a repo")
 
-    provider = _GitProvider()
-    success, error = provider.has_local_changes("/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_has_local_changes("/workspace")
 
     assert success is False
     assert error is not None
@@ -146,41 +146,41 @@ def test_git_has_local_changes_failure(mock_run: MagicMock) -> None:
 # === Tests for get_workspace_name ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_workspace_name_from_remote(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_workspace_name extracts from remote URL."""
+    """Test GitHubPlugin.vcs_get_workspace_name extracts from remote URL."""
     mock_run.return_value = MagicMock(
         returncode=0,
         stdout="https://github.com/user/my-repo.git\n",
         stderr="",
     )
 
-    provider = _GitProvider()
-    success, name = provider.get_workspace_name("/workspace")
+    plugin = GitHubPlugin()
+    success, name = plugin.vcs_get_workspace_name("/workspace")
 
     assert success is True
     assert name == "my-repo"
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_workspace_name_no_git_suffix(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_workspace_name with URL without .git suffix."""
+    """Test GitHubPlugin.vcs_get_workspace_name with URL without .git suffix."""
     mock_run.return_value = MagicMock(
         returncode=0,
         stdout="https://github.com/user/my-repo\n",
         stderr="",
     )
 
-    provider = _GitProvider()
-    success, name = provider.get_workspace_name("/workspace")
+    plugin = GitHubPlugin()
+    success, name = plugin.vcs_get_workspace_name("/workspace")
 
     assert success is True
     assert name == "my-repo"
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_workspace_name_fallback_to_root(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_workspace_name falls back to repo root."""
+    """Test GitHubPlugin.vcs_get_workspace_name falls back to repo root."""
     mock_run.side_effect = [
         MagicMock(returncode=1, stdout="", stderr=""),  # no remote
         MagicMock(
@@ -188,23 +188,23 @@ def test_git_get_workspace_name_fallback_to_root(mock_run: MagicMock) -> None:
         ),  # toplevel
     ]
 
-    provider = _GitProvider()
-    success, name = provider.get_workspace_name("/workspace")
+    plugin = GitHubPlugin()
+    success, name = plugin.vcs_get_workspace_name("/workspace")
 
     assert success is True
     assert name == "my-project"
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_workspace_name_both_fail(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_workspace_name when everything fails."""
+    """Test GitHubPlugin.vcs_get_workspace_name when everything fails."""
     mock_run.side_effect = [
         MagicMock(returncode=1, stdout="", stderr=""),  # no remote
         MagicMock(returncode=1, stdout="", stderr=""),  # no toplevel
     ]
 
-    provider = _GitProvider()
-    success, error = provider.get_workspace_name("/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_get_workspace_name("/workspace")
 
     assert success is False
     assert error is not None
@@ -214,13 +214,13 @@ def test_git_get_workspace_name_both_fail(mock_run: MagicMock) -> None:
 # === Tests for reword ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_reword_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.reword on success."""
+    """Test GitHubPlugin.vcs_reword on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.reword("new description", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_reword("new description", "/workspace")
 
     assert success is True
     assert error is None
@@ -233,66 +233,49 @@ def test_git_reword_success(mock_run: MagicMock) -> None:
     ]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_reword_failure(mock_run: MagicMock) -> None:
-    """Test _GitProvider.reword on failure."""
+    """Test GitHubPlugin.vcs_reword on failure."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="nothing to amend"
     )
 
-    provider = _GitProvider()
-    success, error = provider.reword("desc", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_reword("desc", "/workspace")
 
     assert success is False
     assert error is not None
     assert "git commit --amend failed" in error
 
 
-# === Tests for unimplemented methods ===
-
-
-def test_git_unimplemented_methods() -> None:
-    """Test that Google-internal methods raise NotImplementedError."""
-    provider = _GitProvider()
-
-    methods_to_test = [
-        lambda: provider.find_reviewers("123", "/cwd"),
-        lambda: provider.rewind(["/path"], "/cwd"),
-    ]
-
-    for method in methods_to_test:
-        with pytest.raises(NotImplementedError):
-            method()
-
-
 # === Tests for get_change_url ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_change_url_with_pr(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_change_url when PR exists."""
+    """Test GitHubPlugin.vcs_get_change_url when PR exists."""
     mock_run.return_value = MagicMock(
         returncode=0,
         stdout="https://github.com/user/repo/pull/42\n",
         stderr="",
     )
 
-    provider = _GitProvider()
-    success, url = provider.get_change_url("/workspace")
+    plugin = GitHubPlugin()
+    success, url = plugin.vcs_get_change_url("/workspace")
 
     assert success is True
     assert url == "https://github.com/user/repo/pull/42"
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_change_url_no_pr(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_change_url when no PR exists."""
+    """Test GitHubPlugin.vcs_get_change_url when no PR exists."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="no pull requests found"
     )
 
-    provider = _GitProvider()
-    success, url = provider.get_change_url("/workspace")
+    plugin = GitHubPlugin()
+    success, url = plugin.vcs_get_change_url("/workspace")
 
     assert success is True
     assert url is None
@@ -301,32 +284,27 @@ def test_git_get_change_url_no_pr(mock_run: MagicMock) -> None:
 # === Tests for get_cl_number (PR number) ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_cl_number_with_pr(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_cl_number when PR exists."""
-    mock_run.side_effect = [
-        MagicMock(
-            returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
-        ),  # _is_bare_remote → GitHub URL → False
-        MagicMock(returncode=0, stdout="42\n", stderr=""),  # gh pr view
-    ]
+    """Test GitHubPlugin.vcs_get_cl_number when PR exists."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="42\n", stderr="")
 
-    provider = _GitProvider()
-    success, number = provider.get_cl_number("/workspace")
+    plugin = GitHubPlugin()
+    success, number = plugin.vcs_get_cl_number("/workspace")
 
     assert success is True
     assert number == "42"
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_cl_number_no_pr(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_cl_number when no PR exists."""
+    """Test GitHubPlugin.vcs_get_cl_number when no PR exists."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="no pull requests found"
     )
 
-    provider = _GitProvider()
-    success, number = provider.get_cl_number("/workspace")
+    plugin = GitHubPlugin()
+    success, number = plugin.vcs_get_cl_number("/workspace")
 
     assert success is True
     assert number is None
@@ -336,9 +314,9 @@ def test_git_get_cl_number_no_pr(mock_run: MagicMock) -> None:
 
 
 def test_git_get_bug_number() -> None:
-    """Test _GitProvider.get_bug_number returns empty string."""
-    provider = _GitProvider()
-    success, bug = provider.get_bug_number("/workspace")
+    """Test GitHubPlugin.vcs_get_bug_number returns empty string."""
+    plugin = GitHubPlugin()
+    success, bug = plugin.vcs_get_bug_number("/workspace")
 
     assert success is True
     assert bug == ""
@@ -348,18 +326,18 @@ def test_git_get_bug_number() -> None:
 
 
 def test_git_fix_noop() -> None:
-    """Test _GitProvider.fix returns success (no-op)."""
-    provider = _GitProvider()
-    success, error = provider.fix("/workspace")
+    """Test GitHubPlugin.vcs_fix returns success (no-op)."""
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_fix("/workspace")
 
     assert success is True
     assert error is None
 
 
 def test_git_upload_noop() -> None:
-    """Test _GitProvider.upload returns success (no-op)."""
-    provider = _GitProvider()
-    success, error = provider.upload("/workspace")
+    """Test GitHubPlugin.vcs_upload returns success (no-op)."""
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_upload("/workspace")
 
     assert success is True
     assert error is None
@@ -368,24 +346,21 @@ def test_git_upload_noop() -> None:
 # === Tests for mail ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_mail_push_and_create_pr(mock_run: MagicMock) -> None:
-    """Test _GitProvider.mail pushes and creates PR when none exists."""
+    """Test GitHubPlugin.vcs_mail pushes and creates PR when none exists."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # git push
-        MagicMock(
-            returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
-        ),  # _is_bare_remote → GitHub URL → False
         MagicMock(returncode=1, stdout="", stderr="no PR"),  # gh pr view (no PR)
         MagicMock(returncode=0, stdout="", stderr=""),  # gh pr create
     ]
 
-    provider = _GitProvider()
-    success, error = provider.mail("feature-branch", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_mail("feature-branch", "/workspace")
 
     assert success is True
     assert error is None
-    assert mock_run.call_count == 4
+    assert mock_run.call_count == 3
     assert mock_run.call_args_list[0][0][0] == [
         "git",
         "push",
@@ -393,37 +368,34 @@ def test_git_mail_push_and_create_pr(mock_run: MagicMock) -> None:
         "origin",
         "feature-branch",
     ]
-    assert mock_run.call_args_list[3][0][0] == ["gh", "pr", "create", "--fill"]
+    assert mock_run.call_args_list[2][0][0] == ["gh", "pr", "create", "--fill"]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_mail_push_existing_pr(mock_run: MagicMock) -> None:
-    """Test _GitProvider.mail just pushes when PR already exists."""
+    """Test GitHubPlugin.vcs_mail just pushes when PR already exists."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # git push
-        MagicMock(
-            returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
-        ),  # _is_bare_remote → GitHub URL → False
         MagicMock(returncode=0, stdout="42\n", stderr=""),  # gh pr view (PR exists)
     ]
 
-    provider = _GitProvider()
-    success, error = provider.mail("feature-branch", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_mail("feature-branch", "/workspace")
 
     assert success is True
     assert error is None
-    assert mock_run.call_count == 3
+    assert mock_run.call_count == 2
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_mail_push_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.mail when push fails."""
+    """Test GitHubPlugin.vcs_mail when push fails."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="permission denied"
     )
 
-    provider = _GitProvider()
-    success, error = provider.mail("feature-branch", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_mail("feature-branch", "/workspace")
 
     assert success is False
     assert error is not None
@@ -433,16 +405,16 @@ def test_git_mail_push_fails(mock_run: MagicMock) -> None:
 # === Tests for reword_add_tag ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_reword_add_tag_success(mock_run: MagicMock) -> None:
-    """Test _GitProvider.reword_add_tag appends tag to commit message."""
+    """Test GitHubPlugin.vcs_reword_add_tag appends tag to commit message."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="Existing message\n", stderr=""),  # git log
         MagicMock(returncode=0, stdout="", stderr=""),  # git commit --amend
     ]
 
-    provider = _GitProvider()
-    success, error = provider.reword_add_tag("BUG", "12345", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_reword_add_tag("BUG", "12345", "/workspace")
 
     assert success is True
     assert error is None
@@ -452,69 +424,33 @@ def test_git_reword_add_tag_success(mock_run: MagicMock) -> None:
     assert "Existing message\nBUG=12345" in new_msg
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_reword_add_tag_log_fails(mock_run: MagicMock) -> None:
-    """Test _GitProvider.reword_add_tag when git log fails."""
+    """Test GitHubPlugin.vcs_reword_add_tag when git log fails."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="not a git repo")
 
-    provider = _GitProvider()
-    success, error = provider.reword_add_tag("BUG", "12345", "/workspace")
+    plugin = GitHubPlugin()
+    success, error = plugin.vcs_reword_add_tag("BUG", "12345", "/workspace")
 
     assert success is False
     assert error is not None
 
 
-# === Tests for _is_bare_remote ===
-
-
-@patch("sase.vcs_provider._git.subprocess.run")
-def test_is_bare_remote_local_path(mock_run: MagicMock) -> None:
-    """Test _is_bare_remote returns True for local filesystem path."""
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout="/home/user/repos/proj.git\n", stderr=""
-    )
-    provider = _GitProvider()
-    assert provider._is_bare_remote("/workspace") is True
-
-
-@patch("sase.vcs_provider._git.subprocess.run")
-def test_is_bare_remote_github_url(mock_run: MagicMock) -> None:
-    """Test _is_bare_remote returns False for GitHub URL."""
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout="https://github.com/user/repo.git\n", stderr=""
-    )
-    provider = _GitProvider()
-    assert provider._is_bare_remote("/workspace") is False
-
-
-@patch("sase.vcs_provider._git.subprocess.run")
-def test_is_bare_remote_failure(mock_run: MagicMock) -> None:
-    """Test _is_bare_remote returns False when git config fails."""
-    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
-    provider = _GitProvider()
-    assert provider._is_bare_remote("/workspace") is False
-
-
 # === Tests for bare remote behavior in mail/get_change_url/get_cl_number ===
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_mail_bare_remote_push_only(mock_run: MagicMock) -> None:
-    """Test _GitProvider.mail pushes without PR creation for bare remotes."""
-    mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="", stderr=""),  # git push
-        MagicMock(
-            returncode=0, stdout="/repos/proj.git\n", stderr=""
-        ),  # git config (bare remote check)
-    ]
+    """Test BareGitPlugin.vcs_mail pushes without PR creation for bare remotes."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _GitProvider()
-    success, error = provider.mail("feature-branch", "/workspace")
+    plugin = BareGitPlugin()
+    success, error = plugin.vcs_mail("feature-branch", "/workspace")
 
     assert success is True
     assert error is None
-    # Should only call push + remote check, no gh pr commands
-    assert mock_run.call_count == 2
+    # Should only call push, no gh pr commands
+    assert mock_run.call_count == 1
     assert mock_run.call_args_list[0][0][0] == [
         "git",
         "push",
@@ -524,33 +460,19 @@ def test_git_mail_bare_remote_push_only(mock_run: MagicMock) -> None:
     ]
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
-def test_git_get_change_url_bare_remote(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_change_url returns None for bare remotes."""
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout="/repos/proj.git\n", stderr=""
-    )
-
-    provider = _GitProvider()
-    success, url = provider.get_change_url("/workspace")
+def test_git_get_change_url_bare_remote() -> None:
+    """Test BareGitPlugin.vcs_get_change_url returns None for bare remotes."""
+    plugin = BareGitPlugin()
+    success, url = plugin.vcs_get_change_url("/workspace")
 
     assert success is True
     assert url is None
-    # Should only call git config, not gh pr view
-    assert mock_run.call_count == 1
 
 
-@patch("sase.vcs_provider._git.subprocess.run")
-def test_git_get_cl_number_bare_remote(mock_run: MagicMock) -> None:
-    """Test _GitProvider.get_cl_number returns None for bare remotes."""
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout="/repos/proj.git\n", stderr=""
-    )
-
-    provider = _GitProvider()
-    success, number = provider.get_cl_number("/workspace")
+def test_git_get_cl_number_bare_remote() -> None:
+    """Test BareGitPlugin.vcs_get_cl_number returns None for bare remotes."""
+    plugin = BareGitPlugin()
+    success, number = plugin.vcs_get_cl_number("/workspace")
 
     assert success is True
     assert number is None
-    # Should only call git config, not gh pr view
-    assert mock_run.call_count == 1

@@ -5,18 +5,18 @@ Covers: commit, rename_branch (failure), rebase, archive, prune.
 
 from unittest.mock import MagicMock, patch
 
-from sase.vcs_provider._hg import _HgProvider
+from sase.vcs_provider.plugins.hg import HgPlugin
 
 # === Tests for commit ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_commit_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.commit on success."""
+    """Test HgPlugin.vcs_commit on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_commit("feature", "/tmp/msg.txt", "/workspace")
 
     assert success is True
     assert error is None
@@ -25,15 +25,15 @@ def test_hg_commit_success(mock_run: MagicMock) -> None:
     assert 'hg commit --name "feature" --logfile "/tmp/msg.txt"' == cmd_str
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_commit_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.commit on failure."""
+    """Test HgPlugin.vcs_commit on failure."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="nothing to commit"
     )
 
-    provider = _HgProvider()
-    success, error = provider.commit("feature", "/tmp/msg.txt", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_commit("feature", "/tmp/msg.txt", "/workspace")
 
     assert success is False
     assert error is not None
@@ -43,13 +43,13 @@ def test_hg_commit_failure(mock_run: MagicMock) -> None:
 # === Tests for rename_branch (failure case) ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_rename_branch_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.rename_branch on failure."""
+    """Test HgPlugin.vcs_rename_branch on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="rename failed")
 
-    provider = _HgProvider()
-    success, error = provider.rename_branch("bad_name", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_rename_branch("bad_name", "/workspace")
 
     assert success is False
     assert error is not None
@@ -59,13 +59,13 @@ def test_hg_rename_branch_failure(mock_run: MagicMock) -> None:
 # === Tests for rebase ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_rebase_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.rebase on success."""
+    """Test HgPlugin.vcs_rebase on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.rebase("feature", "main", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_rebase("feature", "main", "/workspace")
 
     assert success is True
     assert error is None
@@ -74,13 +74,13 @@ def test_hg_rebase_success(mock_run: MagicMock) -> None:
     assert mock_run.call_args[1]["timeout"] == 600
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_rebase_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.rebase on failure."""
+    """Test HgPlugin.vcs_rebase on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="merge conflict")
 
-    provider = _HgProvider()
-    success, error = provider.rebase("feature", "main", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_rebase("feature", "main", "/workspace")
 
     assert success is False
     assert error is not None
@@ -90,26 +90,26 @@ def test_hg_rebase_failure(mock_run: MagicMock) -> None:
 # === Tests for archive ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_archive_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.archive on success."""
+    """Test HgPlugin.vcs_archive on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.archive("old-feature", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
 
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == ["sase_hg_archive", "old-feature"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_archive_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.archive on failure."""
+    """Test HgPlugin.vcs_archive on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="archive error")
 
-    provider = _HgProvider()
-    success, error = provider.archive("old-feature", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_archive("old-feature", "/workspace")
 
     assert success is False
     assert error is not None
@@ -119,26 +119,26 @@ def test_hg_archive_failure(mock_run: MagicMock) -> None:
 # === Tests for prune ===
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_prune_success(mock_run: MagicMock) -> None:
-    """Test _HgProvider.prune on success."""
+    """Test HgPlugin.vcs_prune on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    provider = _HgProvider()
-    success, error = provider.prune("dead-branch", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_prune("dead-branch", "/workspace")
 
     assert success is True
     assert error is None
     assert mock_run.call_args[0][0] == ["sase_hg_prune", "dead-branch"]
 
 
-@patch("sase.vcs_provider._hg.subprocess.run")
+@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_hg_prune_failure(mock_run: MagicMock) -> None:
-    """Test _HgProvider.prune on failure."""
+    """Test HgPlugin.vcs_prune on failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="prune error")
 
-    provider = _HgProvider()
-    success, error = provider.prune("nonexistent", "/workspace")
+    plugin = HgPlugin()
+    success, error = plugin.vcs_prune("nonexistent", "/workspace")
 
     assert success is False
     assert error is not None
