@@ -257,8 +257,19 @@ class AgentFilePanel(Static):
         )
 
     def _compute_trim_size(self) -> int:
-        """Return the number of lines per trim page."""
-        return 100
+        """Compute the number of lines to show based on container height.
+
+        Returns:
+            The trim size, or 0 if container is unavailable.
+        """
+        container = self._get_scroll_container()
+        if container is None:
+            return 0
+        try:
+            height = container.scrollable_content_region.height
+        except Exception:
+            return 0
+        return max(10, height - 4)
 
     def _reset_trim_state(self) -> None:
         """Reset all trim-related fields to defaults."""
