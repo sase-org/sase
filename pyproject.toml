@@ -125,7 +125,7 @@ addopts = [
     "--import-mode=importlib",
     "--strict-markers",
     "--strict-config",
-    "-n", "10",
+    "-n", "0",
     "--dist", "worksteal",
     "--cov=sase",
     "--cov-report=term-missing:skip-covered",
