@@ -36,31 +36,10 @@ dev = [
 
 [project.scripts]
 sase = "sase.main.entry:main"
-sase_hg_amend = "sase.scripts:sase_hg_amend"
-sase_hg_archive = "sase.scripts:sase_hg_archive"
-sase_hg_branch_bug = "sase.scripts:sase_hg_branch_bug"
-sase_hg_clean = "sase.scripts:sase_hg_clean"
-sase_hg_get_workspace = "sase.scripts:sase_hg_get_workspace"
-sase_hg_lint = "sase.scripts:sase_hg_lint"
-sase_hg_patch = "sase.scripts:sase_hg_patch"
-sase_hg_presubmit = "sase.scripts:sase_hg_presubmit"
-sase_hg_prune = "sase.scripts:sase_hg_prune"
-sase_hg_rebase = "sase.scripts:sase_hg_rebase"
-sase_hg_rename = "sase.scripts:sase_hg_rename"
-sase_hg_reword = "sase.scripts:sase_hg_reword"
-sase_hg_sync = "sase.scripts:sase_hg_sync"
-sase_hg_unamend = "sase.scripts:sase_hg_unamend"
-sase_hg_update = "sase.scripts:sase_hg_update"
-sase_hg_upload = "sase.scripts:sase_hg_upload"
-sase_cl_workflow = "sase.scripts:sase_cl_workflow"
 sase_commit_workflow = "sase.scripts:sase_commit_workflow"
-sase_propose_workflow = "sase.scripts:sase_propose_workflow"
 sase_json_workflow = "sase.scripts:sase_json_workflow"
 sase_split_setup = "sase.scripts:sase_split_setup"
 sase_split_prepare_execute = "sase.scripts:sase_split_prepare_execute"
-sase_hg_rewind = "sase.scripts:sase_hg_rewind"
-sase_metahook_scuba = "sase.scripts:sase_metahook_scuba"
-sase_metahook_hg_presubmit_tap = "sase.scripts:sase_metahook_hg_presubmit_tap"
 sase_migrate_statuses = "sase.scripts:sase_migrate_statuses"
 sase_chop_hook_checks = "sase.scripts:sase_chop_hook_checks"
 sase_chop_mentor_checks = "sase.scripts:sase_chop_mentor_checks"
@@ -77,7 +56,6 @@ sase_chop_error_digest = "sase.scripts:sase_chop_error_digest"
 
 [project.entry-points."sase_vcs"]
 bare_git = "sase.vcs_provider.plugins.bare_git:BareGitPlugin"
-hg = "sase.vcs_provider.plugins.hg:HgPlugin"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]

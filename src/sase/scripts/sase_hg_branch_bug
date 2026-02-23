@@ -1,3 +1,0 @@
-#!/bin/bash
-
-cl_desc | perl -nE 'print s{BUG=}{}gr if /BUG=/'

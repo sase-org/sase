@@ -21,19 +21,22 @@ class TestCrsWorkflow:
         assert "change request" in workflow.description
 
     def test_build_crs_prompt_basic(self) -> None:
-        """Test building a CRS prompt."""
+        """Test building a CRS prompt.
+
+        The crs xprompt is provided by sase-hg plugin. When the plugin is not
+        installed, process_xprompt_references returns the raw reference string.
+        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write('{"comments": []}\n')
             comments_file = f.name
 
         try:
             prompt = _build_crs_prompt(comments_file)
-            # #cl is now provided by #propose (not inline in crs.md)
-            # but the prompt should still have the core content
-            assert f"@{comments_file}" in prompt
-            assert "Critique" in prompt
-            # #propose reference should be present for later workflow expansion
-            assert "#propose" in prompt
+            # The prompt should contain the comments file path reference
+            assert comments_file in prompt
+            # When sase-hg plugin provides crs.md, expanded prompt contains
+            # @file and Critique text; otherwise the raw #crs(...) reference
+            assert "#crs" in prompt or "Critique" in prompt
         finally:
             os.unlink(comments_file)
 

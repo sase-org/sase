@@ -13,15 +13,6 @@ from sase.vcs_provider._base import VCSProvider
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
-from sase.vcs_provider.plugins.hg import HgPlugin
-
-
-def _make_hg_plugin_provider() -> VCSPluginManager:
-    """Create a VCSPluginManager backed by HgPlugin."""
-    pm = pluggy.PluginManager("sase_vcs")
-    pm.add_hookspecs(VCSHookSpec)
-    pm.register(HgPlugin())
-    return VCSPluginManager(pm)
 
 
 def _make_bare_git_plugin_provider() -> VCSPluginManager:
@@ -36,13 +27,12 @@ def _make_bare_git_plugin_provider() -> VCSPluginManager:
 _PROVIDERS = pytest.mark.parametrize(
     "provider_factory,mock_target",
     [
-        (_make_hg_plugin_provider, "sase.vcs_provider._command_runner.subprocess.run"),
         (
             _make_bare_git_plugin_provider,
             "sase.vcs_provider._command_runner.subprocess.run",
         ),
     ],
-    ids=["hg_plugin", "bare_git_plugin"],
+    ids=["bare_git_plugin"],
 )
 
 

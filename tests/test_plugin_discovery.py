@@ -415,17 +415,17 @@ def test_find_plugin_class_not_found() -> None:
 def test_create_provider_for_success() -> None:
     """_create_provider_for returns a VCSPluginManager for a valid plugin."""
     from sase.vcs_provider._plugin_manager import VCSPluginManager
-    from sase.vcs_provider.plugins.hg import HgPlugin
+    from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
     ep = MagicMock()
-    ep.name = "hg"
-    ep.load.return_value = HgPlugin
+    ep.name = "bare_git"
+    ep.load.return_value = BareGitPlugin
 
     with patch(
         "sase.vcs_provider._registry.importlib.metadata.entry_points",
         return_value=[ep],
     ):
-        provider = _create_provider_for("hg", "/some/dir")
+        provider = _create_provider_for("bare_git", "/some/dir")
 
     assert isinstance(provider, VCSPluginManager)
 
