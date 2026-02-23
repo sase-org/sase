@@ -17,7 +17,7 @@ from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider._registry import _resolve_vcs_name, detect_vcs, detect_vcs_family
 from sase.vcs_provider._types import CommandOutput
 from sase.vcs_provider.config import get_vcs_provider_config, get_workspace_root
-from sase.vcs_provider.plugins.github import GitHubPlugin
+from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 from sase.vcs_provider.plugins.hg import HgPlugin
 
 # === Tests for CommandOutput ===
@@ -364,10 +364,10 @@ def test_hg_prepare_description_for_reword_escapes_newlines() -> None:
 
 
 def test_git_prepare_description_for_reword_passthrough() -> None:
-    """Test that GitHubPlugin (via VCSPluginManager) returns description unchanged."""
+    """Test that BareGitPlugin (via VCSPluginManager) returns description unchanged."""
     pm = pluggy.PluginManager("sase_vcs")
     pm.add_hookspecs(VCSHookSpec)
-    pm.register(GitHubPlugin())
+    pm.register(BareGitPlugin())
     manager = VCSPluginManager(pm)
     assert manager.prepare_description_for_reword("hello\nworld") == "hello\nworld"
 

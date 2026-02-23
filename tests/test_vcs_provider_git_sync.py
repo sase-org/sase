@@ -7,14 +7,14 @@ continue_sync, abort_sync.
 import os
 from unittest.mock import MagicMock, patch
 
-from sase.vcs_provider.plugins.github import GitHubPlugin
+from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 # === Tests for sync_workspace ===
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_sync_workspace_success(mock_run: MagicMock) -> None:
-    """Test GitHubPlugin.vcs_sync_workspace on success."""
+    """Test BareGitPlugin.vcs_sync_workspace on success."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # git fetch origin
         MagicMock(
@@ -23,7 +23,7 @@ def test_git_sync_workspace_success(mock_run: MagicMock) -> None:
         MagicMock(returncode=0, stdout="", stderr=""),  # git rebase
     ]
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_sync_workspace("/workspace")
 
     assert success is True
@@ -35,12 +35,12 @@ def test_git_sync_workspace_success(mock_run: MagicMock) -> None:
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_sync_workspace_fetch_fails(mock_run: MagicMock) -> None:
-    """Test GitHubPlugin.vcs_sync_workspace when fetch fails."""
+    """Test BareGitPlugin.vcs_sync_workspace when fetch fails."""
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="fatal: unable to access remote"
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_sync_workspace("/workspace")
 
     assert success is False
@@ -50,7 +50,7 @@ def test_git_sync_workspace_fetch_fails(mock_run: MagicMock) -> None:
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_sync_workspace_rebase_fails(mock_run: MagicMock) -> None:
-    """Test GitHubPlugin.vcs_sync_workspace when rebase fails."""
+    """Test BareGitPlugin.vcs_sync_workspace when rebase fails."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # fetch succeeds
         MagicMock(
@@ -59,7 +59,7 @@ def test_git_sync_workspace_rebase_fails(mock_run: MagicMock) -> None:
         MagicMock(returncode=1, stdout="", stderr="CONFLICT"),  # rebase fails
     ]
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_sync_workspace("/workspace")
 
     assert success is False
@@ -69,14 +69,14 @@ def test_git_sync_workspace_rebase_fails(mock_run: MagicMock) -> None:
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_sync_workspace_default_branch_fallback(mock_run: MagicMock) -> None:
-    """Test GitHubPlugin.vcs_sync_workspace falls back to 'main' when symbolic-ref fails."""
+    """Test BareGitPlugin.vcs_sync_workspace falls back to 'main' when symbolic-ref fails."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # fetch succeeds
         MagicMock(returncode=1, stdout="", stderr=""),  # symbolic-ref fails
         MagicMock(returncode=0, stdout="", stderr=""),  # rebase succeeds
     ]
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_sync_workspace("/workspace")
 
     assert success is True
@@ -87,7 +87,7 @@ def test_git_sync_workspace_default_branch_fallback(mock_run: MagicMock) -> None
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_sync_workspace_detects_master_branch(mock_run: MagicMock) -> None:
-    """Test GitHubPlugin.vcs_sync_workspace detects 'master' as default branch."""
+    """Test BareGitPlugin.vcs_sync_workspace detects 'master' as default branch."""
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # fetch succeeds
         MagicMock(
@@ -96,7 +96,7 @@ def test_git_sync_workspace_detects_master_branch(mock_run: MagicMock) -> None:
         MagicMock(returncode=0, stdout="", stderr=""),  # rebase succeeds
     ]
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_sync_workspace("/workspace")
 
     assert success is True
@@ -118,7 +118,7 @@ def test_git_is_sync_in_progress_rebase_merge(
     )
     mock_isdir.side_effect = lambda p: "rebase-merge" in p
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     assert plugin.vcs_is_sync_in_progress("/workspace") is True
 
 
@@ -133,7 +133,7 @@ def test_git_is_sync_in_progress_rebase_apply(
     )
     mock_isdir.side_effect = lambda p: "rebase-apply" in p
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     assert plugin.vcs_is_sync_in_progress("/workspace") is True
 
 
@@ -147,7 +147,7 @@ def test_git_is_sync_in_progress_no_rebase(
         returncode=0, stdout="/workspace/.git\n", stderr=""
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     assert plugin.vcs_is_sync_in_progress("/workspace") is False
 
 
@@ -156,7 +156,7 @@ def test_git_is_sync_in_progress_git_fails(mock_run: MagicMock) -> None:
     """Test vcs_is_sync_in_progress returns False when git rev-parse fails."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="not a git repo")
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     assert plugin.vcs_is_sync_in_progress("/workspace") is False
 
 
@@ -171,7 +171,7 @@ def test_git_is_sync_in_progress_relative_git_dir(
         p == os.path.join("/workspace", ".git", "rebase-merge")
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     assert plugin.vcs_is_sync_in_progress("/workspace") is True
 
 
@@ -185,7 +185,7 @@ def test_git_get_conflicted_files_returns_list(mock_run: MagicMock) -> None:
         returncode=0, stdout="src/foo.py\nsrc/bar.py\n", stderr=""
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     files = plugin.vcs_get_conflicted_files("/workspace")
 
     assert files == ["src/foo.py", "src/bar.py"]
@@ -197,7 +197,7 @@ def test_git_get_conflicted_files_no_conflicts(mock_run: MagicMock) -> None:
     """Test vcs_get_conflicted_files returns empty list when no conflicts."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     assert plugin.vcs_get_conflicted_files("/workspace") == []
 
 
@@ -206,7 +206,7 @@ def test_git_get_conflicted_files_command_fails(mock_run: MagicMock) -> None:
     """Test vcs_get_conflicted_files returns empty list on command failure."""
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     assert plugin.vcs_get_conflicted_files("/workspace") == []
 
 
@@ -217,7 +217,7 @@ def test_git_get_conflicted_files_extra_whitespace(mock_run: MagicMock) -> None:
         returncode=0, stdout="  src/foo.py  \n\n  src/bar.py  \n\n", stderr=""
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     files = plugin.vcs_get_conflicted_files("/workspace")
 
     assert files == ["  src/foo.py  ", "  src/bar.py  "]
@@ -231,7 +231,7 @@ def test_git_continue_sync_success(mock_run: MagicMock) -> None:
     """Test vcs_continue_sync on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_continue_sync("/workspace")
 
     assert success is True
@@ -248,7 +248,7 @@ def test_git_continue_sync_more_conflicts(mock_run: MagicMock) -> None:
         returncode=1, stdout="", stderr="CONFLICT (content): Merge conflict in file.py"
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_continue_sync("/workspace")
 
     assert success is False
@@ -265,7 +265,7 @@ def test_git_continue_sync_no_rebase(mock_run: MagicMock) -> None:
         stderr="fatal: No rebase in progress?",
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_continue_sync("/workspace")
 
     assert success is False
@@ -281,7 +281,7 @@ def test_git_abort_sync_success(mock_run: MagicMock) -> None:
     """Test vcs_abort_sync on success."""
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_abort_sync("/workspace")
 
     assert success is True
@@ -298,7 +298,7 @@ def test_git_abort_sync_no_rebase(mock_run: MagicMock) -> None:
         stderr="fatal: No rebase in progress?",
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_abort_sync("/workspace")
 
     assert success is False
@@ -315,7 +315,7 @@ def test_git_abort_sync_permission_error(mock_run: MagicMock) -> None:
         stderr="error: could not remove .git/rebase-merge: Permission denied",
     )
 
-    plugin = GitHubPlugin()
+    plugin = BareGitPlugin()
     success, error = plugin.vcs_abort_sync("/workspace")
 
     assert success is False

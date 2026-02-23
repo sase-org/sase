@@ -76,7 +76,6 @@ sase_chop_comment_checks = "sase.scripts:sase_chop_comment_checks"
 sase_chop_error_digest = "sase.scripts:sase_chop_error_digest"
 
 [project.entry-points."sase_vcs"]
-github = "sase.vcs_provider.plugins.github:GitHubPlugin"
 bare_git = "sase.vcs_provider.plugins.bare_git:BareGitPlugin"
 hg = "sase.vcs_provider.plugins.hg:HgPlugin"
 

@@ -386,19 +386,19 @@ def test_config_plugin_disabled_returns_defaults(tmp_path: Path) -> None:
 
 def test_find_plugin_class_found() -> None:
     """_find_plugin_class returns class for matching entry point."""
-    from sase.vcs_provider.plugins.github import GitHubPlugin
+    from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
     ep = MagicMock()
-    ep.name = "github"
-    ep.load.return_value = GitHubPlugin
+    ep.name = "bare_git"
+    ep.load.return_value = BareGitPlugin
 
     with patch(
         "sase.vcs_provider._registry.importlib.metadata.entry_points",
         return_value=[ep],
     ):
-        result = _find_plugin_class("github")
+        result = _find_plugin_class("bare_git")
 
-    assert result is GitHubPlugin
+    assert result is BareGitPlugin
 
 
 def test_find_plugin_class_not_found() -> None:

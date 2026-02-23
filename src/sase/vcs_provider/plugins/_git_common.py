@@ -1,9 +1,8 @@
-"""Shared git methods used by both GitHubPlugin and BareGitPlugin.
+"""Shared git methods for git-based VCS plugins.
 
 Common git operations (checkout, diff, commit, rebase, etc.) are
-identical across GitHub-hosted and bare-git repos.  This mixin
-centralises them so the two plugin classes only override the handful
-of methods that differ.
+identical across different git-based plugins.  This mixin centralises
+them so plugin classes only override the handful of methods that differ.
 """
 
 import os
