@@ -2,7 +2,7 @@
 
 Reads hook JSON from stdin, creates a sase notification, writes a request file,
 and polls for a response file written by the TUI's UserQuestionModal.
-Exit codes: 0 = non-agent fallback, 2 = deny with answers (or timeout).
+Exit codes: 0 = non-agent fallback, 2 = deny with answers.
 """
 
 import json
@@ -21,8 +21,6 @@ from sase.main.plan_approve_handler import (
 
 # Poll interval for question response (seconds)
 _POLL_INTERVAL = 0.5
-# Timeout for question response (seconds) - 10 minutes
-_TIMEOUT = 600
 
 
 def _format_answers(response_data: dict) -> str:
@@ -140,9 +138,8 @@ def handle_user_question_command() -> NoReturn:
     )
     ring_tmux_bell()
 
-    # Poll for response file
-    start_time = time.time()
-    while time.time() - start_time < _TIMEOUT:
+    # Poll for response file (no timeout — wait until the user acts)
+    while True:
         if response_path.exists():
             try:
                 with open(response_path, encoding="utf-8") as f:
@@ -161,9 +158,3 @@ def handle_user_question_command() -> NoReturn:
                 pass
 
         time.sleep(_POLL_INTERVAL)
-
-    # Timeout - clean up and deny
-    if request_path.exists():
-        request_path.unlink()
-    emit_hook_decision("deny", "User question timed out")
-    sys.exit(2)

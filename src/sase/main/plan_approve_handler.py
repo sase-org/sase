@@ -18,8 +18,6 @@ from sase.sase_utils import get_vendored_tool
 
 # Poll interval for plan approval (seconds)
 _POLL_INTERVAL = 0.5
-# Timeout for plan approval (seconds) - 10 minutes
-_TIMEOUT = 600
 
 
 def emit_hook_decision(decision: str, reason: str = "") -> None:
@@ -213,9 +211,8 @@ def handle_plan_approve_command() -> NoReturn:
         except (json.JSONDecodeError, OSError):
             plan_file = None
 
-    # Poll for response file
-    start_time = time.time()
-    while time.time() - start_time < _TIMEOUT:
+    # Poll for response file (no timeout — wait until the user acts)
+    while True:
         if response_path.exists():
             try:
                 with open(response_path, encoding="utf-8") as f:
@@ -244,9 +241,3 @@ def handle_plan_approve_command() -> NoReturn:
                 pass
 
         time.sleep(_POLL_INTERVAL)
-
-    # Timeout - clean up and reject
-    if request_path.exists():
-        request_path.unlink()
-    emit_hook_decision("deny", "Plan approval timed out")
-    sys.exit(2)
