@@ -1,5 +1,6 @@
 ---
 bead_id: sase-614
+status: done
 ---
 
 # File Content Trimming for Agents Tab File Panel
