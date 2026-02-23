@@ -6,6 +6,7 @@ from enum import Enum, auto
 from sase.hook_history import HookHistoryEntry, delete_hook, get_hooks_for_display
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
@@ -37,8 +38,8 @@ class HookHistoryModal(
     _option_list_id = "hook-history-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        ("ctrl+d", "delete_hook", "Delete hook"),
-        ("ctrl+g", "edit_first", "Edit first"),
+        Binding("ctrl+d", "delete_hook", "Delete hook", priority=True),
+        Binding("ctrl+g", "edit_first", "Edit first", priority=True),
     ]
 
     def __init__(self) -> None:
