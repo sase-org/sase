@@ -281,14 +281,14 @@ def test_process_snippet_nested_section_snippet() -> None:
 
 
 def test_process_snippet_hr_snippet_at_start_of_line() -> None:
-    """Test that HR snippet at start of line strips the --- marker."""
+    """Test that HR snippet at start of line strips --- and prepends \\n."""
     snippets = {"hr": "---\nContent below rule"}
     with patch(
         "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references("#hr")
-    # The --- marker line is stripped, only content remains
-    assert result == "Content below rule"
+    # The --- marker line is stripped; \n prepended for paragraph break
+    assert result == "\nContent below rule"
 
 
 def test_process_snippet_hr_snippet_inline() -> None:
@@ -303,15 +303,15 @@ def test_process_snippet_hr_snippet_inline() -> None:
 
 
 def test_process_snippet_hr_snippet_after_newline() -> None:
-    """Test that HR snippet at start of second line strips --- marker."""
+    """Test that HR snippet at start of second line strips --- and prepends \\n."""
     snippets = {"hr": "---\nContent below rule"}
     prompt = "First line\n#hr"
     with patch(
         "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
     ):
         result = process_xprompt_references(prompt)
-    # The --- marker is stripped, content directly follows the newline
-    assert result == "First line\nContent below rule"
+    # The --- marker is stripped; \n prepended so total is \n\n (paragraph break)
+    assert result == "First line\n\nContent below rule"
 
 
 def test_process_xprompt_heading_content_gets_newline_before_inline_text() -> None:

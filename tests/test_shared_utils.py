@@ -319,10 +319,10 @@ def test_apply_section_marker_handling_hr_marker_only_not_at_line_start() -> Non
 
 
 def test_apply_section_marker_handling_hr_marker_with_content() -> None:
-    """Test --- marker with following content strips marker and leading newlines."""
+    """Test --- marker at line start prepends \\n for paragraph break."""
     content = "---\nActual content"
     result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == "Actual content"
+    assert result == "\nActual content"
 
 
 def test_apply_section_marker_handling_hr_marker_with_content_not_at_line_start() -> (
@@ -335,10 +335,10 @@ def test_apply_section_marker_handling_hr_marker_with_content_not_at_line_start(
 
 
 def test_apply_section_marker_handling_hr_marker_strips_leading_newlines() -> None:
-    """Test --- marker strips both marker and leading newlines from content."""
+    """Test --- marker strips marker and leading newlines, then prepends \\n."""
     content = "---\n\n\nContent after newlines"
     result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == "Content after newlines"
+    assert result == "\nContent after newlines"
 
 
 def test_apply_section_marker_handling_hr_with_leading_whitespace() -> None:

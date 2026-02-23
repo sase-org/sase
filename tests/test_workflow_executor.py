@@ -358,8 +358,8 @@ class TestEmbeddedWorkflowExpansion:
                 prompt = "Some text.\n#inject_workflow"
                 expanded, _, _ = executor._expand_embedded_workflows_in_prompt(prompt)
 
-                # The --- marker is stripped, content directly follows the newline
-                assert expanded == ("Some text.\nIMPORTANT: Additional instructions")
+                # The --- marker is stripped; \n prepended for paragraph break
+                assert expanded == ("Some text.\n\nIMPORTANT: Additional instructions")
 
     def test_embedded_workflow_hashes_inline_gets_newlines(self) -> None:
         """Test that ### content gets \\n\\n prepended when not at line start."""

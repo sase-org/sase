@@ -91,9 +91,16 @@ def apply_section_marker_handling(content: str, is_at_line_start: bool) -> str:
             # Remove "---\n" and any leading newlines after it
             content = content[4:].lstrip("\n")
 
-    # Prepend \n\n if not at line start and there's content
+    # Prepend newlines to create a paragraph break before the content.
     if not is_at_line_start and content:
+        # Mid-line: need two newlines to end the current line AND create a blank line.
         content = "\n\n" + content
+    elif is_at_line_start and has_hr_marker and content:
+        # At line start with a --- marker: the caller already has one \n before
+        # the insertion point, but a single \n is just a soft line break that
+        # prettier will reflow into the same paragraph.  Prepend one more \n so
+        # the total is \n\n (a blank line), which is a proper paragraph break.
+        content = "\n" + content
 
     return content
 
