@@ -1,6 +1,7 @@
 """Convenience functions that construct and store notifications."""
 
 from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 
 from sase.notifications.models import Notification
@@ -54,11 +55,33 @@ def notify_axe_error_digest(
     errors: list[dict],
 ) -> None:
     """Send a digest notification summarising recent axe errors."""
+    digest_dir = Path.home() / ".sase" / "axe" / "error_digests"
+    digest_dir.mkdir(parents=True, exist_ok=True)
+    digest_file = (
+        digest_dir / f"digest_{datetime.now(EASTERN_TZ).strftime('%Y%m%d_%H%M%S')}.txt"
+    )
+    lines: list[str] = []
+    for i, err in enumerate(errors, 1):
+        lines.append(f"{'=' * 60}")
+        lines.append(f"Error {i}/{len(errors)}")
+        lines.append(f"  Time:       {err.get('timestamp', 'unknown')}")
+        lines.append(f"  Lumberjack: {err.get('lumberjack', 'unknown')}")
+        lines.append(f"  Job:        {err.get('job', 'unknown')}")
+        lines.append(f"  Error:      {err.get('error', 'unknown')}")
+        tb = err.get("traceback", "")
+        if tb:
+            lines.append("  Traceback:")
+            for tb_line in tb.splitlines():
+                lines.append(f"    {tb_line}")
+        lines.append("")
+    digest_file.write_text("\n".join(lines))
+
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(EASTERN_TZ).isoformat(),
         sender="axe",
         notes=[f"{len(errors)} error(s) in the last hour"],
+        files=[str(digest_file)],
         action=None,
         action_data={},
     )
