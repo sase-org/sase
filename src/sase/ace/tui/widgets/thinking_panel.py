@@ -48,7 +48,7 @@ class _ThinkingCacheEntry:
 _thinking_cache: dict[str, _ThinkingCacheEntry] = {}
 
 
-def _get_cache_key(agent: Agent) -> str:
+def get_cache_key(agent: Agent) -> str:
     """Generate a unique cache key for an agent's thinking output.
 
     Includes agent type, workspace, and raw_suffix to ensure different
@@ -121,7 +121,7 @@ class AgentThinkingPanel(Static):
         self._current_agent = agent
 
         # Check cache
-        cache_key = _get_cache_key(agent)
+        cache_key = get_cache_key(agent)
         cache_entry = _thinking_cache.get(cache_key)
 
         if cache_entry is not None:
@@ -168,7 +168,7 @@ class AgentThinkingPanel(Static):
         self._current_agent = agent
 
         # Check for existing cache to display while refreshing
-        cache_key = _get_cache_key(agent)
+        cache_key = get_cache_key(agent)
         cache_entry = _thinking_cache.get(cache_key)
 
         if cache_entry is not None:
@@ -404,7 +404,7 @@ class AgentThinkingPanel(Static):
             blocks = parse_thinking_blocks_multi(session_paths)
 
         # Store in cache
-        cache_key = _get_cache_key(agent)
+        cache_key = get_cache_key(agent)
         _thinking_cache[cache_key] = _ThinkingCacheEntry(
             blocks=blocks,
             fetch_time=datetime.now(),
@@ -424,7 +424,7 @@ class AgentThinkingPanel(Static):
         if event.state == WorkerState.SUCCESS:
             # Worker completed - display result from cache
             if self._current_agent:
-                cache_key = _get_cache_key(self._current_agent)
+                cache_key = get_cache_key(self._current_agent)
                 if cache_key in _thinking_cache:
                     cache_entry = _thinking_cache[cache_key]
 
