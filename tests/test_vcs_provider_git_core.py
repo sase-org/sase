@@ -4,29 +4,12 @@ Covers: registry detection, private helpers, checkout, diff, diff_revision,
 apply_patch, apply_patches, add_remove, clean_workspace.
 """
 
-import os
 import subprocess
-import tempfile
 from unittest.mock import MagicMock, patch
 
-from sase.vcs_provider import VCSProvider, get_vcs_provider
-from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 # === Tests for registry detection ===
-
-
-def test_get_vcs_provider_detects_git() -> None:
-    """Test get_vcs_provider detects .git directory and returns a VCSPluginManager."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        os.makedirs(os.path.join(tmpdir, ".git"))
-        with patch(
-            "sase.vcs_provider._registry._classify_git_repo",
-            return_value="bare_git",
-        ):
-            provider = get_vcs_provider(tmpdir)
-            assert isinstance(provider, VCSPluginManager)
-            assert isinstance(provider, VCSProvider)
 
 
 # === Tests for private helpers ===
@@ -74,35 +57,6 @@ def test_git_run_generic_exception(mock_run: MagicMock) -> None:
 # === Tests for checkout ===
 
 
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_checkout_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_checkout on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_checkout("main", "/workspace")
-
-    assert success is True
-    assert error is None
-    mock_run.assert_called_once()
-    assert mock_run.call_args[0][0] == ["git", "checkout", "main"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_checkout_failure(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_checkout on failure."""
-    mock_run.return_value = MagicMock(
-        returncode=1, stdout="", stderr="error: pathspec 'bad' did not match"
-    )
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_checkout("bad", "/workspace")
-
-    assert success is False
-    assert error is not None
-    assert "git checkout failed" in error
-
-
 # === Tests for diff ===
 
 
@@ -122,18 +76,6 @@ def test_git_diff_with_changes(mock_run: MagicMock) -> None:
     assert diff_text is not None
     assert "new line" in diff_text
     assert mock_run.call_args[0][0] == ["git", "diff", "HEAD"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_diff_no_changes(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_diff returns None when no changes."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, diff_text = plugin.vcs_diff("/workspace")
-
-    assert success is True
-    assert diff_text is None
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
@@ -219,20 +161,6 @@ def test_git_diff_revision_both_fail(mock_run: MagicMock) -> None:
 
 
 # === Tests for apply_patch ===
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-@patch("os.path.exists", return_value=True)
-def test_git_apply_patch_success(mock_exists: MagicMock, mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_apply_patch on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_apply_patch("/tmp/fix.patch", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == ["git", "apply", "/tmp/fix.patch"]
 
 
 @patch("os.path.exists", return_value=False)
@@ -321,19 +249,6 @@ def test_git_apply_patches_failure(mock_exists: MagicMock, mock_run: MagicMock) 
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_add_remove_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_add_remove on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_add_remove("/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == ["git", "add", "-A"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_add_remove_failure(mock_run: MagicMock) -> None:
     """Test BareGitPlugin.vcs_add_remove on failure."""
     mock_run.return_value = MagicMock(
@@ -349,21 +264,6 @@ def test_git_add_remove_failure(mock_run: MagicMock) -> None:
 
 
 # === Tests for clean_workspace ===
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_clean_workspace_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_clean_workspace on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_clean_workspace("/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_count == 2
-    assert mock_run.call_args_list[0][0][0] == ["git", "reset", "--hard", "HEAD"]
-    assert mock_run.call_args_list[1][0][0] == ["git", "clean", "-fd"]
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")

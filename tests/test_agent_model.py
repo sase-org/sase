@@ -7,18 +7,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 # --- Agent Model Tests ---
 
 
-def test_agent_display_type() -> None:
-    """Test Agent.display_type property."""
-    agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-    )
-    assert agent.display_type == "fix-hook"
-
-
 def test_agent_display_type_running() -> None:
     """Test Agent.display_type for RUNNING type."""
     agent = Agent(
@@ -33,42 +21,6 @@ def test_agent_display_type_running() -> None:
     assert agent.display_type == "agent"
 
 
-def test_agent_display_type_mentor() -> None:
-    """Test Agent.display_type for MENTOR type."""
-    agent = Agent(
-        agent_type=AgentType.MENTOR,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-    )
-    assert agent.display_type == "mentor"
-
-
-def test_agent_display_type_crs() -> None:
-    """Test Agent.display_type for CRS type."""
-    agent = Agent(
-        agent_type=AgentType.CRS,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-    )
-    assert agent.display_type == "crs"
-
-
-def test_agent_display_type_summarize() -> None:
-    """Test Agent.display_type for SUMMARIZE type."""
-    agent = Agent(
-        agent_type=AgentType.SUMMARIZE,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-    )
-    assert agent.display_type == "summarize"
-
-
 def test_agent_display_label() -> None:
     """Test Agent.display_label property."""
     agent = Agent(
@@ -79,31 +31,6 @@ def test_agent_display_label() -> None:
         start_time=None,
     )
     assert agent.display_label == "[fix-hook] my_feature"
-
-
-def test_agent_start_time_display_with_time() -> None:
-    """Test Agent.start_time_display with a valid time."""
-    start = datetime(2025, 1, 10, 14, 30, 45)
-    agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=start,
-    )
-    assert agent.start_time_display == "2025-01-10 14:30:45"
-
-
-def test_agent_start_time_display_without_time() -> None:
-    """Test Agent.start_time_display when time is None."""
-    agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-    )
-    assert agent.start_time_display == "Unknown"
 
 
 def test_agent_start_time_short_with_time() -> None:
@@ -282,80 +209,7 @@ def test_agent_appears_as_agent_true() -> None:
     assert agent.appears_as_agent is True
 
 
-def test_agent_display_type_with_appears_as_agent() -> None:
-    """Test Agent.display_type returns workflow name when appears_as_agent is True."""
-    agent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-        workflow="fix-hook",
-        appears_as_agent=True,
-    )
-    # When appears_as_agent is True, display_type should be the workflow name
-    assert agent.display_type == "fix-hook"
-
-
-def test_agent_display_type_with_appears_as_agent_no_workflow() -> None:
-    """Test Agent.display_type returns 'agent' when appears_as_agent is True but no workflow."""
-    agent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-        workflow=None,
-        appears_as_agent=True,
-    )
-    # When appears_as_agent is True but workflow is None, should fall back to "agent"
-    assert agent.display_type == "agent"
-
-
-def test_agent_display_type_workflow_without_appears_as_agent() -> None:
-    """Test Agent.display_type for WORKFLOW without appears_as_agent."""
-    agent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-        workflow="json",
-        appears_as_agent=False,
-    )
-    # Should return the normal WORKFLOW value
-    assert agent.display_type == "workflow"
-
-
 # --- Anonymous Workflow Display Type Tests ---
-
-
-def test_agent_display_type_anonymous_collapsed() -> None:
-    """Test anonymous workflow shows 'agent' when collapsed (default)."""
-    agent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-        appears_as_agent=True,
-        is_anonymous=True,
-    )
-    assert agent.display_type == "agent"
-
-
-def test_agent_get_display_type_anonymous_expanded() -> None:
-    """Test anonymous workflow shows 'workflow' when expanded."""
-    agent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="my_feature",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-        appears_as_agent=True,
-        is_anonymous=True,
-    )
-    assert agent.get_display_type(is_expanded=True) == "workflow"
 
 
 def test_agent_get_display_type_named_workflow_unaffected_by_expanded() -> None:

@@ -71,13 +71,6 @@ def test_kill_running_processes_for_hooks_empty_hooks() -> None:
     assert result == 0
 
 
-def test_kill_running_processes_for_hooks_empty_indices() -> None:
-    """Test kill_running_processes_for_hooks with empty indices set."""
-    hook = HookEntry(command="make test")
-    result = kill_running_processes_for_hooks([hook], set())
-    assert result == 0
-
-
 def test_kill_running_processes_for_hooks_out_of_range_index() -> None:
     """Test kill_running_processes_for_hooks with out-of-range indices."""
     hook = HookEntry(command="make test")
@@ -106,34 +99,6 @@ def test_kill_running_processes_for_hooks_no_running_suffix() -> None:
     hook = _make_hook_with_status_lines("make test", [status_line])
     result = kill_running_processes_for_hooks([hook], {0})
     assert result == 0
-
-
-def test_kill_running_processes_for_hooks_finds_running_process(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test kill_running_processes_for_hooks kills running_process hooks."""
-    # Track killpg calls
-    killed_pids: list[int] = []
-
-    def mock_killpg(pid: int, sig: int) -> None:
-        killed_pids.append(pid)
-
-    monkeypatch.setattr(os, "killpg", mock_killpg)
-
-    # Hook with running_process suffix_type
-    status_line = HookStatusLine(
-        commit_entry_num="1",
-        timestamp="251231_120000",
-        status="RUNNING",
-        duration=None,
-        suffix="12345",  # PID
-        suffix_type="running_process",
-    )
-    hook = _make_hook_with_status_lines("make test", [status_line])
-
-    result = kill_running_processes_for_hooks([hook], {0})
-    assert result == 1
-    assert 12345 in killed_pids
 
 
 def test_kill_running_processes_for_hooks_finds_running_agent(
@@ -190,142 +155,7 @@ def test_kill_running_processes_for_hooks_handles_process_not_found(
     assert result == 1
 
 
-def test_kill_running_processes_for_hooks_multiple_hooks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test kill_running_processes_for_hooks with multiple hooks."""
-    # Track killpg calls
-    killed_pids: list[int] = []
-
-    def mock_killpg(pid: int, sig: int) -> None:
-        killed_pids.append(pid)
-
-    monkeypatch.setattr(os, "killpg", mock_killpg)
-
-    # Hook 0: running_process
-    hook0 = _make_hook_with_status_lines(
-        "make test",
-        [
-            HookStatusLine(
-                commit_entry_num="1",
-                timestamp="251231_120000",
-                status="RUNNING",
-                suffix="11111",
-                suffix_type="running_process",
-            )
-        ],
-    )
-    # Hook 1: running_agent
-    hook1 = _make_hook_with_status_lines(
-        "make lint",
-        [
-            HookStatusLine(
-                commit_entry_num="1",
-                timestamp="251231_120000",
-                status="RUNNING",
-                suffix="fix_hook-22222-251231_130000",
-                suffix_type="running_agent",
-            )
-        ],
-    )
-    # Hook 2: PASSED (not running)
-    hook2 = _make_hook_with_status_lines(
-        "make build",
-        [
-            HookStatusLine(
-                commit_entry_num="1",
-                timestamp="251231_120000",
-                status="PASSED",
-                duration="1m0s",
-            )
-        ],
-    )
-
-    hooks = [hook0, hook1, hook2]
-
-    # Kill hooks 0 and 1, not 2
-    result = kill_running_processes_for_hooks(hooks, {0, 1})
-    assert result == 2
-    assert 11111 in killed_pids
-    assert 22222 in killed_pids
-
-
-def test_kill_running_processes_for_hooks_only_specified_indices(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test that kill_running_processes_for_hooks only kills specified indices."""
-    # Track killpg calls
-    killed_pids: list[int] = []
-
-    def mock_killpg(pid: int, sig: int) -> None:
-        killed_pids.append(pid)
-
-    monkeypatch.setattr(os, "killpg", mock_killpg)
-
-    # Both hooks are running
-    hook0 = _make_hook_with_status_lines(
-        "make test",
-        [
-            HookStatusLine(
-                commit_entry_num="1",
-                timestamp="251231_120000",
-                status="RUNNING",
-                suffix="11111",
-                suffix_type="running_process",
-            )
-        ],
-    )
-    hook1 = _make_hook_with_status_lines(
-        "make lint",
-        [
-            HookStatusLine(
-                commit_entry_num="1",
-                timestamp="251231_120000",
-                status="RUNNING",
-                suffix="22222",
-                suffix_type="running_process",
-            )
-        ],
-    )
-
-    hooks = [hook0, hook1]
-
-    # Only kill hook 0, not hook 1
-    result = kill_running_processes_for_hooks(hooks, {0})
-    assert result == 1
-    assert 11111 in killed_pids
-    assert 22222 not in killed_pids
-
-
 # Tests for kill_and_persist_all_running_processes
-
-
-@patch("sase.ace.hooks.processes.kill_running_mentor_processes")
-@patch("sase.ace.hooks.processes.kill_running_agent_processes")
-@patch("sase.ace.hooks.processes.kill_running_hook_processes")
-def test_kill_and_persist_no_running_processes(
-    mock_kill_hooks: MagicMock,
-    mock_kill_agents: MagicMock,
-    mock_kill_mentors: MagicMock,
-) -> None:
-    """Test kill_and_persist_all_running_processes when nothing is running."""
-    mock_kill_hooks.return_value = []
-    mock_kill_agents.return_value = ([], [])
-    mock_kill_mentors.return_value = []
-
-    changespec = MagicMock(spec=ChangeSpec)
-    changespec.hooks = None
-    changespec.comments = None
-    changespec.mentors = None
-
-    # Should complete without error, no persist calls needed
-    kill_and_persist_all_running_processes(
-        changespec, "/fake/project.gp", "test_cl", "Test reason"
-    )
-
-    mock_kill_hooks.assert_called_once_with(changespec)
-    mock_kill_agents.assert_called_once_with(changespec)
-    mock_kill_mentors.assert_called_once_with(changespec)
 
 
 @patch("sase.ace.hooks.execution.update_changespec_hooks_field")

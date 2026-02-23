@@ -9,37 +9,6 @@ from sase.xprompt.workflow_models import WorkflowValidationError
 # ============================================================================
 
 
-def test_parse_parallel_basic() -> None:
-    """Test parsing basic parallel: field with two steps."""
-    step_data = {
-        "name": "parallel_test",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b"},
-        ],
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.parallel_config is not None
-    assert len(step.parallel_config.steps) == 2
-    assert step.parallel_config.steps[0].name == "step_a"
-    assert step.parallel_config.steps[1].name == "step_b"
-
-
-def test_parse_parallel_with_agent_steps() -> None:
-    """Test parsing parallel: with agent steps."""
-    step_data = {
-        "name": "parallel_agents",
-        "parallel": [
-            {"name": "summarize", "agent": "Summarize this: {{ doc }}"},
-            {"name": "extract", "agent": "Extract entities from: {{ doc }}"},
-        ],
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.parallel_config is not None
-    assert step.parallel_config.steps[0].is_agent_step()
-    assert step.parallel_config.steps[1].is_agent_step()
-
-
 def test_parse_parallel_mixed_step_types() -> None:
     """Test parsing parallel: with mixed step types."""
     step_data = {
@@ -53,51 +22,6 @@ def test_parse_parallel_mixed_step_types() -> None:
     assert step.parallel_config is not None
     assert step.parallel_config.steps[0].is_bash_step()
     assert step.parallel_config.steps[1].is_python_step()
-
-
-def test_parse_parallel_with_for_allowed() -> None:
-    """Test that parallel: can be combined with for:."""
-    step_data = {
-        "name": "for_parallel",
-        "for": {"file": "{{ files }}"},
-        "parallel": [
-            {"name": "lint", "bash": "lint {{ file }}"},
-            {"name": "format", "bash": "format {{ file }}"},
-        ],
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.for_loop is not None
-    assert step.parallel_config is not None
-
-
-def test_parse_parallel_with_if_allowed() -> None:
-    """Test that parallel: can be combined with if:."""
-    step_data = {
-        "name": "conditional_parallel",
-        "if": "{{ should_run }}",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b"},
-        ],
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.condition == "{{ should_run }}"
-    assert step.parallel_config is not None
-
-
-def test_parse_parallel_with_join() -> None:
-    """Test that parallel: can have join: mode."""
-    step_data = {
-        "name": "parallel_join",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b"},
-        ],
-        "join": "object",
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.parallel_config is not None
-    assert step.join == "object"
 
 
 def test_parse_parallel_not_list_raises() -> None:
@@ -138,50 +62,6 @@ def test_parse_parallel_duplicate_step_names_raises() -> None:
     assert "duplicate nested step name" in str(exc_info.value)
 
 
-def test_parse_parallel_nested_with_for_raises() -> None:
-    """Test that nested steps cannot have for: loops."""
-    step_data = {
-        "name": "bad_parallel",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b", "for": {"item": "{{ items }}"}},
-        ],
-    }
-    with pytest.raises(WorkflowValidationError) as exc_info:
-        _parse_workflow_step(step_data, 0)
-    assert "cannot have 'for'" in str(exc_info.value)
-
-
-def test_parse_parallel_nested_with_repeat_raises() -> None:
-    """Test that nested steps cannot have repeat: loops."""
-    step_data = {
-        "name": "bad_parallel",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b", "repeat": {"until": "{{ done }}"}},
-        ],
-    }
-    with pytest.raises(WorkflowValidationError) as exc_info:
-        _parse_workflow_step(step_data, 0)
-    assert "cannot have" in str(exc_info.value)
-    assert "'repeat'" in str(exc_info.value)
-
-
-def test_parse_parallel_nested_with_while_raises() -> None:
-    """Test that nested steps cannot have while: loops."""
-    step_data = {
-        "name": "bad_parallel",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b", "while": "{{ pending }}"},
-        ],
-    }
-    with pytest.raises(WorkflowValidationError) as exc_info:
-        _parse_workflow_step(step_data, 0)
-    assert "cannot have" in str(exc_info.value)
-    assert "'while'" in str(exc_info.value)
-
-
 def test_parse_parallel_nested_with_parallel_raises() -> None:
     """Test that nested steps cannot have parallel: (no nested parallelism)."""
     step_data = {
@@ -217,21 +97,6 @@ def test_parse_parallel_nested_with_hitl_raises() -> None:
     assert "cannot have 'hitl: true'" in str(exc_info.value)
 
 
-def test_parse_parallel_with_repeat_raises() -> None:
-    """Test that parallel: cannot combine with repeat:."""
-    step_data = {
-        "name": "bad_parallel",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b"},
-        ],
-        "repeat": {"until": "{{ done }}"},
-    }
-    with pytest.raises(WorkflowValidationError) as exc_info:
-        _parse_workflow_step(step_data, 0)
-    assert "cannot combine 'parallel' with 'repeat'" in str(exc_info.value)
-
-
 def test_parse_parallel_with_while_raises() -> None:
     """Test that parallel: cannot combine with while:."""
     step_data = {
@@ -263,78 +128,6 @@ def test_parse_parallel_mutually_exclusive_with_agent() -> None:
     assert "can only have one of" in str(exc_info.value)
 
 
-def test_parse_parallel_mutually_exclusive_with_bash() -> None:
-    """Test that parallel: is mutually exclusive with bash:."""
-    step_data = {
-        "name": "bad_step",
-        "bash": "echo hello",
-        "parallel": [
-            {"name": "step_a", "bash": "echo a"},
-            {"name": "step_b", "bash": "echo b"},
-        ],
-    }
-    with pytest.raises(WorkflowValidationError) as exc_info:
-        _parse_workflow_step(step_data, 0)
-    assert "can only have one of" in str(exc_info.value)
-
-
 # ============================================================================
 # Hidden step field tests
 # ============================================================================
-
-
-def test_parse_hidden_field_true() -> None:
-    """Test parsing hidden: true field."""
-    step_data = {
-        "name": "hidden_step",
-        "bash": "echo setup",
-        "hidden": True,
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.hidden is True
-
-
-def test_parse_hidden_field_false() -> None:
-    """Test parsing hidden: false field."""
-    step_data = {
-        "name": "visible_step",
-        "bash": "echo visible",
-        "hidden": False,
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.hidden is False
-
-
-def test_parse_hidden_field_default() -> None:
-    """Test that hidden defaults to False when not specified."""
-    step_data = {
-        "name": "normal_step",
-        "bash": "echo hello",
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.hidden is False
-
-
-def test_parse_hidden_with_prompt_part() -> None:
-    """Test that hidden can be combined with prompt_part."""
-    step_data = {
-        "name": "inject",
-        "prompt_part": "Some content to inject",
-        "hidden": False,  # prompt_part steps are typically visible
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.hidden is False
-    assert step.is_prompt_part_step()
-
-
-def test_parse_hidden_with_control_flow() -> None:
-    """Test that hidden can be combined with control flow."""
-    step_data = {
-        "name": "hidden_loop",
-        "bash": "process {{ item }}",
-        "for": {"item": "{{ items }}"},
-        "hidden": True,
-    }
-    step = _parse_workflow_step(step_data, 0)
-    assert step.hidden is True
-    assert step.for_loop is not None

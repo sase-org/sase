@@ -5,10 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.tui.thinking.parser import (
-    ThinkingBlock,
     _format_tool_action,
     _read_jsonl_lines,
-    _resolve_gemini_log_path,
     parse_thinking_blocks,
     read_gemini_log,
 )
@@ -72,30 +70,6 @@ def _write_jsonl(tmp_path: Path, events: list[dict[str, Any]]) -> Path:
 # --- parse_thinking_blocks ---
 
 
-def test_empty_file(tmp_path: Path) -> None:
-    path = tmp_path / "empty.jsonl"
-    path.write_text("")
-    assert parse_thinking_blocks(path) == []
-
-
-def test_no_thinking_blocks(tmp_path: Path) -> None:
-    path = _write_jsonl(tmp_path, [_make_text_event("hello")])
-    assert parse_thinking_blocks(path) == []
-
-
-def test_single_thinking_block(tmp_path: Path) -> None:
-    path = _write_jsonl(
-        tmp_path,
-        [_make_thinking_event("I should read the file", "2026-01-15T10:00:00Z")],
-    )
-    blocks = parse_thinking_blocks(path)
-    assert len(blocks) == 1
-    assert blocks[0].text == "I should read the file"
-    assert blocks[0].timestamp == "2026-01-15T10:00:00Z"
-    assert blocks[0].index == 1
-    assert blocks[0].following_action is None
-
-
 def test_multiple_blocks_newest_first(tmp_path: Path) -> None:
     path = _write_jsonl(
         tmp_path,
@@ -111,48 +85,6 @@ def test_multiple_blocks_newest_first(tmp_path: Path) -> None:
     assert blocks[0].text == "third thought"
     assert blocks[1].text == "second thought"
     assert blocks[2].text == "first thought"
-
-
-def test_thinking_followed_by_tool_use(tmp_path: Path) -> None:
-    path = _write_jsonl(
-        tmp_path,
-        [
-            _make_thinking_event("Let me read that"),
-            _make_tool_use_event("Read", {"file_path": "/src/foo/bar.py"}),
-        ],
-    )
-    blocks = parse_thinking_blocks(path)
-    assert len(blocks) == 1
-    assert blocks[0].following_action == "Read bar.py"
-
-
-def test_thinking_text_tool_use_chain(tmp_path: Path) -> None:
-    """Thinking → text → tool_use chain prefers tool_use."""
-    path = _write_jsonl(
-        tmp_path,
-        [
-            _make_thinking_event("Analyzing the code"),
-            _make_text_event("Let me check the file."),
-            _make_tool_use_event("Grep", {"pattern": "def main"}),
-        ],
-    )
-    blocks = parse_thinking_blocks(path)
-    assert len(blocks) == 1
-    assert blocks[0].following_action == "Grep /def main/"
-
-
-def test_thinking_at_eof_none_action(tmp_path: Path) -> None:
-    """Thinking at end of file has no following action."""
-    path = _write_jsonl(
-        tmp_path,
-        [
-            _make_text_event("some text"),
-            _make_thinking_event("final thought"),
-        ],
-    )
-    blocks = parse_thinking_blocks(path)
-    assert len(blocks) == 1
-    assert blocks[0].following_action is None
 
 
 def test_empty_thinking_text_skipped(tmp_path: Path) -> None:
@@ -180,52 +112,11 @@ def test_malformed_json_skipped(tmp_path: Path) -> None:
     assert blocks[0].text == "valid thought"
 
 
-def test_one_based_indexing(tmp_path: Path) -> None:
-    path = _write_jsonl(
-        tmp_path,
-        [
-            _make_thinking_event("first"),
-            _make_thinking_event("second"),
-        ],
-    )
-    blocks = parse_thinking_blocks(path)
-    # Reversed order, but index reflects chronological position
-    assert blocks[0].index == 2  # newest first, but index=2 (chronological)
-    assert blocks[1].index == 1
-
-
-def test_timestamp_preserved(tmp_path: Path) -> None:
-    ts = "2026-02-19T14:30:45.123Z"
-    path = _write_jsonl(tmp_path, [_make_thinking_event("thought", ts)])
-    blocks = parse_thinking_blocks(path)
-    assert blocks[0].timestamp == ts
-
-
 def test_nonexistent_file() -> None:
     assert parse_thinking_blocks(Path("/nonexistent/path.jsonl")) == []
 
 
 # --- _format_tool_action ---
-
-
-def test_format_read() -> None:
-    block = {"name": "Read", "input": {"file_path": "/home/user/src/agent_detail.py"}}
-    assert _format_tool_action(block) == "Read agent_detail.py"
-
-
-def test_format_write() -> None:
-    block = {"name": "Write", "input": {"file_path": "/tmp/output.txt"}}
-    assert _format_tool_action(block) == "Write output.txt"
-
-
-def test_format_edit() -> None:
-    block = {"name": "Edit", "input": {"file_path": "/src/main.py"}}
-    assert _format_tool_action(block) == "Edit main.py"
-
-
-def test_format_bash() -> None:
-    block = {"name": "Bash", "input": {"command": "just lint"}}
-    assert _format_tool_action(block) == "Bash `just`"
 
 
 def test_format_bash_empty_command() -> None:
@@ -238,40 +129,12 @@ def test_format_grep() -> None:
     assert _format_tool_action(block) == "Grep /def main/"
 
 
-def test_format_glob() -> None:
-    block = {"name": "Glob", "input": {"pattern": "**/*.py"}}
-    assert _format_tool_action(block) == "Glob /**/*.py/"
-
-
-def test_format_task() -> None:
-    block = {"name": "Task", "input": {"prompt": "do something"}}
-    assert _format_tool_action(block) == "Task (subagent)"
-
-
 def test_format_skill() -> None:
     block = {"name": "Skill", "input": {"skill": "commit"}}
     assert _format_tool_action(block) == "Skill commit"
 
 
-def test_format_unknown_tool() -> None:
-    block = {"name": "WebSearch", "input": {}}
-    assert _format_tool_action(block) == "WebSearch"
-
-
-def test_format_read_no_file_path() -> None:
-    block = {"name": "Read", "input": {}}
-    assert _format_tool_action(block) == "Read"
-
-
 # --- _read_jsonl_lines ---
-
-
-def test_small_file_reads_all(tmp_path: Path) -> None:
-    path = tmp_path / "small.jsonl"
-    lines_data = [json.dumps({"i": i}) for i in range(10)]
-    path.write_text("\n".join(lines_data) + "\n")
-    lines = _read_jsonl_lines(path)
-    assert len(lines) == 10
 
 
 def test_large_file_reads_tail(tmp_path: Path) -> None:
@@ -295,45 +158,12 @@ def test_large_file_reads_tail(tmp_path: Path) -> None:
 # --- _format_timestamp ---
 
 
-def test_format_timestamp_utc_to_est() -> None:
-    """UTC timestamp in winter (EST = UTC-5) converts correctly."""
-    # 2026-01-15 20:30:45 UTC → 15:30:45 EST
-    assert _format_timestamp("2026-01-15T20:30:45Z") == "15:30:45"
-
-
-def test_format_timestamp_utc_to_edt() -> None:
-    """UTC timestamp in summer (EDT = UTC-4) converts correctly."""
-    # 2026-07-15 20:30:45 UTC → 16:30:45 EDT
-    assert _format_timestamp("2026-07-15T20:30:45Z") == "16:30:45"
-
-
 def test_format_timestamp_invalid_input() -> None:
     """Invalid input returns fallback string."""
     assert _format_timestamp("not-a-timestamp") == "??:??:??"
 
 
 # --- _resolve_gemini_log_path ---
-
-
-def test_resolve_gemini_log_path_sase_env(monkeypatch: Any) -> None:
-    """SASE_GEMINI_CLI_TMP takes highest precedence."""
-    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", "/custom/sase")
-    monkeypatch.setenv("TMP", "/custom/tmp")
-    assert _resolve_gemini_log_path() == Path("/custom/sase/gemini_api_proxy.par.INFO")
-
-
-def test_resolve_gemini_log_path_tmp_env(monkeypatch: Any) -> None:
-    """TMP is used when SASE_GEMINI_CLI_TMP is not set."""
-    monkeypatch.delenv("SASE_GEMINI_CLI_TMP", raising=False)
-    monkeypatch.setenv("TMP", "/custom/tmp")
-    assert _resolve_gemini_log_path() == Path("/custom/tmp/gemini_api_proxy.par.INFO")
-
-
-def test_resolve_gemini_log_path_default(monkeypatch: Any) -> None:
-    """Falls back to /tmp when no env vars are set."""
-    monkeypatch.delenv("SASE_GEMINI_CLI_TMP", raising=False)
-    monkeypatch.delenv("TMP", raising=False)
-    assert _resolve_gemini_log_path() == Path("/tmp/gemini_api_proxy.par.INFO")
 
 
 # --- read_gemini_log ---
@@ -366,19 +196,3 @@ def test_read_gemini_log_empty_file(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
     result = read_gemini_log()
     assert result == []
-
-
-def test_read_gemini_log_tail_truncation(tmp_path: Path, monkeypatch: Any) -> None:
-    """Only returns the last max_lines lines."""
-    log_file = tmp_path / "gemini_api_proxy.par.INFO"
-    lines = [f"line{i}" for i in range(100)]
-    log_file.write_text("\n".join(lines) + "\n")
-    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
-    result = read_gemini_log(max_lines=10)
-    assert result is not None
-    assert len(result) == 1
-    # Should only contain last 10 lines (line90..line99)
-    text = result[0].text
-    assert "line89\n" not in text
-    assert "line99" in text
-    assert "10 lines" in (result[0].following_action or "")

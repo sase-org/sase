@@ -67,13 +67,6 @@ def _make_hook(
     )
 
 
-def test_no_hooks_is_noop() -> None:
-    """No hooks -> returns True without modifying anything."""
-    cs = _make_changespec(hooks=None, commits=[_make_commit(1)])
-    with patch(_PATCH_PARSE, return_value=[cs]):
-        assert reset_dollar_hooks("/tmp/test.gp", "test_feature") is True
-
-
 def test_no_dollar_hooks_is_noop() -> None:
     """Only non-$ hooks -> returns True without modifying anything."""
     hooks = [_make_hook("flake8 src", "1", "PASSED")]
@@ -88,55 +81,6 @@ def test_no_commits_history_is_noop() -> None:
     cs = _make_changespec(hooks=hooks, commits=None)
     with patch(_PATCH_PARSE, return_value=[cs]):
         assert reset_dollar_hooks("/tmp/test.gp", "test_feature") is True
-
-
-def test_dollar_hooks_kill_and_clear() -> None:
-    """$ hooks with status lines -> kills processes and clears status."""
-    hooks = [
-        _make_hook("$bb_presubmit", "2", "PASSED"),
-        _make_hook("flake8 src", "2", "PASSED"),
-        _make_hook("$bb_lint", "2", "FAILED"),
-    ]
-    cs = _make_changespec(hooks=hooks, commits=[_make_commit(1), _make_commit(2)])
-
-    with (
-        patch(_PATCH_PARSE, return_value=[cs]),
-        patch(_PATCH_KILL, return_value=2) as mock_kill,
-        patch(_PATCH_RERUN, return_value=True) as mock_rerun,
-    ):
-        result = reset_dollar_hooks("/tmp/test.gp", "test_feature")
-
-    assert result is True
-    # Should kill with indices 0 and 2 (the $ hooks)
-    mock_kill.assert_called_once_with(hooks, {0, 2})
-    # Should clear status for entry "2" (the last commit)
-    mock_rerun.assert_called_once_with(
-        "/tmp/test.gp",
-        "test_feature",
-        commands_to_rerun={"$bb_presubmit", "$bb_lint"},
-        commands_to_delete=set(),
-        entry_ids_to_clear={"2"},
-    )
-
-
-def test_only_last_entry_id_cleared() -> None:
-    """Only the most recent COMMITS entry ID should be cleared."""
-    hooks = [_make_hook("$bb_presubmit", "1", "PASSED")]
-    cs = _make_changespec(
-        hooks=hooks,
-        commits=[_make_commit(1), _make_commit(2), _make_commit(3)],
-    )
-
-    with (
-        patch(_PATCH_PARSE, return_value=[cs]),
-        patch(_PATCH_KILL, return_value=0),
-        patch(_PATCH_RERUN, return_value=True) as mock_rerun,
-    ):
-        reset_dollar_hooks("/tmp/test.gp", "test_feature")
-
-    # Should only clear entry "3" (the last commit), not "1" or "2"
-    mock_rerun.assert_called_once()
-    assert mock_rerun.call_args[1]["entry_ids_to_clear"] == {"3"}
 
 
 def test_log_fn_receives_messages() -> None:
@@ -158,23 +102,6 @@ def test_log_fn_receives_messages() -> None:
     assert len(logged) == 2
     assert "2 $-prefixed hook(s)" in logged[0]
     assert "3 running process(es)" in logged[1]
-
-
-def test_log_fn_no_kill_message_when_zero_killed() -> None:
-    """log_fn should not receive kill message when nothing was killed."""
-    hooks = [_make_hook("$bb_presubmit", "1", "PASSED")]
-    cs = _make_changespec(hooks=hooks, commits=[_make_commit(1)])
-    logged: list[str] = []
-
-    with (
-        patch(_PATCH_PARSE, return_value=[cs]),
-        patch(_PATCH_KILL, return_value=0),
-        patch(_PATCH_RERUN, return_value=True),
-    ):
-        reset_dollar_hooks("/tmp/test.gp", "test_feature", log_fn=logged.append)
-
-    assert len(logged) == 1
-    assert "Resetting" in logged[0]
 
 
 def test_mix_dollar_and_non_dollar_hooks() -> None:

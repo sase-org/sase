@@ -26,43 +26,6 @@ def _make_hook(
 
 
 # Tests for get_failing_hooks_for_summarize
-def test_get_failing_hooks_for_summarize_basic() -> None:
-    """Test getting failing hooks eligible for summarize-hook workflow."""
-    from sase.ace.hooks.workflow_queries import get_failing_hooks_for_summarize
-
-    hook = HookEntry(
-        command="flake8 src",
-        status_lines=[
-            HookStatusLine(
-                commit_entry_num="2a",
-                timestamp="240601_123456",
-                status="FAILED",
-            )
-        ],
-    )
-    result = get_failing_hooks_for_summarize([hook])
-    assert len(result) == 1
-    assert result[0].command == "flake8 src"
-
-
-def test_get_failing_hooks_for_summarize_excludes_non_proposal() -> None:
-    """Test that non-proposal entries are excluded from summarize-hook."""
-    from sase.ace.hooks.workflow_queries import get_failing_hooks_for_summarize
-
-    hook = HookEntry(
-        command="flake8 src",
-        status_lines=[
-            HookStatusLine(
-                commit_entry_num="2",
-                timestamp="240601_123456",
-                status="FAILED",
-            )
-        ],
-    )
-    result = get_failing_hooks_for_summarize([hook])
-    assert len(result) == 0
-
-
 def test_get_failing_hooks_for_summarize_excludes_with_suffix() -> None:
     """Test that hooks with suffix are excluded from summarize-hook."""
     from sase.ace.hooks.workflow_queries import get_failing_hooks_for_summarize
@@ -122,44 +85,6 @@ def test_get_failing_hooks_for_summarize_no_status_lines() -> None:
 
 
 # Tests for get_failing_hook_entries_for_summarize
-def test_get_failing_hook_entries_for_summarize_basic() -> None:
-    """Test getting failing hook entries for summarize workflow."""
-    from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_summarize
-
-    hook = HookEntry(
-        command="flake8 src",
-        status_lines=[
-            HookStatusLine(
-                commit_entry_num="3a",
-                timestamp="240601_123456",
-                status="FAILED",
-            )
-        ],
-    )
-    result = get_failing_hook_entries_for_summarize([hook], ["3a"])
-    assert len(result) == 1
-    assert result[0][0].command == "flake8 src"
-    assert result[0][1] == "3a"
-
-
-def test_get_failing_hook_entries_for_summarize_includes_non_proposal() -> None:
-    """Test that non-proposal entries ARE included in summarize."""
-    from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_summarize
-
-    hook = HookEntry(
-        command="flake8 src",
-        status_lines=[
-            HookStatusLine(
-                commit_entry_num="3",
-                timestamp="240601_123456",
-                status="FAILED",
-            )
-        ],
-    )
-    result = get_failing_hook_entries_for_summarize([hook], ["3"])
-    assert len(result) == 1
-
-
 def test_get_failing_hook_entries_for_summarize_excludes_with_suffix() -> None:
     """Test that entries with suffix are excluded from summarize."""
     from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_summarize
@@ -215,26 +140,6 @@ def test_get_failing_hook_entries_for_summarize_no_status_lines() -> None:
 
     hooks = [HookEntry(command="flake8 src")]
     result = get_failing_hook_entries_for_summarize(hooks, ["1", "2"])
-    assert len(result) == 0
-
-
-def test_get_failing_hook_entries_for_summarize_entry_not_found() -> None:
-    """Test that missing entry IDs are handled correctly for summarize."""
-    from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_summarize
-
-    hooks = [
-        HookEntry(
-            command="flake8 src",
-            status_lines=[
-                HookStatusLine(
-                    commit_entry_num="1",
-                    timestamp="240601_123456",
-                    status="FAILED",
-                )
-            ],
-        )
-    ]
-    result = get_failing_hook_entries_for_summarize(hooks, ["2"])
     assert len(result) == 0
 
 

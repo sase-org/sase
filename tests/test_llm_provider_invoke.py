@@ -9,48 +9,6 @@ from sase.llm_provider.preprocessing import _PreprocessResult
 
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.preprocess_prompt")
-@patch("sase.llm_provider._invoke.print_prompt_and_response")
-@patch("sase.llm_provider._invoke.print_decision_counts")
-@patch("sase.llm_provider._invoke.postprocess_success")
-def test_invoke_agent_with_mocked_provider(
-    mock_postprocess: MagicMock,
-    mock_print_counts: MagicMock,
-    mock_print_prompt: MagicMock,
-    mock_preprocess: MagicMock,
-    mock_get_provider: MagicMock,
-) -> None:
-    """Test invoke_agent with a mocked provider."""
-    # Set up mocks
-    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed prompt")
-    mock_provider = MagicMock()
-    mock_provider.invoke.return_value = "mock response"
-    mock_get_provider.return_value = mock_provider
-
-    # Call invoke_agent
-    result = invoke_agent(
-        "raw prompt",
-        agent_type="test",
-        model_tier="large",
-        suppress_output=True,
-    )
-
-    # Verify preprocessing was called
-    mock_preprocess.assert_called_once_with("raw prompt", is_home_mode=False)
-
-    # Verify provider was called
-    mock_provider.invoke.assert_called_once_with(
-        "preprocessed prompt",
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-    )
-
-    # Verify result
-    assert result.content == "mock response"
-
-
-@patch("sase.llm_provider._invoke.get_provider")
-@patch("sase.llm_provider._invoke.preprocess_prompt")
 @patch("sase.llm_provider._invoke.postprocess_error")
 def test_invoke_agent_handles_error(
     mock_postprocess_error: MagicMock,

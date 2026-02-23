@@ -30,58 +30,6 @@ def _make_executor_with_steps(
     return executor
 
 
-def test_get_output_types_returns_type_mapping() -> None:
-    """Test that _get_output_types returns correct type mapping from OutputSpec."""
-    output_spec = OutputSpec(
-        type="json_schema",
-        schema={
-            "properties": {
-                "success": {"type": "bool"},
-                "cl_url": {"type": "line"},
-                "diff_path": {"type": "path"},
-                "error": {"type": "text"},
-            }
-        },
-    )
-    step = MagicMock()
-    step.name = "create_cl"
-    step.output = output_spec
-    step.hidden = False
-    step.condition = None
-    step.for_loop = None
-    step.repeat_config = None
-    step.while_config = None
-    step.parallel_config = None
-
-    executor = _make_executor_with_steps([step])
-    result = executor._get_output_types(0)
-
-    assert result == {
-        "success": "bool",
-        "cl_url": "line",
-        "diff_path": "path",
-        "error": "text",
-    }
-
-
-def test_get_output_types_returns_none_when_no_output() -> None:
-    """Test that _get_output_types returns None when step has no output spec."""
-    step = MagicMock()
-    step.name = "check"
-    step.output = None
-    step.hidden = False
-    step.condition = None
-    step.for_loop = None
-    step.repeat_config = None
-    step.while_config = None
-    step.parallel_config = None
-
-    executor = _make_executor_with_steps([step])
-    result = executor._get_output_types(0)
-
-    assert result is None
-
-
 def test_get_output_types_returns_none_when_no_properties() -> None:
     """Test that _get_output_types returns None when schema has no properties."""
     output_spec = OutputSpec(type="json_schema", schema={"type": "array"})

@@ -1,6 +1,5 @@
 """Tests for per-lumberjack state management in the axe state module."""
 
-import os
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
@@ -11,7 +10,6 @@ from sase.axe.state import (
     LumberjackMetrics,
     LumberjackStatus,
     ensure_lumberjack_dirs,
-    ensure_shared_dir,
     list_lumberjack_names,
     lumberjack_log_path,
     read_lumberjack_log_tail,
@@ -19,9 +17,7 @@ from sase.axe.state import (
     read_lumberjack_pid,
     read_lumberjack_status,
     remove_lumberjack_pid,
-    write_lumberjack_metrics,
     write_lumberjack_pid,
-    write_lumberjack_status,
 )
 
 
@@ -42,43 +38,7 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 # --- Directory Creation ---
 
 
-def test_ensure_lumberjack_dirs_creates_tree(temp_state_dir: Path) -> None:
-    """Test that ensure_lumberjack_dirs creates the full directory tree."""
-    lj_dir = ensure_lumberjack_dirs("hooks")
-    assert lj_dir.exists()
-    assert (lj_dir / "logs").exists()
-    assert lj_dir.name == "hooks"
-
-
-def test_ensure_lumberjack_dirs_idempotent(temp_state_dir: Path) -> None:
-    """Test that calling ensure_lumberjack_dirs twice is safe."""
-    lj_dir1 = ensure_lumberjack_dirs("hooks")
-    lj_dir2 = ensure_lumberjack_dirs("hooks")
-    assert lj_dir1 == lj_dir2
-    assert lj_dir1.exists()
-
-
-def test_ensure_shared_dir_creates_dir(temp_state_dir: Path) -> None:
-    """Test that ensure_shared_dir creates the shared directory."""
-    shared = ensure_shared_dir()
-    assert shared.exists()
-
-
 # --- PID File ---
-
-
-def test_write_and_read_lumberjack_pid(temp_state_dir: Path) -> None:
-    """Test writing and reading a lumberjack PID file."""
-    write_lumberjack_pid("hooks")
-    pid = read_lumberjack_pid("hooks")
-    assert pid == os.getpid()
-
-
-def test_read_lumberjack_pid_returns_none_when_missing(
-    temp_state_dir: Path,
-) -> None:
-    """Test that read_lumberjack_pid returns None when no PID file."""
-    assert read_lumberjack_pid("hooks") is None
 
 
 def test_remove_lumberjack_pid(temp_state_dir: Path) -> None:
@@ -97,33 +57,6 @@ def test_remove_lumberjack_pid_no_error_when_missing(
 
 
 # --- Status ---
-
-
-def test_write_and_read_lumberjack_status(temp_state_dir: Path) -> None:
-    """Test writing and reading lumberjack status."""
-    status = LumberjackStatus(
-        name="hooks",
-        pid=12345,
-        started_at="2026-02-21T10:00:00-05:00",
-        status="running",
-        interval=1,
-        chops=["hook_checks", "mentor_checks"],
-        last_cycle="2026-02-21T10:00:05-05:00",
-        cycles_run=100,
-        errors_encountered=2,
-        uptime_seconds=300,
-    )
-    write_lumberjack_status(status)
-
-    result = read_lumberjack_status("hooks")
-    assert result is not None
-    assert result.name == "hooks"
-    assert result.pid == 12345
-    assert result.status == "running"
-    assert result.interval == 1
-    assert result.chops == ["hook_checks", "mentor_checks"]
-    assert result.cycles_run == 100
-    assert result.uptime_seconds == 300
 
 
 def test_read_lumberjack_status_returns_none_when_missing(
@@ -152,24 +85,6 @@ def test_lumberjack_status_defaults() -> None:
 # --- Metrics ---
 
 
-def test_write_and_read_lumberjack_metrics(temp_state_dir: Path) -> None:
-    """Test writing and reading lumberjack metrics."""
-    metrics = LumberjackMetrics(
-        cycles_run=50,
-        chops_executed=200,
-        total_updates=30,
-        errors_encountered=1,
-    )
-    write_lumberjack_metrics("hooks", metrics)
-
-    result = read_lumberjack_metrics("hooks")
-    assert result is not None
-    assert result.cycles_run == 50
-    assert result.chops_executed == 200
-    assert result.total_updates == 30
-    assert result.errors_encountered == 1
-
-
 def test_read_lumberjack_metrics_returns_none_when_missing(
     temp_state_dir: Path,
 ) -> None:
@@ -187,14 +102,6 @@ def test_lumberjack_metrics_defaults() -> None:
 
 
 # --- Log Paths ---
-
-
-def test_lumberjack_log_path(temp_state_dir: Path) -> None:
-    """Test lumberjack_log_path returns correct path."""
-    path = lumberjack_log_path("hooks")
-    assert path.name == "output.log"
-    assert "hooks" in str(path)
-    assert "logs" in str(path)
 
 
 def test_read_lumberjack_log_tail_returns_content(

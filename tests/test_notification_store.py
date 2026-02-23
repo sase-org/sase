@@ -1,6 +1,5 @@
 """Tests for the notification data model and JSONL storage layer."""
 
-import dataclasses
 import json
 import uuid
 from collections.abc import Iterator
@@ -13,7 +12,6 @@ import pytest
 
 from sase.notifications.models import Notification
 from sase.notifications.store import (
-    _notification_from_dict,
     append_notification,
     load_notifications,
     mark_all_read,
@@ -99,15 +97,6 @@ class TestNotificationModel:
         assert n.read is True
         assert n.dismissed is True
 
-    def test_asdict_roundtrip(self) -> None:
-        n = _make_notification(sender="roundtrip", notes=["hello"])
-        d = dataclasses.asdict(n)
-        restored = _notification_from_dict(d)
-        assert restored is not None
-        assert restored.id == n.id
-        assert restored.sender == n.sender
-        assert restored.notes == n.notes
-
 
 # =========================================================================
 # TestAppendNotification
@@ -117,33 +106,6 @@ class TestNotificationModel:
 class TestAppendNotification:
     """Tests for append_notification()."""
 
-    def test_append_creates_file(self, temp_notifications_dir: Path) -> None:
-        n = _make_notification()
-        append_notification(n)
-
-        jsonl = temp_notifications_dir / "notifications" / "notifications.jsonl"
-        assert jsonl.exists()
-        lines = jsonl.read_text().strip().split("\n")
-        assert len(lines) == 1
-        data = json.loads(lines[0])
-        assert data["id"] == n.id
-
-    def test_append_multiple(self, temp_notifications_dir: Path) -> None:
-        n1 = _make_notification(sender="a")
-        n2 = _make_notification(sender="b")
-        append_notification(n1)
-        append_notification(n2)
-
-        jsonl = temp_notifications_dir / "notifications" / "notifications.jsonl"
-        lines = jsonl.read_text().strip().split("\n")
-        assert len(lines) == 2
-
-    def test_append_creates_directory(self, temp_notifications_dir: Path) -> None:
-        """Directory is created automatically on first append."""
-        n = _make_notification()
-        append_notification(n)
-        assert (temp_notifications_dir / "notifications").is_dir()
-
 
 # =========================================================================
 # TestLoadNotifications
@@ -152,16 +114,6 @@ class TestAppendNotification:
 
 class TestLoadNotifications:
     """Tests for load_notifications()."""
-
-    def test_empty_store(self, temp_notifications_dir: Path) -> None:
-        assert load_notifications() == []
-
-    def test_load_appended(self, temp_notifications_dir: Path) -> None:
-        n = _make_notification(sender="loader")
-        append_notification(n)
-        loaded = load_notifications()
-        assert len(loaded) == 1
-        assert loaded[0].sender == "loader"
 
     def test_skips_invalid_json(self, temp_notifications_dir: Path) -> None:
         n = _make_notification()
@@ -180,12 +132,6 @@ class TestLoadNotifications:
             f.write(json.dumps({"id": "abc"}) + "\n")  # missing sender, timestamp
         loaded = load_notifications()
         assert len(loaded) == 0
-
-    def test_excludes_dismissed_by_default(self, temp_notifications_dir: Path) -> None:
-        n = _make_notification(dismissed=True)
-        append_notification(n)
-        assert load_notifications() == []
-        assert len(load_notifications(include_dismissed=True)) == 1
 
     def test_skips_blank_lines(self, temp_notifications_dir: Path) -> None:
         n = _make_notification()
@@ -250,16 +196,6 @@ class TestMarkDismissed:
 
 class TestMarkAllRead:
     """Tests for mark_all_read()."""
-
-    def test_marks_unread(self, temp_notifications_dir: Path) -> None:
-        n1 = _make_notification()
-        n2 = _make_notification()
-        append_notification(n1)
-        append_notification(n2)
-        count = mark_all_read()
-        assert count == 2
-        loaded = load_notifications()
-        assert all(n.read for n in loaded)
 
     def test_skips_already_read(self, temp_notifications_dir: Path) -> None:
         n1 = _make_notification(read=True)

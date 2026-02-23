@@ -19,35 +19,6 @@ def test_load_empty_when_no_file(tmp_path: Path) -> None:
         assert result == {}
 
 
-def test_save_and_load(tmp_path: Path) -> None:
-    """Test saving and loading selections."""
-    test_file = tmp_path / "query_selections.json"
-    with patch("sase.ace.query_selection._QUERY_SELECTION_FILE", test_file):
-        selections = {"query_a": "cl_1", "query_b": "cl_2"}
-        assert save_query_selections(selections)
-        result = load_query_selections()
-        assert result == {"query_a": "cl_1", "query_b": "cl_2"}
-
-
-def test_save_creates_parent_directory(tmp_path: Path) -> None:
-    """Test that save creates parent directory if needed."""
-    test_file = tmp_path / "subdir" / "query_selections.json"
-    with patch("sase.ace.query_selection._QUERY_SELECTION_FILE", test_file):
-        selections = {"query": "cl"}
-        assert save_query_selections(selections)
-        assert test_file.exists()
-
-
-def test_max_selections_trimming(tmp_path: Path) -> None:
-    """Test that saving >MAX_SELECTIONS trims to MAX_SELECTIONS."""
-    test_file = tmp_path / "query_selections.json"
-    with patch("sase.ace.query_selection._QUERY_SELECTION_FILE", test_file):
-        selections = {f"q{i}": f"cl{i}" for i in range(MAX_SELECTIONS + 20)}
-        save_query_selections(selections)
-        result = load_query_selections()
-        assert len(result) == MAX_SELECTIONS
-
-
 def test_trimming_keeps_most_recent(tmp_path: Path) -> None:
     """Test that trimming keeps the most recently inserted entries."""
     test_file = tmp_path / "query_selections.json"

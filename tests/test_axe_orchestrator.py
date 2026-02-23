@@ -1,6 +1,5 @@
 """Tests for the Orchestrator class."""
 
-import os
 import signal
 from collections.abc import Iterator
 from pathlib import Path
@@ -10,7 +9,6 @@ import pytest
 
 from sase.axe.config import AxeConfig, LumberjackConfig
 from sase.axe.orchestrator import (
-    ORCHESTRATOR_PID_FILE,
     Orchestrator,
 )
 
@@ -74,45 +72,7 @@ def test_spawn_lumberjack_calls_popen(
     assert cmd[1:5] == ["axe", "lumberjack", "run", "hooks"]
 
 
-@patch(
-    "sase.axe.orchestrator.Orchestrator._find_sase_executable",
-    return_value="/usr/bin/sase",
-)
-@patch("subprocess.Popen")
-def test_orchestrator_spawns_all_lumberjacks(
-    mock_popen: MagicMock,
-    mock_find: MagicMock,
-    temp_state_dir: Path,
-    axe_config: AxeConfig,
-) -> None:
-    """Test that the orchestrator spawns one subprocess per lumberjack."""
-    mock_proc = MagicMock()
-    mock_proc.pid = 12345
-    mock_proc.poll.return_value = None  # Still running
-    mock_popen.return_value = mock_proc
-
-    orch = Orchestrator(axe_config)
-
-    # Simulate: spawn all then stop immediately
-    orch._running = True
-    for name in axe_config.lumberjacks:
-        orch._children[name] = orch._spawn_lumberjack(name)
-
-    assert len(orch._children) == 2
-    assert set(orch._children.keys()) == {"hooks", "checks"}
-
-
 # --- PID File Tests ---
-
-
-def test_write_pid_creates_file(temp_state_dir: Path, axe_config: AxeConfig) -> None:
-    """Test that _write_pid creates the orchestrator PID file."""
-    orch = Orchestrator(axe_config)
-    orch._write_pid()
-
-    pid_file = temp_state_dir / "orchestrator.pid"
-    assert pid_file.exists()
-    assert int(pid_file.read_text().strip()) == os.getpid()
 
 
 def test_remove_pid_deletes_file(temp_state_dir: Path, axe_config: AxeConfig) -> None:

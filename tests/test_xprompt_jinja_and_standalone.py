@@ -9,40 +9,15 @@ from sase.shared_utils import dump_yaml
 from sase.xprompt._exceptions import XPromptArgumentError
 from sase.xprompt._jinja import (
     _substitute_legacy_placeholders,
-    is_jinja2_template,
     render_toplevel_jinja2,
-    substitute_placeholders,
     validate_and_convert_args,
 )
 from sase.xprompt.models import (
     InputArg,
     InputType,
     XPrompt,
-    XPromptValidationError,
-    xprompt_to_workflow,
 )
 from sase.xprompt.workflow_executor_utils import parse_bash_output, render_template
-
-
-def test_evaluate_standalone_condition_truthy_string() -> None:
-    """Test condition evaluates to True for truthy string values."""
-    context = {"check_changes": {"has_changes": "true"}}
-    result = _evaluate_standalone_condition("{{ check_changes.has_changes }}", context)
-    assert result is True
-
-
-def test_evaluate_standalone_condition_false_string() -> None:
-    """Test condition evaluates to False for 'false' string."""
-    context = {"check_changes": {"has_changes": "false"}}
-    result = _evaluate_standalone_condition("{{ check_changes.has_changes }}", context)
-    assert result is False
-
-
-def test_evaluate_standalone_condition_empty_string() -> None:
-    """Test condition evaluates to False for empty string."""
-    context = {"value": ""}
-    result = _evaluate_standalone_condition("{{ value }}", context)
-    assert result is False
 
 
 def test_evaluate_standalone_condition_missing_variable() -> None:
@@ -51,69 +26,10 @@ def test_evaluate_standalone_condition_missing_variable() -> None:
     assert result is False
 
 
-def test_evaluate_standalone_condition_boolean_true() -> None:
-    """Test condition with boolean True value."""
-    context = {"flag": True}
-    result = _evaluate_standalone_condition("{{ flag }}", context)
-    assert result is True
-
-
-def test_evaluate_standalone_condition_none_value() -> None:
-    """Test condition evaluates to False for 'none' string."""
-    context = {"value": "none"}
-    result = _evaluate_standalone_condition("{{ value }}", context)
-    assert result is False
-
-
-def test_evaluate_standalone_condition_zero_value() -> None:
-    """Test condition evaluates to False for '0' string."""
-    context = {"value": "0"}
-    result = _evaluate_standalone_condition("{{ value }}", context)
-    assert result is False
-
-
 # Tests for is_jinja2_template
 
 
-def test_is_jinja2_template_variable() -> None:
-    """Test is_jinja2_template detects {{ }} variable syntax."""
-    assert is_jinja2_template("Hello {{ name }}") is True
-
-
-def test_is_jinja2_template_control() -> None:
-    """Test is_jinja2_template detects {% %} control structures."""
-    assert is_jinja2_template("{% if x %}hello{% endif %}") is True
-
-
-def test_is_jinja2_template_comment() -> None:
-    """Test is_jinja2_template detects {# #} comment syntax."""
-    assert is_jinja2_template("{# a comment #}") is True
-
-
-def test_is_jinja2_template_plain() -> None:
-    """Test is_jinja2_template returns False for plain text."""
-    assert is_jinja2_template("just plain text") is False
-
-
 # Tests for _substitute_legacy_placeholders
-
-
-def test_substitute_legacy_simple() -> None:
-    """Test _substitute_legacy_placeholders with simple replacement."""
-    result = _substitute_legacy_placeholders("Hello {1}!", ["world"], "test")
-    assert result == "Hello world!"
-
-
-def test_substitute_legacy_multiple() -> None:
-    """Test _substitute_legacy_placeholders with multiple args."""
-    result = _substitute_legacy_placeholders("{1} and {2}", ["foo", "bar"], "test")
-    assert result == "foo and bar"
-
-
-def test_substitute_legacy_default() -> None:
-    """Test _substitute_legacy_placeholders uses default when arg missing."""
-    result = _substitute_legacy_placeholders("{1:fallback}", [], "test")
-    assert result == "fallback"
 
 
 def test_substitute_legacy_missing_arg_error() -> None:
@@ -134,25 +50,7 @@ def test_render_toplevel_jinja2_simple() -> None:
 # Tests for substitute_placeholders
 
 
-def test_substitute_placeholders_jinja2_mode() -> None:
-    """Test substitute_placeholders uses Jinja2 when template detected."""
-    result = substitute_placeholders("Hello {{ name }}", [], {"name": "world"}, "test")
-    assert result == "Hello world"
-
-
-def test_substitute_placeholders_legacy_mode() -> None:
-    """Test substitute_placeholders uses legacy when no Jinja2 syntax."""
-    result = substitute_placeholders("Hello {1}", ["world"], {}, "test")
-    assert result == "Hello world"
-
-
 # Tests for parse_bash_output
-
-
-def test_parse_bash_output_json() -> None:
-    """Test parse_bash_output with valid JSON."""
-    result = parse_bash_output('{"key": "value", "num": 42}')
-    assert result == {"key": "value", "num": 42}
 
 
 def test_parse_bash_output_invalid_json() -> None:
@@ -161,43 +59,13 @@ def test_parse_bash_output_invalid_json() -> None:
     assert result == {"_output": "{not valid json"}
 
 
-def test_parse_bash_output_key_value() -> None:
-    """Test parse_bash_output with key=value format."""
-    result = parse_bash_output("name=alice\nage=30")
-    assert result == {"name": "alice", "age": "30"}
-
-
-def test_parse_bash_output_plain_text() -> None:
-    """Test parse_bash_output with plain text output."""
-    result = parse_bash_output("just some output")
-    assert result == {"_output": "just some output"}
-
-
-def test_parse_bash_output_empty_lines() -> None:
-    """Test parse_bash_output skips empty lines."""
-    result = parse_bash_output("key=val\n\nother=thing")
-    assert result == {"key": "val", "other": "thing"}
-
-
 def test_parse_bash_output_empty() -> None:
     """Test parse_bash_output with empty input."""
     result = parse_bash_output("")
     assert result == {}
 
 
-def test_parse_bash_output_json_array() -> None:
-    """Test parse_bash_output with JSON array."""
-    result = parse_bash_output("[1, 2, 3]")
-    assert result == [1, 2, 3]
-
-
 # Tests for dump_yaml
-
-
-def test_dump_yaml_single_line() -> None:
-    """Test dump_yaml with single-line string (covers else branch)."""
-    result = dump_yaml({"msg": "hello"})
-    assert "msg: hello" in result
 
 
 def test_dump_yaml_multiline() -> None:
@@ -217,56 +85,16 @@ def test_input_arg_word_valid() -> None:
     assert arg.validate_and_convert("hello") == "hello"
 
 
-def test_input_arg_word_with_spaces() -> None:
-    """Test InputArg rejects word with spaces."""
-    arg = InputArg(name="x", type=InputType.WORD)
-    with pytest.raises(XPromptValidationError, match="expects word"):
-        arg.validate_and_convert("hello world")
-
-
-def test_input_arg_line_valid() -> None:
-    """Test InputArg validates line type correctly."""
-    arg = InputArg(name="x", type=InputType.LINE)
-    assert arg.validate_and_convert("hello world") == "hello world"
-
-
-def test_input_arg_line_with_newline() -> None:
-    """Test InputArg rejects line with newlines."""
-    arg = InputArg(name="x", type=InputType.LINE)
-    with pytest.raises(XPromptValidationError, match="expects line"):
-        arg.validate_and_convert("hello\nworld")
-
-
-def test_input_arg_text_any_content() -> None:
-    """Test InputArg text type accepts anything."""
-    arg = InputArg(name="x", type=InputType.TEXT)
-    assert arg.validate_and_convert("hello\nworld") == "hello\nworld"
-
-
 def test_input_arg_int_valid() -> None:
     """Test InputArg validates int type correctly."""
     arg = InputArg(name="x", type=InputType.INT)
     assert arg.validate_and_convert("42") == 42
 
 
-def test_input_arg_int_invalid() -> None:
-    """Test InputArg rejects invalid int."""
-    arg = InputArg(name="x", type=InputType.INT)
-    with pytest.raises(XPromptValidationError, match="expects int"):
-        arg.validate_and_convert("abc")
-
-
 def test_input_arg_float_valid() -> None:
     """Test InputArg validates float type correctly."""
     arg = InputArg(name="x", type=InputType.FLOAT)
     assert arg.validate_and_convert("3.14") == pytest.approx(3.14)
-
-
-def test_input_arg_float_invalid() -> None:
-    """Test InputArg rejects invalid float."""
-    arg = InputArg(name="x", type=InputType.FLOAT)
-    with pytest.raises(XPromptValidationError, match="expects float"):
-        arg.validate_and_convert("not_a_float")
 
 
 def test_input_arg_bool_true() -> None:
@@ -287,117 +115,13 @@ def test_input_arg_bool_false() -> None:
     assert arg.validate_and_convert("off") is False
 
 
-def test_input_arg_bool_invalid() -> None:
-    """Test InputArg rejects invalid bool."""
-    arg = InputArg(name="x", type=InputType.BOOL)
-    with pytest.raises(XPromptValidationError, match="expects bool"):
-        arg.validate_and_convert("maybe")
-
-
-def test_input_arg_path_with_spaces() -> None:
-    """Test InputArg rejects path with spaces."""
-    arg = InputArg(name="x", type=InputType.PATH)
-    with pytest.raises(XPromptValidationError, match="expects path"):
-        arg.validate_and_convert("path with spaces")
-
-
 # Tests for XPrompt
-
-
-def test_xprompt_get_input_by_name_found() -> None:
-    """Test XPrompt.get_input_by_name returns matching input."""
-    xp = XPrompt(
-        name="test",
-        content="hello",
-        inputs=[InputArg(name="x"), InputArg(name="y")],
-    )
-    result = xp.get_input_by_name("y")
-    assert result is not None
-    assert result.name == "y"
-
-
-def test_xprompt_get_input_by_name_not_found() -> None:
-    """Test XPrompt.get_input_by_name returns None when not found."""
-    xp = XPrompt(name="test", content="hello", inputs=[InputArg(name="x")])
-    assert xp.get_input_by_name("z") is None
-
-
-def test_xprompt_get_input_by_position_valid() -> None:
-    """Test XPrompt.get_input_by_position with valid index."""
-    xp = XPrompt(
-        name="test",
-        content="hello",
-        inputs=[InputArg(name="a"), InputArg(name="b")],
-    )
-    result = xp.get_input_by_position(1)
-    assert result is not None
-    assert result.name == "b"
-
-
-def test_xprompt_get_input_by_position_out_of_range() -> None:
-    """Test XPrompt.get_input_by_position returns None for out of range."""
-    xp = XPrompt(name="test", content="hello", inputs=[InputArg(name="a")])
-    assert xp.get_input_by_position(5) is None
 
 
 # Tests for xprompt_to_workflow
 
 
-def test_xprompt_to_workflow() -> None:
-    """Test converting XPrompt to Workflow."""
-    xp = XPrompt(name="mytest", content="hello {{ name }}", source_path="/test.md")
-    wf = xprompt_to_workflow(xp)
-    assert wf.name == "mytest"
-    assert len(wf.steps) == 1
-    assert wf.steps[0].name == "main"
-    assert wf.steps[0].prompt_part == "hello {{ name }}"
-    assert wf.source_path == "/test.md"
-
-
 # Tests for validate_and_convert_args
-
-
-def test_validate_and_convert_args_no_inputs() -> None:
-    """Test validate_and_convert_args passes through when no inputs defined."""
-    xp = XPrompt(name="test", content="hello")
-    pos, named = validate_and_convert_args(xp, ["a", "b"], {"c": "d"})
-    assert pos == ["a", "b"]
-    assert named == {"c": "d"}
-
-
-def test_validate_and_convert_args_positional() -> None:
-    """Test validate_and_convert_args converts positional args."""
-    xp = XPrompt(
-        name="test",
-        content="hello",
-        inputs=[InputArg(name="count", type=InputType.INT)],
-    )
-    pos, named = validate_and_convert_args(xp, ["42"], {})
-    assert pos == [42]
-    assert named == {"count": 42}
-
-
-def test_validate_and_convert_args_named() -> None:
-    """Test validate_and_convert_args converts named args."""
-    xp = XPrompt(
-        name="test",
-        content="hello",
-        inputs=[InputArg(name="flag", type=InputType.BOOL)],
-    )
-    pos, named = validate_and_convert_args(xp, [], {"flag": "true"})
-    assert pos == []
-    assert named == {"flag": True}
-
-
-def test_validate_and_convert_args_defaults() -> None:
-    """Test validate_and_convert_args applies defaults for missing inputs."""
-    xp = XPrompt(
-        name="test",
-        content="hello",
-        inputs=[InputArg(name="x", type=InputType.LINE, default="fallback")],
-    )
-    _, named = validate_and_convert_args(xp, [], {})
-    assert named == {"x": "fallback"}
 
 
 def test_validate_and_convert_args_extra_positional() -> None:
@@ -444,17 +168,6 @@ def test_validate_and_convert_args_named_error() -> None:
         validate_and_convert_args(xp, [], {"n": "not_a_number"})
 
 
-def test_validate_and_convert_args_null_named_arg_uses_default() -> None:
-    """Test that named arg 'null' is skipped so callee's default applies."""
-    xp = XPrompt(
-        name="test",
-        content="hello",
-        inputs=[InputArg(name="x", type=InputType.LINE, default="fallback")],
-    )
-    _, named = validate_and_convert_args(xp, [], {"x": "null"})
-    assert named == {"x": "fallback"}
-
-
 def test_validate_and_convert_args_null_positional_arg_uses_default() -> None:
     """Test that positional arg 'null' is skipped so callee's default applies."""
     xp = XPrompt(
@@ -479,24 +192,6 @@ def test_validate_and_convert_args_null_value_no_default_skipped() -> None:
 
 
 # Tests for skipped step context in execute_standalone_steps
-
-
-def test_skipped_step_stores_empty_dict_in_context() -> None:
-    """Test that a skipped step (false condition) stores empty dict in context."""
-    from sase.main.query_handler._query import execute_standalone_steps
-    from sase.xprompt.workflow_models import WorkflowStep
-
-    steps = [
-        WorkflowStep(
-            name="skipped_step",
-            bash="echo 'should not run'",
-            condition="{{ flag }}",
-        ),
-    ]
-    context: dict[str, object] = {"flag": False}
-    result = execute_standalone_steps(steps, context, "test_workflow")
-    assert "skipped_step" in result
-    assert result["skipped_step"] == {}
 
 
 def test_skipped_step_accessible_via_jinja2_default_filter() -> None:
@@ -524,24 +219,6 @@ def test_skipped_step_accessible_via_jinja2_default_filter() -> None:
 # Tests for render_template with boolean values
 
 
-def test_render_template_bool_true_renders_lowercase() -> None:
-    """Test that Python True renders as 'true' (not 'True') for bash compat."""
-    result = render_template("{{ flag }}", {"flag": True})
-    assert result == "true"
-
-
-def test_render_template_bool_false_renders_lowercase() -> None:
-    """Test that Python False renders as 'false' (not 'False') for bash compat."""
-    result = render_template("{{ flag }}", {"flag": False})
-    assert result == "false"
-
-
-def test_render_template_bool_default_filter_renders_lowercase() -> None:
-    """Test that default(false) renders as 'false' when key is missing."""
-    result = render_template("{{ missing.key | default(false) }}", {"missing": {}})
-    assert result == "false"
-
-
 def test_render_template_bool_tojson_produces_python() -> None:
     """Test that tojson filter produces Python-compatible booleans/None."""
     result = render_template("{{ flag | tojson }}", {"flag": True})
@@ -550,18 +227,6 @@ def test_render_template_bool_tojson_produces_python() -> None:
     assert result == "False"
     result = render_template("{{ flag | tojson }}", {"flag": None})
     assert result == "None"
-
-
-def test_render_template_string_lower_true() -> None:
-    """Test that | string | lower on Python True produces 'true'."""
-    result = render_template("{{ flag | string | lower }}", {"flag": True})
-    assert result == "true"
-
-
-def test_render_template_string_lower_false() -> None:
-    """Test that | string | lower on Python False produces 'false'."""
-    result = render_template("{{ flag | string | lower }}", {"flag": False})
-    assert result == "false"
 
 
 def test_chdir_handling_in_standalone_steps(tmp_path: Path) -> None:

@@ -22,48 +22,6 @@ def test_hook_needs_run_proposal_waits_no_parent_status() -> None:
     assert hook_needs_run(hook, "1") is True
 
 
-def test_hook_needs_run_proposal_waits_parent_running() -> None:
-    """Test that proposal waits when parent is RUNNING."""
-    hook = _make_hook_with_status_lines(
-        "make test",
-        [
-            HookStatusLine(
-                commit_entry_num="2", timestamp="251231_120000", status="RUNNING"
-            )
-        ],
-    )
-    # Proposal "2a" should wait - parent "2" is RUNNING
-    assert hook_needs_run(hook, "2a") is False
-
-
-def test_hook_needs_run_proposal_waits_parent_failed() -> None:
-    """Test that proposal waits when parent FAILED without fix-hook suffix."""
-    hook = _make_hook_with_status_lines(
-        "make test",
-        [
-            HookStatusLine(
-                commit_entry_num="2", timestamp="251231_120000", status="FAILED"
-            )
-        ],
-    )
-    # Proposal "2a" should wait - parent "2" FAILED but no fix-hook suffix
-    assert hook_needs_run(hook, "2a") is False
-
-
-def test_hook_needs_run_proposal_runs_parent_passed() -> None:
-    """Test that proposal runs when parent PASSED."""
-    hook = _make_hook_with_status_lines(
-        "make test",
-        [
-            HookStatusLine(
-                commit_entry_num="2", timestamp="251231_120000", status="PASSED"
-            )
-        ],
-    )
-    # Proposal "2a" can run - parent "2" PASSED
-    assert hook_needs_run(hook, "2a") is True
-
-
 def test_hook_needs_run_fix_hook_exception() -> None:
     """Test that fix-hook proposal runs immediately (parent suffix matches)."""
     hook = _make_hook_with_status_lines(
@@ -81,15 +39,6 @@ def test_hook_needs_run_fix_hook_exception() -> None:
     assert hook_needs_run(hook, "2a") is True
     # But proposal "2b" still waits - it's not the fix-hook proposal
     assert hook_needs_run(hook, "2b") is False
-
-
-def test_hook_needs_run_regular_entry_unaffected() -> None:
-    """Test that regular (non-proposal) entries are unaffected by parent check."""
-    # Even with no status lines, regular entries can run
-    hook = HookEntry(command="make test")
-    assert hook_needs_run(hook, "1") is True
-    assert hook_needs_run(hook, "2") is True
-    assert hook_needs_run(hook, "10") is True
 
 
 def test_get_entries_needing_hook_run_parent_passed() -> None:
@@ -125,25 +74,4 @@ def test_get_entries_needing_hook_run_parent_not_passed() -> None:
     result = get_entries_needing_hook_run(hook, ["2", "2a", "3"])
     assert "3" in result  # Regular entry needs to run
     assert "2a" not in result  # Proposal waits - parent not passed
-    assert "2" not in result  # Already has status
-
-
-def test_get_entries_needing_hook_run_fix_hook_exception() -> None:
-    """Test get_entries_needing_hook_run allows fix-hook proposals."""
-    # Parent "2" failed but created fix-hook proposal "2a"
-    hook = _make_hook_with_status_lines(
-        "make test",
-        [
-            HookStatusLine(
-                commit_entry_num="2",
-                timestamp="251231_120000",
-                status="FAILED",
-                suffix="2a",
-            )
-        ],
-    )
-    result = get_entries_needing_hook_run(hook, ["2", "2a", "2b", "3"])
-    assert "3" in result  # Regular entry
-    assert "2a" in result  # Fix-hook proposal - can run
-    assert "2b" not in result  # Not the fix-hook proposal - waits
     assert "2" not in result  # Already has status

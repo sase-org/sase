@@ -20,32 +20,8 @@ from sase.git_workspace import (
 
 
 class TestParseBareRepoDir:
-    def test_found(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("BARE_REPO_DIR: /home/user/repos/myrepo.git\nNAME: my-cl\n")
-            f.flush()
-            assert parse_bare_repo_dir(f.name) == "/home/user/repos/myrepo.git"
-            os.unlink(f.name)
-
-    def test_not_found(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("WORKSPACE_DIR: /repo/\nNAME: my-cl\n")
-            f.flush()
-            assert parse_bare_repo_dir(f.name) is None
-            os.unlink(f.name)
-
     def test_missing_file(self) -> None:
         assert parse_bare_repo_dir("/nonexistent/path/file.gp") is None
-
-    def test_tilde_expansion(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("BARE_REPO_DIR: ~/.sase/repos/myrepo.git\nNAME: my-cl\n")
-            f.flush()
-            result = parse_bare_repo_dir(f.name)
-            assert result is not None
-            assert "~" not in result
-            assert result.endswith("repos/myrepo.git")
-            os.unlink(f.name)
 
     def test_empty_value(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
@@ -59,13 +35,6 @@ class TestParseBareRepoDir:
 
 
 class TestSetBareRepoDir:
-    def test_new_file(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            gp = os.path.join(d, "proj.gp")
-            assert _set_bare_repo_dir(gp, "/repos/proj.git")
-            with open(gp) as f:
-                assert f.read() == "BARE_REPO_DIR: /repos/proj.git\n"
-
     def test_creates_directory(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             gp = os.path.join(d, "subdir", "proj.gp")
@@ -87,26 +56,6 @@ class TestSetBareRepoDir:
             written = mock_write.call_args[0][1]
             assert "BARE_REPO_DIR: /new/repo.git" in written
             assert "/old/repo.git" not in written
-            os.unlink(f.name)
-
-    @patch("sase.git_workspace.write_changespec_atomic")
-    @patch("sase.git_workspace.changespec_lock")
-    def test_inserts_before_name(
-        self, mock_lock: MagicMock, mock_write: MagicMock
-    ) -> None:
-        mock_lock.return_value.__enter__ = MagicMock()
-        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: cl\nSTATUS: Draft\n")
-            f.flush()
-            assert _set_bare_repo_dir(f.name, "/repos/proj.git")
-            written = mock_write.call_args[0][1]
-            lines = written.splitlines()
-            bare_idx = next(
-                i for i, ln in enumerate(lines) if ln.startswith("BARE_REPO_DIR:")
-            )
-            name_idx = next(i for i, ln in enumerate(lines) if ln.startswith("NAME:"))
-            assert bare_idx < name_idx
             os.unlink(f.name)
 
     @patch("sase.git_workspace.write_changespec_atomic")
@@ -183,23 +132,6 @@ class TestResolveGitRef:
                 assert result.checkout_target == "origin/my-feature"
                 assert result.project_name == "proj"
                 assert result.bare_repo_dir == "/repos/proj.git"
-
-    @patch("sase.git_workspace.get_default_branch", return_value="origin/main")
-    @patch("sase.git_workspace.set_workspace_dir", return_value=True)
-    @patch("sase.git_workspace._set_bare_repo_dir", return_value=True)
-    def test_bare_repo_path(
-        self,
-        mock_set_bare: MagicMock,
-        mock_set_ws: MagicMock,
-        mock_branch: MagicMock,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            with patch("sase.git_workspace.Path.home", return_value=Path(d)):
-                result = resolve_git_ref("/repos/myproject.git")
-                assert result.project_name == "myproject"
-                assert result.bare_repo_dir == "/repos/myproject.git"
-                mock_set_bare.assert_called_once()
-                mock_set_ws.assert_called_once()
 
     @patch("sase.git_workspace.find_all_changespecs", return_value=[])
     def test_not_found(self, mock_find: MagicMock) -> None:

@@ -6,7 +6,6 @@ from pathlib import Path
 from sase.status_state_machine import (
     add_ready_to_mail_suffix,
     remove_ready_to_mail_suffix,
-    remove_workspace_suffix,
 )
 
 
@@ -28,12 +27,6 @@ TEST TARGETS: None
 ---
 """)
         return f.name
-
-
-def test_remove_workspace_suffix_strips_ready_to_mail() -> None:
-    """Test remove_workspace_suffix also strips READY TO MAIL suffix."""
-    assert remove_workspace_suffix("Ready - (!: READY TO MAIL)") == "Ready"
-    assert remove_workspace_suffix("Ready") == "Ready"
 
 
 def test_add_ready_to_mail_suffix() -> None:

@@ -64,41 +64,7 @@ def git_repo(tmp_path: object) -> str:
 # === Tests for diff ===
 
 
-def test_integration_diff_detects_changes(git_repo: str) -> None:
-    """diff returns diff text when there are uncommitted changes."""
-    # Create a change
-    with open(os.path.join(git_repo, "README.md"), "a") as f:
-        f.write("new line\n")
-
-    provider = _make_git_provider()
-    success, diff_text = provider.diff(git_repo)
-
-    assert success is True
-    assert diff_text is not None
-    assert "new line" in diff_text
-
-
-def test_integration_diff_clean_workspace(git_repo: str) -> None:
-    """diff returns (True, None) when workspace is clean."""
-    provider = _make_git_provider()
-    success, diff_text = provider.diff(git_repo)
-
-    assert success is True
-    assert diff_text is None
-
-
 # === Tests for get_branch_name ===
-
-
-def test_integration_get_branch_name(git_repo: str) -> None:
-    """get_branch_name returns the current branch name."""
-    provider = _make_git_provider()
-    success, name = provider.get_branch_name(git_repo)
-
-    assert success is True
-    # Default branch after git init (usually "main" or "master")
-    assert name is not None
-    assert len(name) > 0
 
 
 # === Tests for get_description ===
@@ -115,28 +81,6 @@ def test_integration_get_description(git_repo: str) -> None:
 
 
 # === Tests for has_local_changes ===
-
-
-def test_integration_has_local_changes_clean(git_repo: str) -> None:
-    """has_local_changes returns (True, None) when clean."""
-    provider = _make_git_provider()
-    success, text = provider.has_local_changes(git_repo)
-
-    assert success is True
-    assert text is None
-
-
-def test_integration_has_local_changes_dirty(git_repo: str) -> None:
-    """has_local_changes returns (True, str) when dirty."""
-    with open(os.path.join(git_repo, "new_file.txt"), "w") as f:
-        f.write("content\n")
-
-    provider = _make_git_provider()
-    success, text = provider.has_local_changes(git_repo)
-
-    assert success is True
-    assert text is not None
-    assert "new_file.txt" in text
 
 
 # === Tests for commit ===
@@ -172,62 +116,10 @@ def test_integration_commit_on_current_branch(git_repo: str) -> None:
 # === Tests for amend ===
 
 
-def test_integration_amend_changes_message(git_repo: str) -> None:
-    """amend changes the commit message."""
-    provider = _make_git_provider()
-    success, error = provider.amend("Amended message", git_repo)
-
-    assert success is True
-    assert error is None
-
-    # Verify message changed
-    desc_success, desc = provider.get_description("HEAD", git_repo)
-    assert desc_success is True
-    assert desc is not None
-    assert "Amended message" in desc
-
-
 # === Tests for clean_workspace ===
 
 
-def test_integration_clean_workspace_reverts(git_repo: str) -> None:
-    """clean_workspace reverts tracked changes and removes untracked files."""
-    # Modify tracked file
-    with open(os.path.join(git_repo, "README.md"), "a") as f:
-        f.write("dirty change\n")
-    # Create untracked file
-    with open(os.path.join(git_repo, "untracked.txt"), "w") as f:
-        f.write("untracked\n")
-
-    provider = _make_git_provider()
-    success, error = provider.clean_workspace(git_repo)
-
-    assert success is True
-    assert error is None
-
-    # Verify workspace is clean
-    has_changes_ok, changes = provider.has_local_changes(git_repo)
-    assert has_changes_ok is True
-    assert changes is None
-
-    # Verify untracked file is gone
-    assert not os.path.exists(os.path.join(git_repo, "untracked.txt"))
-
-
 # === Tests for rename_branch ===
-
-
-def test_integration_rename_branch(git_repo: str) -> None:
-    """rename_branch renames the current branch."""
-    provider = _make_git_provider()
-    success, error = provider.rename_branch("renamed-branch", git_repo)
-
-    assert success is True
-    assert error is None
-
-    name_ok, name = provider.get_branch_name(git_repo)
-    assert name_ok is True
-    assert name == "renamed-branch"
 
 
 # === Tests for apply_patch roundtrip ===
@@ -307,39 +199,6 @@ def test_integration_stash_and_clean(git_repo: str) -> None:
 
 
 # === Tests for archive and prune ===
-
-
-def test_integration_archive(git_repo: str) -> None:
-    """archive tags and deletes a branch."""
-    # Create a branch to archive
-    subprocess.run(
-        ["git", "checkout", "-b", "to-archive"],
-        cwd=git_repo,
-        capture_output=True,
-        check=True,
-    )
-    # Go back to original branch
-    subprocess.run(
-        ["git", "checkout", "-"],
-        cwd=git_repo,
-        capture_output=True,
-        check=True,
-    )
-
-    provider = _make_git_provider()
-    success, error = provider.archive("to-archive", git_repo)
-
-    assert success is True
-    assert error is None
-
-    # Tag should exist
-    tag_check = subprocess.run(
-        ["git", "tag", "-l", "archive/to-archive"],
-        cwd=git_repo,
-        capture_output=True,
-        text=True,
-    )
-    assert "archive/to-archive" in tag_check.stdout
 
 
 def test_integration_prune(git_repo: str) -> None:

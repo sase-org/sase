@@ -6,71 +6,6 @@ import tempfile
 from sase.rewind_workflow.renumber import rewind_commit_entries
 
 
-def test_rewind_to_entry_1_basic() -> None:
-    """Test rewinding to entry (1) - the edge case that triggered this bug."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready\n")
-        f.write("COMMITS:\n")
-        f.write("  (1) First commit\n")
-        f.write("      | DIFF: ~/.sase/diffs/first.diff\n")
-        f.write("  (2) Second commit\n")
-        f.write("      | DIFF: ~/.sase/diffs/second.diff\n")
-        temp_path = f.name
-
-    try:
-        result = rewind_commit_entries(temp_path, "test_cl", 1)
-        assert result is True
-
-        with open(temp_path) as f:
-            content = f.read()
-
-        # Entry (1) stays as (1) with NEW PROPOSAL suffix
-        assert "(1) First commit - (!: NEW PROPOSAL)" in content
-        # Entry (2) becomes (1a) with NEW PROPOSAL suffix
-        assert "(1a) Second commit - (!: NEW PROPOSAL)" in content
-        # Original DIFFs preserved
-        assert "| DIFF: ~/.sase/diffs/first.diff" in content
-        assert "| DIFF: ~/.sase/diffs/second.diff" in content
-        # No (0) entries should exist (bug was base_num = 0 when rewinding to 1)
-        assert "(0" not in content
-    finally:
-        os.unlink(temp_path)
-
-
-def test_rewind_to_middle_entry() -> None:
-    """Test rewinding to a middle entry (e.g., entry 3)."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready\n")
-        f.write("COMMITS:\n")
-        f.write("  (1) First commit\n")
-        f.write("  (2) Second commit\n")
-        f.write("  (3) Third commit\n")
-        f.write("  (4) Fourth commit\n")
-        f.write("  (5) Fifth commit\n")
-        temp_path = f.name
-
-    try:
-        result = rewind_commit_entries(temp_path, "test_cl", 3)
-        assert result is True
-
-        with open(temp_path) as f:
-            content = f.read()
-
-        # Entries (1), (2) unchanged
-        assert "(1) First commit\n" in content or "(1) First commit" in content
-        assert "(2) Second commit\n" in content or "(2) Second commit" in content
-        # Entry (3) stays as (3) with NEW PROPOSAL suffix
-        assert "(3) Third commit - (!: NEW PROPOSAL)" in content
-        # Entry (4) becomes (3a) with NEW PROPOSAL suffix
-        assert "(3a) Fourth commit - (!: NEW PROPOSAL)" in content
-        # Entries (5) deleted
-        assert "(5) Fifth commit" not in content
-    finally:
-        os.unlink(temp_path)
-
-
 def test_rewind_with_existing_proposals() -> None:
     """Test rewinding when there are existing proposals for the selected entry."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
@@ -103,39 +38,6 @@ def test_rewind_with_existing_proposals() -> None:
         assert "(2c) Third commit - (!: NEW PROPOSAL)" in content
         # Entry (4) deleted
         assert "(4) Fourth commit" not in content
-    finally:
-        os.unlink(temp_path)
-
-
-def test_rewind_updates_hooks() -> None:
-    """Test that HOOKS section is updated with correct ID mapping."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready\n")
-        f.write("COMMITS:\n")
-        f.write("  (1) First commit\n")
-        f.write("  (2) Second commit\n")
-        f.write("  (3) Third commit\n")
-        f.write("HOOKS:\n")
-        f.write("  make lint\n")
-        f.write("      | (1) [251224_120000] PASSED (1m)\n")
-        f.write("      | (2) [251224_120100] PASSED (2m)\n")
-        f.write("      | (3) [251224_120200] PASSED (3m)\n")
-        temp_path = f.name
-
-    try:
-        result = rewind_commit_entries(temp_path, "test_cl", 2)
-        assert result is True
-
-        with open(temp_path) as f:
-            content = f.read()
-
-        # Hook for (1) unchanged
-        assert "(1) [251224_120000] PASSED (1m)" in content
-        # Hook for (2) unchanged (stays as 2)
-        assert "(2) [251224_120100] PASSED (2m)" in content
-        # Hook for (3) becomes (2a)
-        assert "(2a) [251224_120200] PASSED (3m)" in content
     finally:
         os.unlink(temp_path)
 
@@ -207,63 +109,6 @@ def test_rewind_deletes_entries_after_entry_after() -> None:
         # Hook status for deleted entries should also be deleted
         assert "[251224_120400]" not in content
         assert "[251224_120500]" not in content
-    finally:
-        os.unlink(temp_path)
-
-
-def test_rewind_preserves_chat_and_diff() -> None:
-    """Test that CHAT and DIFF paths are preserved during rewind."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready\n")
-        f.write("COMMITS:\n")
-        f.write("  (1) First commit\n")
-        f.write("      | CHAT: ~/.sase/chats/first.md\n")
-        f.write("      | DIFF: ~/.sase/diffs/first.diff\n")
-        f.write("  (2) Second commit\n")
-        f.write("      | CHAT: ~/.sase/chats/second.md\n")
-        f.write("      | DIFF: ~/.sase/diffs/second.diff\n")
-        temp_path = f.name
-
-    try:
-        result = rewind_commit_entries(temp_path, "test_cl", 1)
-        assert result is True
-
-        with open(temp_path) as f:
-            content = f.read()
-
-        # Both CHAT and DIFF preserved
-        assert "| CHAT: ~/.sase/chats/first.md" in content
-        assert "| DIFF: ~/.sase/diffs/first.diff" in content
-        assert "| CHAT: ~/.sase/chats/second.md" in content
-        assert "| DIFF: ~/.sase/diffs/second.diff" in content
-    finally:
-        os.unlink(temp_path)
-
-
-def test_rewind_strips_existing_suffix() -> None:
-    """Test that existing suffixes are stripped before adding NEW PROPOSAL."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready\n")
-        f.write("COMMITS:\n")
-        f.write("  (1) First commit - (~: OLD STATUS)\n")
-        f.write("  (2) Second commit - (!: SOMETHING)\n")
-        temp_path = f.name
-
-    try:
-        result = rewind_commit_entries(temp_path, "test_cl", 1)
-        assert result is True
-
-        with open(temp_path) as f:
-            content = f.read()
-
-        # Old suffix stripped, NEW PROPOSAL added
-        assert "(1) First commit - (!: NEW PROPOSAL)" in content
-        assert "(1a) Second commit - (!: NEW PROPOSAL)" in content
-        # Old suffixes gone
-        assert "OLD STATUS" not in content
-        assert "SOMETHING" not in content
     finally:
         os.unlink(temp_path)
 

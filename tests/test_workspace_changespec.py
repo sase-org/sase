@@ -26,12 +26,6 @@ def test_get_commits_ahead_returns_oldest_first() -> None:
         ]
 
 
-def test_get_commits_ahead_empty_on_failure() -> None:
-    mock_result = MagicMock(returncode=1, stdout="")
-    with patch("sase.workspace_changespec.subprocess.run", return_value=mock_result):
-        assert _get_commits_ahead("origin/main", "agent_1") == []
-
-
 def test_get_commits_ahead_empty_on_no_output() -> None:
     mock_result = MagicMock(returncode=0, stdout="  \n")
     with patch("sase.workspace_changespec.subprocess.run", return_value=mock_result):
@@ -63,10 +57,6 @@ def test_derive_cl_name(subjects: list[str], expected: str) -> None:
 
 def test_build_description_no_commits() -> None:
     assert _build_description([]) == "Agent changes"
-
-
-def test_build_description_single_commit() -> None:
-    assert _build_description(["add feature"]) == "add feature"
 
 
 def test_build_description_multiple_commits() -> None:

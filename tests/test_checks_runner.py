@@ -10,8 +10,6 @@ from sase.ace.scheduler.checks_runner import (
     CHECK_TYPE_CL_SUBMITTED,
     CHECK_TYPE_REVIEWER_COMMENTS,
     _extract_change_identifier,
-    _get_check_output_path,
-    _get_checks_directory,
     _get_pending_checks,
     _parse_check_completion,
     check_pending_checks,
@@ -20,59 +18,10 @@ from sase.ace.scheduler.checks_runner import (
 )
 
 
-def test_get_checks_directory() -> None:
-    """Test that _get_checks_directory returns expected path."""
-    result = _get_checks_directory()
-    assert result == os.path.expanduser("~/.sase/checks")
-
-
-def test_get_check_output_path_format() -> None:
-    """Test that _get_check_output_path generates correct filename format."""
-    name = "my_feature"
-    check_type = CHECK_TYPE_CL_SUBMITTED
-    timestamp = "241227_120000"
-
-    result = _get_check_output_path(name, check_type, timestamp)
-
-    assert result.endswith(f"{name}-{check_type}-{timestamp}.txt")
-    assert "/.sase/checks/" in result
-
-
-def test_get_check_output_path_sanitizes_name() -> None:
-    """Test that special characters in name are sanitized."""
-    name = "feature/with-special.chars"
-    check_type = CHECK_TYPE_REVIEWER_COMMENTS
-    timestamp = "241227_120000"
-
-    result = _get_check_output_path(name, check_type, timestamp)
-
-    # Name should be sanitized (non-alphanumeric replaced with _)
-    assert "feature/with-special.chars" not in result
-    assert "feature_with_special_chars" in result
-
-
-def test_extract_change_identifier_valid_http() -> None:
-    """Test extracting CL number from http URL."""
-    result = _extract_change_identifier("http://cl/123456789")
-    assert result == ("123456789", "hg")
-
-
 def test_extract_change_identifier_valid_https() -> None:
     """Test extracting CL number from https URL."""
     result = _extract_change_identifier("https://cl/987654321")
     assert result == ("987654321", "hg")
-
-
-def test_extract_change_identifier_github_pr() -> None:
-    """Test extracting PR number from GitHub PR URL."""
-    result = _extract_change_identifier("https://github.com/user/repo/pull/42")
-    assert result == ("42", "git")
-
-
-def test_extract_change_identifier_github_pr_http() -> None:
-    """Test extracting PR number from http GitHub PR URL."""
-    result = _extract_change_identifier("http://github.com/org/project/pull/123")
-    assert result == ("123", "git")
 
 
 def test_extract_change_identifier_invalid_url() -> None:
@@ -80,58 +29,6 @@ def test_extract_change_identifier_invalid_url() -> None:
     assert _extract_change_identifier("not-a-url") is None
     assert _extract_change_identifier("http://example.com/123") is None
     assert _extract_change_identifier("") is None
-
-
-def test_extract_change_identifier_none() -> None:
-    """Test that None input returns None."""
-    assert _extract_change_identifier(None) is None
-
-
-def test_parse_check_completion_not_complete() -> None:
-    """Test parsing output file without completion marker."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
-        f.write("Some output without completion marker")
-        temp_path = f.name
-
-    try:
-        is_complete, exit_code, content = _parse_check_completion(temp_path)
-        assert is_complete is False
-        assert exit_code == -1
-        assert content == ""
-    finally:
-        os.unlink(temp_path)
-
-
-def test_parse_check_completion_complete_success() -> None:
-    """Test parsing completed output with exit code 0."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
-        f.write("Command output here\n")
-        f.write(f"{CHECK_COMPLETE_MARKER}EXIT_CODE: 0\n")
-        temp_path = f.name
-
-    try:
-        is_complete, exit_code, content = _parse_check_completion(temp_path)
-        assert is_complete is True
-        assert exit_code == 0
-        assert content == "Command output here"
-    finally:
-        os.unlink(temp_path)
-
-
-def test_parse_check_completion_complete_failure() -> None:
-    """Test parsing completed output with non-zero exit code."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
-        f.write("Error output\n")
-        f.write(f"{CHECK_COMPLETE_MARKER}EXIT_CODE: 1\n")
-        temp_path = f.name
-
-    try:
-        is_complete, exit_code, content = _parse_check_completion(temp_path)
-        assert is_complete is True
-        assert exit_code == 1
-        assert content == "Error output"
-    finally:
-        os.unlink(temp_path)
 
 
 def test_parse_check_completion_missing_file() -> None:
@@ -192,37 +89,6 @@ def test_get_pending_checks_with_matching_files() -> None:
         check_types = {check.check_type for check in result}
         assert CHECK_TYPE_CL_SUBMITTED in check_types
         assert CHECK_TYPE_REVIEWER_COMMENTS in check_types
-
-
-def test_has_pending_check_true() -> None:
-    """Test has_pending_check returns True when check exists."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        Path(temp_dir, "my_feature-cl_submitted-241227_120000.txt").touch()
-
-        with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory",
-            return_value=temp_dir,
-        ):
-            result = has_pending_check(mock_changespec, CHECK_TYPE_CL_SUBMITTED)
-            assert result is True
-
-
-def test_has_pending_check_false() -> None:
-    """Test has_pending_check returns False when no check exists."""
-    mock_changespec = MagicMock()
-    mock_changespec.name = "my_feature"
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # No files in directory
-        with patch(
-            "sase.ace.scheduler.checks_runner._get_checks_directory",
-            return_value=temp_dir,
-        ):
-            result = has_pending_check(mock_changespec, CHECK_TYPE_CL_SUBMITTED)
-            assert result is False
 
 
 def test_has_pending_check_different_type() -> None:

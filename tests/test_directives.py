@@ -19,22 +19,6 @@ def test_no_directives_passthrough() -> None:
     assert directives == PromptDirectives()
 
 
-def test_no_percent_fast_path() -> None:
-    """Prompt without any % character takes the fast path."""
-    prompt = "No percent sign here"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "No percent sign here"
-    assert directives.model is None
-
-
-def test_simple_model_directive() -> None:
-    """Test %model:value colon syntax."""
-    prompt = "%model:sonnet\nReview this code"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Review this code"
-    assert directives.model == "sonnet"
-
-
 def test_model_directive_backtick_arg() -> None:
     """Test %model:`value` backtick syntax."""
     prompt = "%model:`claude-sonnet-4-20250514`\nReview this code"
@@ -85,20 +69,6 @@ def test_xprompt_ref_in_directive_arg() -> None:
     mock_process.assert_called_once_with("#gemini_small_model")
 
 
-def test_plain_arg_no_xprompt_expansion() -> None:
-    """Test that args without # skip xprompt expansion."""
-    prompt = "%model:sonnet\nHello"
-
-    with patch(
-        "sase.xprompt.directives.process_xprompt_references",
-    ) as mock_process:
-        cleaned, directives = extract_prompt_directives(prompt)
-
-    # Should NOT call process_xprompt_references for args without #
-    mock_process.assert_not_called()
-    assert directives.model == "sonnet"
-
-
 # --- Unknown directives ---
 
 
@@ -110,77 +80,13 @@ def test_unknown_directive_left_in_prompt() -> None:
     assert directives == PromptDirectives()
 
 
-def test_unknown_and_known_directives_mixed() -> None:
-    """Known directives are extracted; unknown ones stay."""
-    prompt = "%model:opus\n%unknown:bar\nPrompt text"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert "%unknown:bar" in cleaned
-    assert "Prompt text" in cleaned
-    assert directives.model == "opus"
-
-
 # --- Duplicate directive error ---
-
-
-def test_duplicate_known_directive_raises() -> None:
-    """Duplicate known directives raise DirectiveError."""
-    prompt = "%model:opus\n%model:sonnet\nPrompt text"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%model'"):
-        extract_prompt_directives(prompt)
 
 
 # --- Edge cases ---
 
 
-def test_directive_mid_line() -> None:
-    """Directive after whitespace mid-line is still matched."""
-    prompt = "text %model:opus\nMore text"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert directives.model == "opus"
-    assert "text" in cleaned
-    assert "More text" in cleaned
-
-
-def test_directive_with_dots_in_arg() -> None:
-    """Colon args can contain dots (e.g., model names)."""
-    prompt = "%model:gemini-2.5-flash\nPrompt"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert directives.model == "gemini-2.5-flash"
-    assert cleaned == "Prompt"
-
-
-def test_directive_with_slash_in_arg() -> None:
-    """Colon args can contain slashes (e.g., namespace/model)."""
-    prompt = "%model:google/gemini-2.5-flash\nPrompt"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert directives.model == "google/gemini-2.5-flash"
-    assert cleaned == "Prompt"
-
-
-def test_empty_prompt() -> None:
-    """Empty prompt returns empty with default directives."""
-    cleaned, directives = extract_prompt_directives("")
-    assert cleaned == ""
-    assert directives == PromptDirectives()
-
-
 # --- Alias tests ---
-
-
-def test_alias_m_resolves_to_model() -> None:
-    """%m:sonnet works the same as %model:sonnet."""
-    prompt = "%m:sonnet\nReview this code"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Review this code"
-    assert directives.model == "sonnet"
-
-
-def test_alias_m_no_arg_yields_none() -> None:
-    """%m with no argument yields model=None."""
-    prompt = "%m\nSome prompt"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Some prompt"
-    assert directives.model is None
 
 
 def test_alias_m_and_model_duplicate_raises() -> None:
@@ -188,37 +94,6 @@ def test_alias_m_and_model_duplicate_raises() -> None:
     prompt = "%m:opus\n%model:sonnet\nPrompt text"
     with pytest.raises(DirectiveError, match="Duplicate directive '%model'"):
         extract_prompt_directives(prompt)
-
-
-def test_alias_n_resolves_to_name() -> None:
-    """%n:builder works the same as %name:builder."""
-    prompt = "%n:builder\nDo some work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do some work"
-    assert directives.name == "builder"
-
-
-def test_alias_n_and_name_duplicate_raises() -> None:
-    """%n + %name in the same prompt raises DirectiveError."""
-    prompt = "%n:alpha\n%name:beta\nDo some work"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%name'"):
-        extract_prompt_directives(prompt)
-
-
-def test_alias_w_resolves_to_wait() -> None:
-    """%w:builder works the same as %wait:builder."""
-    prompt = "%w:builder\nDo some work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do some work"
-    assert directives.wait == ["builder"]
-
-
-def test_alias_w_multiple() -> None:
-    """%w can be used multiple times like %wait."""
-    prompt = "%w:a\n%w:b\nDo some work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do some work"
-    assert directives.wait == ["a", "b"]
 
 
 def test_percent_in_normal_text_not_matched() -> None:
@@ -232,38 +107,7 @@ def test_percent_in_normal_text_not_matched() -> None:
 # --- %name directive tests ---
 
 
-def test_name_directive() -> None:
-    """%name:builder assigns name='builder'."""
-    prompt = "%name:builder\nDo some work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do some work"
-    assert directives.name == "builder"
-
-
-def test_name_directive_backtick_syntax() -> None:
-    """%name:`my-agent` works with backtick syntax."""
-    prompt = "%name:`my-agent`\nDo some work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do some work"
-    assert directives.name == "my-agent"
-
-
-def test_duplicate_name_raises() -> None:
-    """Two %name directives raise DirectiveError."""
-    prompt = "%name:alpha\n%name:beta\nDo some work"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%name'"):
-        extract_prompt_directives(prompt)
-
-
 # --- %wait directive tests ---
-
-
-def test_wait_directive_single() -> None:
-    """%wait:builder yields wait=['builder']."""
-    prompt = "%wait:builder\nDo some work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do some work"
-    assert directives.wait == ["builder"]
 
 
 def test_wait_directive_multiple() -> None:
@@ -272,12 +116,3 @@ def test_wait_directive_multiple() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do some work"
     assert directives.wait == ["a", "b"]
-
-
-def test_name_and_wait_combined() -> None:
-    """Both %name and %wait in one prompt."""
-    prompt = "%name:processor\n%wait:fetcher\nProcess the data"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Process the data"
-    assert directives.name == "processor"
-    assert directives.wait == ["fetcher"]

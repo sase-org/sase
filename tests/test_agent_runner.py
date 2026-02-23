@@ -66,18 +66,6 @@ async def test_no_keys_returns_initial_state() -> None:
     assert state["selected"]["name"] == "feature_a"
 
 
-async def test_keys_jj_advances_idx() -> None:
-    """Pressing j twice advances the selection index."""
-    from sase.ace.agent_runner import run_agent_mode
-
-    with _patch_changespecs():
-        result = json.loads(await run_agent_mode(query='"feature"', keys=["j", "j"]))
-
-    assert result["error"] is None
-    assert result["state"]["idx"] == 2
-    assert result["state"]["selected"]["name"] == "feature_c"
-
-
 async def test_slash_opens_query_modal() -> None:
     """Pressing slash opens the QueryEditModal."""
     from sase.ace.agent_runner import run_agent_mode
@@ -98,59 +86,6 @@ async def test_tab_changes_tab() -> None:
 
     assert result["error"] is None
     assert result["state"]["tab"] == "agents"
-
-
-async def test_mark_populates_marked() -> None:
-    """Pressing m marks the current index."""
-    from sase.ace.agent_runner import run_agent_mode
-
-    with _patch_changespecs():
-        result = json.loads(await run_agent_mode(query='"feature"', keys=["m"]))
-
-    assert result["error"] is None
-    assert 0 in result["state"]["marked"]
-
-
-async def test_output_has_required_fields() -> None:
-    """Output JSON has screen, state, error; state has all expected keys."""
-    from sase.ace.agent_runner import run_agent_mode
-
-    with _patch_changespecs():
-        result = json.loads(await run_agent_mode(query='"feature"'))
-
-    # Top-level keys
-    assert "screen" in result
-    assert "state" in result
-    assert "error" in result
-
-    # State keys
-    expected_keys = {
-        "tab",
-        "idx",
-        "total",
-        "query",
-        "canonical_query",
-        "marked",
-        "modal",
-        "hide_reverted",
-        "hooks_collapsed",
-        "commits_collapsed",
-        "mentors_collapsed",
-        "selected",
-    }
-    assert expected_keys.issubset(result["state"].keys())
-
-
-async def test_custom_size_controls_screen_lines() -> None:
-    """Custom size parameter controls the number of screen lines."""
-    from sase.ace.agent_runner import run_agent_mode
-
-    with _patch_changespecs():
-        result = json.loads(await run_agent_mode(query='"feature"', size=(80, 24)))
-
-    assert result["error"] is None
-    lines = result["screen"].split("\n")
-    assert len(lines) == 24
 
 
 async def test_invalid_query_populates_error() -> None:

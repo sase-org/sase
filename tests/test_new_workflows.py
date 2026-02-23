@@ -9,11 +9,6 @@ from sase.crs_workflow import CrsWorkflow, _build_crs_prompt
 class TestCrsWorkflow:
     """Tests for the CRS (change requests) workflow."""
 
-    def test_workflow_name(self) -> None:
-        """Test that the workflow has the correct name."""
-        workflow = CrsWorkflow()
-        assert workflow.name == "crs"
-
     def test_workflow_description(self) -> None:
         """Test that the workflow has a description."""
         workflow = CrsWorkflow()

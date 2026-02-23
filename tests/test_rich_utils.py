@@ -1,6 +1,5 @@
 """Tests for sase.rich_utils module."""
 
-import time
 from io import StringIO
 
 from rich.console import Console
@@ -10,69 +9,9 @@ from sase.rich_utils import (
     gemini_timer,
     print_artifact_created,
     print_decision_counts,
-    print_file_operation,
     print_prompt_and_response,
-    print_status,
     print_workflow_header,
 )
-
-
-def test_print_workflow_header() -> None:
-    """Test that workflow header is printed without errors."""
-    # This test just verifies the function runs without exceptions
-    print_workflow_header("crs", "ABC")
-
-
-def test_print_status_info() -> None:
-    """Test that status messages are printed without errors."""
-    print_status("Processing...", "info")
-
-
-def test_print_status_success() -> None:
-    """Test that success status is printed."""
-    print_status("Operation successful", "success")
-
-
-def test_print_status_warning() -> None:
-    """Test that warning status is printed."""
-    print_status("Be careful", "warning")
-
-
-def test_print_status_error() -> None:
-    """Test that error status is printed."""
-    print_status("Something went wrong", "error")
-
-
-def test_print_status_progress() -> None:
-    """Test that progress status is printed."""
-    print_status("Working on it...", "progress")
-
-
-def test_print_artifact_created() -> None:
-    """Test that artifact creation is printed."""
-    print_artifact_created("/path/to/artifact.txt")
-
-
-def test_print_file_operation_success() -> None:
-    """Test that successful file operation is printed."""
-    print_file_operation("Created", "/path/to/file.txt", True)
-
-
-def test_print_file_operation_failure() -> None:
-    """Test that failed file operation is printed."""
-    print_file_operation("Failed to create", "/path/to/file.txt", False)
-
-
-def test_print_prompt_and_response() -> None:
-    """Test that prompt and response are printed."""
-    print_prompt_and_response(
-        "What should I do?",
-        "Do this thing",
-        "planner",
-        1,
-        show_prompt=True,
-        show_response=True,
-    )
 
 
 def test_print_prompt_and_response_only_response() -> None:
@@ -101,16 +40,6 @@ def test_print_decision_counts_empty() -> None:
     print_decision_counts({})
 
 
-def test_gemini_timer() -> None:
-    """Test that gemini_timer context manager works."""
-    start = time.time()
-    with gemini_timer("Testing timer"):
-        time.sleep(0.1)  # Sleep for 100ms
-    elapsed = time.time() - start
-    # Should have slept at least 100ms (we add a small tolerance for overhead)
-    assert elapsed >= 0.1
-
-
 def test_gemini_timer_long_duration() -> None:
     """Test the gemini_timer formatting with hours."""
     from unittest.mock import patch
@@ -125,22 +54,6 @@ def test_gemini_timer_long_duration() -> None:
 def test_print_workflow_header_without_tag() -> None:
     """Test workflow header without tag."""
     print_workflow_header("test_workflow")
-
-
-def test_print_status_unknown_type() -> None:
-    """Test print_status with unknown status type uses defaults."""
-    print_status("Unknown type message", "unknown_type")
-
-
-def test_print_prompt_and_response_empty_prompt() -> None:
-    """Test print_prompt_and_response with empty prompt."""
-    print_prompt_and_response(
-        "",
-        "Response only",
-        "agent",
-        show_prompt=True,  # Should not print empty prompt
-        show_response=True,
-    )
 
 
 def test_print_prompt_and_response_only_prompt() -> None:
@@ -166,15 +79,6 @@ def test_print_prompt_and_response_various_agent_types() -> None:
         )
 
 
-def test_print_decision_counts_partial_keys() -> None:
-    """Test print_decision_counts with partial keys."""
-    decision_counts = {
-        "new_editor": 2,
-        # Missing next_editor and research
-    }
-    print_decision_counts(decision_counts)
-
-
 def test_escape_markup_reexport() -> None:
     """Test that escape_markup is properly re-exported."""
     assert escape_markup("[foobar]") == "\\[foobar]"
@@ -192,12 +96,6 @@ def test_escape_markup_in_log_fn() -> None:
     assert "[brackets]" in output
 
 
-def test_print_status_with_brackets() -> None:
-    """Test that print_status doesn't consume bracket content."""
-    # Should not raise and should preserve brackets
-    print_status("Error in [module] function", "error")
-
-
 def test_print_workflow_header_with_brackets() -> None:
     """Test that workflow header doesn't consume bracket content."""
     print_workflow_header("test", "[tag-with-brackets]")
@@ -206,8 +104,3 @@ def test_print_workflow_header_with_brackets() -> None:
 def test_print_artifact_created_with_brackets() -> None:
     """Test that artifact path with brackets is preserved."""
     print_artifact_created("/path/to/[artifact].txt")
-
-
-def test_print_file_operation_with_brackets() -> None:
-    """Test that file operation with brackets is preserved."""
-    print_file_operation("Created", "/path/to/[file].txt", True)

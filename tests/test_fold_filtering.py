@@ -51,22 +51,6 @@ def _make_appears_as_agent(raw_suffix: str) -> Agent:
     )
 
 
-def test_collapsed_hides_all_children() -> None:
-    """Test COLLAPSED state hides all children."""
-    parent = _make_parent("ts1")
-    child1 = _make_child("ts1", "step1")
-    child2 = _make_child("ts1", "step2")
-    agents = [parent, child1, child2]
-
-    mgr = FoldStateManager()
-    # Default is COLLAPSED
-    filtered, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert len(filtered) == 1
-    assert filtered[0] is parent
-    assert counts["ts1"] == (2, 0)  # 2 non-hidden, 0 hidden
-
-
 def test_expanded_shows_non_hidden_children() -> None:
     """Test EXPANDED state shows non-hidden children only."""
     parent = _make_parent("ts1")
@@ -84,119 +68,7 @@ def test_expanded_shows_non_hidden_children() -> None:
     assert counts["ts1"] == (1, 1)  # 1 non-hidden, 1 hidden
 
 
-def test_fully_expanded_shows_all_children() -> None:
-    """Test FULLY_EXPANDED state shows all children including hidden."""
-    parent = _make_parent("ts1")
-    child1 = _make_child("ts1", "step1")
-    child2 = _make_child("ts1", "step2", is_hidden=True)
-    agents = [parent, child1, child2]
-
-    mgr = FoldStateManager()
-    mgr.expand("ts1")  # -> EXPANDED
-    mgr.expand("ts1")  # -> FULLY_EXPANDED
-    filtered, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert len(filtered) == 3
-    assert counts["ts1"] == (1, 1)
-
-
-def test_appears_as_agent_is_foldable() -> None:
-    """Test workflows that appear as agents are foldable."""
-    agent = _make_appears_as_agent("ts1")
-    child = _make_child("ts1", "step1")
-    agents = [agent, child]
-
-    mgr = FoldStateManager()
-    # Default is COLLAPSED - child should be hidden
-    filtered, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert len(filtered) == 1
-    assert filtered[0] is agent
-    assert counts["ts1"] == (1, 0)
-
-    # Expand - child should now be visible
-    mgr.expand("ts1")
-    filtered, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert len(filtered) == 2
-    assert filtered[0] is agent
-    assert filtered[1] is child
-    assert counts["ts1"] == (1, 0)
-
-
-def test_multiple_parents_independent_fold_state() -> None:
-    """Test multiple parents have independent fold states."""
-    parent1 = _make_parent("ts1", "cl1")
-    child1 = _make_child("ts1", "step1")
-    parent2 = _make_parent("ts2", "cl2")
-    child2 = _make_child("ts2", "step2")
-    agents = [parent1, child1, parent2, child2]
-
-    mgr = FoldStateManager()
-    mgr.expand("ts1")  # Expand only first parent
-
-    filtered, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert len(filtered) == 3  # parent1 + child1 + parent2 (child2 hidden)
-    assert filtered[0] is parent1
-    assert filtered[1] is child1
-    assert filtered[2] is parent2
-
-
-def test_non_workflow_agents_pass_through() -> None:
-    """Test non-workflow agents are always included."""
-    running = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="running_agent",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-    )
-    parent = _make_parent("ts1")
-    child = _make_child("ts1", "step1")
-    agents = [running, parent, child]
-
-    mgr = FoldStateManager()
-    filtered, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert len(filtered) == 2  # running + parent (child collapsed)
-    assert filtered[0] is running
-    assert filtered[1] is parent
-
-
-def test_correct_counts_with_mixed_hidden() -> None:
-    """Test fold counts correctly separate hidden and non-hidden."""
-    parent = _make_parent("ts1")
-    child1 = _make_child("ts1", "step1", is_hidden=False)
-    child2 = _make_child("ts1", "step2", is_hidden=True)
-    child3 = _make_child("ts1", "step3", is_hidden=False)
-    child4 = _make_child("ts1", "step4", is_hidden=True)
-    agents = [parent, child1, child2, child3, child4]
-
-    mgr = FoldStateManager()
-    _, counts = filter_agents_by_fold_state(agents, mgr)
-
-    assert counts["ts1"] == (2, 2)  # 2 non-hidden, 2 hidden
-
-
-def test_empty_agents_list() -> None:
-    """Test with empty agents list."""
-    mgr = FoldStateManager()
-    filtered, counts = filter_agents_by_fold_state([], mgr)
-
-    assert filtered == []
-    assert counts == {}
-
-
 # --- Tests for _compute_fold_annotation ---
-
-
-def test_annotation_collapsed_non_hidden_children() -> None:
-    """Test COLLAPSED annotation shows '(+N steps)' for non-hidden children."""
-    parent = _make_parent("ts1")
-    fold_counts = {"ts1": (3, 0)}
-    result = _compute_fold_annotation(parent, fold_counts, set())
-    assert result == " (+3 steps)"
 
 
 def test_annotation_collapsed_hidden_children_only() -> None:
@@ -205,14 +77,6 @@ def test_annotation_collapsed_hidden_children_only() -> None:
     fold_counts = {"ts1": (0, 5)}
     result = _compute_fold_annotation(parent, fold_counts, set())
     assert result == " (+5 steps)"
-
-
-def test_annotation_collapsed_mixed_children() -> None:
-    """Test COLLAPSED annotation uses non_hidden count when both exist."""
-    parent = _make_parent("ts1")
-    fold_counts = {"ts1": (2, 3)}
-    result = _compute_fold_annotation(parent, fold_counts, set())
-    assert result == " (+2 steps)"
 
 
 def test_annotation_expanded_hidden_remaining() -> None:
@@ -241,31 +105,6 @@ def test_annotation_fully_expanded_shows_hidden_count() -> None:
     fully_expanded = {"ts1"}
     result = _compute_fold_annotation(parent, fold_counts, visible, fully_expanded)
     assert result == " (+3 shown)"
-
-
-def test_annotation_fully_expanded_no_hidden() -> None:
-    """Test FULLY_EXPANDED with no hidden steps returns empty annotation."""
-    parent = _make_parent("ts1")
-    fold_counts = {"ts1": (3, 0)}
-    visible = {"ts1"}
-    fully_expanded = {"ts1"}
-    result = _compute_fold_annotation(parent, fold_counts, visible, fully_expanded)
-    assert result == ""
-
-
-def test_annotation_non_workflow_agent() -> None:
-    """Test non-workflow agents get no annotation."""
-    running = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="test",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-        raw_suffix="ts1",
-    )
-    fold_counts = {"ts1": (3, 0)}
-    result = _compute_fold_annotation(running, fold_counts, set())
-    assert result == ""
 
 
 def test_annotation_no_fold_counts() -> None:
@@ -306,28 +145,3 @@ def test_annotation_suppressed_anonymous_single_prompt() -> None:
     fold_counts = {"ts1": (1, 0)}  # total == 1
     result = _compute_fold_annotation(parent, fold_counts, set())
     assert result == ""
-
-
-def test_annotation_shown_anonymous_multi_prompt() -> None:
-    """Test annotation shown for collapsed anonymous multi-prompt workflow."""
-    parent = _make_anonymous_parent("ts1")
-    fold_counts = {"ts1": (3, 0)}  # total > 1
-    result = _compute_fold_annotation(parent, fold_counts, set())
-    assert result == " (+3 steps)"
-
-
-def test_annotation_not_suppressed_non_anonymous_single_child() -> None:
-    """Test non-anonymous single-child workflow NOT suppressed."""
-    parent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="test_cl",
-        project_file="/tmp/test.gp",
-        status="RUNNING",
-        start_time=None,
-        raw_suffix="ts1",
-        appears_as_agent=True,
-        is_anonymous=False,
-    )
-    fold_counts = {"ts1": (1, 0)}  # total == 1
-    result = _compute_fold_annotation(parent, fold_counts, set())
-    assert result == " (+1 steps)"

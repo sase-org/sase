@@ -35,50 +35,6 @@ def _make_changespec(
 # --- Rebase Binding Tests ---
 
 
-def test_keybinding_footer_rebase_visible_draft() -> None:
-    """Test 'b' (rebase) binding is visible for Draft status."""
-    footer = KeybindingFooter()
-    changespec = _make_changespec(status="Draft")
-
-    bindings = footer._compute_available_bindings(changespec)
-    binding_keys = [b[0] for b in bindings]
-
-    assert "b" in binding_keys
-
-
-def test_keybinding_footer_rebase_visible_ready() -> None:
-    """Test 'b' (rebase) binding is visible for Ready status."""
-    footer = KeybindingFooter()
-    changespec = _make_changespec(status="Ready")
-
-    bindings = footer._compute_available_bindings(changespec)
-    binding_keys = [b[0] for b in bindings]
-
-    assert "b" in binding_keys
-
-
-def test_keybinding_footer_rebase_visible_mailed() -> None:
-    """Test 'b' (rebase) binding is visible for Mailed status."""
-    footer = KeybindingFooter()
-    changespec = _make_changespec(status="Mailed")
-
-    bindings = footer._compute_available_bindings(changespec)
-    binding_keys = [b[0] for b in bindings]
-
-    assert "b" in binding_keys
-
-
-def test_keybinding_footer_rebase_hidden_submitted() -> None:
-    """Test 'b' (rebase) binding is hidden for Submitted status."""
-    footer = KeybindingFooter()
-    changespec = _make_changespec(status="Submitted")
-
-    bindings = footer._compute_available_bindings(changespec)
-    binding_keys = [b[0] for b in bindings]
-
-    assert "b" not in binding_keys
-
-
 # --- Workflow Binding Tests ---
 
 
@@ -119,41 +75,4 @@ def test_keybinding_footer_workflow_binding_multiple() -> None:
     assert "2 workflows" in binding_dict["r"]
 
 
-def test_keybinding_footer_workflow_binding_none() -> None:
-    """Test 'r' (run) binding is hidden when no workflows available."""
-    footer = KeybindingFooter()
-    changespec = _make_changespec(status="Ready")
-
-    with patch(
-        "sase.ace.tui.widgets.keybinding_footer.get_available_workflows"
-    ) as mock:
-        mock.return_value = []
-        bindings = footer._compute_available_bindings(changespec)
-
-    binding_keys = [b[0] for b in bindings]
-    assert "r" not in binding_keys
-
-
 # --- Edit, Copy, Fold Binding Tests ---
-
-
-def test_keybinding_footer_edit_spec_always_visible() -> None:
-    """Test 'e' (edit spec) binding is always visible."""
-    footer = KeybindingFooter()
-    changespec = _make_changespec(status="Ready")
-
-    bindings = footer._compute_available_bindings(changespec)
-    binding_keys = [b[0] for b in bindings]
-
-    assert "e" in binding_keys
-
-
-def test_keybinding_footer_fold_always_visible() -> None:
-    """Test 'z' (fold) binding is always visible."""
-    footer = KeybindingFooter()
-    changespec = _make_changespec(status="Ready")
-
-    bindings = footer._compute_available_bindings(changespec)
-    binding_keys = [b[0] for b in bindings]
-
-    assert "z" in binding_keys

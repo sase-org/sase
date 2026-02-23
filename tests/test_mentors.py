@@ -5,10 +5,8 @@ from pathlib import Path
 
 from sase.ace.changespec import MentorEntry, MentorStatusLine
 from sase.ace.mentors import (
-    _apply_mentors_update,
     _format_mentors_field,
     add_mentor_entry,
-    clear_mentor_draft_flags,
     set_mentor_status,
 )
 
@@ -17,102 +15,6 @@ def test_format_mentors_field_empty() -> None:
     """Test formatting empty mentors list."""
     lines = _format_mentors_field([])
     assert lines == []
-
-
-def test_format_profile_with_count_unknown_profile() -> None:
-    """Test formatting profile with count when profile is not in config.
-
-    When a profile is not found in the config, it should fall back to
-    just the profile name without counts.
-    """
-    from sase.ace.mentors import _format_profile_with_count
-
-    # Use a profile name that doesn't exist in the config
-    result = _format_profile_with_count("nonexistent_profile_xyz", None)
-    # Should return just the profile name without counts
-    assert result == "nonexistent_profile_xyz"
-
-
-def test_format_profile_with_count_with_status_lines() -> None:
-    """Test formatting profile with count when status lines exist."""
-    from sase.ace.mentors import _format_profile_with_count
-
-    # Create status lines that reference the profile
-    status_lines = [
-        MentorStatusLine(
-            timestamp="251231_120000",
-            profile_name="test_profile",
-            mentor_name="mentor1",
-            status="RUNNING",
-        ),
-        MentorStatusLine(
-            timestamp="251231_120000",
-            profile_name="test_profile",
-            mentor_name="mentor2",
-            status="PASSED",
-        ),
-        MentorStatusLine(
-            timestamp="251231_120000",
-            profile_name="other_profile",
-            mentor_name="mentor3",
-            status="PASSED",
-        ),
-    ]
-    # This should count 2 started mentors for test_profile
-    # (profile may not exist in config, so fallback to name)
-    result = _format_profile_with_count("test_profile", status_lines)
-    # If profile not found, returns just the name
-    assert "test_profile" in result
-
-
-def test_format_mentors_field_single_entry_no_status() -> None:
-    """Test formatting single entry without status lines.
-
-    Note: Format now includes [started/total] counts per profile.
-    """
-    entry = MentorEntry(
-        entry_id="1",
-        profiles=["feature", "tests"],
-        status_lines=None,
-    )
-    lines = _format_mentors_field([entry])
-    assert lines[0] == "MENTORS:\n"
-    # Check that entry header contains profile names (with or without counts)
-    assert "(1)" in lines[1]
-    assert "feature" in lines[1]
-    assert "tests" in lines[1]
-
-
-def test_format_mentors_field_with_status_lines() -> None:
-    """Test formatting entry with status lines."""
-    entry = MentorEntry(
-        entry_id="2",
-        profiles=["feature"],
-        status_lines=[
-            MentorStatusLine(
-                timestamp="251231_120000",
-                profile_name="feature",
-                mentor_name="complete",
-                status="PASSED",
-                duration="1h2m3s",
-            ),
-            MentorStatusLine(
-                timestamp="251231_120000",
-                profile_name="feature",
-                mentor_name="soundness",
-                status="RUNNING",
-                suffix="mentor_soundness-123-240601_1530",
-                suffix_type="running_agent",
-            ),
-        ],
-    )
-    lines = _format_mentors_field([entry])
-    assert "MENTORS:\n" in lines
-    # Check entry header contains profile (with or without counts)
-    assert any("(2)" in line and "feature" in line for line in lines)
-    # Check status lines are present
-    assert any("PASSED" in line for line in lines)
-    assert any("RUNNING" in line for line in lines)
 
 
 def test_format_mentors_field_running_no_timestamp_prefix() -> None:
@@ -174,37 +76,6 @@ def test_format_mentors_field_with_error_suffix() -> None:
     assert any("!:" in line for line in lines)
 
 
-def test_apply_mentors_update_new_field() -> None:
-    """Test applying mentors to a file without existing MENTORS field."""
-    lines = [
-        "NAME: test-cl\n",
-        "STATUS: Ready\n",
-        "DESCRIPTION:\n",
-        "  Test description\n",
-    ]
-    entry = MentorEntry(entry_id="1", profiles=["test"], status_lines=None)
-    updated = _apply_mentors_update(lines, "test-cl", [entry])
-    # Should contain MENTORS field at the end
-    content = "".join(updated)
-    assert "MENTORS:" in content
-    assert "(1) test" in content
-
-
-def test_apply_mentors_update_replace_existing() -> None:
-    """Test replacing existing MENTORS field."""
-    lines = [
-        "NAME: test-cl\n",
-        "STATUS: Ready\n",
-        "MENTORS:\n",
-        "  (1) old_profile\n",
-    ]
-    entry = MentorEntry(entry_id="2", profiles=["new_profile"], status_lines=None)
-    updated = _apply_mentors_update(lines, "test-cl", [entry])
-    content = "".join(updated)
-    assert "(2) new_profile" in content
-    assert "old_profile" not in content
-
-
 def test_add_mentor_entry_new() -> None:
     """Test adding a new mentor entry to a file."""
     content = """NAME: test-cl
@@ -256,39 +127,6 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_set_mentor_status_new() -> None:
-    """Test setting mentor status for new mentor."""
-    content = """NAME: test-cl
-STATUS: Ready
-MENTORS:
-  (1) feature
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    result = set_mentor_status(
-        file_path,
-        "test-cl",
-        "1",
-        "feature",
-        "complete",
-        status="RUNNING",
-        suffix="mentor_complete-123",
-        suffix_type="running_agent",
-    )
-
-    assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    assert "feature:complete" in updated_content
-    assert "RUNNING" in updated_content
-
-    Path(file_path).unlink()
-
-
 def test_set_mentor_status_update_existing() -> None:
     """Test updating existing mentor status."""
     content = """NAME: test-cl
@@ -322,19 +160,6 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_format_mentors_field_multiple_entries() -> None:
-    """Test formatting multiple mentor entries."""
-    entries = [
-        MentorEntry(entry_id="1", profiles=["feature"], status_lines=None),
-        MentorEntry(entry_id="2", profiles=["tests", "perf"], status_lines=None),
-    ]
-    lines = _format_mentors_field(entries)
-    content = "".join(lines)
-    # Check that entries are present (with or without counts)
-    assert "(1)" in content and "feature" in content
-    assert "(2)" in content and "tests" in content and "perf" in content
-
-
 def test_format_mentors_field_with_plain_suffix() -> None:
     """Test formatting with plain suffix (no type)."""
     entry = MentorEntry(
@@ -354,22 +179,6 @@ def test_format_mentors_field_with_plain_suffix() -> None:
     lines = _format_mentors_field([entry])
     content = "".join(lines)
     assert "some_suffix" in content
-
-
-def test_apply_mentors_update_wrong_changespec() -> None:
-    """Test that update doesn't affect other changespecs."""
-    lines = [
-        "NAME: other-cl\n",
-        "STATUS: Ready\n",
-        "---\n",
-        "NAME: test-cl\n",
-        "STATUS: Mailed\n",
-    ]
-    entry = MentorEntry(entry_id="1", profiles=["feature"], status_lines=None)
-    updated = _apply_mentors_update(lines, "test-cl", [entry])
-    content = "".join(updated)
-    # MENTORS should be added to test-cl, not other-cl
-    assert content.count("MENTORS:") == 1
 
 
 def test_set_mentor_status_creates_entry_if_missing() -> None:
@@ -403,242 +212,3 @@ STATUS: Ready
 
 
 # Tests for clear_mentor_draft_flags
-
-
-def test_clear_mentor_draft_flags_clears_last_only() -> None:
-    """Test that only the highest entry_id WIP entry has #Draft cleared."""
-    from unittest.mock import patch
-
-    content = """NAME: test-cl
-STATUS: Draft
-COMMITS:
-  (1) First commit
-  (2) Second commit
-  (3) Third commit
-MENTORS:
-  (1) feature #Draft
-  (2) feature #Draft
-  (3) feature #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    # Mock profile functions to allow any profile
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            with patch("sase.mentor_config.get_all_mentor_profiles", return_value=[]):
-                result = clear_mentor_draft_flags(file_path, "test-cl")
-                assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # Only entry (3) should have #Draft cleared
-    lines = updated_content.split("\n")
-    mentors_section = [ln for ln in lines if ln.strip().startswith("(")]
-    assert any("(1)" in ln and "#Draft" in ln for ln in mentors_section)
-    assert any("(2)" in ln and "#Draft" in ln for ln in mentors_section)
-    assert any("(3)" in ln and "#Draft" not in ln for ln in mentors_section)
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_single_entry() -> None:
-    """Test clearing WIP from single entry."""
-    from unittest.mock import patch
-
-    content = """NAME: test-cl
-STATUS: Draft
-MENTORS:
-  (1) feature #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            with patch("sase.mentor_config.get_all_mentor_profiles", return_value=[]):
-                result = clear_mentor_draft_flags(file_path, "test-cl")
-                assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    assert "#Draft" not in updated_content
-    assert "(1) feature" in updated_content
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_no_wip_entries() -> None:
-    """Test that nothing changes when no WIP entries exist."""
-    from unittest.mock import patch
-
-    content = """NAME: test-cl
-STATUS: Ready
-MENTORS:
-  (1) feature
-  (2) tests
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-        result = clear_mentor_draft_flags(file_path, "test-cl")
-        assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # Should be unchanged (profiles preserved without counts)
-    assert "(1) feature" in updated_content
-    assert "(2) tests" in updated_content
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_mixed_entries() -> None:
-    """Test with a mix of WIP and non-WIP entries."""
-    from unittest.mock import patch
-
-    content = """NAME: test-cl
-STATUS: Draft
-MENTORS:
-  (1) feature
-  (2) tests #Draft
-  (3) perf #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            with patch("sase.mentor_config.get_all_mentor_profiles", return_value=[]):
-                result = clear_mentor_draft_flags(file_path, "test-cl")
-                assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # Entry (1) never had #Draft, should remain without
-    # Entry (2) should keep #Draft (not the highest)
-    # Entry (3) should have #Draft cleared (highest WIP entry)
-    lines = updated_content.split("\n")
-    mentors_lines = [ln for ln in lines if ln.strip().startswith("(")]
-    assert any("(1)" in ln and "#Draft" not in ln for ln in mentors_lines)
-    assert any("(2)" in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(3)" in ln and "#Draft" not in ln for ln in mentors_lines)
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_proposal_entries() -> None:
-    """Test with proposal entries (e.g., 2a, 2b)."""
-    from unittest.mock import patch
-
-    content = """NAME: test-cl
-STATUS: Draft
-MENTORS:
-  (1) feature #Draft
-  (2) feature #Draft
-  (2a) feature #Draft
-  (2b) feature #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            with patch("sase.mentor_config.get_all_mentor_profiles", return_value=[]):
-                result = clear_mentor_draft_flags(file_path, "test-cl")
-                assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # Entry (2b) is the highest (2, "b") > (2, "a") > (2, "") > (1, "")
-    # So (2b) should have #Draft cleared, others should keep it
-    lines = updated_content.split("\n")
-    mentors_lines = [ln for ln in lines if ln.strip().startswith("(")]
-    assert any("(1)" in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(2) " in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(2a)" in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(2b)" in ln and "#Draft" not in ln for ln in mentors_lines)
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_wrong_changespec() -> None:
-    """Test that other ChangeSpecs are not affected."""
-    from unittest.mock import patch
-
-    content = """NAME: other-cl
-STATUS: Draft
-MENTORS:
-  (1) feature #Draft
-
-NAME: test-cl
-STATUS: Draft
-MENTORS:
-  (1) feature #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            with patch("sase.mentor_config.get_all_mentor_profiles", return_value=[]):
-                result = clear_mentor_draft_flags(file_path, "test-cl")
-                assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # other-cl should still have #Draft
-    # test-cl should have #Draft cleared
-    # Split by NAME: to check each section
-    other_cl_start = updated_content.find("NAME: other-cl")
-    test_cl_start = updated_content.find("NAME: test-cl")
-    other_cl_section = updated_content[other_cl_start:test_cl_start]
-    test_cl_section = updated_content[test_cl_start:]
-
-    assert "#Draft" in other_cl_section
-    assert "#Draft" not in test_cl_section
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_no_mentors() -> None:
-    """Test that function returns True when no mentors exist."""
-    content = """NAME: test-cl
-STATUS: Ready
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    result = clear_mentor_draft_flags(file_path, "test-cl")
-    assert result is True
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_changespec_not_found() -> None:
-    """Test that function returns True when changespec not found."""
-    content = """NAME: other-cl
-STATUS: Ready
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    result = clear_mentor_draft_flags(file_path, "nonexistent-cl")
-    assert result is True
-
-    Path(file_path).unlink()

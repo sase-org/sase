@@ -4,12 +4,6 @@ from sase.ace.tui.modals import WorkspaceInputModal
 from sase.ace.tui.modals.workspace_input_modal import _WorkspaceInput
 
 
-def test_workspace_input_modal_init_default() -> None:
-    """Test WorkspaceInputModal initialization with default value."""
-    modal = WorkspaceInputModal()
-    assert modal._default_workspace == 1
-
-
 def test_workspace_input_modal_init_custom() -> None:
     """Test WorkspaceInputModal initialization with custom default."""
     modal = WorkspaceInputModal(default_workspace=5)

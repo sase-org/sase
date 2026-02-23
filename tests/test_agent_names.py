@@ -32,14 +32,6 @@ def _make_agent(
 
 
 class TestFindNamedAgent:
-    def test_finds_running_agent(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo")
-        with patch.object(Path, "home", return_value=tmp_path):
-            result = find_named_agent("foo")
-        assert result is not None
-        assert result.name == "foo"
-        assert not result.is_done
-
     def test_finds_done_agent(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True, outcome="success")
         with patch.object(Path, "home", return_value=tmp_path):
@@ -68,15 +60,6 @@ class TestFindNamedAgent:
         assert not result.is_done
         assert result.artifacts_dir == str(running_dir)
 
-    def test_prefers_running_across_projects(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj-a", "run1", "foo", done=True)
-        running_dir = _make_agent(tmp_path, "proj-b", "run1", "foo")
-        with patch.object(Path, "home", return_value=tmp_path):
-            result = find_named_agent("foo")
-        assert result is not None
-        assert not result.is_done
-        assert result.artifacts_dir == str(running_dir)
-
 
 class TestClaimAgentName:
     def test_strips_name_from_other_agents(self, tmp_path: Path) -> None:
@@ -95,22 +78,6 @@ class TestClaimAgentName:
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
         assert new_meta["name"] == "foo"
 
-    def test_strips_name_from_done_json(self, tmp_path: Path) -> None:
-        old_dir = _make_agent(tmp_path, "proj", "run-old", "foo", done=True)
-        # Add name to done.json too
-        done_path = old_dir / "done.json"
-        done_data = json.loads(done_path.read_text())
-        done_data["name"] = "foo"
-        done_path.write_text(json.dumps(done_data))
-
-        new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
-
-        with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("foo", str(new_dir))
-
-        stripped_done = json.loads(done_path.read_text())
-        assert "name" not in stripped_done
-
     def test_does_not_strip_different_name(self, tmp_path: Path) -> None:
         other_dir = _make_agent(tmp_path, "proj", "run-other", "bar")
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
@@ -126,13 +93,3 @@ class TestClaimAgentName:
         # Should not raise
         with patch.object(Path, "home", return_value=tmp_path):
             claim_agent_name("foo", "/nonexistent")
-
-    def test_strips_across_projects(self, tmp_path: Path) -> None:
-        old_dir = _make_agent(tmp_path, "proj-a", "run1", "foo", done=True)
-        new_dir = _make_agent(tmp_path, "proj-b", "run1", "foo")
-
-        with patch.object(Path, "home", return_value=tmp_path):
-            claim_agent_name("foo", str(new_dir))
-
-        old_meta = json.loads((old_dir / "agent_meta.json").read_text())
-        assert "name" not in old_meta

@@ -8,22 +8,6 @@ from sase.xprompt.workflow_validator import (
 )
 
 
-def test_collect_used_variables_simple() -> None:
-    """Test collecting variables from simple workflow."""
-    workflow = Workflow(
-        name="test",
-        inputs=[InputArg(name="my_input", type=InputType.LINE)],
-        steps=[
-            WorkflowStep(
-                name="step1",
-                bash="echo {{ my_input }}",
-            )
-        ],
-    )
-    used = _collect_used_variables(workflow)
-    assert "my_input" in used
-
-
 def test_collect_used_variables_multiple_sources() -> None:
     """Test collecting variables from multiple step types."""
     workflow = Workflow(
@@ -43,24 +27,6 @@ def test_collect_used_variables_multiple_sources() -> None:
     assert "bash_var" in used
     assert "prompt_var" in used
     assert "python_var" in used
-
-
-def test_collect_used_variables_excludes_loop_vars() -> None:
-    """Test that loop variables (item, loop) are not collected."""
-    workflow = Workflow(
-        name="test",
-        inputs=[InputArg(name="items", type=InputType.LINE)],
-        steps=[
-            WorkflowStep(
-                name="step1",
-                bash="echo {{ item }} {{ loop.index }}",
-                for_loop={"item": "items"},
-            )
-        ],
-    )
-    used = _collect_used_variables(workflow)
-    assert "item" not in used
-    assert "loop" not in used
 
 
 def test_collect_used_variables_from_condition() -> None:

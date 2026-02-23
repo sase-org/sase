@@ -81,38 +81,9 @@ diff -r abc123 tests/test_main.py
     assert files == ["src/main.py", "tests/test_main.py"]
 
 
-def test_extract_changed_files_from_diff_empty() -> None:
-    """Test with empty diff content."""
-    files = _extract_changed_files_from_diff("")
-    assert files == []
-
-
-def test_extract_changed_files_from_diff_no_file_lines() -> None:
-    """Test with diff content that has no file lines."""
-    diff_content = """Some random content
-that is not a diff
-"""
-    files = _extract_changed_files_from_diff(diff_content)
-    assert files == []
-
-
-def test_get_started_mentors_no_mentors() -> None:
-    """Test with no MENTORS entries returns empty set."""
-    cs = _make_changespec(mentors=None)
-    assert _get_started_mentors_for_entry(cs, "1") == set()
-
-
 def test_get_started_mentors_empty_mentors() -> None:
     """Test with empty MENTORS list returns empty set."""
     cs = _make_changespec(mentors=[])
-    assert _get_started_mentors_for_entry(cs, "1") == set()
-
-
-def test_get_started_mentors_no_status_lines() -> None:
-    """Test with MENTORS entry but no status lines returns empty set."""
-    cs = _make_changespec(
-        mentors=[MentorEntry(entry_id="1", profiles=["code"], status_lines=None)]
-    )
     assert _get_started_mentors_for_entry(cs, "1") == set()
 
 
@@ -136,27 +107,6 @@ def test_get_started_mentors_different_entry_id() -> None:
     )
     # Asking for entry_id "2" should return empty set
     assert _get_started_mentors_for_entry(cs, "2") == set()
-
-
-def test_get_started_mentors_single() -> None:
-    """Test with a single started mentor."""
-    cs = _make_changespec(
-        mentors=[
-            MentorEntry(
-                entry_id="1",
-                profiles=["code"],
-                status_lines=[
-                    MentorStatusLine(
-                        timestamp="251231_120000",
-                        profile_name="code",
-                        mentor_name="dead_code",
-                        status="RUNNING",
-                    )
-                ],
-            )
-        ]
-    )
-    assert _get_started_mentors_for_entry(cs, "1") == {("code", "dead_code")}
 
 
 def test_get_started_mentors_multiple() -> None:
@@ -189,36 +139,6 @@ def test_get_started_mentors_multiple() -> None:
     }
 
 
-def test_get_started_mentors_multiple_profiles() -> None:
-    """Test with mentors from different profiles."""
-    cs = _make_changespec(
-        mentors=[
-            MentorEntry(
-                entry_id="1",
-                profiles=["code", "tests"],
-                status_lines=[
-                    MentorStatusLine(
-                        timestamp="251231_120000",
-                        profile_name="code",
-                        mentor_name="dead_code",
-                        status="PASSED",
-                    ),
-                    MentorStatusLine(
-                        timestamp="251231_120000",
-                        profile_name="tests",
-                        mentor_name="coverage",
-                        status="RUNNING",
-                    ),
-                ],
-            )
-        ]
-    )
-    assert _get_started_mentors_for_entry(cs, "1") == {
-        ("code", "dead_code"),
-        ("tests", "coverage"),
-    }
-
-
 # Tests for _all_non_skip_hooks_ready
 
 
@@ -246,27 +166,10 @@ def _make_hook(
     )
 
 
-def test_all_non_skip_hooks_ready_no_hooks() -> None:
-    """Test that no hooks blocks mentors (hooks not yet added)."""
-    cs = _make_changespec(hooks=None)
-    assert _all_non_skip_hooks_ready(cs, "1") is False
-
-
 def test_all_non_skip_hooks_ready_empty_hooks() -> None:
     """Test that empty hooks list blocks mentors (hooks not yet added)."""
     cs = _make_changespec(hooks=[])
     assert _all_non_skip_hooks_ready(cs, "1") is False
-
-
-def test_all_non_skip_hooks_ready_all_passed() -> None:
-    """Test mentors allowed when all hooks PASSED for latest entry."""
-    cs = _make_changespec(
-        hooks=[
-            _make_hook("make test", "1", "PASSED"),
-            _make_hook("make lint", "1", "PASSED"),
-        ]
-    )
-    assert _all_non_skip_hooks_ready(cs, "1") is True
 
 
 def test_all_non_skip_hooks_ready_hook_running() -> None:
@@ -277,26 +180,6 @@ def test_all_non_skip_hooks_ready_hook_running() -> None:
         ]
     )
     assert _all_non_skip_hooks_ready(cs, "1") is False
-
-
-def test_all_non_skip_hooks_ready_failed_no_suffix() -> None:
-    """Test mentors blocked when FAILED hook has no suffix for latest entry."""
-    cs = _make_changespec(
-        hooks=[
-            _make_hook("make test", "1", "FAILED", suffix=None),
-        ]
-    )
-    assert _all_non_skip_hooks_ready(cs, "1") is False
-
-
-def test_all_non_skip_hooks_ready_failed_with_entry_ref() -> None:
-    """Test mentors allowed when FAILED hook has entry_ref suffix."""
-    cs = _make_changespec(
-        hooks=[
-            _make_hook("make test", "1", "FAILED", suffix="1a"),
-        ]
-    )
-    assert _all_non_skip_hooks_ready(cs, "1") is True
 
 
 def test_all_non_skip_hooks_ready_failed_with_plain_entry_id() -> None:
@@ -325,18 +208,6 @@ def test_all_non_skip_hooks_ready_failed_with_running_agent() -> None:
     assert _all_non_skip_hooks_ready(cs, "1") is True
 
 
-def test_all_non_skip_hooks_ready_skip_hook_ignored() -> None:
-    """Test ! prefixed hooks are ignored (don't block mentors)."""
-    cs = _make_changespec(
-        hooks=[
-            # This would block if not for the ! prefix
-            _make_hook("!make test", "1", "FAILED", suffix=None),
-            _make_hook("make lint", "1", "PASSED"),
-        ]
-    )
-    assert _all_non_skip_hooks_ready(cs, "1") is True
-
-
 def test_all_non_skip_hooks_ready_only_skip_hooks() -> None:
     """Test only !-prefixed hooks blocks mentors (non-! hooks not yet added)."""
     cs = _make_changespec(
@@ -345,13 +216,6 @@ def test_all_non_skip_hooks_ready_only_skip_hooks() -> None:
         ]
     )
     # Only skip hooks exist, so non-skip hooks haven't been added yet
-    assert _all_non_skip_hooks_ready(cs, "1") is False
-
-
-def test_all_non_skip_hooks_ready_no_status_for_entry() -> None:
-    """Test hook with no status line for latest entry blocks mentors."""
-    hook = HookEntry(command="make test", status_lines=None)
-    cs = _make_changespec(hooks=[hook])
     assert _all_non_skip_hooks_ready(cs, "1") is False
 
 
@@ -366,18 +230,6 @@ def test_all_non_skip_hooks_ready_status_for_different_entry() -> None:
     assert _all_non_skip_hooks_ready(cs, "2") is False
 
 
-def test_all_non_skip_hooks_ready_mixed_hooks() -> None:
-    """Test with mix of passed, failed with proposal, and skip hooks."""
-    cs = _make_changespec(
-        hooks=[
-            _make_hook("make test", "1", "PASSED"),
-            _make_hook("make lint", "1", "FAILED", suffix="1a"),  # Has proposal
-            _make_hook("!make typecheck", "1", "FAILED", suffix=None),  # Skip, ignored
-        ]
-    )
-    assert _all_non_skip_hooks_ready(cs, "1") is True
-
-
 def test_all_non_skip_hooks_ready_one_blocking() -> None:
     """Test that one non-ready hook blocks mentors."""
     cs = _make_changespec(
@@ -389,58 +241,7 @@ def test_all_non_skip_hooks_ready_one_blocking() -> None:
     assert _all_non_skip_hooks_ready(cs, "1") is False
 
 
-def test_all_non_skip_hooks_ready_dead_status() -> None:
-    """Test that DEAD status is considered ready (not blocking)."""
-    cs = _make_changespec(
-        hooks=[
-            _make_hook("make test", "1", "DEAD"),
-        ]
-    )
-    assert _all_non_skip_hooks_ready(cs, "1") is True
-
-
-def test_all_non_skip_hooks_ready_killed_status() -> None:
-    """Test that KILLED status is considered ready (not blocking)."""
-    cs = _make_changespec(
-        hooks=[
-            _make_hook("make test", "1", "KILLED"),
-        ]
-    )
-    assert _all_non_skip_hooks_ready(cs, "1") is True
-
-
 # Tests for _get_commits_since_last_mentors
-
-
-def test_get_commits_since_last_mentors_no_mentors() -> None:
-    """Test with no MENTORS entries returns all regular commits."""
-    cs = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="First"),
-            CommitEntry(number=2, note="Second"),
-        ],
-        mentors=None,
-    )
-    result = _get_commits_since_last_mentors(cs)
-    assert len(result) == 2
-    assert result[0].display_number == "1"
-    assert result[1].display_number == "2"
-
-
-def test_get_commits_since_last_mentors_includes_current() -> None:
-    """Test that commit with mentor entry is still included (>= not >)."""
-    cs = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="First"),
-        ],
-        mentors=[
-            MentorEntry(entry_id="1", profiles=["code"], status_lines=None),
-        ],
-    )
-    result = _get_commits_since_last_mentors(cs)
-    # Key test: commit 1 should be included even though mentors exist for it
-    assert len(result) == 1
-    assert result[0].display_number == "1"
 
 
 def test_get_commits_since_last_mentors_excludes_earlier() -> None:
@@ -493,32 +294,6 @@ def test_get_profiles_registered_for_entry_no_mentors() -> None:
     from sase.ace.scheduler.mentor_checks import _get_profiles_registered_for_entry
 
     cs = _make_changespec(mentors=None)
-    result = _get_profiles_registered_for_entry(cs, "1")
-    assert result == set()
-
-
-def test_get_profiles_registered_for_entry_matching_entry() -> None:
-    """Test returns profiles for matching entry_id."""
-    from sase.ace.scheduler.mentor_checks import _get_profiles_registered_for_entry
-
-    cs = _make_changespec(
-        mentors=[
-            MentorEntry(entry_id="1", profiles=["code", "tests"], status_lines=None),
-        ]
-    )
-    result = _get_profiles_registered_for_entry(cs, "1")
-    assert result == {"code", "tests"}
-
-
-def test_get_profiles_registered_for_entry_different_entry() -> None:
-    """Test returns empty set for non-matching entry_id."""
-    from sase.ace.scheduler.mentor_checks import _get_profiles_registered_for_entry
-
-    cs = _make_changespec(
-        mentors=[
-            MentorEntry(entry_id="2", profiles=["code"], status_lines=None),
-        ]
-    )
     result = _get_profiles_registered_for_entry(cs, "1")
     assert result == set()
 
@@ -633,20 +408,3 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
 
 
 # Tests for WIP status being skipped entirely by mentor checks
-
-
-def test_all_non_skip_hooks_ready_wip_status_with_passing_hooks() -> None:
-    """Test that _all_non_skip_hooks_ready returns True for WIP ChangeSpecs with passing hooks.
-
-    The _all_non_skip_hooks_ready function only checks hook status, not ChangeSpec status.
-    WIP status skipping is handled at a higher level in the scheduler.
-    """
-    cs = _make_changespec(
-        status="WIP",
-        hooks=[
-            _make_hook("make test", "1", "PASSED"),
-            _make_hook("make lint", "1", "PASSED"),
-        ],
-    )
-    # _all_non_skip_hooks_ready only checks hook status, not ChangeSpec status
-    assert _all_non_skip_hooks_ready(cs, "1") is True

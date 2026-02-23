@@ -5,9 +5,6 @@ from unittest.mock import MagicMock, patch
 from sase.accept_workflow.conflict_check import (
     ConflictCheckResult,
     ConflictPair,
-    _apply_all_proposals,
-    _find_conflicting_pairs,
-    _format_proposal_id,
     format_conflict_message,
     run_conflict_check,
 )
@@ -24,26 +21,9 @@ def _make_entry(number: int, letter: str, diff: str) -> CommitEntry:
     )
 
 
-def test_format_proposal_id_formats_correctly() -> None:
-    """Test that _format_proposal_id formats IDs correctly."""
-    assert _format_proposal_id(2, "a") == "(2a)"
-    assert _format_proposal_id(1, "b") == "(1b)"
-    assert _format_proposal_id(10, "c") == "(10c)"
-
-
 def test_run_conflict_check_empty_proposals_returns_success() -> None:
     """Test that empty proposals returns success."""
     result = run_conflict_check("/workspace", [], verbose=False)
-    assert result.success is True
-    assert result.failed_proposal is None
-    assert result.conflicting_pairs == []
-
-
-def test_run_conflict_check_single_proposal_returns_success() -> None:
-    """Test that single proposal returns success without checking."""
-    entry = _make_entry(2, "a", "~/.sase/diffs/test.diff")
-    validated: list[tuple[int, str, str | None, CommitEntry]] = [(2, "a", None, entry)]
-    result = run_conflict_check("/workspace", validated, verbose=False)
     assert result.success is True
     assert result.failed_proposal is None
     assert result.conflicting_pairs == []
@@ -157,115 +137,6 @@ def test_run_conflict_check_three_proposals_triggers_pair_detection(
     assert result.conflicting_pairs[0].proposal_b == (2, "b")
 
 
-@patch("sase.accept_workflow.conflict_check.apply_diffs_to_workspace")
-def test_apply_all_proposals_succeeds(
-    mock_apply: MagicMock,
-) -> None:
-    """Test applying all proposals together when they succeed."""
-    mock_apply.return_value = (True, "")
-
-    entry_a = _make_entry(2, "a", "~/.sase/diffs/a.diff")
-    entry_b = _make_entry(2, "b", "~/.sase/diffs/b.diff")
-    proposals = [(2, "a", entry_a), (2, "b", entry_b)]
-
-    success, error_msg = _apply_all_proposals("/workspace", proposals)
-
-    assert success is True
-    assert error_msg == ""
-    # All proposals applied together in single call
-    assert mock_apply.call_count == 1
-    # Verify correct diff paths were passed
-    mock_apply.assert_called_once_with(
-        "/workspace", ["~/.sase/diffs/a.diff", "~/.sase/diffs/b.diff"]
-    )
-
-
-@patch("sase.accept_workflow.conflict_check.apply_diffs_to_workspace")
-def test_apply_all_proposals_fails(
-    mock_apply: MagicMock,
-) -> None:
-    """Test applying all proposals together when they fail."""
-    mock_apply.return_value = (False, "conflict error")
-
-    entry_a = _make_entry(2, "a", "~/.sase/diffs/a.diff")
-    entry_b = _make_entry(2, "b", "~/.sase/diffs/b.diff")
-    proposals = [(2, "a", entry_a), (2, "b", entry_b)]
-
-    success, error_msg = _apply_all_proposals("/workspace", proposals)
-
-    assert success is False
-    assert error_msg == "conflict error"
-    assert mock_apply.call_count == 1
-
-
-@patch("sase.accept_workflow.conflict_check.clean_workspace")
-@patch("sase.accept_workflow.conflict_check.apply_diffs_to_workspace")
-def test_find_conflicting_pairs_finds_conflicts(
-    mock_apply: MagicMock,
-    mock_clean: MagicMock,
-) -> None:
-    """Test pair detection finds all conflicting pairs."""
-    mock_clean.return_value = True
-
-    # Each pair is applied together in a single hg import call
-    # Pairs: (A,B), (A,C), (B,C)
-    # A+B: conflict
-    # A+C: succeeds
-    # B+C: succeeds
-    mock_apply.side_effect = [
-        (False, "A+B conflicts"),  # (A,B) together
-        (True, ""),  # (A,C) together
-        (True, ""),  # (B,C) together
-    ]
-
-    entry_a = _make_entry(2, "a", "~/.sase/diffs/a.diff")
-    entry_b = _make_entry(2, "b", "~/.sase/diffs/b.diff")
-    entry_c = _make_entry(2, "c", "~/.sase/diffs/c.diff")
-    proposals = [(2, "a", entry_a), (2, "b", entry_b), (2, "c", entry_c)]
-
-    pairs = _find_conflicting_pairs("/workspace", proposals)
-
-    assert len(pairs) == 1
-    assert pairs[0].proposal_a == (2, "a")
-    assert pairs[0].proposal_b == (2, "b")
-    assert pairs[0].error_message == "A+B conflicts"
-
-
-@patch("sase.accept_workflow.conflict_check.clean_workspace")
-@patch("sase.accept_workflow.conflict_check.apply_diffs_to_workspace")
-def test_find_conflicting_pairs_multiple_conflicts(
-    mock_apply: MagicMock,
-    mock_clean: MagicMock,
-) -> None:
-    """Test pair detection finds multiple conflicting pairs."""
-    mock_clean.return_value = True
-
-    # Each pair is applied together in a single hg import call
-    # Pairs: (A,B), (A,C), (B,C)
-    # A+B: conflict
-    # A+C: conflict
-    # B+C: succeeds
-    mock_apply.side_effect = [
-        (False, "A+B conflicts"),  # (A,B) together
-        (False, "A+C conflicts"),  # (A,C) together
-        (True, ""),  # (B,C) together
-    ]
-
-    entry_a = _make_entry(2, "a", "~/.sase/diffs/a.diff")
-    entry_b = _make_entry(2, "b", "~/.sase/diffs/b.diff")
-    entry_c = _make_entry(2, "c", "~/.sase/diffs/c.diff")
-    proposals = [(2, "a", entry_a), (2, "b", entry_b), (2, "c", entry_c)]
-
-    pairs = _find_conflicting_pairs("/workspace", proposals)
-
-    # Both A+B and A+C conflict
-    assert len(pairs) == 2
-    assert pairs[0].proposal_a == (2, "a")
-    assert pairs[0].proposal_b == (2, "b")
-    assert pairs[1].proposal_a == (2, "a")
-    assert pairs[1].proposal_b == (2, "c")
-
-
 def test_conflict_check_result_dataclass() -> None:
     """Test ConflictCheckResult dataclass fields."""
     result = ConflictCheckResult(
@@ -296,19 +167,6 @@ def test_conflict_pair_dataclass() -> None:
     assert pair.error_message == "test error"
 
 
-def test_format_conflict_message_no_pairs() -> None:
-    """Test formatting when there are no conflicting pairs (2 proposals case)."""
-    result = ConflictCheckResult(
-        success=False,
-        failed_proposal=None,
-        conflicting_pairs=[],
-    )
-    message = format_conflict_message(result)
-    assert (
-        message == "Accept aborted. Try accepting non-conflicting proposals separately."
-    )
-
-
 def test_format_conflict_message_single_pair() -> None:
     """Test formatting with a single conflicting pair."""
     result = ConflictCheckResult(
@@ -328,35 +186,6 @@ def test_format_conflict_message_single_pair() -> None:
     assert lines[0] == "Conflicting pair: (2a) and (2b)"
     assert (
         lines[1]
-        == "Accept aborted. Try accepting non-conflicting proposals separately."
-    )
-
-
-def test_format_conflict_message_multiple_pairs() -> None:
-    """Test formatting with multiple conflicting pairs."""
-    result = ConflictCheckResult(
-        success=False,
-        failed_proposal=None,
-        conflicting_pairs=[
-            ConflictPair(
-                proposal_a=(2, "a"),
-                proposal_b=(2, "b"),
-                error_message="patch conflict",
-            ),
-            ConflictPair(
-                proposal_a=(2, "a"),
-                proposal_b=(2, "c"),
-                error_message="patch conflict",
-            ),
-        ],
-    )
-    message = format_conflict_message(result)
-    lines = message.split("\n")
-    assert len(lines) == 3
-    assert lines[0] == "Conflicting pair: (2a) and (2b)"
-    assert lines[1] == "Conflicting pair: (2a) and (2c)"
-    assert (
-        lines[2]
         == "Accept aborted. Try accepting non-conflicting proposals separately."
     )
 

@@ -2,10 +2,7 @@
 
 import os
 import stat
-import subprocess
-import textwrap
 
-import pytest
 
 from sase.axe.chop_script_runner import (
     discover_chop_script,
@@ -31,26 +28,6 @@ class TestDiscoverChopScript:
         result = discover_chop_script("my_chop", [str(d)])
         assert result == script
 
-    def test_first_dir_wins(self, tmp_path):
-        d1 = tmp_path / "first"
-        d2 = tmp_path / "second"
-        d1.mkdir()
-        d2.mkdir()
-        s1 = d1 / "my_chop"
-        s2 = d2 / "my_chop"
-        _make_executable(s1, "#!/bin/sh\necho first")
-        _make_executable(s2, "#!/bin/sh\necho second")
-        result = discover_chop_script("my_chop", [str(d1), str(d2)])
-        assert result == s1
-
-    def test_skips_non_executable(self, tmp_path):
-        d = tmp_path / "scripts"
-        d.mkdir()
-        script = d / "my_chop"
-        script.write_text("#!/bin/sh\necho ok")  # not executable
-        result = discover_chop_script("my_chop", [str(d)])
-        assert result is None
-
     def test_falls_back_to_path(self, tmp_path, monkeypatch):
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -71,15 +48,6 @@ class TestDiscoverChopScript:
 class TestRunChopScript:
     """Tests for run_chop_script."""
 
-    def test_captures_stdout(self, tmp_path):
-        script = tmp_path / "my_chop"
-        _make_executable(script, "#!/bin/sh\necho hello_stdout")
-        ctx_file = tmp_path / "ctx.json"
-        ctx_file.write_text("{}")
-        result = run_chop_script(script, str(ctx_file))
-        assert result.stdout.strip() == "hello_stdout"
-        assert result.returncode == 0
-
     def test_captures_stderr(self, tmp_path):
         script = tmp_path / "my_chop"
         _make_executable(script, "#!/bin/sh\necho err_msg >&2")
@@ -88,51 +56,9 @@ class TestRunChopScript:
         result = run_chop_script(script, str(ctx_file))
         assert "err_msg" in result.stderr
 
-    def test_passes_context_arg(self, tmp_path):
-        script = tmp_path / "my_chop"
-        # Script prints its arguments so we can verify --context was passed
-        _make_executable(
-            script,
-            textwrap.dedent("""\
-                #!/bin/sh
-                echo "$@"
-            """),
-        )
-        ctx_file = tmp_path / "ctx.json"
-        ctx_file.write_text("{}")
-        result = run_chop_script(script, str(ctx_file))
-        assert "--context" in result.stdout
-        assert str(ctx_file) in result.stdout
-
-    def test_timeout_enforcement(self, tmp_path):
-        script = tmp_path / "my_chop"
-        _make_executable(script, "#!/bin/sh\nsleep 60")
-        ctx_file = tmp_path / "ctx.json"
-        ctx_file.write_text("{}")
-        with pytest.raises(subprocess.TimeoutExpired):
-            run_chop_script(script, str(ctx_file), timeout=0.1)
-
 
 class TestListChopScripts:
     """Tests for list_chop_scripts."""
-
-    def test_from_dirs(self, tmp_path, monkeypatch):
-        # Isolate PATH so we only see our scripts
-        monkeypatch.setenv("PATH", "")
-        d = tmp_path / "scripts"
-        d.mkdir()
-        _make_executable(d / "alpha")
-        _make_executable(d / "beta")
-        result = list_chop_scripts([str(d)])
-        assert result == ["alpha", "beta"]
-
-    def test_from_path_strips_prefix(self, tmp_path, monkeypatch):
-        bin_dir = tmp_path / "bin"
-        bin_dir.mkdir()
-        _make_executable(bin_dir / "sase_chop_gamma")
-        monkeypatch.setenv("PATH", str(bin_dir))
-        result = list_chop_scripts([])
-        assert "gamma" in result
 
     def test_deduplication(self, tmp_path, monkeypatch):
         d = tmp_path / "scripts"

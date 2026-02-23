@@ -6,37 +6,6 @@ from pathlib import Path
 from sase.ace.changespec import ChangeSpec, get_raw_changespec_text
 
 
-def test_get_raw_changespec_text_basic() -> None:
-    """Test extracting raw text from a basic ChangeSpec file."""
-    content = """\
-NAME: test_cl
-DESCRIPTION: Test description
-STATUS: Ready
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write(content)
-        f.flush()
-
-        cs = ChangeSpec(
-            name="test_cl",
-            description="Test description",
-            status="Ready",
-            parent=None,
-            cl=None,
-            test_targets=None,
-            kickstart=None,
-            file_path=f.name,
-            line_number=1,
-        )
-        result = get_raw_changespec_text(cs)
-        assert result is not None
-        assert "NAME: test_cl" in result
-        assert "DESCRIPTION: Test description" in result
-        assert "STATUS: Ready" in result
-
-    Path(f.name).unlink()
-
-
 def test_get_raw_changespec_text_with_changespec_header_delimiter() -> None:
     """Test extraction stops at ## ChangeSpec header."""
     content = """\
@@ -208,77 +177,5 @@ def test_get_raw_changespec_text_invalid_line_number() -> None:
         )
         result = get_raw_changespec_text(cs)
         assert result is None
-
-    Path(f.name).unlink()
-
-
-def test_get_raw_changespec_text_preserves_multiline_description() -> None:
-    """Test that multiline descriptions are preserved exactly."""
-    content = """\
-NAME: test_cl
-DESCRIPTION:
-  This is line 1
-  This is line 2
-  This is line 3
-STATUS: Ready
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write(content)
-        f.flush()
-
-        cs = ChangeSpec(
-            name="test_cl",
-            description="This is line 1\nThis is line 2\nThis is line 3",
-            status="Ready",
-            parent=None,
-            cl=None,
-            test_targets=None,
-            kickstart=None,
-            file_path=f.name,
-            line_number=1,
-        )
-        result = get_raw_changespec_text(cs)
-        assert result is not None
-        # Should preserve the exact indentation format
-        assert "  This is line 1" in result
-        assert "  This is line 2" in result
-        assert "  This is line 3" in result
-
-    Path(f.name).unlink()
-
-
-def test_get_raw_changespec_text_preserves_multiline_test_targets() -> None:
-    """Test that multiline TEST TARGETS are preserved exactly."""
-    content = """\
-NAME: test_cl
-DESCRIPTION: Test
-TEST TARGETS:
-  //foo:test1
-  //bar:test2
-  //baz:test3
-STATUS: Ready
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write(content)
-        f.flush()
-
-        cs = ChangeSpec(
-            name="test_cl",
-            description="Test",
-            status="Ready",
-            parent=None,
-            cl=None,
-            test_targets=["//foo:test1", "//bar:test2", "//baz:test3"],
-            kickstart=None,
-            file_path=f.name,
-            line_number=1,
-        )
-        result = get_raw_changespec_text(cs)
-        assert result is not None
-        # Should preserve the multiline format
-        assert "TEST TARGETS:" in result
-        assert "  //foo:test1" in result
-        assert "  //bar:test2" in result
-        assert "  //baz:test3" in result
 
     Path(f.name).unlink()

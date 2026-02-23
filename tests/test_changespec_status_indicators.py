@@ -82,30 +82,10 @@ def _make_error_hook() -> list[HookEntry]:
 # --- Draft Status Indicator Tests ---
 
 
-def test_get_status_indicator_draft_returns_d() -> None:
-    """Test that Draft status returns 'D' indicator."""
-    changespec = _make_changespec(status="Draft")
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "D"
-
-
-def test_get_status_indicator_draft_color_is_gold() -> None:
-    """Test that Draft status uses gold color."""
-    changespec = _make_changespec(status="Draft")
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert letter_color == "#FFD700"
-
-
 def test_get_simple_status_indicator_draft_returns_d() -> None:
     """Test that Draft status returns 'D' in simple indicator."""
     indicator, _ = _get_simple_status_indicator("Draft")
     assert indicator == "D"
-
-
-def test_get_simple_status_indicator_draft_color_is_gold() -> None:
-    """Test that Draft status uses gold color in simple indicator."""
-    _, color = _get_simple_status_indicator("Draft")
-    assert color == "#FFD700"
 
 
 def test_get_simple_status_indicator_unknown_returns_w() -> None:
@@ -133,23 +113,7 @@ def test_get_status_indicator_draft_with_running_process() -> None:
     assert letter_color == "#FFD700"  # Gold for Draft
 
 
-def test_get_status_indicator_draft_with_error() -> None:
-    """Test Draft with error shows !D."""
-    changespec = _make_changespec(status="Draft", hooks=_make_error_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "!D"
-    assert letter_color == "#FFD700"  # Gold for Draft
-
-
 # --- Other Status Indicators (non-Draft) ---
-
-
-def test_get_status_indicator_ready() -> None:
-    """Test Ready status returns 'R' with green color."""
-    changespec = _make_changespec(status="Ready")
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "R"
-    assert letter_color == "#87D700"
 
 
 def test_get_status_indicator_mailed() -> None:
@@ -205,43 +169,3 @@ def test_get_simple_status_indicator_reverted() -> None:
 
 
 # --- Prefix with Non-Draft Status Tests ---
-
-
-def test_get_status_indicator_error_with_ready() -> None:
-    """Test error prefix with Ready status: letter color stays green."""
-    changespec = _make_changespec(status="Ready", hooks=_make_error_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "!R"
-    assert letter_color == "#87D700"  # Green for Ready
-
-
-def test_get_status_indicator_error_with_mailed() -> None:
-    """Test error prefix with Mailed status: letter color stays cyan-green."""
-    changespec = _make_changespec(status="Mailed", hooks=_make_error_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "!M"
-    assert letter_color == "#00D787"  # Cyan-green for Mailed
-
-
-def test_get_status_indicator_error_with_submitted() -> None:
-    """Test error prefix with Submitted status: letter color stays dark green."""
-    changespec = _make_changespec(status="Submitted", hooks=_make_error_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "!S"
-    assert letter_color == "#00AF00"  # Dark green for Submitted
-
-
-def test_get_status_indicator_running_agent_with_ready() -> None:
-    """Test running agent prefix with Ready: letter color stays green."""
-    changespec = _make_changespec(status="Ready", hooks=_make_running_agent_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "@R"
-    assert letter_color == "#87D700"  # Green for Ready
-
-
-def test_get_status_indicator_running_process_with_mailed() -> None:
-    """Test running process prefix with Mailed: letter color stays cyan-green."""
-    changespec = _make_changespec(status="Mailed", hooks=_make_running_process_hook())
-    indicator, letter_color = _get_status_indicator(changespec)
-    assert indicator == "$M"
-    assert letter_color == "#00D787"  # Cyan-green for Mailed

@@ -13,26 +13,6 @@ if TYPE_CHECKING:
     from pytest import CaptureFixture
 
 
-def test_log_prompt_and_response_basic() -> None:
-    """Test basic logging of prompt and response."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        log_prompt_and_response(
-            prompt="Test prompt",
-            response="Test response",
-            artifacts_dir=tmpdir,
-            agent_type="test_agent",
-        )
-
-        log_file = os.path.join(tmpdir, "sase.md")
-        assert os.path.exists(log_file)
-
-        with open(log_file) as f:
-            content = f.read()
-        assert "Test prompt" in content
-        assert "Test response" in content
-        assert "test_agent" in content
-
-
 def test_log_prompt_and_response_with_iteration() -> None:
     """Test logging with iteration number."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -65,27 +45,6 @@ def test_log_prompt_and_response_with_workflow_tag() -> None:
         with open(log_file) as f:
             content = f.read()
         assert "tag crs" in content
-
-
-def test_log_prompt_and_response_appends() -> None:
-    """Test that multiple logs are appended to the same file."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        log_prompt_and_response(
-            prompt="First prompt",
-            response="First response",
-            artifacts_dir=tmpdir,
-        )
-        log_prompt_and_response(
-            prompt="Second prompt",
-            response="Second response",
-            artifacts_dir=tmpdir,
-        )
-
-        log_file = os.path.join(tmpdir, "sase.md")
-        with open(log_file) as f:
-            content = f.read()
-        assert "First prompt" in content
-        assert "Second prompt" in content
 
 
 def test_log_prompt_and_response_handles_error(

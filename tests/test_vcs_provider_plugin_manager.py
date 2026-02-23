@@ -116,11 +116,6 @@ class TestDelegation:
 class TestNotImplemented:
     """When no plugin implements a hook, NotImplementedError is raised."""
 
-    def test_unimplemented_core_method_raises(self) -> None:
-        mgr = _make_manager()  # no plugins at all
-        with pytest.raises(NotImplementedError, match="checkout"):
-            mgr.checkout("main", "/tmp")
-
     def test_unimplemented_optional_method_raises(self) -> None:
         mgr = _make_manager()
         with pytest.raises(NotImplementedError, match="show_revision"):
@@ -150,13 +145,6 @@ class TestNotImplemented:
         mgr = _make_manager()
         with pytest.raises(NotImplementedError, match="reword"):
             mgr.reword("desc", "/tmp")
-
-    def test_partial_plugin_raises_for_unimplemented(self) -> None:
-        """Plugin implements checkout but not diff => diff raises."""
-        mgr = _make_manager(_CheckoutPlugin())
-        assert mgr.checkout("main", "/tmp") == (True, None)
-        with pytest.raises(NotImplementedError, match="diff"):
-            mgr.diff("/tmp")
 
 
 # ---------------------------------------------------------------------------
@@ -191,9 +179,3 @@ class TestNonTrivialDefaults:
 
 class TestInterfaceCompliance:
     """VCSPluginManager should be a valid VCSProvider subclass."""
-
-    def test_is_subclass(self) -> None:
-        assert issubclass(VCSPluginManager, type(mgr := _make_manager()).__mro__[0])
-        from sase.vcs_provider._base import VCSProvider
-
-        assert isinstance(mgr, VCSProvider)

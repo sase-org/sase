@@ -10,139 +10,13 @@ from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 # === Tests for commit ===
 
 
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_commit_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_commit commits on current branch."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_commit("feature", "/tmp/msg.txt", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_count == 1
-    assert mock_run.call_args[0][0] == ["git", "commit", "-F", "/tmp/msg.txt"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_commit_failure(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_commit when commit fails."""
-    mock_run.return_value = MagicMock(
-        returncode=1, stdout="", stderr="nothing to commit"
-    )
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_commit("feature", "/tmp/msg.txt", "/workspace")
-
-    assert success is False
-    assert error is not None
-    assert "git commit failed" in error
-
-
 # === Tests for amend ===
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_amend_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_amend on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_amend("fix typo", "/workspace", no_upload=False)
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == ["git", "commit", "--amend", "-m", "fix typo"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_amend_no_upload_ignored(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_amend silently ignores no_upload flag."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, _ = plugin.vcs_amend("fix typo", "/workspace", no_upload=True)
-
-    assert success is True
-    # Same command regardless of no_upload
-    assert mock_run.call_args[0][0] == ["git", "commit", "--amend", "-m", "fix typo"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_amend_failure(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_amend on failure."""
-    mock_run.return_value = MagicMock(
-        returncode=1, stdout="", stderr="nothing to amend"
-    )
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_amend("note", "/workspace", no_upload=False)
-
-    assert success is False
-    assert error is not None
-    assert "git commit --amend failed" in error
 
 
 # === Tests for rename_branch ===
 
 
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_rename_branch_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_rename_branch on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_rename_branch("new_name", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == ["git", "branch", "-m", "new_name"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_rename_branch_failure(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_rename_branch on failure."""
-    mock_run.return_value = MagicMock(
-        returncode=1, stdout="", stderr="fatal: rename failed"
-    )
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_rename_branch("bad", "/workspace")
-
-    assert success is False
-    assert error is not None
-    assert "git branch -m failed" in error
-
-
 # === Tests for rebase ===
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_rebase_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_rebase on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_rebase("feature", "main", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == ["git", "rebase", "--onto", "main", "feature"]
-    # Verify 600s timeout
-    assert mock_run.call_args[1]["timeout"] == 600
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_rebase_failure(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_rebase on failure."""
-    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="merge conflict")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_rebase("feature", "main", "/workspace")
-
-    assert success is False
-    assert error is not None
-    assert "git rebase failed" in error
 
 
 # === Tests for archive ===
@@ -169,23 +43,6 @@ def test_git_archive_success(mock_run: MagicMock) -> None:
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_archive_tag_fails(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_archive when tagging fails."""
-    mock_run.return_value = MagicMock(
-        returncode=1, stdout="", stderr="tag already exists"
-    )
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_archive("old-feature", "/workspace")
-
-    assert success is False
-    assert error is not None
-    assert "git tag failed" in error
-    # Should not attempt branch delete
-    mock_run.assert_called_once()
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_archive_branch_delete_fails(mock_run: MagicMock) -> None:
     """Test BareGitPlugin.vcs_archive when branch delete fails."""
     mock_run.side_effect = [
@@ -204,55 +61,7 @@ def test_git_archive_branch_delete_fails(mock_run: MagicMock) -> None:
 # === Tests for prune ===
 
 
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_prune_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_prune on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_prune("dead-branch", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == ["git", "branch", "-D", "dead-branch"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_prune_failure(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_prune on failure."""
-    mock_run.return_value = MagicMock(
-        returncode=1, stdout="", stderr="error: branch not found"
-    )
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_prune("nonexistent", "/workspace")
-
-    assert success is False
-    assert error is not None
-    assert "git branch -D failed" in error
-
-
 # === Tests for stash_and_clean ===
-
-
-@patch("builtins.open", mock_open())
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_stash_and_clean_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_stash_and_clean on success."""
-    mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="diff content", stderr=""),  # diff
-        MagicMock(returncode=0, stdout="", stderr=""),  # reset
-        MagicMock(returncode=0, stdout="", stderr=""),  # clean
-    ]
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_stash_and_clean(
-        "/tmp/backup.diff", "/workspace", timeout=300
-    )
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_count == 3
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")

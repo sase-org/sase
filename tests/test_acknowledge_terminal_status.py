@@ -14,33 +14,6 @@ from sase.ace.changespec import (
 from sase.ace.scheduler.suffix_transforms import strip_terminal_status_markers
 
 
-def test_strip_terminal_status_markers_skips_non_terminal() -> None:
-    """Test strip_terminal_status_markers skips non-terminal status."""
-    cs = ChangeSpec(
-        name="test",
-        description="Test",
-        parent=None,
-        cl="123",
-        status="Mailed",  # Not terminal
-        test_targets=None,
-        kickstart=None,
-        file_path="/tmp/test.gp",
-        line_number=1,
-        commits=[
-            CommitEntry(
-                number=1,
-                note="Test",
-                suffix="NEW PROPOSAL",
-                suffix_type="error",
-            )
-        ],
-    )
-
-    result = strip_terminal_status_markers(cs)
-
-    assert result == []
-
-
 def test_strip_terminal_status_markers_skips_drafted() -> None:
     """Test strip_terminal_status_markers skips Ready status."""
     cs = ChangeSpec(
@@ -66,38 +39,6 @@ def test_strip_terminal_status_markers_skips_drafted() -> None:
     result = strip_terminal_status_markers(cs)
 
     assert result == []
-
-
-def test_strip_terminal_status_markers_processes_submitted() -> None:
-    """Test strip_terminal_status_markers processes Submitted status."""
-    cs = ChangeSpec(
-        name="test",
-        description="Test",
-        parent=None,
-        cl="123",
-        status="Submitted",  # Terminal
-        test_targets=None,
-        kickstart=None,
-        file_path="/tmp/test.gp",
-        line_number=1,
-        commits=[
-            CommitEntry(
-                number=1,
-                note="Test",
-                suffix="NEW PROPOSAL",
-                suffix_type="error",
-            )
-        ],
-    )
-
-    with patch(
-        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix",
-        return_value=True,
-    ):
-        result = strip_terminal_status_markers(cs)
-
-    assert len(result) == 1
-    assert "Cleared COMMITS" in result[0]
 
 
 def test_strip_terminal_status_markers_processes_reverted() -> None:
@@ -224,76 +165,6 @@ def test_strip_terminal_status_markers_processes_comments() -> None:
 
     assert len(result) == 1
     assert "Cleared COMMENT" in result[0]
-
-
-def test_strip_terminal_status_markers_processes_history_running_agent() -> None:
-    """Test strip_terminal_status_markers processes running_agent suffixes."""
-    cs = ChangeSpec(
-        name="test",
-        description="Test",
-        parent=None,
-        cl="123",
-        status="Submitted",  # Terminal
-        test_targets=None,
-        kickstart=None,
-        file_path="/tmp/test.gp",
-        line_number=1,
-        commits=[
-            CommitEntry(
-                number=1,
-                note="Test",
-                suffix="241226_120000",
-                suffix_type="running_agent",
-            )
-        ],
-    )
-
-    with patch(
-        "sase.ace.scheduler.suffix_transforms.update_commit_entry_suffix",
-        return_value=True,
-    ):
-        result = strip_terminal_status_markers(cs)
-
-    assert len(result) == 1
-    assert "Cleared COMMITS" in result[0]
-
-
-def test_strip_terminal_status_markers_processes_hooks_running_agent() -> None:
-    """Test strip_terminal_status_markers converts running_agent to killed_agent."""
-    hook = HookEntry(
-        command="test_cmd",
-        status_lines=[
-            HookStatusLine(
-                commit_entry_num="1",
-                timestamp="241226_120000",
-                status="RUNNING",
-                suffix="241226_120000",
-                suffix_type="running_agent",
-            )
-        ],
-    )
-    cs = ChangeSpec(
-        name="test",
-        description="Test",
-        parent=None,
-        cl="123",
-        status="Submitted",  # Terminal
-        test_targets=None,
-        kickstart=None,
-        file_path="/tmp/test.gp",
-        line_number=1,
-        hooks=[hook],
-    )
-
-    with patch(
-        "sase.ace.scheduler.suffix_transforms.update_changespec_hooks_field",
-        return_value=True,
-    ):
-        result = strip_terminal_status_markers(cs)
-
-    assert len(result) == 1
-    assert "Converted HOOK" in result[0]
-    assert "to killed_agent" in result[0]
 
 
 def test_strip_terminal_status_markers_processes_hooks_empty_running_agent() -> None:

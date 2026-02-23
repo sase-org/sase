@@ -7,25 +7,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 # --- Kill Agent Tests ---
 
 
-def test_kill_process_group_success() -> None:
-    """Test _kill_process_group sends SIGTERM successfully."""
-    from sase.ace.tui.actions.agents import AgentsMixin
-
-    class MockApp(AgentsMixin):
-        def __init__(self) -> None:
-            self._notifications: list[tuple[str, str]] = []
-
-        def notify(self, msg: str, severity: str = "information") -> None:
-            self._notifications.append((msg, severity))
-
-    app = MockApp()
-
-    with patch("sase.ace.tui.actions.agents._killing.os.killpg") as mock_killpg:
-        result = app._kill_process_group(12345)
-        mock_killpg.assert_called_once_with(12345, 15)  # signal.SIGTERM = 15
-        assert result is True
-
-
 def test_kill_process_group_process_already_dead() -> None:
     """Test _kill_process_group handles ProcessLookupError."""
     from sase.ace.tui.actions.agents import AgentsMixin

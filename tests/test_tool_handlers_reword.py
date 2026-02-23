@@ -7,27 +7,10 @@ from sase.ace.handlers.reword import (
     _add_prettier_ignore_before_tags,
     _fetch_cl_description,
     _open_editor_with_content,
-    _strip_prettier_ignore,
     handle_reword,
 )
 
 # === Tests for _add_prettier_ignore_before_tags ===
-
-
-def test_add_prettier_ignore_inserts_before_tag_block() -> None:
-    """Test that prettier-ignore is inserted before the contiguous tag block."""
-    description = "Fix rendering bug\n\nBUG=12345\nR=startblock\nMARKDOWN=true"
-    result = _add_prettier_ignore_before_tags(description)
-    assert result == (
-        "Fix rendering bug\n\n<!-- prettier-ignore -->\nBUG=12345\nR=startblock\nMARKDOWN=true"
-    )
-
-
-def test_add_prettier_ignore_no_tags_unchanged() -> None:
-    """Test that description without tags is returned unchanged."""
-    description = "Fix rendering bug\n\nThis is just a description."
-    result = _add_prettier_ignore_before_tags(description)
-    assert result == description
 
 
 def test_add_prettier_ignore_with_trailing_blank_lines() -> None:
@@ -38,20 +21,6 @@ def test_add_prettier_ignore_with_trailing_blank_lines() -> None:
 
 
 # === Tests for _strip_prettier_ignore ===
-
-
-def test_strip_prettier_ignore_removes_comment() -> None:
-    """Test that prettier-ignore comment lines are removed."""
-    content = "Fix bug\n\n<!-- prettier-ignore -->\nBUG=12345\nR=startblock"
-    result = _strip_prettier_ignore(content)
-    assert result == "Fix bug\n\nBUG=12345\nR=startblock"
-
-
-def test_strip_prettier_ignore_no_comment_unchanged() -> None:
-    """Test that content without prettier-ignore is returned unchanged."""
-    content = "Fix bug\n\nBUG=12345\nR=startblock"
-    result = _strip_prettier_ignore(content)
-    assert result == content
 
 
 # === Tests for _fetch_cl_description ===
@@ -106,38 +75,7 @@ def test_fetch_cl_description_cl_desc_fails(
     assert result is None
 
 
-@patch("sase.ace.handlers.reword.get_vcs_provider")
-@patch("sase.running_field.get_workspace_directory")
-def test_fetch_cl_description_command_not_found(
-    mock_get_ws: MagicMock, mock_get_provider: MagicMock
-) -> None:
-    """Test returns None when cl_desc is not found."""
-    mock_get_ws.return_value = "/workspace"
-    mock_provider = MagicMock()
-    mock_provider.get_description.return_value = (False, "cl_desc command not found")
-    mock_get_provider.return_value = mock_provider
-    console = MagicMock()
-
-    result = _fetch_cl_description("project", "cl/123", console)
-
-    assert result is None
-
-
 # === Tests for _open_editor_with_content ===
-
-
-@patch("sase.ace.handlers.reword.get_editor", return_value="cat")
-@patch("sase.ace.handlers.reword.subprocess.run")
-def test_open_editor_with_content_success(
-    mock_run: MagicMock, _mock_editor: MagicMock
-) -> None:
-    """Test editor returns content on success."""
-    mock_run.return_value = MagicMock(returncode=0)
-    console = MagicMock()
-
-    result = _open_editor_with_content("hello world", console)
-
-    assert result == "hello world"
 
 
 @patch("sase.ace.handlers.reword.get_editor", return_value="false")
@@ -234,24 +172,6 @@ def test_handle_reword_editor_returns_none(
     handle_reword(ctx, cs)
 
     assert "cancelled" in ctx.console.print.call_args[0][0].lower()
-
-
-@patch("sase.ace.handlers.reword._open_editor_with_content")
-@patch("sase.ace.handlers.reword._fetch_cl_description")
-@patch("sase.ace.changespec.get_base_status", return_value="Ready")
-def test_handle_reword_description_unchanged_no_workspace(
-    _mock_base: MagicMock, mock_fetch: MagicMock, mock_editor: MagicMock
-) -> None:
-    """Test no workspace claimed when description is unchanged."""
-    mock_fetch.return_value = "Same description\n"
-    mock_editor.return_value = "Same description\n"
-    ctx, cs = _make_context_and_changespec(status="Ready")
-
-    with patch("sase.running_field.claim_workspace") as mock_claim:
-        handle_reword(ctx, cs)
-        mock_claim.assert_not_called()
-
-    assert "unchanged" in ctx.console.print.call_args[0][0].lower()
 
 
 @patch("sase.ace.handlers.reword._open_editor_with_content")

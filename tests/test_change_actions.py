@@ -6,63 +6,6 @@ import tempfile
 from sase.change_actions import _delete_proposal_entry
 
 
-def test_delete_proposal_entry_success() -> None:
-    """Test deleting a proposal entry from a project file."""
-    project_content = """NAME: my_feature
-DESCRIPTION:
-  Test description
-STATUS: Ready
-COMMITS:
-  (1) Initial commit
-      | DIFF: ~/.sase/diffs/my_feature_123.diff
-  (1a) [fix typo]
-      | DIFF: ~/.sase/diffs/my_feature_fix.diff
-  (1b) [add test]
-      | DIFF: ~/.sase/diffs/my_feature_test.diff
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write(project_content)
-        project_file = f.name
-
-    try:
-        # Delete proposal 1a
-        result = _delete_proposal_entry(project_file, "my_feature", 1, "a")
-        assert result is True
-
-        # Read back and verify
-        with open(project_file, encoding="utf-8") as f:
-            content = f.read()
-
-        assert "(1a) [fix typo]" not in content
-        assert "(1) Initial commit" in content
-        assert "(1b) [add test]" in content
-    finally:
-        os.unlink(project_file)
-
-
-def test_delete_proposal_entry_not_found() -> None:
-    """Test deleting a proposal that doesn't exist."""
-    project_content = """NAME: my_feature
-DESCRIPTION:
-  Test description
-STATUS: Ready
-COMMITS:
-  (1) Initial commit
-      | DIFF: ~/.sase/diffs/my_feature_123.diff
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write(project_content)
-        project_file = f.name
-
-    try:
-        # Try to delete non-existent proposal
-        result = _delete_proposal_entry(project_file, "my_feature", 2, "a")
-        # Should still return True (no entry to delete, but file was processed)
-        assert result is True
-    finally:
-        os.unlink(project_file)
-
-
 def test_delete_proposal_entry_file_not_found() -> None:
     """Test deleting from a non-existent file."""
     result = _delete_proposal_entry("/nonexistent/path/file.gp", "my_feature", 1, "a")

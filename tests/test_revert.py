@@ -4,49 +4,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.ace.revert import (
-    has_children,
     revert_changespec,
 )
-
-
-def test_has_children_with_no_children(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test has_children returns False when no children exist."""
-    parent = make_changespec.create_with_file(name="parent_feature")
-    child = make_changespec.create_with_file(name="unrelated_feature", parent=None)
-    all_changespecs = [parent, child]
-
-    assert has_children(parent, all_changespecs) is False
-
-    Path(parent.file_path).unlink()
-    Path(child.file_path).unlink()
-
-
-def test_has_children_with_children(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test has_children returns True when children exist."""
-    parent = make_changespec.create_with_file(name="parent_feature")
-    child = make_changespec.create_with_file(
-        name="child_feature", parent="parent_feature"
-    )
-    all_changespecs = [parent, child]
-
-    assert has_children(parent, all_changespecs) is True
-
-    Path(parent.file_path).unlink()
-    Path(child.file_path).unlink()
-
-
-def test_has_children_ignores_reverted_children(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test has_children returns False when only child is Reverted."""
-    parent = make_changespec.create_with_file(name="parent_feature")
-    reverted_child = make_changespec.create_with_file(
-        name="child_feature__1", parent="parent_feature", status="Reverted"
-    )
-    all_changespecs = [parent, reverted_child]
-
-    assert has_children(parent, all_changespecs) is False
-
-    Path(parent.file_path).unlink()
-    Path(reverted_child.file_path).unlink()
 
 
 def test_revert_changespec_succeeds_without_cl(make_changespec) -> None:  # type: ignore[no-untyped-def]

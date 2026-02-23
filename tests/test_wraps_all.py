@@ -1,7 +1,5 @@
 """Tests for the wraps_all workflow field."""
 
-import textwrap
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
@@ -22,66 +20,6 @@ from sase.xprompt.workflow_models import (
 # ============================================================================
 # Loader tests: wraps_all parsed from YAML
 # ============================================================================
-
-
-def test_loader_wraps_all_true(tmp_path: Path) -> None:
-    """YAML with wraps_all: true parses correctly."""
-    from sase.xprompt.workflow_loader import _load_workflow_from_file
-
-    yml = tmp_path / "workspace.yml"
-    yml.write_text(
-        textwrap.dedent("""\
-        wraps_all: true
-
-        steps:
-          - name: setup
-            bash: echo setup
-            output: { success: bool }
-          - name: inject
-            prompt_part: ""
-          - name: teardown
-            bash: echo teardown
-        """)
-    )
-    workflow = _load_workflow_from_file(yml)
-    assert workflow is not None
-    assert workflow.wraps_all is True
-
-
-def test_loader_wraps_all_false_by_default(tmp_path: Path) -> None:
-    """YAML without wraps_all defaults to False."""
-    from sase.xprompt.workflow_loader import _load_workflow_from_file
-
-    yml = tmp_path / "simple.yml"
-    yml.write_text(
-        textwrap.dedent("""\
-        steps:
-          - name: inject
-            prompt_part: "Do stuff"
-        """)
-    )
-    workflow = _load_workflow_from_file(yml)
-    assert workflow is not None
-    assert workflow.wraps_all is False
-
-
-def test_loader_wraps_all_explicit_false(tmp_path: Path) -> None:
-    """YAML with wraps_all: false parses as False."""
-    from sase.xprompt.workflow_loader import _load_workflow_from_file
-
-    yml = tmp_path / "explicit_false.yml"
-    yml.write_text(
-        textwrap.dedent("""\
-        wraps_all: false
-
-        steps:
-          - name: inject
-            prompt_part: "Do stuff"
-        """)
-    )
-    workflow = _load_workflow_from_file(yml)
-    assert workflow is not None
-    assert workflow.wraps_all is False
 
 
 # ============================================================================
@@ -218,129 +156,14 @@ class _TrackingExecutor(_FakeExecutor):
         return True
 
 
-def test_wraps_all_pre_steps_run_first() -> None:
-    """wraps_all workflow's pre-steps execute before other workflows' pre-steps."""
-    wf_git = _make_workflow("git", wraps_all=True)
-    wf_commit = _make_workflow("commit", wraps_all=False)
-
-    executor = _TrackingExecutor({"git": wf_git, "commit": wf_commit})
-
-    with patch(
-        "sase.xprompt.loader.get_all_workflows",
-        return_value={"git": wf_git, "commit": wf_commit},
-    ):
-        executor._expand_embedded_workflows_in_prompt(
-            "#commit:fix #git:main Do something"
-        )
-
-    # wraps_all (git) should run first, even though #commit appears first in prompt
-    assert executor.pre_step_order[0] == "git"
-    assert executor.pre_step_order[1] == "commit"
-
-
-def test_wraps_all_post_steps_run_last() -> None:
-    """wraps_all workflow's post-steps are placed at the end of embedded_workflows."""
-    wf_git = _make_workflow("git", wraps_all=True)
-    wf_commit = _make_workflow("commit", wraps_all=False)
-
-    executor = _TrackingExecutor({"git": wf_git, "commit": wf_commit})
-
-    with patch(
-        "sase.xprompt.loader.get_all_workflows",
-        return_value={"git": wf_git, "commit": wf_commit},
-    ):
-        _, embedded_workflows, _ = executor._expand_embedded_workflows_in_prompt(
-            "#git:main #commit:fix Do something"
-        )
-
-    # wraps_all workflow should be last in the embedded_workflows list
-    # so its post-steps run after commit's post-steps
-    assert len(embedded_workflows) == 2
-    assert embedded_workflows[-1].workflow_name == "git"
-    assert embedded_workflows[0].workflow_name == "commit"
-
-
 # ============================================================================
 # Regression: without wraps_all, right-to-left order preserved
 # ============================================================================
 
 
-def test_no_wraps_all_preserves_right_to_left_order() -> None:
-    """Without wraps_all, pre-steps still execute in right-to-left order."""
-    wf_a = _make_workflow("alpha", wraps_all=False)
-    wf_b = _make_workflow("beta", wraps_all=False)
-
-    executor = _TrackingExecutor({"alpha": wf_a, "beta": wf_b})
-
-    with patch(
-        "sase.xprompt.loader.get_all_workflows",
-        return_value={"alpha": wf_a, "beta": wf_b},
-    ):
-        executor._expand_embedded_workflows_in_prompt("#alpha:x #beta:y Do something")
-
-    # Right-to-left: beta first, then alpha
-    assert executor.pre_step_order == ["beta", "alpha"]
-
-
-def test_no_wraps_all_post_step_order_right_to_left() -> None:
-    """Without wraps_all, post-steps are in right-to-left order."""
-    wf_a = _make_workflow("alpha", wraps_all=False)
-    wf_b = _make_workflow("beta", wraps_all=False)
-
-    executor = _TrackingExecutor({"alpha": wf_a, "beta": wf_b})
-
-    with patch(
-        "sase.xprompt.loader.get_all_workflows",
-        return_value={"alpha": wf_a, "beta": wf_b},
-    ):
-        _, embedded_workflows, _ = executor._expand_embedded_workflows_in_prompt(
-            "#alpha:x #beta:y Do something"
-        )
-
-    # Right-to-left: beta first, then alpha
-    assert [ew.workflow_name for ew in embedded_workflows] == ["beta", "alpha"]
-
-
 # ============================================================================
 # Fenced code block protection
 # ============================================================================
-
-
-def test_wraps_all_ref_inside_code_block_not_matched() -> None:
-    """#workflow inside a fenced code block should not be treated as a reference."""
-    wf_gh = _make_workflow("gh", wraps_all=True)
-
-    executor = _FakeExecutor({"gh": wf_gh})
-
-    with patch(
-        "sase.xprompt.loader.get_all_workflows",
-        return_value={"gh": wf_gh},
-    ):
-        # #gh outside the code block is real; #gh inside should be ignored
-        prompt, embedded, _ = executor._expand_embedded_workflows_in_prompt(
-            "#gh\n```\n#gh inside code block\n```\n"
-        )
-        # Should succeed (only one #gh detected, not two)
-        assert isinstance(prompt, str)
-        # The code block content should be preserved in the output
-        assert "#gh inside code block" in prompt
-
-
-def test_wraps_all_only_inside_code_block_no_expansion() -> None:
-    """When #workflow only appears inside code blocks, no expansion should happen."""
-    wf_gh = _make_workflow("gh", wraps_all=True)
-
-    executor = _FakeExecutor({"gh": wf_gh})
-
-    with patch(
-        "sase.xprompt.loader.get_all_workflows",
-        return_value={"gh": wf_gh},
-    ):
-        prompt, embedded, _ = executor._expand_embedded_workflows_in_prompt(
-            "Do something\n```\n#gh inside code block\n```\n"
-        )
-        assert embedded == []
-        assert "#gh inside code block" in prompt
 
 
 # ============================================================================

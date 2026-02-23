@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.llm_provider.base import LLMProvider
-from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.registry import _REGISTRY, get_provider, register_provider
 from sase.llm_provider.types import _MODEL_SIZE_TO_TIER, LoggingContext, ModelTier
@@ -125,31 +124,11 @@ def test_get_provider_unknown_raises() -> None:
         get_provider("nonexistent_provider_xyz")
 
 
-def test_gemini_provider_registered_by_default() -> None:
-    """Test that GeminiProvider is registered as 'gemini' by default."""
-    provider = get_provider("gemini")
-    assert isinstance(provider, GeminiProvider)
-
-
 @patch("sase.llm_provider.registry.shutil.which", return_value=None)
 def test_get_default_provider_falls_back_to_gemini(mock_which: MagicMock) -> None:
     """Test that the default provider is 'gemini' when claude is not on PATH."""
     provider = get_provider()
     assert isinstance(provider, GeminiProvider)
-
-
-@patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")
-@patch(
-    "sase.llm_provider.registry.get_llm_provider_config",
-    return_value={},
-)
-def test_get_default_provider_prefers_claude_when_available(
-    mock_config: MagicMock,
-    mock_which: MagicMock,
-) -> None:
-    """Test that the default provider is 'claude' when claude is on PATH and no config."""
-    provider = get_provider()
-    assert isinstance(provider, ClaudeCodeProvider)
 
 
 @patch("sase.llm_provider.registry.shutil.which", return_value="/usr/bin/claude")

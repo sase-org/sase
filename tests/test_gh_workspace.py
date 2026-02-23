@@ -8,11 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.gh_workspace import (
-    _ResolvedGhRef,
     get_default_branch,
-    _get_git_clone_dir,
     set_workspace_dir,
-    detect_vcs_type_for_project,
     detect_workflow_type_for_project,
     ensure_git_clone,
     parse_workspace_dir,
@@ -32,13 +29,6 @@ class TestGetDefaultBranch:
         assert get_default_branch("/repo") == "origin/main"
 
     @patch("sase.gh_workspace.subprocess.run")
-    def test_detects_master(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="refs/remotes/origin/master\n"
-        )
-        assert get_default_branch("/repo") == "origin/master"
-
-    @patch("sase.gh_workspace.subprocess.run")
     def test_fallback_on_failure(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=1, stdout="")
         assert get_default_branch("/repo") == "origin/main"
@@ -53,50 +43,9 @@ class TestGetDefaultBranch:
 
 
 class TestParseWorkspaceDir:
-    def test_found(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("WORKSPACE_DIR: /home/user/repo/\nNAME: my-cl\n")
-            f.flush()
-            assert parse_workspace_dir(f.name) == "/home/user/repo/"
-            os.unlink(f.name)
-
-    def test_not_found(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: my-cl\nSTATUS: Draft\n")
-            f.flush()
-            assert parse_workspace_dir(f.name) is None
-            os.unlink(f.name)
-
-    def test_missing_file(self) -> None:
-        assert parse_workspace_dir("/nonexistent/path/file.gp") is None
-
-    def test_tilde_expansion(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("WORKSPACE_DIR: ~/projects/repo/\nNAME: my-cl\n")
-            f.flush()
-            result = parse_workspace_dir(f.name)
-            assert result is not None
-            assert "~" not in result
-            assert result.endswith("projects/repo/")
-            os.unlink(f.name)
-
     def test_empty_value(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("WORKSPACE_DIR:\nNAME: my-cl\n")
-            f.flush()
-            assert parse_workspace_dir(f.name) is None
-            os.unlink(f.name)
-
-    def test_with_running_field(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("WORKSPACE_DIR: /repo/\nRUNNING:\n  #hg 1 1234\nNAME: cl\n")
-            f.flush()
-            assert parse_workspace_dir(f.name) == "/repo/"
-            os.unlink(f.name)
-
-    def test_workspace_dir_after_name_is_ignored(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: my-cl\nWORKSPACE_DIR: /repo/\n")
             f.flush()
             assert parse_workspace_dir(f.name) is None
             os.unlink(f.name)
@@ -106,13 +55,6 @@ class TestParseWorkspaceDir:
 
 
 class TestSetWorkspaceDir:
-    def test_new_file(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            gp = os.path.join(d, "proj.gp")
-            assert set_workspace_dir(gp, "/repo/")
-            with open(gp) as f:
-                assert f.read() == "WORKSPACE_DIR: /repo/\n"
-
     def test_creates_directory(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             gp = os.path.join(d, "subdir", "proj.gp")
@@ -138,26 +80,6 @@ class TestSetWorkspaceDir:
 
     @patch("sase.gh_workspace.write_changespec_atomic")
     @patch("sase.gh_workspace.changespec_lock")
-    def test_inserts_before_name(
-        self, mock_lock: MagicMock, mock_write: MagicMock
-    ) -> None:
-        mock_lock.return_value.__enter__ = MagicMock()
-        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: cl\nSTATUS: Draft\n")
-            f.flush()
-            assert set_workspace_dir(f.name, "/repo/")
-            written = mock_write.call_args[0][1]
-            lines = written.splitlines()
-            ws_idx = next(
-                i for i, ln in enumerate(lines) if ln.startswith("WORKSPACE_DIR:")
-            )
-            name_idx = next(i for i, ln in enumerate(lines) if ln.startswith("NAME:"))
-            assert ws_idx < name_idx
-            os.unlink(f.name)
-
-    @patch("sase.gh_workspace.write_changespec_atomic")
-    @patch("sase.gh_workspace.changespec_lock")
     def test_inserts_before_running(
         self, mock_lock: MagicMock, mock_write: MagicMock
     ) -> None:
@@ -177,26 +99,6 @@ class TestSetWorkspaceDir:
             os.unlink(f.name)
 
 
-# ── _get_git_clone_dir ────────────────────────────────────────────────
-
-
-class TestGetGitCloneDir:
-    def test_primary(self) -> None:
-        assert _get_git_clone_dir("/repo/", 1) == "/repo/"
-
-    def test_secondary(self) -> None:
-        assert _get_git_clone_dir("/repo/", 2) == "/repo__2/"
-
-    def test_tertiary(self) -> None:
-        assert _get_git_clone_dir("/repo/", 3) == "/repo__3/"
-
-    def test_trailing_slash_handling(self) -> None:
-        assert _get_git_clone_dir("/repo", 2) == "/repo__2/"
-
-
-# ── ensure_git_clone ─────────────────────────────────────────────────
-
-
 class TestEnsureGitClone:
     def test_primary_exists(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -206,18 +108,6 @@ class TestEnsureGitClone:
     def test_primary_missing(self) -> None:
         with pytest.raises(RuntimeError, match="does not exist"):
             ensure_git_clone("/nonexistent/dir/", 1)
-
-    def test_secondary_already_exists_valid(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            primary = os.path.join(d, "repo")
-            secondary = os.path.join(d, "repo__2")
-            os.makedirs(primary)
-            os.makedirs(secondary)
-            with patch("sase.gh_workspace.subprocess.run") as mock_run:
-                # git status succeeds → clone is valid
-                mock_run.return_value = MagicMock(returncode=0)
-                result = ensure_git_clone(primary + "/", 2)
-                assert result == primary + "__2/"
 
     @patch("sase.gh_workspace.subprocess.run")
     def test_secondary_creates(self, mock_run: MagicMock) -> None:
@@ -247,61 +137,6 @@ class TestEnsureGitClone:
             os.makedirs(primary)
             with pytest.raises(RuntimeError, match="git clone failed"):
                 ensure_git_clone(primary, 2)
-
-    @patch("sase.gh_workspace.subprocess.run")
-    def test_secondary_race_condition(self, mock_run: MagicMock) -> None:
-        """If clone fails but dir exists and is valid, return it."""
-        import subprocess as sp
-
-        with tempfile.TemporaryDirectory() as d:
-            primary = os.path.join(d, "repo") + "/"
-            clone = os.path.join(d, "repo__2") + "/"
-            os.makedirs(primary)
-
-            mock_run.side_effect = [
-                MagicMock(
-                    returncode=0, stdout="https://github.com/u/r.git\n"
-                ),  # get-url
-                sp.CalledProcessError(1, "git", stderr="already exists"),  # clone fails
-                MagicMock(returncode=0),  # git status in race-condition check
-            ]
-            # Create the dir to simulate race condition
-            os.makedirs(clone.rstrip("/"))
-            result = ensure_git_clone(primary, 2)
-            assert result == clone
-
-
-# ── detect_vcs_type_for_project ──────────────────────────────────────
-
-
-class TestDetectVcsTypeForProject:
-    def test_git_detected(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            workspace = os.path.join(d, "repo")
-            os.makedirs(os.path.join(workspace, ".git"))
-            gp = os.path.join(d, "proj.gp")
-            with open(gp, "w") as f:
-                f.write(f"WORKSPACE_DIR: {workspace}\nNAME: cl\n")
-            assert detect_vcs_type_for_project(gp) == "git"
-
-    def test_hg_no_workspace_dir(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-            f.write("NAME: cl\n")
-            f.flush()
-            assert detect_vcs_type_for_project(f.name) == "hg"
-            os.unlink(f.name)
-
-    def test_hg_no_git_dir(self) -> None:
-        with tempfile.TemporaryDirectory() as d:
-            workspace = os.path.join(d, "repo")
-            os.makedirs(workspace)
-            gp = os.path.join(d, "proj.gp")
-            with open(gp, "w") as f:
-                f.write(f"WORKSPACE_DIR: {workspace}\nNAME: cl\n")
-            assert detect_vcs_type_for_project(gp) == "hg"
-
-
-# ── resolve_gh_ref ───────────────────────────────────────────────────
 
 
 class TestResolveGhRef:

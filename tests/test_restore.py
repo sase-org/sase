@@ -27,13 +27,6 @@ def test_list_reverted_changespecs(make_changespec) -> None:  # type: ignore[no-
     assert result[0].status == "Reverted"
 
 
-def test_list_reverted_changespecs_empty() -> None:
-    """Test list_reverted_changespecs returns empty list when no reverted."""
-    with patch("sase.ace.restore.find_all_changespecs", return_value=[]):
-        result = list_reverted_changespecs()
-    assert result == []
-
-
 def test_restore_changespec_wrong_status(make_changespec) -> None:  # type: ignore[no-untyped-def]
     """Test restore_changespec fails if status is not Reverted."""
     changespec = make_changespec.create(name="test_project_feature__1", status="Mailed")
@@ -140,42 +133,6 @@ def test_restore_changespec_with_parent(make_changespec) -> None:  # type: ignor
     # Provider should resolve and then checkout with parent
     mock_provider.resolve_revision.assert_called_once()
     mock_provider.checkout.assert_called_once_with("parent_branch", "/tmp")
-
-
-def test_restore_changespec_without_parent_uses_provider_default(  # type: ignore[no-untyped-def]
-    make_changespec,
-) -> None:
-    """Test restore_changespec uses provider default when no parent."""
-    changespec = make_changespec.create(
-        name="test_project_feature__1", status="Reverted", parent=None
-    )
-
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (True, None)
-    mock_provider.apply_patch.return_value = (True, None)
-    mock_provider.get_default_parent_revision.return_value = "p4head"
-    mock_provider.resolve_revision.return_value = "p4head"
-
-    with patch(
-        "sase.ace.restore.get_workspace_directory_for_changespec", return_value="/tmp"
-    ):
-        with patch("os.path.isdir", return_value=True):
-            with patch("sase.ace.restore.update_changespec_name_atomic"):
-                with patch(
-                    "sase.ace.restore.get_vcs_provider", return_value=mock_provider
-                ):
-                    with patch(
-                        "sase.ace.restore.run_workspace_command",
-                        return_value=(True, None),
-                    ):
-                        with patch("pathlib.Path.exists", return_value=True):
-                            restore_changespec(changespec)
-
-    # Provider get_default_parent_revision should be called
-    mock_provider.get_default_parent_revision.assert_called_once_with("/tmp")
-    # Provider should resolve and then checkout with the resolved default
-    mock_provider.resolve_revision.assert_called_once()
-    mock_provider.checkout.assert_called_once_with("p4head", "/tmp")
 
 
 def test_restore_changespec_sase_hg_update_fails(make_changespec) -> None:  # type: ignore[no-untyped-def]

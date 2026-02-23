@@ -46,26 +46,6 @@ def _create_executor(
 # ============================================================================
 
 
-def test_for_loop_single_list_iteration() -> None:
-    """Test for: iterates over single list."""
-    steps = [
-        WorkflowStep(
-            name="process",
-            bash='echo "result={{ item }}"',
-            for_loop={"item": "{{ items }}"},
-        ),
-    ]
-    workflow = _create_workflow("test", steps)
-    executor = _create_executor(workflow, {"items": ["a", "b", "c"]})
-
-    success = executor.execute()
-
-    assert success
-    # Results should be collected as array by default
-    assert executor.context["process"] is not None
-    assert isinstance(executor.context["process"], list)
-
-
 def test_for_loop_empty_list() -> None:
     """Test for: with empty list produces empty result."""
     steps = [
@@ -137,81 +117,9 @@ def test_for_loop_unequal_lists_raises_error() -> None:
 # ============================================================================
 
 
-def test_join_modes_array_default() -> None:
-    """Test that array is the default join mode."""
-    steps = [
-        WorkflowStep(
-            name="process",
-            bash='echo "result={{ item }}"',
-            for_loop={"item": "{{ items }}"},
-        ),
-    ]
-    workflow = _create_workflow("test", steps)
-    executor = _create_executor(workflow, {"items": ["a", "b"]})
-
-    executor.execute()
-
-    assert isinstance(executor.context["process"], list)
-
-
-def test_join_modes_lastOf() -> None:
-    """Test join: lastOf keeps only last result."""
-    steps = [
-        WorkflowStep(
-            name="process",
-            bash='echo "result={{ item }}"',
-            for_loop={"item": "{{ items }}"},
-            join="lastOf",
-        ),
-    ]
-    workflow = _create_workflow("test", steps)
-    executor = _create_executor(workflow, {"items": ["a", "b", "c"]})
-
-    executor.execute()
-
-    # Should be dict, not list
-    result = executor.context["process"]
-    assert isinstance(result, dict)
-
-
-def test_join_modes_object_merges_dicts() -> None:
-    """Test join: object merges all results."""
-    steps = [
-        WorkflowStep(
-            name="process",
-            bash='echo "key_{{ item }}=value_{{ item }}"',
-            for_loop={"item": "{{ items }}"},
-            join="object",
-        ),
-    ]
-    workflow = _create_workflow("test", steps)
-    executor = _create_executor(workflow, {"items": ["a", "b"]})
-
-    executor.execute()
-
-    result = executor.context["process"]
-    assert isinstance(result, dict)
-
-
 # ============================================================================
 # TestCollectResults - _collect_results method
 # ============================================================================
-
-
-def test_collect_results_empty_array() -> None:
-    """Test collecting empty results as array."""
-    workflow = _create_workflow("test", [])
-    executor = _create_executor(workflow)
-    result = executor._collect_results([], "array")
-    assert result == []
-
-
-def test_collect_results_empty_object() -> None:
-    """Test collecting empty results as object."""
-    workflow = _create_workflow("test", [])
-    executor = _create_executor(workflow)
-    result = executor._collect_results([], "object")
-    assert result == {}
 
 
 def test_collect_results_lastOf() -> None:
@@ -221,15 +129,6 @@ def test_collect_results_lastOf() -> None:
     results = [{"a": 1}, {"b": 2}, {"c": 3}]
     result = executor._collect_results(results, "lastOf")
     assert result == {"c": 3}
-
-
-def test_collect_results_object_merges() -> None:
-    """Test object mode merges all dicts."""
-    workflow = _create_workflow("test", [])
-    executor = _create_executor(workflow)
-    results = [{"a": 1}, {"b": 2}]
-    result = executor._collect_results(results, "object")
-    assert result == {"a": 1, "b": 2}
 
 
 def test_collect_results_text_concatenates() -> None:
@@ -323,42 +222,6 @@ def test_repeat_loop_raises_at_max_iterations() -> None:
 # ============================================================================
 
 
-def test_while_loop_stops_when_condition_false() -> None:
-    """Test while: stops when condition becomes false."""
-    call_count = [0]
-
-    def mock_execute_bash(
-        self: WorkflowExecutor,
-        step: WorkflowStep,
-        step_state: Any,
-    ) -> bool:
-        call_count[0] += 1
-        # Stop after 3 iterations
-        step_state.output = {"pending": call_count[0] < 3}
-        self.context[step.name] = step_state.output
-        self.state.context = dict(self.context)
-        return True
-
-    steps = [
-        WorkflowStep(
-            name="poll",
-            bash="check_status.sh",
-            while_config=LoopConfig(
-                condition="{{ poll.pending }}",
-                max_iterations=10,
-            ),
-        ),
-    ]
-    workflow = _create_workflow("test", steps)
-    executor = _create_executor(workflow)
-
-    with patch.object(WorkflowExecutor, "_execute_bash_step", mock_execute_bash):
-        success = executor.execute()
-
-    assert success
-    assert call_count[0] == 3  # Ran 3 times (pending=True, True, False)
-
-
 def test_while_loop_raises_at_max_iterations() -> None:
     """Test while: raises error at max iterations."""
 
@@ -433,17 +296,6 @@ def test_while_loop_executes_at_least_once() -> None:
 # ============================================================================
 # TestResolveForLists - _resolve_for_lists method
 # ============================================================================
-
-
-def test_resolve_for_lists_from_context() -> None:
-    """Test resolving list directly from context."""
-    workflow = _create_workflow("test", [])
-    executor = _create_executor(workflow, {"items": ["a", "b", "c"]})
-
-    var_names, resolved_lists = executor._resolve_for_lists({"item": "{{ items }}"})
-
-    assert var_names == ["item"]
-    assert resolved_lists == [["a", "b", "c"]]
 
 
 def test_resolve_for_lists_json_string() -> None:

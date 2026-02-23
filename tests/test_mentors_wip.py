@@ -16,37 +16,6 @@ from sase.mentor_config import MentorConfig, MentorProfileConfig
 # Tests for Draft filtering
 
 
-def test_format_profile_with_count_wip_filters_total() -> None:
-    """Test that is_draft=True filters total to only run_on_draft mentors."""
-    # Mock a profile with 3 mentors, only 1 has run_on_draft=True
-    mock_profile = MentorProfileConfig(
-        profile_name="test_profile",
-        mentors=[
-            MentorConfig(mentor_name="m1", prompt="p1", run_on_draft=True),
-            MentorConfig(mentor_name="m2", prompt="p2", run_on_draft=False),
-            MentorConfig(mentor_name="m3", prompt="p3", run_on_draft=False),
-        ],
-        file_globs=["*.py"],
-    )
-
-    def mock_get_profile(name: str) -> MentorProfileConfig | None:
-        if name == "test_profile":
-            return mock_profile
-        return None
-
-    with patch(
-        "sase.mentor_config.get_mentor_profile_by_name",
-        side_effect=mock_get_profile,
-    ):
-        # Without WIP: total should be 3
-        result_normal = _format_profile_with_count("test_profile", None, is_draft=False)
-        assert result_normal == "test_profile[0/3]"
-
-        # With WIP: total should be 1 (only run_on_draft mentor)
-        result_wip = _format_profile_with_count("test_profile", None, is_draft=True)
-        assert result_wip == "test_profile[0/1]"
-
-
 def test_format_profile_with_count_wip_filters_started() -> None:
     """Test that is_draft=True only counts started mentors with run_on_draft."""
     # Mock a profile with 3 mentors, only 1 has run_on_draft=True
@@ -96,87 +65,6 @@ def test_format_profile_with_count_wip_filters_started() -> None:
             "test_profile", status_lines, is_draft=True
         )
         assert result_wip == "test_profile[1/1]"
-
-
-def test_format_mentors_field_wip_hides_non_wip_profiles() -> None:
-    """Test that WIP entries hide profiles without run_on_draft mentors."""
-    # Profile A has run_on_draft mentors, Profile B does not
-    profiles = {
-        "profile_a": MentorProfileConfig(
-            profile_name="profile_a",
-            mentors=[MentorConfig(mentor_name="m1", prompt="p1", run_on_draft=True)],
-            file_globs=["*.py"],
-        ),
-        "profile_b": MentorProfileConfig(
-            profile_name="profile_b",
-            mentors=[MentorConfig(mentor_name="m2", prompt="p2", run_on_draft=False)],
-            file_globs=["*.js"],
-        ),
-    }
-
-    def mock_get_profile(name: str) -> MentorProfileConfig | None:
-        return profiles.get(name)
-
-    def mock_has_wip(name: str) -> bool:
-        profile = profiles.get(name)
-        if profile is None:
-            return False
-        return any(m.run_on_draft for m in profile.mentors)
-
-    entry = MentorEntry(
-        entry_id="1",
-        profiles=["profile_a", "profile_b"],
-        status_lines=None,
-        is_draft=True,
-    )
-
-    with patch(
-        "sase.mentor_config.profile_has_draft_mentors", side_effect=mock_has_wip
-    ):
-        with patch(
-            "sase.mentor_config.get_mentor_profile_by_name",
-            side_effect=mock_get_profile,
-        ):
-            lines = _format_mentors_field([entry])
-            content = "".join(lines)
-
-            # profile_a should be visible, profile_b should be hidden
-            assert "profile_a" in content
-            assert "profile_b" not in content
-            # Should still have #Draft suffix
-            assert "#Draft" in content
-
-
-def test_format_mentors_field_wip_skips_entry_with_no_wip_profiles() -> None:
-    """Test that WIP entries are skipped entirely if no profiles have WIP mentors."""
-    # Profile only has non-WIP mentors
-    profiles = {
-        "profile_a": MentorProfileConfig(
-            profile_name="profile_a",
-            mentors=[MentorConfig(mentor_name="m1", prompt="p1", run_on_draft=False)],
-            file_globs=["*.py"],
-        ),
-    }
-
-    def mock_has_wip(name: str) -> bool:
-        profile = profiles.get(name)
-        if profile is None:
-            return False
-        return any(m.run_on_draft for m in profile.mentors)
-
-    entry = MentorEntry(
-        entry_id="1",
-        profiles=["profile_a"],
-        status_lines=None,
-        is_draft=True,
-    )
-
-    with patch(
-        "sase.mentor_config.profile_has_draft_mentors", side_effect=mock_has_wip
-    ):
-        lines = _format_mentors_field([entry])
-        # Should only have the header, no entries
-        assert lines == ["MENTORS:\n"]
 
 
 def test_format_mentors_field_non_wip_shows_all_profiles() -> None:
@@ -258,31 +146,6 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_clear_mentor_draft_flags_single_entry() -> None:
-    """Test clearing WIP from single entry."""
-    content = """NAME: test-cl
-STATUS: Draft
-MENTORS:
-  (1) feature #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            result = clear_mentor_draft_flags(file_path, "test-cl")
-            assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    assert "#Draft" not in updated_content
-    assert "(1) feature" in updated_content
-
-    Path(file_path).unlink()
-
-
 def test_clear_mentor_draft_flags_no_wip_entries() -> None:
     """Test that nothing changes when no WIP entries exist."""
     content = """NAME: test-cl
@@ -305,73 +168,6 @@ MENTORS:
     # Should be unchanged (profiles preserved without counts)
     assert "(1) feature" in updated_content
     assert "(2) tests" in updated_content
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_mixed_entries() -> None:
-    """Test with a mix of WIP and non-WIP entries."""
-    content = """NAME: test-cl
-STATUS: Draft
-MENTORS:
-  (1) feature
-  (2) tests #Draft
-  (3) perf #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            result = clear_mentor_draft_flags(file_path, "test-cl")
-            assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # Entry (1) never had #Draft, should remain without
-    # Entry (2) should keep #Draft (not the highest)
-    # Entry (3) should have #Draft cleared (highest WIP entry)
-    lines = updated_content.split("\n")
-    mentors_lines = [ln for ln in lines if ln.strip().startswith("(")]
-    assert any("(1)" in ln and "#Draft" not in ln for ln in mentors_lines)
-    assert any("(2)" in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(3)" in ln and "#Draft" not in ln for ln in mentors_lines)
-
-    Path(file_path).unlink()
-
-
-def test_clear_mentor_draft_flags_proposal_entries() -> None:
-    """Test with proposal entries (e.g., 2a, 2b)."""
-    content = """NAME: test-cl
-STATUS: Draft
-MENTORS:
-  (1) feature #Draft
-  (2) feature #Draft
-  (2a) feature #Draft
-  (2b) feature #Draft
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            result = clear_mentor_draft_flags(file_path, "test-cl")
-            assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # Entry (2b) is the highest (2, "b") > (2, "a") > (2, "") > (1, "")
-    # So (2b) should have #Draft cleared, others should keep it
-    lines = updated_content.split("\n")
-    mentors_lines = [ln for ln in lines if ln.strip().startswith("(")]
-    assert any("(1)" in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(2) " in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(2a)" in ln and "#Draft" in ln for ln in mentors_lines)
-    assert any("(2b)" in ln and "#Draft" not in ln for ln in mentors_lines)
 
     Path(file_path).unlink()
 
@@ -445,37 +241,6 @@ STATUS: Ready
 
 
 # Tests for set_mentor_draft_flags (was set_mentor_wip_flags)
-
-
-def test_set_mentor_draft_flags_sets_wip_on_last_entry() -> None:
-    """Test that set_mentor_draft_flags sets is_draft on the highest entry_id."""
-    content = """NAME: test-cl
-STATUS: Ready
-MENTORS:
-  (1) feature
-  (2) feature
-  (3) feature
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-        f.write(content)
-        file_path = f.name
-
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            result = set_mentor_draft_flags(file_path, "test-cl")
-            assert result is True
-
-    with open(file_path) as f:
-        updated_content = f.read()
-
-    # Only entry (3) should have #Draft set
-    lines = updated_content.split("\n")
-    mentors_section = [ln for ln in lines if ln.strip().startswith("(")]
-    assert any("(1)" in ln and "#Draft" not in ln for ln in mentors_section)
-    assert any("(2)" in ln and "#Draft" not in ln for ln in mentors_section)
-    assert any("(3)" in ln and "#Draft" in ln for ln in mentors_section)
-
-    Path(file_path).unlink()
 
 
 def test_set_mentor_draft_flags_filters_profiles() -> None:

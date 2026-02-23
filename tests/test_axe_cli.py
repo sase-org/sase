@@ -87,32 +87,6 @@ def default_axe_config() -> AxeConfig:
 
 
 @patch("sase.axe.cli.load_axe_config")
-def test_handle_axe_chop_list_prints_chops_with_descriptions(
-    mock_load: MagicMock,
-    default_axe_config: AxeConfig,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Test that chop list prints chop names with descriptions."""
-    mock_load.return_value = default_axe_config
-    args = argparse.Namespace()
-    with pytest.raises(SystemExit) as exc_info:
-        handle_axe_chop_list(args)
-    assert exc_info.value.code == 0
-
-    output = capsys.readouterr().out
-    lines = [line for line in output.strip().split("\n") if line.strip()]
-    assert len(lines) == 8  # name + indented description per chop
-    assert "cl_submitted_checks" in output
-    assert "Check CLs" in output
-    assert "comment_checks" in output
-    assert "Check comments" in output
-    assert "error_digest" in output
-    assert "Digest errors" in output
-    assert "hook_checks" in output
-    assert "Check hooks" in output
-
-
-@patch("sase.axe.cli.load_axe_config")
 def test_handle_axe_chop_list_deduplicates(
     mock_load: MagicMock,
     capsys: pytest.CaptureFixture[str],

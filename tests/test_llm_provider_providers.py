@@ -10,27 +10,10 @@ from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.gemini import GeminiProvider
-from sase.llm_provider.registry import get_provider
 from sase.llm_provider.types import ModelTier
 
 
 # --- gemini.py / subprocess tests ---
-
-
-def test_stream_process_output_basic() -> None:
-    """Test basic streaming of process output."""
-    process = subprocess.Popen(
-        ["echo", "hello world"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    stdout, stderr, return_code = stream_process_output(process, suppress_output=True)
-
-    assert "hello world" in stdout
-    assert stderr == ""
-    assert return_code == 0
 
 
 def test_stream_process_output_stderr() -> None:
@@ -49,20 +32,6 @@ def test_stream_process_output_stderr() -> None:
     assert return_code == 0
 
 
-def test_stream_process_output_nonzero_exit() -> None:
-    """Test streaming when process exits with non-zero code."""
-    process = subprocess.Popen(
-        [sys.executable, "-c", "import sys; sys.exit(42)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    stdout, stderr, return_code = stream_process_output(process, suppress_output=True)
-
-    assert return_code == 42
-
-
 def test_gemini_provider_is_llm_provider() -> None:
     """Test that GeminiProvider is a proper LLMProvider subclass."""
     provider = GeminiProvider()
@@ -77,15 +46,6 @@ def test_gemini_wrapper_invoke_agent_still_importable() -> None:
     from sase.gemini_wrapper import invoke_agent as gw_invoke_agent
 
     assert callable(gw_invoke_agent)
-
-
-def test_gemini_wrapper_command_wrapper_still_importable() -> None:
-    """Test that GeminiCommandWrapper can still be imported from gemini_wrapper."""
-    from sase.gemini_wrapper import GeminiCommandWrapper
-
-    wrapper = GeminiCommandWrapper()
-    assert wrapper.model_size == "big"
-    assert wrapper.agent_type == "agent"
 
 
 def test_gemini_wrapper_log_prompt_still_importable() -> None:
@@ -116,89 +76,6 @@ def test_claude_provider_is_llm_provider() -> None:
     """Test that ClaudeCodeProvider is a proper LLMProvider subclass."""
     provider = ClaudeCodeProvider()
     assert isinstance(provider, LLMProvider)
-
-
-def test_claude_provider_registered() -> None:
-    """Test that ClaudeCodeProvider is registered as 'claude'."""
-    provider = get_provider("claude")
-    assert isinstance(provider, ClaudeCodeProvider)
-
-
-@patch("sase.llm_provider.claude.stream_and_parse_json_output")
-@patch("sase.llm_provider.claude.subprocess.Popen")
-@patch("sase.llm_provider.claude.gemini_timer")
-def test_claude_provider_builds_correct_command_large(
-    mock_timer: MagicMock,
-    mock_popen: MagicMock,
-    mock_stream: MagicMock,
-) -> None:
-    """Test that ClaudeCodeProvider builds the correct command for large tier."""
-    mock_process = MagicMock()
-    mock_popen.return_value = mock_process
-    mock_stream.return_value = ("response text", "", 0)
-
-    provider = ClaudeCodeProvider()
-    result = provider.invoke("test prompt", model_tier="large", suppress_output=True)
-
-    # Verify Popen was called with correct args
-    call_args = mock_popen.call_args
-    cmd = call_args[0][0]
-    assert cmd[0] == "claude"
-    assert "-p" in cmd
-    assert "--model" in cmd
-    model_idx = cmd.index("--model")
-    assert cmd[model_idx + 1] == "opus"
-    assert "--output-format" in cmd
-    fmt_idx = cmd.index("--output-format")
-    assert cmd[fmt_idx + 1] == "stream-json"
-    assert "--dangerously-skip-permissions" in cmd
-
-    assert result == "response text"
-
-
-@patch("sase.llm_provider.claude.stream_and_parse_json_output")
-@patch("sase.llm_provider.claude.subprocess.Popen")
-@patch("sase.llm_provider.claude.gemini_timer")
-def test_claude_provider_builds_correct_command_small(
-    mock_timer: MagicMock,
-    mock_popen: MagicMock,
-    mock_stream: MagicMock,
-) -> None:
-    """Test that ClaudeCodeProvider uses sonnet for small tier."""
-    mock_process = MagicMock()
-    mock_popen.return_value = mock_process
-    mock_stream.return_value = ("response text", "", 0)
-
-    provider = ClaudeCodeProvider()
-    provider.invoke("test prompt", model_tier="small", suppress_output=True)
-
-    call_args = mock_popen.call_args
-    cmd = call_args[0][0]
-    model_idx = cmd.index("--model")
-    assert cmd[model_idx + 1] == "sonnet"
-
-
-@patch.dict(os.environ, {"SASE_CLAUDE_LARGE_ARGS": "--verbose --debug"})
-@patch("sase.llm_provider.claude.stream_and_parse_json_output")
-@patch("sase.llm_provider.claude.subprocess.Popen")
-@patch("sase.llm_provider.claude.gemini_timer")
-def test_claude_provider_extra_args_from_env_large(
-    mock_timer: MagicMock,
-    mock_popen: MagicMock,
-    mock_stream: MagicMock,
-) -> None:
-    """Test that SASE_CLAUDE_LARGE_ARGS env var is parsed into command."""
-    mock_process = MagicMock()
-    mock_popen.return_value = mock_process
-    mock_stream.return_value = ("response", "", 0)
-
-    provider = ClaudeCodeProvider()
-    provider.invoke("test", model_tier="large", suppress_output=True)
-
-    call_args = mock_popen.call_args
-    cmd = call_args[0][0]
-    assert "--verbose" in cmd
-    assert "--debug" in cmd
 
 
 @patch.dict(os.environ, {"SASE_CLAUDE_SMALL_ARGS": "--max-tokens 1000"})

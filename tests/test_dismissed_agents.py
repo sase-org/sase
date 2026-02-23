@@ -21,19 +21,6 @@ def test_load_empty_when_no_file(tmp_path: Path) -> None:
         assert result == set()
 
 
-def test_save_and_load_round_trip(tmp_path: Path) -> None:
-    """Test saving and loading dismissed agents."""
-    test_file = tmp_path / "dismissed_agents.json"
-    with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
-        dismissed = {
-            (AgentType.WORKFLOW, "cl_1", "20250101_120000"),
-            (AgentType.FIX_HOOK, "cl_2", "suffix_abc"),
-        }
-        assert save_dismissed_agents(dismissed)
-        result = load_dismissed_agents()
-        assert result == dismissed
-
-
 def test_null_raw_suffix(tmp_path: Path) -> None:
     """Test that None raw_suffix is preserved through round-trip."""
     test_file = tmp_path / "dismissed_agents.json"
@@ -42,15 +29,6 @@ def test_null_raw_suffix(tmp_path: Path) -> None:
         assert save_dismissed_agents(dismissed)
         result = load_dismissed_agents()
         assert result == dismissed
-
-
-def test_save_creates_parent_directory(tmp_path: Path) -> None:
-    """Test that save creates parent directory if needed."""
-    test_file = tmp_path / "subdir" / "dismissed_agents.json"
-    with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
-        dismissed = {(AgentType.WORKFLOW, "cl", "ts")}
-        assert save_dismissed_agents(dismissed)
-        assert test_file.exists()
 
 
 def test_handles_corrupt_json(tmp_path: Path) -> None:

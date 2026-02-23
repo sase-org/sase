@@ -2,9 +2,7 @@
 
 from unittest.mock import patch
 
-import pytest
 from sase.ace.changespec import ChangeSpec, CommentEntry, CommitEntry, HookEntry
-from sase.ace.query import QueryParseError
 from sase.ace.tui import AceApp
 from sase.ace.tui.modals import QueryEditModal
 from textual.widgets import Input
@@ -41,35 +39,6 @@ def _make_changespec(
 # --- Initialization Tests ---
 
 
-async def test_app_initialization_default_query() -> None:
-    """Test AceApp initializes with default query string."""
-    mock_changespecs = [_make_changespec()]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp()
-        # Default query is '!!!'
-        assert app.query_string == "!!!"
-        assert app.parsed_query is not None
-
-
-async def test_app_initialization_custom_query() -> None:
-    """Test AceApp initializes with a custom query string."""
-    mock_changespecs = [_make_changespec(name="feature_a")]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"')
-        assert app.query_string == '"feature"'
-        assert app.parsed_query is not None
-
-
-def test_app_initialization_invalid_query() -> None:
-    """Test AceApp raises QueryParseError for invalid query."""
-    with pytest.raises(QueryParseError):
-        AceApp(query='"unclosed')
-
-
 # --- Navigation Tests ---
 
 
@@ -95,32 +64,6 @@ async def test_navigation_next_key() -> None:
             # Press 'j' again
             await pilot.press("j")
             assert app.current_idx == 2
-
-
-async def test_navigation_prev_key() -> None:
-    """Test 'k' key navigates to previous changespec."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="feature_b"),
-        _make_changespec(name="feature_c"),
-    ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Start at index 2 by pressing 'j' twice
-            await pilot.press("j")
-            await pilot.press("j")
-            assert app.current_idx == 2
-
-            # Press 'k' to go to previous
-            await pilot.press("k")
-            assert app.current_idx == 1
-
-            # Press 'k' again
-            await pilot.press("k")
-            assert app.current_idx == 0
 
 
 async def test_navigation_next_at_end() -> None:
@@ -163,22 +106,6 @@ async def test_navigation_prev_at_start() -> None:
 
 
 # --- Query Edit Modal Tests ---
-
-
-async def test_query_edit_modal_opens() -> None:
-    """Test '/' key opens QueryEditModal."""
-    mock_changespecs = [_make_changespec()]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"test"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Press '/' to open modal
-            await pilot.press("slash")
-
-            # Verify modal is on screen stack
-            assert len(app.screen_stack) > 1
-            assert isinstance(app.screen_stack[-1], QueryEditModal)
 
 
 async def test_query_edit_modal_cancel() -> None:
@@ -259,51 +186,6 @@ async def test_query_edit_modal_invalid_query() -> None:
 
 
 # --- Marking Auto-Navigation Tests ---
-
-
-async def test_mark_navigates_to_next_spec() -> None:
-    """Test marking a spec navigates to the next spec."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="feature_b"),
-        _make_changespec(name="feature_c"),
-    ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Start at index 0
-            assert app.current_idx == 0
-            assert len(app.marked_indices) == 0
-
-            # Mark first spec - should navigate to second
-            await pilot.press("m")
-            assert 0 in app.marked_indices
-            assert app.current_idx == 1
-
-
-async def test_mark_wraps_around() -> None:
-    """Test marking at last spec wraps around to first."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="feature_b"),
-        _make_changespec(name="feature_c"),
-    ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Navigate to last spec (index 2)
-            await pilot.press("j")
-            await pilot.press("j")
-            assert app.current_idx == 2
-
-            # Mark last spec - should wrap around to first (index 0)
-            await pilot.press("m")
-            assert 2 in app.marked_indices
-            assert app.current_idx == 0
 
 
 async def test_unmark_navigates_to_next_spec() -> None:

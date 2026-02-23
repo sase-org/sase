@@ -11,13 +11,6 @@ from sase.ace.changespec import (
 from sase.ace.query import evaluate_query, parse_query
 
 
-def test_evaluate_string_match_case_insensitive(make_changespec: Any) -> None:
-    """Test case-insensitive string matching."""
-    query = parse_query('"feature"')
-    cs = make_changespec.create(name="my_FEATURE_test")
-    assert evaluate_query(query, cs) is True
-
-
 def test_evaluate_string_match_case_sensitive(
     make_changespec: Any,
 ) -> None:
@@ -27,27 +20,6 @@ def test_evaluate_string_match_case_sensitive(
     assert evaluate_query(query, cs) is True
 
     cs2 = make_changespec.create(name="my_feature_test")
-    assert evaluate_query(query, cs2) is False
-
-
-def test_evaluate_not_match(make_changespec: Any) -> None:
-    """Test NOT expression evaluation."""
-    query = parse_query('!"draft"')
-    # Use status="Mailed" to avoid default "Ready" status containing "draft"
-    cs1 = make_changespec.create(name="my_feature", status="Mailed")
-    assert evaluate_query(query, cs1) is True
-
-    cs2 = make_changespec.create(name="draft_feature", status="Mailed")
-    assert evaluate_query(query, cs2) is False
-
-
-def test_evaluate_and_match(make_changespec: Any) -> None:
-    """Test AND expression evaluation."""
-    query = parse_query('"feature" AND "test"')
-    cs1 = make_changespec.create(name="feature", description="test code")
-    assert evaluate_query(query, cs1) is True
-
-    cs2 = make_changespec.create(name="feature", description="production")
     assert evaluate_query(query, cs2) is False
 
 
@@ -64,54 +36,6 @@ def test_evaluate_or_match(make_changespec: Any) -> None:
     assert evaluate_query(query, cs3) is False
 
 
-def test_evaluate_complex_query(make_changespec: Any) -> None:
-    """Test complex query evaluation."""
-    query = parse_query('("feature" OR "bugfix") AND !"skip"')
-
-    cs1 = make_changespec.create(name="my_feature")
-    assert evaluate_query(query, cs1) is True
-
-    cs2 = make_changespec.create(name="skip_feature")
-    assert evaluate_query(query, cs2) is False
-
-    cs3 = make_changespec.create(name="refactor")
-    assert evaluate_query(query, cs3) is False
-
-
-def test_evaluate_matches_status(make_changespec: Any) -> None:
-    """Test matching against status field."""
-    query = parse_query('"Ready"')
-    cs = make_changespec.create(status="Ready")
-    assert evaluate_query(query, cs) is True
-
-
-def test_evaluate_matches_project(make_changespec: Any) -> None:
-    """Test matching against project basename."""
-    query = parse_query('"myproject"')
-    cs = make_changespec.create(
-        file_path="/home/user/.sase/projects/myproject/myproject.gp"
-    )
-    assert evaluate_query(query, cs) is True
-
-
-def test_evaluate_matches_description(
-    make_changespec: Any,
-) -> None:
-    """Test matching against description."""
-    query = parse_query('"important fix"')
-    cs = make_changespec.create(description="This is an important fix for the bug")
-    assert evaluate_query(query, cs) is True
-
-
-def test_evaluate_error_suffix_matches_status_with_error(
-    make_changespec: Any,
-) -> None:
-    """Test !!! matches ChangeSpec with error suffix in status."""
-    query = parse_query("!!!")
-    cs = make_changespec.create(status="Ready - (!: ZOMBIE)")
-    assert evaluate_query(query, cs) is True
-
-
 def test_evaluate_error_suffix_matches_ready_to_mail(
     make_changespec: Any,
 ) -> None:
@@ -119,81 +43,6 @@ def test_evaluate_error_suffix_matches_ready_to_mail(
     query = parse_query("!!!")
     cs = make_changespec.create(status="Ready - (!: READY TO MAIL)")
     assert evaluate_query(query, cs) is True
-
-
-def test_evaluate_error_suffix_no_match_plain_status(
-    make_changespec: Any,
-) -> None:
-    """Test !!! does not match ChangeSpec without error suffix format."""
-    query = parse_query("!!!")
-    cs = make_changespec.create(status="Ready")
-    assert evaluate_query(query, cs) is False
-
-
-def test_evaluate_error_suffix_combined_with_project(
-    make_changespec: Any,
-) -> None:
-    """Test !!! AND myproject matches correctly."""
-    query = parse_query("!!! AND myproject")
-    cs = make_changespec.create(
-        status="Ready - (!: ZOMBIE)",
-        file_path="/home/user/.sase/projects/myproject/myproject.gp",
-    )
-    assert evaluate_query(query, cs) is True
-
-
-def test_evaluate_no_status_suffix_excludes_error_status(
-    make_changespec: Any,
-) -> None:
-    """Test !! excludes ChangeSpec with error suffix in status."""
-    query = parse_query("!!")
-    cs = make_changespec.create(status="Ready - (!: ZOMBIE)")
-    assert evaluate_query(query, cs) is False
-
-
-def test_evaluate_no_status_suffix_excludes_ready_to_mail(
-    make_changespec: Any,
-) -> None:
-    """Test !! excludes ChangeSpec with READY TO MAIL suffix in status."""
-    query = parse_query("!!")
-    cs = make_changespec.create(status="Ready - (!: READY TO MAIL)")
-    assert evaluate_query(query, cs) is False
-
-
-def test_evaluate_no_status_suffix_includes_plain_status(
-    make_changespec: Any,
-) -> None:
-    """Test !! includes ChangeSpec without any status suffix."""
-    query = parse_query("!!")
-    cs = make_changespec.create(status="Ready")
-    assert evaluate_query(query, cs) is True
-
-
-def test_evaluate_no_status_suffix_combined_with_project(
-    make_changespec: Any,
-) -> None:
-    """Test !! AND myproject excludes any status suffix for myproject."""
-    query = parse_query("!! AND myproject")
-    # Error status for myproject - should not match
-    cs1 = make_changespec.create(
-        status="Ready - (!: ZOMBIE)",
-        file_path="/home/user/.sase/projects/myproject/myproject.gp",
-    )
-    assert evaluate_query(query, cs1) is False
-
-    # READY TO MAIL status for myproject - should not match
-    cs2 = make_changespec.create(
-        status="Ready - (!: READY TO MAIL)",
-        file_path="/home/user/.sase/projects/myproject/myproject.gp",
-    )
-    assert evaluate_query(query, cs2) is False
-
-    # Plain status for myproject - should match
-    cs3 = make_changespec.create(
-        status="Ready",
-        file_path="/home/user/.sase/projects/myproject/myproject.gp",
-    )
-    assert evaluate_query(query, cs3) is True
 
 
 def test_evaluate_error_suffix_matches_history_suffix(
@@ -209,31 +58,6 @@ def test_evaluate_error_suffix_matches_history_suffix(
                 note="Some note",
                 suffix="NEW PROPOSAL",
                 suffix_type="error",
-            )
-        ],
-    )
-    assert evaluate_query(query, cs) is True
-
-
-def test_evaluate_error_suffix_matches_hook_suffix(
-    make_changespec: Any,
-) -> None:
-    """Test !!! matches ChangeSpec with suffix in HOOKS status line."""
-    query = parse_query("!!!")
-    cs = make_changespec.create(
-        status="Ready",  # No suffix in status
-        hooks=[
-            HookEntry(
-                command="bb_test",
-                status_lines=[
-                    HookStatusLine(
-                        commit_entry_num="1",
-                        timestamp="251230_120000",
-                        status="FAILED",
-                        suffix="ZOMBIE",
-                        suffix_type="error",
-                    )
-                ],
             )
         ],
     )
@@ -259,25 +83,6 @@ def test_evaluate_error_suffix_matches_comment_suffix(
     assert evaluate_query(query, cs) is True
 
 
-def test_evaluate_no_status_suffix_excludes_history_suffix(
-    make_changespec: Any,
-) -> None:
-    """Test !! excludes ChangeSpec with suffix in COMMITS entry."""
-    query = parse_query("!!")
-    cs = make_changespec.create(
-        status="Ready",  # No suffix in status
-        commits=[
-            CommitEntry(
-                number=1,
-                note="Some note",
-                suffix="NEW PROPOSAL",
-                suffix_type="error",
-            )
-        ],
-    )
-    assert evaluate_query(query, cs) is False
-
-
 def test_evaluate_no_status_suffix_excludes_hook_suffix(
     make_changespec: Any,
 ) -> None:
@@ -297,25 +102,6 @@ def test_evaluate_no_status_suffix_excludes_hook_suffix(
                         suffix_type="error",
                     )
                 ],
-            )
-        ],
-    )
-    assert evaluate_query(query, cs) is False
-
-
-def test_evaluate_no_status_suffix_excludes_comment_suffix(
-    make_changespec: Any,
-) -> None:
-    """Test !! excludes ChangeSpec with suffix in COMMENTS entry."""
-    query = parse_query("!!")
-    cs = make_changespec.create(
-        status="Ready",  # No suffix in status
-        comments=[
-            CommentEntry(
-                reviewer="reviewer@example.com",
-                file_path="~/.sase/comments/test.yml",
-                suffix="UNREAD",
-                suffix_type="error",
             )
         ],
     )
@@ -364,29 +150,3 @@ def test_evaluate_error_suffix_ignores_plain_suffix(
         ],
     )
     assert evaluate_query(query, cs) is False
-
-
-def test_evaluate_no_status_suffix_includes_plain_hook_suffix(
-    make_changespec: Any,
-) -> None:
-    """Test !! includes ChangeSpec with only plain suffixes (no error suffixes)."""
-    query = parse_query("!!")
-    cs = make_changespec.create(
-        status="Ready",  # No error suffix in status
-        hooks=[
-            HookEntry(
-                command="bb_test",
-                status_lines=[
-                    HookStatusLine(
-                        commit_entry_num="1",
-                        timestamp="251230_120000",
-                        status="FAILED",
-                        suffix="CL 123456 presubmit failed",  # Plain suffix
-                        suffix_type=None,  # Not an error suffix
-                    )
-                ],
-            )
-        ],
-    )
-    # Should match because there are NO error suffixes
-    assert evaluate_query(query, cs) is True

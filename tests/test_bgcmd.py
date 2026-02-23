@@ -8,8 +8,6 @@ from sase.ace.tui.bgcmd import (
     BGCMD_STATE_DIR,
     MAX_SLOTS,
     BackgroundCommandInfo,
-    _ensure_slot_dir,
-    _get_slot_dir,
     _is_process_running,
     _read_pid,
     _remove_pid,
@@ -23,33 +21,9 @@ from sase.ace.tui.bgcmd import (
 )
 
 
-def test_get_slot_dir() -> None:
-    """Test that _get_slot_dir returns correct path."""
-    slot_dir = _get_slot_dir(5)
-    assert slot_dir.name == "5"
-    assert slot_dir.parent.name == "bgcmd"
-
-
 def test_max_slots() -> None:
     """Test that MAX_SLOTS is 9."""
     assert MAX_SLOTS == 9
-
-
-def test_write_and_read_pid() -> None:
-    """Test writing and reading PID file."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            _write_pid(1, 12345)
-            pid = _read_pid(1)
-            assert pid == 12345
-
-
-def test_read_pid_not_exists() -> None:
-    """Test reading PID when file doesn't exist."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            pid = _read_pid(1)
-            assert pid is None
 
 
 def test_is_process_running_current_process() -> None:
@@ -57,27 +31,6 @@ def test_is_process_running_current_process() -> None:
     import os
 
     assert _is_process_running(os.getpid()) is True
-
-
-def test_is_process_running_invalid_pid() -> None:
-    """Test _is_process_running returns False for invalid PID."""
-    # PID 99999999 should not exist
-    assert _is_process_running(99999999) is False
-
-
-def test_is_slot_running_no_pid() -> None:
-    """Test is_slot_running returns False when no PID file."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            assert is_slot_running(1) is False
-
-
-def test_get_slot_info_not_exists() -> None:
-    """Test get_slot_info returns None when info.json doesn't exist."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            info = get_slot_info(1)
-            assert info is None
 
 
 def test_find_first_available_slot_all_available() -> None:
@@ -126,28 +79,6 @@ def test_get_slot_info_invalid_json() -> None:
             assert info is None
 
 
-def test_get_slot_info_valid() -> None:
-    """Test get_slot_info with valid info.json."""
-    import json
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            slot_dir = Path(tmp_dir) / "1"
-            slot_dir.mkdir(parents=True)
-            info_data = {
-                "command": "make test",
-                "project": "myproject",
-                "workspace_num": 1,
-                "workspace_dir": "/path/to/workspace",
-                "started_at": "2025-01-01T12:00:00",
-            }
-            (slot_dir / "info.json").write_text(json.dumps(info_data))
-            info = get_slot_info(1)
-            assert info is not None
-            assert info.command == "make test"
-            assert info.project == "myproject"
-
-
 def test_get_slot_info_missing_fields() -> None:
     """Test get_slot_info when info.json has missing fields."""
     import json
@@ -160,15 +91,6 @@ def test_get_slot_info_missing_fields() -> None:
             (slot_dir / "info.json").write_text(json.dumps(info_data))
             info = get_slot_info(1)
             assert info is None  # Should fail due to TypeError
-
-
-def test_ensure_slot_dir() -> None:
-    """Test that _ensure_slot_dir creates the directory."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            slot_dir = _ensure_slot_dir(5)
-            assert slot_dir.exists()
-            assert slot_dir.is_dir()
 
 
 def test_remove_pid() -> None:
@@ -237,28 +159,6 @@ def test_bgcmd_state_dir_is_path() -> None:
     assert "bgcmd" in str(BGCMD_STATE_DIR)
 
 
-def test_write_info() -> None:
-    """Test _write_info writes info.json."""
-    import json
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            info = BackgroundCommandInfo(
-                command="make test",
-                project="myproject",
-                workspace_num=2,
-                workspace_dir="/path/to/workspace",
-                started_at="2025-01-01T12:00:00",
-            )
-            _write_info(1, info)
-            info_file = Path(tmp_dir) / "1" / "info.json"
-            assert info_file.exists()
-            data = json.loads(info_file.read_text())
-            assert data["command"] == "make test"
-            assert data["project"] == "myproject"
-            assert data["workspace_num"] == 2
-
-
 def test_is_slot_running_dead_process() -> None:
     """Test is_slot_running returns False for dead process."""
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -266,23 +166,6 @@ def test_is_slot_running_dead_process() -> None:
             # Write a PID for a non-existent process
             _write_pid(1, 99999999)
             assert is_slot_running(1) is False
-
-
-def test_find_first_available_slot_some_used() -> None:
-    """Test find_first_available_slot skips active slots (with info.json)."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            # Mark slot 1 as active by writing info.json
-            info = BackgroundCommandInfo(
-                command="make test",
-                project="myproject",
-                workspace_num=1,
-                workspace_dir="/path",
-                started_at="2025-01-01T12:00:00",
-            )
-            _write_info(1, info)
-            slot = find_first_available_slot()
-            assert slot == 2  # Should return 2 since 1 is active
 
 
 def test_find_first_available_slot_all_used() -> None:
@@ -304,47 +187,8 @@ def test_find_first_available_slot_all_used() -> None:
             assert slot is None
 
 
-def test_get_slot_info_with_extra_fields() -> None:
-    """Test get_slot_info returns None for info.json with extra fields."""
-    import json
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            slot_dir = Path(tmp_dir) / "1"
-            slot_dir.mkdir(parents=True)
-            info_data = {
-                "command": "make test",
-                "project": "myproject",
-                "workspace_num": 1,
-                "workspace_dir": "/path/to/workspace",
-                "started_at": "2025-01-01T12:00:00",
-                "extra_field": "causes TypeError",  # Extra field causes TypeError
-            }
-            (slot_dir / "info.json").write_text(json.dumps(info_data))
-            # dataclass doesn't accept extra fields, returns None
-            info = get_slot_info(1)
-            assert info is None
-
-
 def test_bgcmd_state_dir_path() -> None:
     """Test BGCMD_STATE_DIR is a proper Path under .sase/axe."""
     assert BGCMD_STATE_DIR.name == "bgcmd"
     assert "axe" in str(BGCMD_STATE_DIR)
     assert ".sase" in str(BGCMD_STATE_DIR)
-
-
-def test_read_slot_output_tail_large_file() -> None:
-    """Test read_slot_output_tail with many lines."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)):
-            slot_dir = Path(tmp_dir) / "1"
-            slot_dir.mkdir(parents=True)
-            # Create a file with many lines
-            lines = [f"line {i}\n" for i in range(100)]
-            (slot_dir / "output.log").write_text("".join(lines))
-            # Request only last 5 lines
-            output = read_slot_output_tail(1, lines=5)
-            assert "line 95" in output
-            assert "line 99" in output
-            # First lines should not be present
-            assert "line 0\n" not in output

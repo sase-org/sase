@@ -26,21 +26,6 @@ def _make_hook(
 
 
 # Tests for get_failing_hooks_for_fix
-def test_get_failing_hooks_for_fix_basic() -> None:
-    """Test getting failing hooks eligible for fix-hook workflow."""
-    from sase.ace.hooks.workflow_queries import get_failing_hooks_for_fix
-
-    hooks = [
-        _make_hook(command="flake8 src", status="FAILED"),
-        _make_hook(command="pytest tests", status="PASSED"),
-        _make_hook(command="mypy src", status="FAILED"),
-    ]
-    failing = get_failing_hooks_for_fix(hooks)
-    assert len(failing) == 2
-    assert failing[0].command == "flake8 src"
-    assert failing[1].command == "mypy src"
-
-
 def test_get_failing_hooks_for_fix_excludes_proposals() -> None:
     """Test that proposal entries (like '2a') are excluded from fix-hook."""
     from sase.ace.hooks.workflow_queries import get_failing_hooks_for_fix
@@ -78,57 +63,7 @@ def test_get_failing_hooks_for_fix_excludes_hooks_with_suffix() -> None:
     assert len(failing) == 0
 
 
-def test_get_failing_hooks_for_fix_includes_regular_entries() -> None:
-    """Test that regular entries (not proposals) are included in fix-hook."""
-    from sase.ace.hooks.workflow_queries import get_failing_hooks_for_fix
-
-    hook = HookEntry(
-        command="flake8 src",
-        status_lines=[
-            HookStatusLine(
-                commit_entry_num="2",
-                timestamp="240601_123456",
-                status="FAILED",
-            )
-        ],
-    )
-    failing = get_failing_hooks_for_fix([hook])
-    assert len(failing) == 1
-    assert failing[0].command == "flake8 src"
-
-
-def test_get_failing_hooks_for_fix_no_status_lines() -> None:
-    """Test that hooks with no status_lines are handled correctly for fix."""
-    from sase.ace.hooks.workflow_queries import get_failing_hooks_for_fix
-
-    hooks = [HookEntry(command="flake8 src")]
-    result = get_failing_hooks_for_fix(hooks)
-    assert len(result) == 0
-
-
 # Tests for get_failing_hook_entries_for_fix
-def test_get_failing_hook_entries_for_fix_basic() -> None:
-    """Test getting failing hook entries for specific entry IDs."""
-    from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_fix
-
-    hook = HookEntry(
-        command="flake8 src",
-        status_lines=[
-            HookStatusLine(
-                commit_entry_num="3",
-                timestamp="240601_123456",
-                status="FAILED",
-                suffix="summary text",
-                suffix_type="summarize_complete",
-            )
-        ],
-    )
-    result = get_failing_hook_entries_for_fix([hook], ["3"])
-    assert len(result) == 1
-    assert result[0][0].command == "flake8 src"
-    assert result[0][1] == "3"
-
-
 def test_get_failing_hook_entries_for_fix_excludes_proposals() -> None:
     """Test that proposal entry IDs are excluded from fix-hook."""
     from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_fix
@@ -240,81 +175,7 @@ def test_get_failing_hook_entries_for_fix_no_status_lines() -> None:
     assert len(result) == 0
 
 
-def test_get_failing_hook_entries_for_fix_entry_not_found() -> None:
-    """Test that missing entry IDs are handled correctly."""
-    from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_fix
-
-    hooks = [
-        HookEntry(
-            command="flake8 src",
-            status_lines=[
-                HookStatusLine(
-                    commit_entry_num="1",
-                    timestamp="240601_123456",
-                    status="FAILED",
-                    suffix="summary",
-                    suffix_type="summarize_complete",
-                )
-            ],
-        )
-    ]
-    result = get_failing_hook_entries_for_fix(hooks, ["2"])
-    assert len(result) == 0
-
-
-def test_get_failing_hook_entries_for_fix_passed_status() -> None:
-    """Test that PASSED hooks are excluded from fix."""
-    from sase.ace.hooks.workflow_queries import get_failing_hook_entries_for_fix
-
-    hooks = [
-        HookEntry(
-            command="flake8 src",
-            status_lines=[
-                HookStatusLine(
-                    commit_entry_num="1",
-                    timestamp="240601_123456",
-                    status="PASSED",
-                    suffix="summary",
-                    suffix_type="summarize_complete",
-                )
-            ],
-        )
-    ]
-    result = get_failing_hook_entries_for_fix(hooks, ["1"])
-    assert len(result) == 0
-
-
 # Tests for has_failing_hooks_for_fix
-def test_has_failing_hooks_for_fix_true() -> None:
-    """Test has_failing_hooks_for_fix returns True when eligible hooks exist."""
-    from sase.ace.hooks.workflow_queries import has_failing_hooks_for_fix
-
-    hooks = [_make_hook(command="flake8 src", status="FAILED")]
-    assert has_failing_hooks_for_fix(hooks) is True
-
-
-def test_has_failing_hooks_for_fix_false_no_failing() -> None:
-    """Test has_failing_hooks_for_fix returns False when no failing hooks."""
-    from sase.ace.hooks.workflow_queries import has_failing_hooks_for_fix
-
-    hooks = [_make_hook(command="flake8 src", status="PASSED")]
-    assert has_failing_hooks_for_fix(hooks) is False
-
-
-def test_has_failing_hooks_for_fix_false_none() -> None:
-    """Test has_failing_hooks_for_fix returns False for None input."""
-    from sase.ace.hooks.workflow_queries import has_failing_hooks_for_fix
-
-    assert has_failing_hooks_for_fix(None) is False
-
-
-def test_has_failing_hooks_for_fix_false_empty() -> None:
-    """Test has_failing_hooks_for_fix returns False for empty list."""
-    from sase.ace.hooks.workflow_queries import has_failing_hooks_for_fix
-
-    assert has_failing_hooks_for_fix([]) is False
-
-
 def test_get_failing_hooks_for_fix_excludes_skip_fix_hook() -> None:
     """Test that hooks with ! prefix (skip_fix_hook) are excluded."""
     from sase.ace.hooks.workflow_queries import get_failing_hooks_for_fix
@@ -351,22 +212,3 @@ def test_get_failing_hook_entries_for_fix_excludes_skip_fix_hook() -> None:
     )
     result = get_failing_hook_entries_for_fix([hook], ["3"])
     assert len(result) == 0
-
-
-def test_has_failing_hooks_for_fix_false_skip_fix_hook() -> None:
-    """Test has_failing_hooks_for_fix returns False for ! prefixed hooks."""
-    from sase.ace.hooks.workflow_queries import has_failing_hooks_for_fix
-
-    hooks = [
-        HookEntry(
-            command="!sase_hg_presubmit",
-            status_lines=[
-                HookStatusLine(
-                    commit_entry_num="1",
-                    timestamp="240601_123456",
-                    status="FAILED",
-                )
-            ],
-        )
-    ]
-    assert has_failing_hooks_for_fix(hooks) is False

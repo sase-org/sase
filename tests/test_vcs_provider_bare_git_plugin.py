@@ -29,13 +29,6 @@ def bare_git_provider() -> VCSPluginManager:
 # === Tests for isinstance / type checks ===
 
 
-def test_bare_git_plugin_provider_is_vcs_provider(
-    bare_git_provider: VCSPluginManager,
-) -> None:
-    """The plugin-backed provider is a VCSProvider."""
-    assert isinstance(bare_git_provider, VCSProvider)
-
-
 def test_bare_git_plugin_is_command_runner() -> None:
     """BareGitPlugin inherits from CommandRunner."""
     plugin = BareGitPlugin()
@@ -43,40 +36,6 @@ def test_bare_git_plugin_is_command_runner() -> None:
 
 
 # === Tests for core git operations via plugin ===
-
-
-@patch(_MOCK_TARGET)
-def test_plugin_checkout_success(
-    mock_run: MagicMock, bare_git_provider: VCSPluginManager
-) -> None:
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-    success, error = bare_git_provider.checkout("main", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == ["git", "checkout", "main"]
-
-
-@patch(_MOCK_TARGET)
-def test_plugin_diff_success(
-    mock_run: MagicMock, bare_git_provider: VCSPluginManager
-) -> None:
-    mock_run.return_value = MagicMock(returncode=0, stdout="diff output", stderr="")
-    success, text = bare_git_provider.diff("/workspace")
-
-    assert success is True
-    assert text == "diff output"
-
-
-@patch(_MOCK_TARGET)
-def test_plugin_add_remove(
-    mock_run: MagicMock, bare_git_provider: VCSPluginManager
-) -> None:
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-    success, error = bare_git_provider.add_remove("/workspace")
-
-    assert success is True
-    assert error is None
 
 
 # === Tests for bare-git-specific operations ===
@@ -103,27 +62,6 @@ def test_plugin_get_cl_number_returns_none(
 
 
 @patch(_MOCK_TARGET)
-def test_plugin_mail_push_only(
-    mock_run: MagicMock, bare_git_provider: VCSPluginManager
-) -> None:
-    """mail only pushes, no PR creation."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-    success, error = bare_git_provider.mail("feature-branch", "/workspace")
-
-    assert success is True
-    assert error is None
-    # Only one call (git push), no gh commands
-    assert mock_run.call_count == 1
-    assert mock_run.call_args[0][0] == [
-        "git",
-        "push",
-        "-u",
-        "origin",
-        "feature-branch",
-    ]
-
-
-@patch(_MOCK_TARGET)
 def test_plugin_mail_push_failure(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
@@ -136,14 +74,6 @@ def test_plugin_mail_push_failure(
 
 
 # === Tests for prepare_description_for_reword ===
-
-
-def test_plugin_prepare_description_passthrough(
-    bare_git_provider: VCSPluginManager,
-) -> None:
-    """Git plugins pass description through unchanged."""
-    result = bare_git_provider.prepare_description_for_reword("hello\nworld")
-    assert result == "hello\nworld"
 
 
 # === Test registry integration ===

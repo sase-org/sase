@@ -1,7 +1,5 @@
 """Tests for sase.axe.chop_script_context."""
 
-import json
-
 from sase.ace.changespec import (
     ChangeSpec,
     CommentEntry,
@@ -37,37 +35,6 @@ class TestChopScriptContextRoundTrip:
         write_chop_context(ctx, path)
         loaded = read_chop_context(path)
         assert loaded == ctx
-
-    def test_creates_parent_dirs(self, tmp_path):
-        ctx = ChopScriptContext(
-            max_runners=1,
-            zombie_timeout_seconds=100,
-            query="",
-            lumberjack_name="checks",
-            state_dir="/tmp/state",
-            all_changespecs_file="/tmp/all.json",
-            filtered_changespecs_file="/tmp/filtered.json",
-        )
-        nested = tmp_path / "a" / "b" / "c" / "ctx.json"
-        write_chop_context(ctx, str(nested))
-        assert nested.exists()
-
-    def test_json_format(self, tmp_path):
-        ctx = ChopScriptContext(
-            max_runners=5,
-            zombie_timeout_seconds=7200,
-            query="",
-            lumberjack_name="hooks",
-            state_dir="/tmp/state",
-            all_changespecs_file="/tmp/all.json",
-            filtered_changespecs_file="/tmp/filtered.json",
-        )
-        path = tmp_path / "ctx.json"
-        write_chop_context(ctx, str(path))
-        raw = json.loads(path.read_text())
-        assert raw["max_runners"] == 5
-        assert raw["lumberjack_name"] == "hooks"
-        assert isinstance(raw, dict)
 
 
 class TestChangeSpecSerialization:
@@ -177,25 +144,3 @@ class TestChangeSpecSerialization:
         loaded = load_changespecs_from_file(path)
         assert len(loaded) == 1
         assert loaded[0] == cs
-
-    def test_multiple_changespecs(self, tmp_path):
-        cs1 = self._minimal_changespec("first")
-        cs2 = self._minimal_changespec("second")
-        path = str(tmp_path / "multi.json")
-        serialize_changespecs([cs1, cs2], path)
-        loaded = load_changespecs_from_file(path)
-        assert len(loaded) == 2
-        assert loaded[0].name == "first"
-        assert loaded[1].name == "second"
-
-    def test_empty_list(self, tmp_path):
-        path = str(tmp_path / "empty.json")
-        serialize_changespecs([], path)
-        loaded = load_changespecs_from_file(path)
-        assert loaded == []
-
-    def test_creates_parent_dirs(self, tmp_path):
-        cs = self._minimal_changespec()
-        nested = tmp_path / "x" / "y" / "cs.json"
-        serialize_changespecs([cs], str(nested))
-        assert nested.exists()

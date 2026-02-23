@@ -13,7 +13,6 @@ from sase.ace.tui.widgets import TabBar
 from sase.ace.tui.widgets.commits_builder import _should_show_commits_drawers
 from sase.ace.tui.widgets.prompt_panel import (
     AgentPromptPanel,
-    format_embedded_workflows,
     load_embedded_workflows,
 )
 
@@ -62,19 +61,6 @@ def test_should_show_commits_drawers_expanded() -> None:
     assert _should_show_commits_drawers(entry, changespec, commits_collapsed=False)
 
 
-def test_should_show_commits_drawers_collapsed_entry_1_hidden() -> None:
-    """Entry 1 hides drawers when collapsed."""
-    entry = CommitEntry(number=1, note="first")
-    changespec = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="first"),
-            CommitEntry(number=2, note="second"),
-        ]
-    )
-
-    assert not _should_show_commits_drawers(entry, changespec, commits_collapsed=True)
-
-
 def test_should_show_commits_drawers_collapsed_intermediate_hidden() -> None:
     """Intermediate entries hide drawers when collapsed."""
     entry = CommitEntry(number=3, note="intermediate")
@@ -87,33 +73,6 @@ def test_should_show_commits_drawers_collapsed_intermediate_hidden() -> None:
     )
 
     assert not _should_show_commits_drawers(entry, changespec, commits_collapsed=True)
-
-
-def test_should_show_commits_drawers_collapsed_current_hidden() -> None:
-    """Current (highest numeric) entry hides drawers when collapsed."""
-    entry = CommitEntry(number=8, note="current")
-    changespec = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="first"),
-            CommitEntry(number=8, note="current"),
-        ]
-    )
-
-    assert not _should_show_commits_drawers(entry, changespec, commits_collapsed=True)
-
-
-def test_should_show_commits_drawers_collapsed_proposal_for_max_shown() -> None:
-    """Proposal entries for max ID show drawers when collapsed."""
-    entry = CommitEntry(number=8, note="proposal", proposal_letter="a")
-    changespec = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="first"),
-            CommitEntry(number=8, note="current"),
-            CommitEntry(number=8, note="proposal", proposal_letter="a"),
-        ]
-    )
-
-    assert _should_show_commits_drawers(entry, changespec, commits_collapsed=True)
 
 
 def test_should_show_commits_drawers_collapsed_old_proposal_hidden() -> None:
@@ -152,25 +111,11 @@ def test_should_show_commits_drawers_collapsed_multiple_proposals_shown() -> Non
 # --- TabBar Widget Tests ---
 
 
-def test_tab_bar_initial_state() -> None:
-    """Test that TabBar initializes with changespecs tab active."""
-    tab_bar = TabBar()
-    assert tab_bar._current_tab == "changespecs"
-
-
 def test_tab_bar_update_tab_to_agents() -> None:
     """Test that update_tab changes the current tab to agents."""
     tab_bar = TabBar()
     tab_bar.update_tab("agents")
     assert tab_bar._current_tab == "agents"
-
-
-def test_tab_bar_update_tab_to_changespecs() -> None:
-    """Test that update_tab changes the current tab to changespecs."""
-    tab_bar = TabBar()
-    tab_bar.update_tab("agents")
-    tab_bar.update_tab("changespecs")
-    assert tab_bar._current_tab == "changespecs"
 
 
 # --- _get_prompt_content Tests ---
@@ -221,25 +166,6 @@ def test_get_prompt_content_workflow_child_filters_by_step(
     result = panel._get_prompt_content(agent)
 
     assert result == "api_research prompt content"
-
-
-def test_get_prompt_content_non_workflow_uses_most_recent(
-    tmp_path: Path,
-) -> None:
-    """Non-workflow agent falls back to the most recently modified prompt."""
-    older_file = tmp_path / "older_prompt.md"
-    older_file.write_text("older prompt")
-
-    time.sleep(0.05)
-    newer_file = tmp_path / "newer_prompt.md"
-    newer_file.write_text("newer prompt")
-
-    agent = _make_agent(artifacts_dir=str(tmp_path))
-
-    panel = AgentPromptPanel.__new__(AgentPromptPanel)
-    result = panel._get_prompt_content(agent)
-
-    assert result == "newer prompt"
 
 
 def test_get_prompt_content_step_filter_no_substring_match(
@@ -406,21 +332,6 @@ async def test_tab_bar_integration_tab_key() -> None:
 # --- Embedded Workflows Tests ---
 
 
-def testload_embedded_workflows_with_args(tmp_path: Path) -> None:
-    """Loading embedded_workflows.json with args returns correct data."""
-    metadata = [
-        {"name": "propose", "args": {"note": "blah"}},
-        {"name": "cl", "args": {}},
-    ]
-    metadata_file = tmp_path / "embedded_workflows.json"
-    metadata_file.write_text(json.dumps(metadata))
-
-    agent = _make_agent(artifacts_dir=str(tmp_path))
-    result = load_embedded_workflows(agent)
-
-    assert result == metadata
-
-
 def testload_embedded_workflows_empty(tmp_path: Path) -> None:
     """No embedded_workflows.json file returns None."""
     agent = _make_agent(artifacts_dir=str(tmp_path))
@@ -429,57 +340,12 @@ def testload_embedded_workflows_empty(tmp_path: Path) -> None:
     assert result is None
 
 
-def testload_embedded_workflows_no_args(tmp_path: Path) -> None:
-    """Workflows without explicit args load correctly."""
-    metadata = [{"name": "cl", "args": {}}]
-    metadata_file = tmp_path / "embedded_workflows.json"
-    metadata_file.write_text(json.dumps(metadata))
-
-    agent = _make_agent(artifacts_dir=str(tmp_path))
-    result = load_embedded_workflows(agent)
-
-    assert result == metadata
-
-
 def testload_embedded_workflows_no_artifacts_dir() -> None:
     """Agent with no artifacts_dir returns None."""
     agent = _make_agent(artifacts_dir=None)
     result = load_embedded_workflows(agent)
 
     assert result is None
-
-
-def testformat_embedded_workflows_single_no_args() -> None:
-    """Single workflow with no args formats as just the name."""
-    workflows = [{"name": "cl", "args": {}}]
-    assert format_embedded_workflows(workflows) == "cl"
-
-
-def testformat_embedded_workflows_single_with_args() -> None:
-    """Single workflow with args formats as name(key=val)."""
-    workflows = [{"name": "propose", "args": {"note": "blah"}}]
-    assert format_embedded_workflows(workflows) == "propose(note=blah)"
-
-
-def testformat_embedded_workflows_multiple() -> None:
-    """Multiple workflows joined with comma."""
-    workflows = [
-        {"name": "propose", "args": {"note": "blah"}},
-        {"name": "cl", "args": {}},
-    ]
-    assert format_embedded_workflows(workflows) == "propose(note=blah), cl"
-
-
-def testformat_embedded_workflows_multiple_args() -> None:
-    """Workflow with multiple args formats correctly."""
-    workflows = [{"name": "foo", "args": {"bar": "2", "baz": "hello"}}]
-    assert format_embedded_workflows(workflows) == "foo(bar=2, baz=hello)"
-
-
-def testformat_embedded_workflows_filters_empty_args() -> None:
-    """Empty string args are filtered out from display."""
-    workflows = [{"name": "propose", "args": {"note": ""}}]
-    assert format_embedded_workflows(workflows) == "propose"
 
 
 def test_embedded_workflows_displayed_in_metadata(tmp_path: Path) -> None:

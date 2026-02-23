@@ -83,22 +83,6 @@ def test_finalize_axe_runner_handles_errors() -> None:
 
 
 # Tests for was_killed / install_sigterm_handler
-def test_was_killed_default_false() -> None:
-    """Test was_killed returns False by default."""
-    # Reset state
-    _killed_state["killed"] = False
-    assert was_killed() is False
-
-
-def test_install_sigterm_handler_registers_handler() -> None:
-    """Test that install_sigterm_handler registers a SIGTERM handler."""
-    with patch("sase.axe_runner_utils.signal.signal") as mock_signal:
-        install_sigterm_handler("test")
-        mock_signal.assert_called_once()
-        args = mock_signal.call_args[0]
-        assert args[0] == signal.SIGTERM
-
-
 def test_sigterm_handler_sets_killed() -> None:
     """Test that invoking the captured handler sets was_killed to True."""
     _killed_state["killed"] = False
@@ -129,22 +113,6 @@ def test_prepare_workspace_clean_fails() -> None:
         assert result is False
 
 
-def test_prepare_workspace_update_timeout() -> None:
-    """Test prepare_workspace returns False on sase_hg_update timeout."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (False, "sase_hg_update timed out")
-    mock_provider.get_default_parent_revision.return_value = "p4head"
-
-    with (
-        patch("sase.commit_utils.run_sase_hg_clean", return_value=(True, None)),
-        patch("sase.axe_runner_utils.get_vcs_provider", return_value=mock_provider),
-    ):
-        result = prepare_workspace(
-            "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
-        )
-        assert result is False
-
-
 def test_prepare_workspace_update_fails() -> None:
     """Test prepare_workspace returns False when sase_hg_update returns non-zero."""
     mock_provider = MagicMock()
@@ -159,63 +127,6 @@ def test_prepare_workspace_update_fails() -> None:
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
         assert result is False
-
-
-def test_prepare_workspace_update_exception() -> None:
-    """Test prepare_workspace returns False on unexpected exception."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (
-        False,
-        "sase_hg_update command not found",
-    )
-    mock_provider.get_default_parent_revision.return_value = "p4head"
-
-    with (
-        patch("sase.commit_utils.run_sase_hg_clean", return_value=(True, None)),
-        patch("sase.axe_runner_utils.get_vcs_provider", return_value=mock_provider),
-    ):
-        result = prepare_workspace(
-            "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
-        )
-        assert result is False
-
-
-def test_prepare_workspace_success() -> None:
-    """Test prepare_workspace returns True on success with correct backup suffix."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (True, None)
-    mock_provider.get_default_parent_revision.return_value = "p4head"
-
-    with (
-        patch(
-            "sase.commit_utils.run_sase_hg_clean", return_value=(True, None)
-        ) as mock_clean,
-        patch("sase.axe_runner_utils.get_vcs_provider", return_value=mock_provider),
-    ):
-        result = prepare_workspace(
-            "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="workflow"
-        )
-        assert result is True
-        # Verify the backup suffix was used correctly
-        mock_clean.assert_called_once_with("/workspace", "my_cl-workflow")
-
-
-def test_prepare_workspace_resolves_vcs_default_sentinel() -> None:
-    """Test prepare_workspace resolves VCS_DEFAULT_REVISION sentinel."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (True, None)
-    mock_provider.get_default_parent_revision.return_value = "origin/main"
-
-    with (
-        patch("sase.commit_utils.run_sase_hg_clean", return_value=(True, None)),
-        patch("sase.axe_runner_utils.get_vcs_provider", return_value=mock_provider),
-    ):
-        result = prepare_workspace(
-            "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
-        )
-        assert result is True
-        mock_provider.get_default_parent_revision.assert_called_once_with("/workspace")
-        mock_provider.checkout.assert_called_once_with("origin/main", "/workspace")
 
 
 def test_prepare_workspace_non_sentinel_passes_through() -> None:

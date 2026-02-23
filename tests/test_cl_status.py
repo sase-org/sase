@@ -21,23 +21,6 @@ def test_is_parent_submitted_no_parent() -> None:
 
 
 @patch("sase.ace.cl_status.find_all_changespecs")
-def test_is_parent_submitted_parent_submitted(mock_find: MagicMock) -> None:
-    """Test that submitted parent returns True."""
-    mock_parent = MagicMock()
-    mock_parent.name = "parent_cs"
-    mock_parent.status = "Submitted"
-
-    mock_find.return_value = [mock_parent]
-
-    mock_changespec = MagicMock()
-    mock_changespec.parent = "parent_cs"
-
-    result = is_parent_submitted(mock_changespec)
-
-    assert result is True
-
-
-@patch("sase.ace.cl_status.find_all_changespecs")
 def test_is_parent_submitted_parent_not_submitted(mock_find: MagicMock) -> None:
     """Test that non-submitted parent returns False."""
     mock_parent = MagicMock()

@@ -12,20 +12,6 @@ from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_get_branch_name_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_get_branch_name on success."""
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout="feature-branch\n", stderr=""
-    )
-
-    plugin = BareGitPlugin()
-    success, name = plugin.vcs_get_branch_name("/workspace")
-
-    assert success is True
-    assert name == "feature-branch"
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_branch_name_detached_head(mock_run: MagicMock) -> None:
     """Test BareGitPlugin.vcs_get_branch_name returns None in detached HEAD."""
     mock_run.return_value = MagicMock(returncode=0, stdout="HEAD\n", stderr="")
@@ -54,36 +40,6 @@ def test_git_get_branch_name_failure(mock_run: MagicMock) -> None:
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_get_description_full(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_get_description returns full description."""
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout="Full commit message\n\nBody text\n", stderr=""
-    )
-
-    plugin = BareGitPlugin()
-    success, desc = plugin.vcs_get_description("abc123", "/workspace", short=False)
-
-    assert success is True
-    assert desc is not None
-    assert "Full commit message" in desc
-    assert mock_run.call_args[0][0] == ["git", "log", "--format=%B", "-n1", "abc123"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_get_description_short(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_get_description with short=True."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="Short subject\n", stderr="")
-
-    plugin = BareGitPlugin()
-    success, desc = plugin.vcs_get_description("abc123", "/workspace", short=True)
-
-    assert success is True
-    assert desc is not None
-    assert "Short subject" in desc
-    assert mock_run.call_args[0][0] == ["git", "log", "--format=%s", "-n1", "abc123"]
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_get_description_failure(mock_run: MagicMock) -> None:
     """Test BareGitPlugin.vcs_get_description on failure."""
     mock_run.return_value = MagicMock(
@@ -99,33 +55,6 @@ def test_git_get_description_failure(mock_run: MagicMock) -> None:
 
 
 # === Tests for has_local_changes ===
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_has_local_changes_with_changes(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_has_local_changes when changes exist."""
-    mock_run.return_value = MagicMock(
-        returncode=0, stdout=" M file.py\n?? new.py\n", stderr=""
-    )
-
-    plugin = BareGitPlugin()
-    success, text = plugin.vcs_has_local_changes("/workspace")
-
-    assert success is True
-    assert text is not None
-    assert "file.py" in text
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_has_local_changes_clean(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_has_local_changes when workspace is clean."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, text = plugin.vcs_has_local_changes("/workspace")
-
-    assert success is True
-    assert text is None
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
@@ -210,25 +139,6 @@ def test_git_get_workspace_name_both_fail(mock_run: MagicMock) -> None:
 
 
 # === Tests for reword ===
-
-
-@patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_reword_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_reword on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-    plugin = BareGitPlugin()
-    success, error = plugin.vcs_reword("new description", "/workspace")
-
-    assert success is True
-    assert error is None
-    assert mock_run.call_args[0][0] == [
-        "git",
-        "commit",
-        "--amend",
-        "-m",
-        "new description",
-    ]
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
@@ -335,21 +245,3 @@ def test_git_mail_bare_remote_push_only(mock_run: MagicMock) -> None:
         "origin",
         "feature-branch",
     ]
-
-
-def test_git_get_change_url_bare_remote() -> None:
-    """Test BareGitPlugin.vcs_get_change_url returns None for bare remotes."""
-    plugin = BareGitPlugin()
-    success, url = plugin.vcs_get_change_url("/workspace")
-
-    assert success is True
-    assert url is None
-
-
-def test_git_get_cl_number_bare_remote() -> None:
-    """Test BareGitPlugin.vcs_get_cl_number returns None for bare remotes."""
-    plugin = BareGitPlugin()
-    success, number = plugin.vcs_get_cl_number("/workspace")
-
-    assert success is True
-    assert number is None

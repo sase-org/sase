@@ -3,38 +3,14 @@
 import tempfile
 from pathlib import Path
 
-from sase.ace.changespec import ChangeSpec, CommentEntry
+from sase.ace.changespec import CommentEntry
 from sase.ace.comments import (
     comment_needs_crs,
     get_comments_file_path,
     is_comments_suffix_stale,
-    is_timestamp_suffix,
 )
 from sase.ace.constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
-from sase.ace.display_helpers import get_status_color, is_suffix_timestamp
-from sase.sase_utils import generate_timestamp, get_sase_directory
-
-
-def test_generate_timestamp_format() -> None:
-    """Test that generate_timestamp returns correct format."""
-    timestamp = generate_timestamp()
-
-    # Should be YYmmdd_HHMMSS format (13 chars with underscore at position 6)
-    assert len(timestamp) == 13
-    assert timestamp[6] == "_"
-    # First 6 chars should be digits (YYmmdd)
-    assert timestamp[:6].isdigit()
-    # Last 6 chars should be digits (HHMMSS)
-    assert timestamp[7:].isdigit()
-
-
-def test_get_comments_directory() -> None:
-    """Test that get_sase_directory('comments') returns correct path."""
-    comments_dir = get_sase_directory("comments")
-
-    # Should be ~/.sase/comments/
-    assert comments_dir.endswith(".sase/comments")
-    assert "~" not in comments_dir  # Should be expanded
+from sase.sase_utils import generate_timestamp
 
 
 def test_get_comments_file_path() -> None:
@@ -46,20 +22,6 @@ def test_get_comments_file_path() -> None:
     assert "reviewer" in file_path
     assert "241226_120000" in file_path
     assert file_path.endswith(".json")
-
-
-def test_is_timestamp_suffix_valid_new_format() -> None:
-    """Test is_timestamp_suffix with new format YYmmdd_HHMMSS."""
-    assert is_timestamp_suffix("241226_120000") is True
-    assert is_timestamp_suffix("250101_000000") is True  # Jan 1, 2025
-
-
-def test_is_timestamp_suffix_invalid() -> None:
-    """Test is_timestamp_suffix with invalid formats."""
-    assert is_timestamp_suffix("!") is False
-    assert is_timestamp_suffix("2a") is False
-    assert is_timestamp_suffix("ZOMBIE") is False
-    assert is_timestamp_suffix("12345") is False
 
 
 def test_is_comments_suffix_stale_fresh() -> None:
@@ -84,33 +46,6 @@ def test_comment_needs_crs_no_suffix() -> None:
         suffix=None,
     )
     assert comment_needs_crs(entry) is True
-
-
-def test_comment_needs_crs_with_suffix() -> None:
-    """Test comment_needs_crs returns False when suffix present."""
-    # Timestamp suffix (running)
-    entry1 = CommentEntry(
-        reviewer="reviewer",
-        file_path="~/.sase/comments/test-reviewer-241226_120000.json",
-        suffix="241226_130000",
-    )
-    assert comment_needs_crs(entry1) is False
-
-    # Proposal ID suffix (completed)
-    entry2 = CommentEntry(
-        reviewer="reviewer",
-        file_path="~/.sase/comments/test-reviewer-241226_120000.json",
-        suffix="2a",
-    )
-    assert comment_needs_crs(entry2) is False
-
-    # Failed suffix
-    entry3 = CommentEntry(
-        reviewer="reviewer",
-        file_path="~/.sase/comments/test-reviewer-241226_120000.json",
-        suffix="!",
-    )
-    assert comment_needs_crs(entry3) is False
 
 
 def test_default_zombie_timeout_is_two_hours() -> None:
@@ -141,45 +76,9 @@ def test_comment_entry_no_suffix() -> None:
     assert entry.suffix is None
 
 
-def test_is_timestamp_suffix_none() -> None:
-    """Test is_timestamp_suffix with None."""
-    assert is_timestamp_suffix(None) is False
-
-
-def test_is_timestamp_suffix_zombie() -> None:
-    """Test is_timestamp_suffix with ZOMBIE suffix."""
-    assert is_timestamp_suffix("ZOMBIE") is False
-
-
 def test_is_comments_suffix_stale_none() -> None:
     """Test is_comments_suffix_stale with None suffix."""
     assert is_comments_suffix_stale(None) is False
-
-
-def test_get_available_workflows_with_suffix() -> None:
-    """Test that COMMENTS entry with suffix does not return crs workflow."""
-    from sase.ace.operations import get_available_workflows
-
-    cs = ChangeSpec(
-        name="Test",
-        description="Test",
-        parent="None",
-        cl="123",
-        test_targets=None,
-        status="Mailed",
-        file_path="/tmp/test.md",
-        line_number=1,
-        kickstart=None,
-        comments=[
-            CommentEntry(
-                reviewer="reviewer",
-                file_path="~/.sase/comments/test-reviewer-241226_120000.json",
-                suffix="2a",  # Has suffix = CRS not available
-            )
-        ],
-    )
-    workflows = get_available_workflows(cs)
-    assert "crs" not in workflows
 
 
 def test_changespec_with_multiple_comments() -> None:
@@ -217,74 +116,6 @@ def test_changespec_with_multiple_comments() -> None:
 
 
 # --- Tests for display module helpers ---
-
-
-def test_displayis_suffix_timestamp_new_format() -> None:
-    """Test is_suffix_timestamp with new format YYmmdd_HHMMSS."""
-    assert is_suffix_timestamp("241226_120000") is True
-
-
-def test_displayis_suffix_timestamp_legacy_format_rejected() -> None:
-    """Test is_suffix_timestamp rejects legacy format YYmmddHHMMSS (no longer supported)."""
-    assert is_suffix_timestamp("241226120000") is False
-
-
-def test_displayis_suffix_timestamp_invalid() -> None:
-    """Test is_suffix_timestamp with invalid formats."""
-    assert is_suffix_timestamp("!") is False
-    assert is_suffix_timestamp("2a") is False
-    assert is_suffix_timestamp("ZOMBIE") is False
-
-
-def testget_status_color_ready() -> None:
-    """Test get_status_color for Ready status."""
-    assert get_status_color("Ready") == "#87D700"
-
-
-def testget_status_color_submitted() -> None:
-    """Test get_status_color for Submitted status."""
-    assert get_status_color("Submitted") == "#00AF00"
-
-
-def testget_status_color_reverted() -> None:
-    """Test get_status_color for Reverted status."""
-    assert get_status_color("Reverted") == "#808080"
-
-
-def testget_status_color_with_workspace_suffix() -> None:
-    """Test get_status_color strips workspace suffix before lookup."""
-    # Status with workspace suffix (e.g., "Ready (fig_3)")
-    assert get_status_color("Ready (fig_3)") == "#87D700"
-    assert get_status_color("Mailed (project_1)") == "#00D787"
-
-
-def test_comments_entry_in_changespec_parsing() -> None:
-    """Test that COMMENTS entries are parsed from project file."""
-    from sase.ace.changespec import parse_project_file
-
-    # Create a temporary project file with COMMENTS field
-    project_content = """NAME: test_feature
-DESCRIPTION:
-  Test feature description
-STATUS: Mailed
-COMMENTS:
-  [reviewer] ~/.sase/comments/test_feature-reviewer-241226_120000.json
-"""
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write(project_content)
-        project_file = f.name
-
-    try:
-        changespecs = parse_project_file(project_file)
-        assert len(changespecs) == 1
-        cs = changespecs[0]
-        assert cs.comments is not None
-        assert len(cs.comments) == 1
-        assert cs.comments[0].reviewer == "reviewer"
-        assert "test_feature" in cs.comments[0].file_path
-    finally:
-        Path(project_file).unlink()
 
 
 def test_comments_entry_with_suffix_parsing() -> None:

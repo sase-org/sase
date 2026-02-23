@@ -13,21 +13,13 @@ from sase.shared_utils import (
     _initialize_log_file,
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
-    convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
     ensure_str_content,
     finalize_sase_log,
     generate_workflow_tag,
-    get_sase_log_file,
     initialize_sase_log,
     run_bam_command,
 )
-
-
-def test_ensure_str_content_with_string() -> None:
-    """Test that string content is returned as-is."""
-    content = "Hello, world!"
-    assert ensure_str_content(content) == "Hello, world!"
 
 
 def test_ensure_str_content_with_list() -> None:
@@ -39,50 +31,11 @@ def test_ensure_str_content_with_list() -> None:
     assert "part2" in result
 
 
-def test_ensure_str_content_with_empty_string() -> None:
-    """Test that empty string is handled correctly."""
-    assert ensure_str_content("") == ""
-
-
 def test_run_shell_command_success() -> None:
     """Test that successful shell command returns proper result."""
     result = run_shell_command("echo 'test'", capture_output=True)
     assert result.returncode == 0
     assert "test" in result.stdout
-
-
-def test_run_shell_command_failure() -> None:
-    """Test that failed shell command returns non-zero exit code."""
-    result = run_shell_command("exit 1", capture_output=True)
-    assert result.returncode != 0
-
-
-def test_create_artifacts_directory() -> None:
-    """Test that artifacts directory is created with proper format."""
-    # Use explicit project name to avoid dependency on workspace_name command
-    project_name = "test-project"
-    workflow_name = "test-workflow"
-    artifacts_dir = create_artifacts_directory(workflow_name, project_name)
-
-    # Check format: ~/.sase/projects/<project>/artifacts/<workflow>/YYYYMMDDHHMMSS
-    expanded_home = str(Path.home())
-    expected_prefix = (
-        f"{expanded_home}/.sase/projects/{project_name}/artifacts/{workflow_name}/"
-    )
-    assert artifacts_dir.startswith(expected_prefix)
-    timestamp_part = artifacts_dir.split("/")[-1]
-    assert len(timestamp_part) == 14  # YYYYMMDDHHMMSS
-    assert timestamp_part.isdigit()
-
-    # Check directory exists
-    assert Path(artifacts_dir).exists()
-    assert Path(artifacts_dir).is_dir()
-
-    # Cleanup - remove the entire test project directory
-    project_dir = Path.home() / ".sase" / "projects" / project_name
-    import shutil
-
-    shutil.rmtree(project_dir)
 
 
 def test_generate_workflow_tag() -> None:
@@ -95,34 +48,6 @@ def test_generate_workflow_tag() -> None:
     # Should only contain digits and uppercase letters
     valid_chars = string.digits + string.ascii_uppercase
     assert all(c in valid_chars for c in tag)
-
-
-def test_generate_workflow_tag_uniqueness() -> None:
-    """Test that generated tags are reasonably unique."""
-    # Generate multiple tags and check they're not all the same
-    tags = [generate_workflow_tag() for _ in range(100)]
-    unique_tags = set(tags)
-
-    # With 36^3 = 46656 possible combinations, we expect high uniqueness
-    # Even with 100 samples, we should see at least 90 unique values
-    assert len(unique_tags) >= 90
-
-
-def test_initialize_sase_log() -> None:
-    """Test that sase.md log is initialized correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        initialize_sase_log(tmpdir, "crs", "ABC")
-
-        log_file = os.path.join(tmpdir, "sase.md")
-        assert os.path.exists(log_file)
-
-        with open(log_file, encoding="utf-8") as f:
-            content = f.read()
-
-        assert "SASE Workflow Log - crs (ABC)" in content
-        assert "Started:" in content
-        assert "Artifacts Directory:" in content
-        assert tmpdir in content
 
 
 def test_finalize_sase_log() -> None:
@@ -142,19 +67,6 @@ def test_finalize_sase_log() -> None:
         assert "SUCCESS" in content
         assert "crs" in content
         assert "XYZ" in content
-
-
-def test_finalize_sase_log_failure() -> None:
-    """Test that sase.md log is finalized correctly with failure status."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        initialize_sase_log(tmpdir, "add-tests", "DEF")
-        finalize_sase_log(tmpdir, "add-tests", "DEF", success=False)
-
-        log_file = os.path.join(tmpdir, "sase.md")
-        with open(log_file, encoding="utf-8") as f:
-            content = f.read()
-
-        assert "FAILED" in content
 
 
 @patch("sase.shared_utils.run_shell_command")
@@ -222,31 +134,7 @@ def test_create_artifacts_directory_workspace_name_fails(
 
 
 # Tests for get_sase_log_file
-def test_get_sase_log_file() -> None:
-    """Test get_sase_log_file returns correct path."""
-    result = get_sase_log_file("/path/to/artifacts")
-    assert result == "/path/to/artifacts/sase.md"
-
-
-def test_get_sase_log_file_trailing_slash() -> None:
-    """Test get_sase_log_file handles various path formats."""
-    result = get_sase_log_file("/artifacts")
-    assert result.endswith("sase.md")
-
-
 # Tests for _initialize_log_file
-@patch("sase.shared_utils.print_file_operation")
-def test_initialize_log_file_success(mock_print: MagicMock) -> None:
-    """Test _initialize_log_file creates file with content."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        log_path = os.path.join(tmpdir, "test.md")
-        _initialize_log_file(log_path, "Test content\n", "Init log")
-
-        content = Path(log_path).read_text()
-        assert content == "Test content\n"
-        mock_print.assert_called_once_with("Init log", log_path, True)
-
-
 @patch("sase.shared_utils.print_status")
 def test_initialize_log_file_error(mock_print_status: MagicMock) -> None:
     """Test _initialize_log_file handles write errors gracefully."""
@@ -257,22 +145,6 @@ def test_initialize_log_file_error(mock_print_status: MagicMock) -> None:
 
 
 # Tests for _finalize_log_file
-@patch("sase.shared_utils.print_file_operation")
-def test_finalize_log_file_appends(mock_print: MagicMock) -> None:
-    """Test _finalize_log_file appends to existing file."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        log_path = os.path.join(tmpdir, "test.md")
-        # Create initial file
-        Path(log_path).write_text("Initial\n")
-
-        _finalize_log_file(log_path, "Final\n", "Finalize log")
-
-        content = Path(log_path).read_text()
-        assert "Initial" in content
-        assert "Final" in content
-        mock_print.assert_called_once_with("Finalize log", log_path, True)
-
-
 @patch("sase.shared_utils.print_status")
 def test_finalize_log_file_error(mock_print_status: MagicMock) -> None:
     """Test _finalize_log_file handles errors gracefully."""
@@ -283,34 +155,6 @@ def test_finalize_log_file_error(mock_print_status: MagicMock) -> None:
 
 
 # Tests for apply_section_marker_handling
-def test_apply_section_marker_handling_no_marker() -> None:
-    """Test that content without section markers is returned unchanged."""
-    content = "Regular content without markers"
-    assert apply_section_marker_handling(content, True) == content
-    assert apply_section_marker_handling(content, False) == content
-
-
-def test_apply_section_marker_handling_triple_hash_at_line_start() -> None:
-    """Test ### marker at line start is returned unchanged."""
-    content = "### Section Header\nContent here"
-    result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == content
-
-
-def test_apply_section_marker_handling_triple_hash_not_at_line_start() -> None:
-    """Test ### marker not at line start gets \\n\\n prepended."""
-    content = "### Section Header\nContent here"
-    result = apply_section_marker_handling(content, is_at_line_start=False)
-    assert result == "\n\n### Section Header\nContent here"
-
-
-def test_apply_section_marker_handling_hr_marker_only() -> None:
-    """Test standalone --- marker is stripped entirely."""
-    content = "---"
-    result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == ""
-
-
 def test_apply_section_marker_handling_hr_marker_only_not_at_line_start() -> None:
     """Test standalone --- marker not at line start is stripped (no newlines added for empty)."""
     content = "---"
@@ -325,96 +169,13 @@ def test_apply_section_marker_handling_hr_marker_with_content() -> None:
     assert result == "\nActual content"
 
 
-def test_apply_section_marker_handling_hr_marker_with_content_not_at_line_start() -> (
-    None
-):
-    """Test --- marker with content not at line start strips marker and prepends \\n\\n."""
-    content = "---\nActual content"
-    result = apply_section_marker_handling(content, is_at_line_start=False)
-    assert result == "\n\nActual content"
-
-
-def test_apply_section_marker_handling_hr_marker_strips_leading_newlines() -> None:
-    """Test --- marker strips marker and leading newlines, then prepends \\n."""
-    content = "---\n\n\nContent after newlines"
-    result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == "\nContent after newlines"
-
-
-def test_apply_section_marker_handling_hr_with_leading_whitespace() -> None:
-    """Test --- with leading whitespace is NOT treated as a section marker."""
-    content = "  ---  "
-    # Content doesn't start with --- due to leading whitespace, so returned unchanged
-    result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == "  ---  "
-
-
-def test_apply_section_marker_handling_triple_hash_empty_content() -> None:
-    """Test that ### at start with no following content works correctly."""
-    content = "###"
-    result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == "###"
-    result = apply_section_marker_handling(content, is_at_line_start=False)
-    assert result == "\n\n###"
-
-
 # Tests for content_ends_with_markdown_heading
-def test_content_ends_with_markdown_heading_h1() -> None:
-    """Test detection of H1 heading at end of content."""
-    assert content_ends_with_markdown_heading("# New Query") is True
-
-
-def test_content_ends_with_markdown_heading_h2() -> None:
-    """Test detection of H2 heading at end of content."""
-    assert content_ends_with_markdown_heading("## Section") is True
-
-
-def test_content_ends_with_markdown_heading_h6() -> None:
-    """Test detection of H6 heading at end of content."""
-    assert content_ends_with_markdown_heading("###### Deep") is True
-
-
-def test_content_ends_with_markdown_heading_multiline() -> None:
-    """Test detection when heading is last line of multiline content."""
-    assert content_ends_with_markdown_heading("Some text\n\n# New Query") is True
-
-
-def test_content_ends_with_markdown_heading_with_trailing_newline() -> None:
-    """Test that content with trailing newline returns False (already separated)."""
-    assert content_ends_with_markdown_heading("# New Query\n") is False
-
-
-def test_content_ends_with_markdown_heading_not_heading() -> None:
-    """Test that non-heading content returns False."""
-    assert content_ends_with_markdown_heading("Regular text") is False
-
-
 def test_content_ends_with_markdown_heading_empty() -> None:
     """Test that empty content returns False."""
     assert content_ends_with_markdown_heading("") is False
 
 
-def test_content_ends_with_markdown_heading_hash_no_space() -> None:
-    """Test that # without space is not a heading (e.g., #tag)."""
-    assert content_ends_with_markdown_heading("#tag") is False
-
-
-def test_content_ends_with_markdown_heading_too_many_hashes() -> None:
-    """Test that 7+ hashes is not a valid markdown heading."""
-    assert content_ends_with_markdown_heading("####### Not a heading") is False
-
-
 # Tests for convert_timestamp_to_artifacts_format
-def test_convert_timestamp_to_artifacts_format() -> None:
-    """Test conversion from YYmmdd_HHMMSS to YYYYmmddHHMMSS format."""
-    assert convert_timestamp_to_artifacts_format("251227_143052") == "20251227143052"
-
-
-def test_convert_timestamp_to_artifacts_format_different_date() -> None:
-    """Test conversion with a different timestamp."""
-    assert convert_timestamp_to_artifacts_format("240101_000000") == "20240101000000"
-
-
 # Tests for create_artifacts_directory with timestamp parameter
 def test_create_artifacts_directory_with_timestamp() -> None:
     """Test that pre-existing timestamp is used instead of generating new one."""

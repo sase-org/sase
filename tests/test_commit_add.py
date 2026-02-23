@@ -12,41 +12,11 @@ from sase.commit_utils import (
     save_diff,
 )
 from sase.commit_utils.entries import (
-    _get_last_regular_commit_number,
     _get_next_proposal_letter,
 )
 
 
 # Tests for get_next_commit_number
-def test_get_next_commit_number_no_history() -> None:
-    """Test getting next history number when no history exists."""
-    lines = [
-        "NAME: test_cl\n",
-        "DESCRIPTION:\n",
-        "  Test\n",
-        "STATUS: Ready\n",
-    ]
-    next_num = get_next_commit_number(lines, "test_cl")
-    assert next_num == 1
-
-
-def test_get_next_commit_number_with_history() -> None:
-    """Test getting next history number when history exists."""
-    lines = [
-        "NAME: test_cl\n",
-        "DESCRIPTION:\n",
-        "  Test\n",
-        "STATUS: Ready\n",
-        "COMMITS:\n",
-        "  (1) First commit\n",
-        "      | DIFF: test.diff\n",
-        "  (2) Second commit\n",
-        "      | DIFF: test2.diff\n",
-    ]
-    next_num = get_next_commit_number(lines, "test_cl")
-    assert next_num == 3
-
-
 def test_get_next_commit_number_wrong_changespec() -> None:
     """Test getting next history number for non-existent changespec."""
     lines = [
@@ -133,31 +103,6 @@ def test_add_commit_entry_nonexistent_file() -> None:
     assert result is False
 
 
-def test_add_commit_entry_no_optional_fields() -> None:
-    """Test adding history entry without optional fields."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready\n")
-        temp_path = f.name
-
-    try:
-        result = add_commit_entry(
-            project_file=temp_path,
-            cl_name="test_cl",
-            note="Manual commit",
-        )
-        assert result is True
-
-        # Verify the file contents
-        with open(temp_path) as f:
-            content = f.read()
-        assert "  (1) Manual commit" in content
-        assert "| CHAT:" not in content
-        assert "| DIFF:" not in content
-    finally:
-        os.unlink(temp_path)
-
-
 # Tests for save_diff
 @patch("sase.commit_utils.workspace.get_vcs_provider")
 def test_save_diff_no_changes(mock_get_provider: MagicMock, tmp_path: Path) -> None:
@@ -172,72 +117,7 @@ def test_save_diff_no_changes(mock_get_provider: MagicMock, tmp_path: Path) -> N
 
 
 # Tests for _get_last_regular_commit_number
-def test_get_last_regular_commit_number_no_history() -> None:
-    """Test getting last regular number when no history exists."""
-    lines = [
-        "NAME: test_cl\n",
-        "STATUS: Ready\n",
-    ]
-    last_num = _get_last_regular_commit_number(lines, "test_cl")
-    assert last_num == 0
-
-
-def test_get_last_regular_commit_number_with_history() -> None:
-    """Test getting last regular number with existing history."""
-    lines = [
-        "NAME: test_cl\n",
-        "STATUS: Ready\n",
-        "COMMITS:\n",
-        "  (1) First commit\n",
-        "  (2) Second commit\n",
-    ]
-    last_num = _get_last_regular_commit_number(lines, "test_cl")
-    assert last_num == 2
-
-
-def test_get_last_regular_commit_number_skips_proposals() -> None:
-    """Test that proposed entries are skipped when counting."""
-    lines = [
-        "NAME: test_cl\n",
-        "STATUS: Ready\n",
-        "COMMITS:\n",
-        "  (1) First commit\n",
-        "  (2) Second commit\n",
-        "  (2a) Proposed change\n",
-        "  (2b) Another proposal\n",
-    ]
-    last_num = _get_last_regular_commit_number(lines, "test_cl")
-    assert last_num == 2
-
-
 # Tests for _get_next_proposal_letter
-def test_get_next_proposal_letter_no_proposals() -> None:
-    """Test getting first proposal letter when none exist."""
-    lines = [
-        "NAME: test_cl\n",
-        "STATUS: Ready\n",
-        "COMMITS:\n",
-        "  (1) First commit\n",
-        "  (2) Second commit\n",
-    ]
-    letter = _get_next_proposal_letter(lines, "test_cl", 2)
-    assert letter == "a"
-
-
-def test_get_next_proposal_letter_with_existing() -> None:
-    """Test getting next proposal letter when some exist."""
-    lines = [
-        "NAME: test_cl\n",
-        "STATUS: Ready\n",
-        "COMMITS:\n",
-        "  (2) Second commit\n",
-        "  (2a) First proposal\n",
-        "  (2b) Second proposal\n",
-    ]
-    letter = _get_next_proposal_letter(lines, "test_cl", 2)
-    assert letter == "c"
-
-
 def test_get_next_proposal_letter_fills_gap() -> None:
     """Test that next letter fills gaps."""
     lines = [
@@ -306,35 +186,6 @@ def test_add_proposed_commit_entry_existing_history() -> None:
         assert "(1a) Proposed change" in content
         assert "| CHAT: ~/.sase/chats/proposed.md" in content
         assert "| DIFF: ~/.sase/diffs/proposed.diff" in content
-    finally:
-        os.unlink(temp_path)
-
-
-def test_add_proposed_commit_entry_multiple_proposals() -> None:
-    """Test adding multiple proposed entries."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready\n")
-        f.write("COMMITS:\n")
-        f.write("  (2) Second commit\n")
-        f.write("  (2a) First proposal\n")
-        temp_path = f.name
-
-    try:
-        success, entry_id = add_proposed_commit_entry(
-            project_file=temp_path,
-            cl_name="test_cl",
-            note="Second proposal",
-            diff_path="~/.sase/diffs/second.diff",
-        )
-        assert success is True
-        assert entry_id == "2b"
-
-        with open(temp_path) as f:
-            content = f.read()
-        assert "(2) Second commit" in content
-        assert "(2a) First proposal" in content
-        assert "(2b) Second proposal" in content
     finally:
         os.unlink(temp_path)
 

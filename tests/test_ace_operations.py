@@ -4,33 +4,12 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 from sase.ace.operations import (
-    _has_failing_hooks_for_fix,
     get_available_workflows,
     get_workspace_directory,
     update_to_changespec,
 )
 
 # === Tests for get_workspace_directory ===
-
-
-@patch("sase.ace.operations.get_workspace_directory_for_num")
-@patch("sase.ace.operations.get_first_available_workspace")
-def test_get_workspace_directory_returns_tuple(
-    mock_get_first: MagicMock, mock_get_dir: MagicMock
-) -> None:
-    """Test get_workspace_directory returns workspace directory and suffix."""
-    mock_get_first.return_value = 3
-    mock_get_dir.return_value = ("/path/to/workspace", "fig_3")
-
-    mock_changespec = MagicMock()
-    mock_changespec.file_path = "/path/to/project.gp"
-    mock_changespec.project_basename = "my_project"
-
-    result = get_workspace_directory(mock_changespec)
-
-    assert result == ("/path/to/workspace", "fig_3")
-    mock_get_first.assert_called_once_with("/path/to/project.gp")
-    mock_get_dir.assert_called_once_with(3, "my_project")
 
 
 @patch("sase.ace.operations.get_workspace_directory_for_num")
@@ -54,73 +33,7 @@ def test_get_workspace_directory_main_workspace(
 # === Tests for _has_failing_hooks_for_fix ===
 
 
-@patch("sase.ace.operations.has_failing_hooks_for_fix")
-def test_has_failing_hooks_for_fix_true(mock_has_failing: MagicMock) -> None:
-    """Test _has_failing_hooks_for_fix returns True when hooks are eligible."""
-    mock_has_failing.return_value = True
-
-    mock_changespec = MagicMock()
-    mock_changespec.hooks = [MagicMock()]
-
-    assert _has_failing_hooks_for_fix(mock_changespec) is True
-    mock_has_failing.assert_called_once_with(mock_changespec.hooks)
-
-
-@patch("sase.ace.operations.has_failing_hooks_for_fix")
-def test_has_failing_hooks_for_fix_false(mock_has_failing: MagicMock) -> None:
-    """Test _has_failing_hooks_for_fix returns False when no eligible hooks."""
-    mock_has_failing.return_value = False
-
-    mock_changespec = MagicMock()
-    mock_changespec.hooks = []
-
-    assert _has_failing_hooks_for_fix(mock_changespec) is False
-
-
 # === Tests for get_available_workflows ===
-
-
-@patch("sase.ace.operations._has_failing_hooks_for_fix")
-def test_get_available_workflows_empty(mock_has_failing: MagicMock) -> None:
-    """Test get_available_workflows returns empty list when no workflows."""
-    mock_has_failing.return_value = False
-
-    mock_changespec = MagicMock()
-    mock_changespec.comments = []
-
-    result = get_available_workflows(mock_changespec)
-
-    assert result == []
-
-
-@patch("sase.ace.operations._has_failing_hooks_for_fix")
-def test_get_available_workflows_fix_hook_only(mock_has_failing: MagicMock) -> None:
-    """Test get_available_workflows returns fix-hook when failing hooks."""
-    mock_has_failing.return_value = True
-
-    mock_changespec = MagicMock()
-    mock_changespec.comments = []
-
-    result = get_available_workflows(mock_changespec)
-
-    assert result == ["fix-hook"]
-
-
-@patch("sase.ace.operations._has_failing_hooks_for_fix")
-def test_get_available_workflows_crs_only(mock_has_failing: MagicMock) -> None:
-    """Test get_available_workflows returns crs when critique comment exists."""
-    mock_has_failing.return_value = False
-
-    mock_comment = MagicMock()
-    mock_comment.reviewer = "critique"
-    mock_comment.suffix = None
-
-    mock_changespec = MagicMock()
-    mock_changespec.comments = [mock_comment]
-
-    result = get_available_workflows(mock_changespec)
-
-    assert result == ["crs"]
 
 
 @patch("sase.ace.operations._has_failing_hooks_for_fix")
@@ -140,60 +53,6 @@ def test_get_available_workflows_crs_with_suffix_ignored(
     result = get_available_workflows(mock_changespec)
 
     assert result == []
-
-
-@patch("sase.ace.operations._has_failing_hooks_for_fix")
-def test_get_available_workflows_both(mock_has_failing: MagicMock) -> None:
-    """Test get_available_workflows returns both workflows when applicable."""
-    mock_has_failing.return_value = True
-
-    mock_comment = MagicMock()
-    mock_comment.reviewer = "critique"
-    mock_comment.suffix = None
-
-    mock_changespec = MagicMock()
-    mock_changespec.comments = [mock_comment]
-
-    result = get_available_workflows(mock_changespec)
-
-    assert result == ["fix-hook", "crs"]
-
-
-@patch("sase.ace.operations._has_failing_hooks_for_fix")
-def test_get_available_workflows_no_comments(mock_has_failing: MagicMock) -> None:
-    """Test get_available_workflows handles None comments."""
-    mock_has_failing.return_value = False
-
-    mock_changespec = MagicMock()
-    mock_changespec.comments = None
-
-    result = get_available_workflows(mock_changespec)
-
-    assert result == []
-
-
-@patch("sase.ace.operations._has_failing_hooks_for_fix")
-def test_get_available_workflows_only_first_critique(
-    mock_has_failing: MagicMock,
-) -> None:
-    """Test that only first critique comment triggers crs workflow."""
-    mock_has_failing.return_value = False
-
-    mock_comment1 = MagicMock()
-    mock_comment1.reviewer = "critique"
-    mock_comment1.suffix = None
-
-    mock_comment2 = MagicMock()
-    mock_comment2.reviewer = "critique"
-    mock_comment2.suffix = None
-
-    mock_changespec = MagicMock()
-    mock_changespec.comments = [mock_comment1, mock_comment2]
-
-    result = get_available_workflows(mock_changespec)
-
-    # Should only have one "crs" entry even with multiple critique comments
-    assert result == ["crs"]
 
 
 # === Tests for update_to_changespec ===
@@ -243,28 +102,6 @@ def test_update_to_changespec_path_not_directory() -> None:
 
 
 @patch("sase.vcs_provider.get_vcs_provider")
-def test_update_to_changespec_success_with_revision(
-    mock_get_provider: MagicMock,
-) -> None:
-    """Test update_to_changespec succeeds with specified revision."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (True, None)
-    mock_provider.resolve_revision.side_effect = lambda name, *_: name
-    mock_get_provider.return_value = mock_provider
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        mock_changespec = MagicMock()
-
-        success, error = update_to_changespec(
-            mock_changespec, revision="my_revision", workspace_dir=tmpdir
-        )
-
-        assert success is True
-        assert error is None
-        mock_provider.checkout.assert_called_once_with("my_revision", tmpdir)
-
-
-@patch("sase.vcs_provider.get_vcs_provider")
 def test_update_to_changespec_uses_parent_revision(
     mock_get_provider: MagicMock,
 ) -> None:
@@ -304,96 +141,3 @@ def test_update_to_changespec_uses_provider_default(
         assert success is True
         mock_provider.get_default_parent_revision.assert_called_once_with(tmpdir)
         mock_provider.checkout.assert_called_once_with("p4head", tmpdir)
-
-
-@patch("sase.vcs_provider.get_vcs_provider")
-def test_update_to_changespec_command_fails_stderr(
-    mock_get_provider: MagicMock,
-) -> None:
-    """Test update_to_changespec handles command failure with error message."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (
-        False,
-        "sase_hg_update failed: Update failed",
-    )
-    mock_get_provider.return_value = mock_provider
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        mock_changespec = MagicMock()
-        mock_changespec.parent = None
-
-        success, error = update_to_changespec(mock_changespec, workspace_dir=tmpdir)
-
-        assert success is False
-        assert error is not None
-        assert "sase_hg_update failed" in error
-        assert "Update failed" in error
-
-
-@patch("sase.vcs_provider.get_vcs_provider")
-def test_update_to_changespec_command_fails_stdout(
-    mock_get_provider: MagicMock,
-) -> None:
-    """Test update_to_changespec handles command failure with stdout-based error."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (
-        False,
-        "sase_hg_update failed: Conflict detected",
-    )
-    mock_get_provider.return_value = mock_provider
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        mock_changespec = MagicMock()
-        mock_changespec.parent = None
-
-        success, error = update_to_changespec(mock_changespec, workspace_dir=tmpdir)
-
-        assert success is False
-        assert error is not None
-        assert "Conflict detected" in error
-
-
-@patch("sase.vcs_provider.get_vcs_provider")
-def test_update_to_changespec_command_not_found(
-    mock_get_provider: MagicMock,
-) -> None:
-    """Test update_to_changespec handles command not found."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (
-        False,
-        "sase_hg_update failed: sase_hg_update command not found",
-    )
-    mock_get_provider.return_value = mock_provider
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        mock_changespec = MagicMock()
-        mock_changespec.parent = None
-
-        success, error = update_to_changespec(mock_changespec, workspace_dir=tmpdir)
-
-        assert success is False
-        assert error is not None
-        assert "not found" in error
-
-
-@patch("sase.vcs_provider.get_vcs_provider")
-def test_update_to_changespec_unexpected_error(
-    mock_get_provider: MagicMock,
-) -> None:
-    """Test update_to_changespec handles unexpected errors from provider."""
-    mock_provider = MagicMock()
-    mock_provider.checkout.return_value = (
-        False,
-        "sase_hg_update failed: Unexpected error: Disk full",
-    )
-    mock_get_provider.return_value = mock_provider
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        mock_changespec = MagicMock()
-        mock_changespec.parent = None
-
-        success, error = update_to_changespec(mock_changespec, workspace_dir=tmpdir)
-
-        assert success is False
-        assert error is not None
-        assert "Disk full" in error

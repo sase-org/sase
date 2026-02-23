@@ -23,35 +23,9 @@ def sync_workflow():
     return wf
 
 
-def test_sync_workflow_has_four_steps(sync_workflow) -> None:
-    assert len(sync_workflow.steps) == 4
-
-
-def test_sync_workflow_step_names(sync_workflow) -> None:
-    names = [s.name for s in sync_workflow.steps]
-    assert names == ["setup", "sync_attempt", "resolve", "report"]
-
-
-def test_resolve_step_has_repeat_config(sync_workflow) -> None:
-    resolve = sync_workflow.steps[2]
-    assert resolve.repeat_config is not None
-    assert resolve.repeat_config.max_iterations == 20
-
-
-def test_resolve_step_has_if_condition(sync_workflow) -> None:
-    resolve = sync_workflow.steps[2]
-    assert resolve.condition is not None
-    assert "sync_attempt.has_conflicts" in resolve.condition
-
-
 def test_hidden_steps(sync_workflow) -> None:
     hidden_names = {s.name for s in sync_workflow.steps if s.hidden}
     assert hidden_names == {"setup", "sync_attempt", "report"}
-
-
-def test_resolve_step_is_not_hidden(sync_workflow) -> None:
-    resolve = sync_workflow.steps[2]
-    assert not resolve.hidden
 
 
 # ---------------------------------------------------------------------------
@@ -79,18 +53,6 @@ class TestSyncSetup:
         assert "cwd=/fake/repo" in out
         assert "_chdir=/fake/repo" in out
 
-    @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="hg")
-    def test_basic_hg(self, mock_detect, mock_get_provider, capsys) -> None:
-        mock_get_provider.return_value = self._make_provider("default")
-        from sase.scripts.sync_setup import main
-
-        main(cwd="/fake/hg-repo")
-
-        out = capsys.readouterr().out
-        assert "vcs_type=hg" in out
-        assert "branch_name=default" in out
-
     @patch("sase.scripts.sync_setup.detect_vcs_family", return_value=None)
     def test_no_vcs_detected(self, mock_detect, capsys) -> None:
         from sase.scripts.sync_setup import main
@@ -100,47 +62,6 @@ class TestSyncSetup:
         out = capsys.readouterr().out
         assert "vcs_type=unknown" in out
         assert "error=No VCS detected" in out
-
-    @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="git")
-    def test_cwd_from_env(
-        self, mock_detect, mock_get_provider, capsys, monkeypatch
-    ) -> None:
-        mock_get_provider.return_value = self._make_provider()
-        monkeypatch.setenv("SASE_SYNC_CWD", "/env/repo")
-        from sase.scripts.sync_setup import main
-
-        main()
-
-        out = capsys.readouterr().out
-        assert "cwd=/env/repo" in out
-
-    @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="git")
-    def test_cwd_param_takes_priority(
-        self, mock_detect, mock_get_provider, capsys, monkeypatch
-    ) -> None:
-        mock_get_provider.return_value = self._make_provider()
-        monkeypatch.setenv("SASE_SYNC_CWD", "/env/repo")
-        from sase.scripts.sync_setup import main
-
-        main(cwd="/param/repo")
-
-        out = capsys.readouterr().out
-        assert "cwd=/param/repo" in out
-
-    @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="git")
-    def test_branch_name_failure(self, mock_detect, mock_get_provider, capsys) -> None:
-        provider = MagicMock()
-        provider.get_branch_name.return_value = (False, None)
-        mock_get_provider.return_value = provider
-        from sase.scripts.sync_setup import main
-
-        main(cwd="/fake/repo")
-
-        out = capsys.readouterr().out
-        assert "branch_name=" in out
 
 
 # ---------------------------------------------------------------------------

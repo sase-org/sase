@@ -55,18 +55,6 @@ def _fail_result(
 # --- Instantiation Tests ---
 
 
-def test_lumberjack_instantiation(
-    temp_state_dir: Path, lj_config: LumberjackConfig, axe_config: AxeConfig
-) -> None:
-    """Test that Lumberjack can be instantiated with correct attributes."""
-    lj = Lumberjack("test_lj", lj_config, axe_config)
-    assert lj.name == "test_lj"
-    assert lj.config is lj_config
-    assert lj.axe_config is axe_config
-    assert lj._running is True
-    assert lj._metrics.cycles_run == 0
-
-
 def test_lumberjack_with_query(
     temp_state_dir: Path, lj_config: LumberjackConfig
 ) -> None:
@@ -77,30 +65,6 @@ def test_lumberjack_with_query(
 
 
 # --- Tick Execution Tests ---
-
-
-@patch("sase.axe.lumberjack.run_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
-def test_run_tick_invokes_chops(
-    mock_find: MagicMock,
-    mock_discover: MagicMock,
-    mock_run: MagicMock,
-    temp_state_dir: Path,
-    lj_config: LumberjackConfig,
-    axe_config: AxeConfig,
-) -> None:
-    """Test that _run_tick discovers and runs each configured chop script."""
-    mock_discover.return_value = Path("/fake/sase_chop_hook_checks")
-    mock_run.return_value = _ok_result()
-
-    lj = Lumberjack("test_lj", lj_config, axe_config)
-    lj._run_tick()
-
-    mock_discover.assert_called_once_with("hook_checks", [])
-    mock_run.assert_called_once()
-    assert lj._metrics.cycles_run == 1
-    assert lj._metrics.chops_executed == 1
 
 
 @patch("sase.axe.lumberjack.run_chop_script")

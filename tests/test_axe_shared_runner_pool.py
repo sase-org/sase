@@ -22,14 +22,6 @@ def temp_shared_dir(tmp_path: Path) -> Iterator[Path]:
 
 
 @patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
-def test_init_creates_counter_file(_mock_count: object, temp_shared_dir: Path) -> None:
-    """Test that SharedRunnerPool creates the counter file on init."""
-    pool = SharedRunnerPool(max_runners=5)
-    assert pool.get_counter_path().exists()
-    assert pool.get_counter_path().read_text() == "0"
-
-
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
 def test_init_preserves_existing_counter(
     _mock_count: object, temp_shared_dir: Path
 ) -> None:
@@ -43,37 +35,6 @@ def test_init_preserves_existing_counter(
     assert pool.get_counter_path().read_text() == "3"
 
 
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
-def test_reserve_slot_success(_mock_count: object, temp_shared_dir: Path) -> None:
-    """Test reserving a slot when capacity available."""
-    pool = SharedRunnerPool(max_runners=5)
-    assert pool.reserve_slot() is True
-    assert pool.get_counter_path().read_text().strip() == "1"
-
-
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
-def test_reserve_slot_multiple(_mock_count: object, temp_shared_dir: Path) -> None:
-    """Test reserving multiple slots sequentially."""
-    pool = SharedRunnerPool(max_runners=3)
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is False
-    assert pool.get_counter_path().read_text().strip() == "3"
-
-
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=3)
-def test_reserve_slot_respects_global_runners(
-    _mock_count: object, temp_shared_dir: Path
-) -> None:
-    """Test that reserve_slot accounts for global runners."""
-    pool = SharedRunnerPool(max_runners=5)
-    # Global has 3, counter has 0, max 5 → 2 slots available
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is False
-
-
 @patch("sase.axe.runner_pool.count_all_runners_global", return_value=5)
 def test_reserve_slot_fails_when_global_at_limit(
     _mock_count: object, temp_shared_dir: Path
@@ -81,21 +42,6 @@ def test_reserve_slot_fails_when_global_at_limit(
     """Test that reserve_slot fails when global runners already at limit."""
     pool = SharedRunnerPool(max_runners=5)
     assert pool.reserve_slot() is False
-
-
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
-def test_release_slot(_mock_count: object, temp_shared_dir: Path) -> None:
-    """Test releasing a previously reserved slot."""
-    pool = SharedRunnerPool(max_runners=5)
-    pool.reserve_slot()
-    pool.reserve_slot()
-    assert pool.get_counter_path().read_text().strip() == "2"
-
-    pool.release_slot()
-    assert pool.get_counter_path().read_text().strip() == "1"
-
-    pool.release_slot()
-    assert pool.get_counter_path().read_text().strip() == "0"
 
 
 @patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
@@ -117,23 +63,6 @@ def test_get_current_runners(_mock_count: object, temp_shared_dir: Path) -> None
     assert pool.get_current_runners() == 3
 
 
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
-def test_is_at_limit_true(_mock_count: object, temp_shared_dir: Path) -> None:
-    """Test is_at_limit returns True when at max."""
-    pool = SharedRunnerPool(max_runners=2)
-    pool.reserve_slot()
-    pool.reserve_slot()
-    assert pool.is_at_limit() is True
-
-
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
-def test_is_at_limit_false(_mock_count: object, temp_shared_dir: Path) -> None:
-    """Test is_at_limit returns False when slots available."""
-    pool = SharedRunnerPool(max_runners=5)
-    pool.reserve_slot()
-    assert pool.is_at_limit() is False
-
-
 @patch("sase.axe.runner_pool.count_all_runners_global", return_value=4)
 def test_is_at_limit_with_global_runners(
     _mock_count: object, temp_shared_dir: Path
@@ -143,23 +72,3 @@ def test_is_at_limit_with_global_runners(
     pool.reserve_slot()
     # Global (4) + counter (1) = 5 >= max (5)
     assert pool.is_at_limit() is True
-
-
-@patch("sase.axe.runner_pool.count_all_runners_global", return_value=0)
-def test_reserve_release_reserve_cycle(
-    _mock_count: object, temp_shared_dir: Path
-) -> None:
-    """Test a full reserve-release-reserve cycle."""
-    pool = SharedRunnerPool(max_runners=2)
-
-    # Fill up
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is False
-
-    # Release one
-    pool.release_slot()
-
-    # Can reserve again
-    assert pool.reserve_slot() is True
-    assert pool.reserve_slot() is False

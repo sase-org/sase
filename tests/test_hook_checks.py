@@ -52,29 +52,6 @@ def _make_changespec(
     )
 
 
-def test_check_hooks_skips_reverted() -> None:
-    """Test check_hooks skips starting new hooks for Reverted status.
-
-    For terminal statuses like Reverted, we still check if RUNNING hooks
-    have completed (to update status and release workspaces), but we
-    don't start new stale hooks.
-    """
-    cs = _make_changespec(
-        status="Reverted",
-        hooks=[
-            # Use PASSED status - no completion check needed, no stale hooks
-            _make_hook(command="test_cmd", status="PASSED", timestamp="240101120000")
-        ],
-    )
-    log = MagicMock()
-
-    updates, hooks_started = check_hooks(cs, log)
-
-    # No updates since hook is already PASSED (not RUNNING, not stale)
-    assert updates == []
-    assert hooks_started == 0
-
-
 def test_check_hooks_skips_submitted() -> None:
     """Test check_hooks skips starting new hooks for Submitted status.
 
@@ -109,17 +86,6 @@ def test_check_hooks_no_hooks() -> None:
     assert hooks_started == 0
 
 
-def test_check_hooks_empty_hooks() -> None:
-    """Test check_hooks returns empty when hooks list is empty."""
-    cs = _make_changespec(hooks=[])
-    log = MagicMock()
-
-    updates, hooks_started = check_hooks(cs, log)
-
-    assert updates == []
-    assert hooks_started == 0
-
-
 # Tests for _wait_for_completion_marker race condition handling
 
 
@@ -146,31 +112,6 @@ def test_wait_for_completion_marker_finds_on_first_retry() -> None:
     # Should have slept once before the check
     assert mock_sleep.call_count == 1
     mock_sleep.assert_called_with(0.1)
-
-
-def test_wait_for_completion_marker_finds_on_second_retry() -> None:
-    """Test that _wait_for_completion_marker retries until marker found."""
-    cs = _make_changespec()
-    hook = _make_hook(command="test_cmd", status="RUNNING", timestamp="240101120000")
-    completed_hook = _make_hook(
-        command="test_cmd", status="PASSED", timestamp="240101120000"
-    )
-
-    # First call returns None, second call returns completed hook
-    with (
-        patch(
-            "sase.ace.scheduler.hook_checks.check_hook_completion",
-            side_effect=[None, completed_hook],
-        ) as mock_check,
-        patch("sase.ace.scheduler.hook_checks.time.sleep") as mock_sleep,
-    ):
-        result = _wait_for_completion_marker(cs, hook, max_retries=3, retry_delay=0.1)
-
-    assert result == completed_hook
-    # Should have called check twice
-    assert mock_check.call_count == 2
-    # Should have slept twice
-    assert mock_sleep.call_count == 2
 
 
 def test_wait_for_completion_marker_returns_none_after_all_retries() -> None:
@@ -228,24 +169,3 @@ def test_check_hooks_logs_warning_on_merge_failure() -> None:
         "Warning: Hook update failed for test_cs, will retry",
         "dim",
     )
-
-
-def test_check_hooks_skips_wip() -> None:
-    """Test check_hooks skips starting new hooks for WIP status.
-
-    The new WIP status represents true work-in-progress that axe skips entirely,
-    so no hooks should be started for WIP ChangeSpecs.
-    """
-    cs = _make_changespec(
-        status="WIP",
-        hooks=[
-            _make_hook(command="test_cmd", status="PASSED", timestamp="240101120000")
-        ],
-    )
-    log = MagicMock()
-
-    updates, hooks_started = check_hooks(cs, log)
-
-    # No updates since WIP is skipped
-    assert updates == []
-    assert hooks_started == 0

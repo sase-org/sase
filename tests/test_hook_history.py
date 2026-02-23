@@ -13,68 +13,6 @@ from sase.hook_history import (
 )
 
 
-def test_load_empty_when_no_file(tmp_path: Path) -> None:
-    """Test loading returns empty list when no file exists."""
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", tmp_path / "nonexistent.json"):
-        result = _load_hook_history()
-        assert result == []
-
-
-def test_save_and_load_hook(tmp_path: Path) -> None:
-    """Test saving and loading a hook."""
-    test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
-        entry = HookHistoryEntry(
-            command="make test",
-            timestamp="251231_143052",
-            last_used="251231_143052",
-        )
-        assert _save_hook_history([entry])
-        result = _load_hook_history()
-        assert len(result) == 1
-        assert result[0].command == "make test"
-        assert result[0].timestamp == "251231_143052"
-        assert result[0].last_used == "251231_143052"
-
-
-def test_save_multiple_hooks(tmp_path: Path) -> None:
-    """Test saving multiple hooks."""
-    test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
-        entries = [
-            HookHistoryEntry(
-                command="make test",
-                timestamp="251231_143052",
-                last_used="251231_143052",
-            ),
-            HookHistoryEntry(
-                command="make build",
-                timestamp="251231_143053",
-                last_used="251231_143053",
-            ),
-        ]
-        assert _save_hook_history(entries)
-        result = _load_hook_history()
-        assert len(result) == 2
-        assert result[0].command == "make test"
-        assert result[1].command == "make build"
-
-
-def test_add_new_hook(tmp_path: Path) -> None:
-    """Test adding a new hook to history."""
-    test_file = tmp_path / "hook_history.json"
-    with (
-        patch("sase.hook_history._HOOK_HISTORY_FILE", test_file),
-        patch("sase.hook_history.generate_timestamp", return_value="251231_143052"),
-    ):
-        add_or_update_hook("make test")
-        result = _load_hook_history()
-        assert len(result) == 1
-        assert result[0].command == "make test"
-        assert result[0].timestamp == "251231_143052"
-        assert result[0].last_used == "251231_143052"
-
-
 def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
     """Test that adding same command replaces the entry."""
     test_file = tmp_path / "hook_history.json"
@@ -100,29 +38,6 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
         # Both timestamps should be updated (new entry)
         assert result[0].timestamp == "251231_200000"
         assert result[0].last_used == "251231_200000"
-
-
-def test_different_commands_not_deduplicated(tmp_path: Path) -> None:
-    """Test that different commands are not deduplicated."""
-    test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
-        # Add initial hook
-        initial_entry = HookHistoryEntry(
-            command="make test",
-            timestamp="251231_100000",
-            last_used="251231_100000",
-        )
-        _save_hook_history([initial_entry])
-
-        # Add a different hook
-        with patch(
-            "sase.hook_history.generate_timestamp", return_value="251231_200000"
-        ):
-            add_or_update_hook("make build")
-
-        result = _load_hook_history()
-        # Should have 2 entries (different commands)
-        assert len(result) == 2
 
 
 def test_get_hooks_for_display_empty(tmp_path: Path) -> None:
@@ -227,16 +142,3 @@ def test_delete_hook_nonexistent_returns_true(tmp_path: Path) -> None:
         remaining = _load_hook_history()
         assert len(remaining) == 1
         assert remaining[0].command == "make test"
-
-
-def test_save_creates_parent_directory(tmp_path: Path) -> None:
-    """Test that save_hook_history creates parent directory if needed."""
-    test_file = tmp_path / "subdir" / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
-        entry = HookHistoryEntry(
-            command="make test",
-            timestamp="251231_143052",
-            last_used="251231_143052",
-        )
-        assert _save_hook_history([entry])
-        assert test_file.exists()

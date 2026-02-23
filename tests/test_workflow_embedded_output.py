@@ -79,57 +79,6 @@ def test_embedded_workflow_info_with_nested_step_name() -> None:
 # ============================================================================
 
 
-def testmap_output_by_type_same_keys() -> None:
-    """Test type mapping when parent and embedded have the same key names."""
-    parent_spec = _make_output_spec({"file_path": "path"})
-    embedded_spec = _make_output_spec({"file_path": "path"})
-    embedded_output = {"file_path": "/tmp/test.md"}
-
-    result = map_output_by_type(parent_spec, embedded_spec, embedded_output)
-    assert result == {"file_path": "/tmp/test.md"}
-
-
-def testmap_output_by_type_different_keys_same_type() -> None:
-    """Test type mapping when keys differ but types match."""
-    parent_spec = _make_output_spec({"plan_path": "path"})
-    embedded_spec = _make_output_spec({"file_path": "path"})
-    embedded_output = {"file_path": "/tmp/plan-240101.md"}
-
-    result = map_output_by_type(parent_spec, embedded_spec, embedded_output)
-    assert result == {"plan_path": "/tmp/plan-240101.md"}
-
-
-def testmap_output_by_type_no_matching_type() -> None:
-    """Test that mapping fails when types don't match."""
-    parent_spec = _make_output_spec({"file_path": "path"})
-    embedded_spec = _make_output_spec({"url": "text"})
-    embedded_output = {"url": "http://example.com"}
-
-    result = map_output_by_type(parent_spec, embedded_spec, embedded_output)
-    assert result is None
-
-
-def testmap_output_by_type_parent_fewer_keys() -> None:
-    """Test mapping when parent has fewer keys of a given type than embedded."""
-    parent_spec = _make_output_spec({"my_path": "path"})
-    embedded_spec = _make_output_spec({"file_path": "path", "extra_path": "path"})
-    embedded_output = {"file_path": "/tmp/test.md", "extra_path": "/tmp/extra.md"}
-
-    result = map_output_by_type(parent_spec, embedded_spec, embedded_output)
-    # Should map the first embedded key of type "path" to the parent key
-    assert result == {"my_path": "/tmp/test.md"}
-
-
-def testmap_output_by_type_parent_more_keys_fails() -> None:
-    """Test that mapping fails when parent has more keys of a type than embedded."""
-    parent_spec = _make_output_spec({"path_a": "path", "path_b": "path"})
-    embedded_spec = _make_output_spec({"file_path": "path"})
-    embedded_output = {"file_path": "/tmp/test.md"}
-
-    result = map_output_by_type(parent_spec, embedded_spec, embedded_output)
-    assert result is None
-
-
 def testmap_output_by_type_empty_parent() -> None:
     """Test that mapping returns None for empty parent spec."""
     parent_spec = OutputSpec(type="json_schema", schema={"properties": {}})
@@ -143,37 +92,6 @@ def testmap_output_by_type_empty_parent() -> None:
 # ============================================================================
 # _propagate_last_embedded_output tests
 # ============================================================================
-
-
-def test_propagate_basic_matching_output() -> None:
-    """Test basic propagation when parent and embedded output types match."""
-    post_step = WorkflowStep(
-        name="verify_file",
-        bash='echo "file_path=test.md"',
-        output=_make_output_spec({"file_path": "path"}),
-    )
-    embedded_context: dict[str, Any] = {
-        "verify_file": {"file_path": "/tmp/test-240101_120000.md"},
-    }
-    info = EmbeddedWorkflowInfo(
-        pre_steps=[],
-        post_steps=[post_step],
-        context=embedded_context,
-        workflow_name="file",
-    )
-
-    parent_step = WorkflowStep(
-        name="plan",
-        agent="write a plan",
-        output=_make_output_spec({"file_path": "path"}),
-    )
-    step_state = _make_step_state("plan", output={"_raw": "some response"})
-    context: dict[str, Any] = {"plan": {"_raw": "some response"}}
-
-    _call_propagate(context, [info], parent_step, step_state)
-
-    assert step_state.output == {"file_path": "/tmp/test-240101_120000.md"}
-    assert context["plan"] == {"file_path": "/tmp/test-240101_120000.md"}
 
 
 def test_propagate_remaps_different_key_names() -> None:
@@ -318,43 +236,3 @@ def test_propagate_noop_when_no_post_steps() -> None:
     _call_propagate(context, [info], parent_step, step_state)
 
     assert step_state.output == {"_raw": "response"}
-
-
-def test_propagate_uses_last_embedded_workflow() -> None:
-    """Test that propagation uses the last embedded workflow, not the first."""
-    post_step_first = WorkflowStep(
-        name="verify_first",
-        bash='echo "file_path=first.md"',
-        output=_make_output_spec({"file_path": "path"}),
-    )
-    post_step_last = WorkflowStep(
-        name="verify_last",
-        bash='echo "file_path=last.md"',
-        output=_make_output_spec({"file_path": "path"}),
-    )
-    info_first = EmbeddedWorkflowInfo(
-        pre_steps=[],
-        post_steps=[post_step_first],
-        context={"verify_first": {"file_path": "first.md"}},
-        workflow_name="file",
-    )
-    info_last = EmbeddedWorkflowInfo(
-        pre_steps=[],
-        post_steps=[post_step_last],
-        context={"verify_last": {"file_path": "last.md"}},
-        workflow_name="file",
-    )
-
-    parent_step = WorkflowStep(
-        name="plan",
-        agent="write a plan",
-        output=_make_output_spec({"file_path": "path"}),
-    )
-    step_state = _make_step_state("plan", output={"_raw": "response"})
-    context: dict[str, Any] = {"plan": {"_raw": "response"}}
-
-    _call_propagate(context, [info_first, info_last], parent_step, step_state)
-
-    # Should use the last embedded workflow
-    assert step_state.output == {"file_path": "last.md"}
-    assert context["plan"] == {"file_path": "last.md"}

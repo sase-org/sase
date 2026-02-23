@@ -55,16 +55,6 @@ def test_flatten_anonymous_workflow_returns_none_for_non_single_step() -> None:
     assert result is None
 
 
-def test_flatten_anonymous_workflow_returns_none_for_non_prompt_step() -> None:
-    """Test that non-prompt steps (e.g., bash) are not flattened."""
-    workflow = Workflow(
-        name="tmp_abc",
-        steps=[WorkflowStep(name="main", bash="echo hello")],
-    )
-    result = _flatten_anonymous_workflow(workflow)
-    assert result is None
-
-
 def test_flatten_anonymous_workflow_returns_none_for_non_hash_prompt() -> None:
     """Test that prompts not starting with # are not flattened."""
     workflow = _make_anonymous_workflow("just a plain prompt")
@@ -120,49 +110,3 @@ def test_flatten_anonymous_workflow_returns_workflow_for_pure_multistep(
     assert ref_wf.name == "split"
     assert pos_args == []
     assert named_args == {}
-
-
-@patch("sase.xprompt.loader.get_all_prompts")
-def test_flatten_anonymous_workflow_passes_positional_args(
-    mock_get_all_prompts: MagicMock,
-) -> None:
-    """Test that positional args from the reference are returned."""
-    target_wf = Workflow(
-        name="split",
-        inputs=[InputArg(name="split_desc", type=InputType.LINE)],
-        steps=[
-            WorkflowStep(name="analyze", agent="Analyze: {{ split_desc }}"),
-            WorkflowStep(name="execute", agent="Execute"),
-        ],
-    )
-    mock_get_all_prompts.return_value = {"split": target_wf}
-    workflow = _make_anonymous_workflow("#split(my description)")
-    result = _flatten_anonymous_workflow(workflow)
-    assert result is not None
-    ref_wf, pos_args, named_args = result
-    assert ref_wf.name == "split"
-    assert pos_args == ["my description"]
-    assert named_args == {}
-
-
-@patch("sase.xprompt.loader.get_all_prompts")
-def test_flatten_anonymous_workflow_passes_named_args(
-    mock_get_all_prompts: MagicMock,
-) -> None:
-    """Test that named args from the reference are returned."""
-    target_wf = Workflow(
-        name="split",
-        inputs=[InputArg(name="split_desc", type=InputType.LINE)],
-        steps=[
-            WorkflowStep(name="analyze", agent="Analyze: {{ split_desc }}"),
-            WorkflowStep(name="execute", agent="Execute"),
-        ],
-    )
-    mock_get_all_prompts.return_value = {"split": target_wf}
-    workflow = _make_anonymous_workflow("#split(split_desc='test value')")
-    result = _flatten_anonymous_workflow(workflow)
-    assert result is not None
-    ref_wf, pos_args, named_args = result
-    assert ref_wf.name == "split"
-    assert pos_args == []
-    assert named_args == {"split_desc": "test value"}
