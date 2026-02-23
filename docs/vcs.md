@@ -7,6 +7,39 @@ The **VCS provider layer** is an abstraction that lets sase commands work transp
 Both Git and Mercurial are first-class supported. The same sase workflows (creating commits, amending, syncing,
 mailing/pushing for review, reverting, restoring) work identically regardless of which VCS backs the repository.
 
+## Plugin Architecture
+
+VCS providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins. The core `sase` package only bundles
+the **BareGitPlugin** (for plain git repositories). Additional VCS backends are installed as separate packages:
+
+| Package       | Plugin          | Description                                |
+| ------------- | --------------- | ------------------------------------------ |
+| `sase` (core) | `BareGitPlugin` | Standard git operations (bundled)          |
+| `sase-github` | `GitHubPlugin`  | Git + GitHub CLI (`gh`) for PR operations  |
+| `sase-hg`     | `HgPlugin`      | Mercurial with `sase_hg_*` helper commands |
+
+Install optional providers via pip:
+
+```bash
+pip install sase-github   # GitHub PR support
+pip install sase-hg       # Mercurial support
+```
+
+Plugins register themselves via the `sase_vcs` entry point group. The plugin manager loads all registered plugins and
+dispatches VCS operations through pluggy's `firstresult=True` hook system — the first plugin that returns a non-`None`
+result wins.
+
+### Hook Specification
+
+All VCS operations are defined in `VCSHookSpec` (`src/sase/vcs_provider/_hookspec.py`). Each method is prefixed with
+`vcs_` and returns `tuple[bool, str | None]` (success flag and optional output). Plugins implement only the hooks they
+support; unsupported operations return `None` and are skipped.
+
+### Disabling Plugins
+
+Set `SASE_DISABLE_PLUGINS` to disable all plugin groups, or `SASE_DISABLE_PLUGIN_VCS` to disable VCS plugins
+specifically. See [docs/configuration.md](configuration.md#plugin-system) for details.
+
 ## Provider Selection
 
 Sase uses a 3-tier resolution strategy to decide which VCS provider to use. The first tier that returns a concrete
@@ -58,9 +91,14 @@ directly. Only an unset environment variable consults the config.
 If neither the environment variable nor config file specifies a provider, sase walks up the directory tree from the
 current working directory looking for `.hg/` or `.git/` directories. The first one found determines the provider.
 
-- `.hg/` found first → Mercurial provider
-- `.git/` found first → Git provider
+- `.hg/` found first → Mercurial provider (`"hg"`)
+- `.git/` found first → Git provider. If a GitHub remote is detected, uses `"github"` (requires `sase-github` plugin);
+  otherwise uses `"bare_git"`.
 - Neither found → **Error**: `VCSProviderNotFoundError`
+
+The `detect_vcs()` function returns one of three values: `"github"`, `"bare_git"`, or `"hg"`. A convenience function
+`detect_vcs_family()` collapses `"github"` and `"bare_git"` into `"git"` for contexts that only care about the VCS
+family.
 
 ## Per-Command VCS Usage
 
@@ -227,7 +265,8 @@ Standalone command to restore a reverted ChangeSpec:
 
 ## Git Provider Details
 
-The Git provider uses standard `git` commands and the **GitHub CLI (`gh`)** for PR operations.
+The Git provider is split into two plugins: **BareGitPlugin** (bundled with core sase) handles standard `git` commands,
+while **GitHubPlugin** (from the `sase-github` package) adds **GitHub CLI (`gh`)** support for PR operations.
 
 ### Branch Management
 
@@ -284,7 +323,8 @@ git commit --amend -m "<msg>\n<tag>=<value>"    # Append tag
 
 ## Mercurial Provider Details
 
-The Mercurial provider uses a combination of standard `hg` commands and Google-internal `sase_hg_*` wrapper commands.
+The Mercurial provider is available via the `sase-hg` package (`pip install sase-hg`). It uses a combination of standard
+`hg` commands and `sase_hg_*` wrapper commands.
 
 ### Core Commands
 
@@ -470,10 +510,24 @@ brew install gh
 gh auth login
 ```
 
+### Mercurial: Plugin Not Installed
+
+The Mercurial provider requires the `sase-hg` package. Without it, hg repositories will not be detected.
+
+**Symptoms:**
+
+- Auto-detection does not recognize `.hg/` directories
+- "No VCS provider found" error in hg repositories
+
+**Fix:** Install the Mercurial plugin:
+
+```bash
+pip install sase-hg
+```
+
 ### Mercurial: `sase_hg_*` Commands Not Found
 
-The Mercurial provider depends on Google-internal `sase_hg_*` wrapper commands. If these are not in your PATH,
-operations will fail.
+The Mercurial provider depends on `sase_hg_*` wrapper commands. If these are not in your PATH, operations will fail.
 
 **Symptoms:**
 
@@ -481,8 +535,7 @@ operations will fail.
 - "sase_hg_sync command not found"
 - Any core hg operation failing with "command not found"
 
-**Fix:** Ensure your PATH includes the directory containing the `sase_hg_*` scripts. These are typically available in
-Google's internal development environment.
+**Fix:** Ensure your PATH includes the directory containing the `sase_hg_*` scripts.
 
 ### Auto-Detection Picks Wrong Provider in Nested Repos
 

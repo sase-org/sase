@@ -38,7 +38,8 @@ higher-priority source wins (first-wins).
 | 4        | `~/xprompts/*.md` (home)                 | Non-hidden variant                        |
 | 5        | `~/.config/sase/xprompts/{project}/*.md` | Project-specific (when project is set)    |
 | 6        | `sase.yml` `xprompts:` section           | Config-based definitions                  |
-| 7        | `<sase_package>/xprompts/*.md`           | Built-in xprompts shipped with sase       |
+| 7        | Plugin packages (`sase_xprompts` EPs)    | Installed plugin xprompts                 |
+| 8        | `<sase_package>/xprompts/*.md`           | Built-in xprompts shipped with sase       |
 
 For file-based xprompts (priorities 1-5, 7), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
@@ -317,7 +318,7 @@ xprompts:
     content: "Hello {{ name }}, count is {{ count }}"
 ```
 
-Config-based xprompts have priority 6 (below file-based, above built-in).
+Config-based xprompts have priority 6 (below file-based, above plugin and built-in).
 
 ## Recursive Expansion
 
@@ -336,7 +337,7 @@ Workflow agent steps can embed xprompt references inline:
 ```yaml
 steps:
   - name: review
-    prompt: |
+    agent: |
       #mentor(prompt=[[Review error handling]])
 ```
 

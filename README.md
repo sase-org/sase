@@ -20,7 +20,7 @@ scale.
   execution, and human-in-the-loop support
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
 - **LLM Providers** — Pluggable AI abstraction (Claude, Gemini) with pre/post-processing
-- **VCS Providers** — Version control abstraction supporting both git and Mercurial
+- **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
 - **Query Language** — Boolean expression language for filtering and searching ChangeSpecs
 
 ## Architecture
@@ -39,8 +39,11 @@ scale.
 │  └────────────┘  └──────────┘  └────────────┘   │
 ├─────────────────────┬───────────────────────────┤
 │   LLM Provider      │      VCS Provider         │
-│  (Claude, Gemini)   │     (git / hg)            │
-└─────────────────────┴───────────────────────────┘
+│  (Claude, Gemini)   │  (pluggy plugin system)   │
+├─────────────────────┴───────────────────────────┤
+│              Plugin Packages                    │
+│  sase-github (GitHub PRs)  sase-hg (Mercurial) │
+└─────────────────────────────────────────────────┘
 ```
 
 ## Requirements
@@ -131,7 +134,13 @@ src/sase/
 │   └── cli.py           # Axe CLI argument parsing
 ├── xprompt/             # Prompt templates and workflow execution
 ├── llm_provider/        # Pluggable LLM abstraction (Claude, Gemini)
-├── vcs_provider/        # VCS abstraction (git, Mercurial)
+├── vcs_provider/        # VCS abstraction (pluggy-based plugin system)
+│   ├── _hookspec.py     # Pluggy hook specifications (VCSHookSpec)
+│   ├── _plugin_manager.py # Plugin manager wrapping pluggy
+│   ├── _command_runner.py # Shared CommandRunner mixin
+│   └── plugins/         # Built-in VCS plugins
+│       └── bare_git.py  # BareGitPlugin (standard git operations)
+├── plugin_discovery.py  # Entry-point-based plugin discovery (shared)
 ├── commit_workflow/     # Commit creation workflows
 ├── commit_utils/        # COMMITS entry management
 ├── accept_workflow/     # Change acceptance workflows
@@ -176,6 +185,7 @@ just build         # Build wheel + sdist
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
 - [`docs/configuration.md`](docs/configuration.md) — Configuration reference
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
+- [`docs/plugins.md`](docs/plugins.md) — Plugin system and extension guide
 - [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation

@@ -30,17 +30,24 @@ Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of
 
 ## Deep-Merge System
 
-Sase loads `sase.yml` as the base configuration, then deep-merges each `sase_*.yml` overlay file **sorted
-alphabetically** on top. This allows splitting configuration across multiple files (e.g., `sase_work.yml`,
-`sase_personal.yml`) without duplication.
+Sase builds a merged configuration through four layers, each merged on top of the previous:
+
+1. **`default_config.yml`** — bundled package defaults
+2. **Plugin `default_config.yml` files** — from installed plugin packages (via `sase_config` entry points), sorted by
+   entry-point name; lists concatenate
+3. **`sase.yml`** — user config; lists **replace** defaults (not concatenate)
+4. **`sase_*.yml` overlays** — sorted alphabetically; lists **concatenate**
+
+This allows splitting configuration across multiple files (e.g., `sase_work.yml`, `sase_personal.yml`) without
+duplication, and plugins can provide sensible defaults that users can override.
 
 Merge semantics:
 
-| Type        | Behavior                                              |
-| ----------- | ----------------------------------------------------- |
-| **Dicts**   | Merged recursively (overlay keys override base keys). |
-| **Lists**   | Concatenated (overlay items appended to base items).  |
-| **Scalars** | Override (overlay value replaces base value).         |
+| Type        | Behavior                                                               |
+| ----------- | ---------------------------------------------------------------------- |
+| **Dicts**   | Merged recursively (overlay keys override base keys).                  |
+| **Lists**   | Concatenated in layers 2 and 4; **replaced** in layer 3 (user config). |
+| **Scalars** | Override (overlay value replaces base value).                          |
 
 For example, given a base file with two mentor profiles and an overlay that adds a third, the merged result contains all
 three profiles. If both files define the same scalar key (e.g., `axe.max_runners`), the overlay wins.
@@ -268,7 +275,7 @@ xprompts:
     content: "Review this {{ language }} code.{{ ' Be strict.' if strict }}"
 ```
 
-Xprompts defined in `sase.yml` are priority 6 out of 7 in the resolution order:
+Xprompts defined in `sase.yml` are priority 6 out of 8 in the resolution order:
 
 1. `.xprompts/*.md` (CWD, hidden directory)
 2. `xprompts/*.md` (CWD)
@@ -276,7 +283,8 @@ Xprompts defined in `sase.yml` are priority 6 out of 7 in the resolution order:
 4. `~/xprompts/*.md` (home)
 5. `~/.config/sase/xprompts/{project}/*.md` (project-specific)
 6. `sase.yml` `xprompts:` section
-7. `<sase_package>/xprompts/*.md` (built-in)
+7. Plugin packages (via `sase_xprompts` entry points)
+8. `<sase_package>/xprompts/*.md` (built-in)
 
 Earlier sources win on name conflicts. File-based xprompts use YAML front matter for metadata and the file body for
 content.
@@ -305,6 +313,15 @@ variable is used as a fallback. Values are split on whitespace and appended to t
 | --------------------- | ------------------------------------------------------------------------ |
 | `SASE_VCS_PROVIDER`   | Override VCS provider selection (`git`, `hg`, or `auto`).                |
 | `SASE_WORKSPACE_ROOT` | Override the workspace root directory (takes priority over config file). |
+
+### Plugin System
+
+| Variable                       | Description                                               |
+| ------------------------------ | --------------------------------------------------------- |
+| `SASE_DISABLE_PLUGINS`         | Disable all plugin groups when set (any non-empty value). |
+| `SASE_DISABLE_PLUGIN_VCS`      | Disable VCS plugins only.                                 |
+| `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable xprompt plugins only.                             |
+| `SASE_DISABLE_PLUGIN_CONFIG`   | Disable config plugins only.                              |
 
 ### Workspace Management (Internal)
 

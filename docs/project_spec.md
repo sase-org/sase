@@ -102,7 +102,7 @@ DESCRIPTION:
   valid and invalid config scenarios.
 PARENT: my-project_add_config_parser
 CL: None
-STATUS: Unstarted
+STATUS: Blocked
 
 
 NAME: my-project_add_docs
@@ -115,7 +115,7 @@ DESCRIPTION:
   and document all available configuration options.
 PARENT: my-project_integrate_parser
 CL: None
-STATUS: Unstarted
+STATUS: Blocked
 ```
 
 ## Important Notes
