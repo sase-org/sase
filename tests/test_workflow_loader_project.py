@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.xprompt.workflow_loader import (
+    _discover_workflow_files,
     _load_workflow_from_file,
     get_all_workflows,
 )
@@ -138,3 +139,30 @@ def test_get_all_workflows_file_overrides_project() -> None:
 
     # File-based should win
     assert workflows["test"].source_path == "/file/test.yml"
+
+
+def test_xprompts_yml_skipped_during_workflow_discovery() -> None:
+    """Test that xprompts.yml/yaml files are not discovered as workflow files."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        search_dir = Path(tmp_dir) / ".xprompts"
+        search_dir.mkdir()
+
+        # Create an xprompts.yml (should be skipped)
+        (search_dir / "xprompts.yml").write_text('foo: "content"\n')
+        # Create an xprompts.yaml (should also be skipped)
+        (search_dir / "xprompts.yaml").write_text('bar: "content"\n')
+        # Create a real workflow (should be discovered)
+        (search_dir / "real_workflow.yml").write_text(
+            "steps:\n  - name: step1\n    bash: echo hi\n"
+        )
+
+        with patch(
+            "sase.xprompt.workflow_loader.get_xprompt_search_paths",
+            return_value=[search_dir],
+        ):
+            discovered = _discover_workflow_files()
+
+        filenames = [path.name for path, _ in discovered]
+        assert "xprompts.yml" not in filenames
+        assert "xprompts.yaml" not in filenames
+        assert "real_workflow.yml" in filenames

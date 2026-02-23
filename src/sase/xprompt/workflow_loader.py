@@ -8,6 +8,7 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
+    XPROMPTS_CONFIG_BASENAMES,
     get_sase_package_xprompts_dir,
     get_xprompt_search_paths,
     parse_xprompt_entries,
@@ -122,6 +123,11 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
     return workflow
 
 
+def _is_xprompts_config_file(path: Path) -> bool:
+    """Check if a path is an xprompts config file (xprompts.yml/yaml)."""
+    return path.name in XPROMPTS_CONFIG_BASENAMES
+
+
 def _discover_workflow_files() -> list[tuple[Path, int]]:
     """Find all workflow files in search paths with priority info.
 
@@ -136,11 +142,11 @@ def _discover_workflow_files() -> list[tuple[Path, int]]:
             continue
 
         for yml_file in search_dir.glob("*.yml"):
-            if yml_file.is_file():
+            if yml_file.is_file() and not _is_xprompts_config_file(yml_file):
                 results.append((yml_file, priority))
 
         for yaml_file in search_dir.glob("*.yaml"):
-            if yaml_file.is_file():
+            if yaml_file.is_file() and not _is_xprompts_config_file(yaml_file):
                 results.append((yaml_file, priority))
 
     return results
@@ -181,13 +187,13 @@ def _load_workflows_from_internal() -> dict[str, Workflow]:
 
     workflows: dict[str, Workflow] = {}
     for yml_file in internal_dir.glob("*.yml"):
-        if yml_file.is_file():
+        if yml_file.is_file() and not _is_xprompts_config_file(yml_file):
             workflow = _load_workflow_from_file(yml_file)
             if workflow:
                 workflows[workflow.name] = workflow
 
     for yaml_file in internal_dir.glob("*.yaml"):
-        if yaml_file.is_file():
+        if yaml_file.is_file() and not _is_xprompts_config_file(yaml_file):
             workflow = _load_workflow_from_file(yaml_file)
             if workflow:
                 workflows[workflow.name] = workflow
@@ -222,6 +228,8 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
         for entry in entries:
             entry_name: str = entry.name  # type: ignore[union-attr]
             if not (entry_name.endswith(".yml") or entry_name.endswith(".yaml")):
+                continue
+            if entry_name in XPROMPTS_CONFIG_BASENAMES:
                 continue
             try:
                 text = entry.read_text(encoding="utf-8")  # type: ignore[union-attr]
@@ -273,7 +281,7 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
 
     workflows: dict[str, Workflow] = {}
     for yml_file in project_dir.glob("*.yml"):
-        if yml_file.is_file():
+        if yml_file.is_file() and not _is_xprompts_config_file(yml_file):
             workflow = _load_workflow_from_file(yml_file)
             if workflow:
                 # Use file stem for project workflows to avoid duplicate prefixes
@@ -290,7 +298,7 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
                 )
 
     for yaml_file in project_dir.glob("*.yaml"):
-        if yaml_file.is_file():
+        if yaml_file.is_file() and not _is_xprompts_config_file(yaml_file):
             workflow = _load_workflow_from_file(yaml_file)
             if workflow:
                 # Use file stem for project workflows to avoid duplicate prefixes
