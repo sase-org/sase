@@ -57,6 +57,23 @@ class FileListChanged(Message):
         self.file_index = file_index
 
 
+class FileTrimChanged(Message):
+    """Message posted when file content trimming state changes."""
+
+    def __init__(self, visible_lines: int, total_lines: int, is_trimmed: bool) -> None:
+        """Initialize the message.
+
+        Args:
+            visible_lines: Number of lines currently visible.
+            total_lines: Total number of lines in the content.
+            is_trimmed: Whether the content is currently trimmed.
+        """
+        super().__init__()
+        self.visible_lines = visible_lines
+        self.total_lines = total_lines
+        self.is_trimmed = is_trimmed
+
+
 @dataclass
 class _FileCacheEntry:
     """Cache entry for agent file output."""
@@ -112,6 +129,15 @@ class AgentFilePanel(Static):
         self._is_background_refreshing: bool = False
         self._file_list: list[str] = []
         self._current_file_index: int = 0
+        # Trim state
+        self._total_line_count: int = 0
+        self._visible_line_count: int = 0
+        self._base_trim_size: int = 0
+        self._is_trimmed: bool = False
+        self._full_content: str | None = None
+        self._full_content_lexer: str = "text"
+        self._content_mode: str = "none"
+        self._static_header_path: str | None = None
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update with agent file output.
@@ -120,6 +146,7 @@ class AgentFilePanel(Static):
             agent: The Agent to display file for.
             stale_threshold_seconds: Files older than this are refetched.
         """
+        self._reset_trim_state()
         self._current_agent = agent
 
         # Check cache
@@ -165,6 +192,7 @@ class AgentFilePanel(Static):
         Args:
             files: Ordered list of file paths to make available for cycling.
         """
+        self._reset_trim_state()
         if files == self._file_list:
             return
         self._file_list = list(files)
@@ -227,6 +255,118 @@ class AgentFilePanel(Static):
                 file_index=self._current_file_index,
             )
         )
+
+    def _compute_trim_size(self) -> int:
+        """Compute the number of lines to show based on container height.
+
+        Returns:
+            The trim size, or 0 if container is unavailable.
+        """
+        container = self._get_scroll_container()
+        if container is None:
+            return 0
+        try:
+            height = container.scrollable_content_region.height
+        except Exception:
+            return 0
+        return max(10, height - 4)
+
+    def _reset_trim_state(self) -> None:
+        """Reset all trim-related fields to defaults."""
+        self._total_line_count = 0
+        self._visible_line_count = 0
+        self._base_trim_size = 0
+        self._is_trimmed = False
+        self._full_content = None
+        self._full_content_lexer = "text"
+        self._content_mode = "none"
+        self._static_header_path = None
+
+    def _count_lines(self, content: str) -> int:
+        """Count the number of lines in content.
+
+        Args:
+            content: The text content.
+
+        Returns:
+            The line count.
+        """
+        return content.count("\n") + (1 if not content.endswith("\n") else 0)
+
+    def _post_trim_changed(self) -> None:
+        """Post a FileTrimChanged message with current trim state."""
+        self.post_message(
+            FileTrimChanged(
+                visible_lines=self._visible_line_count,
+                total_lines=self._total_line_count,
+                is_trimmed=self._is_trimmed,
+            )
+        )
+
+    def _render_trimmed_content(self) -> None:
+        """Re-render full_content with current trim state."""
+        if self._full_content is None:
+            return
+
+        visible = self._visible_line_count
+        total = self._total_line_count
+
+        if self._content_mode == "static":
+            header = Text(
+                self._static_header_path or "", style="bold #D7AF5F underline"
+            )
+            syntax = Syntax(
+                self._full_content,
+                self._full_content_lexer,
+                theme="monokai",
+                line_numbers=True,
+                word_wrap=True,
+                line_range=(1, visible),
+            )
+            remaining = total - visible
+            indicator = Text(
+                f"\n  \u25be {remaining} more lines below",
+                style="dim italic #87D7FF",
+            )
+            self.update(Group(header, Text(""), syntax, indicator))
+        elif self._content_mode in ("diff", "static_diff"):
+            if self._content_mode == "static_diff":
+                header = Text(
+                    self._static_header_path or "",
+                    style="bold #D7AF5F underline",
+                )
+                syntax = Syntax(
+                    self._full_content,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=True,
+                    word_wrap=True,
+                    line_range=(1, visible),
+                )
+                remaining = total - visible
+                indicator = Text(
+                    f"\n  \u25be {remaining} more lines below",
+                    style="dim italic #87D7FF",
+                )
+                self.update(Group(header, Text(""), syntax, indicator))
+            else:
+                syntax = Syntax(
+                    self._full_content,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=True,
+                    word_wrap=True,
+                    line_range=(1, visible),
+                )
+                remaining = total - visible
+                indicator = Text(
+                    f"\n  \u25be {remaining} more lines below",
+                    style="dim italic #87D7FF",
+                )
+                self.update(Group(syntax, indicator))
+
+        self._is_trimmed = True
+        self._post_trim_changed()
 
     def refresh_file(self, agent: Agent) -> None:
         """Force refresh the file for an agent.
@@ -341,14 +481,48 @@ class AgentFilePanel(Static):
                 f"# Last fetched: {fetch_time.strftime('%H:%M:%S')}"
                 f"{refresh_indicator}\n\n{diff_output}"
             )
-            syntax = Syntax(
-                diff_with_header,
-                "diff",
-                theme="monokai",
-                line_numbers=True,
-                word_wrap=True,
-            )
-            self.update(syntax)
+
+            # Store content for future re-render
+            self._full_content = diff_with_header
+            self._full_content_lexer = "diff"
+            self._content_mode = "diff"
+
+            # Compute trimming
+            total = self._count_lines(diff_with_header)
+            trim_size = self._compute_trim_size()
+            self._total_line_count = total
+            self._base_trim_size = trim_size
+
+            if trim_size > 0 and total > trim_size:
+                self._visible_line_count = trim_size
+                self._is_trimmed = True
+                syntax = Syntax(
+                    diff_with_header,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=True,
+                    word_wrap=True,
+                    line_range=(1, trim_size),
+                )
+                remaining = total - trim_size
+                indicator = Text(
+                    f"\n  \u25be {remaining} more lines below",
+                    style="dim italic #87D7FF",
+                )
+                self.update(Group(syntax, indicator))
+            else:
+                self._visible_line_count = total
+                self._is_trimmed = False
+                syntax = Syntax(
+                    diff_with_header,
+                    "diff",
+                    theme="monokai",
+                    line_numbers=True,
+                    word_wrap=True,
+                )
+                self.update(syntax)
+
+            self._post_trim_changed()
         else:
             text = Text()
             text.append("Last fetched: ", style="dim")
@@ -405,12 +579,16 @@ class AgentFilePanel(Static):
                     ):
                         # Content unchanged - just update timestamp without scroll reset
                         # Re-display to update the timestamp (removes "refreshing...")
+                        # Preserve user's visible line count (e.g. if they
+                        # paged down) instead of resetting to _base_trim_size
+                        saved_visible = self._visible_line_count
                         scroll_pos = self._save_scroll_position()
                         self._display_file_with_timestamp(
                             cache_entry.diff_output,
                             cache_entry.fetch_time,
                             post_visibility_message=False,
                         )
+                        self._visible_line_count = saved_visible
                         self._restore_scroll_position(scroll_pos)
                     else:
                         # Content changed - save scroll, update, restore scroll
@@ -507,6 +685,7 @@ class AgentFilePanel(Static):
 
     def show_empty(self) -> None:
         """Show empty state."""
+        self._reset_trim_state()
         self._has_displayed_content = False
         text = Text("No agent selected", style="dim italic")
         self.update(text)
@@ -534,18 +713,54 @@ class AgentFilePanel(Static):
             return
 
         # Display diff with file path header
-        header = Text(expanded_path, style="bold #D7AF5F underline")
         diff_with_header = f"# Static diff (from saved file)\n\n{diff_content}"
-        syntax = Syntax(
-            diff_with_header,
-            "diff",
-            theme="monokai",
-            line_numbers=True,
-            word_wrap=True,
-        )
-        self.update(Group(header, Text(""), syntax))
+
+        # Store content for future re-render
+        self._full_content = diff_with_header
+        self._full_content_lexer = "diff"
+        self._content_mode = "static_diff"
+        self._static_header_path = expanded_path
+
+        # Compute trimming
+        total = self._count_lines(diff_with_header)
+        trim_size = self._compute_trim_size()
+        self._total_line_count = total
+        self._base_trim_size = trim_size
+
+        header = Text(expanded_path, style="bold #D7AF5F underline")
+
+        if trim_size > 0 and total > trim_size:
+            self._visible_line_count = trim_size
+            self._is_trimmed = True
+            syntax = Syntax(
+                diff_with_header,
+                "diff",
+                theme="monokai",
+                line_numbers=True,
+                word_wrap=True,
+                line_range=(1, trim_size),
+            )
+            remaining = total - trim_size
+            indicator = Text(
+                f"\n  \u25be {remaining} more lines below",
+                style="dim italic #87D7FF",
+            )
+            self.update(Group(header, Text(""), syntax, indicator))
+        else:
+            self._visible_line_count = total
+            self._is_trimmed = False
+            syntax = Syntax(
+                diff_with_header,
+                "diff",
+                theme="monokai",
+                line_numbers=True,
+                word_wrap=True,
+            )
+            self.update(Group(header, Text(""), syntax))
+
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)
+        self._post_trim_changed()
 
     def display_static_file(self, file_path: str) -> None:
         """Display a static file with syntax highlighting (no auto-refresh).
@@ -575,14 +790,49 @@ class AgentFilePanel(Static):
         _, ext = os.path.splitext(expanded_path)
         lexer = _EXTENSION_TO_LEXER.get(ext.lower(), "text")
 
+        # Store content for future re-render
+        self._full_content = content
+        self._full_content_lexer = lexer
+        self._content_mode = "static"
+        self._static_header_path = expanded_path
+
+        # Compute trimming
+        total = self._count_lines(content)
+        trim_size = self._compute_trim_size()
+        self._total_line_count = total
+        self._base_trim_size = trim_size
+
         header = Text(expanded_path, style="bold #D7AF5F underline")
-        syntax = Syntax(
-            content,
-            lexer,
-            theme="monokai",
-            line_numbers=True,
-            word_wrap=True,
-        )
-        self.update(Group(header, Text(""), syntax))
+
+        if trim_size > 0 and total > trim_size:
+            self._visible_line_count = trim_size
+            self._is_trimmed = True
+            syntax = Syntax(
+                content,
+                lexer,
+                theme="monokai",
+                line_numbers=True,
+                word_wrap=True,
+                line_range=(1, trim_size),
+            )
+            remaining = total - trim_size
+            indicator = Text(
+                f"\n  \u25be {remaining} more lines below",
+                style="dim italic #87D7FF",
+            )
+            self.update(Group(header, Text(""), syntax, indicator))
+        else:
+            self._visible_line_count = total
+            self._is_trimmed = False
+            syntax = Syntax(
+                content,
+                lexer,
+                theme="monokai",
+                line_numbers=True,
+                word_wrap=True,
+            )
+            self.update(Group(header, Text(""), syntax))
+
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)
+        self._post_trim_changed()

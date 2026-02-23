@@ -164,6 +164,15 @@ def test_display_static_file_reads_and_renders(tmp_path: Any) -> None:
     panel._has_displayed_content = False
     panel._file_list = []
     panel._current_file_index = 0
+    # Trim state vars
+    panel._total_line_count = 0
+    panel._visible_line_count = 0
+    panel._base_trim_size = 0
+    panel._is_trimmed = False
+    panel._full_content = None
+    panel._full_content_lexer = "text"
+    panel._content_mode = "none"
+    panel._static_header_path = None
 
     # Import and call the method directly using the unbound function
     from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER, AgentFilePanel
@@ -172,6 +181,12 @@ def test_display_static_file_reads_and_renders(tmp_path: Any) -> None:
     panel._post_file_visibility = types.MethodType(
         AgentFilePanel._post_file_visibility, panel
     )
+    # Mock _compute_trim_size to return 0 (no container mounted → no trimming)
+    panel._compute_trim_size = MagicMock(return_value=0)
+    # Bind real _count_lines
+    panel._count_lines = types.MethodType(AgentFilePanel._count_lines, panel)
+    # Mock _post_trim_changed as a no-op
+    panel._post_trim_changed = MagicMock()
 
     # Verify the lexer mapping includes .diff
     assert _EXTENSION_TO_LEXER[".diff"] == "diff"

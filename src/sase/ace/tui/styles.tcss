@@ -446,6 +446,7 @@ HintInputBar #hint-escape-hint {
     border: solid green;
     padding: 1 2;
     scrollbar-gutter: stable;
+    border-subtitle-align: center;
 }
 
 #agent-file-scroll.hidden {

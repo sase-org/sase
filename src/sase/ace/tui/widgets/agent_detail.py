@@ -11,7 +11,12 @@ from textual.widgets import Static
 from sase.llm_provider.registry import get_default_provider_name
 
 from ..models.agent import Agent
-from .file_panel import AgentFilePanel, FileListChanged, FileVisibilityChanged
+from .file_panel import (
+    AgentFilePanel,
+    FileListChanged,
+    FileTrimChanged,
+    FileVisibilityChanged,
+)
 from .prompt_panel import AgentPromptPanel
 from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 
@@ -75,6 +80,9 @@ class AgentDetail(Static):
         self._file_count: int = 0
         self._file_index: int = 0
         self._scroll_thinking_to_bottom: bool = False
+        self._trim_visible_lines: int = 0
+        self._trim_total_lines: int = 0
+        self._trim_is_trimmed: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
@@ -232,7 +240,11 @@ class AgentDetail(Static):
         self._has_thinking_content = False
         self._file_count = 0
         self._file_index = 0
+        self._trim_visible_lines = 0
+        self._trim_total_lines = 0
+        self._trim_is_trimmed = False
         prompt_scroll.border_subtitle = ""
+        file_scroll.border_subtitle = ""
 
     def refresh_current_file(self, agent: Agent) -> None:
         """Force refresh the file for the given agent.
@@ -262,6 +274,37 @@ class AgentDetail(Static):
         self._file_count = message.file_count
         self._file_index = message.file_index
         self._update_panel_indicators()
+
+    def on_file_trim_changed(self, message: FileTrimChanged) -> None:
+        """Handle file trim state changes from the file panel.
+
+        Args:
+            message: The trim change message.
+        """
+        self._trim_visible_lines = message.visible_lines
+        self._trim_total_lines = message.total_lines
+        self._trim_is_trimmed = message.is_trimmed
+        self._update_file_scroll_subtitle()
+
+    def _update_file_scroll_subtitle(self) -> None:
+        """Update the border subtitle on the file scroll panel to show line counts."""
+        try:
+            file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        except Exception:
+            return
+
+        if self._trim_total_lines == 0:
+            file_scroll.border_subtitle = ""
+        elif self._trim_is_trimmed:
+            file_scroll.border_subtitle = Text(
+                f"Lines 1-{self._trim_visible_lines} of {self._trim_total_lines}",
+                style="dim #87D7FF",
+            )
+        else:
+            file_scroll.border_subtitle = Text(
+                f"{self._trim_total_lines} lines",
+                style="dim green",
+            )
 
     def toggle_thinking(self, agent: Agent) -> None:
         """Cycle to the next panel mode.
