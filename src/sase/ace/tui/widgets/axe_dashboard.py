@@ -13,6 +13,9 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
 
+# Type alias for lumberjack summary tuple: (name, status, chops_executed)
+LumberjackSummary = tuple[str, LumberjackStatus | None, int]
+
 
 class _AxeStatusSection(Static):
     """Compact status bar showing runtime, PID, cycles, CLs, and runners."""
@@ -311,6 +314,106 @@ class _AxeOutputSection(Static):
         text = Text.from_ansi(output)
         self.update(text)
 
+    def update_lumberjack_summary(self, summaries: list[LumberjackSummary]) -> None:
+        """Render a summary of all lumberjack activity.
+
+        Args:
+            summaries: List of (name, status, chops_executed) tuples.
+        """
+        if not summaries:
+            text = Text("No lumberjacks configured.", style="dim italic")
+            self.update(text)
+            return
+
+        text = Text()
+
+        # Header
+        text.append("  LUMBERJACK ACTIVITY\n", style="bold #FFD700")
+        text.append("  " + "─" * 68 + "\n", style="dim")
+
+        # Column header
+        text.append("  ")
+        text.append(f"{'NAME':<16}", style="bold #87D7FF")
+        text.append(f"{'STATUS':<12}", style="bold #87D7FF")
+        text.append(f"{'CYCLES':>8}", style="bold #87D7FF")
+        text.append(f"{'CHOPS':>8}", style="bold #87D7FF")
+        text.append(f"{'ERRORS':>8}", style="bold #87D7FF")
+        text.append(f"{'LAST CYCLE':<18}", style="bold #87D7FF")
+        text.append("\n")
+        text.append("  " + "─" * 68 + "\n", style="dim")
+
+        for name, status, chops_executed in summaries:
+            text.append("  ")
+
+            # Name
+            text.append(f"{name:<16}", style="bold #FFFFFF")
+
+            # Status indicator
+            if status:
+                if status.status == "running":
+                    text.append(f"{'● running':<12}", style="bold green")
+                elif status.status == "error":
+                    text.append(f"{'● error':<12}", style="bold red")
+                else:
+                    text.append(f"{'○ stopped':<12}", style="#FFD700")
+            else:
+                text.append(f"{'○ unknown':<12}", style="dim")
+
+            # Cycles
+            cycles = status.cycles_run if status else 0
+            text.append(f"{cycles:>8}", style="#00D7AF")
+
+            # Chops executed (from metrics)
+            text.append(f"{chops_executed:>8}", style="#00D7AF")
+
+            # Errors
+            errors = status.errors_encountered if status else 0
+            if errors > 0:
+                text.append(f"{errors:>8}", style="bold red")
+            else:
+                text.append(f"{errors:>8}", style="dim")
+
+            # Last cycle (relative time)
+            text.append("  ")
+            if status and status.last_cycle:
+                text.append(_format_relative_time(status.last_cycle), style="#87D7FF")
+            else:
+                text.append("never", style="dim")
+
+            text.append("\n")
+
+        text.append("  " + "─" * 68 + "\n", style="dim")
+
+        # Summary footer
+        total_cycles = sum(s.cycles_run for _, s, _ in summaries if s is not None)
+        total_errors = sum(
+            s.errors_encountered for _, s, _ in summaries if s is not None
+        )
+        running_count = sum(
+            1 for _, s, _ in summaries if s is not None and s.status == "running"
+        )
+
+        text.append("\n  ")
+        text.append(f"{running_count}", style="bold green")
+        text.append(f"/{len(summaries)} running", style="dim")
+        text.append("    ", style="")
+        text.append(f"{total_cycles}", style="bold #00D7AF")
+        text.append(" total cycles", style="dim")
+        if total_errors > 0:
+            text.append("    ", style="")
+            text.append(f"{total_errors}", style="bold red")
+            text.append(" total errors", style="dim")
+        text.append("\n")
+
+        # Hint
+        text.append("\n  ")
+        text.append("Ctrl+N", style="bold #00D7AF")
+        text.append("/", style="dim")
+        text.append("Ctrl+P", style="bold #00D7AF")
+        text.append(" to cycle through lumberjack views", style="dim")
+
+        self.update(text)
+
 
 class AxeDashboard(Static):
     """Main dashboard widget combining status bar and output log."""
@@ -332,6 +435,7 @@ class AxeDashboard(Static):
         output: str,
         full_cycles: int = 0,
         countdown: int = 0,
+        lumberjack_summaries: list[LumberjackSummary] | None = None,
     ) -> None:
         """Update all dashboard sections with current data.
 
@@ -341,12 +445,18 @@ class AxeDashboard(Static):
             output: Raw output log with ANSI codes.
             full_cycles: Number of full cycles run.
             countdown: Seconds until next auto-refresh.
+            lumberjack_summaries: Per-lumberjack (name, status, chops_executed)
+                tuples for the activity summary, or None to skip.
         """
         status_section = self.query_one("#axe-status-section", _AxeStatusSection)
         output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
         status_section.update_display(status, is_running, full_cycles, countdown)
-        output_section.update_display(output)
+
+        if lumberjack_summaries:
+            output_section.update_lumberjack_summary(lumberjack_summaries)
+        else:
+            output_section.update_display(output)
 
     def show_empty(self) -> None:
         """Show empty/stopped state."""
@@ -485,5 +595,29 @@ def _format_elapsed(started_at: str, finished_at: str | None) -> str:
         end_time = datetime.fromisoformat(finished_at)
         elapsed = end_time - start_time
         return _format_uptime(int(elapsed.total_seconds()))
+    except (ValueError, TypeError):
+        return "unknown"
+
+
+def _format_relative_time(iso_timestamp: str) -> str:
+    """Format an ISO timestamp as a relative time string like '30s ago'.
+
+    Args:
+        iso_timestamp: ISO format timestamp string.
+
+    Returns:
+        Relative time string, e.g. "30s ago", "5m ago", "2h ago".
+    """
+    try:
+        ts = datetime.fromisoformat(iso_timestamp)
+        now = datetime.now(EASTERN_TZ)
+        elapsed = int((now - ts).total_seconds())
+        if elapsed < 0:
+            return "just now"
+        if elapsed < 60:
+            return f"{elapsed}s ago"
+        if elapsed < 3600:
+            return f"{elapsed // 60}m ago"
+        return f"{elapsed // 3600}h ago"
     except (ValueError, TypeError):
         return "unknown"

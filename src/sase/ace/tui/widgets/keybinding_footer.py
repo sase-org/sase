@@ -245,6 +245,9 @@ class KeybindingFooter(Horizontal):
                     f"{lumberjack_name} ({lumberjack_idx + 1}/{lumberjack_total})"
                 )
                 bindings.append(("^N/P", lj_label))
+            else:
+                # On main axe page - show total lumberjack count
+                bindings.append(("^N/P", f"lumberjacks ({lumberjack_total})"))
         return bindings
 
     def update_leader_bindings(self) -> None:

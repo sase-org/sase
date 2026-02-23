@@ -8,7 +8,9 @@ from typing import Literal
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
+    LumberjackStatus,
     read_lumberjack_log_tail,
+    read_lumberjack_metrics,
     read_lumberjack_status,
     read_metrics,
     read_output_log_tail,
@@ -114,10 +116,6 @@ class AxeDisplayMixin:
         ):
             self._axe_lumberjack_idx = None
 
-        # Default to first lumberjack when lumberjacks exist (skip main view)
-        if self._axe_lumberjack_idx is None and self._axe_lumberjack_names:
-            self._axe_lumberjack_idx = 0
-
     def _load_bgcmd_state(self) -> None:
         """Load background command state from disk (running + done commands)."""
         active_slots = get_active_slots()
@@ -216,7 +214,7 @@ class AxeDisplayMixin:
                         countdown=self._countdown_remaining,
                     )
                 else:
-                    # Show main output (legacy behavior)
+                    # Show main axe page with lumberjack activity summary
                     axe_info.update_status(self.axe_running)
 
                     # Get full cycles from metrics if available
@@ -224,12 +222,21 @@ class AxeDisplayMixin:
                     if self._axe_metrics:
                         full_cycles = self._axe_metrics.full_cycles_run
 
+                    # Gather lumberjack summaries for display
+                    lj_summaries: list[tuple[str, LumberjackStatus | None, int]] = []
+                    for lj_name in self._axe_lumberjack_names:
+                        lj_status = read_lumberjack_status(lj_name)
+                        lj_metrics = read_lumberjack_metrics(lj_name)
+                        chops_executed = lj_metrics.chops_executed if lj_metrics else 0
+                        lj_summaries.append((lj_name, lj_status, chops_executed))
+
                     axe_dashboard.update_display(
                         is_running=self.axe_running,
                         status=self._axe_status,
                         output=self._axe_output,
                         full_cycles=full_cycles,
                         countdown=self._countdown_remaining,
+                        lumberjack_summaries=lj_summaries,
                     )
             else:
                 # Showing a bgcmd view
