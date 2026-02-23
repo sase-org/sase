@@ -46,7 +46,7 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_amend(
-        self, note: str, cwd: str, no_upload: bool = False
+        self, note: str, cwd: str, no_upload: bool
     ) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)
@@ -65,7 +65,7 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_stash_and_clean(
-        self, diff_name: str, cwd: str, timeout: int = 300
+        self, diff_name: str, cwd: str, timeout: int
     ) -> tuple[bool, str | None]: ...
 
     # --- Optional core operations ---
@@ -108,7 +108,7 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_get_description(
-        self, revision: str, cwd: str, short: bool = False
+        self, revision: str, cwd: str, short: bool
     ) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)

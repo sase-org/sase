@@ -2,11 +2,15 @@
 
 import os
 
+import pluggy
+
 from ._base import VCSProvider
 from ._errors import VCSProviderNotFoundError
+from ._hookspec import VCSHookSpec
+from ._plugin_manager import VCSPluginManager
 from .config import get_vcs_provider_config
 
-# provider-name → provider-class
+# provider-name → provider-class (used for non-plugin providers during migration)
 _PROVIDERS: dict[str, type[VCSProvider]] = {}
 
 
@@ -67,20 +71,37 @@ def get_vcs_provider(cwd: str) -> VCSProvider:
     Uses :func:`_resolve_vcs_name` to determine the provider, which
     checks env var, config, and auto-detection in that order.
 
+    Hg providers are routed through the pluggy plugin system.
+    Git providers still use the legacy dict-based registry.
+
     Raises:
         VCSProviderNotFoundError: If no VCS directory is found or no
             provider is registered for the detected VCS type.
     """
-    # Ensure providers are loaded
-    _ensure_providers_loaded()
-
     vcs_name = _resolve_vcs_name(cwd)
     if vcs_name is None:
         raise VCSProviderNotFoundError(cwd)
+
+    # Route hg through pluggy
+    if vcs_name == "hg":
+        return _create_hg_plugin_provider()
+
+    # Legacy path for git (not yet migrated)
+    _ensure_providers_loaded()
     cls = _PROVIDERS.get(vcs_name)
     if cls is None:
         raise VCSProviderNotFoundError(cwd)
     return cls()
+
+
+def _create_hg_plugin_provider() -> VCSPluginManager:
+    """Create a :class:`VCSPluginManager` backed by :class:`HgPlugin`."""
+    from .plugins.hg import HgPlugin
+
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    pm.register(HgPlugin())
+    return VCSPluginManager(pm)
 
 
 def _ensure_providers_loaded() -> None:

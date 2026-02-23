@@ -54,11 +54,11 @@ def test_vcs_provider_not_found_error() -> None:
 
 
 def test_get_vcs_provider_detects_hg() -> None:
-    """Test get_vcs_provider detects .hg directory and returns _HgProvider."""
+    """Test get_vcs_provider detects .hg directory and returns a VCSProvider."""
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, ".hg"))
         provider = get_vcs_provider(tmpdir)
-        assert isinstance(provider, _HgProvider)
+        assert isinstance(provider, VCSProvider)
 
 
 def test_get_vcs_provider_not_found() -> None:
