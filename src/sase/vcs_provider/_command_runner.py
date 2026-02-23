@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from typing import TextIO
 
 from ._types import CommandOutput
 
@@ -63,13 +64,18 @@ class CommandRunner:
         cwd: str,
         *,
         timeout: int = 300,
+        stream_to: TextIO | None = None,
     ) -> CommandOutput:
-        """Run a command, streaming combined output to stderr in real-time.
+        """Run a command, streaming combined output in real-time.
 
-        The output is tee'd: each line is written to stderr so the caller can
-        see progress, and also collected so it can be returned in the
+        The output is tee'd: each line is written to *stream_to* so the caller
+        can see progress, and also collected so it can be returned in the
         :class:`CommandOutput` for error checking.
+
+        *stream_to* defaults to ``sys.stderr`` (preserving existing sync
+        behaviour).
         """
+        dest = stream_to if stream_to is not None else sys.stderr
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -81,8 +87,8 @@ class CommandRunner:
             assert proc.stdout is not None  # for mypy
             collected: list[str] = []
             for line in proc.stdout:
-                sys.stderr.write(line)
-                sys.stderr.flush()
+                dest.write(line)
+                dest.flush()
                 collected.append(line)
             proc.wait(timeout=timeout)
             return CommandOutput(proc.returncode, "".join(collected), "")
