@@ -12,7 +12,7 @@ from sase.vcs_provider import (
     get_vcs_provider,
 )
 from sase.vcs_provider._hg import _HgProvider
-from sase.vcs_provider._registry import _resolve_vcs_name
+from sase.vcs_provider._registry import _resolve_vcs_name, detect_vcs, detect_vcs_family
 from sase.vcs_provider._types import CommandOutput
 from sase.vcs_provider.config import get_vcs_provider_config, get_workspace_root
 
@@ -447,7 +447,11 @@ def test_resolve_vcs_name_env_var_auto() -> None:
                 "sase.vcs_provider._registry.get_vcs_provider_config",
                 return_value={"provider": "hg"},
             ):
-                assert _resolve_vcs_name(tmpdir) == "git"
+                with patch(
+                    "sase.vcs_provider._registry._classify_git_repo",
+                    return_value="github",
+                ):
+                    assert _resolve_vcs_name(tmpdir) == "github"
 
 
 def test_resolve_vcs_name_config_override() -> None:
@@ -474,7 +478,11 @@ def test_resolve_vcs_name_config_auto() -> None:
                 "sase.vcs_provider._registry.get_vcs_provider_config",
                 return_value={"provider": "auto"},
             ):
-                assert _resolve_vcs_name(tmpdir) == "git"
+                with patch(
+                    "sase.vcs_provider._registry._classify_git_repo",
+                    return_value="github",
+                ):
+                    assert _resolve_vcs_name(tmpdir) == "github"
 
 
 def test_resolve_vcs_name_default_auto_detects() -> None:
@@ -551,3 +559,109 @@ def test_get_workspace_root_none() -> None:
             return_value={},
         ):
             assert get_workspace_root() is None
+
+
+# === Tests for detect_vcs 3-value system ===
+
+
+def test_detect_vcs_returns_hg() -> None:
+    """detect_vcs returns 'hg' for Mercurial repos."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, ".hg"))
+        assert detect_vcs(tmpdir) == "hg"
+
+
+def test_detect_vcs_returns_github() -> None:
+    """detect_vcs returns 'github' for GitHub-hosted git repos."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, ".git"))
+        with patch(
+            "sase.vcs_provider._registry._classify_git_repo",
+            return_value="github",
+        ):
+            assert detect_vcs(tmpdir) == "github"
+
+
+def test_detect_vcs_returns_bare_git() -> None:
+    """detect_vcs returns 'bare_git' for bare-git repos."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, ".git"))
+        with patch(
+            "sase.vcs_provider._registry._classify_git_repo",
+            return_value="bare_git",
+        ):
+            assert detect_vcs(tmpdir) == "bare_git"
+
+
+def test_detect_vcs_returns_none() -> None:
+    """detect_vcs returns None when no VCS detected."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        assert detect_vcs(tmpdir) is None
+
+
+# === Tests for detect_vcs_family ===
+
+
+def test_detect_vcs_family_github_to_git() -> None:
+    """detect_vcs_family collapses 'github' to 'git'."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, ".git"))
+        with patch(
+            "sase.vcs_provider._registry._classify_git_repo",
+            return_value="github",
+        ):
+            assert detect_vcs_family(tmpdir) == "git"
+
+
+def test_detect_vcs_family_bare_git_to_git() -> None:
+    """detect_vcs_family collapses 'bare_git' to 'git'."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, ".git"))
+        with patch(
+            "sase.vcs_provider._registry._classify_git_repo",
+            return_value="bare_git",
+        ):
+            assert detect_vcs_family(tmpdir) == "git"
+
+
+def test_detect_vcs_family_hg() -> None:
+    """detect_vcs_family returns 'hg' unchanged."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, ".hg"))
+        assert detect_vcs_family(tmpdir) == "hg"
+
+
+def test_detect_vcs_family_none() -> None:
+    """detect_vcs_family returns None when no VCS detected."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        assert detect_vcs_family(tmpdir) is None
+
+
+# === Tests for _resolve_vcs_name with legacy 'git' override ===
+
+
+def test_resolve_vcs_name_env_git_reclassifies() -> None:
+    """SASE_VCS_PROVIDER=git re-classifies via _classify_git_repo."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {"SASE_VCS_PROVIDER": "git"}):
+            with patch(
+                "sase.vcs_provider._registry._classify_git_repo",
+                return_value="bare_git",
+            ):
+                assert _resolve_vcs_name(tmpdir) == "bare_git"
+
+
+def test_resolve_vcs_name_config_git_reclassifies() -> None:
+    """Config provider: git re-classifies via _classify_git_repo."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SASE_VCS_PROVIDER", None)
+            with patch(
+                "sase.vcs_provider._registry.get_vcs_provider_config",
+                return_value={"provider": "git"},
+            ):
+                with patch(
+                    "sase.vcs_provider._registry._classify_git_repo",
+                    return_value="github",
+                ):
+                    assert _resolve_vcs_name(tmpdir) == "github"

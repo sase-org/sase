@@ -188,7 +188,7 @@ def main() -> None:
                 get_default_provider_name,
                 get_provider,
             )
-            from sase.vcs_provider._registry import detect_vcs
+            from sase.vcs_provider._registry import detect_vcs_family
             from sase.xprompt.directives import extract_prompt_directives
 
             _, directives = extract_prompt_directives(prompt)
@@ -200,7 +200,7 @@ def main() -> None:
                 provider = get_provider()
                 agent_model = provider.resolve_model_name()
 
-            vcs_name = detect_vcs(workspace_dir)
+            vcs_name = detect_vcs_family(workspace_dir)
             vcs_display_map = {"git": "GitHub", "hg": "Mercurial"}
             agent_vcs_provider = vcs_display_map.get(vcs_name) if vcs_name else None
 

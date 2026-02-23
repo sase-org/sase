@@ -78,9 +78,9 @@ def _amend_cl(
     Returns:
         Tuple of (success, entry_id, cl_name, error_message, diff_path)
     """
-    from sase.vcs_provider import detect_vcs
+    from sase.vcs_provider import detect_vcs_family
 
-    vcs_type = detect_vcs(os.getcwd())
+    vcs_type = detect_vcs_family(os.getcwd())
 
     if vcs_type == "git":
         return _amend_cl_git(who, note, data_file)

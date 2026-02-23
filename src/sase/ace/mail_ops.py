@@ -13,7 +13,7 @@ from sase.status_state_machine import (
     remove_ready_to_mail_suffix,
     transition_changespec_status,
 )
-from sase.vcs_provider import detect_vcs, get_vcs_provider
+from sase.vcs_provider import detect_vcs_family, get_vcs_provider
 
 from .changespec import ChangeSpec, find_all_changespecs
 
@@ -288,7 +288,7 @@ def prepare_mail(
         MailPrepResult if successful (with should_mail indicating user's choice),
         None if the operation was aborted or failed.
     """
-    vcs_type = detect_vcs(target_dir) or "hg"
+    vcs_type = detect_vcs_family(target_dir) or "hg"
 
     if vcs_type == "git":
         return _prepare_mail_git(changespec, target_dir, console)

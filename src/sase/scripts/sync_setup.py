@@ -2,7 +2,7 @@
 
 import os
 
-from sase.vcs_provider._registry import detect_vcs, get_vcs_provider
+from sase.vcs_provider._registry import detect_vcs_family, get_vcs_provider
 
 
 def main(*, cwd: str = "") -> None:
@@ -18,7 +18,7 @@ def main(*, cwd: str = "") -> None:
     work_dir = cwd or os.environ.get("SASE_SYNC_CWD", "") or os.getcwd()
     work_dir = os.path.abspath(work_dir)
 
-    vcs_type = detect_vcs(work_dir)
+    vcs_type = detect_vcs_family(work_dir)
     if vcs_type is None:
         print("error=No VCS detected")
         print("vcs_type=unknown")

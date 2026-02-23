@@ -9,18 +9,24 @@ import subprocess
 import tempfile
 from unittest.mock import MagicMock, patch
 
-from sase.vcs_provider import get_vcs_provider
+from sase.vcs_provider import VCSProvider, get_vcs_provider
 from sase.vcs_provider._git import _GitProvider
+from sase.vcs_provider._plugin_manager import VCSPluginManager
 
 # === Tests for registry detection ===
 
 
 def test_get_vcs_provider_detects_git() -> None:
-    """Test get_vcs_provider detects .git directory and returns _GitProvider."""
+    """Test get_vcs_provider detects .git directory and returns a VCSPluginManager."""
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, ".git"))
-        provider = get_vcs_provider(tmpdir)
-        assert isinstance(provider, _GitProvider)
+        with patch(
+            "sase.vcs_provider._registry._classify_git_repo",
+            return_value="github",
+        ):
+            provider = get_vcs_provider(tmpdir)
+            assert isinstance(provider, VCSPluginManager)
+            assert isinstance(provider, VCSProvider)
 
 
 # === Tests for private helpers ===

@@ -6,7 +6,7 @@ import tempfile
 
 from sase.commit_utils import add_commit_entry, get_next_commit_number, save_diff
 from sase.rich_utils import print_status
-from sase.vcs_provider import detect_vcs, get_vcs_provider
+from sase.vcs_provider import detect_vcs_family, get_vcs_provider
 from sase.workflow_base import BaseWorkflow
 from sase.workflow_utils import get_initial_hooks_for_changespec, get_project_file_path
 
@@ -169,7 +169,7 @@ class CommitWorkflow(BaseWorkflow):
 
         # Format CL description
         cwd = os.getcwd()
-        vcs_type = detect_vcs(cwd) or "hg"
+        vcs_type = detect_vcs_family(cwd) or "hg"
         print_status(
             "Formatting CL description with project tag and metadata.", "progress"
         )

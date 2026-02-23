@@ -1,7 +1,8 @@
 """Cross-provider contract tests.
 
-Verifies that Git, Hg, and Hg-plugin providers all conform to the same
-VCSProvider interface contract using parameterized tests.
+Verifies that Git (legacy), Hg, Hg-plugin, GitHub-plugin, and BareGit-plugin
+providers all conform to the same VCSProvider interface contract using
+parameterized tests.
 """
 
 from collections.abc import Callable
@@ -14,6 +15,8 @@ from sase.vcs_provider._git import _GitProvider
 from sase.vcs_provider._hg import _HgProvider
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
+from sase.vcs_provider.plugins.bare_git import BareGitPlugin
+from sase.vcs_provider.plugins.github import GitHubPlugin
 from sase.vcs_provider.plugins.hg import HgPlugin
 
 
@@ -25,6 +28,22 @@ def _make_hg_plugin_provider() -> VCSPluginManager:
     return VCSPluginManager(pm)
 
 
+def _make_github_plugin_provider() -> VCSPluginManager:
+    """Create a VCSPluginManager backed by GitHubPlugin."""
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    pm.register(GitHubPlugin())
+    return VCSPluginManager(pm)
+
+
+def _make_bare_git_plugin_provider() -> VCSPluginManager:
+    """Create a VCSPluginManager backed by BareGitPlugin."""
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    pm.register(BareGitPlugin())
+    return VCSPluginManager(pm)
+
+
 # Shared parameterization for all providers.
 _PROVIDERS = pytest.mark.parametrize(
     "provider_factory,mock_target",
@@ -32,8 +51,16 @@ _PROVIDERS = pytest.mark.parametrize(
         (_GitProvider, "sase.vcs_provider._git.subprocess.run"),
         (_HgProvider, "sase.vcs_provider._hg.subprocess.run"),
         (_make_hg_plugin_provider, "sase.vcs_provider._command_runner.subprocess.run"),
+        (
+            _make_github_plugin_provider,
+            "sase.vcs_provider._command_runner.subprocess.run",
+        ),
+        (
+            _make_bare_git_plugin_provider,
+            "sase.vcs_provider._command_runner.subprocess.run",
+        ),
     ],
-    ids=["git", "hg", "hg_plugin"],
+    ids=["git", "hg", "hg_plugin", "github_plugin", "bare_git_plugin"],
 )
 
 

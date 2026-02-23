@@ -66,7 +66,7 @@ class TestSyncSetup:
         return provider
 
     @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs", return_value="git")
+    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="git")
     def test_basic_git(self, mock_detect, mock_get_provider, capsys) -> None:
         mock_get_provider.return_value = self._make_provider("feature-x")
         from sase.scripts.sync_setup import main
@@ -80,7 +80,7 @@ class TestSyncSetup:
         assert "_chdir=/fake/repo" in out
 
     @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs", return_value="hg")
+    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="hg")
     def test_basic_hg(self, mock_detect, mock_get_provider, capsys) -> None:
         mock_get_provider.return_value = self._make_provider("default")
         from sase.scripts.sync_setup import main
@@ -91,7 +91,7 @@ class TestSyncSetup:
         assert "vcs_type=hg" in out
         assert "branch_name=default" in out
 
-    @patch("sase.scripts.sync_setup.detect_vcs", return_value=None)
+    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value=None)
     def test_no_vcs_detected(self, mock_detect, capsys) -> None:
         from sase.scripts.sync_setup import main
 
@@ -102,7 +102,7 @@ class TestSyncSetup:
         assert "error=No VCS detected" in out
 
     @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs", return_value="git")
+    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="git")
     def test_cwd_from_env(
         self, mock_detect, mock_get_provider, capsys, monkeypatch
     ) -> None:
@@ -116,7 +116,7 @@ class TestSyncSetup:
         assert "cwd=/env/repo" in out
 
     @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs", return_value="git")
+    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="git")
     def test_cwd_param_takes_priority(
         self, mock_detect, mock_get_provider, capsys, monkeypatch
     ) -> None:
@@ -130,7 +130,7 @@ class TestSyncSetup:
         assert "cwd=/param/repo" in out
 
     @patch("sase.scripts.sync_setup.get_vcs_provider")
-    @patch("sase.scripts.sync_setup.detect_vcs", return_value="git")
+    @patch("sase.scripts.sync_setup.detect_vcs_family", return_value="git")
     def test_branch_name_failure(self, mock_detect, mock_get_provider, capsys) -> None:
         provider = MagicMock()
         provider.get_branch_name.return_value = (False, None)
