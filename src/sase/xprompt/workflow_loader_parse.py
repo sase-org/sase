@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from sase.xprompt.loader import (
+from sase.xprompt.loader_parsing import (
     parse_input_type,
     parse_output_from_front_matter,
     parse_shortform_inputs,

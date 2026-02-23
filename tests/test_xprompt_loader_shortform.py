@@ -1,6 +1,6 @@
 """Tests for xprompt.loader shortform syntax parsing."""
 
-from sase.xprompt.loader import (
+from sase.xprompt.loader_parsing import (
     _normalize_schema_properties,
     _parse_shortform_output,
     parse_output_from_front_matter,

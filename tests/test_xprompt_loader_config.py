@@ -8,9 +8,9 @@ from unittest.mock import patch
 from sase.xprompt.loader import (
     _load_xprompt_from_file,
     _load_xprompts_from_directory_config,
-    _parse_yaml_front_matter,
     get_all_xprompts,
 )
+from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.models import XPrompt
 
 # Tests for _load_xprompt_from_file
@@ -44,16 +44,16 @@ def test_load_xprompt_from_file_nonexistent() -> None:
     assert xprompt is None
 
 
-# Tests for _parse_yaml_front_matter
+# Tests for parse_yaml_front_matter
 
 
-def test_parse_yaml_front_matter_invalid_yaml() -> None:
+def testparse_yaml_front_matter_invalid_yaml() -> None:
     """Test that invalid YAML in front matter returns None and full content."""
     content = """---
 invalid: yaml: content: [not closed
 ---
 Body content"""
-    front_matter, body = _parse_yaml_front_matter(content)
+    front_matter, body = parse_yaml_front_matter(content)
     assert front_matter is None
     assert body == content
 

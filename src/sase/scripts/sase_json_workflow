@@ -14,7 +14,7 @@ import sys
 def _setup_mode(schema_str: str) -> None:
     """Parse schema and return schema JSON and semantic hints."""
     import yaml
-    from sase.xprompt.loader import parse_output_from_front_matter
+    from sase.xprompt.loader_parsing import parse_output_from_front_matter
     from sase.xprompt.output_validation import extract_semantic_type_hints
 
     schema_data = yaml.safe_load(schema_str.strip("`"))

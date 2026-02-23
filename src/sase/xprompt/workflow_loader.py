@@ -11,8 +11,8 @@ from sase.xprompt.loader import (
     XPROMPTS_CONFIG_BASENAMES,
     get_sase_package_xprompts_dir,
     get_xprompt_search_paths,
-    parse_xprompt_entries,
 )
+from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import UNSET, InputArg, InputType
 from sase.xprompt.workflow_loader_parse import (
     _parse_workflow_step as _parse_workflow_step,

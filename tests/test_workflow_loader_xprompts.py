@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.xprompt.loader import parse_xprompt_entries
+from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import XPrompt
 from sase.xprompt.workflow_loader import _load_workflow_from_file
 from sase.xprompt.workflow_validator import validate_workflow
