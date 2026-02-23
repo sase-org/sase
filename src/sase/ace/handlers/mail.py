@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+from rich.markup import escape as _esc
+
 from sase.commit_utils import run_sase_hg_clean
 
 from ..changespec import ChangeSpec
@@ -76,7 +78,7 @@ def handle_mail(
         )
         if not clean_success:
             self.console.print(
-                f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]"
+                f"[yellow]Warning: sase_hg_clean failed: {_esc(str(clean_error))}[/yellow]"
             )
 
         # Update to the changespec branch (NAME field) to ensure we're on the correct branch
@@ -87,7 +89,7 @@ def handle_mail(
             workspace_dir=workspace_dir,
         )
         if not success:
-            self.console.print(f"[red]Error: {error_msg}[/red]")
+            self.console.print(f"[red]Error: {_esc(str(error_msg))}[/red]")
             return changespecs, current_idx
 
         # Run the mail handler with the claimed workspace directory

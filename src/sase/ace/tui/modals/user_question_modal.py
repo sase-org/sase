@@ -183,6 +183,7 @@ class UserQuestionModal(
                         yield Static(
                             self._questions[0].get("question", ""),
                             id="user-question-text",
+                            markup=False,
                         )
                     yield _WrappingSelectionList(
                         *self._build_selections(self._questions[0]),
@@ -248,10 +249,12 @@ class UserQuestionModal(
 
     def _build_question_header(self, idx: int) -> str:
         """Build the header text for the right pane."""
+        from rich.markup import escape as escape_markup
+
         q = self._questions[idx]
         total = len(self._questions)
         header = q.get("header", "")
-        header_display = f"  [dim]({header})[/dim]" if header else ""
+        header_display = f"  [dim]({escape_markup(header)})[/dim]" if header else ""
         return f"[bold cyan]Question {idx + 1}/{total}[/bold cyan]{header_display}"
 
     @staticmethod

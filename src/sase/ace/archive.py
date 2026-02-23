@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape as escape_markup
 
 # Add parent directory to path for status_state_machine import
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -58,7 +59,11 @@ def archive_changespec(
         return (False, "ChangeSpec does not have a valid CL set")
 
     # Kill any running processes before archiving
-    log_fn = (lambda msg: console.print(f"[cyan]{msg}[/cyan]")) if console else None
+    log_fn = (
+        (lambda msg: console.print(f"[cyan]{escape_markup(msg)}[/cyan]"))
+        if console
+        else None
+    )
     kill_and_persist_all_running_processes(
         changespec,
         changespec.file_path,

@@ -20,6 +20,7 @@ from sase.ace.hooks.processes import (
 )
 from sase.ace.mentors import update_changespec_mentors_field
 from rich.console import Console
+from rich.markup import escape as _esc
 from sase.running_field import get_claimed_workspaces, release_workspace
 from sase.vcs_provider import get_vcs_provider
 
@@ -329,7 +330,7 @@ def prompt_for_change_action(
         elif user_input == "x":
             return ("purge", proposal_id)
         else:
-            console.print(f"[red]Invalid option: {user_input}[/red]")
+            console.print(f"[red]Invalid option: {_esc(user_input)}[/red]")
 
 
 def execute_change_action(
@@ -389,7 +390,7 @@ def execute_change_action(
         # Parse proposal ID
         parsed = parse_proposal_id(proposal_id)
         if not parsed:
-            console.print(f"[red]Invalid proposal ID: {proposal_id}[/red]")
+            console.print(f"[red]Invalid proposal ID: {_esc(proposal_id)}[/red]")
             return False
         base_num, letter = parsed
 
@@ -414,13 +415,15 @@ def execute_change_action(
             return False
 
         if not os.path.isfile(resolved_project_file):
-            console.print(f"[red]Project file not found: {resolved_project_file}[/red]")
+            console.print(
+                f"[red]Project file not found: {_esc(resolved_project_file)}[/red]"
+            )
             return False
 
         # Get the proposal entry
         changespec = get_changespec_from_file(resolved_project_file, cl_name)
         if not changespec:
-            console.print(f"[red]ChangeSpec not found: {cl_name}[/red]")
+            console.print(f"[red]ChangeSpec not found: {_esc(cl_name)}[/red]")
             return False
 
         # Kill any running hook processes before accepting
@@ -489,7 +492,7 @@ def execute_change_action(
         console.print(f"[cyan]Applying proposal ({proposal_id})...[/cyan]")
         success, error_msg = apply_diff_to_workspace(target_dir, entry.diff)
         if not success:
-            console.print(f"[red]Failed to apply diff: {error_msg}[/red]")
+            console.print(f"[red]Failed to apply diff: {_esc(str(error_msg))}[/red]")
             return False
 
         # Build amend note (append extra_msg if provided)
@@ -499,7 +502,7 @@ def execute_change_action(
         console.print("[cyan]Amending commit...[/cyan]")
         amend_ok, amend_err = provider.amend(amend_note, target_dir)
         if not amend_ok:
-            console.print(f"[red]sase_hg_amend failed: {amend_err}[/red]")
+            console.print(f"[red]sase_hg_amend failed: {_esc(str(amend_err))}[/red]")
             return False
 
         # Renumber history entries (pass extra_msg to append to COMMITS note)
@@ -564,11 +567,11 @@ def execute_change_action(
         if promote_success:
             old_status = old_status_opt or "Draft"
             console.print(
-                f"[green]Promoted {cl_name} from {old_status} to Ready[/green]"
+                f"[green]Promoted {_esc(cl_name)} from {_esc(old_status)} to Ready[/green]"
             )
             return True
         else:
-            console.print(f"[red]Failed to promote: {promote_error}[/red]")
+            console.print(f"[red]Failed to promote: {_esc(str(promote_error))}[/red]")
             return False
 
     elif action == "reject":

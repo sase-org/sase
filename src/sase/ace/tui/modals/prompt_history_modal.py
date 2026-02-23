@@ -119,7 +119,7 @@ class PromptHistoryModal(
                     with Vertical(id="prompt-history-preview-panel"):
                         yield Label("Preview", id="prompt-history-preview-label")
                         with VerticalScroll(id="prompt-history-preview-scroll"):
-                            yield Static("", id="prompt-history-preview")
+                            yield Static("", id="prompt-history-preview", markup=False)
                             yield Static("", id="prompt-history-metadata")
                 yield Static(
                     "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • Esc/q: cancel",

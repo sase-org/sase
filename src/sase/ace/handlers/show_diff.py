@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
+from rich.markup import escape as _esc
+
 from sase.vcs_provider import get_vcs_provider
 
 from ..changespec import ChangeSpec
@@ -31,7 +33,7 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
     try:
         target_dir = get_primary_workspace(changespec.project_basename, 1)
     except RuntimeError as e:
-        self.console.print(f"[red]Error getting workspace: {e}[/red]")
+        self.console.print(f"[red]Error getting workspace: {_esc(str(e))}[/red]")
         return
 
     try:
@@ -41,7 +43,7 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
         )
         success, diff_text = provider.diff_revision(resolved, target_dir)
         if not success:
-            self.console.print(f"[red]Error showing diff: {diff_text}[/red]")
+            self.console.print(f"[red]Error showing diff: {_esc(str(diff_text))}[/red]")
             return
 
         if not diff_text:
@@ -70,4 +72,4 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
 
             os.unlink(tmp_path)
     except Exception as e:
-        self.console.print(f"[red]Error showing diff: {str(e)}[/red]")
+        self.console.print(f"[red]Error showing diff: {_esc(str(e))}[/red]")

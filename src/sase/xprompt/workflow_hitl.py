@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 from rich.console import Console
+from rich.markup import escape as _esc
 from rich.syntax import Syntax
 from sase.shared_utils import dump_yaml
 
@@ -179,7 +180,7 @@ class CLIHITLHandler:
         # Display step info and output
         self.console.print()
         self.console.print(
-            f"[bold cyan]Step '{step_name}' ({step_type}) completed.[/bold cyan]"
+            f"[bold cyan]Step '{_esc(step_name)}' ({_esc(step_type)}) completed.[/bold cyan]"
         )
         self.console.print("[dim]" + "─" * 60 + "[/dim]")
 
@@ -255,7 +256,7 @@ class CLIHITLHandler:
         """
         self.console.print()
         self.console.print(
-            f"[bold green]File contents ({field_name}):[/bold green] {file_path}"
+            f"[bold green]File contents ({_esc(field_name)}):[/bold green] {_esc(file_path)}"
         )
         self.console.print("[dim]" + "─" * 60 + "[/dim]")
         try:
@@ -268,7 +269,7 @@ class CLIHITLHandler:
             )
             self.console.print(syntax)
         except Exception as e:
-            self.console.print(f"[red]Error reading file: {e}[/red]")
+            self.console.print(f"[red]Error reading file: {_esc(str(e))}[/red]")
 
     def _edit_output(self, output: Any) -> Any | None:
         """Open output in editor for user modification.
@@ -313,5 +314,5 @@ class CLIHITLHandler:
                 return {"_data": edited_data}
             return edited_data
         except yaml.YAMLError as e:
-            self.console.print(f"[red]Invalid YAML: {e}[/red]")
+            self.console.print(f"[red]Invalid YAML: {_esc(str(e))}[/red]")
             return None

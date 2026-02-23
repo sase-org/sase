@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rich.console import Console
+from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
@@ -121,7 +122,7 @@ class WorkflowOutputHandler:
             step_display = str(step_index + 1)
             total_display = total_steps
 
-        header = f"Step {step_display}/{total_display}: {step_name} ({step_type})"
+        header = f"Step {step_display}/{total_display}: {_esc(step_name)} ({_esc(step_type)})"
         self.console.print(f"[bold cyan]{header}[/bold cyan]")
         self.console.print("[dim]" + "-" * len(header) + "[/dim]")
 
@@ -130,7 +131,7 @@ class WorkflowOutputHandler:
             result_str = "true" if condition_result else "false"
             result_style = "green" if condition_result else "yellow"
             self.console.print(
-                f"  Condition: [dim]{condition}[/dim] -> [{result_style}]{result_str}[/{result_style}]"
+                f"  Condition: [dim]{_esc(condition)}[/dim] -> [{result_style}]{result_str}[/{result_style}]"
             )
 
         # Loop info
@@ -153,7 +154,9 @@ class WorkflowOutputHandler:
             loop_vars: Variables for this iteration (e.g., {"item": "alpha"}).
         """
         vars_str = ", ".join(f"{k}={_format_value(v)}" for k, v in loop_vars.items())
-        self.console.print(f"  [dim][{iteration}/{total_iterations}][/dim] {vars_str}")
+        self.console.print(
+            f"  [dim]\\[{iteration}/{total_iterations}][/dim] {_esc(vars_str)}"
+        )
 
     def on_step_complete(
         self,
@@ -228,7 +231,7 @@ class WorkflowOutputHandler:
         """
         steps_str = ", ".join(nested_step_names)
         self.console.print(
-            f"  [cyan]Parallel:[/cyan] Running {len(nested_step_names)} steps: {steps_str}"
+            f"  [cyan]Parallel:[/cyan] Running {len(nested_step_names)} steps: {_esc(steps_str)}"
         )
 
     def on_parallel_step_complete(
@@ -247,13 +250,15 @@ class WorkflowOutputHandler:
             error: Error message if failed, None on success.
         """
         if error:
-            self.console.print(f"    [red]✗ {nested_step_name}:[/red] {error}")
+            self.console.print(
+                f"    [red]✗ {_esc(nested_step_name)}:[/red] {_esc(error)}"
+            )
         else:
             output_preview = _format_value(output) if output else "(no output)"
             if len(output_preview) > 50:
                 output_preview = output_preview[:47] + "..."
             self.console.print(
-                f"    [green]✓ {nested_step_name}:[/green] {output_preview}"
+                f"    [green]✓ {_esc(nested_step_name)}:[/green] {_esc(output_preview)}"
             )
 
     def on_parallel_complete(

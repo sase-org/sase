@@ -4,6 +4,7 @@ import os
 import sys
 
 from rich.console import Console
+from rich.markup import escape as _esc
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -72,14 +73,16 @@ def run_crs_workflow(
         workspace_dir, f"{changespec.name}-crs"
     )
     if not clean_success:
-        console.print(f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]")
+        console.print(
+            f"[yellow]Warning: sase_hg_clean failed: {_esc(str(clean_error))}[/yellow]"
+        )
 
     # Now update to the changespec NAME (cd and sase_hg_update to the branch)
     success, error_msg = update_to_changespec(
         changespec, console, revision=changespec.name, workspace_dir=workspace_dir
     )
     if not success:
-        console.print(f"[red]Error: {error_msg}[/red]")
+        console.print(f"[red]Error: {_esc(str(error_msg))}[/red]")
         # Release workspace since we failed before running the workflow
         release_workspace(changespec.file_path, workspace_num, "crs", changespec.name)
         return False

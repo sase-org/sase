@@ -1,8 +1,12 @@
 """Tests for sase.rich_utils module."""
 
 import time
+from io import StringIO
+
+from rich.console import Console
 
 from sase.rich_utils import (
+    escape_markup,
     gemini_timer,
     print_artifact_created,
     print_decision_counts,
@@ -169,3 +173,41 @@ def test_print_decision_counts_partial_keys() -> None:
         # Missing next_editor and research
     }
     print_decision_counts(decision_counts)
+
+
+def test_escape_markup_reexport() -> None:
+    """Test that escape_markup is properly re-exported."""
+    assert escape_markup("[foobar]") == "\\[foobar]"
+    assert escape_markup("no brackets") == "no brackets"
+    assert escape_markup("[bold]text[/bold]") == "\\[bold]text\\[/bold]"
+
+
+def test_escape_markup_in_log_fn() -> None:
+    """Test that escape_markup properly escapes brackets in log output."""
+    buf = StringIO()
+    con = Console(file=buf, no_color=True)
+    msg = "Message with [brackets] inside"
+    con.print(f"[cyan]{escape_markup(msg)}[/cyan]")
+    output = buf.getvalue()
+    assert "[brackets]" in output
+
+
+def test_print_status_with_brackets() -> None:
+    """Test that print_status doesn't consume bracket content."""
+    # Should not raise and should preserve brackets
+    print_status("Error in [module] function", "error")
+
+
+def test_print_workflow_header_with_brackets() -> None:
+    """Test that workflow header doesn't consume bracket content."""
+    print_workflow_header("test", "[tag-with-brackets]")
+
+
+def test_print_artifact_created_with_brackets() -> None:
+    """Test that artifact path with brackets is preserved."""
+    print_artifact_created("/path/to/[artifact].txt")
+
+
+def test_print_file_operation_with_brackets() -> None:
+    """Test that file operation with brackets is preserved."""
+    print_file_operation("Created", "/path/to/[file].txt", True)

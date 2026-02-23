@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
+from rich.markup import escape as _esc
+
 from sase.ace.changespec import find_all_changespecs
 from sase.sase_utils import generate_timestamp
 from sase.llm_provider import invoke_agent
@@ -260,7 +262,7 @@ class MentorWorkflow(BaseWorkflow):
             )
             return False
         except Exception as e:
-            self._console.print(f"[red]Mentor workflow crashed: {e!s}[/red]")
+            self._console.print(f"[red]Mentor workflow crashed: {_esc(str(e))}[/red]")
             return False
         finally:
             os.chdir(original_dir)

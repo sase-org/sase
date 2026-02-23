@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape as _esc
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -143,7 +144,7 @@ def restore_changespec(
     # Extract base name (without __<N> suffix)
     base_name = strip_reverted_suffix(changespec.name)
     if console:
-        console.print(f"[cyan]Base name: {base_name}[/cyan]")
+        console.print(f"[cyan]Base name: {_esc(base_name)}[/cyan]")
 
     # Rename the ChangeSpec to remove the __<N> suffix
     # This allows sase commit to find it and use its description
@@ -154,7 +155,7 @@ def restore_changespec(
             )
             if console:
                 console.print(
-                    f"[green]Renamed ChangeSpec: {changespec.name} → {base_name}[/green]"
+                    f"[green]Renamed ChangeSpec: {_esc(changespec.name)} → {_esc(base_name)}[/green]"
                 )
             # Also update any RUNNING field entries that reference the old name
             update_running_field_cl_name(

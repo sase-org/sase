@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape as escape_markup
 
 # Add parent directory to path for status_state_machine import
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -98,7 +99,11 @@ def revert_changespec(
         Tuple of (success, error_message)
     """
     # Kill any running processes before reverting
-    log_fn = (lambda msg: console.print(f"[cyan]{msg}[/cyan]")) if console else None
+    log_fn = (
+        (lambda msg: console.print(f"[cyan]{escape_markup(msg)}[/cyan]"))
+        if console
+        else None
+    )
     kill_and_persist_all_running_processes(
         changespec,
         changespec.file_path,

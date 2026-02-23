@@ -4,6 +4,7 @@ import os
 import subprocess
 
 from rich.console import Console
+from rich.markup import escape as escape_markup
 
 from sase.ace.changespec import ChangeSpec, find_all_changespecs
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
@@ -47,7 +48,11 @@ def submit_git_changespec(
         Tuple of (success, error_message).
     """
     # Kill any running processes before submitting
-    log_fn = (lambda msg: console.print(f"[cyan]{msg}[/cyan]")) if console else None
+    log_fn = (
+        (lambda msg: console.print(f"[cyan]{escape_markup(msg)}[/cyan]"))
+        if console
+        else None
+    )
     kill_and_persist_all_running_processes(
         changespec,
         changespec.file_path,
@@ -102,7 +107,9 @@ def submit_git_changespec(
     try:
         # Checkout the branch
         if console:
-            console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
+            console.print(
+                f"[cyan]Checking out {escape_markup(changespec.name)}...[/cyan]"
+            )
 
         provider = get_vcs_provider(ws_dir)
         branch_name = provider.resolve_revision(
@@ -118,7 +125,7 @@ def submit_git_changespec(
 
         if console:
             console.print(
-                f"[cyan]Merging {changespec.name} into {default_branch}...[/cyan]"
+                f"[cyan]Merging {escape_markup(changespec.name)} into {escape_markup(default_branch)}...[/cyan]"
             )
 
         # Check if this is a GitHub project with an existing PR
@@ -250,7 +257,9 @@ def _submit_via_local_merge(
         return (False, f"Merge conflict merging {branch_name} into {default_branch}")
 
     if console:
-        console.print(f"[green]Merged {branch_name} into {default_branch}[/green]")
+        console.print(
+            f"[green]Merged {escape_markup(branch_name)} into {escape_markup(default_branch)}[/green]"
+        )
 
     # Push
     result = subprocess.run(
@@ -285,7 +294,7 @@ def _submit_via_local_merge(
     )
 
     if console:
-        console.print(f"[green]Deleted branch {branch_name}[/green]")
+        console.print(f"[green]Deleted branch {escape_markup(branch_name)}[/green]")
 
     return _finalize_submission(changespec, console)
 
@@ -299,7 +308,7 @@ def _finalize_submission(
     new_name = f"{changespec.name}__{timestamp}"
 
     if console:
-        console.print(f"[cyan]Renaming ChangeSpec to: {new_name}[/cyan]")
+        console.print(f"[cyan]Renaming ChangeSpec to: {escape_markup(new_name)}[/cyan]")
 
     try:
         rename_changespec_with_references(
@@ -310,7 +319,7 @@ def _finalize_submission(
 
     if console:
         console.print(
-            f"[green]Renamed ChangeSpec: {changespec.name} -> {new_name}[/green]"
+            f"[green]Renamed ChangeSpec: {escape_markup(changespec.name)} -> {escape_markup(new_name)}[/green]"
         )
 
     # Transition status to Submitted

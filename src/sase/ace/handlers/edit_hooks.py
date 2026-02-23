@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+from rich.markup import escape as _esc
+
 from ..changespec import ChangeSpec
 
 if TYPE_CHECKING:
@@ -166,7 +168,7 @@ def handle_edit_hooks(
         from sase.hook_history import add_or_update_hook
 
         add_or_update_hook(user_input)
-        self.console.print(f"[green]Added hook: {user_input}[/green]")
+        self.console.print(f"[green]Added hook: {_esc(user_input)}[/green]")
         changespecs, current_idx = self._reload_and_reposition(changespecs, changespec)
         return changespecs, current_idx
 
@@ -232,7 +234,7 @@ def _handle_rerun_delete_hooks(
             else:
                 self.console.print(f"[yellow]Invalid hint: {hint_num_val}[/yellow]")
         except ValueError:
-            self.console.print(f"[yellow]Invalid input: {part}[/yellow]")
+            self.console.print(f"[yellow]Invalid input: {_esc(part)}[/yellow]")
 
     if not hints_to_rerun and not hints_to_delete:
         return changespecs, current_idx

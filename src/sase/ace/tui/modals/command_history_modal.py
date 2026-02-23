@@ -106,7 +106,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 with Vertical(id="command-history-preview-panel"):
                     yield Label("Details", id="command-history-preview-label")
                     with VerticalScroll(id="command-history-preview-scroll"):
-                        yield Static("", id="command-history-preview")
+                        yield Static("", id="command-history-preview", markup=False)
                         yield Static("", id="command-history-metadata")
             yield Static(
                 "j/k ^n/^p: navigate | Enter: submit selected or typed | Esc/q: cancel",

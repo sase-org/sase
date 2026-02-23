@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+from rich.markup import escape as _esc
+
 from sase.commit_utils import run_sase_hg_clean
 from sase.commit_workflow.editor_utils import get_editor
 from sase.vcs_provider import get_vcs_provider
@@ -41,7 +43,7 @@ def _sync_description_after_reword(
     success, desc_output = provider.get_description("", workspace_dir, short=True)
     if not success:
         console.print(
-            f"[yellow]Warning: could not read updated description: {desc_output}[/yellow]"
+            f"[yellow]Warning: could not read updated description: {_esc(str(desc_output))}[/yellow]"
         )
         return
 
@@ -85,14 +87,14 @@ def _fetch_cl_description(
     try:
         target_dir = get_primary_workspace(project_basename, 1)
     except RuntimeError as e:
-        console.print(f"[red]Error getting workspace: {e}[/red]")
+        console.print(f"[red]Error getting workspace: {_esc(str(e))}[/red]")
         return None
 
     provider = get_vcs_provider(target_dir)
     resolved = provider.resolve_revision(changespec_name, project_basename, target_dir)
     success, description = provider.get_description(resolved, target_dir)
     if not success:
-        console.print(f"[red]{description}[/red]")
+        console.print(f"[red]{_esc(str(description))}[/red]")
         return None
     return description
 
@@ -155,7 +157,7 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
     except Exception as e:
-        console.print(f"[red]Failed to write temp file: {e}[/red]")
+        console.print(f"[red]Failed to write temp file: {_esc(str(e))}[/red]")
         os.close(fd)
         return None
 
@@ -170,7 +172,7 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
         with open(temp_path, encoding="utf-8") as f:
             return f.read()
     except Exception as e:
-        console.print(f"[red]Failed to open editor: {e}[/red]")
+        console.print(f"[red]Failed to open editor: {_esc(str(e))}[/red]")
         return None
     finally:
         if os.path.exists(temp_path):
@@ -228,10 +230,12 @@ def handle_add_tag(
         resolved = provider.resolve_revision(
             changespec.name, changespec.project_basename, workspace_dir
         )
-        self.console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
+        self.console.print(f"[cyan]Checking out {_esc(changespec.name)}...[/cyan]")
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
-            self.console.print(f"[red]Error checking out CL: {checkout_err}[/red]")
+            self.console.print(
+                f"[red]Error checking out CL: {_esc(str(checkout_err))}[/red]"
+            )
             return
 
         # Run sase_hg_reword --add-tag
@@ -247,7 +251,7 @@ def handle_add_tag(
             reset_dollar_hooks(
                 changespec.file_path,
                 changespec.name,
-                log_fn=lambda msg: self.console.print(f"[cyan]{msg}[/cyan]"),
+                log_fn=lambda msg: self.console.print(f"[cyan]{_esc(msg)}[/cyan]"),
             )
         else:
             self.console.print(
@@ -345,10 +349,12 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
         resolved = provider.resolve_revision(
             changespec.name, changespec.project_basename, workspace_dir
         )
-        self.console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
+        self.console.print(f"[cyan]Checking out {_esc(changespec.name)}...[/cyan]")
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
-            self.console.print(f"[red]Error checking out CL: {checkout_err}[/red]")
+            self.console.print(
+                f"[red]Error checking out CL: {_esc(str(checkout_err))}[/red]"
+            )
             return
 
         # Run reword with the edited description (non-interactive)
@@ -363,10 +369,12 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
             reset_dollar_hooks(
                 changespec.file_path,
                 changespec.name,
-                log_fn=lambda msg: self.console.print(f"[cyan]{msg}[/cyan]"),
+                log_fn=lambda msg: self.console.print(f"[cyan]{_esc(msg)}[/cyan]"),
             )
         else:
-            self.console.print(f"[yellow]sase_hg_reword failed: {reword_err}[/yellow]")
+            self.console.print(
+                f"[yellow]sase_hg_reword failed: {_esc(str(reword_err))}[/yellow]"
+            )
 
     finally:
         # Always release the workspace

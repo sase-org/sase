@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any
 
+from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.text import Text
 from sase.gh_workspace import get_cl_field_label
@@ -277,7 +278,7 @@ class ChangeSpecDetail(Static):
 
         panel = Panel(
             text,
-            title=f"{file_location}",
+            title=f"{_esc(file_location)}",
             border_style="cyan",
             padding=(1, 2),
         )

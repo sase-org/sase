@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+from rich.markup import escape as _esc
+
 from sase.change_actions import (
     execute_change_action,
     prompt_for_change_action,
@@ -309,7 +311,9 @@ def handle_run_fix_hook_workflow(
             model_tier="large",
             workflow="fix-hook",
         )
-        self.console.print(f"\n[green]Agent Response:[/green]\n{response.content}\n")
+        self.console.print(
+            f"\n[green]Agent Response:[/green]\n{_esc(str(response.content))}\n"
+        )
 
         # Save chat history for the COMMITS entry
         chat_path = save_chat_history(
@@ -364,7 +368,7 @@ def handle_run_fix_hook_workflow(
         self.console.print("\n[yellow]Workflow interrupted (Ctrl+C)[/yellow]")
         final_suffix = "Hook Command Failed"  # Interrupt = failure
     except Exception as e:
-        self.console.print(f"[red]Workflow crashed: {e}[/red]")
+        self.console.print(f"[red]Workflow crashed: {_esc(str(e))}[/red]")
         final_suffix = "Hook Command Failed"  # Crash = failure
     finally:
         # Restore original directory

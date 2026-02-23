@@ -7,6 +7,7 @@ from typing import NoReturn
 from sase.amend_workflow import AmendWorkflow
 from sase.commit_workflow import CommitWorkflow
 from rich.console import Console
+from rich.markup import escape as _esc
 
 
 def handle_amend_command(args: argparse.Namespace) -> NoReturn:
@@ -127,12 +128,12 @@ def handle_restore_command(args: argparse.Namespace) -> NoReturn:
             break
 
     if target_changespec is None:
-        console.print(f"[red]Error: ChangeSpec '{args.name}' not found[/red]")
+        console.print(f"[red]Error: ChangeSpec '{_esc(args.name)}' not found[/red]")
         sys.exit(1)
 
     success, error = restore_changespec(target_changespec, console)
     if not success:
-        console.print(f"[red]Error: {error}[/red]")
+        console.print(f"[red]Error: {_esc(str(error))}[/red]")
         sys.exit(1)
 
     console.print("[green]ChangeSpec restored successfully[/green]")
@@ -159,12 +160,12 @@ def handle_revert_command(args: argparse.Namespace) -> NoReturn:
             break
 
     if target_changespec is None:
-        console.print(f"[red]Error: ChangeSpec '{args.name}' not found[/red]")
+        console.print(f"[red]Error: ChangeSpec '{_esc(args.name)}' not found[/red]")
         sys.exit(1)
 
     success, error = revert_changespec(target_changespec, console)
     if not success:
-        console.print(f"[red]Error: {error}[/red]")
+        console.print(f"[red]Error: {_esc(str(error))}[/red]")
         sys.exit(1)
 
     console.print("[green]ChangeSpec reverted successfully[/green]")

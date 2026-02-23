@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 
 from rich.console import Console
+from rich.markup import escape as _esc
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -74,7 +75,7 @@ def _get_cl_description(
         revision = provider.resolve_revision(revision, project_basename, target_dir)
     success, result = provider.get_description(revision, target_dir)
     if not success:
-        console.print(f"[red]{result}[/red]")
+        console.print(f"[red]{_esc(str(result))}[/red]")
         return False, None
     return True, result
 
@@ -92,11 +93,11 @@ def _get_branch_number(target_dir: str, console: Console) -> tuple[bool, str | N
     provider = get_vcs_provider(target_dir)
     success, branch_number = provider.get_cl_number(target_dir)
     if not success:
-        console.print(f"[red]{branch_number}[/red]")
+        console.print(f"[red]{_esc(str(branch_number))}[/red]")
         return False, None
     if not branch_number or not branch_number.isdigit():
         console.print(
-            f"[red]Error: branch_number returned invalid value: {branch_number}[/red]"
+            f"[red]Error: branch_number returned invalid value: {_esc(str(branch_number))}[/red]"
         )
         return False, None
     return True, branch_number
@@ -122,7 +123,7 @@ def _run_findreviewers(target_dir: str, console: Console) -> bool:
     provider = get_vcs_provider(target_dir)
     success, output = provider.find_reviewers(cl_number, target_dir)
     if not success:
-        console.print(f"[red]{output}[/red]")
+        console.print(f"[red]{_esc(str(output))}[/red]")
         return False
 
     # Display the output
@@ -512,14 +513,14 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
     Returns:
         True if mailing succeeded, False otherwise
     """
-    console.print(f"[cyan]Sending change for review: {changespec.name}[/cyan]")
+    console.print(f"[cyan]Sending change for review: {_esc(changespec.name)}[/cyan]")
     provider = get_vcs_provider(target_dir)
     resolved = provider.resolve_revision(
         changespec.name, changespec.project_basename, target_dir
     )
     success, error = provider.mail(resolved, target_dir)
     if not success:
-        console.print(f"[red]{error}[/red]")
+        console.print(f"[red]{_esc(str(error))}[/red]")
         return False
 
     # If ChangeSpec has no CL URL yet (git, PR just created), update it

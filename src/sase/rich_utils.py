@@ -11,10 +11,14 @@ from contextlib import contextmanager
 
 from rich.console import Console
 from rich.live import Live
+from rich.markup import escape as escape_markup
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
+
+# Re-export escape_markup for convenient access
+__all__ = ["escape_markup"]
 
 # Global console instance for consistent styling
 console = Console()
@@ -22,9 +26,9 @@ console = Console()
 
 def print_workflow_header(workflow_name: str, tag: str = "") -> None:
     """Print a formatted workflow header."""
-    header_text = f"🚀 SASE {workflow_name.upper()} Workflow"
+    header_text = f"🚀 SASE {escape_markup(workflow_name.upper())} Workflow"
     if tag:
-        header_text += f" ({tag})"
+        header_text += f" ({escape_markup(tag)})"
 
     console.print(
         Panel(
@@ -57,19 +61,22 @@ def print_status(message: str, status_type: str = "info") -> None:
     icon = icons.get(status_type, "ℹ️")
     style = styles.get(status_type, "white")
 
-    console.print(f"[{style}]{icon} {message}[/{style}]")
+    console.print(f"[{style}]{icon} {escape_markup(message)}[/{style}]")
 
 
 def print_artifact_created(artifact_path: str) -> None:
     """Print notification about artifact creation."""
-    console.print(f"[dim]📄 Created artifact: {artifact_path}[/dim]")
+    console.print(f"[dim]📄 Created artifact: {escape_markup(artifact_path)}[/dim]")
 
 
 def print_file_operation(operation: str, file_path: str, success: bool = True) -> None:
     """Print formatted file operation message."""
     icon = "✅" if success else "❌"
     color = "green" if success else "red"
-    console.print(f"[{color}]{icon} {operation}: {file_path}[/{color}]")
+    console.print(
+        f"[{color}]{icon} {escape_markup(operation)}: "
+        f"{escape_markup(file_path)}[/{color}]"
+    )
 
 
 def print_prompt_and_response(
