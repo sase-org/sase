@@ -22,6 +22,10 @@ Use xprompts when you want to:
 - [Jinja2 Integration](#jinja2-integration)
 - [Legacy Placeholders](#legacy-placeholders)
 - [Config-Based XPrompts](#config-based-xprompts)
+- [Directory Configuration Files](#directory-configuration-files)
+- [Directives](#directives)
+- [Command Substitution](#command-substitution)
+- [Protected Content](#protected-content)
 - [Recursive Expansion](#recursive-expansion)
 - [Relationship to Workflows](#relationship-to-workflows)
 
@@ -30,16 +34,19 @@ Use xprompts when you want to:
 XPrompts are loaded from multiple locations. When two locations define an xprompt with the same name, the
 higher-priority source wins (first-wins).
 
-| Priority | Location                                 | Notes                                     |
-| -------- | ---------------------------------------- | ----------------------------------------- |
-| 1        | `.xprompts/*.md` (CWD, hidden dir)       | Highest priority; project-local overrides |
-| 2        | `xprompts/*.md` (CWD)                    | Non-hidden variant                        |
-| 3        | `~/.xprompts/*.md` (home, hidden dir)    | User-wide overrides                       |
-| 4        | `~/xprompts/*.md` (home)                 | Non-hidden variant                        |
-| 5        | `~/.config/sase/xprompts/{project}/*.md` | Project-specific (when project is set)    |
-| 6        | `sase.yml` `xprompts:` section           | Config-based definitions                  |
-| 7        | Plugin packages (`sase_xprompts` EPs)    | Installed plugin xprompts                 |
-| 8        | `<sase_package>/xprompts/*.md`           | Built-in xprompts shipped with sase       |
+| Priority | Location                              | Notes                                     |
+| -------- | ------------------------------------- | ----------------------------------------- |
+| 1        | `.xprompts/` (CWD, hidden dir)        | Highest priority; project-local overrides |
+| 2        | `xprompts/` (CWD)                     | Non-hidden variant                        |
+| 3        | `~/.xprompts/` (home, hidden dir)     | User-wide overrides                       |
+| 4        | `~/xprompts/` (home)                  | Non-hidden variant                        |
+| 5        | `~/.config/sase/xprompts/{project}/`  | Project-specific (when project is set)    |
+| 6        | `sase.yml` `xprompts:` section        | Config-based definitions                  |
+| 7        | Plugin packages (`sase_xprompts` EPs) | Installed plugin xprompts                 |
+| 8        | `<sase_package>/xprompts/`            | Built-in xprompts shipped with sase       |
+
+Each directory (priorities 1-5, 7-8) can contain individual `.md` files and/or an `xprompts.yml` config file. See
+[Directory Configuration Files](#directory-configuration-files) for the config file format.
 
 For file-based xprompts (priorities 1-5, 7), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
@@ -319,6 +326,132 @@ xprompts:
 ```
 
 Config-based xprompts have priority 6 (below file-based, above plugin and built-in).
+
+## Directory Configuration Files
+
+In addition to defining xprompts as individual `.md` files, you can define multiple xprompts in a single `xprompts.yml`
+(or `xprompts.yaml`) file placed inside any `xprompts/` directory in the search path.
+
+### Format
+
+The file uses the same format as the `xprompts:` section in `sase.yml`:
+
+```yaml
+# Simple format — value is the template body
+propose: "Please propose your changes before applying them."
+
+# Structured format — with typed inputs and/or output
+greet:
+  input: { name: word, count: { type: int, default: 1 } }
+  content: "Hello {{ name }}, count is {{ count }}"
+  output: { result: text }
+```
+
+### Precedence Rules
+
+- Only one config file per directory — `xprompts.yml` takes precedence over `xprompts.yaml` if both exist.
+- Within a directory, config entries are loaded first, then individual `.md` files override them (so a `foo.md` file in
+  the same directory will take priority over a `foo:` entry in `xprompts.yml`).
+- Across directories, the normal [discovery order](#discovery-order) applies.
+
+## Directives
+
+Directives are in-prompt tags with a `%` prefix that modify agent runner behavior. They are extracted and stripped from
+the prompt before further processing.
+
+### Supported Directives
+
+| Directive | Alias | Description                                   |
+| --------- | ----- | --------------------------------------------- |
+| `%model`  | `%m`  | Override the LLM model for this prompt        |
+| `%name`   | `%n`  | Assign a name to the agent                    |
+| `%wait`   | `%w`  | Wait for another agent to finish (can repeat) |
+
+### Syntax
+
+Directives use the same argument syntax as xprompt references:
+
+```
+%model:claude-sonnet         # Colon syntax
+%model(claude-sonnet)        # Parenthesis syntax
+%model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
+%name:reviewer               # Short-form
+%n:reviewer                  # Same, using alias
+%wait:agent1                 # Wait for agent1
+%w:agent2                    # Wait for agent2 (alias)
+```
+
+### Example
+
+```
+%model:`claude-sonnet-4-20250514`
+%name:code-reviewer
+%wait:planner
+Review the code changes and provide feedback.
+```
+
+The directives are stripped from the prompt text. The agent will use the specified model, be named "code-reviewer", and
+will wait for the "planner" agent to complete before running.
+
+### Multi-Value Directives
+
+The `%wait` directive supports multiple occurrences — each adds to the wait list:
+
+```
+%wait:agent1
+%wait:agent2
+%wait:agent3
+Do work after all three agents finish.
+```
+
+## Command Substitution
+
+XPrompt arguments support shell command substitution using `$(cmd)` syntax. The command is executed via the shell and
+its output replaces the `$(cmd)` expression.
+
+```
+#bug:$(branch_bug)           # Use output of branch_bug command as the argument
+#review:$(git diff HEAD~1)   # Pass git diff output as argument
+```
+
+Nested parentheses are supported: `$(echo $(date))`. To include a literal `$(`, escape it as `\$(`.
+
+Failed commands or commands producing empty output result in an empty string replacement. Command outputs are cached
+within a single expansion pass to avoid redundant execution.
+
+## Protected Content
+
+### Fenced Code Blocks
+
+Content inside triple-backtick fenced code blocks is automatically protected from xprompt expansion:
+
+````
+Here's an example:
+
+```
+#foo will NOT be expanded inside this code block
+```
+
+But #foo HERE will be expanded normally.
+````
+
+This prevents accidental expansion of `#name` patterns in code examples, documentation, and similar content.
+
+### Disabled Regions
+
+You can explicitly disable xprompt expansion for a region of text using the `%xprompts_enabled` directive:
+
+```
+%xprompts_enabled:false
+This content is passed through verbatim.
+#foo will NOT be expanded here.
+%xprompts_enabled:true
+Normal expansion resumes here.
+#foo WILL be expanded.
+```
+
+The markers are stripped from the final output. This is useful for embedding raw xprompt syntax in documentation or for
+passing literal `#name` patterns to downstream consumers.
 
 ## Recursive Expansion
 

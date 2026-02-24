@@ -111,46 +111,58 @@ standalone prompt expansion and the prompt steps within workflows.
 
 ```
 src/sase/
-├── main/                # CLI entry point and argument parsing
-├── ace/                 # Interactive TUI and ChangeSpec engine
-│   ├── changespec/      # ChangeSpec data model and parsing
-│   ├── query/           # Query language (boolean expressions, filters)
-│   ├── tui/             # Textual-based TUI interface
-│   │   └── thinking/    # Claude thinking block parser and display
-│   ├── handlers/        # Event and action handlers
-│   ├── hooks/           # Lifecycle hooks
-│   ├── comments/        # Comment management
-│   ├── scheduler/       # Task scheduling within ACE
-│   └── workflows/       # ACE-specific workflow integrations
-├── axe/                 # Lumberjack-based daemon (orchestrator, chops, runner pool)
-│   ├── orchestrator.py  # Multi-lumberjack supervisor
-│   ├── lumberjack.py    # Single-lumberjack scheduler loop
+├── main/                  # CLI entry point and argument parsing
+│   └── query_handler/     # Query execution handler
+├── ace/                   # Interactive TUI and ChangeSpec engine
+│   ├── changespec/        # ChangeSpec data model and parsing
+│   ├── query/             # Query language (boolean expressions, filters)
+│   ├── tui/               # Textual-based TUI interface
+│   │   ├── thinking/      # Claude thinking block parser and display
+│   │   ├── actions/       # Keybinding action handlers
+│   │   ├── modals/        # Modal dialogs (query, status, hook history, etc.)
+│   │   └── widgets/       # TUI widget components
+│   │       ├── file_panel/   # Agent file viewer (diff, display, trimming)
+│   │       └── prompt_panel/ # Agent prompt viewer
+│   ├── handlers/          # Event and action handlers
+│   ├── hooks/             # Lifecycle hooks (execution, formatting, persistence)
+│   ├── comments/          # Comment management
+│   ├── scheduler/         # Task scheduling within ACE
+│   └── workflows/         # ACE-specific workflow integrations
+├── axe/                   # Lumberjack-based daemon (orchestrator, chops, runner pool)
+│   ├── orchestrator.py    # Multi-lumberjack supervisor
+│   ├── lumberjack.py      # Single-lumberjack scheduler loop
 │   ├── chop_script_runner.py # External chop script discovery and execution
-│   ├── config.py        # Lumberjack and chop configuration
-│   ├── runner_pool.py   # Shared concurrent runner pool
-│   ├── hook_jobs.py     # 1-second interval hook/mentor/workflow jobs
-│   ├── state.py         # Lumberjack state persistence
-│   ├── process.py       # Process management utilities
-│   └── cli.py           # Axe CLI argument parsing
-├── xprompt/             # Prompt templates and workflow execution
-├── llm_provider/        # Pluggable LLM abstraction (Claude, Gemini)
-├── vcs_provider/        # VCS abstraction (pluggy-based plugin system)
-│   ├── _hookspec.py     # Pluggy hook specifications (VCSHookSpec)
+│   ├── chops/             # Built-in chop scripts
+│   ├── config.py          # Lumberjack and chop configuration
+│   ├── runner_pool.py     # Shared concurrent runner pool
+│   ├── hook_jobs.py       # 1-second interval hook/mentor/workflow jobs
+│   ├── state.py           # Lumberjack state persistence
+│   ├── process.py         # Process management utilities
+│   └── cli.py             # Axe CLI argument parsing
+├── xprompt/               # Prompt templates and workflow execution
+│   ├── processor.py       # XPrompt expansion engine
+│   ├── directives.py      # %name directive parsing (%model, %name, %wait)
+│   ├── loader.py          # XPrompt discovery and loading
+│   ├── workflow_executor*.py # Workflow execution (steps, loops, parallel)
+│   └── workflow_loader*.py   # Workflow YAML parsing and validation
+├── llm_provider/          # Pluggable LLM abstraction (Claude, Gemini)
+├── vcs_provider/          # VCS abstraction (pluggy-based plugin system)
+│   ├── _hookspec.py       # Pluggy hook specifications (VCSHookSpec)
 │   ├── _plugin_manager.py # Plugin manager wrapping pluggy
 │   ├── _command_runner.py # Shared CommandRunner mixin
-│   └── plugins/         # Built-in VCS plugins
-│       └── bare_git.py  # BareGitPlugin (standard git operations)
-├── plugin_discovery.py  # Entry-point-based plugin discovery (shared)
-├── commit_workflow/     # Commit creation workflows
-├── commit_utils/        # COMMITS entry management
-├── accept_workflow/     # Change acceptance workflows
-├── rewind_workflow/     # Revert and restore operations
-├── gemini_wrapper/      # Gemini-specific integration
-├── notifications/       # Notification system and delivery
-├── status_state_machine/ # ChangeSpec status transitions
-├── scripts/             # Extracted Python utility scripts
-tests/                   # Test suite (mirrors src/sase/ structure)
-docs/                    # Detailed documentation
+│   └── plugins/           # Built-in VCS plugins
+│       └── bare_git.py    # BareGitPlugin (standard git operations)
+├── plugin_discovery.py    # Entry-point-based plugin discovery (shared)
+├── commit_workflow/       # Commit creation workflows
+├── commit_utils/          # COMMITS entry management
+├── accept_workflow/       # Change acceptance workflows
+├── rewind_workflow/       # Revert and restore operations
+├── gemini_wrapper/        # Gemini-specific integration
+├── notifications/         # Notification system and delivery
+├── status_state_machine/  # ChangeSpec status transitions
+├── scripts/               # Extracted Python utility scripts
+tests/                     # Test suite (mirrors src/sase/ structure)
+docs/                      # Detailed documentation
 ```
 
 ## Configuration

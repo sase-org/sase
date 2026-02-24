@@ -110,10 +110,24 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Bang Mode (`!` prefix)
 
-| Key  | Action                               |
-| ---- | ------------------------------------ |
-| `!!` | Run background command               |
-| `!x` | Start / stop axe (or select process) |
+| Key  | Action                                            |
+| ---- | ------------------------------------------------- |
+| `!!` | Run background command (opens hook history modal) |
+| `!x` | Start / stop axe (or select process)              |
+
+### Hook History Modal
+
+Pressing `!!` opens the hook history modal showing previously run background commands:
+
+| Key         | Action                                     |
+| ----------- | ------------------------------------------ |
+| `j` / `k`   | Navigate through hook history              |
+| `Enter`     | Select and execute highlighted hook        |
+| `Ctrl+D`    | Delete highlighted hook from history       |
+| `Ctrl+G`    | Edit first — select hook and open in input |
+| `Esc` / `q` | Cancel and close modal                     |
+
+The modal supports live filtering as you type in the search box and displays last-used timestamps for each hook.
 
 ### Leader Mode (`,` prefix)
 
@@ -150,6 +164,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | ------------------- | ---------------------------------------- |
 | `@`                 | Run custom agent                         |
 | `n`                 | Name agent                               |
+| `R`                 | Revive dismissed agent (opens selection) |
 | `r`                 | Revive chat as agent                     |
 | `x`                 | Kill / dismiss agent                     |
 | `e`                 | Edit chat in editor                      |
@@ -174,10 +189,11 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Copy Mode (`%` prefix)
 
-| Key  | Action                 |
-| ---- | ---------------------- |
-| `%c` | Copy chat file path    |
-| `%s` | Copy sase ace snapshot |
+| Key  | Action                      |
+| ---- | --------------------------- |
+| `%c` | Copy chat file path         |
+| `%E` | Copy file path (file panel) |
+| `%s` | Copy sase ace snapshot      |
 
 ## Keybindings: Axe Tab
 
@@ -259,6 +275,31 @@ These work on all tabs:
 | `y`                 | Refresh current tab                                                        |
 | `q`                 | Quit                                                                       |
 | `?`                 | Show help modal                                                            |
+
+## File Panel Trimming
+
+When viewing agent files on the Agents tab, large files are automatically trimmed to fit the visible viewport. A blue
+indicator shows "N more lines below" when content is trimmed.
+
+### Trim Controls
+
+| Key | Action                               |
+| --- | ------------------------------------ |
+| `+` | Expand file by one page              |
+| `-` | Collapse file by one page            |
+| `=` | Reset file trim to default page size |
+| `*` | Show all file lines (remove trim)    |
+
+Trim state is preserved when switching between agents or refreshing data.
+
+## Agent Revive
+
+Pressing `R` on the Agents tab opens a two-step selection flow to restore a previously dismissed agent:
+
+1. **Scope selection** — Choose from "all", "home", "project", or "cl" to filter dismissed agents.
+2. **Agent selection** — Pick which dismissed agent to revive from the filtered list.
+
+Reviving a workflow parent also revives all its child steps.
 
 ## Auto-Refresh
 

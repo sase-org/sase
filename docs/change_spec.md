@@ -15,9 +15,22 @@ DESCRIPTION:
   <BODY>
 PARENT: <PARENT>
 CL: <CL>
+BUG: <BUG>
 TEST TARGETS: <TEST_TARGETS>
 STATUS: <STATUS>
+KICKSTART:
+  <KICKSTART_TEXT>
+COMMITS:
+  <COMMIT_ENTRIES>
+HOOKS:
+  <HOOK_ENTRIES>
+COMMENTS:
+  <COMMENT_ENTRIES>
+MENTORS:
+  <MENTOR_ENTRIES>
 ```
+
+Not all fields are required — see individual field specifications below.
 
 **IMPORTANT**: When outputting multiple ChangeSpecs, separate each one with **two blank lines**.
 
@@ -102,20 +115,33 @@ Specifies the dependency relationship between CLs.
 PARENT: my_project_add_config_parser   # Depends on another CL
 ```
 
-### CL
+### CL / PR
 
-The CL identifier (e.g., CL number or PR number).
+The CL or PR identifier (e.g., CL number or PR URL). Both `CL:` and `PR:` are accepted and treated identically — use
+whichever matches your project's terminology.
 
 **Values**:
 
-- Omit this field entirely - CL not yet created (initial state)
-- `http://cl/<CL_ID>` - URL to the created CL/PR
+- Omit this field entirely - CL/PR not yet created (initial state)
+- `http://cl/<CL_ID>` - URL to the created CL
+- `https://github.com/<owner>/<repo>/pull/<N>` - URL to the PR
 
 **Example**:
 
 ```
 # No CL field = CL not yet created
 CL: http://cl/12345        # After CL creation
+PR: https://github.com/org/repo/pull/42   # PR variant
+```
+
+### BUG
+
+An optional bug reference linking the CL to an issue tracker.
+
+**Example**:
+
+```
+BUG: b/12345
 ```
 
 ### TEST TARGETS
@@ -145,14 +171,11 @@ Specifies the test targets that need to pass for this CL.
 3. **Field present but no value specified**: Tests are required but targets are TBD
    - Format: `TEST TARGETS:` (with nothing after the colon)
 
-**NEVER use `TEST TARGETS: None`** - either specify targets or omit the field.
+**NEVER use `TEST TARGETS: None`** — either specify targets or omit the field.
 
 **Target Format**:
 
 - General: `//path/to/package:target_name`
-- For Dart: Strip the `test/` directory from the path
-  - File: `//path/to/component/test/my_widget_test.dart`
-  - Target: `//path/to/component:my_widget_test` (not `//path/to/component/test:my_widget_test`)
 
 **Examples**:
 
@@ -169,37 +192,74 @@ TEST TARGETS:
   //my/project:config_parser_test
 
 # No tests required (omit field entirely)
-NAME: my_project_update_config
-DESCRIPTION:
-  Update production config file
-  ...
-PARENT: None
-CL: None
-STATUS: Unstarted
 ```
 
 ### STATUS
 
-The current state of the CL.
+The current state of the CL in its lifecycle.
 
 **Valid Values**:
 
-- `Blocked` - Has a PARENT that hasn't reached "Drafted" status or beyond
-- `Unstarted` - Ready to start but work hasn't begun
-- `In Progress` - Work is currently ongoing
-- `Failed to Create CL` - CL creation attempt failed
-- `TDD CL Created` - Test-driven development CL created
-- `Fixing Tests` - CL created but tests are failing
-- `Failed to Fix Tests` - Unable to fix test failures
-- `Drafted` - Ready for review but not yet mailed
-- `Mailed` - Sent for review
-- `Submitted` - Merged/submitted to the codebase
+| Status      | Description                                     |
+| ----------- | ----------------------------------------------- |
+| `WIP`       | Work in progress — initial development          |
+| `Draft`     | CL created as a draft, not yet ready for review |
+| `Ready`     | Ready for review                                |
+| `Mailed`    | Sent out for review                             |
+| `Submitted` | Merged / submitted to the codebase (terminal)   |
+| `Reverted`  | CL was reverted after submission (terminal)     |
+| `Archived`  | CL was abandoned without submission (terminal)  |
+
+**Valid Transitions**:
+
+```
+WIP → Draft, Ready
+Draft → Ready
+Ready → Mailed, Draft
+Mailed → Submitted
+Submitted → (terminal)
+Reverted → (terminal)
+Archived → (terminal)
+```
 
 **Status Selection Rules**:
 
-- If `PARENT: None`, typically use `Unstarted`
-- If PARENT is set to another CL name, use `Blocked`
+- New CLs typically start as `WIP`
+- Move to `Draft` once a CL has been created
+- Move to `Ready` when the CL is ready for review
+- Move to `Mailed` when sent out for review
 - Update status as work progresses through the lifecycle
+
+### KICKSTART
+
+Optional initial prompt or instructions used to bootstrap the CL's development. This is a multi-line field with 2-space
+indentation.
+
+**Example**:
+
+```
+KICKSTART:
+  Create a new module that handles configuration parsing.
+  Use YAML format and support schema validation.
+```
+
+### COMMITS
+
+Tracks the commit history associated with this CL. Each entry records a commit hash, message, and optional metadata.
+This section is managed automatically by `sase commit` and `sase amend`.
+
+### HOOKS
+
+Defines lifecycle hooks attached to this CL — shell commands that run automatically at specific points (e.g., after
+commit, before mail). Hooks are managed via the `h` keybinding in ACE.
+
+### COMMENTS
+
+Stores review comments and discussion threads. Comments are added via the ACE TUI or through the review workflow.
+
+### MENTORS
+
+Configures mentor workflows for the CL — automated agents that monitor and provide guidance during development.
 
 ## Complete Examples
 
@@ -215,10 +275,8 @@ DESCRIPTION:
   signature verification, and expiration checking. The implementation
   supports both RS256 and HS256 algorithms. Tests cover valid tokens,
   expired tokens, invalid signatures, and malformed tokens.
-PARENT: None
-CL: None
 TEST TARGETS: //auth/system:jwt_validator_test
-STATUS: Unstarted
+STATUS: WIP
 ```
 
 ### Example 2: Dependent CL with Multiple Test Targets
@@ -235,11 +293,10 @@ DESCRIPTION:
   scenarios including missing tokens, expired tokens, and invalid
   signatures.
 PARENT: auth_system_add_jwt_validator
-CL: None
 TEST TARGETS:
   //auth/system:middleware_test
   //auth/system:integration_test
-STATUS: Blocked
+STATUS: WIP
 ```
 
 ### Example 3: Config-Only CL (No Tests)
@@ -252,35 +309,28 @@ DESCRIPTION:
   This CL updates the production configuration file to use a new
   secret key for JWT signing. This is a config-only change that
   rotates the signing key for security purposes.
-PARENT: None
-CL: None
-STATUS: Unstarted
+STATUS: WIP
 ```
 
-### Example 4: Parallel Independent CL
+### Example 4: CL with Bug Reference
 
 ```
-NAME: auth_system_add_rate_limiter
+NAME: auth_system_fix_token_expiry
 DESCRIPTION:
-  Add rate limiting for authentication endpoints
+  Fix incorrect token expiry calculation
 
-  This CL implements rate limiting using Redis to prevent brute
-  force attacks on authentication endpoints. It includes a
-  RateLimiter class that tracks request counts per IP address and
-  enforces configurable limits. This is completely independent of
-  the JWT validation work and can be developed in parallel. Tests
-  verify limit enforcement, reset behavior, and Redis failure
-  handling.
-PARENT: None
-CL: None
-TEST TARGETS: //auth/system:rate_limiter_test
-STATUS: Unstarted
+  The token expiry was being computed from the issue time rather
+  than the current time, causing tokens to expire prematurely
+  under clock skew conditions.
+BUG: b/98765
+TEST TARGETS: //auth/system:jwt_validator_test
+STATUS: Draft
 ```
 
 ## Best Practices
 
 1. **Keep CLs Small and Focused**: Each CL should address a single, well-defined change
-2. **Maximize Parallelization**: Use `PARENT: None` whenever possible
+2. **Maximize Parallelization**: Omit `PARENT` whenever possible
 3. **Include Tests**: Most CLs should specify TEST TARGETS
 4. **Write Clear Descriptions**: Explain what, why, and how
 5. **Use Descriptive Names**: NAME should clearly indicate what the CL does
