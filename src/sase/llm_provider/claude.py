@@ -82,7 +82,13 @@ class ClaudeCodeProvider(LLMProvider):
             for arg in extra_args_env.split():
                 base_args.append(arg)
 
-        # Start the process and stream output in real-time with timer
+        # Construct marker path for plan approval monitoring
+        approval_dir = Path.home() / ".sase" / "plan_approval" / session_uuid
+        marker_path = approval_dir / "plan_approved.marker"
+
+        # Start the process and stream output in real-time with timer.
+        # Pass marker_path so the monitoring thread can terminate the process
+        # if Claude Code gets stuck in an ExitPlanMode loop after approval.
         timer_context = (
             gemini_timer("Waiting for Claude") if not suppress_output else None
         )
@@ -90,30 +96,19 @@ class ClaudeCodeProvider(LLMProvider):
         if timer_context:
             with timer_context:
                 response_content, stderr_content, return_code = self._run_subprocess(
-                    base_args, prompt, suppress_output
+                    base_args, prompt, suppress_output, plan_marker_path=marker_path
                 )
                 # Add newline to separate agent output from timer
                 print()
         else:
             response_content, stderr_content, return_code = self._run_subprocess(
-                base_args, prompt, suppress_output
+                base_args, prompt, suppress_output, plan_marker_path=marker_path
             )
 
-        # Check if process failed
-        if return_code != 0:
-            error_content = f"Error running claude command (exit code {return_code})"
-            if stderr_content:
-                error_content += f": {stderr_content.strip()}"
-            raise subprocess.CalledProcessError(
-                return_code,
-                base_args,
-                output=response_content,
-                stderr=stderr_content,
-            )
-
-        # Check if plan was approved — if so, start fresh session for implementation
-        approval_dir = Path.home() / ".sase" / "plan_approval" / session_uuid
-        marker_path = approval_dir / "plan_approved.marker"
+        # Check if plan was approved BEFORE checking return code.
+        # When the monitoring thread terminates the process (due to ExitPlanMode
+        # loop), the return code is non-zero (signal), but we should proceed
+        # to phase 2 rather than raising an error.
         if marker_path.exists():
             plan_file_path = marker_path.read_text().strip()
             # Clean up the approval directory
@@ -210,6 +205,14 @@ class ClaudeCodeProvider(LLMProvider):
 
             # Combine phase 1 + phase 2 response text
             response_content = response_content.strip() + "\n\n" + impl_content.strip()
+        elif return_code != 0:
+            # No plan approval marker — check if process failed
+            raise subprocess.CalledProcessError(
+                return_code,
+                base_args,
+                output=response_content,
+                stderr=stderr_content,
+            )
 
         return response_content.strip()
 
@@ -218,6 +221,7 @@ class ClaudeCodeProvider(LLMProvider):
         args: list[str],
         prompt: str,
         suppress_output: bool,
+        plan_marker_path: Path | None = None,
     ) -> tuple[str, str, int]:
         """Run the Claude CLI subprocess.
 
@@ -225,6 +229,10 @@ class ClaudeCodeProvider(LLMProvider):
             args: Command-line arguments.
             prompt: Prompt to write to stdin.
             suppress_output: If True, suppress output.
+            plan_marker_path: If set, monitor this marker file and terminate
+                the process when it appears. This handles the edge case where
+                Claude Code's internal plan mode state machine fails to exit
+                after plan approval in pipe mode.
 
         Returns:
             Tuple of (stdout_content, stderr_content, return_code).
@@ -241,6 +249,22 @@ class ClaudeCodeProvider(LLMProvider):
         if process.stdin:
             process.stdin.write(prompt)
             process.stdin.close()
+
+        if plan_marker_path:
+            import threading
+            import time
+
+            def _monitor_marker() -> None:
+                while process.poll() is None:
+                    if plan_marker_path.exists():
+                        try:
+                            process.terminate()
+                        except OSError:
+                            pass
+                        return
+                    time.sleep(1.0)
+
+            threading.Thread(target=_monitor_marker, daemon=True).start()
 
         # Stream JSON output and extract assistant text
         return stream_and_parse_json_output(process, suppress_output=suppress_output)
