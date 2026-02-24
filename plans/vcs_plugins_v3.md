@@ -1,3 +1,7 @@
+---
+bead_id: sase-svxv
+---
+
 # Plan: Make sase Core Fully VCS-Agnostic
 
 ## Context

@@ -52,7 +52,7 @@ project venv and can pollute the system Python (pyenv). If `.venv` doesn't exist
 ## Issue Tracking
 
 This project uses **bd** (beads) for issue tracking. Always use `sase_bd` (at `tools/sase_bd`) instead of `bd` directly.
-Run `sase_bd onboard` to get started.
+Run `sase_bd onboard` to get started. IMPORTANT: Do NOT create beads unless you are explicitly asked to by the user.
 
 ### Quick Reference
 
