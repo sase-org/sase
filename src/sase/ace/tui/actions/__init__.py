@@ -12,7 +12,9 @@ from .marking import MarkingMixin
 from .navigation import NavigationMixin
 from .proposal_rebase import ProposalRebaseMixin
 from .rename import RenameMixin
+from .status import StatusActionsMixin
 from .sync import SyncMixin
+from .workspace import WorkspaceActionsMixin
 
 __all__ = [
     "AgentsMixin",
@@ -27,5 +29,7 @@ __all__ = [
     "NavigationMixin",
     "ProposalRebaseMixin",
     "RenameMixin",
+    "StatusActionsMixin",
     "SyncMixin",
+    "WorkspaceActionsMixin",
 ]

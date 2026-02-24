@@ -31,7 +31,9 @@ from .actions import (
     NavigationMixin,
     ProposalRebaseMixin,
     RenameMixin,
+    StatusActionsMixin,
     SyncMixin,
+    WorkspaceActionsMixin,
 )
 from .models import Agent
 from .models.agent import AgentType
@@ -76,7 +78,9 @@ class AceApp(
     NavigationMixin,
     ProposalRebaseMixin,
     RenameMixin,
+    StatusActionsMixin,
     SyncMixin,
+    WorkspaceActionsMixin,
     BaseActionsMixin,
     HintActionsMixin,
     App[None],
