@@ -18,7 +18,7 @@ LumberjackSummary = tuple[str, LumberjackStatus | None, int]
 
 
 class _AxeStatusSection(Static):
-    """Compact status bar showing runtime, PID, cycles, CLs, and runners."""
+    """Compact status bar showing runtime, cycles, and runners."""
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the status section."""
@@ -142,33 +142,17 @@ class _AxeStatusSection(Static):
                 runtime_str = "..."
             text.append(runtime_str, style="#00D7AF")
 
-            # PID
-            text.append("  │  ", style="dim")
-            text.append("PID: ", style="bold #87D7FF")
-            if self._status:
-                text.append(f"{self._status.pid}", style="#FF87D7 bold")
-            else:
-                text.append("...", style="#FF87D7 bold")
-
             # Cycles
             text.append("  │  ", style="dim")
             text.append("Cycles: ", style="bold #87D7FF")
             text.append(f"{self._full_cycles}", style="#00D7AF bold")
-
-            # CLs (filtered changespecs) - always show, "..." if no status
-            text.append("  │  ", style="dim")
-            text.append("CLs: ", style="bold #87D7FF")
-            if self._status:
-                text.append(f"{self._status.filtered_changespecs}", style="#00D7AF")
-            else:
-                text.append("...", style="#00D7AF")
 
             # Runners (current/max) - always show, "..." if no status
             text.append("  │  ", style="dim")
             text.append("Runners: ", style="bold #87D7FF")
             if self._status:
                 text.append(
-                    f"{self._status.current_runners}/{self._status.max_runners}",
+                    f"({self._status.current_runners}/{self._status.max_runners})",
                     style="#00D7AF",
                 )
             else:

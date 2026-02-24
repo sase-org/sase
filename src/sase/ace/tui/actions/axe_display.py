@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import types
 from typing import Literal
 
@@ -77,7 +78,11 @@ class AxeDisplayMixin:
             status_dict = proc.get_axe_status()
             if status_dict:
                 try:
-                    self._axe_status = AxeStatus(**status_dict)
+                    # Filter to only AxeStatus fields (get_axe_status
+                    # may include extra keys like 'lumberjacks')
+                    axe_fields = {f.name for f in dataclasses.fields(AxeStatus)}
+                    filtered = {k: v for k, v in status_dict.items() if k in axe_fields}
+                    self._axe_status = AxeStatus(**filtered)
                 except TypeError:
                     self._axe_status = None
             else:
