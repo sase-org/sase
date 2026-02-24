@@ -187,6 +187,19 @@ class PromptStepMixin:
             self._expand_embedded_workflows_in_prompt(early.prompt)
         )
 
+        # Re-expand xprompts after embedded workflow pre-steps.  The pre-steps
+        # may have updated the workspace (e.g. git pull), making CWD-relative
+        # xprompts (like .xprompts/xprompts.yml entries) available that weren't
+        # present during the early phase.
+        if embedded_workflows:
+            from sase.xprompt import process_xprompt_references
+
+            expanded_prompt = process_xprompt_references(
+                expanded_prompt,
+                extra_xprompts=self.workflow.xprompts,
+                scope=self.context,
+            )
+
         # Late phase: command sub, file refs, Jinja2, prettier, HTML stripping
         expanded_prompt = preprocess_prompt_late(expanded_prompt)
 
