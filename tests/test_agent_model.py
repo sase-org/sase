@@ -212,17 +212,17 @@ def test_agent_appears_as_agent_true() -> None:
 # --- Anonymous Workflow Display Type Tests ---
 
 
-def test_agent_get_display_type_named_workflow_unaffected_by_expanded() -> None:
-    """Test named workflow display type is unaffected by is_expanded."""
+def test_agent_get_display_type_named_workflow_collapsed_shows_agent() -> None:
+    """Test named workflow shows [agent] when collapsed, [workflow_name] when expanded."""
     agent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
         start_time=None,
-        workflow="fix-hook",
+        workflow="gh",
         appears_as_agent=True,
         is_anonymous=False,
     )
-    assert agent.get_display_type(is_expanded=False) == "fix-hook"
-    assert agent.get_display_type(is_expanded=True) == "fix-hook"
+    assert agent.get_display_type(is_expanded=False) == "agent"
+    assert agent.get_display_type(is_expanded=True) == "gh"
