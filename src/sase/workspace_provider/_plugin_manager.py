@@ -1,0 +1,58 @@
+"""Workspace plugin manager that delegates to pluggy hooks."""
+
+import pluggy
+
+from ._hookspec import ResolvedRef
+
+
+class WorkspacePluginManager:
+    """Wraps a :class:`pluggy.PluginManager` and delegates to workspace hooks.
+
+    Unlike the VCS plugin manager (which wraps a single plugin), this
+    manager has ALL workspace plugins registered.  Pluggy's
+    ``firstresult=True`` semantics ensure the first plugin that returns
+    a non-``None`` value wins.
+    """
+
+    def __init__(self, pm: pluggy.PluginManager) -> None:
+        self._pm = pm
+
+    def detect_workflow_type(self, project_file: str) -> str | None:
+        return self._pm.hook.ws_detect_workflow_type(  # type: ignore[no-any-return]
+            project_file=project_file
+        )
+
+    def get_change_label(self, project_file: str) -> str | None:
+        return self._pm.hook.ws_get_change_label(  # type: ignore[no-any-return]
+            project_file=project_file
+        )
+
+    def resolve_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None:
+        return self._pm.hook.ws_resolve_ref(  # type: ignore[no-any-return]
+            ref=ref, workflow_type=workflow_type
+        )
+
+    def submit(
+        self,
+        changespec_file: str,
+        changespec_name: str,
+        project_basename: str,
+        console: object | None = None,
+    ) -> tuple[bool, str | None] | None:
+        return self._pm.hook.ws_submit(  # type: ignore[no-any-return]
+            changespec_file=changespec_file,
+            changespec_name=changespec_name,
+            project_basename=project_basename,
+            console=console,
+        )
+
+    def setup_workflow(
+        self,
+        ref: str,
+        workflow_type: str,
+        n: int,
+        release: bool,
+    ) -> dict[str, str] | None:
+        return self._pm.hook.ws_setup_workflow(  # type: ignore[no-any-return]
+            ref=ref, workflow_type=workflow_type, n=n, release=release
+        )
