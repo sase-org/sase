@@ -42,7 +42,9 @@ def main() -> NoReturn:
 
     # --- init-git ---
     if args.command == "init-git":
-        from sase.git_workspace import init_bare_git_project
+        from sase.workspace_provider.plugins.bare_git_workspace import (
+            init_bare_git_project,
+        )
 
         project_file = init_bare_git_project(
             project_name=args.project_name,

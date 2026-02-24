@@ -20,7 +20,7 @@ class TestInitGitArgParsing:
 class TestInitGitHandler:
     """Mock init_bare_git_project and verify the CLI handler calls it correctly."""
 
-    @patch("sase.git_workspace.init_bare_git_project")
+    @patch("sase.workspace_provider.plugins.bare_git_workspace.init_bare_git_project")
     def test_handler_passes_all_options(
         self, mock_init: object, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -29,7 +29,10 @@ class TestInitGitHandler:
         mock_init = MagicMock(return_value="/tmp/proj.gp")
 
         with (
-            patch("sase.git_workspace.init_bare_git_project", mock_init),
+            patch(
+                "sase.workspace_provider.plugins.bare_git_workspace.init_bare_git_project",
+                mock_init,
+            ),
             pytest.raises(SystemExit) as exc_info,
         ):
             from sase.main.entry import main

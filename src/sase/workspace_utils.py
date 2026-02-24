@@ -68,6 +68,35 @@ def parse_workspace_dir(project_file: str) -> str | None:
     return None
 
 
+def parse_bare_repo_dir(project_file: str) -> str | None:
+    """Parse the BARE_REPO_DIR field from a .gp project file.
+
+    Scans lines before the first ``NAME:`` line for a
+    ``BARE_REPO_DIR: <path>`` entry.
+
+    Returns:
+        The expanded bare repo directory path, or ``None`` if the field
+        is absent, the file is missing, or the value is empty.
+    """
+    if not os.path.exists(project_file):
+        return None
+
+    try:
+        with open(project_file, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("NAME:"):
+                    break
+                if line.startswith("BARE_REPO_DIR:"):
+                    value = line.split(":", 1)[1].strip()
+                    if value:
+                        return os.path.expanduser(value)
+                    return None
+    except Exception:
+        return None
+
+    return None
+
+
 def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
     """Set or update the WORKSPACE_DIR field in a .gp project file.
 
@@ -245,6 +274,7 @@ __all__ = [
     "Path",
     "ensure_git_clone",
     "get_default_branch",
+    "parse_bare_repo_dir",
     "parse_workspace_dir",
     "set_workspace_dir",
 ]

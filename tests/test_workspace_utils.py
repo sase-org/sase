@@ -9,6 +9,7 @@ import pytest
 from sase.workspace_utils import (
     ensure_git_clone,
     get_default_branch,
+    parse_bare_repo_dir,
     parse_workspace_dir,
     set_workspace_dir,
 )
@@ -45,6 +46,21 @@ class TestParseWorkspaceDir:
             f.write("WORKSPACE_DIR:\nNAME: my-cl\n")
             f.flush()
             assert parse_workspace_dir(f.name) is None
+            os.unlink(f.name)
+
+
+# ── parse_bare_repo_dir ──────────────────────────────────────────────
+
+
+class TestParseBareRepoDir:
+    def test_missing_file(self) -> None:
+        assert parse_bare_repo_dir("/nonexistent/path/file.gp") is None
+
+    def test_empty_value(self) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+            f.write("BARE_REPO_DIR:\nNAME: my-cl\n")
+            f.flush()
+            assert parse_bare_repo_dir(f.name) is None
             os.unlink(f.name)
 
 
