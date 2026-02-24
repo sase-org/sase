@@ -100,9 +100,17 @@ class TestHookspecRegistration:
         pm = pluggy.PluginManager("sase_workspace")
         pm.add_hookspecs(WorkspaceHookSpec)
 
+        # ws_get_workflow_metadata intentionally collects from ALL plugins
+        _NOT_FIRSTRESULT = {"get_workflow_metadata"}
+
         for method_name in _MANAGER_METHODS:
             hook = getattr(pm.hook, f"ws_{method_name}")
             assert hook.spec is not None
-            assert hook.spec.opts.get("firstresult") is True, (
-                f"ws_{method_name} should be firstresult=True"
-            )
+            if method_name in _NOT_FIRSTRESULT:
+                assert hook.spec.opts.get("firstresult") is not True, (
+                    f"ws_{method_name} should NOT be firstresult=True"
+                )
+            else:
+                assert hook.spec.opts.get("firstresult") is True, (
+                    f"ws_{method_name} should be firstresult=True"
+                )

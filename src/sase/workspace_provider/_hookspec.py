@@ -19,13 +19,36 @@ class ResolvedRef:
     extra: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class WorkflowMetadata:
+    """Metadata declared by a workspace plugin for its workflow type.
+
+    Fields:
+        workflow_type: Short name used in ``#type:ref`` prompts (e.g. ``"gh"``).
+        ref_pattern: Regex string matching ``#type:ref`` or ``#type(ref)`` syntax.
+        display_name: Human-readable name (e.g. ``"GitHub"``).
+        pre_allocated_env_prefix: Env-var prefix for pre-allocated workspace
+            variables (e.g. ``"SASE_GH"``).
+    """
+
+    workflow_type: str
+    ref_pattern: str
+    display_name: str
+    pre_allocated_env_prefix: str
+
+
 class WorkspaceHookSpec:
     """Hook specifications for workspace provider plugins.
 
     Every method uses ``firstresult=True`` so pluggy returns the first
-    non-``None`` result from registered plugins.  Method names are prefixed
-    with ``ws_`` to namespace them within the pluggy project.
+    non-``None`` result from registered plugins, **except**
+    ``ws_get_workflow_metadata`` which collects results from all plugins.
+    Method names are prefixed with ``ws_`` to namespace them within the
+    pluggy project.
     """
+
+    @hookspec
+    def ws_get_workflow_metadata(self) -> WorkflowMetadata | None: ...
 
     @hookspec(firstresult=True)
     def ws_detect_workflow_type(self, project_file: str) -> str | None: ...

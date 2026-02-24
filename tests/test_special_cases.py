@@ -24,6 +24,10 @@ def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:
             return_value=("sase", "sase"),
         ),
         patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch(
+            "sase.workspace_provider.get_workflow_names",
+            return_value={"gh", "git", "hg"},
+        ),
         pytest.raises(SystemExit),
     ):
         handle_run_special_cases(["#gh:sase ."])
@@ -49,6 +53,10 @@ def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
             return_value=("sase", "sase"),
         ),
         patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch(
+            "sase.workspace_provider.get_workflow_names",
+            return_value={"gh", "git", "hg"},
+        ),
         pytest.raises(SystemExit),
     ):
         handle_run_special_cases(["#gh:sase", "."])

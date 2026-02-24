@@ -8,7 +8,7 @@ service like GitHub).
 import os
 import subprocess
 
-from sase.workspace_provider._hookspec import ResolvedRef, hookimpl
+from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata, hookimpl
 from sase.workspace_utils import parse_workspace_dir
 
 
@@ -46,6 +46,15 @@ class BareGitWorkspacePlugin:
             pass
 
         return False
+
+    @hookimpl
+    def ws_get_workflow_metadata(self) -> WorkflowMetadata | None:
+        return WorkflowMetadata(
+            workflow_type="git",
+            ref_pattern=r"(?:^|(?<=\s))#git(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
+            display_name="Git (bare)",
+            pre_allocated_env_prefix="SASE_GIT",
+        )
 
     @hookimpl
     def ws_detect_workflow_type(self, project_file: str) -> str | None:

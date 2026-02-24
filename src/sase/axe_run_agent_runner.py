@@ -201,8 +201,12 @@ def main() -> None:
                 agent_model = provider.resolve_model_name()
 
             vcs_name = detect_vcs_family(workspace_dir)
-            vcs_display_map = {"git": "GitHub", "hg": "Mercurial"}
-            agent_vcs_provider = vcs_display_map.get(vcs_name) if vcs_name else None
+            if vcs_name:
+                from sase.workspace_provider import get_display_name_by_vcs_family
+
+                agent_vcs_provider = get_display_name_by_vcs_family(vcs_name)
+            else:
+                agent_vcs_provider = None
 
             # Persist model, provider, VCS, name, and wait_for to agent_meta.json
             agent_meta: dict[str, Any] = {}

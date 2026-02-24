@@ -1,52 +1,20 @@
-"""Reference resolution mixin for #gh, #git, #hg refs in prompts."""
+"""Reference resolution for VCS refs (e.g. #gh, #git, #hg) in prompts."""
 
 from __future__ import annotations
 
-import re
-
-_GH_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#gh(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
-_GIT_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#git(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
-_HG_REF_PATTERN = re.compile(r"(?:^|(?<=\s))#hg(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))")
-
-_VCS_PATTERNS = {
-    "gh": _GH_REF_PATTERN,
-    "git": _GIT_REF_PATTERN,
-    "hg": _HG_REF_PATTERN,
-}
-
 
 class RefResolutionMixin:
-    """Mixin providing #gh, #git, #hg reference resolution."""
+    """Mixin providing dynamic VCS reference resolution."""
 
-    def _resolve_gh_from_prompt(
-        self, prompt: str
+    def _resolve_vcs_from_prompt(
+        self, prompt: str, workflow_type: str
     ) -> tuple[str, str, str, int, str] | None:
-        """Extract and resolve a #gh reference from a prompt.
+        """Extract and resolve a VCS reference for *workflow_type* from *prompt*.
 
         Returns (project_file, project_name, workspace_dir, workspace_num,
-        gh_ref) or None if not found or resolution fails.
+        ref) or None if not found or resolution fails.
         """
-        return _resolve_ref_from_prompt(prompt, "gh")
-
-    def _resolve_git_from_prompt(
-        self, prompt: str
-    ) -> tuple[str, str, str, int, str] | None:
-        """Extract and resolve a #git reference from a prompt.
-
-        Returns (project_file, project_name, workspace_dir, workspace_num,
-        git_ref) or None if not found or resolution fails.
-        """
-        return _resolve_ref_from_prompt(prompt, "git")
-
-    def _resolve_hg_from_prompt(
-        self, prompt: str
-    ) -> tuple[str, str, str, int, str] | None:
-        """Extract and resolve a #hg reference from a prompt.
-
-        Returns (project_file, project_name, workspace_dir, workspace_num,
-        hg_ref) or None if not found or resolution fails.
-        """
-        return _resolve_ref_from_prompt(prompt, "hg")
+        return _resolve_ref_from_prompt(prompt, workflow_type)
 
 
 def _resolve_ref_from_prompt(
@@ -62,9 +30,10 @@ def _resolve_ref_from_prompt(
         get_first_available_axe_workspace,
         get_workspace_directory_for_num,
     )
-    from sase.workspace_provider import resolve_ref
+    from sase.workspace_provider import get_ref_patterns, resolve_ref
 
-    pattern = _VCS_PATTERNS.get(workflow_type)
+    patterns = get_ref_patterns()
+    pattern = patterns.get(workflow_type)
     if pattern is None:
         return None
 
@@ -100,3 +69,12 @@ def _resolve_ref_from_prompt(
         workspace_num,
         ref,
     )
+
+
+def strip_all_vcs_refs(prompt: str) -> str:
+    """Remove all VCS ref tags from *prompt*."""
+    from sase.workspace_provider import get_ref_patterns
+
+    for pattern in get_ref_patterns().values():
+        prompt = pattern.sub("", prompt)
+    return prompt.strip()

@@ -2,7 +2,7 @@
 
 import pluggy
 
-from ._hookspec import ResolvedRef
+from ._hookspec import ResolvedRef, WorkflowMetadata
 
 
 class WorkspacePluginManager:
@@ -16,6 +16,12 @@ class WorkspacePluginManager:
 
     def __init__(self, pm: pluggy.PluginManager) -> None:
         self._pm = pm
+
+    def get_workflow_metadata(self) -> list[WorkflowMetadata]:
+        results: list[WorkflowMetadata | None] = (
+            self._pm.hook.ws_get_workflow_metadata()
+        )
+        return [r for r in results if r is not None]
 
     def detect_workflow_type(self, project_file: str) -> str | None:
         return self._pm.hook.ws_detect_workflow_type(  # type: ignore[no-any-return]

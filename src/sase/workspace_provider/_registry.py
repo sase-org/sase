@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import functools
 import importlib.metadata
+import re
 from typing import TYPE_CHECKING
 
 import pluggy
@@ -10,7 +12,7 @@ import pluggy
 if TYPE_CHECKING:
     from rich.console import Console
 
-from ._hookspec import ResolvedRef, WorkspaceHookSpec
+from ._hookspec import ResolvedRef, WorkflowMetadata, WorkspaceHookSpec
 from ._plugin_manager import WorkspacePluginManager
 
 _manager: WorkspacePluginManager | None = None
@@ -31,6 +33,62 @@ def _get_manager() -> WorkspacePluginManager:
             pm.register(plugin_class())
         _manager = WorkspacePluginManager(pm)
     return _manager
+
+
+@functools.cache
+def get_all_workflow_metadata() -> tuple[WorkflowMetadata, ...]:
+    """Return metadata from all workspace plugins, cached."""
+    return tuple(_get_manager().get_workflow_metadata())
+
+
+def get_workflow_names() -> set[str]:
+    """Return the set of all registered workflow type names."""
+    return {m.workflow_type for m in get_all_workflow_metadata()}
+
+
+def get_ref_patterns() -> dict[str, re.Pattern[str]]:
+    """Return a mapping of workflow_type → compiled ref pattern."""
+    return {
+        m.workflow_type: re.compile(m.ref_pattern) for m in get_all_workflow_metadata()
+    }
+
+
+def get_display_name(workflow_type: str) -> str | None:
+    """Return the display name for *workflow_type*, or ``None``."""
+    for m in get_all_workflow_metadata():
+        if m.workflow_type == workflow_type:
+            return m.display_name
+    return None
+
+
+def get_display_name_by_vcs_family(vcs_family: str) -> str | None:
+    """Return a display name for a ``detect_vcs_family()`` result.
+
+    Maps ``"git"`` → the display name of the ``"gh"`` or ``"git"`` workflow
+    (whichever is registered first that belongs to the git family), and
+    ``"hg"`` → the ``"hg"`` workflow display name.
+    """
+    git_family = {"gh", "git"}
+    for m in get_all_workflow_metadata():
+        if vcs_family == "git" and m.workflow_type in git_family:
+            return m.display_name
+        if vcs_family == "hg" and m.workflow_type == "hg":
+            return m.display_name
+    return None
+
+
+def get_pre_allocated_env_prefix(workflow_type: str) -> str | None:
+    """Return the env-var prefix for *workflow_type*, or ``None``."""
+    for m in get_all_workflow_metadata():
+        if m.workflow_type == workflow_type:
+            return m.pre_allocated_env_prefix
+    return None
+
+
+def get_vcs_tag_pattern() -> re.Pattern[str]:
+    """Build a regex matching any VCS workflow tag at the start of a prompt."""
+    names = "|".join(re.escape(n) for n in sorted(get_workflow_names()))
+    return re.compile(rf"^#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|:[^\s]*|)\s")
 
 
 def detect_workflow_type(project_file: str) -> str:

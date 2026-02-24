@@ -10,9 +10,6 @@ from ._editor import open_editor_for_prompt, show_prompt_history_picker
 from ._query import run_query
 from ._resume import handle_run_with_resume
 
-# The three VCS xprompt workflow names that support the dot-prompt shortcut.
-_VCS_WORKFLOW_NAMES = {"gh", "git", "hg"}
-
 
 def handle_run_special_cases(args_after_run: list[str]) -> bool:
     """Handle special cases for 'sase run' before argparse processes it.
@@ -54,7 +51,9 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             workflow_ref, _ = strip_hitl_suffix(workflow_ref)
             workflow_name, positional_args, _ = parse_workflow_reference(workflow_ref)
 
-            if workflow_name in _VCS_WORKFLOW_NAMES and positional_args:
+            from sase.workspace_provider import get_workflow_names
+
+            if workflow_name in get_workflow_names() and positional_args:
                 ref = positional_args[0]
                 sort_by, workspace = _resolve_vcs_project_info(ref)
                 prompt = show_prompt_history_picker(

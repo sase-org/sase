@@ -117,7 +117,7 @@ module = [
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["sase.vcs_provider._hookspec"]
+module = ["sase.vcs_provider._hookspec", "sase.workspace_provider._hookspec"]
 disable_error_code = ["empty-body"]
 
 # --- Pytest ---

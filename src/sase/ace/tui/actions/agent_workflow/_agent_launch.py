@@ -7,7 +7,7 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
-from ._ref_resolution import _HG_REF_PATTERN
+from ._ref_resolution import strip_all_vcs_refs
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -56,76 +56,46 @@ class AgentLaunchMixin:
             self._launch_bulk_agents(prompt)
             return
 
+        from sase.workspace_provider import get_ref_patterns, get_workflow_names
+
         # Detect workspace-managing embedded workflows in home mode
-        gh_ref_info: str | None = None
-        git_ref_info: str | None = None
-        hg_ref_info: str | None = None
+        vcs_ref: tuple[str, str] | None = None  # (workflow_type, ref)
         if ctx.is_home_mode:
-            resolved = self._resolve_gh_from_prompt(prompt)  # type: ignore[attr-defined]
-            if resolved is not None:
-                (
-                    ctx.project_file,
-                    ctx.project_name,
-                    ctx.workspace_dir,
-                    ctx.workspace_num,
-                    gh_ref_info,
-                ) = resolved
-                ctx.display_name = gh_ref_info
-                ctx.update_target = ""  # gh.yml handles checkout
-                ctx.is_home_mode = False  # Enable workspace claiming/releasing
+            for wf_name in get_workflow_names():
+                resolved = self._resolve_vcs_from_prompt(prompt, wf_name)  # type: ignore[attr-defined]
+                if resolved is not None:
+                    (
+                        ctx.project_file,
+                        ctx.project_name,
+                        ctx.workspace_dir,
+                        ctx.workspace_num,
+                        ref_value,
+                    ) = resolved
+                    vcs_ref = (wf_name, ref_value)
+                    ctx.display_name = ref_value
+                    ctx.update_target = ""  # workflow .yml handles checkout
+                    ctx.is_home_mode = False  # Enable workspace claiming/releasing
+                    break
 
-        if ctx.is_home_mode and gh_ref_info is None:
-            git_resolved = self._resolve_git_from_prompt(prompt)  # type: ignore[attr-defined]
-            if git_resolved is not None:
-                (
-                    ctx.project_file,
-                    ctx.project_name,
-                    ctx.workspace_dir,
-                    ctx.workspace_num,
-                    git_ref_info,
-                ) = git_resolved
-                ctx.display_name = git_ref_info
-                ctx.update_target = ""  # git.yml handles checkout
-                ctx.is_home_mode = False  # Enable workspace claiming/releasing
-
-        if ctx.is_home_mode and gh_ref_info is None and git_ref_info is None:
-            hg_resolved = self._resolve_hg_from_prompt(prompt)  # type: ignore[attr-defined]
-            if hg_resolved is not None:
-                (
-                    ctx.project_file,
-                    ctx.project_name,
-                    ctx.workspace_dir,
-                    ctx.workspace_num,
-                    hg_ref_info,
-                ) = hg_resolved
-                ctx.display_name = hg_ref_info
-                ctx.update_target = ""  # hg.yml handles checkout
-                ctx.is_home_mode = False  # Enable workspace claiming/releasing
-
-        # Also detect #hg in non-home mode: the ace(run) workspace and
-        # the embedded #hg workflow must share the same workspace number,
-        # so pass pre-allocation env vars to prevent #hg from allocating
-        # a different workspace.
-        if hg_ref_info is None and gh_ref_info is None and git_ref_info is None:
-            hg_match = _HG_REF_PATTERN.search(prompt)
-            if hg_match is not None:
-                hg_ref_info = hg_match.group(1) or hg_match.group(2)
+        # Also detect VCS refs in non-home mode: the ace(run) workspace and
+        # the embedded workflow must share the same workspace number,
+        # so pass pre-allocation env vars to prevent allocation of a
+        # different workspace.
+        if vcs_ref is None:
+            ref_patterns = get_ref_patterns()
+            for wf_name, pattern in ref_patterns.items():
+                match = pattern.search(prompt)
+                if match is not None:
+                    ref_value = match.group(1) or match.group(2)
+                    if ref_value:
+                        vcs_ref = (wf_name, ref_value)
+                        break
 
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
         # When VCS refs are present, strip them to find the core workflow reference
         workflow_prompt = prompt
-        has_vcs_ref = (
-            gh_ref_info is not None
-            or git_ref_info is not None
-            or hg_ref_info is not None
-        )
-        if has_vcs_ref:
-            from ._ref_resolution import _GH_REF_PATTERN, _GIT_REF_PATTERN
-
-            workflow_prompt = _GH_REF_PATTERN.sub("", workflow_prompt)
-            workflow_prompt = _GIT_REF_PATTERN.sub("", workflow_prompt)
-            workflow_prompt = _HG_REF_PATTERN.sub("", workflow_prompt)
-            workflow_prompt = workflow_prompt.strip()
+        if vcs_ref is not None:
+            workflow_prompt = strip_all_vcs_refs(workflow_prompt)
 
         if workflow_prompt.startswith("#"):
             workflow_result = self._try_execute_workflow(workflow_prompt)  # type: ignore[attr-defined]
@@ -134,7 +104,7 @@ class AgentLaunchMixin:
                 self._prompt_context = None
                 self.call_later(self._load_agents)  # type: ignore[attr-defined]
                 return
-            elif not has_vcs_ref and isinstance(workflow_result, str):
+            elif vcs_ref is None and isinstance(workflow_result, str):
                 # Simple xprompt expanded inline — use as regular prompt
                 # (with VCS refs, expansion happens in agent runner instead)
                 prompt = workflow_result
@@ -154,9 +124,7 @@ class AgentLaunchMixin:
             project_name=ctx.project_name,
             history_sort_key=ctx.history_sort_key,
             is_home_mode=ctx.is_home_mode,
-            gh_ref=gh_ref_info,
-            git_ref=git_ref_info,
-            hg_ref=hg_ref_info,
+            vcs_ref=vcs_ref,
         )
 
         # Refresh agents list (deferred to avoid lag)
@@ -218,18 +186,6 @@ class AgentLaunchMixin:
             workflow_type = detect_workflow_type(project_file)
             cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
-            # Determine which VCS ref to pass so _launch_background_agent
-            # sets the SASE_*_PRE_ALLOCATED env vars correctly
-            gh_ref: str | None = None
-            git_ref: str | None = None
-            hg_ref: str | None = None
-            if workflow_type == "gh":
-                gh_ref = cl_name
-            elif workflow_type == "git":
-                git_ref = cl_name
-            elif workflow_type == "hg":
-                hg_ref = cl_name
-
             self._launch_background_agent(
                 cl_name=cl_name,
                 project_file=project_file,
@@ -241,9 +197,7 @@ class AgentLaunchMixin:
                 update_target="" if workflow_type else cl_name,
                 project_name=project_name,
                 history_sort_key=cl_name,
-                gh_ref=gh_ref,
-                git_ref=git_ref,
-                hg_ref=hg_ref,
+                vcs_ref=(workflow_type, cl_name),
             )
             launched_count += 1
 
@@ -276,9 +230,7 @@ class AgentLaunchMixin:
         project_name: str = "",
         history_sort_key: str = "",
         is_home_mode: bool = False,
-        gh_ref: str | None = None,
-        git_ref: str | None = None,
-        hg_ref: str | None = None,
+        vcs_ref: tuple[str, str] | None = None,
     ) -> None:
         """Launch agent as background process.
 
@@ -294,9 +246,8 @@ class AgentLaunchMixin:
             project_name: Project name for prompt history tracking.
             history_sort_key: CL name to associate with the prompt in history.
             is_home_mode: If True, skip workspace management (for home directory).
-            gh_ref: If set, the #gh reference that was pre-resolved by the TUI.
-            git_ref: If set, the #git reference that was pre-resolved by the TUI.
-            hg_ref: If set, the #hg reference that was pre-resolved by the TUI.
+            vcs_ref: If set, a (workflow_type, ref) tuple for the pre-resolved
+                VCS reference.  Used to set SASE_*_PRE_ALLOCATED env vars.
         """
         import subprocess
         import tempfile
@@ -337,18 +288,14 @@ class AgentLaunchMixin:
         subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
         subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
         subprocess_env["SASE_AGENT_TIMESTAMP"] = timestamp
-        if gh_ref is not None:
-            subprocess_env["SASE_GH_PRE_ALLOCATED"] = "1"
-            subprocess_env["SASE_GH_WORKSPACE_NUM"] = str(workspace_num)
-            subprocess_env["SASE_GH_WORKSPACE_DIR"] = workspace_dir
-        if git_ref is not None:
-            subprocess_env["SASE_GIT_PRE_ALLOCATED"] = "1"
-            subprocess_env["SASE_GIT_WORKSPACE_NUM"] = str(workspace_num)
-            subprocess_env["SASE_GIT_WORKSPACE_DIR"] = workspace_dir
-        if hg_ref is not None:
-            subprocess_env["SASE_HG_PRE_ALLOCATED"] = "1"
-            subprocess_env["SASE_HG_WORKSPACE_NUM"] = str(workspace_num)
-            subprocess_env["SASE_HG_WORKSPACE_DIR"] = workspace_dir
+        if vcs_ref is not None:
+            from sase.workspace_provider import get_pre_allocated_env_prefix
+
+            prefix = get_pre_allocated_env_prefix(vcs_ref[0])
+            if prefix:
+                subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
+                subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
+                subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
 
         # Args: cl_name, project_file, workspace_dir, output_path, workspace_num,
         #       workflow_name, prompt_file, timestamp,
