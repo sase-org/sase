@@ -32,7 +32,10 @@ def resolve_agent_sessions(agent: Agent, since: datetime | None = None) -> list[
     if cwd is None:
         return []
     claude_dir = _cwd_to_claude_project_dir(cwd)
-    if not claude_dir.is_dir():
+    try:
+        if not claude_dir.is_dir():
+            return []
+    except OSError:
         return []
 
     if since is not None:

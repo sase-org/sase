@@ -50,7 +50,6 @@ class GeminiProvider(LLMProvider):
         # Build base command arguments
         base_args = [
             "/google/bin/releases/gemini-cli/tools/gemini",
-            "--yolo",
             "--model",
             model,
         ]

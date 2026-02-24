@@ -21,13 +21,17 @@ _POLL_INTERVAL = 0.5
 
 
 def emit_hook_decision(decision: str, reason: str = "") -> None:
-    """Print Claude Code PreToolUse hook decision JSON to stdout."""
+    """Print Claude Code and Gemini CLI hook decision JSON to stdout."""
     output = {
+        # Claude Code format
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": decision,
             "permissionDecisionReason": reason,
-        }
+        },
+        # Gemini CLI format
+        "decision": decision,
+        "reason": reason,
     }
     print(json.dumps(output), flush=True)
 
@@ -134,6 +138,8 @@ def handle_plan_approve_command() -> NoReturn:
                 sys.exit(1)
 
     session_id = data.get("session_id", "unknown")
+    tool_input = data.get("tool_input", {})
+    gemini_plan_path = tool_input.get("plan_path")
 
     # If not launched by sase, just notify and approve
     if not os.environ.get("SASE_AGENT"):
@@ -149,7 +155,7 @@ def handle_plan_approve_command() -> NoReturn:
     if os.environ.get("SASE_AGENT_AUTO_APPROVE"):
         response_dir = Path.home() / ".sase" / "plan_approval" / session_id
         response_dir.mkdir(parents=True, exist_ok=True)
-        plan_file = _find_plan_file(session_id)
+        plan_file = gemini_plan_path or _find_plan_file(session_id)
         marker_path = response_dir / "plan_approved.marker"
         marker_path.write_text(plan_file or "")
         emit_hook_decision("allow", "Plan auto-approved via %approve directive")
@@ -171,7 +177,7 @@ def handle_plan_approve_command() -> NoReturn:
     # Only create notification if request doesn't already exist (idempotency)
     if not request_path.exists():
         # Find plan file
-        plan_file = _find_plan_file(session_id)
+        plan_file = gemini_plan_path or _find_plan_file(session_id)
         if not plan_file:
             # No plan file found - still allow approval but without file content
             print("Warning: no plan file found in ~/.claude/plans/", file=sys.stderr)
