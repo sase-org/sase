@@ -139,6 +139,7 @@ def get_axe_status() -> dict | None:
 
     # Append per-lumberjack statuses
     lumberjacks_status: dict[str, dict] = {}
+    lj_start_times: list[str] = []
     for name in get_lumberjack_names():
         lj_status = read_lumberjack_status(name)
         if lj_status is not None:
@@ -151,8 +152,15 @@ def get_axe_status() -> dict | None:
                 "errors_encountered": lj_status.errors_encountered,
                 "uptime_seconds": lj_status.uptime_seconds,
             }
+            lj_start_times.append(lj_status.started_at)
     if lumberjacks_status:
         result["lumberjacks"] = lumberjacks_status
+
+    # Derive started_at from lumberjack data — the legacy status.json
+    # is not written by the new orchestrator architecture so its
+    # started_at field can be stale from a previous run.
+    if lj_start_times:
+        result["started_at"] = min(lj_start_times)
 
     return result
 
