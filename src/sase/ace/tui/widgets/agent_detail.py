@@ -527,6 +527,11 @@ class AgentDetail(Static):
             prompt_scroll.remove_class("layout-priority")
             secondary_scroll.remove_class("layout-secondary")
 
+        # Recalculate file panel trim after layout change takes effect
+        if self.is_file_visible():
+            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+            self.call_after_refresh(file_panel.reset_trim)
+
     def _update_panel_indicators(self) -> None:
         """Update the border subtitle on the prompt panel to show panel state."""
         try:
