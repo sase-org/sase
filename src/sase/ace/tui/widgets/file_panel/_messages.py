@@ -77,12 +77,15 @@ file_cache: dict[str, FileCacheEntry] = {}
 def get_cache_key(agent: Agent) -> str:
     """Generate a unique cache key for an agent's file output.
 
-    Includes agent type and workspace to ensure different agents
-    don't share cached files incorrectly.
+    Includes agent type, workspace, and raw_suffix (timestamp) to ensure
+    different agent instances don't share cached files incorrectly.
     """
+    parts = [agent.cl_name, agent.agent_type.value]
     if agent.workspace_num is not None:
-        return f"{agent.cl_name}:{agent.agent_type.value}:{agent.workspace_num}"
-    return f"{agent.cl_name}:{agent.agent_type.value}"
+        parts.append(str(agent.workspace_num))
+    if agent.raw_suffix is not None:
+        parts.append(agent.raw_suffix)
+    return ":".join(parts)
 
 
 _EXTENSION_TO_LEXER: dict[str, str] = {
