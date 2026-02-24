@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from ....changespec import ChangeSpec
 
 
-def _delete_agent_artifacts(artifacts_dir: str | None) -> None:
+def delete_agent_artifacts(artifacts_dir: str | None) -> None:
     """Delete artifact files that cause an agent to be loaded.
 
     Removes workflow_state.json, done.json, and prompt_step_*.json files
@@ -306,8 +306,6 @@ class AgentKillingMixin:
         Args:
             agent: The workflow agent to kill.
         """
-        from pathlib import Path
-
         from sase.running_field import release_workspace
 
         # Kill the workflow process if it has a PID
@@ -344,29 +342,8 @@ class AgentKillingMixin:
                     f"workflow({workflow_name})",
                 )
 
-        # Delete the workflow state file
-        if agent.raw_suffix is None or agent.workflow is None:
-            return
-
-        project_path = Path(agent.project_file)
-        project_name = project_path.parent.name
-
-        state_file = (
-            Path.home()
-            / ".sase"
-            / "projects"
-            / project_name
-            / "artifacts"
-            / f"workflow-{agent.workflow}"
-            / agent.raw_suffix
-            / "workflow_state.json"
-        )
-
-        if state_file.exists():
-            try:
-                state_file.unlink()
-            except OSError:
-                pass  # Already notified about kill, state file cleanup is secondary
+        # Delete artifact files so the agent won't be reloaded on restart
+        delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
 
         # Track dismissal as safety net (ensures agent is filtered even if
         # workspace release failed or RUNNING field persists)
@@ -444,7 +421,7 @@ class AgentKillingMixin:
 
             # Delete artifact files so the agent won't be reloaded on restart
             # (dismissed_agents.json has a size limit and can evict old entries)
-            _delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
+            delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
 
             # Track dismissal as safety net for current session
             self._persist_dismissed_agent(agent.identity)
@@ -484,7 +461,7 @@ class AgentKillingMixin:
             return
 
         # Delete artifact files so the agent won't be reloaded on restart
-        _delete_agent_artifacts(agent.get_artifacts_dir())
+        delete_agent_artifacts(agent.get_artifacts_dir())
 
         # Track dismissal as safety net for current session
         self._persist_dismissed_agent(agent.identity)

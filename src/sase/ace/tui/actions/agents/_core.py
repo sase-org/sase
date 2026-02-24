@@ -147,10 +147,10 @@ class AgentsMixinCore(
         all_agents = load_all_agents()
 
         # Build secondary index for robust dismissed matching
-        # (agent cl_name may change between loads due to dedup merging)
-        dismissed_suffixes = {
-            (agent_type, raw_suffix)
-            for agent_type, _, raw_suffix in self._dismissed_agents
+        # (agent cl_name or type may change between loads due to dedup merging)
+        dismissed_suffixes: set[str] = {
+            raw_suffix
+            for _, _, raw_suffix in self._dismissed_agents
             if raw_suffix is not None
         }
 
@@ -159,10 +159,7 @@ class AgentsMixinCore(
             a
             for a in all_agents
             if a.identity in self._dismissed_agents
-            or (
-                a.raw_suffix is not None
-                and (a.agent_type, a.raw_suffix) in dismissed_suffixes
-            )
+            or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)
         ]
 
         # Filter out dismissed agents
@@ -170,11 +167,15 @@ class AgentsMixinCore(
             a
             for a in all_agents
             if a.identity not in self._dismissed_agents
-            and (
-                a.raw_suffix is None
-                or (a.agent_type, a.raw_suffix) not in dismissed_suffixes
-            )
+            and (a.raw_suffix is None or a.raw_suffix not in dismissed_suffixes)
         ]
+
+        # Self-healing: clean up stale artifacts from dismissed agents
+        # (fixes leftovers from the old _kill_workflow_agent bug)
+        from ._killing import delete_agent_artifacts
+
+        for a in self._dismissed_agent_objects:
+            delete_agent_artifacts(a.artifacts_dir or a.get_artifacts_dir())
 
         # Categorize agents: always-visible (dismissable OR running) vs hideable
         always_visible = [a for a in all_agents if _is_always_visible(a)]

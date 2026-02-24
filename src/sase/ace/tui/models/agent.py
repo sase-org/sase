@@ -254,13 +254,24 @@ class Agent:
         elif self.agent_type == AgentType.CRS:
             workflow_name = "crs"
         elif self.agent_type == AgentType.WORKFLOW:
-            # Workflow artifacts: workflow-{name}
+            # Workflow artifacts: workflow-{name}, or ace-run for appears_as_agent
             if self.workflow:
                 base_workflow = (
                     self.workflow.split("/")[-1]
                     if "/" in self.workflow
                     else self.workflow
                 )
+                # appears_as_agent workflows may use ace-run/ artifacts dir
+                if self.appears_as_agent:
+                    ace_run_dir = os.path.expanduser(
+                        f"~/.sase/projects/{project_name}/artifacts/ace-run"
+                    )
+                    if os.path.isdir(ace_run_dir):
+                        timestamp = self._extract_artifacts_timestamp()
+                        if timestamp:
+                            candidate = os.path.join(ace_run_dir, timestamp)
+                            if os.path.isdir(candidate):
+                                return candidate
                 workflow_name = f"workflow-{base_workflow}"
             else:
                 return None
