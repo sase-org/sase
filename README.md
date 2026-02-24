@@ -204,6 +204,19 @@ just build         # Build wheel + sdist
 - [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format
 - [`docs/xprompt.md`](docs/xprompt.md) — XPrompt template reference
 
+## Acknowledgements
+
+This project was heavily influenced by two research papers:
+
+- **[Agentic Software Engineering: Foundational Pillars and a Research Roadmap](https://arxiv.org/abs/2509.06216)**
+  (Hassan et al., 2025) — This paper's vision of Structured Agentic Software Engineering (SASE) inspired the project's
+  name and overall direction. Its concepts of the Agent Command Environment (ACE) and Agent Execution Environment (AEE)
+  directly informed the naming and design of the `ace` TUI and `axe` daemon, respectively.
+
+- **[PDL: A Declarative Prompt Programming Language](https://arxiv.org/abs/2410.19135)** (Vaziri et al., 2024) — PDL's
+  approach to declarative, YAML-based prompt programming influenced the design of xprompt workflows, sase's YAML-defined
+  multi-step pipelines for orchestrating LLM calls and tool execution.
+
 ## License
 
 MIT
