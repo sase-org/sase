@@ -222,7 +222,7 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
             meta.append("Started: ", style="bold")
             meta.append(f"{agent.start_time_display}\n")
 
-            if agent.workflow:
+            if agent.workflow and not agent.appears_as_agent:
                 meta.append("Workflow: ", style="bold")
                 meta.append(f"{agent.workflow}\n")
 

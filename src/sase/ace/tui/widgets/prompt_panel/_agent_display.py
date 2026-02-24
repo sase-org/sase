@@ -85,8 +85,9 @@ class AgentDisplayMixin:
             header_text.append("Workspace: ", style="bold #87D7FF")
             header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 
-        # Workflow (if available)
-        if agent.workflow:
+        # Workflow (if available) — only for multi-step workflows, not
+        # appears-as-agent workflows (which are embedded, not standalone)
+        if agent.workflow and not agent.appears_as_agent:
             header_text.append("Workflow: ", style="bold #87D7FF")
             header_text.append(f"{agent.workflow}\n")
 
