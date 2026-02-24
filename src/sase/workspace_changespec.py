@@ -103,7 +103,7 @@ def _save_committed_diff(
     return shorten_path(diff_path)
 
 
-# pyvision: ../sase-github/src/sase_github/scripts/pr_create_changespec.py
+# pyvision: public_api_methods.txt
 def create_changespec_for_workflow(
     project_name: str,
     project_file: str,

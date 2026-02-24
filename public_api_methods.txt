@@ -1,0 +1,6 @@
+# Public API methods that are consumed by external repos (e.g. sase-github)
+# and therefore cannot be validated by pyvision's file-existence check.
+#
+# Used as a pyvision pragma target: `# pyvision: public_api_methods.txt`
+
+create_changespec_for_workflow
