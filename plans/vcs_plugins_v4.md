@@ -1,3 +1,7 @@
+---
+bead_id: sase-bhlk
+---
+
 # Plan: Extract All VCS-Specific Code from sase Core
 
 ## Context
