@@ -1,7 +1,6 @@
 """Mail operations for the work subcommand."""
 
 import os
-import re
 import sys
 from dataclasses import dataclass
 
@@ -14,9 +13,9 @@ from sase.status_state_machine import (
     remove_ready_to_mail_suffix,
     transition_changespec_status,
 )
-from sase.vcs_provider import detect_vcs_family, get_vcs_provider
+from sase.vcs_provider import get_vcs_provider
 
-from .changespec import ChangeSpec, find_all_changespecs
+from .changespec import ChangeSpec
 
 
 @dataclass
@@ -30,30 +29,7 @@ class MailPrepResult:
     should_mail: bool
 
 
-def _has_valid_parent(changespec: ChangeSpec) -> tuple[bool, ChangeSpec | None]:
-    """Check if the ChangeSpec has a valid parent (not "Submitted").
-
-    Args:
-        changespec: The ChangeSpec to check
-
-    Returns:
-        Tuple of (has_valid_parent, parent_changespec)
-    """
-    if not changespec.parent:
-        return False, None
-
-    # Find the parent ChangeSpec
-    all_changespecs = find_all_changespecs()
-    for cs in all_changespecs:
-        if cs.name == changespec.parent:
-            # Parent is valid if its status is NOT "Submitted"
-            return cs.status != "Submitted", cs
-
-    # Parent not found
-    return False, None
-
-
-def _get_cl_description(
+def get_cl_description(
     revision: str,
     target_dir: str,
     console: Console,
@@ -80,205 +56,14 @@ def _get_cl_description(
     return True, result
 
 
-def _get_branch_number(target_dir: str, console: Console) -> tuple[bool, str | None]:
-    """Get the CL branch number using branch_number command.
-
-    Args:
-        target_dir: Directory to run branch_number in
-        console: Rich console for output
-
-    Returns:
-        Tuple of (success, branch_number or None)
-    """
-    provider = get_vcs_provider(target_dir)
-    success, branch_number = provider.get_cl_number(target_dir)
-    if not success:
-        console.print(f"[red]{_esc(str(branch_number))}[/red]")
-        return False, None
-    if not branch_number or not branch_number.isdigit():
-        console.print(
-            f"[red]Error: branch_number returned invalid value: {_esc(str(branch_number))}[/red]"
-        )
-        return False, None
-    return True, branch_number
-
-
-def _run_findreviewers(target_dir: str, console: Console) -> bool:
-    """Run p4 findreviewers command and display output.
-
-    Args:
-        target_dir: Directory to run commands in
-        console: Rich console for output
-
-    Returns:
-        True if successful, False if an error occurred
-    """
-    # Get the CL number using branch_number command
-    success, cl_number = _get_branch_number(target_dir, console)
-    if not success or not cl_number:
-        return False
-
-    # Run p4 findreviewers command
-    console.print("[cyan]Running p4 findreviewers...[/cyan]\n")
-    provider = get_vcs_provider(target_dir)
-    success, output = provider.find_reviewers(cl_number, target_dir)
-    if not success:
-        console.print(f"[red]{_esc(str(output))}[/red]")
-        return False
-
-    # Display the output
-    if output:
-        console.print(output)
-    else:
-        console.print("[yellow]No output from p4 findreviewers[/yellow]")
-
-    # Wait for user to press enter before returning
-    console.print("\n[dim]Press enter to continue...[/dim]", end="")
-    input()
-    return True
-
-
-def _modify_description_for_mailing(
-    description: str,
-    reviewers: list[str],
-    has_valid_parent: bool,
-    parent_branch_number: str | None,
-) -> str:
-    """Modify CL description for mailing based on number of reviewers and parent validity.
-
-    Args:
-        description: Original CL description
-        reviewers: List of 1 or 2 reviewers
-        has_valid_parent: Whether the ChangeSpec has a valid parent
-        parent_branch_number: Branch number of parent CL (if has_valid_parent is True)
-
-    Returns:
-        Modified description
-    """
-    # Find all tags (lines starting with uppercase words followed by colon or equals)
-    # Tags are things like "Bug:", "Test:", "BUG=", "R=", etc.
-    lines = description.split("\n")
-    tag_pattern = re.compile(r"^[A-Z][A-Za-z_\s-]*[=:]")
-
-    # Find contiguous block of tag lines at the end (scanning from bottom)
-    tags_start_idx = len(lines)
-    last_non_blank = len(lines) - 1
-    while last_non_blank >= 0 and lines[last_non_blank].strip() == "":
-        last_non_blank -= 1
-
-    for idx in range(last_non_blank, -1, -1):
-        if tag_pattern.match(lines[idx].strip()):
-            tags_start_idx = idx
-        else:
-            break
-
-    # Split into content (before tags) and tags (from tags onward)
-    content_lines = lines[:tags_start_idx]
-    tag_lines = lines[tags_start_idx:]
-
-    # Remove trailing blank lines from content
-    while content_lines and content_lines[-1].strip() == "":
-        content_lines.pop()
-
-    # Process based on scenario
-    num_reviewers = len(reviewers)
-
-    if num_reviewers == 1 and not has_valid_parent:
-        # Scenario 1: Replace R=startblock with R=<reviewer>
-        modified_description = description.replace("R=startblock", f"R={reviewers[0]}")
-        return modified_description
-
-    elif num_reviewers == 1 and has_valid_parent:
-        # Scenario 2: Don't modify R= tag, just add startblock section
-        # R= should remain as "R=startblock" and the reviewer will be added by startblock
-
-        # Add startblock section
-        startblock_section = f"""
-### Startblock Conditions
-
-```
-Startblock:
-    # STAGE 1: wait for LGTM on parent CL
-    cl/{parent_branch_number} has LGTM
-    all comments on cl/{parent_branch_number} are resolved
-    # STAGE 2: add reviewer
-    and then
-    remember
-    add reviewer {reviewers[0]}
-```"""
-
-        # Reconstruct description
-        result_lines = content_lines + ["", startblock_section]
-        if tag_lines:
-            result_lines.extend([""] + tag_lines)
-        return "\n".join(result_lines)
-
-    elif num_reviewers == 2 and not has_valid_parent:
-        # Scenario 3: Replace R=startblock with R=<reviewer1>,startblock and add section
-        # Need to replace in the entire description to find R= tag
-        tag_lines_str = "\n".join(tag_lines)
-        tag_lines_str = tag_lines_str.replace(
-            "R=startblock", f"R={reviewers[0]},startblock"
-        )
-        modified_tag_lines = tag_lines_str.split("\n")
-
-        # Add startblock section
-        startblock_section = f"""
-### Startblock Conditions
-
-```
-Startblock:
-    # STAGE 1: wait for LGTM from teammate
-    has LGTM from {reviewers[0]}
-    all comments are resolved
-    # STAGE 2: add OWNER as reviewer
-    and then
-    remember
-    add reviewer {reviewers[1]}
-```"""
-
-        # Reconstruct description
-        result_lines = content_lines + ["", startblock_section]
-        if modified_tag_lines:
-            result_lines.extend([""] + modified_tag_lines)
-        return "\n".join(result_lines)
-
-    else:  # num_reviewers == 2 and has_valid_parent
-        # Scenario 4: Add startblock section with 3 stages
-        startblock_section = f"""
-### Startblock Conditions
-
-```
-Startblock:
-    # STAGE 1: wait for LGTM on parent CL
-    cl/{parent_branch_number} has LGTM
-    all comments on cl/{parent_branch_number} are resolved
-    # STAGE 2: add teammate as reviewer + wait for LGTM
-    and then
-    add reviewer {reviewers[0]}
-    has LGTM from {reviewers[0]}
-    all comments are resolved
-    # STAGE 3: add OWNER as reviewer
-    and then
-    remember
-    add reviewer {reviewers[1]}
-```"""
-
-        # Reconstruct description
-        result_lines = content_lines + ["", startblock_section]
-        if tag_lines:
-            result_lines.extend([""] + tag_lines)
-        return "\n".join(result_lines)
-
-
 def prepare_mail(
     changespec: ChangeSpec, target_dir: str, console: Console
 ) -> MailPrepResult | None:
     """Prepare for mailing a CL / pushing a PR.
 
-    For hg: performs reviewer prompts, description modification, startblock
-    configuration, and reword. For git: simplified flow — displays branch
-    info, shows description, and confirms push + PR creation.
+    Delegates to workspace provider plugins via the ``ws_prepare_mail``
+    hook. Each plugin implements VCS-specific logic (git: display branch
+    info and confirm push; hg: reviewer prompts, startblock, reword).
 
     Args:
         changespec: The ChangeSpec to prepare for mailing
@@ -289,214 +74,17 @@ def prepare_mail(
         MailPrepResult if successful (with should_mail indicating user's choice),
         None if the operation was aborted or failed.
     """
-    vcs_type = detect_vcs_family(target_dir) or "hg"
+    from sase.workspace_provider import prepare_mail as ws_prepare_mail
 
-    if vcs_type == "git":
-        return _prepare_mail_git(changespec, target_dir, console)
-
-    return _prepare_mail_hg(changespec, target_dir, console)
-
-
-def _prepare_mail_git(
-    changespec: ChangeSpec, target_dir: str, console: Console
-) -> MailPrepResult | None:
-    """Git-specific mail preparation: display branch info and confirm push."""
-    provider = get_vcs_provider(target_dir)
-
-    # Display current branch name
-    branch_ok, branch_name = provider.get_branch_name(target_dir)
-    if branch_ok and branch_name:
-        console.print(f"\n[cyan]Branch: {branch_name}[/cyan]")
-
-    # Display current description
-    success, current_desc = _get_cl_description(
-        changespec.name,
-        target_dir,
-        console,
+    result = ws_prepare_mail(
+        changespec_name=changespec.name,
+        changespec_parent=changespec.parent,
         project_basename=changespec.project_basename,
+        project_file=changespec.file_path,
+        target_dir=target_dir,
+        console=console,
     )
-    if success and current_desc:
-        from rich.markup import escape as escape_markup
-        from rich.panel import Panel
-
-        console.print(
-            Panel(
-                escape_markup(current_desc.rstrip()),
-                title="Commit Description",
-                border_style="cyan",
-                padding=(1, 2),
-            )
-        )
-
-    # Prompt user before pushing
-    console.print(
-        "\n[cyan]Do you want to push and create/update the PR now? (y/n):[/cyan] ",
-        end="",
-    )
-    try:
-        mail_response = input().strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        console.print("\n[yellow]Aborted[/yellow]")
-        return None
-
-    should_mail = mail_response in ["y", "yes"]
-    if not should_mail:
-        console.print("[yellow]User declined to push[/yellow]")
-
-    return MailPrepResult(should_mail=should_mail)
-
-
-def _prepare_mail_hg(
-    changespec: ChangeSpec, target_dir: str, console: Console
-) -> MailPrepResult | None:
-    """Hg-specific mail preparation: reviewer prompts, startblock, reword."""
-    # Prompt for reviewers (optional) - loop to handle @ input for findreviewers
-    while True:
-        console.print(
-            "\n[cyan]Enter reviewers (1 or 2, space-separated, @ for findreviewers, "
-            "or Enter to skip):[/cyan] ",
-            end="",
-        )
-        try:
-            reviewers_input = input().strip()
-        except (EOFError, KeyboardInterrupt):
-            console.print("\n[yellow]Aborted[/yellow]")
-            return None
-
-        # Check for @ input - run findreviewers and reprompt
-        if reviewers_input == "@":
-            _run_findreviewers(target_dir, console)
-            continue  # Loop back to prompt for reviewers again
-
-        reviewers = reviewers_input.split()
-        if reviewers and len(reviewers) not in [1, 2]:
-            console.print(
-                "[red]Error: Must provide exactly 1 or 2 reviewers (space-separated)[/red]"
-            )
-            return None
-
-        break  # Valid input, exit loop
-
-    # Only modify description and reword if reviewers were provided
-    if reviewers:
-        # Get current CL description
-        console.print("[cyan]Getting CL description...[/cyan]")
-        success, description = _get_cl_description(
-            changespec.name,
-            target_dir,
-            console,
-            project_basename=changespec.project_basename,
-        )
-        if not success or not description:
-            return None
-
-        # Check if parent is valid
-        has_valid_parent_flag, parent_cs = _has_valid_parent(changespec)
-        parent_branch_number = None
-
-        provider = get_vcs_provider(target_dir)
-        current_branch = provider.resolve_revision(
-            changespec.name, changespec.project_basename, target_dir
-        )
-
-        if has_valid_parent_flag and parent_cs:
-            # Get parent's branch number
-            console.print(
-                f"[cyan]Getting parent CL branch number for {parent_cs.name}...[/cyan]"
-            )
-
-            # We need to temporarily update to the parent to get its branch number
-            resolved_parent = provider.resolve_revision(
-                parent_cs.name, changespec.project_basename, target_dir
-            )
-
-            # Update to parent branch
-            checkout_ok, checkout_err = provider.checkout(resolved_parent, target_dir)
-            if not checkout_ok:
-                console.print(
-                    f"[red]Error updating to parent branch: {checkout_err}[/red]"
-                )
-                return None
-
-            try:
-                # Get parent's branch number
-                success, parent_branch_number = _get_branch_number(target_dir, console)
-                if not success:
-                    console.print(
-                        "[red]Error: Could not get parent branch number[/red]"
-                    )
-                    # Try to restore current branch
-                    provider.checkout(current_branch, target_dir)
-                    return None
-
-            finally:
-                # Always try to restore current branch
-                restore_ok, _ = provider.checkout(current_branch, target_dir)
-                if not restore_ok:
-                    console.print(
-                        f"[yellow]Warning: Could not restore to branch "
-                        f"{current_branch} (cwd: {target_dir})[/yellow]"
-                    )
-
-        # Modify description
-        console.print("[cyan]Modifying CL description for mailing...[/cyan]")
-        modified_description = _modify_description_for_mailing(
-            description, reviewers, has_valid_parent_flag, parent_branch_number
-        )
-
-        # Ensure we're on the correct branch before rewording
-        console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
-        checkout_ok, checkout_err = provider.checkout(current_branch, target_dir)
-        if not checkout_ok:
-            console.print(
-                f"[red]Error checking out {changespec.name}: {checkout_err}[/red]"
-            )
-            return None
-
-        # Update CL description using provider reword
-        console.print("[cyan]Updating CL description...[/cyan]")
-        escaped_desc = provider.prepare_description_for_reword(modified_description)
-        reword_ok, reword_err = provider.reword(escaped_desc, target_dir)
-        if not reword_ok:
-            console.print(f"[red]FATAL: reword failed: {reword_err}[/red]")
-            console.print("[red]Aborting sase work...[/red]")
-            sys.exit(1)
-    else:
-        console.print("[cyan]No reviewers provided - skipping reword step[/cyan]")
-
-    # Display current CL description for user review
-    success, current_desc = _get_cl_description(
-        changespec.name,
-        target_dir,
-        console,
-        project_basename=changespec.project_basename,
-    )
-    if success and current_desc:
-        from rich.markup import escape as escape_markup
-        from rich.panel import Panel
-
-        console.print(
-            Panel(
-                escape_markup(current_desc.rstrip()),
-                title="CL Description",
-                border_style="cyan",
-                padding=(1, 2),
-            )
-        )
-
-    # Prompt user before mailing
-    console.print("\n[cyan]Do you want to mail the CL now? (y/n):[/cyan] ", end="")
-    try:
-        mail_response = input().strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        console.print("\n[yellow]Aborted[/yellow]")
-        return None
-
-    should_mail = mail_response in ["y", "yes"]
-    if not should_mail:
-        console.print("[yellow]User declined to mail[/yellow]")
-
-    return MailPrepResult(should_mail=should_mail)
+    return result  # type: ignore[return-value]
 
 
 def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> bool:

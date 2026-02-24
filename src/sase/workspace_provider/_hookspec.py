@@ -103,6 +103,17 @@ class WorkspaceHookSpec:
     ) -> str | None: ...
 
     @hookspec(firstresult=True)
+    def ws_prepare_mail(
+        self,
+        changespec_name: str,
+        changespec_parent: str | None,
+        project_basename: str,
+        project_file: str,
+        target_dir: str,
+        console: object | None,
+    ) -> object | None: ...
+
+    @hookspec(firstresult=True)
     def ws_format_commit_description(
         self,
         file_path: str,

@@ -99,6 +99,24 @@ class WorkspacePluginManager:
             primary_workspace_dir=primary_workspace_dir,
         )
 
+    def prepare_mail(
+        self,
+        changespec_name: str,
+        changespec_parent: str | None,
+        project_basename: str,
+        project_file: str,
+        target_dir: str,
+        console: object | None = None,
+    ) -> object | None:
+        return self._pm.hook.ws_prepare_mail(  # type: ignore[no-any-return]
+            changespec_name=changespec_name,
+            changespec_parent=changespec_parent,
+            project_basename=project_basename,
+            project_file=project_file,
+            target_dir=target_dir,
+            console=console,
+        )
+
     def format_commit_description(
         self,
         file_path: str,

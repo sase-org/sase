@@ -183,6 +183,30 @@ def get_workspace_directory(
     )
 
 
+def prepare_mail(
+    changespec_name: str,
+    changespec_parent: str | None,
+    project_basename: str,
+    project_file: str,
+    target_dir: str,
+    console: Console | None = None,
+) -> object | None:
+    """Prepare mail/PR via workspace provider plugins.
+
+    Delegates to the ``ws_prepare_mail`` hook.  Returns a
+    ``MailPrepResult``-compatible object or ``None`` if no plugin
+    handled the project.
+    """
+    return _get_manager().prepare_mail(
+        changespec_name=changespec_name,
+        changespec_parent=changespec_parent,
+        project_basename=project_basename,
+        project_file=project_file,
+        target_dir=target_dir,
+        console=console,
+    )
+
+
 def format_commit_description(
     file_path: str,
     project: str,
