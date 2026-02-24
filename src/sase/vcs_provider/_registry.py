@@ -14,18 +14,51 @@ from .config import get_vcs_provider_config
 
 
 def _classify_git_repo(git_dir: str) -> str:
-    """Classify a git repo as ``"github"`` or ``"bare_git"``.
+    """Classify a git repo by consulting plugins, then falling back to URL heuristics.
 
-    Checks the origin remote URL.  If it is a local filesystem path
-    (not ``http(s)://``, ``git@``, or ``ssh://``) the repo is considered
-    bare-git backed.  Otherwise it is treated as GitHub-hosted.
+    Resolution order:
+
+    1. Ask all registered ``sase_vcs`` plugins via the
+       :meth:`~VCSHookSpec.vcs_classify_repo` hook.  The first plugin to
+       return a non-``None`` name wins.
+    2. Fall back to URL-based heuristics: local filesystem path →
+       ``"bare_git"``, anything else → ``"github"``.
 
     Args:
         git_dir: A directory inside the git working tree (used as *cwd*
             for ``git config``).
 
     Returns:
-        ``"github"`` or ``"bare_git"``.
+        A VCS provider name (e.g. ``"github"``, ``"bare_git"``).
+    """
+    # 1. Try plugin-based classification
+    plugin_result = _classify_via_plugins(git_dir)
+    if plugin_result is not None:
+        return plugin_result
+
+    # 2. Fall back to URL heuristics
+    return _classify_by_url(git_dir)
+
+
+def _classify_via_plugins(git_dir: str) -> str | None:
+    """Ask all ``sase_vcs`` entry-point plugins to classify the repo.
+
+    Returns the first non-``None`` result, or ``None`` if no plugin
+    claims the repo.
+    """
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    for ep in importlib.metadata.entry_points(group="sase_vcs"):
+        plugin_class = ep.load()
+        pm.register(plugin_class())
+    result: str | None = pm.hook.vcs_classify_repo(git_dir=git_dir)
+    return result
+
+
+def _classify_by_url(git_dir: str) -> str:
+    """Classify a git repo using its origin remote URL.
+
+    Local filesystem path → ``"bare_git"``, anything else → ``"github"``.
     """
     try:
         result = subprocess.run(

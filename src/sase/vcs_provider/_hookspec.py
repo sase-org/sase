@@ -152,3 +152,21 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_get_change_url(self, cwd: str) -> tuple[bool, str | None]: ...
+
+    # --- Classification hooks (used by registry, not by VCSProvider instances) ---
+
+    @hookspec(firstresult=True)
+    def vcs_classify_repo(self, git_dir: str) -> str | None:
+        """Classify a git repository by examining its remote URL.
+
+        Plugins can claim repos matching their hosting service (e.g.
+        sase-github claims repos with ``github.com`` URLs, a hypothetical
+        sase-gitlab could claim ``gitlab.com`` URLs).
+
+        Args:
+            git_dir: A directory inside the git working tree.
+
+        Returns:
+            The VCS provider name (e.g. ``"github"``, ``"gitlab"``),
+            or ``None`` if this plugin does not claim the repo.
+        """

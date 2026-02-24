@@ -32,14 +32,23 @@ class TestHookspecMethodsExist:
             )
 
     def test_no_extra_hookspecs(self) -> None:
-        """Hookspec methods should map 1-to-1 with provider methods."""
+        """Hookspec methods should map 1-to-1 with provider methods.
+
+        Classification hooks (like ``vcs_classify_repo``) are excluded
+        because they operate at the registry level, not on a provider
+        instance.
+        """
+        # Hooks used by the registry for provider discovery, not by
+        # VCSProvider instances.
+        _CLASSIFICATION_HOOKS = {"classify_repo"}
+
         hookspec_names = {
             name.removeprefix("vcs_")
             for name, _ in inspect.getmembers(VCSHookSpec, predicate=inspect.isfunction)
             if name.startswith("vcs_")
         }
         provider_names = set(_PROVIDER_METHODS)
-        extra = hookspec_names - provider_names
+        extra = hookspec_names - provider_names - _CLASSIFICATION_HOOKS
         assert not extra, (
             f"Extra hookspec methods with no provider counterpart: {extra}"
         )

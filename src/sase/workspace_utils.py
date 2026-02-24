@@ -122,7 +122,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
         return False
 
 
-def get_git_clone_dir(primary_workspace_dir: str, workspace_num: int) -> str:
+def _get_git_clone_dir(primary_workspace_dir: str, workspace_num: int) -> str:
     """Compute the path for a Git clone workspace.
 
     Args:
@@ -153,7 +153,7 @@ def ensure_git_clone(primary_workspace_dir: str, workspace_num: int) -> str:
     Raises:
         RuntimeError: If the directory doesn't exist (num=1) or creation fails.
     """
-    clone_dir = get_git_clone_dir(primary_workspace_dir, workspace_num)
+    clone_dir = _get_git_clone_dir(primary_workspace_dir, workspace_num)
 
     if workspace_num == 1:
         if not os.path.isdir(clone_dir):
@@ -261,7 +261,6 @@ def get_cl_field_label(project_file: str) -> str:
 # Re-export Path for convenience (used by callers that need projects_base)
 __all__ = [
     "Path",
-    "get_git_clone_dir",
     "detect_vcs_type_for_project",
     "ensure_git_clone",
     "get_cl_field_label",
