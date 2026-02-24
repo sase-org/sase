@@ -20,6 +20,9 @@ _AGENT_TYPE_COLORS: dict[AgentType, str] = {
     AgentType.WORKFLOW: "#FF87D7",  # Pink for workflow agent steps
 }
 
+# Icon for autonomous (%approve) agents
+_APPROVE_ICON = "⚡"
+
 # Icon for dismissible (completed) agents
 _DONE_ICON = "✘"
 _DISMISSIBLE_STATUSES = (
@@ -60,6 +63,9 @@ def _calculate_entry_display_width(
     """
     # Format: "[indent][step_num][icon] [{display_type}] {cl_name} ({status}) - #{wks}"
     parts = []
+    # Approve icon for autonomous agents
+    if agent.approve:
+        parts.append(f"{_APPROVE_ICON} ")
     # Add indentation for workflow children
     if agent.is_workflow_child:
         parts.append(_CHILD_INDENT)
@@ -218,6 +224,10 @@ class AgentList(OptionList):
             An Option for the OptionList
         """
         text = Text()
+
+        # Approve icon for autonomous agents
+        if agent.approve:
+            text.append(f"{_APPROVE_ICON} ", style="bold #00FFFF")
 
         # Indentation for workflow child agents
         if agent.is_workflow_child:

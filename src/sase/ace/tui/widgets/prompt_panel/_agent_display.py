@@ -105,6 +105,11 @@ class AgentDisplayMixin:
             header_text.append("VCS: ", style="bold #87D7FF")
             header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
 
+        # Mode (autonomous agents)
+        if agent.approve:
+            header_text.append("Mode: ", style="bold #87D7FF")
+            header_text.append("⚡ Auto-Approve\n", style="bold #00FFFF")
+
         # PID (if available)
         if agent.pid:
             header_text.append("PID: ", style="bold #87D7FF")

@@ -131,6 +131,9 @@ class Agent:
     # Whether this is a pre-prompt step from an embedded workflow
     is_pre_prompt_step: bool = False
 
+    # Whether this agent was launched with %approve (fully autonomous)
+    approve: bool = False
+
     def get_display_type(self, *, is_expanded: bool = False) -> str:
         """Compute display type with optional fold-state context.
 
