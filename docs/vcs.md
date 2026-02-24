@@ -35,6 +35,21 @@ All VCS operations are defined in `VCSHookSpec` (`src/sase/vcs_provider/_hookspe
 `vcs_` and returns `tuple[bool, str | None]` (success flag and optional output). Plugins implement only the hooks they
 support; unsupported operations return `None` and are skipped.
 
+The hooks are organized into several groups:
+
+- **Core operations** — `vcs_checkout`, `vcs_diff`, `vcs_diff_revision`, `vcs_apply_patch`, `vcs_apply_patches`,
+  `vcs_add_remove`, `vcs_clean_workspace`, `vcs_commit`, `vcs_amend`, `vcs_rename_branch`, `vcs_rebase`, `vcs_archive`,
+  `vcs_prune`, `vcs_stash_and_clean`
+- **Optional core** — `vcs_resolve_revision`, `vcs_show_revision`, `vcs_diff_with_untracked`, `vcs_committed_diff`,
+  `vcs_get_default_parent_revision`
+- **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`, `vcs_get_conflicted_files`,
+  `vcs_continue_sync`, `vcs_abort_sync`
+- **Classification hooks** — `vcs_detect_repo_type` (detect VCS markers like `.hg/` or `.git/`) and `vcs_classify_repo`
+  (classify git repos by remote URL, e.g. GitHub vs bare)
+- **Info and review hooks** — `vcs_reword`, `vcs_get_description`, `vcs_get_branch_name`, `vcs_get_cl_number`,
+  `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`, `vcs_upload`,
+  `vcs_find_reviewers`, `vcs_rewind`, `vcs_get_change_url`
+
 ### Disabling Plugins
 
 Set `SASE_DISABLE_PLUGINS` to disable all plugin groups, or `SASE_DISABLE_PLUGIN_VCS` to disable VCS plugins
@@ -475,6 +490,22 @@ The `vcs_provider` section in `sase.yml` is validated against the schema at `~/.
   }
 }
 ```
+
+## Classification Hooks
+
+VCS provider detection is pluggable via two classification hooks:
+
+### `vcs_detect_repo_type`
+
+Checks for VCS markers in a directory (e.g., `.hg/`, `.git/`). Each plugin checks for its own marker and returns the VCS
+type name (e.g., `"hg"`) or `None`. Used during auto-detection when walking up the directory tree.
+
+### `vcs_classify_repo`
+
+For git repositories, further classifies by examining the remote URL. For example, the `sase-github` plugin claims repos
+with `github.com` URLs (returning `"github"`), while unclaimed repos fall through to the `"bare_git"` provider. This
+allows hosting-specific plugins to provide enhanced functionality (e.g., PR operations via `gh` CLI) without modifying
+the core.
 
 ## Troubleshooting
 

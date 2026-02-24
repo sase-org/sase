@@ -26,24 +26,24 @@ scale.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                   sase CLI                      │
-├──────────┬──────────┬───────────┬───────────────┤
-│  ace     │  axe     │  run      │ commit/amend  │
-│  (TUI)   │ (daemon) │(workflows)│  (VCS ops)    │
-├──────────┴──────────┴───────────┴───────────────┤
-│              Core Engine                        │
-│  ┌────────────┐  ┌──────────┐  ┌────────────┐   │
-│  │ ChangeSpec │  │ XPrompt  │  │  Workflows │   │
-│  │  Tracking  │  │ Templates│  │  (YAML)    │   │
-│  └────────────┘  └──────────┘  └────────────┘   │
-├─────────────────────┬───────────────────────────┤
-│   LLM Provider      │      VCS Provider         │
-│  (Claude, Gemini)   │  (pluggy plugin system)   │
-├─────────────────────┴───────────────────────────┤
-│              Plugin Packages                    │
-│  sase-github (GitHub PRs)  sase-hg (Mercurial) │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                       sase CLI                       │
+├────────────┬────────────┬────────────┬───────────────┤
+│  ace       │  axe       │  run       │ commit/amend  │
+│  (TUI)     │  (daemon)  │ (workflows)│  (VCS ops)    │
+├────────────┴────────────┴────────────┴───────────────┤
+│                    Core Engine                        │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐      │
+│  │ ChangeSpec │  │  XPrompt   │  │  Workflows │      │
+│  │  Tracking  │  │  Templates │  │   (YAML)   │      │
+│  └────────────┘  └────────────┘  └────────────┘      │
+├──────────────────┬─────────────────┬─────────────────┤
+│   LLM Provider   │  VCS Provider   │ Workspace Prov. │
+│  (Claude, Gemini)│ (pluggy plugins)│ (pluggy plugins)│
+├──────────────────┴─────────────────┴─────────────────┤
+│                  Plugin Packages                      │
+│    sase-github (GitHub PRs)  sase-hg (Mercurial)     │
+└──────────────────────────────────────────────────────┘
 ```
 
 ## Requirements
@@ -149,9 +149,18 @@ src/sase/
 ├── vcs_provider/          # VCS abstraction (pluggy-based plugin system)
 │   ├── _hookspec.py       # Pluggy hook specifications (VCSHookSpec)
 │   ├── _plugin_manager.py # Plugin manager wrapping pluggy
+│   ├── _registry.py       # VCS detection and provider registry
+│   ├── _base.py           # Base VCS provider class
 │   ├── _command_runner.py # Shared CommandRunner mixin
 │   └── plugins/           # Built-in VCS plugins
-│       └── bare_git.py    # BareGitPlugin (standard git operations)
+│       ├── _git_common.py # Shared git operations (GitCommon base class)
+│       └── bare_git.py    # BareGitPlugin (local bare-remote git repos)
+├── workspace_provider/    # Workspace abstraction (pluggy-based plugin system)
+│   ├── _hookspec.py       # Pluggy hook specifications (WorkspaceHookSpec)
+│   ├── _plugin_manager.py # Plugin manager wrapping pluggy
+│   ├── _registry.py       # Workspace detection and metadata registry
+│   └── plugins/           # Built-in workspace plugins
+│       └── bare_git_*.py  # BareGitWorkspacePlugin (ref resolution, submit, mail)
 ├── plugin_discovery.py    # Entry-point-based plugin discovery (shared)
 ├── commit_workflow/       # Commit creation workflows
 ├── commit_utils/          # COMMITS entry management
@@ -201,6 +210,7 @@ just build         # Build wheel + sdist
 - [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation
+- [`docs/workspace.md`](docs/workspace.md) — Workspace provider documentation
 - [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format
 - [`docs/xprompt.md`](docs/xprompt.md) — XPrompt template reference
 

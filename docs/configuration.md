@@ -316,12 +316,13 @@ variable is used as a fallback. Values are split on whitespace and appended to t
 
 ### Plugin System
 
-| Variable                       | Description                                               |
-| ------------------------------ | --------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`         | Disable all plugin groups when set (any non-empty value). |
-| `SASE_DISABLE_PLUGIN_VCS`      | Disable VCS plugins only.                                 |
-| `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable xprompt plugins only.                             |
-| `SASE_DISABLE_PLUGIN_CONFIG`   | Disable config plugins only.                              |
+| Variable                        | Description                                               |
+| ------------------------------- | --------------------------------------------------------- |
+| `SASE_DISABLE_PLUGINS`          | Disable all plugin groups when set (any non-empty value). |
+| `SASE_DISABLE_PLUGIN_VCS`       | Disable VCS plugins only.                                 |
+| `SASE_DISABLE_PLUGIN_WORKSPACE` | Disable workspace plugins only.                           |
+| `SASE_DISABLE_PLUGIN_XPROMPTS`  | Disable xprompt plugins only.                             |
+| `SASE_DISABLE_PLUGIN_CONFIG`    | Disable config plugins only.                              |
 
 ### Workspace Management (Internal)
 
