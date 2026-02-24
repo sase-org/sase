@@ -15,6 +15,33 @@ if TYPE_CHECKING:
 from ....changespec import ChangeSpec
 
 
+def _delete_agent_artifacts(artifacts_dir: str | None) -> None:
+    """Delete artifact files that cause an agent to be loaded.
+
+    Removes workflow_state.json, done.json, and prompt_step_*.json files
+    from the artifacts directory so the agent won't be reloaded on restart.
+
+    Args:
+        artifacts_dir: Path to the agent's artifacts directory, or None.
+    """
+    from pathlib import Path
+
+    if not artifacts_dir:
+        return
+
+    artifacts_path = Path(artifacts_dir)
+    if not artifacts_path.is_dir():
+        return
+
+    # Delete files that the loaders scan for
+    for pattern in ("workflow_state.json", "done.json", "prompt_step_*.json"):
+        for f in artifacts_path.glob(pattern):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
 def _dismiss_notifications_for_agent(agent: Agent) -> None:
     """Dismiss notifications that reference the given agent.
 
@@ -424,7 +451,11 @@ class AgentKillingMixin:
 
             self.notify(f"Dismissed workflow {agent.workflow}")  # type: ignore[attr-defined]
 
-            # Track dismissal (artifacts preserved for revive support)
+            # Delete artifact files so the agent won't be reloaded on restart
+            # (dismissed_agents.json has a size limit and can evict old entries)
+            _delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
+
+            # Track dismissal as safety net for current session
             self._persist_dismissed_agent(agent.identity)
 
             # If this is a parent workflow (not a child step), also dismiss all its steps
@@ -461,7 +492,10 @@ class AgentKillingMixin:
             self._load_agents()  # type: ignore[attr-defined]
             return
 
-        # Track dismissal for ace-run agents (artifacts preserved for revive support)
+        # Delete artifact files so the agent won't be reloaded on restart
+        _delete_agent_artifacts(agent.get_artifacts_dir())
+
+        # Track dismissal as safety net for current session
         self._persist_dismissed_agent(agent.identity)
         self.notify(f"Dismissed agent for {agent.cl_name}")  # type: ignore[attr-defined]
 
