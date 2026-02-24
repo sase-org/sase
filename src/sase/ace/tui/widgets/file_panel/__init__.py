@@ -77,6 +77,8 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
 
         # Different agent or no cache -- full reset (existing behavior)
         self._reset_trim_state()
+        self._file_list = []
+        self._current_file_index = 0
         self._current_agent = agent
 
         if cache_entry is not None:
@@ -264,6 +266,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
                     # would suppress the visibility message that hides us)
                     if (
                         self._has_displayed_content
+                        and self._full_content is not None
                         and cache_entry.diff_output == self._last_file_content
                     ):
                         # Content unchanged - just update timestamp header

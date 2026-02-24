@@ -38,13 +38,12 @@ def get_agent_diff(agent: Agent) -> str | None:
         except VCSProviderNotFoundError:
             return None
 
-        _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
-        if diff_text:
-            return diff_text
         if agent.status in ("DONE", "FAILED"):
             _, committed = provider.committed_diff(workspace_dir, timeout=10)
             return committed
-        return None
+
+        _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
+        return diff_text if diff_text else None
 
     except RuntimeError:
         # get_workspace_directory command failed
