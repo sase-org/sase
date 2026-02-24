@@ -338,15 +338,10 @@ class AgentKillingMixin:
                 )
 
             if workspace_num is not None:
-                # Treat "unknown" as None since it's a placeholder
-                release_cl_name = None
-                if not agent.is_workflow_child and agent.cl_name != "unknown":
-                    release_cl_name = agent.cl_name
                 release_workspace(
                     agent.project_file,
                     workspace_num,
                     f"workflow({workflow_name})",
-                    release_cl_name,
                 )
 
         # Delete the workflow state file
@@ -439,15 +434,10 @@ class AgentKillingMixin:
                     )
 
                 if workspace_num is not None:
-                    # Treat "unknown" as None since it's a placeholder
-                    release_cl_name = None
-                    if not agent.is_workflow_child and agent.cl_name != "unknown":
-                        release_cl_name = agent.cl_name
                     release_workspace(
                         agent.project_file,
                         workspace_num,
                         f"workflow({workflow_name})",
-                        release_cl_name,
                     )
 
             self.notify(f"Dismissed workflow {agent.workflow}")  # type: ignore[attr-defined]

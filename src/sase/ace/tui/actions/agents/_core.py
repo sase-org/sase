@@ -146,13 +146,35 @@ class AgentsMixinCore(
         # Load fresh agent list
         all_agents = load_all_agents()
 
+        # Build secondary index for robust dismissed matching
+        # (agent cl_name may change between loads due to dedup merging)
+        dismissed_suffixes = {
+            (agent_type, raw_suffix)
+            for agent_type, _, raw_suffix in self._dismissed_agents
+            if raw_suffix is not None
+        }
+
         # Capture dismissed agents before filtering (for revive support)
         self._dismissed_agent_objects = [
-            a for a in all_agents if a.identity in self._dismissed_agents
+            a
+            for a in all_agents
+            if a.identity in self._dismissed_agents
+            or (
+                a.raw_suffix is not None
+                and (a.agent_type, a.raw_suffix) in dismissed_suffixes
+            )
         ]
 
         # Filter out dismissed agents
-        all_agents = [a for a in all_agents if a.identity not in self._dismissed_agents]
+        all_agents = [
+            a
+            for a in all_agents
+            if a.identity not in self._dismissed_agents
+            and (
+                a.raw_suffix is None
+                or (a.agent_type, a.raw_suffix) not in dismissed_suffixes
+            )
+        ]
 
         # Categorize agents: always-visible (dismissable OR running) vs hideable
         always_visible = [a for a in all_agents if _is_always_visible(a)]
