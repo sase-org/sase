@@ -16,12 +16,13 @@ just test-tox      # Multi-version testing (3.12, 3.13, 3.14)
 .venv/bin/sase     # Run CLI (always use .venv/bin/sase, NEVER bare `sase`)
 ```
 
-**IMPORTANT — Running the `sase` CLI**: Agents (like you) should always use `.venv/bin/sase` (or `just` commands which
-use the venv automatically). **Never** run bare `sase`, `pip install`, or `python -m sase` — these resolve outside the
-project venv and can pollute the system Python (pyenv). If `.venv` doesn't exist yet, run `just install` first.
+## Ephemeral `sase__<N>` Workspace Directories
 
-> **Note**: `.venv/bin/sase` is for agents only. Users activate the venv (`source .venv/bin/activate`) and run `sase`
-> directly. Do not recommend `.venv/bin/sase` to users in documentation or help output.
+Sase runs agents (like you) are run from ephemeral workspace directories, which are full clones of the sase repo that
+live in the same parent directory as the main repo. These directories are named `sase__<N>` where `<N>` is some integer.
+You need to be mindful not to run commands outside of these workspace directories, since they have their own isolated
+virtual environments. So, for example, if you need to run `sase`, make sure to run `.venv/bin/sase` from within the
+`sase__<N>` directory, NOT `sase`.
 
 ## Architecture
 
