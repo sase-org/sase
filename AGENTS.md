@@ -22,7 +22,7 @@ Sase runs agents (like you) are run from ephemeral workspace directories, which 
 live in the same parent directory as the main repo. These directories are named `sase__<N>` where `<N>` is some integer.
 You need to be mindful not to run commands outside of these workspace directories, since they have their own isolated
 virtual environments. So, for example, if you need to run `sase`, make sure to run `.venv/bin/sase` from within the
-`sase__<N>` directory, NOT `sase`.
+`sase__<N>` directory; you should NEVER run just `sase`.
 
 ## Architecture
 
