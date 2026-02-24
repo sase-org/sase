@@ -434,7 +434,7 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-prompt-scroll {
-    height: 30%;
+    height: 3fr;
     border: solid $secondary;
     padding: 1 2;
     scrollbar-gutter: stable;
@@ -442,7 +442,7 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-file-scroll {
-    height: 70%;
+    height: 7fr;
     border: solid green;
     padding: 1 2;
     scrollbar-gutter: stable;
@@ -459,15 +459,15 @@ HintInputBar #hint-escape-hint {
 
 /* Swapped layout (prompt gets priority) */
 #agent-prompt-scroll.layout-priority {
-    height: 70%;
+    height: 7fr;
 }
 
 #agent-file-scroll.layout-secondary {
-    height: 30%;
+    height: 3fr;
 }
 
 #agent-thinking-scroll {
-    height: 70%;
+    height: 7fr;
     border: solid #af87d7;
     padding: 1 2;
     scrollbar-gutter: stable;
@@ -478,7 +478,7 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-thinking-scroll.layout-secondary {
-    height: 30%;
+    height: 3fr;
 }
 
 /* Agent list styling */
