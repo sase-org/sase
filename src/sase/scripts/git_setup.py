@@ -2,7 +2,7 @@
 
 import os
 
-from sase.gh_workspace import ensure_git_clone
+from sase.workspace_utils import ensure_git_clone
 from sase.git_workspace import resolve_git_ref
 from sase.running_field import (
     claim_workspace,

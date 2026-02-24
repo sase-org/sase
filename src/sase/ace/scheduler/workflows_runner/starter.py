@@ -132,7 +132,7 @@ def _start_crs_workflow(
     Returns:
         Update message if started, None if failed.
     """
-    from sase.gh_workspace import (
+    from sase.workspace_utils import (
         detect_vcs_type_for_project,
         ensure_git_clone,
         parse_workspace_dir,

@@ -82,17 +82,23 @@ class BaseActionsMixin:
 
         # Special handling for "Submitted" status (git/gh projects)
         if new_status == STATUS_SUBMITTED:
-            from sase.gh_workspace import detect_workflow_type_for_project
+            from sase.workspace_provider import detect_workflow_type, submit_changespec
 
-            vcs_type = detect_workflow_type_for_project(changespec.file_path)
+            vcs_type = detect_workflow_type(changespec.file_path)
             if vcs_type in ("git", "gh"):
-                from sase.git_submit import submit_git_changespec
+                import os
+
+                project_basename = os.path.basename(changespec.file_path).replace(
+                    ".gp", ""
+                )
 
                 def run_submit() -> tuple[bool, str | None]:
                     from rich.console import Console
 
                     console = Console()
-                    return submit_git_changespec(changespec, console)
+                    return submit_changespec(
+                        changespec.file_path, changespec.name, project_basename, console
+                    )
 
                 with self.suspend():  # type: ignore[attr-defined]
                     success, error_msg = run_submit()

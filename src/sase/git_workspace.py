@@ -15,7 +15,7 @@ from sase.ace.changespec import (
     find_all_changespecs,
     write_changespec_atomic,
 )
-from sase.gh_workspace import (
+from sase.workspace_utils import (
     get_default_branch,
     set_workspace_dir,
     parse_workspace_dir,

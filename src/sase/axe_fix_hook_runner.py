@@ -109,9 +109,9 @@ def main() -> int:
     run_hook_command = strip_hook_prefix(hook_command)
 
     # Detect VCS type for the project
-    from sase.gh_workspace import detect_workflow_type_for_project
+    from sase.workspace_provider import detect_workflow_type
 
-    vcs_type = detect_workflow_type_for_project(project_file)
+    vcs_type = detect_workflow_type(project_file)
 
     try:
         print(f"Running fix-hook workflow for {changespec_name}")

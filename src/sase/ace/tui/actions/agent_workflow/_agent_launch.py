@@ -169,7 +169,7 @@ class AgentLaunchMixin:
         Args:
             prompt: The user's prompt for all agents.
         """
-        from sase.gh_workspace import detect_workflow_type_for_project
+        from sase.workspace_provider import detect_workflow_type
         from sase.sase_utils import generate_timestamp
         from sase.running_field import (
             get_first_available_axe_workspace,
@@ -215,7 +215,7 @@ class AgentLaunchMixin:
                 continue
 
             # Detect VCS type and build per-CL prompt with prefix
-            workflow_type = detect_workflow_type_for_project(project_file)
+            workflow_type = detect_workflow_type(project_file)
             cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
             # Determine which VCS ref to pass so _launch_background_agent

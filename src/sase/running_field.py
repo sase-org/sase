@@ -550,7 +550,7 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
     Raises:
         RuntimeError: If workspace resolution fails
     """
-    from sase.gh_workspace import ensure_git_clone, parse_workspace_dir
+    from sase.workspace_utils import ensure_git_clone, parse_workspace_dir
     from sase.workflow_utils import get_project_file_path
 
     project_file = get_project_file_path(project)

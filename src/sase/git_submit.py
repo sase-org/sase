@@ -1,4 +1,9 @@
-"""Git/GitHub submission logic for ChangeSpecs (Mailed → Submitted)."""
+"""Git submission logic for ChangeSpecs (Mailed → Submitted).
+
+GitHub-specific submission (PR merge) has moved to
+:mod:`sase_github.workspace_plugin`.  This module handles bare-git
+local-merge submission and the shared ``_finalize_submission`` helper.
+"""
 
 import os
 import subprocess
@@ -12,11 +17,8 @@ from sase.ace.operations import (
     has_active_children,
     rename_changespec_with_references,
 )
-from sase.gh_workspace import (
-    detect_workflow_type_for_project,
-    get_default_branch,
-    parse_workspace_dir,
-)
+from sase.workspace_utils import get_default_branch, parse_workspace_dir
+from sase.workspace_provider import detect_workflow_type
 from sase.running_field import (
     claim_workspace,
     get_first_available_axe_workspace,
@@ -32,10 +34,7 @@ def submit_git_changespec(
     changespec: ChangeSpec,
     console: Console | None = None,
 ) -> tuple[bool, str | None]:
-    """Submit a git/gh ChangeSpec by merging its branch to the default branch.
-
-    For GitHub projects with an existing PR, uses ``gh pr merge``.
-    For bare git or GitHub without a PR, performs a local merge and push.
+    """Submit a bare-git ChangeSpec by merging its branch to the default branch.
 
     After merging, renames the ChangeSpec with a timestamp suffix and
     transitions its status to Submitted.
@@ -80,7 +79,7 @@ def submit_git_changespec(
         return (False, "WORKSPACE_DIR is not set for this project")
 
     # Detect workflow type
-    vcs_type = detect_workflow_type_for_project(changespec.file_path)
+    vcs_type = detect_workflow_type(changespec.file_path)
     if vcs_type == "hg":
         return (False, "hg submission has its own path; use that instead")
 
@@ -128,16 +127,6 @@ def submit_git_changespec(
                 f"[cyan]Merging {escape_markup(changespec.name)} into {escape_markup(default_branch)}...[/cyan]"
             )
 
-        # Check if this is a GitHub project with an existing PR
-        if vcs_type == "gh":
-            has_pr = _check_existing_pr(ws_dir)
-            if has_pr:
-                return _submit_via_pr_merge(changespec, ws_dir, console)
-            return (
-                False,
-                "GitHub project has no PR for this branch. Create a PR first with #pr.",
-            )
-
         # Bare git: local merge + push
         return _submit_via_local_merge(
             changespec, ws_dir, default_branch, provider, console
@@ -152,65 +141,6 @@ def submit_git_changespec(
         )
         if console:
             console.print(f"[cyan]Released workspace #{workspace_num}[/cyan]")
-
-
-def _check_existing_pr(cwd: str) -> bool:
-    """Check if a PR exists for the current branch."""
-    try:
-        result = subprocess.run(
-            ["gh", "pr", "view", "--json", "number"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
-
-
-def _submit_via_pr_merge(
-    changespec: ChangeSpec,
-    ws_dir: str,
-    console: Console | None,
-) -> tuple[bool, str | None]:
-    """Submit by merging the PR via ``gh pr merge``."""
-    from sase.github_config import get_github_username
-
-    username = get_github_username()
-    if not username:
-        return (
-            False,
-            "Cannot submit GitHub PR: 'github_username' is not configured in sase.yml. "
-            "Add 'github_username: <your_username>' to ~/.config/sase/sase.yml",
-        )
-
-    if console:
-        console.print("[cyan]Merging PR via gh pr merge...[/cyan]")
-
-    try:
-        result = subprocess.run(
-            ["gh", "pr", "merge", "--merge", "--delete-branch"],
-            cwd=ws_dir,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            error_msg = result.stderr.strip() or result.stdout.strip()
-            return (
-                False,
-                f"gh pr merge failed: {error_msg}"
-                if error_msg
-                else "gh pr merge failed",
-            )
-    except FileNotFoundError:
-        return (False, "gh command not found")
-
-    if console:
-        console.print("[green]PR merged successfully[/green]")
-
-    return _finalize_submission(changespec, console)
 
 
 def _submit_via_local_merge(

@@ -42,10 +42,8 @@ def detect_workflow_type(project_file: str) -> str:
     result = _get_manager().detect_workflow_type(project_file)
     if result is not None:
         return result
-    # Fallback to legacy detection (covers "gh" and "hg" until those plugins exist)
-    from sase.gh_workspace import detect_workflow_type_for_project
-
-    return detect_workflow_type_for_project(project_file)
+    # No plugin claimed it — must be hg
+    return "hg"
 
 
 def get_change_label(project_file: str) -> str:
@@ -75,17 +73,7 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
     if result is not None:
         return result
 
-    # Fallback to legacy resolution
-    if workflow_type == "gh":
-        from sase.gh_workspace import resolve_gh_ref
-
-        r = resolve_gh_ref(ref)
-        return ResolvedRef(
-            project_file=r.project_file,
-            project_name=r.project_name,
-            primary_workspace_dir=r.primary_workspace_dir,
-            checkout_target=r.checkout_target,
-        )
+    # Fallback to legacy resolution for "git" (bare-git plugin handles it)
     if workflow_type == "git":
         from sase.git_workspace import resolve_git_ref
 

@@ -21,7 +21,8 @@ class RefResolutionMixin:
         Returns (project_file, project_name, workspace_dir, workspace_num,
         gh_ref) or None if not found or resolution fails.
         """
-        from sase.gh_workspace import ensure_git_clone, resolve_gh_ref
+        from sase.workspace_provider import resolve_ref
+        from sase.workspace_utils import ensure_git_clone
         from sase.running_field import get_first_available_axe_workspace
 
         match = _GH_REF_PATTERN.search(prompt)
@@ -33,7 +34,7 @@ class RefResolutionMixin:
             return None
 
         try:
-            resolved = resolve_gh_ref(gh_ref)
+            resolved = resolve_ref(gh_ref, "gh")
             workspace_num = get_first_available_axe_workspace(resolved.project_file)
             workspace_dir = ensure_git_clone(
                 resolved.primary_workspace_dir, workspace_num
@@ -57,7 +58,7 @@ class RefResolutionMixin:
         Returns (project_file, project_name, workspace_dir, workspace_num,
         git_ref) or None if not found or resolution fails.
         """
-        from sase.gh_workspace import ensure_git_clone
+        from sase.workspace_utils import ensure_git_clone
         from sase.git_workspace import resolve_git_ref
         from sase.running_field import get_first_available_axe_workspace
 

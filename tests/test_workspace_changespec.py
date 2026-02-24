@@ -131,7 +131,7 @@ def test_create_changespec_for_workflow_success() -> None:
             "sase.workspace_changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_changespec.get_cl_field_label", return_value="PR"),
+        patch("sase.workspace_changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_changespec.add_changespec_to_project_file",
             return_value="proj_add_thing__1",

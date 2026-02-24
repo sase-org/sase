@@ -22,9 +22,9 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
     Returns:
         A string such as ``"#gh:my_cl "`` or ``"#hg:my_cl "``.
     """
-    from sase.gh_workspace import detect_workflow_type_for_project
+    from sase.workspace_provider import detect_workflow_type
 
-    workflow_type = detect_workflow_type_for_project(project_file)
+    workflow_type = detect_workflow_type(project_file)
     return f"#{workflow_type}:{name} "
 
 

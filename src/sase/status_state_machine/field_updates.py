@@ -8,7 +8,7 @@ DESCRIPTION fields.
 import logging
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.gh_workspace import get_cl_field_label
+from sase.workspace_provider import get_change_label
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ def _apply_cl_update(
         elif in_target_changespec and line.startswith("STATUS:") and not found_cl_line:
             # CL/PR field doesn't exist - add it before STATUS if we have a new value
             if new_cl is not None:
-                label = get_cl_field_label(project_file)
+                label = get_change_label(project_file)
                 updated_lines.append(f"{label}: {new_cl}\n")
                 found_cl_line = True
             updated_lines.append(line)

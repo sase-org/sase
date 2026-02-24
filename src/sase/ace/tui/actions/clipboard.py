@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ...changespec import ChangeSpec
     from ..models import Agent
 
-from sase.gh_workspace import get_cl_field_label
+from sase.workspace_provider import get_change_label
 
 from ...changespec import get_raw_changespec_text
 
@@ -546,7 +546,7 @@ def _format_changespec_for_clipboard(cs: ChangeSpec) -> str:
     if cs.parent:
         lines.append(f"PARENT: {cs.parent}")
     if cs.cl:
-        label = get_cl_field_label(cs.file_path)
+        label = get_change_label(cs.file_path)
         lines.append(f"{label}: {cs.cl}")
     lines.append(f"STATUS: {cs.status}")
     if cs.bug:

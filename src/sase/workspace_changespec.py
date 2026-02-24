@@ -5,7 +5,7 @@ import subprocess
 
 from sase.chat_history import save_chat_history
 from sase.commit_workflow.changespec_operations import add_changespec_to_project_file
-from sase.gh_workspace import get_cl_field_label
+from sase.workspace_provider import get_change_label
 from sase.sase_utils import (
     ensure_sase_directory,
     generate_timestamp,
@@ -103,6 +103,7 @@ def _save_committed_diff(
     return shorten_path(diff_path)
 
 
+# pyvision: ../sase-github/src/sase_github/scripts/pr_create_changespec.py
 def create_changespec_for_workflow(
     project_name: str,
     project_file: str,
@@ -131,7 +132,7 @@ def create_changespec_for_workflow(
     chat_path = save_chat_history(prompt, response, workflow_name, timestamp=ts)
     diff_path = _save_committed_diff(cl_name, checkout_target, branch_name, ts)
     hooks = get_initial_hooks_for_changespec(verbose=False)
-    cl_label = get_cl_field_label(project_file)
+    cl_label = get_change_label(project_file)
 
     result = add_changespec_to_project_file(
         project_name,

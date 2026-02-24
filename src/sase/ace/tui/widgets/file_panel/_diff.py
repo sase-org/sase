@@ -4,7 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from sase.gh_workspace import detect_vcs_type_for_project
+from sase.workspace_utils import detect_vcs_type_for_project
 from sase.running_field import get_workspace_directory
 
 from ...models.agent import Agent

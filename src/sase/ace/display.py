@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.text import Text
-from sase.gh_workspace import get_cl_field_label
+from sase.workspace_provider import get_change_label
 from sase.running_field import get_claimed_workspaces
 
 from .changespec import (
@@ -106,7 +106,7 @@ def display_changespec(
 
     # CL/PR field (only display if present)
     if changespec.cl:
-        label = get_cl_field_label(changespec.file_path)
+        label = get_change_label(changespec.file_path)
         text.append(f"{label}: ", style="bold #87D7FF")
         text.append(f"{changespec.cl}\n", style="bold underline #569CD6")
 
