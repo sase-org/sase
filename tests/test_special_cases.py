@@ -11,9 +11,15 @@ from sase.main.query_handler.special_cases import (
 )
 
 
+def _mock_workflow_names() -> MagicMock:
+    """Return a mock for get_workflow_names returning standard VCS names."""
+    return MagicMock(return_value={"gh", "git", "hg"})
+
+
 def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:
     """Test that '#gh:sase .' as a single arg triggers the prompt history picker."""
     mock_picker = MagicMock(return_value="selected prompt")
+    mock_names = _mock_workflow_names()
     with (
         patch(
             "sase.main.query_handler.special_cases.show_prompt_history_picker",
@@ -24,10 +30,9 @@ def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:
             return_value=("sase", "sase"),
         ),
         patch("sase.main.query_handler.special_cases.run_query") as mock_run,
-        patch(
-            "sase.workspace_provider.get_workflow_names",
-            return_value={"gh", "git", "hg"},
-        ),
+        patch("sase.workspace_provider.get_workflow_names", mock_names),
+        patch("sase.workspace_provider._registry.get_workflow_names", mock_names),
+        patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
         pytest.raises(SystemExit),
     ):
         handle_run_special_cases(["#gh:sase ."])
@@ -43,6 +48,7 @@ def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
     using #gh:sase should strip the #git:repo prefix.
     """
     mock_picker = MagicMock(return_value="#git:repo do something cool")
+    mock_names = _mock_workflow_names()
     with (
         patch(
             "sase.main.query_handler.special_cases.show_prompt_history_picker",
@@ -53,10 +59,9 @@ def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
             return_value=("sase", "sase"),
         ),
         patch("sase.main.query_handler.special_cases.run_query") as mock_run,
-        patch(
-            "sase.workspace_provider.get_workflow_names",
-            return_value={"gh", "git", "hg"},
-        ),
+        patch("sase.workspace_provider.get_workflow_names", mock_names),
+        patch("sase.workspace_provider._registry.get_workflow_names", mock_names),
+        patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
         pytest.raises(SystemExit),
     ):
         handle_run_special_cases(["#gh:sase", "."])
