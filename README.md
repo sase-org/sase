@@ -32,16 +32,16 @@ scale.
 │  ace       │  axe       │  run       │ commit/amend  │
 │  (TUI)     │  (daemon)  │ (workflows)│  (VCS ops)    │
 ├────────────┴────────────┴────────────┴───────────────┤
-│                    Core Engine                        │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐      │
-│  │ ChangeSpec │  │  XPrompt   │  │  Workflows │      │
-│  │  Tracking  │  │  Templates │  │   (YAML)   │      │
-│  └────────────┘  └────────────┘  └────────────┘      │
+│                     Core Engine                       │
+│    ┌────────────┐  ┌────────────┐  ┌────────────┐    │
+│    │ ChangeSpec │  │  XPrompt   │  │  Workflows │    │
+│    │  Tracking  │  │  Templates │  │   (YAML)   │    │
+│    └────────────┘  └────────────┘  └────────────┘    │
 ├──────────────────┬─────────────────┬─────────────────┤
 │   LLM Provider   │  VCS Provider   │ Workspace Prov. │
 │  (Claude, Gemini)│ (pluggy plugins)│ (pluggy plugins)│
 ├──────────────────┴─────────────────┴─────────────────┤
-│                  Plugin Packages                      │
+│                   Plugin Packages                     │
 │    sase-github (GitHub PRs)  sase-hg (Mercurial)     │
 └──────────────────────────────────────────────────────┘
 ```
