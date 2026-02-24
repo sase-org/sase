@@ -1,5 +1,6 @@
 ---
 bead_id: sase-rz8
+status: done
 ---
 
 # VCS Abstraction Migration Plan
