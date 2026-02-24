@@ -40,6 +40,21 @@ class TestDiscoverChopScript:
         assert result is not None
         assert result.name == "sase_chop_my_chop"
 
+    def test_finds_in_sys_executable_bin_dir(self, tmp_path, monkeypatch):
+        """Chop scripts next to sys.executable are found even without PATH."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        fake_python = bin_dir / "python"
+        fake_python.write_text("")
+        script = bin_dir / "sase_chop_my_chop"
+        _make_executable(script)
+        monkeypatch.setattr(
+            "sase.axe.chop_script_runner.sys.executable", str(fake_python)
+        )
+        monkeypatch.setenv("PATH", "")
+        result = discover_chop_script("my_chop", [])
+        assert result == script
+
     def test_returns_none_when_not_found(self, tmp_path):
         result = discover_chop_script("nonexistent", [str(tmp_path)])
         assert result is None

@@ -8,6 +8,7 @@ directories or on ``$PATH`` (with a ``sase_chop_`` prefix).
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -15,6 +16,7 @@ def discover_chop_script(name: str, search_dirs: list[str]) -> Path | None:
     """Find an executable chop script by name.
 
     Searches *search_dirs* for an executable file matching *name*,
+    then checks the bin directory of the running Python interpreter,
     then falls back to ``shutil.which("sase_chop_<name>")``.
 
     Args:
@@ -24,13 +26,24 @@ def discover_chop_script(name: str, search_dirs: list[str]) -> Path | None:
     Returns:
         Path to the executable, or ``None`` if not found.
     """
+    prefixed = f"sase_chop_{name}"
+
     for d in search_dirs:
         candidate = Path(d) / name
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return candidate
 
+    # Check the bin directory next to the running Python interpreter.
+    # This ensures chop scripts installed as entry points in the same
+    # virtualenv are found even when PATH symlinks are broken (e.g.
+    # during a reinstall).
+    bin_dir = Path(sys.executable).parent
+    candidate = bin_dir / prefixed
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return candidate
+
     # Fallback: look for sase_chop_<name> on PATH
-    on_path = shutil.which(f"sase_chop_{name}")
+    on_path = shutil.which(prefixed)
     if on_path is not None:
         return Path(on_path)
 
