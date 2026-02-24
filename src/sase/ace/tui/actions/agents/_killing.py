@@ -394,8 +394,9 @@ class AgentKillingMixin:
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
 
-        Tracks the agent in the dismissed set so it's filtered from the
-        Agents tab. Artifacts are preserved on disk to support revive.
+        Deletes artifact files so the agent won't be reloaded on restart,
+        and tracks the agent in the dismissed set as a safety net for the
+        current session.
 
         Args:
             agent: The DONE or completed agent to dismiss.
