@@ -1,3 +1,7 @@
+---
+bead_id: sase-efk
+---
+
 # Plan: TUI Cache Chops for Agents Tab Optimization
 
 ## Context
