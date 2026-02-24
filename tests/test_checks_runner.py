@@ -19,15 +19,23 @@ from sase.ace.scheduler.checks_runner import (
 
 
 def test_extract_change_identifier_valid_https() -> None:
-    """Test extracting CL number from https URL."""
-    result = _extract_change_identifier("https://cl/987654321")
+    """Test extracting CL number from https URL via workspace provider plugin."""
+    with patch(
+        "sase.workspace_provider.extract_change_identifier",
+        return_value=("987654321", "hg"),
+    ):
+        result = _extract_change_identifier("https://cl/987654321")
     assert result == ("987654321", "hg")
 
 
 def test_extract_change_identifier_invalid_url() -> None:
     """Test that invalid URLs return None."""
-    assert _extract_change_identifier("not-a-url") is None
-    assert _extract_change_identifier("http://example.com/123") is None
+    with patch(
+        "sase.workspace_provider.extract_change_identifier",
+        return_value=None,
+    ):
+        assert _extract_change_identifier("not-a-url") is None
+        assert _extract_change_identifier("http://example.com/123") is None
     assert _extract_change_identifier("") is None
 
 
@@ -176,13 +184,17 @@ def test_check_complete_marker() -> None:
 
 
 def test_start_reviewer_comments_check_skips_for_git() -> None:
-    """Test that start_reviewer_comments_check returns None for git repos."""
+    """Test that start_reviewer_comments_check returns None when plugin says unsupported."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
     mock_changespec.cl = "https://github.com/user/repo/pull/42"
     mock_log = MagicMock()
 
-    result = start_reviewer_comments_check(mock_changespec, "/workspace", mock_log)
+    with patch(
+        "sase.workspace_provider.supports_reviewer_comments",
+        return_value=False,
+    ):
+        result = start_reviewer_comments_check(mock_changespec, "/workspace", mock_log)
     assert result is None
 
 
@@ -193,11 +205,17 @@ def test_start_reviewer_comments_check_skips_for_no_cl() -> None:
     mock_changespec.cl = None
     mock_log = MagicMock()
 
-    # With no CL, _extract_change_identifier returns None, so the git-skip
-    # logic is not triggered and it proceeds to try critique_comments.
-    # We patch Popen to avoid actually running a command.
-    with patch("sase.ace.scheduler.checks_runner.subprocess.Popen") as mock_popen:
+    # With no CL, the supports_reviewer_comments check is skipped entirely.
+    # We mock generate_reviewer_comments_script to return a script body and
+    # patch Popen to avoid actually running a command.
+    with (
+        patch(
+            "sase.workspace_provider.generate_reviewer_comments_script",
+            return_value="critique_comments my_feature 2>&1",
+        ),
+        patch("sase.ace.scheduler.checks_runner.subprocess.Popen") as mock_popen,
+    ):
         mock_popen.return_value = MagicMock()
         result = start_reviewer_comments_check(mock_changespec, "/workspace", mock_log)
-    # Should still attempt to start (for hg repos that might not have a CL URL yet)
-    assert result is not None or result is None  # either outcome is valid
+    # Should attempt to start (for hg repos that might not have a CL URL yet)
+    assert result == "Started reviewer_comments check"

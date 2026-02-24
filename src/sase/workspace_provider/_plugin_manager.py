@@ -62,3 +62,25 @@ class WorkspacePluginManager:
         return self._pm.hook.ws_setup_workflow(  # type: ignore[no-any-return]
             ref=ref, workflow_type=workflow_type, n=n, release=release
         )
+
+    def extract_change_identifier(self, cl_url: str) -> tuple[str, str] | None:
+        return self._pm.hook.ws_extract_change_identifier(  # type: ignore[no-any-return]
+            cl_url=cl_url
+        )
+
+    def generate_submitted_check_script(
+        self, identifier: str, vcs_type: str
+    ) -> str | None:
+        return self._pm.hook.ws_generate_submitted_check_script(  # type: ignore[no-any-return]
+            identifier=identifier, vcs_type=vcs_type
+        )
+
+    def supports_reviewer_comments(self, cl_url: str) -> bool | None:
+        return self._pm.hook.ws_supports_reviewer_comments(  # type: ignore[no-any-return]
+            cl_url=cl_url
+        )
+
+    def generate_reviewer_comments_script(self, changespec_name: str) -> str | None:
+        return self._pm.hook.ws_generate_reviewer_comments_script(  # type: ignore[no-any-return]
+            changespec_name=changespec_name
+        )

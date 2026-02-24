@@ -76,3 +76,19 @@ class WorkspaceHookSpec:
         n: int,
         release: bool,
     ) -> dict[str, str] | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_extract_change_identifier(self, cl_url: str) -> tuple[str, str] | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_generate_submitted_check_script(
+        self, identifier: str, vcs_type: str
+    ) -> str | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_supports_reviewer_comments(self, cl_url: str) -> bool | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_generate_reviewer_comments_script(
+        self, changespec_name: str
+    ) -> str | None: ...

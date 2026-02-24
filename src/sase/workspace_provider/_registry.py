@@ -146,6 +146,26 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
     raise ValueError(f"No workspace plugin found for workflow type '{workflow_type}'")
 
 
+def extract_change_identifier(cl_url: str) -> tuple[str, str] | None:
+    """Extract the change identifier and VCS type from a CL/PR URL via plugins."""
+    return _get_manager().extract_change_identifier(cl_url)
+
+
+def generate_submitted_check_script(identifier: str, vcs_type: str) -> str | None:
+    """Generate a bash script body to check if a change is submitted via plugins."""
+    return _get_manager().generate_submitted_check_script(identifier, vcs_type)
+
+
+def supports_reviewer_comments(cl_url: str) -> bool | None:
+    """Check if the given CL URL supports reviewer comments via plugins."""
+    return _get_manager().supports_reviewer_comments(cl_url)
+
+
+def generate_reviewer_comments_script(changespec_name: str) -> str | None:
+    """Generate a bash script body to fetch reviewer comments via plugins."""
+    return _get_manager().generate_reviewer_comments_script(changespec_name)
+
+
 def submit_changespec(
     changespec_file: str,
     changespec_name: str,

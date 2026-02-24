@@ -18,6 +18,9 @@ from ._hookspec import (
 from ._plugin_manager import WorkspacePluginManager
 from ._registry import (
     detect_workflow_type,
+    extract_change_identifier,
+    generate_reviewer_comments_script,
+    generate_submitted_check_script,
     get_all_workflow_metadata,
     get_change_label,
     get_display_name,
@@ -28,6 +31,7 @@ from ._registry import (
     get_workflow_names,
     resolve_ref,
     submit_changespec,
+    supports_reviewer_comments,
 )
 
 __all__ = [
@@ -36,6 +40,9 @@ __all__ = [
     "WorkspaceHookSpec",
     "WorkspacePluginManager",
     "detect_workflow_type",
+    "extract_change_identifier",
+    "generate_reviewer_comments_script",
+    "generate_submitted_check_script",
     "get_all_workflow_metadata",
     "get_change_label",
     "get_display_name",
@@ -48,4 +55,5 @@ __all__ = [
     "hookspec",
     "resolve_ref",
     "submit_changespec",
+    "supports_reviewer_comments",
 ]

@@ -91,6 +91,9 @@ def _get_check_output_path(name: str, check_type: CheckType, timestamp: str) -> 
 def _extract_change_identifier(cl_url: str | None) -> tuple[str, str] | None:
     """Extract the change identifier and VCS type from a CL/PR URL.
 
+    Delegates to workspace provider plugins via
+    :func:`sase.workspace_provider.extract_change_identifier`.
+
     Args:
         cl_url: The CL URL (``http://cl/123456789``) or GitHub PR URL
             (``https://github.com/user/repo/pull/42``).
@@ -101,17 +104,50 @@ def _extract_change_identifier(cl_url: str | None) -> tuple[str, str] | None:
     if not cl_url:
         return None
 
-    # Match http://cl/<number> or https://cl/<number> (hg)
-    match = re.match(r"https?://cl/(\d+)", cl_url)
-    if match:
-        return (match.group(1), "hg")
+    from sase.workspace_provider import extract_change_identifier
 
-    # Match GitHub PR URL
-    match = re.match(r"https?://github\.com/.+/pull/(\d+)", cl_url)
-    if match:
-        return (match.group(1), "git")
+    return extract_change_identifier(cl_url)
 
-    return None
+
+def _start_background_check(
+    script_body: str,
+    output_path: str,
+    workspace_dir: str | None,
+) -> bool:
+    """Write a wrapper script around *script_body* and launch it in the background.
+
+    The wrapper adds the ``CHECK_COMPLETE_MARKER`` so callers can poll for
+    completion.  *script_body* must NOT use ``exit`` — its final ``$?`` is
+    captured automatically.
+
+    Returns:
+        ``True`` if the process was started, ``False`` on failure.
+    """
+    wrapper_script = f"""#!/bin/bash
+{script_body}
+exit_code=$?
+echo ""
+echo "{CHECK_COMPLETE_MARKER}EXIT_CODE: $exit_code"
+exit $exit_code
+"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".sh", delete=False
+    ) as wrapper_file:
+        wrapper_file.write(wrapper_script)
+        wrapper_path = wrapper_file.name
+
+    os.chmod(wrapper_path, 0o755)
+
+    with open(output_path, "w") as output_file:
+        subprocess.Popen(
+            [wrapper_path],
+            cwd=workspace_dir,
+            stdout=output_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    return True
 
 
 def start_cl_submitted_check(
@@ -135,52 +171,19 @@ def start_cl_submitted_check(
 
     identifier, vcs_type = result
 
+    from sase.workspace_provider import generate_submitted_check_script
+
+    script_body = generate_submitted_check_script(identifier, vcs_type)
+    if script_body is None:
+        return None
+
     timestamp = generate_timestamp()
     output_path = _get_check_output_path(
         changespec.name, CHECK_TYPE_CL_SUBMITTED, timestamp
     )
 
-    # Create wrapper script based on VCS type
-    if vcs_type == "git":
-        wrapper_script = f"""#!/bin/bash
-state=$(gh pr view {identifier} --json state -q '.state' 2>/dev/null)
-if [ "$state" = "MERGED" ]; then
-    exit_code=0
-else
-    exit_code=1
-fi
-echo ""
-echo "{CHECK_COMPLETE_MARKER}EXIT_CODE: $exit_code"
-exit $exit_code
-"""
-    else:
-        wrapper_script = f"""#!/bin/bash
-is_cl_submitted {identifier}
-exit_code=$?
-echo ""
-echo "{CHECK_COMPLETE_MARKER}EXIT_CODE: $exit_code"
-exit $exit_code
-"""
-
-    # Write wrapper script to temp file
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sh", delete=False
-    ) as wrapper_file:
-        wrapper_file.write(wrapper_script)
-        wrapper_path = wrapper_file.name
-
-    os.chmod(wrapper_path, 0o755)
-
-    # Start as background process
     try:
-        with open(output_path, "w") as output_file:
-            subprocess.Popen(
-                [wrapper_path],
-                cwd=workspace_dir,
-                stdout=output_file,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
+        _start_background_check(script_body, output_path, workspace_dir)
         return "Started cl_submitted check"
     except Exception as e:
         log(f"Failed to start cl_submitted check for {changespec.name}: {e}", "red")
@@ -192,10 +195,10 @@ def start_reviewer_comments_check(
     workspace_dir: str,
     log: LogCallback,
 ) -> str | None:
-    """Start critique_comments check for reviewer comments as a background process.
+    """Start reviewer comments check as a background process.
 
-    For git repos, reviewer comments are not yet supported (critique_comments
-    is hg/Google-internal only), so this returns None early.
+    Uses workspace provider plugins to determine whether reviewer comments
+    are supported and to generate the check script.
 
     Args:
         changespec: The ChangeSpec to check.
@@ -205,46 +208,29 @@ def start_reviewer_comments_check(
     Returns:
         Update message if check was started, None if failed or skipped.
     """
-    # Skip reviewer comments for git repos (critique_comments is hg-only)
-    result = _extract_change_identifier(changespec.cl)
-    if result is not None:
-        _, vcs_type = result
-        if vcs_type == "git":
+    from sase.workspace_provider import (
+        generate_reviewer_comments_script,
+        supports_reviewer_comments,
+    )
+
+    # When a CL URL is present, ask plugins whether reviewer comments are
+    # supported.  Skip if the plugin explicitly returns False.
+    if changespec.cl is not None:
+        supported = supports_reviewer_comments(changespec.cl)
+        if supported is False:
             return None
+
+    script_body = generate_reviewer_comments_script(changespec.name)
+    if script_body is None:
+        return None
 
     timestamp = generate_timestamp()
     output_path = _get_check_output_path(
         changespec.name, CHECK_TYPE_REVIEWER_COMMENTS, timestamp
     )
 
-    # Create wrapper script - captures output and writes completion marker
-    wrapper_script = f"""#!/bin/bash
-critique_comments {changespec.name} 2>&1
-exit_code=$?
-echo ""
-echo "{CHECK_COMPLETE_MARKER}EXIT_CODE: $exit_code"
-exit $exit_code
-"""
-
-    # Write wrapper script to temp file
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sh", delete=False
-    ) as wrapper_file:
-        wrapper_file.write(wrapper_script)
-        wrapper_path = wrapper_file.name
-
-    os.chmod(wrapper_path, 0o755)
-
-    # Start as background process
     try:
-        with open(output_path, "w") as output_file:
-            subprocess.Popen(
-                [wrapper_path],
-                cwd=workspace_dir,
-                stdout=output_file,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
+        _start_background_check(script_body, output_path, workspace_dir)
         return "Started reviewer_comments check"
     except Exception as e:
         log(
