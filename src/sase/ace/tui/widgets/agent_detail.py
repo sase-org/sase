@@ -419,6 +419,8 @@ class AgentDetail(Static):
             thinking_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
             self.update_display(agent)
+            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+            self.call_after_refresh(file_panel.reset_trim)
 
     def on_thinking_visibility_changed(
         self, message: ThinkingVisibilityChanged
@@ -483,6 +485,7 @@ class AgentDetail(Static):
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
 
         if message.has_file:
+            was_hidden = file_scroll.has_class("hidden")
             if self._thinking_auto_shown:
                 # File appeared - switch from auto-shown thinking to file
                 thinking_scroll = self.query_one(
@@ -497,6 +500,9 @@ class AgentDetail(Static):
             if self._layout_swapped:
                 prompt_scroll.add_class("layout-priority")
                 file_scroll.add_class("layout-secondary")
+            if was_hidden:
+                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+                self.call_after_refresh(file_panel.reset_trim)
         else:
             # File has no content - auto-show thinking as fallback
             if self._current_agent is not None:
