@@ -1,7 +1,11 @@
 """Tests for mail_ops module."""
 
+import pytest
+
 from sase.ace.mail_ops import MailPrepResult
-from sase_hg.workspace_plugin import _modify_description_for_mailing
+
+sase_hg_wp = pytest.importorskip("sase_hg.workspace_plugin")
+_modify_description_for_mailing = sase_hg_wp._modify_description_for_mailing
 
 
 def test_mail_prep_result_should_mail_true() -> None:

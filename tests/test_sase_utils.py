@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.sase_utils import (
+    changespec_name_to_branch,
     get_next_suffix_number,
     get_workspace_directory_for_changespec,
     run_workspace_command,
@@ -92,3 +93,11 @@ def test_run_workspace_command_no_capture() -> None:
     mock_run.assert_called_once_with(
         ["sase", "commit"], cwd="/tmp", capture_output=False, text=True, check=False
     )
+
+
+# Tests for changespec_name_to_branch
+
+
+def test_changespec_name_to_branch_no_prefix() -> None:
+    """Name without project prefix falls through to hyphen conversion."""
+    assert changespec_name_to_branch("dull_basin__1", "sase") == "dull-basin"
