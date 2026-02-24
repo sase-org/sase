@@ -71,8 +71,13 @@ def _flatten_anonymous_workflow(
     # Workflows with prompt_part are handled by embedded workflow expansion
     if referenced.has_prompt_part():
         # Rename so workflow_state.json shows the real workflow name
-        # instead of the anonymous "tmp_*" name (e.g., "resume" not "tmp_260223_115114")
-        workflow.name = wf_name
+        # instead of the anonymous "tmp_*" name (e.g., "resume" not "tmp_260223_115114").
+        # But don't rename if the args contain additional # references,
+        # indicating a multi-reference prompt (e.g., "#gh:sase #bd/next ...")
+        # rather than a single workflow reference.
+        has_extra_refs = any("#" in arg for arg in positional_args)
+        if not has_extra_refs:
+            workflow.name = wf_name
         return None
 
     return referenced, positional_args, named_args

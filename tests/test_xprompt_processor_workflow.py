@@ -77,7 +77,11 @@ def test_flatten_anonymous_workflow_returns_none_for_unknown_ref(
 def test_flatten_anonymous_workflow_returns_none_for_prompt_part_ref(
     mock_get_all_prompts: MagicMock,
 ) -> None:
-    """Test that references to simple xprompts (with prompt_part) return None."""
+    """Test that references to simple xprompts (with prompt_part) return None.
+
+    Also verifies the workflow is renamed from its anonymous tmp_* name
+    to the real workflow name.
+    """
     # A simple xprompt has a prompt_part step, not a prompt step
     simple_xprompt_wf = Workflow(
         name="greeting",
@@ -87,6 +91,29 @@ def test_flatten_anonymous_workflow_returns_none_for_prompt_part_ref(
     workflow = _make_anonymous_workflow("#greeting")
     result = _flatten_anonymous_workflow(workflow)
     assert result is None
+    assert workflow.name == "greeting"
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_no_rename_for_multi_ref_prompt(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Test that multi-reference prompts don't rename the anonymous workflow.
+
+    When the prompt contains additional # references beyond the first one
+    (e.g., '#gh:sase #bd/next'), the workflow should stay anonymous since
+    it's an ad-hoc prompt, not a single workflow reference.
+    """
+    gh_wf = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="GitHub setup: {{ gh_ref }}")],
+    )
+    mock_get_all_prompts.return_value = {"gh": gh_wf}
+    workflow = _make_anonymous_workflow("#gh:sase #bd/next %n:sase-svxv.1")
+    result = _flatten_anonymous_workflow(workflow)
+    assert result is None
+    # Should NOT be renamed to "gh" — this is a multi-reference prompt
+    assert workflow.name == "tmp_abc123"
 
 
 @patch("sase.xprompt.loader.get_all_prompts")
