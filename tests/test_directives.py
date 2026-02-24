@@ -110,6 +110,53 @@ def test_percent_in_normal_text_not_matched() -> None:
 # --- %wait directive tests ---
 
 
+def test_approve_bare() -> None:
+    """%approve (bare) sets approve=True."""
+    prompt = "%approve\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.approve is True
+
+
+def test_approve_plus() -> None:
+    """%approve+ sets approve=True."""
+    prompt = "%approve+\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.approve is True
+
+
+def test_approve_alias() -> None:
+    """%a (alias) sets approve=True."""
+    prompt = "%a\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.approve is True
+
+
+def test_approve_default_false() -> None:
+    """Default approve is False."""
+    prompt = "Just a normal prompt"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.approve is False
+
+
+def test_approve_with_other_directives() -> None:
+    """%approve combined with %model works."""
+    prompt = "%approve\n%model:opus\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.approve is True
+    assert directives.model == "opus"
+
+
+def test_approve_duplicate_raises() -> None:
+    """Duplicate %approve raises DirectiveError."""
+    prompt = "%approve\n%approve\nDo the work"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%approve'"):
+        extract_prompt_directives(prompt)
+
+
 def test_wait_directive_multiple() -> None:
     """Two %wait lines yield wait=['a', 'b']."""
     prompt = "%wait:a\n%wait:b\nDo some work"

@@ -88,6 +88,18 @@ def handle_user_question_command() -> NoReturn:
         ring_tmux_bell()
         sys.exit(0)
 
+    # Auto-select first option when %approve directive is active
+    if os.environ.get("SASE_AGENT_AUTO_APPROVE"):
+        answers = []
+        for q in questions:
+            question_text = q.get("question", "")
+            options = q.get("options", [])
+            selected = [options[0].get("label", "")] if options else []
+            answers.append({"question": question_text, "selected": selected})
+        formatted = _format_answers({"answers": answers})
+        emit_hook_decision("deny", formatted)
+        sys.exit(2)
+
     # Set up response directory
     response_dir = Path.home() / ".sase" / "user_question" / session_id
     response_dir.mkdir(parents=True, exist_ok=True)

@@ -145,6 +145,16 @@ def handle_plan_approve_command() -> NoReturn:
         ring_tmux_bell()
         sys.exit(0)
 
+    # Auto-approve plans when %approve directive is active
+    if os.environ.get("SASE_AGENT_AUTO_APPROVE"):
+        response_dir = Path.home() / ".sase" / "plan_approval" / session_id
+        response_dir.mkdir(parents=True, exist_ok=True)
+        plan_file = _find_plan_file(session_id)
+        marker_path = response_dir / "plan_approved.marker"
+        marker_path.write_text(plan_file or "")
+        emit_hook_decision("allow", "Plan auto-approved via %approve directive")
+        sys.exit(0)
+
     # Set up response directory early (needed for marker check)
     response_dir = Path.home() / ".sase" / "plan_approval" / session_id
     response_dir.mkdir(parents=True, exist_ok=True)

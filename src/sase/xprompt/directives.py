@@ -29,13 +29,18 @@ _DIRECTIVE_PATTERN = (
 )
 
 # Known directive names
-_KNOWN_DIRECTIVES = frozenset({"model", "name", "wait"})
+_KNOWN_DIRECTIVES = frozenset({"approve", "model", "name", "wait"})
 
 # Directives that allow multiple occurrences (values are collected into a list)
 _MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
 
 # Short aliases for directives (alias -> canonical name)
-_DIRECTIVE_ALIASES: dict[str, str] = {"m": "model", "n": "name", "w": "wait"}
+_DIRECTIVE_ALIASES: dict[str, str] = {
+    "a": "approve",
+    "m": "model",
+    "n": "name",
+    "w": "wait",
+}
 
 
 @dataclass
@@ -48,6 +53,7 @@ class PromptDirectives:
         wait: List of agent names to wait for via %wait directives.
     """
 
+    approve: bool = False
     model: str | None = None
     name: str | None = None
     wait: list[str] = field(default_factory=list)
@@ -162,6 +168,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     # Build PromptDirectives from expanded args
     directives = PromptDirectives(
+        approve="approve" in expanded_args,
         model=expanded_args.get("model") or None,
         name=expanded_args.get("name") or None,
         wait=expanded_multi.get("wait", []),

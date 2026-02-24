@@ -216,6 +216,8 @@ def main() -> None:
                 agent_meta["llm_provider"] = agent_llm_provider
             if agent_vcs_provider:
                 agent_meta["vcs_provider"] = agent_vcs_provider
+            if directives.approve:
+                agent_meta["approve"] = True
             if agent_meta:
                 meta_path = os.path.join(artifacts_dir, "agent_meta.json")
                 with open(meta_path, "w", encoding="utf-8") as f:
@@ -292,6 +294,8 @@ def main() -> None:
             from sase.xprompt.workflow_runner import execute_workflow
 
             os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+            if directives.approve:
+                os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
 
             anon_workflow = create_anonymous_workflow(prompt)
             result = execute_workflow(
