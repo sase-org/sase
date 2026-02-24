@@ -67,9 +67,11 @@ def save_dismissed_agents(
             [agent_type.value, cl_name, raw_suffix]
             for agent_type, cl_name, raw_suffix in dismissed
         ]
-        # Trim to MAX_DISMISSED (sets are unordered, so just slice)
+        # Trim to MAX_DISMISSED, dropping oldest entries first.
+        # Sort by raw_suffix (timestamp) descending so newest are kept.
         if len(entries) > MAX_DISMISSED:
-            entries = entries[-MAX_DISMISSED:]
+            entries.sort(key=lambda e: e[2] or "", reverse=True)
+            entries = entries[:MAX_DISMISSED]
         with open(_DISMISSED_AGENTS_FILE, "w") as f:
             json.dump(entries, f, indent=2)
         return True

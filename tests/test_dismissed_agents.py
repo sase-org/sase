@@ -73,13 +73,22 @@ def test_handles_malformed_entries(tmp_path: Path) -> None:
 
 
 def test_max_dismissed_trimming(tmp_path: Path) -> None:
-    """Test that saving >MAX_DISMISSED trims to MAX_DISMISSED."""
+    """Test that saving >MAX_DISMISSED trims oldest entries first."""
     test_file = tmp_path / "dismissed_agents.json"
     with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
-        dismissed = {
-            (AgentType.WORKFLOW, f"cl_{i}", f"ts_{i}")
-            for i in range(MAX_DISMISSED + 50)
+        # Use sequential 14-digit timestamps (zero-padded counters)
+        total = MAX_DISMISSED + 50
+        dismissed: set[tuple[AgentType, str, str | None]] = {
+            (AgentType.WORKFLOW, "cl", f"{i:014d}") for i in range(total)
         }
         save_dismissed_agents(dismissed)
         result = load_dismissed_agents()
         assert len(result) == MAX_DISMISSED
+
+        # The oldest 50 entries (0..49) should be dropped,
+        # newest 500 (50..549) should be kept
+        suffixes = {s for _, _, s in result}
+        assert f"{0:014d}" not in suffixes  # oldest dropped
+        assert f"{49:014d}" not in suffixes  # still old, dropped
+        assert f"{50:014d}" in suffixes  # first kept
+        assert f"{total - 1:014d}" in suffixes  # newest kept
