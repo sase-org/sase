@@ -253,17 +253,11 @@ def detect_vcs_type_for_project(project_file: str) -> str:
     return "hg"
 
 
-def get_cl_field_label(project_file: str) -> str:
-    """Return 'PR' for git projects, 'CL' for hg projects."""
-    return "PR" if detect_vcs_type_for_project(project_file) == "git" else "CL"
-
-
 # Re-export Path for convenience (used by callers that need projects_base)
 __all__ = [
     "Path",
     "detect_vcs_type_for_project",
     "ensure_git_clone",
-    "get_cl_field_label",
     "get_default_branch",
     "parse_workspace_dir",
     "set_workspace_dir",

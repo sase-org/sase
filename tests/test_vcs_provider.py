@@ -4,6 +4,7 @@ import os
 import tempfile
 from unittest.mock import patch
 
+import pluggy
 import pytest
 from sase.vcs_provider import (
     VCSOperationError,
@@ -222,7 +223,28 @@ def test_detect_vcs_family_hg() -> None:
     """detect_vcs_family returns 'hg' unchanged."""
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, ".hg"))
-        assert detect_vcs_family(tmpdir) == "hg"
+
+        # Mock _build_classification_pm to include a plugin that detects .hg/
+        def _mock_build_pm() -> pluggy.PluginManager:
+            from sase.vcs_provider._hookspec import VCSHookSpec, hookimpl
+
+            class _HgDetector:
+                @hookimpl
+                def vcs_detect_repo_type(self, directory: str) -> str | None:
+                    if os.path.isdir(os.path.join(directory, ".hg")):
+                        return "hg"
+                    return None
+
+            pm = pluggy.PluginManager("sase_vcs")
+            pm.add_hookspecs(VCSHookSpec)
+            pm.register(_HgDetector())
+            return pm
+
+        with patch(
+            "sase.vcs_provider._registry._build_classification_pm",
+            side_effect=_mock_build_pm,
+        ):
+            assert detect_vcs_family(tmpdir) == "hg"
 
 
 # === Tests for _resolve_vcs_name with legacy 'git' override ===

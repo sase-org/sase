@@ -94,14 +94,18 @@ def get_vcs_tag_pattern() -> re.Pattern[str]:
 def detect_workflow_type(project_file: str) -> str:
     """Detect the workflow type for *project_file* via plugins.
 
-    Returns ``"gh"``, ``"git"``, ``"hg"``, etc.  Falls back to legacy
-    detection when no plugin claims the project.
+    Returns ``"gh"``, ``"git"``, ``"hg"``, etc.
+
+    Raises:
+        ValueError: If no plugin claims the project.
     """
     result = _get_manager().detect_workflow_type(project_file)
     if result is not None:
         return result
-    # No plugin claimed it — must be hg
-    return "hg"
+    raise ValueError(
+        f"No workspace plugin detected a workflow type for '{project_file}'. "
+        f"Install the appropriate workspace plugin."
+    )
 
 
 def get_change_label(project_file: str) -> str:
@@ -112,10 +116,10 @@ def get_change_label(project_file: str) -> str:
     result = _get_manager().get_change_label(project_file)
     if result is not None:
         return result
-    # Fallback to legacy
-    from sase.workspace_utils import get_cl_field_label
-
-    return get_cl_field_label(project_file)
+    raise ValueError(
+        f"No workspace plugin provided a change label for '{project_file}'. "
+        f"Install the appropriate workspace plugin."
+    )
 
 
 def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
@@ -131,18 +135,6 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
     if result is not None:
         return result
 
-    # Fallback to legacy resolution for "git" (bare-git plugin handles it)
-    if workflow_type == "git":
-        from sase.git_workspace import resolve_git_ref
-
-        git_ref = resolve_git_ref(ref)
-        return ResolvedRef(
-            project_file=git_ref.project_file,
-            project_name=git_ref.project_name,
-            primary_workspace_dir=git_ref.primary_workspace_dir,
-            checkout_target=git_ref.checkout_target,
-            extra={"bare_repo_dir": git_ref.bare_repo_dir},
-        )
     raise ValueError(f"No workspace plugin found for workflow type '{workflow_type}'")
 
 
@@ -182,11 +174,4 @@ def submit_changespec(
     if result is not None:
         return result
 
-    # Fallback to legacy submission
-    from sase.ace.changespec import find_all_changespecs
-    from sase.git_submit import submit_git_changespec
-
-    for cs in find_all_changespecs():
-        if cs.name == changespec_name:
-            return submit_git_changespec(cs, console)
-    return (False, f"ChangeSpec '{changespec_name}' not found")
+    return (False, "No workspace plugin handled submission for this project.")

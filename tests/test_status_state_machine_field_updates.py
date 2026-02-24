@@ -66,7 +66,11 @@ def test__apply_cl_update_adds_cl_before_status() -> None:
         "  Test description\n",
         "STATUS: Draft\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", "new_cl", "/nonexistent")
+    with patch(
+        "sase.status_state_machine.field_updates.get_change_label",
+        return_value="CL",
+    ):
+        result = _apply_cl_update(lines, "Test Feature", "new_cl", "/nonexistent")
     assert "CL: new_cl\n" in result
     # CL should appear before STATUS
     lines_list = result.split("\n")

@@ -40,7 +40,7 @@ class TestHookspecMethodsExist:
         """
         # Hooks used by the registry for provider discovery, not by
         # VCSProvider instances.
-        _CLASSIFICATION_HOOKS = {"classify_repo"}
+        _CLASSIFICATION_HOOKS = {"classify_repo", "detect_repo_type"}
 
         hookspec_names = {
             name.removeprefix("vcs_")

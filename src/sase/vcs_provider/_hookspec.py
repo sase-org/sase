@@ -156,6 +156,21 @@ class VCSHookSpec:
     # --- Classification hooks (used by registry, not by VCSProvider instances) ---
 
     @hookspec(firstresult=True)
+    def vcs_detect_repo_type(self, directory: str) -> str | None:
+        """Detect a VCS repository type by checking for markers in *directory*.
+
+        Plugins check for their VCS marker (e.g. ``.hg/``) and return
+        their VCS name, or ``None`` if the marker is not present.
+
+        Args:
+            directory: A directory to check for VCS markers.
+
+        Returns:
+            The VCS type name (e.g. ``"hg"``), or ``None`` if this
+            plugin's marker is not found.
+        """
+
+    @hookspec(firstresult=True)
     def vcs_classify_repo(self, git_dir: str) -> str | None:
         """Classify a git repository by examining its remote URL.
 
