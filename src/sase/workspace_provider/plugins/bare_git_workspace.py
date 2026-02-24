@@ -324,6 +324,7 @@ class BareGitWorkspacePlugin:
             ref_pattern=r"(?:^|(?<=\s))#git(?::([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
             display_name="Git (bare)",
             pre_allocated_env_prefix="SASE_GIT",
+            vcs_family="git",
         )
 
     @hookimpl

@@ -17,7 +17,6 @@ Where:
 
 import os
 import re
-import subprocess
 from dataclasses import dataclass
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
@@ -535,10 +534,8 @@ def get_workspace_directory_for_num(
 def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
     """Get the workspace directory path for a project.
 
-    For git/gh projects with WORKSPACE_DIR set in their .gp file, returns
-    the workspace directory directly (or creates a git clone for
-    workspace_num > 1). Falls back to the sase_hg_get_workspace shell script
-    for hg projects or when WORKSPACE_DIR is not set.
+    Delegates to workspace provider plugins via the
+    ``ws_get_workspace_directory`` hook.
 
     Args:
         project: Project name (e.g., "foobar")
@@ -550,26 +547,19 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
     Raises:
         RuntimeError: If workspace resolution fails
     """
-    from sase.workspace_utils import ensure_git_clone, parse_workspace_dir
+    from sase.workspace_provider import (
+        detect_workflow_type,
+        get_workspace_directory as ws_get_workspace_directory,
+    )
+    from sase.workspace_utils import parse_workspace_dir
     from sase.workflow_utils import get_project_file_path
 
     project_file = get_project_file_path(project)
-    workspace_dir = parse_workspace_dir(project_file)
-    if workspace_dir and os.path.isdir(os.path.join(workspace_dir, ".git")):
-        return ensure_git_clone(workspace_dir, workspace_num)
-
     try:
-        result = subprocess.run(
-            ["sase_hg_get_workspace", project, str(workspace_num)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        error_msg = f"sase_hg_get_workspace failed (exit code {e.returncode})"
-        if e.stderr:
-            error_msg += f": {e.stderr.strip()}"
-        raise RuntimeError(error_msg) from e
-    except FileNotFoundError as e:
-        raise RuntimeError("sase_hg_get_workspace command not found") from e
+        workflow_type = detect_workflow_type(project_file)
+    except ValueError as e:
+        raise RuntimeError(str(e)) from e
+    workspace_dir = parse_workspace_dir(project_file) or ""
+    return ws_get_workspace_directory(
+        workflow_type, workspace_num, project, workspace_dir
+    )

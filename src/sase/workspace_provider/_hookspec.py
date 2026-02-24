@@ -29,12 +29,15 @@ class WorkflowMetadata:
         display_name: Human-readable name (e.g. ``"GitHub"``).
         pre_allocated_env_prefix: Env-var prefix for pre-allocated workspace
             variables (e.g. ``"SASE_GH"``).
+        vcs_family: VCS family this workflow belongs to (e.g. ``"git"``,
+            ``"hg"``).  Used by :func:`get_display_name_by_vcs_family`.
     """
 
     workflow_type: str
     ref_pattern: str
     display_name: str
     pre_allocated_env_prefix: str
+    vcs_family: str = ""
 
 
 class WorkspaceHookSpec:

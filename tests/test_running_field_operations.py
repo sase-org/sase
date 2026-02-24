@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from sase.running_field import (
     _WorkspaceClaim,
@@ -133,47 +133,37 @@ def test_get_first_available_workspace_main_claimed() -> None:
         Path(project_file).unlink()
 
 
-def test_running_field_get_workspace_directory_command_failure() -> None:
-    """Test get_workspace_directory raises on command failure."""
-    import subprocess
-
+def test_running_field_get_workspace_directory_plugin_failure() -> None:
+    """Test get_workspace_directory raises on plugin failure."""
     import pytest
 
-    with patch("sase.running_field.subprocess.run") as mock_run:
-        mock_run.side_effect = subprocess.CalledProcessError(
-            returncode=1,
-            cmd=["sase_hg_get_workspace", "myproject", "1"],
-            stderr="Error",
-        )
-        with pytest.raises(RuntimeError, match="sase_hg_get_workspace failed"):
+    with patch(
+        "sase.workspace_provider._registry.detect_workflow_type",
+        side_effect=ValueError("No workspace plugin detected"),
+    ):
+        with pytest.raises(RuntimeError, match="No workspace plugin detected"):
             get_workspace_dir("myproject")
 
 
 def test_get_workspace_directory_for_num_main() -> None:
     """Test getting main workspace directory."""
-    with patch("sase.running_field.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="/cloud/myproject/google3\n"
-        )
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        return_value="/cloud/myproject/google3",
+    ) as mock_get_ws:
         workspace_dir, suffix = get_workspace_directory_for_num(1, "myproject")
         assert workspace_dir == "/cloud/myproject/google3"
         assert suffix is None
-        # Verify sase_hg_get_workspace was called correctly
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        assert args == ["sase_hg_get_workspace", "myproject", "1"]
+        mock_get_ws.assert_called_once_with("myproject", 1)
 
 
 def test_get_workspace_directory_for_num_share() -> None:
     """Test getting workspace share directory."""
-    with patch("sase.running_field.subprocess.run") as mock_run:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="/cloud/myproject_3/google3\n"
-        )
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        return_value="/cloud/myproject_3/google3",
+    ) as mock_get_ws:
         workspace_dir, suffix = get_workspace_directory_for_num(3, "myproject")
         assert workspace_dir == "/cloud/myproject_3/google3"
         assert suffix == "myproject_3"
-        # Verify sase_hg_get_workspace was called correctly
-        mock_run.assert_called_once()
-        args = mock_run.call_args[0][0]
-        assert args == ["sase_hg_get_workspace", "myproject", "3"]
+        mock_get_ws.assert_called_once_with("myproject", 3)

@@ -64,15 +64,11 @@ def get_display_name(workflow_type: str) -> str | None:
 def get_display_name_by_vcs_family(vcs_family: str) -> str | None:
     """Return a display name for a ``detect_vcs_family()`` result.
 
-    Maps ``"git"`` → the display name of the ``"gh"`` or ``"git"`` workflow
-    (whichever is registered first that belongs to the git family), and
-    ``"hg"`` → the ``"hg"`` workflow display name.
+    Finds the first registered workflow whose ``vcs_family`` field matches
+    *vcs_family* and returns its ``display_name``.
     """
-    git_family = {"gh", "git"}
     for m in get_all_workflow_metadata():
-        if vcs_family == "git" and m.workflow_type in git_family:
-            return m.display_name
-        if vcs_family == "hg" and m.workflow_type == "hg":
+        if m.vcs_family == vcs_family:
             return m.display_name
     return None
 
