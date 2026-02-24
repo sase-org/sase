@@ -188,7 +188,7 @@ def main() -> None:
                 get_default_provider_name,
                 get_provider,
             )
-            from sase.vcs_provider._registry import detect_vcs_family
+            from sase.vcs_provider._registry import detect_vcs
             from sase.xprompt.directives import extract_prompt_directives
 
             _, directives = extract_prompt_directives(prompt)
@@ -200,11 +200,11 @@ def main() -> None:
                 provider = get_provider()
                 agent_model = provider.resolve_model_name()
 
-            vcs_name = detect_vcs_family(workspace_dir)
+            vcs_name = detect_vcs(workspace_dir)
             if vcs_name:
-                from sase.workspace_provider import get_display_name_by_vcs_family
+                from sase.workspace_provider import get_display_name_by_vcs
 
-                agent_vcs_provider = get_display_name_by_vcs_family(vcs_name)
+                agent_vcs_provider = get_display_name_by_vcs(vcs_name)
             else:
                 agent_vcs_provider = None
 

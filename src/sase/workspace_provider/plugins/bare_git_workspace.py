@@ -325,6 +325,7 @@ class BareGitWorkspacePlugin:
             display_name="Git (bare)",
             pre_allocated_env_prefix="SASE_GIT",
             vcs_family="git",
+            vcs_provider_name="bare_git",
         )
 
     @hookimpl

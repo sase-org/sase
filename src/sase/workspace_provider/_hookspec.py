@@ -31,6 +31,10 @@ class WorkflowMetadata:
             variables (e.g. ``"SASE_GH"``).
         vcs_family: VCS family this workflow belongs to (e.g. ``"git"``,
             ``"hg"``).  Used by :func:`get_display_name_by_vcs_family`.
+        vcs_provider_name: Specific VCS provider name returned by
+            :func:`~sase.vcs_provider.detect_vcs` (e.g. ``"github"``,
+            ``"bare_git"``, ``"hg"``).  Used by
+            :func:`get_display_name_by_vcs`.
     """
 
     workflow_type: str
@@ -38,6 +42,7 @@ class WorkflowMetadata:
     display_name: str
     pre_allocated_env_prefix: str
     vcs_family: str = ""
+    vcs_provider_name: str = ""
 
 
 class WorkspaceHookSpec:

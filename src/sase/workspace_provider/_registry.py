@@ -73,6 +73,22 @@ def get_display_name_by_vcs_family(vcs_family: str) -> str | None:
     return None
 
 
+def get_display_name_by_vcs(vcs_name: str) -> str | None:
+    """Return a display name for a :func:`~sase.vcs_provider.detect_vcs` result.
+
+    Finds the registered workflow whose ``vcs_provider_name`` matches
+    *vcs_name* and returns its ``display_name``.  Falls back to
+    :func:`get_display_name_by_vcs_family` when no exact match is found.
+    """
+    for m in get_all_workflow_metadata():
+        if m.vcs_provider_name == vcs_name:
+            return m.display_name
+    # Fall back to family-based lookup for plugins that haven't set
+    # vcs_provider_name yet.
+    vcs_family = "git" if vcs_name in ("github", "bare_git") else vcs_name
+    return get_display_name_by_vcs_family(vcs_family)
+
+
 def get_pre_allocated_env_prefix(workflow_type: str) -> str | None:
     """Return the env-var prefix for *workflow_type*, or ``None``."""
     for m in get_all_workflow_metadata():
