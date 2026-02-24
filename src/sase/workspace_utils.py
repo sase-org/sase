@@ -243,6 +243,10 @@ def ensure_git_clone(primary_workspace_dir: str, workspace_num: int) -> str:
 def detect_vcs_type_for_project(project_file: str) -> str:
     """Detect whether a project uses Git or Mercurial.
 
+    .. deprecated::
+        Use :func:`sase.workspace_provider.detect_workflow_type` instead,
+        which delegates to workspace provider plugins.
+
     Returns:
         ``"git"`` if WORKSPACE_DIR is set and contains a ``.git`` directory,
         otherwise ``"hg"``.

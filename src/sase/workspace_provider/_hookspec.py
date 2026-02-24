@@ -92,3 +92,22 @@ class WorkspaceHookSpec:
     def ws_generate_reviewer_comments_script(
         self, changespec_name: str
     ) -> str | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_get_workspace_directory(
+        self,
+        workflow_type: str,
+        workspace_num: int,
+        project_name: str,
+        primary_workspace_dir: str,
+    ) -> str | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_format_commit_description(
+        self,
+        file_path: str,
+        project: str,
+        workflow_type: str,
+        bug: str | None,
+        fixed_bug: str | None,
+    ) -> bool | None: ...

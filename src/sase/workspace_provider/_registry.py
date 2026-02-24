@@ -158,6 +158,57 @@ def generate_reviewer_comments_script(changespec_name: str) -> str | None:
     return _get_manager().generate_reviewer_comments_script(changespec_name)
 
 
+def get_workspace_directory(
+    workflow_type: str,
+    workspace_num: int,
+    project_name: str,
+    primary_workspace_dir: str,
+) -> str:
+    """Get the workspace directory for a given workflow type and workspace number.
+
+    Delegates to workspace provider plugins via the
+    ``ws_get_workspace_directory`` hook.
+
+    Raises:
+        RuntimeError: If no plugin handles the workflow type.
+    """
+    result = _get_manager().get_workspace_directory(
+        workflow_type, workspace_num, project_name, primary_workspace_dir
+    )
+    if result is not None:
+        return result
+    raise RuntimeError(
+        f"No workspace plugin provided a workspace directory for "
+        f"workflow type '{workflow_type}'"
+    )
+
+
+def format_commit_description(
+    file_path: str,
+    project: str,
+    workflow_type: str,
+    bug: str | None = None,
+    fixed_bug: str | None = None,
+) -> None:
+    """Format a commit description file via workspace provider plugins.
+
+    Delegates to the ``ws_format_commit_description`` hook.  Falls back
+    to writing a simple ``[project] content`` prefix when no plugin
+    handles the workflow type.
+    """
+    result = _get_manager().format_commit_description(
+        file_path, project, workflow_type, bug=bug, fixed_bug=fixed_bug
+    )
+    if result is not None:
+        return
+
+    # Fallback: simple project prefix (same as git behavior)
+    with open(file_path, encoding="utf-8") as f:
+        content = f.read()
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(f"[{project}] {content}\n")
+
+
 def submit_changespec(
     changespec_file: str,
     changespec_name: str,

@@ -10,32 +10,25 @@ def format_cl_description(
 ) -> None:
     """Format the CL description file with project tag and metadata.
 
+    .. deprecated::
+        Use :func:`sase.workspace_provider.format_commit_description`
+        instead, which delegates to workspace provider plugins.  This
+        function is retained for backward compatibility and now delegates
+        to the plugin hook internally.
+
     Args:
         file_path: Path to the file containing the CL description.
         project: Project name to prepend to the description.
         bug: Bug number for BUG= tag. Mutually exclusive with fixed_bug.
         fixed_bug: Bug number for FIXED= tag. Mutually exclusive with bug.
-        vcs_type: VCS type (``"hg"`` or ``"git"``). Git mode writes only
-            the project-prefixed description without metadata tags.
+        vcs_type: VCS family (``"hg"`` or ``"git"``). Mapped to
+            workflow type for plugin dispatch.
     """
-    # Read the original content
-    with open(file_path, encoding="utf-8") as f:
-        content = f.read()
+    from sase.workspace_provider import format_commit_description
 
-    # Write the formatted content
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(f"[{project}] {content}\n")
-        if vcs_type == "git":
-            # Git: clean commit message, no metadata tags
-            return
-        f.write("\n")
-        f.write("AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT\n")
-        # Write FIXED= or BUG= tag (mutually exclusive)
-        if fixed_bug:
-            f.write(f"FIXED={fixed_bug}\n")
-        elif bug:
-            f.write(f"BUG={bug}\n")
-        f.write("MARKDOWN=true\n")
-        f.write("R=startblock\n")
-        f.write("STARTBLOCK_AUTOSUBMIT=yes\n")
-        f.write("WANT_LGTM=all\n")
+    # Map VCS family to workflow type for plugin dispatch.
+    # "git" maps to "git" (bare-git); "hg" maps to "hg".
+    workflow_type = vcs_type
+    format_commit_description(
+        file_path, project, workflow_type, bug=bug, fixed_bug=fixed_bug
+    )

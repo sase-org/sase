@@ -1,9 +1,56 @@
 """Tests for commit_workflow/cl_formatting.py - CL description formatting."""
 
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
+
 from sase.commit_workflow.cl_formatting import format_cl_description
+from sase.workspace_provider._hookspec import hookimpl
+
+
+class _MockHgPlugin:
+    """Minimal hg workspace plugin for testing commit description formatting."""
+
+    @hookimpl
+    def ws_format_commit_description(
+        self,
+        file_path: str,
+        project: str,
+        workflow_type: str,
+        bug: str | None,
+        fixed_bug: str | None,
+    ) -> bool | None:
+        if workflow_type != "hg":
+            return None
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"[{project}] {content}\n")
+            f.write("\n")
+            f.write("AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT\n")
+            if fixed_bug:
+                f.write(f"FIXED={fixed_bug}\n")
+            elif bug:
+                f.write(f"BUG={bug}\n")
+            f.write("MARKDOWN=true\n")
+            f.write("R=startblock\n")
+            f.write("STARTBLOCK_AUTOSUBMIT=yes\n")
+            f.write("WANT_LGTM=all\n")
+        return True
+
+
+@pytest.fixture(autouse=True)
+def _register_mock_hg_plugin() -> Iterator[None]:
+    """Register a mock hg plugin so hg formatting tests work without sase-hg."""
+    from sase.workspace_provider._registry import _get_manager
+
+    manager = _get_manager()
+    plugin = _MockHgPlugin()
+    manager._pm.register(plugin)
+    yield  # type: ignore[func-returns-value]
+    manager._pm.unregister(plugin)
 
 
 def test_format_cl_description_empty_content() -> None:

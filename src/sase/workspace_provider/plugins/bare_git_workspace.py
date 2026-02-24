@@ -114,3 +114,34 @@ class BareGitWorkspacePlugin:
             return None
         # Setup logic will be expanded in later phases
         return None
+
+    @hookimpl
+    def ws_get_workspace_directory(
+        self,
+        workflow_type: str,
+        workspace_num: int,
+        project_name: str,
+        primary_workspace_dir: str,
+    ) -> str | None:
+        if workflow_type != "git":
+            return None
+        from sase.workspace_utils import ensure_git_clone
+
+        return ensure_git_clone(primary_workspace_dir, workspace_num)
+
+    @hookimpl
+    def ws_format_commit_description(
+        self,
+        file_path: str,
+        project: str,
+        workflow_type: str,
+        bug: str | None,
+        fixed_bug: str | None,
+    ) -> bool | None:
+        if workflow_type != "git":
+            return None
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"[{project}] {content}\n")
+        return True

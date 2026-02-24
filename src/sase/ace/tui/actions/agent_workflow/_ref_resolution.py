@@ -26,11 +26,12 @@ def _resolve_ref_from_prompt(
     reference via ``resolve_ref()``, and obtains the workspace directory
     appropriate for the workflow type.
     """
-    from sase.running_field import (
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
+    from sase.running_field import get_first_available_axe_workspace
+    from sase.workspace_provider import (
+        get_ref_patterns,
+        get_workspace_directory,
+        resolve_ref,
     )
-    from sase.workspace_provider import get_ref_patterns, resolve_ref
 
     patterns = get_ref_patterns()
     pattern = patterns.get(workflow_type)
@@ -48,17 +49,12 @@ def _resolve_ref_from_prompt(
     try:
         resolved = resolve_ref(ref, workflow_type)
         workspace_num = get_first_available_axe_workspace(resolved.project_file)
-
-        if workflow_type == "hg":
-            workspace_dir, _ = get_workspace_directory_for_num(
-                workspace_num, resolved.project_name
-            )
-        else:
-            from sase.workspace_utils import ensure_git_clone
-
-            workspace_dir = ensure_git_clone(
-                resolved.primary_workspace_dir, workspace_num
-            )
+        workspace_dir = get_workspace_directory(
+            workflow_type,
+            workspace_num,
+            resolved.project_name,
+            resolved.primary_workspace_dir,
+        )
     except (ValueError, RuntimeError):
         return None
 

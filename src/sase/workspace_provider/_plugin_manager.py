@@ -84,3 +84,33 @@ class WorkspacePluginManager:
         return self._pm.hook.ws_generate_reviewer_comments_script(  # type: ignore[no-any-return]
             changespec_name=changespec_name
         )
+
+    def get_workspace_directory(
+        self,
+        workflow_type: str,
+        workspace_num: int,
+        project_name: str,
+        primary_workspace_dir: str,
+    ) -> str | None:
+        return self._pm.hook.ws_get_workspace_directory(  # type: ignore[no-any-return]
+            workflow_type=workflow_type,
+            workspace_num=workspace_num,
+            project_name=project_name,
+            primary_workspace_dir=primary_workspace_dir,
+        )
+
+    def format_commit_description(
+        self,
+        file_path: str,
+        project: str,
+        workflow_type: str,
+        bug: str | None = None,
+        fixed_bug: str | None = None,
+    ) -> bool | None:
+        return self._pm.hook.ws_format_commit_description(  # type: ignore[no-any-return]
+            file_path=file_path,
+            project=project,
+            workflow_type=workflow_type,
+            bug=bug,
+            fixed_bug=fixed_bug,
+        )
