@@ -168,6 +168,42 @@ class GitCommon(CommandRunner):
             return (False, f"git show failed: {out.stderr.strip()}")
         return (True, out.stdout)
 
+    @hookimpl
+    def vcs_diff_with_untracked(
+        self, cwd: str, timeout: int
+    ) -> tuple[bool, str | None]:
+        tracked = self._run(["git", "diff", "HEAD"], cwd, timeout=timeout)
+        tracked_diff = tracked.stdout if tracked.success else ""
+
+        ls_out = self._run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd,
+            timeout=timeout,
+        )
+        untracked_diff = ""
+        if ls_out.success and ls_out.stdout:
+            files = [f for f in ls_out.stdout.split("\0") if f]
+            for f in files[:100]:
+                # git diff --no-index exits 1 when files differ (expected)
+                result = self._run(
+                    ["git", "diff", "--no-index", "/dev/null", f],
+                    cwd,
+                    timeout=timeout,
+                )
+                if result.stdout:
+                    untracked_diff += result.stdout
+
+        combined = tracked_diff + untracked_diff
+        return (True, combined if combined.strip() else None)
+
+    @hookimpl
+    def vcs_committed_diff(self, cwd: str, timeout: int) -> tuple[bool, str | None]:
+        out = self._run(["git", "diff", "HEAD~1..HEAD"], cwd, timeout=timeout)
+        if not out.success:
+            return (True, None)
+        text = out.stdout.strip()
+        return (True, text if text else None)
+
     def _get_default_branch(self, cwd: str) -> str:
         """Detect the default branch name (e.g. ``main`` or ``master``)."""
         branch_out = self._run(["git", "symbolic-ref", "refs/remotes/origin/HEAD"], cwd)

@@ -105,6 +105,14 @@ class VCSPluginManager(VCSProvider):
     def show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_show_revision", revision=revision, cwd=cwd)
 
+    def diff_with_untracked(
+        self, cwd: str, *, timeout: int = 10
+    ) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_diff_with_untracked", cwd=cwd, timeout=timeout)
+
+    def committed_diff(self, cwd: str, *, timeout: int = 10) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_committed_diff", cwd=cwd, timeout=timeout)
+
     def get_default_parent_revision(self, cwd: str) -> str:
         result = self._pm.hook.vcs_get_default_parent_revision(cwd=cwd)
         if result is None:

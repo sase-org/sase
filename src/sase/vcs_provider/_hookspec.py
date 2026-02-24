@@ -79,6 +79,14 @@ class VCSHookSpec:
     def vcs_show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)
+    def vcs_diff_with_untracked(
+        self, cwd: str, timeout: int
+    ) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_committed_diff(self, cwd: str, timeout: int) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
     def vcs_get_default_parent_revision(self, cwd: str) -> str: ...
 
     @hookspec(firstresult=True)

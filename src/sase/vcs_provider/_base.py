@@ -105,6 +105,28 @@ class VCSProvider(ABC):
         """
         raise NotImplementedError("show_revision is not supported by this VCS provider")
 
+    def diff_with_untracked(
+        self, cwd: str, *, timeout: int = 10
+    ) -> tuple[bool, str | None]:
+        """Generate a combined diff including both tracked changes and untracked files.
+
+        Returns ``(True, diff_text)`` when there are changes, or
+        ``(True, None)`` when the working directory is clean.
+        """
+        raise NotImplementedError(
+            "diff_with_untracked is not supported by this VCS provider"
+        )
+
+    def committed_diff(self, cwd: str, *, timeout: int = 10) -> tuple[bool, str | None]:
+        """Get the diff from the most recent commit.
+
+        Returns ``(True, diff_text)`` on success, or
+        ``(True, None)`` when unavailable.
+        """
+        raise NotImplementedError(
+            "committed_diff is not supported by this VCS provider"
+        )
+
     def get_default_parent_revision(self, cwd: str) -> str:
         """Return the default parent revision for this VCS (e.g. p4head, origin/main)."""
         raise NotImplementedError(
