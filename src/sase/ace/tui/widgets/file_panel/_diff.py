@@ -1,11 +1,10 @@
 """VCS diff fetching for the file panel."""
 
-import os
 import subprocess
 from pathlib import Path
 
-from sase.workspace_utils import detect_vcs_type_for_project
 from sase.running_field import get_workspace_directory
+from sase.vcs_provider import detect_vcs_family
 
 from ...models.agent import Agent
 
@@ -35,14 +34,10 @@ def get_agent_diff(agent: Agent) -> str | None:
             # Loop agents use workspaces 100+, but we show diff from main
             workspace_dir = get_workspace_directory(project_basename, 1)
 
-        # Detect VCS type from project config rather than filesystem
-        # detection.  CITC/fig hg workspaces may lack a physical .hg
-        # directory, so detect_vcs() (which walks the directory tree
-        # looking for .hg/.git) can return None even though hg commands
-        # work fine.  detect_vcs_type_for_project() uses the .gp file
-        # configuration (WORKSPACE_DIR + .git check) which is reliable
-        # for both git and hg projects.
-        vcs_type = detect_vcs_type_for_project(os.path.expanduser(agent.project_file))
+        # Detect VCS type from workspace directory; fall back to "hg"
+        # when detection returns None (e.g. CITC/fig workspaces that
+        # lack a physical .hg directory).
+        vcs_type = detect_vcs_family(workspace_dir) or "hg"
         if vcs_type == "git":
             from sase.git_utils import git_committed_diff, git_diff_with_untracked
 
@@ -75,7 +70,7 @@ def get_agent_diff(agent: Agent) -> str | None:
     except subprocess.CalledProcessError:
         return None
     except RuntimeError:
-        # sase_hg_get_workspace command failed
+        # get_workspace_directory command failed
         return None
     except Exception:
         return None

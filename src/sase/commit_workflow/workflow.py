@@ -1,4 +1,4 @@
-"""CommitWorkflow class for creating Mercurial commits."""
+"""CommitWorkflow class for creating VCS commits."""
 
 import os
 import sys
@@ -23,7 +23,7 @@ from .project_file_utils import create_project_file
 
 
 class CommitWorkflow(BaseWorkflow):
-    """A workflow for creating Mercurial commits with formatted CL descriptions."""
+    """A workflow for creating VCS commits with formatted CL descriptions."""
 
     def __init__(
         self,
@@ -44,7 +44,7 @@ class CommitWorkflow(BaseWorkflow):
             cl_name: CL name to use for the commit (e.g., "baz_feature").
             file_path: Path to the file containing the CL description. If None,
                 vim will be opened for the user to write a commit message.
-            bug: Bug number for BUG= tag. Defaults to output of 'sase_hg_branch_bug'.
+            bug: Bug number for BUG= tag. Defaults to the VCS provider's bug detection.
             fixed_bug: Bug number for FIXED= tag. Mutually exclusive with bug.
             project: Project name to prepend. Defaults to output of 'workspace_name'.
             chat_path: Path to the chat file for COMMITS entry.
@@ -74,7 +74,7 @@ class CommitWorkflow(BaseWorkflow):
         return "Create a commit with formatted CL description and metadata"
 
     def _get_bug(self) -> str:
-        """Get the bug number, either from init or from sase_hg_branch_bug command."""
+        """Get the bug number, either from init or from VCS provider bug detection."""
         if self._bug:
             return self._bug
 
@@ -112,7 +112,7 @@ class CommitWorkflow(BaseWorkflow):
         """
         # Get bug/fixed_bug and project first (needed for ChangeSpec lookup)
         # fixed_bug and bug are mutually exclusive - if fixed_bug is set, don't
-        # use _get_bug() (which falls back to sase_hg_branch_bug command)
+        # use _get_bug() (which falls back to VCS provider bug detection)
         bug: str | None = None
         fixed_bug: str | None = self._fixed_bug
         if not fixed_bug:

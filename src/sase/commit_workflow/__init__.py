@@ -1,4 +1,4 @@
-"""Workflow for creating Mercurial commits with formatted CL descriptions."""
+"""Workflow for creating VCS commits with formatted CL descriptions."""
 
 import sys
 from typing import NoReturn
@@ -17,7 +17,7 @@ def main() -> NoReturn:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Create a Mercurial commit with formatted CL description and metadata tags."
+        description="Create a commit with formatted CL description and metadata tags."
     )
     parser.add_argument(
         "cl_name",
@@ -34,7 +34,7 @@ def main() -> NoReturn:
         "-b",
         "--bug",
         help="Bug number to include in the metadata tags (e.g., '12345'). "
-        "Defaults to the output of the 'sase_hg_branch_bug' command.",
+        "Defaults to the VCS provider's bug detection.",
     )
     parser.add_argument(
         "-p",

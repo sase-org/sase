@@ -115,8 +115,8 @@ def restore_changespec(
     This function:
     1. Validates that the ChangeSpec has "Reverted" or "Archived" status
     2. Renames the ChangeSpec to remove the __<N> suffix
-    3. Runs sase_hg_update to either p4head or the parent
-    4. Runs hg import --no-commit to apply the stashed diff
+    3. Checks out the parent revision
+    4. Applies the stashed diff via the VCS provider
     5. Runs sase commit with the base name (which will find the renamed ChangeSpec)
 
     Args:
@@ -201,7 +201,7 @@ def restore_changespec(
     if console:
         console.print(f"[cyan]Importing diff: {diff_file}[/cyan]")
 
-    # Run hg import
+    # Apply patch
     success, error = provider.apply_patch(str(diff_file), workspace_dir)
     if not success:
         return (False, error)

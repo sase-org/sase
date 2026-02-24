@@ -132,8 +132,8 @@ def _start_crs_workflow(
     Returns:
         Update message if started, None if failed.
     """
+    from sase.vcs_provider import detect_vcs_family
     from sase.workspace_utils import (
-        detect_vcs_type_for_project,
         ensure_git_clone,
         parse_workspace_dir,
     )
@@ -146,11 +146,11 @@ def _start_crs_workflow(
     workflow_name = f"axe(crs)-{comment_entry.reviewer}-{timestamp}"
 
     # Detect VCS type and resolve workspace directory accordingly
-    raw_vcs = detect_vcs_type_for_project(changespec.file_path)
+    primary_dir = parse_workspace_dir(changespec.file_path)
+    raw_vcs = detect_vcs_family(primary_dir) if primary_dir else None
 
     if raw_vcs == "git":
         # Git: use clones from WORKSPACE_DIR
-        primary_dir = parse_workspace_dir(changespec.file_path)
         if not primary_dir:
             log(
                 f"[WS#{workspace_num}] Warning: WORKSPACE_DIR not set for git project",

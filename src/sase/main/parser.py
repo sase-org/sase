@@ -177,7 +177,7 @@ def create_parser() -> argparse.ArgumentParser:
     # --- amend ---
     amend_parser = top_level_subparsers.add_parser(
         "amend",
-        help="Amend the current Mercurial commit with COMMITS tracking",
+        help="Amend the current commit with COMMITS tracking",
     )
     amend_parser.add_argument(
         "note",
@@ -224,7 +224,7 @@ def create_parser() -> argparse.ArgumentParser:
     # --- commit ---
     commit_parser = top_level_subparsers.add_parser(
         "commit",
-        help="Create a Mercurial commit with formatted CL description and metadata",
+        help="Create a commit with formatted CL description and metadata",
     )
     commit_parser.add_argument(
         "cl_name",
@@ -243,7 +243,7 @@ def create_parser() -> argparse.ArgumentParser:
     bug_group.add_argument(
         "-b",
         "--bug",
-        help="Bug number for BUG= tag. Defaults to output of 'sase_hg_branch_bug'.",
+        help="Bug number for BUG= tag. Defaults to the VCS provider's bug detection.",
     )
     bug_group.add_argument(
         "-B",

@@ -1,4 +1,4 @@
-"""Workflow for amending Mercurial commits with COMMITS tracking."""
+"""Workflow for amending commits with COMMITS tracking."""
 
 import os
 import sys
@@ -24,7 +24,7 @@ from sase.workflow_utils import (
 
 
 class AmendWorkflow(BaseWorkflow):
-    """A workflow for amending Mercurial commits with COMMITS tracking."""
+    """A workflow for amending commits with COMMITS tracking."""
 
     def __init__(
         self,
@@ -176,12 +176,12 @@ class AmendWorkflow(BaseWorkflow):
                     log_fn=lambda msg: print_status(msg, "progress"),
                 )
 
-        # Run sase_hg_amend
+        # Run VCS amend
         print_status(f"Amending commit with note: {self._note}", "progress")
         provider = get_vcs_provider(os.getcwd())
         amend_ok, amend_err = provider.amend(self._note, os.getcwd())
         if not amend_ok:
-            print_status(f"sase_hg_amend failed: {amend_err}", "error")
+            print_status(f"Amend failed: {amend_err}", "error")
             return False
 
         # Add COMMITS entry
@@ -216,7 +216,7 @@ def main() -> NoReturn:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Amend the current Mercurial commit with COMMITS tracking."
+        description="Amend the current commit with COMMITS tracking."
     )
     parser.add_argument(
         "note",
