@@ -15,12 +15,12 @@ from sase.xprompt.workflow_executor_steps_embedded import (
 )
 from sase.xprompt.workflow_executor_steps_prompt import (
     PromptStepMixin,
-    capture_git_diff,
+    capture_vcs_diff,
 )
 from sase.xprompt.workflow_executor_steps_script import ScriptStepMixin
 
 # Re-export for backward compatibility
-__all__ = ["StepMixin", "_WORKFLOW_REF_PATTERN", "capture_git_diff"]
+__all__ = ["StepMixin", "_WORKFLOW_REF_PATTERN", "capture_vcs_diff"]
 
 
 class StepMixin(ScriptStepMixin, EmbeddedWorkflowMixin, PromptStepMixin):

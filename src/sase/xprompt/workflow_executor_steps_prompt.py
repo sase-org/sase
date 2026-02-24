@@ -18,15 +18,20 @@ if TYPE_CHECKING:
     from sase.xprompt.workflow_output import WorkflowOutputHandler
 
 
-def capture_git_diff() -> str | None:
-    """Capture uncommitted changes as a git diff, including untracked files.
+def capture_vcs_diff() -> str | None:
+    """Capture uncommitted changes as a VCS diff, including untracked files.
 
     Returns:
-        The git diff output, or None if no changes or an error occurred.
+        The VCS diff output, or None if no changes or an error occurred.
     """
-    from sase.git_utils import git_diff_with_untracked
+    try:
+        from sase.vcs_provider import get_vcs_provider
 
-    return git_diff_with_untracked(os.getcwd())
+        provider = get_vcs_provider(os.getcwd())
+        _, diff_text = provider.diff_with_untracked(os.getcwd())
+        return diff_text
+    except Exception:
+        return None
 
 
 def _collect_embedded_step_outputs(
@@ -329,7 +334,7 @@ class PromptStepMixin:
         self.state.context = dict(self.context)
 
         # Capture git diff if changes were made
-        diff_content = capture_git_diff()
+        diff_content = capture_vcs_diff()
         diff_path: str | None = None
         if diff_content:
             diff_path = os.path.join(self.artifacts_dir, f"{step.name}_diff.txt")
