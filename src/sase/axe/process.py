@@ -12,6 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sase.ace.changespec import count_all_runners_global
 from sase.ace.hooks.processes import is_process_running
 
 from .config import AxeConfig, load_axe_config
@@ -156,11 +157,12 @@ def get_axe_status() -> dict | None:
     if lumberjacks_status:
         result["lumberjacks"] = lumberjacks_status
 
-    # Derive started_at from lumberjack data — the legacy status.json
-    # is not written by the new orchestrator architecture so its
-    # started_at field can be stale from a previous run.
+    # Derive started_at and current_runners from live data — the legacy
+    # status.json is not written by the new orchestrator architecture so
+    # its fields can be stale from a previous run.
     if lj_start_times:
         result["started_at"] = min(lj_start_times)
+    result["current_runners"] = count_all_runners_global()
 
     return result
 
