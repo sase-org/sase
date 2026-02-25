@@ -44,7 +44,7 @@ class EntryPointsMixin:
     _prompt_context: PromptContext | None = None
     # State for bulk agent runs
     _bulk_changespecs: list[ChangeSpec] | None = None
-    # State for repeat-last-@ selection
+    # State for repeat-last-@/<space> selection
     _last_custom_agent_selection: SelectionItem | None = None
 
     def action_start_agent_from_changespec(self) -> None:
@@ -89,7 +89,7 @@ class EntryPointsMixin:
         if key == "at":
             last = self._last_custom_agent_selection
             if last is None:
-                self.notify("No previous @ selection", severity="warning")  # type: ignore[attr-defined]
+                self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
             self._start_custom_agent_from_selection(last)
@@ -105,6 +105,8 @@ class EntryPointsMixin:
         This is the quick version that skips CLNameInputModal entirely,
         going directly to the prompt input bar with a VCS prefix.
         """
+        from ...modals import SelectionItem
+
         if not self.changespecs:
             self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
             return
@@ -112,6 +114,14 @@ class EntryPointsMixin:
         changespec = self.changespecs[self.current_idx]
         cl_name = changespec.name
         prefix = _vcs_prompt_prefix(changespec.file_path, cl_name)
+
+        # Save for ,@ repeat (so <space> selections are also available)
+        self._last_custom_agent_selection = SelectionItem(
+            display_name=cl_name,
+            item_type="cl",
+            project_name=changespec.project_basename,
+            cl_name=cl_name,
+        )
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
