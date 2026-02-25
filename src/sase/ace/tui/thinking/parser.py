@@ -1,11 +1,13 @@
 """JSONL transcript parser for extracting Claude thinking blocks."""
 
+import ast
 import collections
 import json
 import os
+import re
 from dataclasses import dataclass
-from pathlib import Path
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 # Files larger than this use tail-seeking optimization
@@ -35,35 +37,142 @@ def _resolve_gemini_log_path() -> Path:
 
 
 def read_gemini_log(max_lines: int = 500) -> list[ThinkingBlock] | None:
-    """Read the last N lines of the Gemini API proxy log.
+    """Read and parse Gemini API proxy log for thinking blocks.
 
     Returns:
-        None if the log file doesn't exist, [] if the file is empty,
-        or a single-element list with the log content as a ThinkingBlock.
+        None if the log file doesn't exist, [] if no thoughts found,
+        or a list of ThinkingBlocks with individual thoughts (newest-first).
     """
     log_path = _resolve_gemini_log_path()
     if not log_path.exists():
         return None
 
     with open(log_path, encoding="utf-8", errors="replace") as f:
-        lines = collections.deque(f, maxlen=max_lines)
+        lines = list(collections.deque(f, maxlen=max_lines))
 
     if not lines:
         return []
 
-    content = "".join(lines)
-    mtime = log_path.stat().st_mtime
-    timestamp = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
-    following = f"{log_path.name} ({len(lines)} lines)"
+    return _extract_gemini_thoughts(lines)
 
-    return [
-        ThinkingBlock(
-            text=content,
-            timestamp=timestamp,
-            index=1,
-            following_action=following,
-        )
-    ]
+
+# Regex for Gemini API proxy log line prefix: I<MMDD> HH:MM:SS.micros
+_GEMINI_LOG_PREFIX = re.compile(r"^I(\d{2})(\d{2})\s+(\d{2}:\d{2}:\d{2})\.\d+")
+
+
+def _extract_gemini_thoughts(
+    lines: list[str],
+) -> list[ThinkingBlock]:
+    """Extract individual thinking blocks from Gemini API proxy log lines.
+
+    Parses 'Sending partial reply' lines, decodes the byte literal to JSON,
+    and collects parts where ``thought`` is True.
+    """
+    marker = "Sending partial reply: "
+
+    # Build (timestamp_iso, parsed_json) event list
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    for line in lines:
+        pos = line.find(marker)
+        if pos == -1:
+            continue
+
+        # Extract timestamp from log prefix
+        m = _GEMINI_LOG_PREFIX.match(line)
+        if not m:
+            continue
+        month, day, time_str = m.group(1), m.group(2), m.group(3)
+        year = datetime.now(tz=UTC).year
+        timestamp = f"{year}-{month}-{day}T{time_str}Z"
+
+        # Decode byte literal → bytes → JSON
+        byte_literal = line[pos + len(marker) :].rstrip()
+        try:
+            raw = ast.literal_eval(byte_literal)
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
+            data = json.loads(raw)
+        except (ValueError, SyntaxError, json.JSONDecodeError):
+            continue
+
+        events.append((timestamp, data))
+
+    # Walk events, pull out thought parts
+    blocks: list[ThinkingBlock] = []
+    index = 0
+
+    for i, (timestamp, data) in enumerate(events):
+        for candidate in data.get("candidates", []):
+            for part in candidate.get("content", {}).get("parts", []):
+                if part.get("thought") is not True:
+                    continue
+                text = part.get("text", "")
+                if not text.strip():
+                    continue
+                index += 1
+                following = _find_gemini_following_action(events, i)
+                blocks.append(
+                    ThinkingBlock(
+                        text=text,
+                        timestamp=timestamp,
+                        index=index,
+                        following_action=following,
+                    )
+                )
+
+    blocks.reverse()
+    return blocks
+
+
+def _find_gemini_following_action(
+    events: list[tuple[str, dict[str, Any]]], idx: int
+) -> str | None:
+    """Scan forward from *idx* for the next Gemini action (functionCall preferred)."""
+    for j in range(idx + 1, min(idx + 6, len(events))):
+        _, data = events[j]
+        for candidate in data.get("candidates", []):
+            for part in candidate.get("content", {}).get("parts", []):
+                if "functionCall" in part:
+                    return _format_gemini_function_call(part["functionCall"])
+                # Non-thought text as fallback
+                if "text" in part and not part.get("thought"):
+                    text = part["text"].strip()
+                    if text:
+                        return text[:80]
+    return None
+
+
+def _format_gemini_function_call(func_call: dict[str, Any]) -> str:
+    """Format a Gemini functionCall into a readable action string."""
+    name = func_call.get("name", "")
+    args = func_call.get("args", {})
+
+    # Strip default_api: prefix
+    clean = name.removeprefix("default_api:")
+
+    if clean in ("run_shell_command",):
+        cmd = args.get("command", "")
+        first_word = cmd.split()[0] if cmd.split() else ""
+        return f"Bash `{first_word}`" if first_word else "Bash"
+
+    if clean == "read_file":
+        fp = args.get("file_path", "") or args.get("path", "")
+        base = os.path.basename(fp) if fp else ""
+        return f"Read {base}" if base else "Read"
+
+    if clean in ("replace", "write_file"):
+        fp = args.get("file_path", "") or args.get("path", "")
+        base = os.path.basename(fp) if fp else ""
+        return f"Edit {base}" if base else "Edit"
+
+    if clean == "web_fetch":
+        return "Web Fetch"
+
+    if clean == "codebase_investigator":
+        return "Task (subagent)"
+
+    return clean
 
 
 def parse_thinking_blocks(jsonl_path: Path) -> list[ThinkingBlock]:

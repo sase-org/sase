@@ -288,7 +288,7 @@ class AgentThinkingPanel(Static):
 
         # Source-dependent styling
         is_gemini = source == "gemini"
-        header_text = "GEMINI LOG" if is_gemini else "CLAUDE THINKING"
+        header_text = "GEMINI THINKING" if is_gemini else "CLAUDE THINKING"
         header_color = "#4285F4" if is_gemini else "#AF87D7"
         border_color = f"dim {header_color}"
         content_color = "#B4C7E7" if is_gemini else "#D7D7FF"
@@ -311,19 +311,12 @@ class AgentThinkingPanel(Static):
         output.append("\n")
 
         # Summary line
-        if is_gemini:
-            total_lines = sum(b.text.count("\n") for b in blocks)
-            output.append(
-                f"{total_lines} lines · global log (not per-agent)\n\n",
-                style="dim",
-            )
-        else:
-            block_word = "block" if len(blocks) == 1 else "blocks"
-            output.append(
-                f"{len(blocks)} thinking {block_word} · "
-                f"{_format_char_count(total_chars)} chars\n\n",
-                style="dim",
-            )
+        block_word = "block" if len(blocks) == 1 else "blocks"
+        output.append(
+            f"{len(blocks)} thinking {block_word} · "
+            f"{_format_char_count(total_chars)} chars\n\n",
+            style="dim",
+        )
 
         # Render each block
         for block in blocks:
