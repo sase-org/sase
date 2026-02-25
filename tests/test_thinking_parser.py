@@ -112,8 +112,8 @@ def test_malformed_json_skipped(tmp_path: Path) -> None:
     assert blocks[0].text == "valid thought"
 
 
-def test_nonexistent_file(tmp_path: Path) -> None:
-    assert parse_thinking_blocks(tmp_path / "nonexistent.jsonl") == []
+def test_nonexistent_file() -> None:
+    assert parse_thinking_blocks(Path("/nonexistent/path.jsonl")) == []
 
 
 # --- _format_tool_action ---
@@ -170,20 +170,16 @@ def test_format_timestamp_invalid_input() -> None:
 
 
 def test_read_gemini_log_file_exists(tmp_path: Path, monkeypatch: Any) -> None:
-    """Returns parsed ThinkingBlocks from log content."""
+    """Returns a single ThinkingBlock with log content."""
     log_file = tmp_path / "gemini_api_proxy.par.INFO"
-    
-    # Mock log content matching proxy log format
-    log_file.write_text(
-        "I0225 14:24:44.431123 2721368 gemini_api_proxy_lib.py:529] Sending partial reply: "
-        "b'{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"My thought\", \"thought\": true}], \"role\": \"model\"}}]}\\n'\n"
-    )
+    log_file.write_text("line1\nline2\nline3\n")
     monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
     result = read_gemini_log()
     assert result is not None
     assert len(result) == 1
-    assert "My thought" == result[0].text
+    assert "line1\nline2\nline3\n" == result[0].text
     assert result[0].index == 1
+    assert "3 lines" in (result[0].following_action or "")
 
 
 def test_read_gemini_log_file_missing(tmp_path: Path, monkeypatch: Any) -> None:
