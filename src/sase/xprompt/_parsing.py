@@ -379,15 +379,28 @@ def parse_workflow_reference(
     if workflow_ref.endswith("+"):
         return workflow_ref[:-1], ["true"], {}
 
-    # Parenthesis syntax: workflow(args)
+    # Parenthesis syntax: workflow(args) or workflow(args): text
     if "(" in workflow_ref:
         paren_idx = workflow_ref.index("(")
         workflow_name = workflow_ref[:paren_idx]
-        if workflow_ref.endswith(")"):
-            args_str = workflow_ref[paren_idx + 1 : -1]
+        close_paren = find_matching_paren_for_args(workflow_ref, paren_idx)
+        if close_paren is not None:
+            args_str = workflow_ref[paren_idx + 1 : close_paren]
             if args_str:
                 positional_args, named_args = parse_args(args_str)
-                return workflow_name, positional_args, named_args
+            else:
+                positional_args, named_args = [], {}
+
+            # Handle text after closing paren: "): text" or "):: text"
+            rest = workflow_ref[close_paren + 1 :]
+            if rest.startswith(":: "):
+                positional_args.append(rest[3:])
+            elif rest.startswith(": "):
+                positional_args.append(rest[2:])
+            elif rest.startswith(":") and len(rest) > 1:
+                positional_args.append(rest[1:])
+
+            return workflow_name, positional_args, named_args
         return workflow_name, [], {}
 
     # Colon syntax: workflow:value or workflow: text
