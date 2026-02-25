@@ -66,6 +66,10 @@ def _find_gemini_log_files(tmp_dir: Path, since: datetime) -> list[Path]:
     Returns paths sorted oldest-first. The current symlink is appended if its
     resolved target isn't already in the list.
     """
+    # Ensure since is timezone-aware for comparison with tz-aware file timestamps
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=EASTERN_TZ)
+
     timestamped: list[tuple[datetime, Path]] = []
     for p in tmp_dir.glob("gemini_api_proxy.par.*.log.INFO.*"):
         ts = _parse_gemini_log_timestamp(p.name)
