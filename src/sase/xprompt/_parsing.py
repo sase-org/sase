@@ -86,7 +86,7 @@ _NEXT_DIRECTIVE_PATTERN = re.compile(
 )
 
 
-def _find_shorthand_text_end(prompt: str, start: int) -> int:
+def find_shorthand_text_end(prompt: str, start: int) -> int:
     """Find the end of shorthand text (at \\n\\n or end of string)."""
     blank_line_pos = prompt.find("\n\n", start)
     if blank_line_pos == -1:
@@ -94,7 +94,7 @@ def _find_shorthand_text_end(prompt: str, start: int) -> int:
     return blank_line_pos
 
 
-def _find_double_colon_text_end(prompt: str, start: int) -> int:
+def find_double_colon_text_end(prompt: str, start: int) -> int:
     """Find the end of double-colon text (at next directive or end of string).
 
     Unlike single-colon shorthand which terminates at blank lines, double-colon
@@ -141,10 +141,10 @@ def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:
         after_paren = prompt[paren_close + 1 :]
         if after_paren.startswith(":: "):
             text_start = paren_close + 4  # skip "):: "
-            text_end = _find_double_colon_text_end(prompt, text_start)
+            text_end = find_double_colon_text_end(prompt, text_start)
         elif after_paren.startswith(": "):
             text_start = paren_close + 3  # skip "): "
-            text_end = _find_shorthand_text_end(prompt, text_start)
+            text_end = find_shorthand_text_end(prompt, text_start)
         else:
             continue
         text = prompt[text_start:text_end].rstrip()
@@ -177,7 +177,7 @@ def preprocess_shorthand_syntax(prompt: str, xprompt_names: set[str]) -> str:
             continue
 
         text_start = match.end()
-        text_end = _find_double_colon_text_end(prompt, text_start)
+        text_end = find_double_colon_text_end(prompt, text_start)
         text = prompt[text_start:text_end].rstrip()
 
         text_block_content = _format_as_text_block(text)
@@ -194,7 +194,7 @@ def preprocess_shorthand_syntax(prompt: str, xprompt_names: set[str]) -> str:
             continue
 
         text_start = match.end()
-        text_end = _find_shorthand_text_end(prompt, text_start)
+        text_end = find_shorthand_text_end(prompt, text_start)
         text = prompt[text_start:text_end].rstrip()
 
         text_block_content = _format_as_text_block(text)

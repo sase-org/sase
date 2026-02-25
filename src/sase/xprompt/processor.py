@@ -24,6 +24,8 @@ from ._jinja import (
     validate_and_convert_args,
 )
 from ._parsing import (
+    find_double_colon_text_end,
+    find_shorthand_text_end,
     find_matching_paren_for_args,
     parse_args,
     preprocess_shorthand_syntax,
@@ -232,6 +234,32 @@ def process_xprompt_references(
                         paren_content = prompt[paren_start + 1 : paren_end]
                         positional_args, named_args = parse_args(paren_content)
                         match_end = paren_end + 1  # Include the closing )
+
+                        # Handle ": text" or ":: text" shorthand after closing
+                        # paren. This captures text that
+                        # _preprocess_paren_shorthand didn't handle because
+                        # it only processes start-of-line references.
+                        after_close = prompt[match_end:]
+                        if after_close.startswith(":: ") or after_close.startswith(
+                            ": "
+                        ):
+                            is_double = after_close.startswith(":: ")
+                            text_start = match_end + (3 if is_double else 2)
+                            text_end = (
+                                find_double_colon_text_end(prompt, text_start)
+                                if is_double
+                                else find_shorthand_text_end(prompt, text_start)
+                            )
+                            shorthand_text = prompt[text_start:text_end].rstrip()
+                            if shorthand_text:
+                                # Map to first input not already provided
+                                for inp in xprompt.inputs:
+                                    if inp.name not in named_args:
+                                        named_args[inp.name] = shorthand_text
+                                        break
+                                else:
+                                    positional_args.append(shorthand_text)
+                                match_end = text_end
                 elif colon_arg is not None:
                     # Strip backticks if present (backtick-delimited syntax)
                     if colon_arg.startswith("`") and colon_arg.endswith("`"):
