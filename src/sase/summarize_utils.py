@@ -1,6 +1,9 @@
 """Utility functions for summarizing files."""
 
-from sase.summarize_workflow import SummarizeWorkflow
+import json
+
+from sase.xprompt.output_validation import extract_structured_content
+from sase.xprompt.workflow_runner import execute_workflow
 
 
 def get_file_summary(
@@ -11,7 +14,7 @@ def get_file_summary(
 ) -> str:
     """Get a summary of a file, with fallback on failure.
 
-    This is a convenience wrapper around SummarizeWorkflow for use in
+    This is a convenience wrapper around execute_workflow for use in
     contexts where a summary is optional and a fallback is acceptable.
 
     Args:
@@ -24,14 +27,20 @@ def get_file_summary(
         The summary (<=20 words) or fallback text.
     """
     try:
-        workflow = SummarizeWorkflow(
-            target_file=target_file,
-            usage=usage,
-            suppress_output=True,
+        result = execute_workflow(
+            "summarize",
+            positional_args=[],
+            named_args={"target_file": target_file, "usage": usage},
             artifacts_dir=artifacts_dir,
+            silent=True,
         )
-        if workflow.run() and workflow.summary:
-            return workflow.summary
+        if result.response_text:
+            data, _ = extract_structured_content(result.response_text)
+            if isinstance(data, str):
+                data = json.loads(data)
+            summary = data.get("summary", "")
+            if summary:
+                return summary
     except Exception:
         pass
     return fallback
