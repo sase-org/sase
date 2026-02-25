@@ -148,6 +148,16 @@ class AgentDisplayMixin:
                 header_text.append("Output: ", style="bold #87D7FF")
                 header_text.append(f"{agent.output_path}\n", style="dim")
 
+        # Compute traceback renderable for ERROR section (included in all paths)
+        error_tb_syntax: Syntax | None = None
+        if agent.error_traceback:
+            error_tb_syntax = Syntax(
+                agent.error_traceback,
+                "pytb",
+                theme="monokai",
+                word_wrap=True,
+            )
+
         # Separator
         header_text.append("\n")
         header_text.append("─" * 50 + "\n", style="dim")
@@ -155,12 +165,12 @@ class AgentDisplayMixin:
 
         # Check if this is a bash/python workflow step - display differently
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):
-            self._update_bash_python_display(agent, header_text)
+            self._update_bash_python_display(agent, header_text, error_tb_syntax)
             return
 
         # Check if this is a parallel workflow step - show output only, no prompt
         if agent.is_workflow_child and agent.step_type == "parallel":
-            self._update_parallel_display(agent, header_text)
+            self._update_parallel_display(agent, header_text, error_tb_syntax)
             return
 
         # AGENT PROMPT section
@@ -197,7 +207,10 @@ class AgentDisplayMixin:
                 ):
                     response_content = format_output(agent.step_output)
 
-                renderables: list[Text | Syntax] = [header_text, prompt_syntax]
+                renderables: list[Text | Syntax] = [header_text]
+                if error_tb_syntax:
+                    renderables.append(error_tb_syntax)
+                renderables.append(prompt_syntax)
 
                 if response_content:
                     response_syntax = Syntax(
@@ -211,28 +224,19 @@ class AgentDisplayMixin:
                     reply_header.append("No response file found.\n", style="dim italic")
                     renderables.append(reply_header)
 
-                # Show traceback section for failed agents
-                if agent.error_traceback:
-                    tb_header = Text()
-                    tb_header.append("\n")
-                    tb_header.append("─" * 50 + "\n", style="dim")
-                    tb_header.append("\n")
-                    tb_header.append("TRACEBACK\n", style="bold #D7AF5F underline")
-                    tb_header.append("\n")
-                    tb_syntax = Syntax(
-                        agent.error_traceback,
-                        "pytb",
-                        theme="monokai",
-                        word_wrap=True,
-                    )
-                    renderables.extend([tb_header, tb_syntax])
-
                 self.update(Group(*renderables))  # type: ignore[attr-defined]
             else:
-                self.update(Group(header_text, prompt_syntax))  # type: ignore[attr-defined]
+                renderables_other: list[Text | Syntax] = [header_text]
+                if error_tb_syntax:
+                    renderables_other.append(error_tb_syntax)
+                renderables_other.append(prompt_syntax)
+                self.update(Group(*renderables_other))  # type: ignore[attr-defined]
         else:
             header_text.append("No prompt file found.\n", style="dim italic")
-            self.update(header_text)  # type: ignore[attr-defined]
+            if error_tb_syntax:
+                self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
+            else:
+                self.update(header_text)  # type: ignore[attr-defined]
 
     def _get_prompt_content(self, agent: Agent) -> str | None:
         """Get the prompt content for the agent.
@@ -277,12 +281,18 @@ class AgentDisplayMixin:
         except Exception:
             return None
 
-    def _update_bash_python_display(self, agent: Agent, header_text: Text) -> None:
+    def _update_bash_python_display(
+        self,
+        agent: Agent,
+        header_text: Text,
+        error_tb_syntax: Syntax | None = None,
+    ) -> None:
         """Display bash command or python code with output.
 
         Args:
             agent: The workflow step agent to display.
             header_text: The Text object with header content to append to.
+            error_tb_syntax: Optional traceback Syntax renderable.
         """
         if agent.step_type == "bash":
             source_label = "BASH COMMAND"
@@ -311,33 +321,49 @@ class AgentDisplayMixin:
         output_header.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
         output_header.append("\n")
 
+        renderables: list[Text | Syntax] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+        renderables.append(source_content)
+
         if agent.step_output:
             output_str = format_output(agent.step_output)
             output_syntax = Syntax(output_str, "json", theme="monokai", word_wrap=True)
-            self.update(  # type: ignore[attr-defined]
-                Group(header_text, source_content, output_header, output_syntax)
-            )
+            renderables.extend([output_header, output_syntax])
         else:
             output_header.append("No output available.\n", style="dim italic")
-            self.update(Group(header_text, source_content, output_header))  # type: ignore[attr-defined]
+            renderables.append(output_header)
 
-    def _update_parallel_display(self, agent: Agent, header_text: Text) -> None:
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    def _update_parallel_display(
+        self,
+        agent: Agent,
+        header_text: Text,
+        error_tb_syntax: Syntax | None = None,
+    ) -> None:
         """Display output for a parallel workflow step (no prompt section).
 
         Args:
             agent: The workflow step agent to display.
             header_text: The Text object with header content to append to.
+            error_tb_syntax: Optional traceback Syntax renderable.
         """
         header_text.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
         header_text.append("\n")
 
+        renderables: list[Text | Syntax] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+
         if agent.step_output:
             output_str = format_output(agent.step_output)
             output_syntax = Syntax(output_str, "json", theme="monokai", word_wrap=True)
-            self.update(Group(header_text, output_syntax))  # type: ignore[attr-defined]
+            renderables.append(output_syntax)
         else:
-            header_text.append("No output available.\n", style="dim italic")
-            self.update(header_text)  # type: ignore[attr-defined]
+            renderables.append(Text("No output available.\n", style="dim italic"))
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
 
     def show_empty(self) -> None:
         """Show empty state."""

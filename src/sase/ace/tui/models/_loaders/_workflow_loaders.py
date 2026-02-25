@@ -154,6 +154,17 @@ def load_workflow_states() -> list[WorkflowEntry]:
                 if isinstance(last_output, dict) and last_output.get("diff_path"):
                     diff_path = str(last_output["diff_path"])
 
+            error_message = data.get("error")
+            error_traceback = data.get("traceback")
+            if not error_message and display_status == "FAILED":
+                for step_data in data.get("steps", []):
+                    if step_data.get("status") == "failed" and step_data.get("error"):
+                        error_message = (
+                            f"Step '{step_data['name']}' failed: {step_data['error']}"
+                        )
+                        error_traceback = step_data.get("traceback")
+                        break
+
             entries.append(
                 WorkflowEntry(
                     workflow_name=data.get("workflow_name", "unknown"),
@@ -169,8 +180,8 @@ def load_workflow_states() -> list[WorkflowEntry]:
                     appears_as_agent=appears_as_agent,
                     is_anonymous=is_anonymous,
                     diff_path=diff_path,
-                    error_message=data.get("error"),
-                    error_traceback=data.get("traceback"),
+                    error_message=error_message,
+                    error_traceback=error_traceback,
                 )
             )
         except Exception:

@@ -245,8 +245,11 @@ def test_parallel_step_no_output_shows_placeholder() -> None:
         call_args = mock_update.call_args[0]
         rendered = call_args[0]
 
-        # When no output, update is called with just header_text (a Text object)
-        header_str = str(rendered)
+        # update is called with a Group of renderables
+        from rich.console import Group
+
+        assert isinstance(rendered, Group)
+        header_str = "\n".join(str(r) for r in rendered.renderables)
         assert "STEP OUTPUT" in header_str
         assert "No output available." in header_str
         assert "AGENT PROMPT" not in header_str

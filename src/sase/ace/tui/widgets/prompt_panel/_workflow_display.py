@@ -125,6 +125,16 @@ class WorkflowDisplayMixin:
                 header_text.append("Output: ", style="bold #87D7FF")
                 header_text.append(f"{agent.output_path}\n", style="dim")
 
+        # Compute traceback renderable for ERROR section
+        error_tb_syntax: Syntax | None = None
+        if agent.error_traceback:
+            error_tb_syntax = Syntax(
+                agent.error_traceback,
+                "pytb",
+                theme="monokai",
+                word_wrap=True,
+            )
+
         # Meta fields aggregated from all step outputs
         meta_fields = self._load_workflow_meta_fields(agent)
         if meta_fields:
@@ -145,20 +155,24 @@ class WorkflowDisplayMixin:
                 else:
                     header_text.append(f"{value}\n", style="#5FD75F")
 
-        # Separator
-        header_text.append("\n")
-        header_text.append("─" * 50 + "\n", style="dim")
-        header_text.append("\n")
-        header_text.append("WORKFLOW STEPS\n", style="bold #D7AF5F underline")
-        header_text.append("\n")
+        # Separator + WORKFLOW STEPS header
+        steps_header = Text()
+        steps_header.append("\n")
+        steps_header.append("─" * 50 + "\n", style="dim")
+        steps_header.append("\n")
+        steps_header.append("WORKFLOW STEPS\n", style="bold #D7AF5F underline")
+        steps_header.append("\n")
 
         # Load and format workflow steps from workflow_state.json
         steps_rich = self._load_workflow_steps_rich(agent)
         renderables: list[Text | Syntax] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+        renderables.append(steps_header)
         if steps_rich:
             renderables.append(steps_rich)
         else:
-            header_text.append("No workflow state found.\n", style="dim italic")
+            steps_header.append("No workflow state found.\n", style="dim italic")
 
         # AGENT PROMPT section - show the prompt that was attempted
         prompt_content = self._load_workflow_prompt(agent)
@@ -173,22 +187,6 @@ class WorkflowDisplayMixin:
             renderables.append(
                 Syntax(prompt_content, "markdown", theme="monokai", word_wrap=True)
             )
-
-        # Show traceback section for failed workflows
-        if agent.error_traceback:
-            tb_header = Text()
-            tb_header.append("\n")
-            tb_header.append("─" * 50 + "\n", style="dim")
-            tb_header.append("\n")
-            tb_header.append("TRACEBACK\n", style="bold #D7AF5F underline")
-            tb_header.append("\n")
-            tb_syntax = Syntax(
-                agent.error_traceback,
-                "pytb",
-                theme="monokai",
-                word_wrap=True,
-            )
-            renderables.extend([tb_header, tb_syntax])
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]
 
