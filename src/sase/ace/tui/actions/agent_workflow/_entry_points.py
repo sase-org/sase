@@ -86,7 +86,7 @@ class EntryPointsMixin:
             self._start_bgcmd_from_changespec()  # type: ignore[attr-defined]
             return True
 
-        if key == "at":
+        if key == "space":
             last = self._last_custom_agent_selection
             if last is None:
                 self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
@@ -115,7 +115,7 @@ class EntryPointsMixin:
         cl_name = changespec.name
         prefix = _vcs_prompt_prefix(changespec.file_path, cl_name)
 
-        # Save for ,@ repeat (so <space> selections are also available)
+        # Save for ,<space> repeat (so <space> selections are also available)
         self._last_custom_agent_selection = SelectionItem(
             display_name=cl_name,
             item_type="cl",
@@ -176,7 +176,7 @@ class EntryPointsMixin:
                     self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
 
-            # Save for ,@ repeat
+            # Save for ,<space> repeat
             self._last_custom_agent_selection = selection
             self._start_custom_agent_from_selection(
                 selection, open_in_editor=open_in_editor

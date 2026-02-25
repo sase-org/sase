@@ -72,7 +72,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Leader Mode (,)",
         [
             (",!", "Run command (use current CL)"),
-            (",@", "Repeat last @/<space> selection"),
+            (",<space>", "Repeat last @/<space> selection"),
         ],
     ),
     (
@@ -147,7 +147,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
-            (",@", "Repeat last @/<space> selection"),
+            (",<space>", "Repeat last @/<space> selection"),
         ],
     ),
     (
@@ -199,7 +199,7 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
-            (",@", "Repeat last @/<space> selection"),
+            (",<space>", "Repeat last @/<space> selection"),
         ],
     ),
     (
