@@ -222,6 +222,8 @@ def main() -> None:
                 agent_meta["vcs_provider"] = agent_vcs_provider
             if directives.approve:
                 agent_meta["approve"] = True
+            if directives.plan:
+                agent_meta["plan"] = True
             if agent_meta:
                 meta_path = os.path.join(artifacts_dir, "agent_meta.json")
                 with open(meta_path, "w", encoding="utf-8") as f:
@@ -300,6 +302,8 @@ def main() -> None:
             os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
             if directives.approve:
                 os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
+            if directives.plan:
+                os.environ["SASE_AGENT_PLAN_MODE"] = "1"
 
             anon_workflow = create_anonymous_workflow(prompt)
             result = execute_workflow(

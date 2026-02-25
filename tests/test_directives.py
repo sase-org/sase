@@ -163,3 +163,53 @@ def test_wait_directive_multiple() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do some work"
     assert directives.wait == ["a", "b"]
+
+
+# --- %plan directive tests ---
+
+
+def test_plan_bare() -> None:
+    """%plan (bare) sets plan=True."""
+    prompt = "%plan\nFix the bug"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Fix the bug"
+    assert directives.plan is True
+
+
+def test_plan_plus() -> None:
+    """%plan+ sets plan=True."""
+    prompt = "%plan+\nFix the bug"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Fix the bug"
+    assert directives.plan is True
+
+
+def test_plan_alias() -> None:
+    """%p (alias) sets plan=True."""
+    prompt = "%p\nFix the bug"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Fix the bug"
+    assert directives.plan is True
+
+
+def test_plan_default_false() -> None:
+    """Default plan is False."""
+    prompt = "Just a normal prompt"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.plan is False
+
+
+def test_plan_with_approve() -> None:
+    """%plan combined with %approve both work together."""
+    prompt = "%plan\n%approve\nFix the bug"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Fix the bug"
+    assert directives.plan is True
+    assert directives.approve is True
+
+
+def test_plan_duplicate_raises() -> None:
+    """Duplicate %plan raises DirectiveError."""
+    prompt = "%plan\n%plan\nFix the bug"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%plan'"):
+        extract_prompt_directives(prompt)

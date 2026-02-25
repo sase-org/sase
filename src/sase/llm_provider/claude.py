@@ -67,6 +67,10 @@ class ClaudeCodeProvider(LLMProvider):
             session_uuid,
         ]
 
+        # Enable plan mode when requested via %plan directive
+        if os.environ.get("SASE_AGENT_PLAN_MODE"):
+            base_args.append("--permission-mode=plan")
+
         # Parse additional args from environment variable based on tier
         # Check generic SASE_LLM_*_ARGS first, fall back to Claude-specific
         if model_tier == "large":
