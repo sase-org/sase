@@ -1,17 +1,20 @@
 """Tests for sase.ace.tui.thinking.parser."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from sase.ace.tui.thinking.parser import (
     _format_gemini_function_call,
     _format_tool_action,
+    _parse_gemini_log_timestamp,
     _read_jsonl_lines,
     parse_thinking_blocks,
     read_gemini_log,
 )
 from sase.ace.tui.widgets.thinking_panel import _format_timestamp
+from sase.sase_utils import EASTERN_TZ
 
 
 # --- helpers ---
@@ -318,3 +321,99 @@ def test_format_gemini_write_file() -> None:
 def test_format_gemini_unknown_strips_prefix() -> None:
     fc = {"name": "default_api:some_tool", "args": {}}
     assert _format_gemini_function_call(fc) == "some_tool"
+
+
+# --- _parse_gemini_log_timestamp ---
+
+
+def test_parse_gemini_log_timestamp() -> None:
+    filename = "gemini_api_proxy.par.host.user.log.INFO.20260225-140000.12345"
+    result = _parse_gemini_log_timestamp(filename)
+    assert result is not None
+    assert result.year == 2026
+    assert result.month == 2
+    assert result.day == 25
+    assert result.hour == 14
+    assert result.minute == 0
+    assert result.tzinfo == EASTERN_TZ
+
+
+def test_parse_gemini_log_timestamp_invalid() -> None:
+    assert _parse_gemini_log_timestamp("not-a-log-file.txt") is None
+    assert _parse_gemini_log_timestamp("gemini_api_proxy.par.INFO") is None
+
+
+# --- read_gemini_log with since ---
+
+
+def test_read_gemini_log_multi_files_with_since(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Two timestamped files — both read and merged, newest-first."""
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+
+    # Older rotated file
+    old_file = tmp_path / "gemini_api_proxy.par.host.user.log.INFO.20260225-100000.111"
+    old_file.write_text(_gemini_log_line("old thought", time="10:00:00"))
+
+    # Newer rotated file
+    new_file = tmp_path / "gemini_api_proxy.par.host.user.log.INFO.20260225-110000.222"
+    new_file.write_text(_gemini_log_line("new thought", time="11:00:00"))
+
+    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=EASTERN_TZ)
+    result = read_gemini_log(since=since)
+    assert result is not None
+    assert len(result) == 2
+    # Newest-first
+    assert result[0].text == "new thought"
+    assert result[1].text == "old thought"
+
+
+def test_read_gemini_log_since_filters_old_files(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """File before *since* is excluded."""
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+
+    # File timestamped before since
+    old_file = tmp_path / "gemini_api_proxy.par.host.user.log.INFO.20260225-080000.111"
+    old_file.write_text(_gemini_log_line("too old", time="08:00:00"))
+
+    # File timestamped after since
+    new_file = tmp_path / "gemini_api_proxy.par.host.user.log.INFO.20260225-120000.222"
+    new_file.write_text(_gemini_log_line("recent", time="12:00:00"))
+
+    since = datetime(2026, 2, 25, 10, 0, 0, tzinfo=EASTERN_TZ)
+    result = read_gemini_log(since=since)
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].text == "recent"
+
+
+def test_read_gemini_log_since_includes_symlink(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Symlink is included when its target is not in timestamped files."""
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+
+    # Create a symlink pointing to a file NOT matching the glob pattern
+    actual_log = tmp_path / "current.log"
+    actual_log.write_text(_gemini_log_line("symlink thought", time="15:00:00"))
+    symlink = tmp_path / "gemini_api_proxy.par.INFO"
+    symlink.symlink_to(actual_log)
+
+    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=EASTERN_TZ)
+    result = read_gemini_log(since=since)
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].text == "symlink thought"
+
+
+def test_read_gemini_log_since_no_files_returns_none(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """No files or symlink → None."""
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=EASTERN_TZ)
+    result = read_gemini_log(since=since)
+    assert result is None

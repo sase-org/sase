@@ -28,23 +28,103 @@ class ThinkingBlock:
 
 _GEMINI_LOG_FILENAME = "gemini_api_proxy.par.INFO"
 
+# Regex for parsing YYYYMMDD-HHMMSS timestamp from rotated log filenames
+_GEMINI_FILE_TS_RE = re.compile(r"\.(\d{8}-\d{6})\.\d+$")
 
-def _resolve_gemini_log_path() -> Path:
-    """Resolve the path to the Gemini API proxy log file.
+
+def _resolve_gemini_tmp_dir() -> Path:
+    """Resolve the tmp directory for Gemini API proxy logs.
 
     Checks env vars in order: SASE_GEMINI_CLI_TMP → TMP → falls back to /tmp.
     """
     tmp_dir = os.environ.get("SASE_GEMINI_CLI_TMP") or os.environ.get("TMP") or "/tmp"
-    return Path(tmp_dir) / _GEMINI_LOG_FILENAME
+    return Path(tmp_dir)
 
 
-def read_gemini_log(max_lines: int = 500) -> list[ThinkingBlock] | None:
+def _resolve_gemini_log_path() -> Path:
+    """Resolve the path to the Gemini API proxy log file."""
+    return _resolve_gemini_tmp_dir() / _GEMINI_LOG_FILENAME
+
+
+def _parse_gemini_log_timestamp(filename: str) -> datetime | None:
+    """Parse the YYYYMMDD-HHMMSS timestamp from a rotated Gemini log filename.
+
+    Returns a timezone-aware datetime in Eastern time, or None if unparseable.
+    """
+    m = _GEMINI_FILE_TS_RE.search(filename)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1), "%Y%m%d-%H%M%S").replace(tzinfo=EASTERN_TZ)
+    except ValueError:
+        return None
+
+
+def _find_gemini_log_files(tmp_dir: Path, since: datetime) -> list[Path]:
+    """Find rotated Gemini log files with timestamps >= *since*.
+
+    Returns paths sorted oldest-first. The current symlink is appended if its
+    resolved target isn't already in the list.
+    """
+    timestamped: list[tuple[datetime, Path]] = []
+    for p in tmp_dir.glob("gemini_api_proxy.par.*.log.INFO.*"):
+        ts = _parse_gemini_log_timestamp(p.name)
+        if ts is not None and ts >= since:
+            timestamped.append((ts, p))
+
+    # Sort oldest-first
+    timestamped.sort(key=lambda t: t[0])
+    result = [p for _, p in timestamped]
+
+    # Also include the current symlink if its target isn't already listed
+    symlink = tmp_dir / _GEMINI_LOG_FILENAME
+    if symlink.exists():
+        try:
+            resolved = symlink.resolve()
+        except OSError:
+            resolved = None
+        resolved_set = {p.resolve() for p in result}
+        if resolved is None or resolved not in resolved_set:
+            result.append(symlink)
+
+    return result
+
+
+def read_gemini_log(
+    max_lines: int = 500,
+    since: datetime | None = None,
+) -> list[ThinkingBlock] | None:
     """Read and parse Gemini API proxy log for thinking blocks.
+
+    When *since* is provided, reads all rotated log files whose filename
+    timestamp is >= *since* (oldest-first), merging their lines before
+    extracting thoughts.  When *since* is None, only the current symlink
+    is read (original behaviour).
 
     Returns:
         None if the log file doesn't exist, [] if no thoughts found,
         or a list of ThinkingBlocks with individual thoughts (newest-first).
     """
+    if since is not None:
+        tmp_dir = _resolve_gemini_tmp_dir()
+        log_files = _find_gemini_log_files(tmp_dir, since)
+        if not log_files:
+            # Fall back: try symlink alone (might have no timestamp in name)
+            symlink = tmp_dir / _GEMINI_LOG_FILENAME
+            if not symlink.exists():
+                return None
+            log_files = [symlink]
+
+        all_lines: list[str] = []
+        for lf in log_files:
+            with open(lf, encoding="utf-8", errors="replace") as f:
+                all_lines.extend(collections.deque(f, maxlen=max_lines))
+
+        if not all_lines:
+            return []
+        return _extract_gemini_thoughts(all_lines)
+
+    # Original single-file behaviour
     log_path = _resolve_gemini_log_path()
     if not log_path.exists():
         return None

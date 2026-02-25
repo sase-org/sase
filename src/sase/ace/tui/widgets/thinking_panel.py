@@ -389,7 +389,7 @@ class AgentThinkingPanel(Static):
             except Exception:
                 provider_name = ""
             if provider_name == "gemini":
-                blocks = read_gemini_log()
+                blocks = read_gemini_log(since=agent.start_time)
                 source = "gemini"
             else:
                 blocks = None
