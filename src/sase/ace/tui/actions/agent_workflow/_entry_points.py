@@ -10,6 +10,7 @@ from ._types import PromptContext, TabName
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
     from ...models import Agent
+    from ...modals import SelectionItem
 
 
 def _vcs_prompt_prefix(project_file: str, name: str) -> str:
@@ -43,6 +44,8 @@ class EntryPointsMixin:
     _prompt_context: PromptContext | None = None
     # State for bulk agent runs
     _bulk_changespecs: list[ChangeSpec] | None = None
+    # State for repeat-last-@ selection
+    _last_custom_agent_selection: SelectionItem | None = None
 
     def action_start_agent_from_changespec(self) -> None:
         """Start agent from current ChangeSpec (CLs tab only, bound to space)."""
@@ -55,12 +58,9 @@ class EntryPointsMixin:
             self._start_agent_from_changespec_quick()
 
     def action_start_leader_mode(self) -> None:
-        """Enter leader mode for quick shortcuts (CLs tab only, bound to ,)."""
-        if self.current_tab != "changespecs":
-            return
-
+        """Enter leader mode for quick shortcuts (bound to ,)."""
         self._leader_mode_active = True
-        self._update_leader_footer()
+        self._update_leader_footer(current_tab=self.current_tab)
 
     def _handle_leader_key(self, key: str) -> bool:
         """Handle a key press in leader mode.
@@ -76,15 +76,27 @@ class EntryPointsMixin:
 
         if key == "escape":
             # Cancel silently and restore footer
-            self._refresh_display()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == "exclamation_mark":
+            if self.current_tab != "changespecs":
+                self._refresh_current_tab()  # type: ignore[attr-defined]
+                return True
             self._start_bgcmd_from_changespec()  # type: ignore[attr-defined]
             return True
 
+        if key == "at":
+            last = self._last_custom_agent_selection
+            if last is None:
+                self.notify("No previous @ selection", severity="warning")  # type: ignore[attr-defined]
+                self._refresh_current_tab()  # type: ignore[attr-defined]
+                return True
+            self._start_custom_agent_from_selection(last)
+            return True
+
         # Unknown key - just exit mode and restore footer
-        self._refresh_display()  # type: ignore[attr-defined]
+        self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
 
     def _start_agent_from_changespec_quick(self) -> None:
@@ -107,13 +119,17 @@ class EntryPointsMixin:
             history_sort_key=cl_name,
         )
 
-    def _update_leader_footer(self) -> None:
-        """Update the footer to show leader mode bindings."""
+    def _update_leader_footer(self, *, current_tab: TabName = "changespecs") -> None:
+        """Update the footer to show leader mode bindings.
+
+        Args:
+            current_tab: The currently active tab name.
+        """
         from ...widgets import KeybindingFooter
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            footer.update_leader_bindings()
+            footer.update_leader_bindings(current_tab=current_tab)
         except Exception:
             pass
 
@@ -150,42 +166,60 @@ class EntryPointsMixin:
                     self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
 
-            project_name: str = selection.project_name
-            project_file = os.path.expanduser(
-                f"~/.sase/projects/{project_name}/{project_name}.gp"
+            # Save for ,@ repeat
+            self._last_custom_agent_selection = selection
+            self._start_custom_agent_from_selection(
+                selection, open_in_editor=open_in_editor
             )
 
-            if selection.item_type == "cl" and selection.cl_name:
-                prefix = _vcs_prompt_prefix(project_file, selection.cl_name)
-                if open_in_editor:
-                    self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
-                        initial_text=prefix,
-                        display_name=selection.cl_name,
-                        history_sort_key=selection.cl_name,
-                    )
-                else:
-                    self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-                        initial_text=prefix,
-                        display_name=selection.cl_name,
-                        history_sort_key=selection.cl_name,
-                    )
-            else:
-                # Project selection
-                prefix = _vcs_prompt_prefix(project_file, project_name)
-                if open_in_editor:
-                    self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
-                        initial_text=prefix,
-                        display_name=project_name,
-                        history_sort_key=project_name,
-                    )
-                else:
-                    self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-                        initial_text=prefix,
-                        display_name=project_name,
-                        history_sort_key=project_name,
-                    )
-
         self.push_screen(ProjectSelectModal(), on_project_select)  # type: ignore[attr-defined]
+
+    def _start_custom_agent_from_selection(
+        self,
+        selection: SelectionItem,
+        *,
+        open_in_editor: bool = False,
+    ) -> None:
+        """Start a custom agent from a previously resolved selection.
+
+        Args:
+            selection: The project/CL selection item.
+            open_in_editor: Whether to open in editor instead of prompt bar.
+        """
+        project_name: str = selection.project_name
+        project_file = os.path.expanduser(
+            f"~/.sase/projects/{project_name}/{project_name}.gp"
+        )
+
+        if selection.item_type == "cl" and selection.cl_name:
+            prefix = _vcs_prompt_prefix(project_file, selection.cl_name)
+            if open_in_editor:
+                self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
+                    initial_text=prefix,
+                    display_name=selection.cl_name,
+                    history_sort_key=selection.cl_name,
+                )
+            else:
+                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                    initial_text=prefix,
+                    display_name=selection.cl_name,
+                    history_sort_key=selection.cl_name,
+                )
+        else:
+            # Project selection
+            prefix = _vcs_prompt_prefix(project_file, project_name)
+            if open_in_editor:
+                self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
+                    initial_text=prefix,
+                    display_name=project_name,
+                    history_sort_key=project_name,
+                )
+            else:
+                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                    initial_text=prefix,
+                    display_name=project_name,
+                    history_sort_key=project_name,
+                )
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.

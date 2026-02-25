@@ -72,6 +72,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Leader Mode (,)",
         [
             (",!", "Run command (use current CL)"),
+            (",@", "Repeat last @ selection"),
         ],
     ),
     (
@@ -144,6 +145,12 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
+        "Leader Mode (,)",
+        [
+            (",@", "Repeat last @ selection"),
+        ],
+    ),
+    (
         "Bang Mode (!)",
         [
             ("!!", "Run background command"),
@@ -187,6 +194,12 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("@", "Run agent"),
             ("X", "Kill current command (or toggle axe)"),
+        ],
+    ),
+    (
+        "Leader Mode (,)",
+        [
+            (",@", "Repeat last @ selection"),
         ],
     ),
     (
@@ -234,5 +247,5 @@ TAB_DISPLAY_NAMES = {
 COLUMN_SPLITS = {
     "changespecs": 2,  # Left: Navigation, CL Actions; Right: rest
     "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
-    "axe": 3,  # Left: Navigation, BgCmds, Bang Mode; Right: rest
+    "axe": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
 }

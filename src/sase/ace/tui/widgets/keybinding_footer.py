@@ -250,12 +250,17 @@ class KeybindingFooter(Horizontal):
                 bindings.append(("^N/P", f"lumberjacks ({lumberjack_total})"))
         return bindings
 
-    def update_leader_bindings(self) -> None:
-        """Update bindings to show leader mode options."""
-        bindings = [
-            ("!", "run cmd (CL)"),
-            ("Esc", "cancel"),
-        ]
+    def update_leader_bindings(self, *, current_tab: str = "changespecs") -> None:
+        """Update bindings to show leader mode options.
+
+        Args:
+            current_tab: The currently active tab name.
+        """
+        bindings: list[tuple[str, str]] = []
+        if current_tab == "changespecs":
+            bindings.append(("!", "run cmd (CL)"))
+        bindings.append(("@", "repeat last @"))
+        bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix
         prefix = Text()
