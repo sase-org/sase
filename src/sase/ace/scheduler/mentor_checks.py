@@ -354,8 +354,8 @@ def _add_matching_profiles_upfront(
     """
     updates: list[str] = []
 
-    # Don't add profiles for terminal statuses
-    if changespec.status in ("WIP", "Reverted", "Submitted", "Archived"):
+    # Don't add profiles for terminal statuses or Mailed CLs
+    if changespec.status in ("WIP", "Mailed", "Reverted", "Submitted", "Archived"):
         return updates
 
     matching_profiles = _get_matching_profiles_for_entry(changespec)
@@ -563,8 +563,8 @@ def check_mentors(
     updates: list[str] = []
     mentors_started = 0
 
-    # Don't check mentors for terminal statuses
-    if changespec.status in ("WIP", "Reverted", "Submitted", "Archived"):
+    # Don't check mentors for terminal statuses or Mailed CLs
+    if changespec.status in ("WIP", "Mailed", "Reverted", "Submitted", "Archived"):
         return updates, mentors_started
 
     # Phase 1: Check completion of running mentors
