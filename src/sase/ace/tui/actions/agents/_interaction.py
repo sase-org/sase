@@ -220,6 +220,15 @@ class AgentInteractionMixin:
         chat_path = agent.response_path
         prefix = f"#resume:{chat_path} "
 
+        from sase.chat_history import extract_prompt_from_chat_file
+        from sase.xprompt import extract_vcs_workflow_tag
+
+        prompt_text = extract_prompt_from_chat_file(chat_path)
+        if prompt_text:
+            vcs_tag = extract_vcs_workflow_tag(prompt_text)
+            if vcs_tag:
+                prefix = f"{vcs_tag}{prefix}"
+
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
             display_name=f"resume({agent.cl_name or 'agent'})",

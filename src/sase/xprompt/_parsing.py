@@ -348,6 +348,25 @@ def _get_vcs_tag_pattern() -> re.Pattern[str]:
     return _VCS_TAG_PATTERN
 
 
+def extract_vcs_workflow_tag(prompt: str) -> str | None:
+    """Extract a leading VCS workflow tag from a prompt string.
+
+    Skips leading ``%directive`` lines before checking for a VCS tag.
+    Returns the matched tag (e.g., ``"#gh:sase "``) or ``None``.
+    """
+    stripped = prompt
+    while stripped.startswith("%"):
+        line_end = stripped.find("\n")
+        if line_end == -1:
+            return None
+        stripped = stripped[line_end + 1 :]
+
+    match = _get_vcs_tag_pattern().match(stripped)
+    if match:
+        return match.group(0)
+    return None
+
+
 def strip_vcs_workflow_tag(prompt: str) -> str:
     """Strip a leading VCS workflow tag from a prompt string.
 

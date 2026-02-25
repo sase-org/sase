@@ -9,6 +9,7 @@ from sase.chat_history import (
     _generate_chat_filename,
     _get_branch_or_workspace_name,
     _get_chat_file_path,
+    extract_prompt_from_chat_file,
     list_chat_histories,
     load_chat_for_resume,
     _load_chat_history,
@@ -254,6 +255,88 @@ Follow up answer
 
     # Turns should be separated by ---
     assert "---" in result
+
+
+def test_extract_prompt_from_chat_file_basic() -> None:
+    """Test extracting the most recent prompt from a chat file."""
+    content = """\
+# Chat History - run
+
+**Timestamp:** 2024-01-01
+
+## Prompt
+
+#gh:sase Fix the login bug
+
+## Response
+
+Done!
+"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test.md")
+        with open(test_file, "w") as f:
+            f.write(content)
+
+        result = extract_prompt_from_chat_file(test_file)
+
+    assert result == "#gh:sase Fix the login bug"
+
+
+def test_extract_prompt_from_chat_file_resumed() -> None:
+    """Test extracting the most recent prompt from a resumed chat file."""
+    content = """\
+# Chat History - run
+
+**Timestamp:** 2024-01-02
+
+## Previous Conversation
+
+### Prompt
+
+#gh:sase First prompt
+
+### Response
+
+First response
+
+---
+
+## Prompt
+
+#resume:path Follow up
+
+## Response
+
+Follow up answer
+"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test.md")
+        with open(test_file, "w") as f:
+            f.write(content)
+
+        result = extract_prompt_from_chat_file(test_file)
+
+    # Most recent prompt (shallowest heading = last chronologically)
+    assert result is not None
+    assert "#resume:path Follow up" in result
+
+
+def test_extract_prompt_from_chat_file_missing_file() -> None:
+    """Test returns None for a missing file."""
+    result = extract_prompt_from_chat_file("/nonexistent/path/chat.md")
+    assert result is None
+
+
+def test_extract_prompt_from_chat_file_no_turns() -> None:
+    """Test returns None when file has no prompt/response structure."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test.md")
+        with open(test_file, "w") as f:
+            f.write("Just some raw text.")
+
+        result = extract_prompt_from_chat_file(test_file)
+
+    assert result is None
 
 
 def test_load_chat_for_resume_fallback() -> None:

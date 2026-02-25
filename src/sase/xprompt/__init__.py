@@ -10,6 +10,7 @@ This module provides a replacement for the legacy snippet system, adding:
 
 from ._parsing import (
     escape_for_xprompt,
+    extract_vcs_workflow_tag,
     parse_workflow_reference,
     strip_hitl_suffix,
     strip_vcs_workflow_tag,
@@ -86,6 +87,7 @@ __all__ = [
     "get_xprompt_or_workflow",
     # Parsing
     "escape_for_xprompt",
+    "extract_vcs_workflow_tag",
     "parse_workflow_reference",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",

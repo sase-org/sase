@@ -1,7 +1,11 @@
 """Tests for xprompt._parsing functions."""
 
+import re
+from unittest.mock import patch
+
 from sase.xprompt._parsing import (
     _preprocess_paren_shorthand,
+    extract_vcs_workflow_tag,
     find_matching_paren_for_args,
     parse_workflow_reference,
     preprocess_shorthand_syntax,
@@ -121,6 +125,72 @@ def test_paren_double_colon_shorthand_empty_parens() -> None:
 
 
 # Tests for mixed directives
+
+
+# Tests for extract_vcs_workflow_tag
+
+# Build a test pattern that matches #gh, #hg, #git tags
+_TEST_VCS_PATTERN = re.compile(
+    r"^#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|:[^\s]*|)\s"
+)
+
+
+def _patch_vcs_pattern():
+    """Patch _get_vcs_tag_pattern to use the test pattern."""
+    return patch(
+        "sase.xprompt._parsing._get_vcs_tag_pattern",
+        return_value=_TEST_VCS_PATTERN,
+    )
+
+
+def test_extract_vcs_workflow_tag_basic() -> None:
+    """Test extracting a basic VCS tag like #gh:sase."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("#gh:sase Fix the bug") == "#gh:sase "
+
+
+def test_extract_vcs_workflow_tag_hg_hitl() -> None:
+    """Test extracting a VCS tag with !! HITL suffix."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("#hg!!:cl Fix it") == "#hg!!:cl "
+
+
+def test_extract_vcs_workflow_tag_git_paren() -> None:
+    """Test extracting a VCS tag with parenthesis args."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("#git(repo) Do stuff") == "#git(repo) "
+
+
+def test_extract_vcs_workflow_tag_with_directives() -> None:
+    """Test that %directive lines are skipped before VCS tag."""
+    with _patch_vcs_pattern():
+        result = extract_vcs_workflow_tag("%plan\n#gh:sase Fix the bug")
+        assert result == "#gh:sase "
+
+
+def test_extract_vcs_workflow_tag_multiple_directives() -> None:
+    """Test skipping multiple %directive lines."""
+    with _patch_vcs_pattern():
+        result = extract_vcs_workflow_tag("%plan\n%fast\n#gh:sase Fix the bug")
+        assert result == "#gh:sase "
+
+
+def test_extract_vcs_workflow_tag_no_tag() -> None:
+    """Test returns None when no VCS tag is present."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("Just a normal prompt") is None
+
+
+def test_extract_vcs_workflow_tag_directive_only() -> None:
+    """Test returns None when prompt is only a directive with no newline."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("%plan") is None
+
+
+def test_extract_vcs_workflow_tag_empty() -> None:
+    """Test returns None for empty prompt."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("") is None
 
 
 # Tests for strip_vcs_workflow_tag
