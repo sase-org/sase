@@ -209,6 +209,21 @@ def test_read_gemini_log_file_exists(tmp_path: Path, monkeypatch: Any) -> None:
     assert result[0].index == 1
 
 
+def test_read_gemini_log_timestamp_is_eastern(tmp_path: Path, monkeypatch: Any) -> None:
+    """Gemini log timestamps are tagged as Eastern, not UTC."""
+    log_file = tmp_path / "gemini_api_proxy.par.INFO"
+    log_file.write_text(_gemini_log_line("thought", time="14:30:00"))
+    monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
+    result = read_gemini_log()
+    assert result is not None
+    ts = result[0].timestamp
+    # Timestamp should preserve 14:30 as Eastern, not mark it as UTC
+    assert "14:30:00" in ts
+    assert ts.endswith("-05:00") or ts.endswith("-04:00")  # EST or EDT
+    # Formatting via _format_timestamp should keep the same hour
+    assert _format_timestamp(ts) == "14:30:00"
+
+
 def test_read_gemini_log_multiple_thoughts_newest_first(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

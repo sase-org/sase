@@ -6,9 +6,11 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from sase.sase_utils import EASTERN_TZ
 
 # Files larger than this use tail-seeking optimization
 _TAIL_THRESHOLD = 500 * 1024  # 500 KB
@@ -83,8 +85,10 @@ def _extract_gemini_thoughts(
         if not m:
             continue
         month, day, time_str = m.group(1), m.group(2), m.group(3)
-        year = datetime.now(tz=UTC).year
-        timestamp = f"{year}-{month}-{day}T{time_str}Z"
+        year = datetime.now(tz=EASTERN_TZ).year
+        h, mn, s = (int(x) for x in time_str.split(":"))
+        dt_obj = datetime(year, int(month), int(day), h, mn, s, tzinfo=EASTERN_TZ)
+        timestamp = dt_obj.isoformat()
 
         # Decode byte literal → bytes → JSON
         byte_literal = line[pos + len(marker) :].rstrip()
