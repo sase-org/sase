@@ -47,6 +47,10 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     if data.get("approve"):
         agent.approve = True
 
+    # Set PLANNING status for agents launched with %plan directive
+    if data.get("plan") and agent.status == "RUNNING":
+        agent.status = "PLANNING"
+
     # Check for waiting.json to set WAITING status
     waiting_path = Path(artifacts_dir) / "waiting.json"
     if waiting_path.exists() and agent.status == "RUNNING":
