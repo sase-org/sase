@@ -47,6 +47,7 @@ class PromptHistoryModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("ctrl+g", "edit_first", "Edit in editor"),
+        ("ctrl+y", "copy_and_cancel", "Copy & cancel"),
     ]
 
     def __init__(
@@ -122,7 +123,7 @@ class PromptHistoryModal(
                             yield Static("", id="prompt-history-preview", markup=False)
                             yield Static("", id="prompt-history-metadata")
                 yield Static(
-                    "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • Esc/q: cancel",
+                    "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • ^y: copy • Esc/q: cancel",
                     id="prompt-history-hints",
                 )
 
@@ -260,6 +261,18 @@ class PromptHistoryModal(
                     prompt_text=prompt_text,
                 )
             )
+
+    def action_copy_and_cancel(self) -> None:
+        """Handle Ctrl+Y - copy selected prompt to clipboard and dismiss."""
+        prompt_text = self._get_selected_prompt_text()
+        if prompt_text:
+            from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+
+            if copy_to_system_clipboard(prompt_text):
+                self.app.notify("Copied prompt to clipboard")
+            else:
+                self.app.notify("Failed to copy to clipboard", severity="error")
+        self.dismiss(None)
 
     def _update_preview(self, item: _PromptDisplayItem) -> None:
         """Update preview panel with full prompt and metadata."""

@@ -167,7 +167,7 @@ class ClipboardMixin:
         if content is None:
             content = _format_changespec_for_clipboard(changespec)
 
-        if _copy_to_system_clipboard(content.strip()):
+        if copy_to_system_clipboard(content.strip()):
             self.notify("Copied: ChangeSpec")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
@@ -194,7 +194,7 @@ class ClipboardMixin:
         ]
         final_content = _format_multi_copy_content(contents)
 
-        if _copy_to_system_clipboard(final_content):
+        if copy_to_system_clipboard(final_content):
             self.notify("Copied: ChangeSpec + Snapshot")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
@@ -206,7 +206,7 @@ class ClipboardMixin:
         if bug_number is None:
             return  # Error already notified
 
-        if _copy_to_system_clipboard(bug_number):
+        if copy_to_system_clipboard(bug_number):
             self.notify(f"Copied: Bug Number ({bug_number})")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
@@ -218,7 +218,7 @@ class ClipboardMixin:
         if cl_number is None:
             return  # Error already notified
 
-        if _copy_to_system_clipboard(cl_number):
+        if copy_to_system_clipboard(cl_number):
             self.notify(f"Copied: CL Number ({cl_number})")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
@@ -228,7 +228,7 @@ class ClipboardMixin:
         changespec = self.changespecs[self.current_idx]
         cl_name = changespec.name
 
-        if _copy_to_system_clipboard(cl_name):
+        if copy_to_system_clipboard(cl_name):
             self.notify(f"Copied: CL Name ({cl_name})")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
@@ -240,7 +240,7 @@ class ClipboardMixin:
         if content is None:
             return  # Error already notified
 
-        if _copy_to_system_clipboard(content.strip()):
+        if copy_to_system_clipboard(content.strip()):
             self.notify("Copied: Project Spec File")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
@@ -256,7 +256,7 @@ class ClipboardMixin:
         contents = [("`sase ace` Snapshot", snapshot_content.strip())]
         final_content = _format_multi_copy_content(contents)
 
-        if _copy_to_system_clipboard(final_content):
+        if copy_to_system_clipboard(final_content):
             self.notify("Copied: Snapshot")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
@@ -281,7 +281,7 @@ class ClipboardMixin:
         if chat_path.startswith(home):
             chat_path = "~" + chat_path[len(home) :]
 
-        if _copy_to_system_clipboard(chat_path):
+        if copy_to_system_clipboard(chat_path):
             display_path = (
                 chat_path if len(chat_path) <= 50 else "..." + chat_path[-47:]
             )
@@ -315,7 +315,7 @@ class ClipboardMixin:
         if file_path.startswith(home):
             file_path = "~" + file_path[len(home) :]
 
-        if _copy_to_system_clipboard(file_path):
+        if copy_to_system_clipboard(file_path):
             display_path = (
                 file_path if len(file_path) <= 50 else "..." + file_path[-47:]
             )
@@ -365,7 +365,7 @@ class ClipboardMixin:
         contents = [(source, output.strip())]
         final_content = _format_multi_copy_content(contents)
 
-        if _copy_to_system_clipboard(final_content):
+        if copy_to_system_clipboard(final_content):
             lines = len(output.strip().split("\n"))
             self.notify(f"Copied: {source} ({lines} lines)")  # type: ignore[attr-defined]
         else:
@@ -390,7 +390,7 @@ class ClipboardMixin:
         contents = [(source, output.strip())]
         final_content = _format_multi_copy_content(contents)
 
-        if _copy_to_system_clipboard(final_content):
+        if copy_to_system_clipboard(final_content):
             lines = len(output.strip().split("\n"))
             self.notify(f"Copied: {source} ({lines} lines)")  # type: ignore[attr-defined]
         else:
@@ -506,7 +506,7 @@ def _format_multi_copy_content(contents: list[tuple[str, str]]) -> str:
     return "\n".join(parts)
 
 
-def _copy_to_system_clipboard(content: str) -> bool:
+def copy_to_system_clipboard(content: str) -> bool:
     """Copy content to system clipboard.
 
     Args:
