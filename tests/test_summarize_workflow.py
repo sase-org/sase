@@ -18,6 +18,35 @@ def test_extract_summary_with_summary_prefix() -> None:
     assert result == "Fixed typo in config file"
 
 
+def test_extract_summary_strips_reasoning_preamble() -> None:
+    """Test stripping LLM reasoning sentences like 'I will read...'."""
+    result = _extract_summary(
+        "I will read the specified file to generate a concise summary of the "
+        "proposed changes. I will read the contents of the proposed response "
+        "file using a shell command to circumvent the workspace restrictions. "
+        "Removed prohibited `ActivityController` from "
+        "`competing_deals_data_provider.dart`, updating related tests and "
+        "BUILD dependencies to fix presubmit errors."
+    )
+    assert result.startswith("Removed prohibited")
+    assert "I will read" not in result
+
+
+def test_extract_summary_strips_let_me_preamble() -> None:
+    """Test stripping 'Let me...' reasoning preamble."""
+    result = _extract_summary(
+        "Let me summarize the changes. Added new config option for timeouts."
+    )
+    assert result == "Added new config option for timeouts."
+    assert "Let me" not in result
+
+
+def test_extract_summary_preserves_single_sentence() -> None:
+    """Test that a single sentence starting with 'I will' is NOT stripped."""
+    result = _extract_summary("I will not be stripped since I am alone.")
+    assert result == "I will not be stripped since I am alone."
+
+
 def test_extract_summary_with_quotes() -> None:
     """Test extracting summary wrapped in double quotes."""
     result = _extract_summary('"Fixed typo in config file"')

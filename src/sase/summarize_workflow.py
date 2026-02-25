@@ -1,5 +1,6 @@
 """Workflow for summarizing files using Gemini AI."""
 
+import re
 import sys
 from typing import NoReturn
 
@@ -49,6 +50,18 @@ def _extract_summary(response_content: str) -> str:
     for pattern in preamble_patterns:
         if summary.lower().startswith(pattern.lower()):
             summary = summary[len(pattern) :].strip()
+
+    # Strip LLM reasoning preamble: sentences like "I will read the file...",
+    # "Let me summarize...", etc. that describe the model's process rather
+    # than being the actual summary.
+    reasoning_prefix = re.compile(
+        r"^(I will\b|I'll\b|Let me\b|First,?\s+I\b)", re.IGNORECASE
+    )
+    # Split into sentences on ". " boundaries (keeping the period with the sentence)
+    sentences = re.split(r"(?<=\.)\s+", summary)
+    while len(sentences) > 1 and reasoning_prefix.match(sentences[0]):
+        sentences.pop(0)
+    summary = " ".join(sentences)
 
     # Remove quotes if the entire response is quoted
     if summary.startswith('"') and summary.endswith('"'):
