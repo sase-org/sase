@@ -400,6 +400,10 @@ class KeybindingFooter(Horizontal):
         # Revive dismissed agents
         bindings.append(("R", "revive"))
 
+        # Jump to CL (only for ChangeSpec-level agents, not project-level)
+        if agent is not None and not agent.is_project_agent:
+            bindings.append(("Enter", "go to CL"))
+
         # Show/hide hideable agents (only when both always-visible and hideable exist)
         if has_always_visible and (hidden_count > 0 or not hide_non_run):
             if hide_non_run:

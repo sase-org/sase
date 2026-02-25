@@ -103,15 +103,87 @@ def handle_jump_to_changespec(app: object, notification: Notification) -> bool:
         app.notify("No changespec_name in notification", severity="warning")  # type: ignore[attr-defined]
         return False
 
+    project_file = notification.action_data.get("project_file", "")
+    return navigate_to_changespec_tab(app, changespec_name, project_file)
+
+
+def navigate_to_changespec_tab(
+    app: object, changespec_name: str, project_file: str
+) -> bool:
+    """Navigate to a ChangeSpec in the CLs tab, changing query if needed.
+
+    1. Switch to CLs tab
+    2. Search for changespec_name in current filtered list
+    3. If found, select it
+    4. If NOT found, change query to ``project:<project> AND NOT status:SUBMITTED``,
+       reload, and select it
+
+    Args:
+        app: The AceApp instance.
+        changespec_name: The name of the ChangeSpec to navigate to.
+        project_file: Path to the .gp project file (used to derive project name).
+
+    Returns:
+        True if the changespec was found and selected.
+    """
+    from pathlib import Path
+
+    from ....query import parse_query, to_canonical_string
+    from ....query_history import push_to_prev_stack, save_query_history
+
     app.current_tab = "changespecs"  # type: ignore[attr-defined]
 
+    # Search in current filtered list
     changespecs = app.changespecs  # type: ignore[attr-defined]
     for idx, cs in enumerate(changespecs):
         if cs.name == changespec_name:
             app.current_idx = idx  # type: ignore[attr-defined]
             return True
 
-    app.notify(f"ChangeSpec '{changespec_name}' not found", severity="warning")  # type: ignore[attr-defined]
+    # Not found — change query to show the target ChangeSpec
+    if not project_file:
+        app.notify(  # type: ignore[attr-defined]
+            f"ChangeSpec '{changespec_name}' not found", severity="warning"
+        )
+        return False
+
+    project_name = Path(project_file).parent.name
+    new_query = f"project:{project_name} AND NOT status:SUBMITTED"
+
+    try:
+        new_parsed = parse_query(new_query)
+        new_canonical = to_canonical_string(new_parsed)
+        current_canonical = app.canonical_query_string  # type: ignore[attr-defined]
+
+        # Push old query to history so user can go back with ^
+        if new_canonical != current_canonical:
+            push_to_prev_stack(
+                current_canonical,
+                app._query_history,  # type: ignore[attr-defined]
+            )
+            save_query_history(app._query_history)  # type: ignore[attr-defined]
+
+        app.parsed_query = new_parsed  # type: ignore[attr-defined]
+        app.query_string = new_query  # type: ignore[attr-defined]
+        app._load_changespecs()  # type: ignore[attr-defined]
+        app._save_current_query()  # type: ignore[attr-defined]
+
+        # Search again in the new list
+        changespecs = app.changespecs  # type: ignore[attr-defined]
+        for idx, cs in enumerate(changespecs):
+            if cs.name == changespec_name:
+                app.current_idx = idx  # type: ignore[attr-defined]
+                return True
+
+    except Exception as e:
+        app.notify(  # type: ignore[attr-defined]
+            f"Navigation error: {e}", severity="error"
+        )
+        return False
+
+    app.notify(  # type: ignore[attr-defined]
+        f"ChangeSpec '{changespec_name}' not found", severity="warning"
+    )
     return False
 
 

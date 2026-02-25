@@ -313,6 +313,18 @@ class AgentsMixinCore(
         self.hide_non_run_agents = not self.hide_non_run_agents
         self._load_agents()
 
+    def action_jump_to_agent_changespec(self) -> None:
+        """Jump to the CLs tab selecting the ChangeSpec for the current agent."""
+        if self.current_tab != "agents" or not self._agents:
+            return
+        agent = self._agents[self.current_idx]
+        if agent.is_project_agent:
+            return  # Only available for ChangeSpec-level agents
+
+        from ._notification_actions import navigate_to_changespec_tab
+
+        navigate_to_changespec_tab(self, agent.cl_name, agent.project_file)
+
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
         from ...widgets import AgentDetail, AgentInfoPanel

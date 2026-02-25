@@ -184,6 +184,8 @@ class AceApp(
         Binding("minus", "collapse_file_trim", "Collapse", show=False),
         Binding("equals_sign", "reset_file_trim", "Reset Trim", show=False),
         Binding("asterisk", "show_all_file_lines", "Show All", show=False),
+        # Jump to CL from agent (agents tab)
+        Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
     ]
 
     # Reactive properties
