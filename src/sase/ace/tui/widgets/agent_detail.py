@@ -8,8 +8,6 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static
 
-from sase.llm_provider.registry import get_default_provider_name
-
 from ..models.agent import Agent
 from .file_panel import (
     AgentFilePanel,
@@ -40,30 +38,6 @@ _MODE_LABELS: dict[_DetailPanelMode, str] = {
     _DetailPanelMode.INFO: "collapsed",
 }
 
-# Cached result of provider detection (doesn't change during a TUI session)
-_gemini_provider_cache: bool | None = None
-
-
-def _is_gemini_provider() -> bool:
-    """Check if the default LLM provider is Gemini (cached)."""
-    global _gemini_provider_cache
-    if _gemini_provider_cache is None:
-        try:
-            _gemini_provider_cache = get_default_provider_name() == "gemini"
-        except Exception:
-            _gemini_provider_cache = False
-    return _gemini_provider_cache
-
-
-def _default_panel_mode() -> _DetailPanelMode:
-    """Get the default panel mode based on the LLM provider.
-
-    Returns INFO for Gemini (hides thinking by default), AUTO otherwise.
-    """
-    if _is_gemini_provider():
-        return _DetailPanelMode.INFO
-    return _DetailPanelMode.AUTO
-
 
 class AgentDetail(Static):
     """Combined widget with prompt and file panels."""
@@ -72,14 +46,13 @@ class AgentDetail(Static):
         """Initialize the agent detail view."""
         super().__init__(**kwargs)
         self._layout_swapped: bool = False
-        self._panel_mode: _DetailPanelMode = _default_panel_mode()
+        self._panel_mode: _DetailPanelMode = _DetailPanelMode.AUTO
         self._thinking_auto_shown: bool = False
         self._current_agent: Agent | None = None
         self._has_file_content: bool = False
         self._has_thinking_content: bool = False
         self._file_count: int = 0
         self._file_index: int = 0
-        self._scroll_thinking_to_bottom: bool = False
         self._trim_visible_lines: int = 0
         self._trim_total_lines: int = 0
         self._trim_is_trimmed: bool = False
@@ -147,13 +120,7 @@ class AgentDetail(Static):
             self._thinking_auto_shown = False
             self._has_file_content = False
             self._has_thinking_content = False
-            if self._panel_mode == _DetailPanelMode.THINKING:
-                # Keep thinking panel visible; re-enable scroll-to-bottom for
-                # Gemini so the new agent's log starts at the latest entry.
-                if _is_gemini_provider():
-                    self._scroll_thinking_to_bottom = True
-            else:
-                self._scroll_thinking_to_bottom = False
+            if self._panel_mode != _DetailPanelMode.THINKING:
                 thinking_scroll = self.query_one(
                     "#agent-thinking-scroll", VerticalScroll
                 )
@@ -242,9 +209,8 @@ class AgentDetail(Static):
         file_scroll.add_class("hidden")
         thinking_scroll.add_class("hidden")
         prompt_scroll.add_class("expanded")
-        self._panel_mode = _default_panel_mode()
+        self._panel_mode = _DetailPanelMode.AUTO
         self._thinking_auto_shown = False
-        self._scroll_thinking_to_bottom = False
         self._has_file_content = False
         self._has_thinking_content = False
         self._file_count = 0
@@ -389,17 +355,7 @@ class AgentDetail(Static):
             self._panel_mode = _DetailPanelMode.THINKING
             self._thinking_auto_shown = False
 
-            # Gemini: scroll to bottom since log has latest entries at bottom
-            if _is_gemini_provider():
-                self._scroll_thinking_to_bottom = True
-
             thinking_panel.update_display(agent)
-
-            # Scroll after content is rendered (handles cached content case)
-            if self._scroll_thinking_to_bottom:
-                self.call_after_refresh(
-                    lambda: thinking_scroll.scroll_end(animate=False)
-                )
 
         elif mode == _DetailPanelMode.INFO:
             # Hide both secondary panels, prompt at 100%
@@ -451,12 +407,6 @@ class AgentDetail(Static):
             if self._layout_swapped:
                 prompt_scroll.add_class("layout-priority")
                 thinking_scroll.add_class("layout-secondary")
-            # Gemini: scroll to bottom when thinking content first arrives
-            if self._scroll_thinking_to_bottom:
-                self._scroll_thinking_to_bottom = False
-                self.call_after_refresh(
-                    lambda: thinking_scroll.scroll_end(animate=False)
-                )
         else:
             thinking_scroll.add_class("hidden")
             prompt_scroll.add_class("expanded")
