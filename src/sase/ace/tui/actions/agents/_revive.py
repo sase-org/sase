@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -141,11 +141,14 @@ class AgentRevivalMixin:
         self._load_agents()  # type: ignore[attr-defined]
 
     def _restore_agent_artifacts(self, agent: Agent) -> None:
-        """Restore minimal artifact files so load_all_agents() rediscovers the agent.
+        """Restore artifact files so load_all_agents() rediscovers the agent.
+
+        Writes back the full state that the loaders expect so revived agents
+        appear identical to their originals in the TUI.
 
         For RUNNING agents: writes done.json to the artifacts directory.
-        For WORKFLOW parents: writes workflow_state.json.
-        For WORKFLOW children: writes prompt_step_<idx>.json to the parent's dir.
+        For WORKFLOW parents: writes workflow_state.json with all metadata.
+        For WORKFLOW children: writes prompt_step_<idx>.json with all metadata.
         """
         from ...models.agent import AgentType
 
@@ -191,7 +194,8 @@ class AgentRevivalMixin:
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
                 step_file = artifacts_dir / f"prompt_step_{agent.step_index}.json"
                 if not step_file.exists():
-                    step_file.write_text(json.dumps({"status": agent.status or "DONE"}))
+                    step_data = self._build_step_marker_data(agent)
+                    step_file.write_text(json.dumps(step_data))
             else:
                 # Parent workflow: write workflow_state.json
                 timestamp = agent._extract_artifacts_timestamp()
@@ -208,6 +212,81 @@ class AgentRevivalMixin:
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
                 state_file = artifacts_dir / "workflow_state.json"
                 if not state_file.exists():
-                    state_file.write_text(
-                        json.dumps({"status": agent.status or "DONE"})
-                    )
+                    state_data = self._build_workflow_state_data(agent)
+                    state_file.write_text(json.dumps(state_data))
+
+    @staticmethod
+    def _build_workflow_state_data(agent: Agent) -> dict[str, Any]:
+        """Build a workflow_state.json dict from a parent workflow Agent."""
+        status = agent.status or "DONE"
+        # Map display statuses back to the format load_workflow_states() expects
+        status_map = {
+            "DONE": "completed",
+            "FAILED": "failed",
+            "WAITING INPUT": "waiting_hitl",
+            "RUNNING": "running",
+            "PLANNING": "running",
+            "PLAN APPROVED": "running",
+            "QUESTION": "running",
+        }
+        data: dict[str, Any] = {
+            "status": status_map.get(status, status),
+            "workflow_name": agent.workflow or "unknown",
+            "context": {"cl_name": agent.cl_name},
+            "appears_as_agent": agent.appears_as_agent,
+            "is_anonymous": agent.is_anonymous,
+        }
+        if agent.pid is not None:
+            data["pid"] = agent.pid
+        if agent.error_message:
+            data["error"] = agent.error_message
+        if agent.error_traceback:
+            data["traceback"] = agent.error_traceback
+        return data
+
+    @staticmethod
+    def _build_step_marker_data(agent: Agent) -> dict[str, Any]:
+        """Build a prompt_step_*.json dict from a child workflow Agent."""
+        status = agent.status or "DONE"
+        status_map = {
+            "DONE": "completed",
+            "FAILED": "failed",
+            "WAITING INPUT": "waiting_hitl",
+            "RUNNING": "in_progress",
+        }
+        data: dict[str, Any] = {
+            "status": status_map.get(status, status),
+            "workflow_name": agent.parent_workflow or agent.workflow or "unknown",
+            "step_name": agent.step_name or agent.cl_name,
+        }
+        if agent.step_type is not None:
+            data["step_type"] = agent.step_type
+        if agent.step_source is not None:
+            data["step_source"] = agent.step_source
+        if agent.step_output is not None:
+            data["output"] = agent.step_output
+        if agent.step_index is not None:
+            data["step_index"] = agent.step_index
+        if agent.total_steps is not None:
+            data["total_steps"] = agent.total_steps
+        if agent.parent_step_index is not None:
+            data["parent_step_index"] = agent.parent_step_index
+        if agent.parent_total_steps is not None:
+            data["parent_total_steps"] = agent.parent_total_steps
+        if agent.is_hidden_step:
+            data["hidden"] = True
+        if agent.artifacts_dir:
+            data["artifacts_dir"] = agent.artifacts_dir
+        if agent.diff_path:
+            data["diff_path"] = agent.diff_path
+        if agent.error_message:
+            data["error"] = agent.error_message
+        if agent.error_traceback:
+            data["traceback"] = agent.error_traceback
+        if agent.response_path:
+            data["response_path"] = agent.response_path
+        if agent.embedded_workflow_name:
+            data["embedded_workflow_name"] = agent.embedded_workflow_name
+        if agent.is_pre_prompt_step:
+            data["is_pre_prompt_step"] = True
+        return data
