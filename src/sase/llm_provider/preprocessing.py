@@ -73,11 +73,8 @@ def preprocess_prompt_early(
     """
     from sase.xprompt import process_xprompt_references
 
-    # 1-3. Directive extraction with fenced-block protection
-    fenced_blocks: list[str] = []
-    prompt = protect_fenced_blocks(prompt, fenced_blocks)
+    # 1. Directive extraction (fenced-block protection is built in)
     prompt, directives = extract_prompt_directives(prompt)
-    prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
     # 4. Optional Jinja2 rendering (workflow variables)
     if context is not None:

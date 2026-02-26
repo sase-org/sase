@@ -213,3 +213,31 @@ def test_plan_duplicate_raises() -> None:
     prompt = "%plan\n%plan\nFix the bug"
     with pytest.raises(DirectiveError, match="Duplicate directive '%plan'"):
         extract_prompt_directives(prompt)
+
+
+# --- Fenced code block protection tests ---
+
+
+def test_directive_inside_fenced_block_ignored() -> None:
+    """%model:opus inside triple backticks is not extracted."""
+    prompt = "```\n%model:opus\n```"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == prompt
+    assert directives == PromptDirectives()
+
+
+def test_directive_inside_quadruple_backtick_block_ignored() -> None:
+    """%model:opus inside quadruple backticks is not extracted."""
+    prompt = "````\n%model:opus\n````"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == prompt
+    assert directives == PromptDirectives()
+
+
+def test_directive_outside_fenced_block_still_extracted() -> None:
+    """%model:opus outside code blocks still works when code blocks are present."""
+    prompt = "%model:opus\n```\nsome code\n```\nRest of prompt"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert directives.model == "opus"
+    assert "```\nsome code\n```" in cleaned
+    assert "%model" not in cleaned

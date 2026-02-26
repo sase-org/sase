@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass, field
 
 from ._exceptions import DirectiveError
+from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import find_matching_paren_for_args, parse_args
 from .processor import process_xprompt_references
 
@@ -80,9 +81,13 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
     if "%" not in prompt:
         return prompt, PromptDirectives()
 
+    # Protect fenced code blocks so directives inside them are ignored
+    fenced_blocks: list[str] = []
+    prompt = protect_fenced_blocks(prompt, fenced_blocks)
+
     matches = list(re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE))
     if not matches:
-        return prompt, PromptDirectives()
+        return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
     # Collect known directive matches (we'll strip these from the prompt)
     seen: dict[str, str] = {}  # directive name -> raw arg value (single-value)
@@ -138,7 +143,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         regions_to_remove.append((match.start(), match_end))
 
     if not regions_to_remove:
-        return prompt, PromptDirectives()
+        return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
     # Remove directive regions from prompt (last-to-first to preserve positions)
     cleaned = prompt
@@ -177,4 +182,6 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         wait=expanded_multi.get("wait", []),
     )
 
+    # Restore fenced code blocks before returning
+    cleaned = unprotect_fenced_blocks(cleaned, fenced_blocks)
     return cleaned, directives
