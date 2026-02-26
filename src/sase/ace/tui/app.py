@@ -153,7 +153,7 @@ class AceApp(
         Binding("x", "kill_agent", "Kill", show=False),
         Binding("l", "expand_or_layout", "Expand / Layout", show=False),
         Binding("L", "expand_all_folds", "Expand All", show=False),
-        Binding("I", "toggle_layout", "Layout", show=False),
+        Binding("p", "toggle_layout", "Layout", show=False),
         Binding("i", "toggle_thinking", "Thinking", show=False),
         # Copy to clipboard (changespecs tab - % followed by key)
         Binding("percent_sign", "copy_tab_content", "Copy", show=False),
