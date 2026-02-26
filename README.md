@@ -71,7 +71,8 @@ sase
 | Command               | Description                                                  |
 | --------------------- | ------------------------------------------------------------ |
 | `sase ace`            | Interactive TUI for navigating and managing ChangeSpecs      |
-| `sase axe`            | Lumberjack-based daemon (orchestrator mode)                  |
+| `sase axe start`      | Start the lumberjack-based daemon (orchestrator mode)        |
+| `sase axe stop`       | Stop the running axe orchestrator                            |
 | `sase axe chop`       | List or run individual chop scripts                          |
 | `sase axe lumberjack` | List, run, or check status of lumberjacks                    |
 | `sase search`         | Search and filter ChangeSpecs with query expressions         |

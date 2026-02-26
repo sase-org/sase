@@ -82,7 +82,7 @@ The `--vcs-provider` CLI flag on `sase ace` and `sase axe` sets this variable in
 sase ace --vcs-provider git
 
 # Same for axe
-sase axe --vcs-provider hg
+sase axe --vcs-provider hg start
 ```
 
 Valid values: `git`, `hg`, `auto`.
@@ -466,7 +466,7 @@ sase ace --vcs-provider git
 sase ace --vcs-provider hg
 sase ace --vcs-provider auto
 
-sase axe --vcs-provider git
+sase axe start --vcs-provider git
 ```
 
 Valid values for all three methods: `git`, `hg`, `auto`.

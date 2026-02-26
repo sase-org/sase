@@ -334,8 +334,8 @@ def main() -> NoReturn:
                 print("Usage: sase axe lumberjack {list,run,status}")
                 sys.exit(1)
 
-        else:
-            # Bare `sase axe` — orchestrator mode
+        elif axe_sub == "start":
+            # `sase axe start` — orchestrator mode
             from sase.axe.config import AxeConfig, load_axe_config
             from sase.axe.orchestrator import Orchestrator
 
@@ -366,6 +366,20 @@ def main() -> NoReturn:
                 sys.exit(1)
             success = orchestrator.run()
             sys.exit(0 if success else 1)
+
+        elif axe_sub == "stop":
+            from sase.axe.process import stop_axe_daemon
+
+            if stop_axe_daemon():
+                print("Axe orchestrator stopped.")
+            else:
+                print("Axe orchestrator is not running.")
+            sys.exit(0)
+
+        else:
+            # Bare `sase axe` — no subcommand given
+            print("Usage: sase axe {start,stop,chop,lumberjack}")
+            sys.exit(1)
 
     # --- xprompt ---
     if args.command == "xprompt":

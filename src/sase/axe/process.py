@@ -61,6 +61,7 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
     cmd = [
         sase_cmd,
         "axe",
+        "start",
         "-r",
         str(config.max_runners),
         "--zombie-timeout",

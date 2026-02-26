@@ -180,7 +180,7 @@ chops:
   - hook_checks
 ```
 
-CLI flags on `sase axe` override `max_runners`, `zombie_timeout_seconds`, and `query` for a single run (see
+CLI flags on `sase axe start` override `max_runners`, `zombie_timeout_seconds`, and `query` for a single run (see
 [CLI Flags](#cli-flags)).
 
 Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
@@ -355,15 +355,24 @@ These are set automatically by sase when launching agent subprocesses and are no
 
 ### `sase axe`
 
-| Flag                | Values              | Default          | Description                                         |
-| ------------------- | ------------------- | ---------------- | --------------------------------------------------- |
-| `-q, --query`       | string              | `""` (all)       | Query string for filtering ChangeSpecs.             |
-| `-r, --max-runners` | int                 | config or `5`    | Maximum concurrent runners globally.                |
-| `--zombie-timeout`  | int (seconds)       | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
-| `--vcs-provider`    | `git`, `hg`, `auto` | -                | Override VCS provider.                              |
+| Flag             | Values              | Default | Description            |
+| ---------------- | ------------------- | ------- | ---------------------- |
+| `--vcs-provider` | `git`, `hg`, `auto` | -       | Override VCS provider. |
 
-For `sase axe`, CLI flags take precedence over values from the `axe` config section in `sase.yml`. If neither is set,
-the built-in defaults from `default_config.yml` are used.
+### `sase axe start`
+
+| Flag                | Values        | Default          | Description                                         |
+| ------------------- | ------------- | ---------------- | --------------------------------------------------- |
+| `-q, --query`       | string        | `""` (all)       | Query string for filtering ChangeSpecs.             |
+| `-r, --max-runners` | int           | config or `5`    | Maximum concurrent runners globally.                |
+| `--zombie-timeout`  | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
+
+For `sase axe start`, CLI flags take precedence over values from the `axe` config section in `sase.yml`. If neither is
+set, the built-in defaults from `default_config.yml` are used.
+
+### `sase axe stop`
+
+No flags. Stops the running axe orchestrator.
 
 ### `sase commit`
 

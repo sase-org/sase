@@ -83,28 +83,38 @@ def create_parser() -> argparse.ArgumentParser:
         "axe",
         help="Schedule-based daemon for continuous ChangeSpec status updates",
     )
-    # Options on root axe parser (for orchestrator mode = bare `sase axe`)
-    axe_parser.add_argument(
-        "-r",
-        "--max-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent runners (hooks, agents, mentors) globally (default: 5)",
-    )
-    axe_parser.add_argument(
-        "-q",
-        "--query",
-        default="",
-        help="Query string for filtering ChangeSpecs (empty = all ChangeSpecs). "
-        "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
-    )
+    # Only --vcs-provider lives on the root axe parser (applies globally)
     axe_parser.add_argument(
         "--vcs-provider",
         choices=["git", "hg", "auto"],
         default=None,
         help="Override VCS provider ('git', 'hg', or 'auto' for auto-detection)",
     )
-    axe_parser.add_argument(
+
+    # Nested subparsers for axe
+    axe_subparsers = axe_parser.add_subparsers(
+        dest="axe_subcommand", help="Axe subcommands"
+    )
+
+    # --- axe start ---
+    axe_start_parser = axe_subparsers.add_parser(
+        "start", help="Start the axe orchestrator (spawns all lumberjacks)"
+    )
+    axe_start_parser.add_argument(
+        "-r",
+        "--max-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent runners (hooks, agents, mentors) globally (default: 5)",
+    )
+    axe_start_parser.add_argument(
+        "-q",
+        "--query",
+        default="",
+        help="Query string for filtering ChangeSpecs (empty = all ChangeSpecs). "
+        "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
+    )
+    axe_start_parser.add_argument(
         "--zombie-timeout",
         type=int,
         default=None,
@@ -112,10 +122,8 @@ def create_parser() -> argparse.ArgumentParser:
         "Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
     )
 
-    # Nested subparsers for axe
-    axe_subparsers = axe_parser.add_subparsers(
-        dest="axe_subcommand", help="Axe subcommands"
-    )
+    # --- axe stop ---
+    axe_subparsers.add_parser("stop", help="Stop the running axe orchestrator")
 
     # --- axe chop ---
     axe_chop_parser = axe_subparsers.add_parser("chop", help="Chop management commands")
