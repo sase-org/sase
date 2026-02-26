@@ -400,7 +400,7 @@ class KeybindingFooter(Horizontal):
 
         # Layout toggle (when file or thinking panel is visible, not in info mode)
         if (file_visible or thinking_visible) and not info_mode:
-            bindings.append(("p", "layout"))
+            bindings.append(("I", "layout"))
 
         # Revive dismissed agents
         bindings.append(("R", "revive"))
