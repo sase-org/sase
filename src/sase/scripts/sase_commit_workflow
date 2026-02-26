@@ -333,9 +333,15 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Redirect stdout to stderr during CL amend to prevent
-    # stray prints from corrupting the JSON output parsed by
-    # the parent process (parse_bash_output).
+    # Redirect stdout to stderr at BOTH the Python level (sys.stdout) and the
+    # OS file-descriptor level (fd 1) during _amend_cl().  The Python-level
+    # redirect catches print() calls; the fd-level redirect catches output
+    # from subprocesses that inherit fd 1 (e.g., execute_workflow inside
+    # _build_note → get_file_summary).  Without the fd-level redirect, stray
+    # subprocess output preceding the JSON causes parse_bash_output() to skip
+    # JSON parsing and lose entry_id/cl_name entirely.
+    saved_fd = os.dup(1)
+    os.dup2(2, 1)  # point fd 1 (stdout) → fd 2 (stderr)
     saved_stdout = sys.stdout
     sys.stdout = sys.stderr
     try:
@@ -344,6 +350,8 @@ def main() -> None:
         )
     finally:
         sys.stdout = saved_stdout
+        os.dup2(saved_fd, 1)  # restore real stdout
+        os.close(saved_fd)
     print(json.dumps({
         "success": success,
         "entry_id": entry_id,
