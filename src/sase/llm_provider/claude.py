@@ -20,34 +20,6 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
 }
 
 
-def _mark_plan_approved_in_meta() -> None:
-    """Set ``plan_approved: true`` in ``agent_meta.json``.
-
-    This persists the plan-approved state on disk so that any TUI instance
-    (including on other machines) can show PLAN APPROVED instead of PLANNING.
-    """
-    import json
-
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        return
-
-    meta_path = Path(artifacts_dir) / "agent_meta.json"
-    meta: dict[str, object] = {}
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
-
-    meta["plan_approved"] = True
-    try:
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-    except OSError:
-        pass
-
-
 class ClaudeCodeProvider(LLMProvider):
     """LLM provider that invokes the Claude Code CLI tool."""
 
@@ -145,10 +117,6 @@ class ClaudeCodeProvider(LLMProvider):
             plan_file_path = marker_path.read_text().strip()
             # Clean up the approval directory
             shutil.rmtree(approval_dir)
-
-            # Mark plan as approved in agent_meta.json so other TUI instances
-            # (e.g. on another machine) show PLAN APPROVED instead of PLANNING
-            _mark_plan_approved_in_meta()
 
             if plan_file_path:
                 # Copy plan to ~/.sase/plans/ for the new session
