@@ -1,5 +1,6 @@
 """Agent data model for the Agents tab."""
 
+import dataclasses
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -353,6 +354,54 @@ class Agent:
             return f"20{ts[:6]}{ts[7:]}"
 
         return None
+
+    def to_bundle_dict(self) -> dict[str, Any]:
+        """Serialize this Agent to a dict for bundle persistence.
+
+        Converts AgentType to string and datetime to ISO format string.
+        """
+        result: dict[str, Any] = {}
+        for f in dataclasses.fields(self):
+            value = getattr(self, f.name)
+            if isinstance(value, AgentType):
+                value = value.value
+            elif isinstance(value, datetime):
+                value = value.isoformat()
+            result[f.name] = value
+        return result
+
+    @staticmethod
+    def from_bundle_dict(data: dict[str, Any]) -> "Agent":
+        """Reconstruct an Agent from a bundle dict.
+
+        Uses .get() with defaults for forward-compatibility with new fields.
+        """
+        agent_type = AgentType(data["agent_type"])
+        start_time = data.get("start_time")
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time)
+
+        kwargs: dict[str, Any] = {
+            "agent_type": agent_type,
+            "cl_name": data["cl_name"],
+            "project_file": data["project_file"],
+            "status": data["status"],
+            "start_time": start_time,
+        }
+
+        # Populate all optional fields from the bundle
+        for f in dataclasses.fields(Agent):
+            if f.name in kwargs:
+                continue
+            if f.name not in data:
+                continue
+            value = data[f.name]
+            # Skip None values for fields with non-None defaults (list fields)
+            if value is None and f.default_factory is not dataclasses.MISSING:  # type: ignore[comparison-overlap]
+                continue
+            kwargs[f.name] = value
+
+        return Agent(**kwargs)
 
     def get_response_content(self) -> str | None:
         """Get the response content for DONE agents.

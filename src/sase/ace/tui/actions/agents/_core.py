@@ -154,13 +154,38 @@ class AgentsMixinCore(
             if raw_suffix is not None
         }
 
-        # Capture dismissed agents before filtering (for revive support)
-        self._dismissed_agent_objects = [
+        # Capture dismissed agents found by the loader (for revive + self-healing)
+        dismissed_from_loader = [
             a
             for a in all_agents
             if a.identity in self._dismissed_agents
             or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)
         ]
+
+        # Supplement with bundles: load saved bundles for agents whose identity
+        # is in _dismissed_agents but not already found by the loader
+        from ....dismissed_agents import load_dismissed_bundles
+
+        loader_identities = {a.identity for a in dismissed_from_loader}
+        loader_suffixes = {
+            a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
+        }
+        for bundled_agent in load_dismissed_bundles():
+            if bundled_agent.identity in loader_identities:
+                continue
+            if (
+                bundled_agent.raw_suffix is not None
+                and bundled_agent.raw_suffix in loader_suffixes
+            ):
+                continue
+            # Only include if this agent is actually in the dismissed set
+            if bundled_agent.identity in self._dismissed_agents or (
+                bundled_agent.raw_suffix is not None
+                and bundled_agent.raw_suffix in dismissed_suffixes
+            ):
+                dismissed_from_loader.append(bundled_agent)
+
+        self._dismissed_agent_objects = dismissed_from_loader
 
         # Filter out dismissed agents
         all_agents = [
@@ -170,12 +195,15 @@ class AgentsMixinCore(
             and (a.raw_suffix is None or a.raw_suffix not in dismissed_suffixes)
         ]
 
-        # Self-healing: clean up stale artifacts from dismissed agents
-        # (fixes leftovers from the old _kill_workflow_agent bug)
+        # Self-healing: clean up stale artifacts only for loader-sourced
+        # dismissed agents (bundle-sourced agents have no artifacts to clean)
         from ._killing import delete_agent_artifacts
 
         for a in self._dismissed_agent_objects:
-            delete_agent_artifacts(a.artifacts_dir or a.get_artifacts_dir())
+            if a.identity in loader_identities or (
+                a.raw_suffix is not None and a.raw_suffix in loader_suffixes
+            ):
+                delete_agent_artifacts(a.artifacts_dir or a.get_artifacts_dir())
 
         # Categorize agents: always-visible (dismissable OR running) vs hideable
         always_visible = [a for a in all_agents if _is_always_visible(a)]

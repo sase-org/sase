@@ -111,6 +111,40 @@ class AgentKillingMixin:
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
+    def _save_agent_bundle(self, agent: Agent) -> None:
+        """Save a serialized bundle of agent data before artifact deletion.
+
+        Bundles are used to populate the revive modal after TUI restart.
+        Hook-based agents (FIX_HOOK, SUMMARIZE, MENTOR, CRS) are skipped
+        since they load from .gp file fields and persist across restarts.
+        """
+        from ...models.agent import AgentType
+        from ....dismissed_agents import load_dismissed_bundles, save_dismissed_bundles
+
+        # Skip hook-based agents — they persist via .gp file fields
+        if agent.agent_type in (
+            AgentType.FIX_HOOK,
+            AgentType.SUMMARIZE,
+            AgentType.MENTOR,
+            AgentType.CRS,
+        ):
+            return
+
+        bundles = load_dismissed_bundles()
+        bundles.append(agent)
+
+        # Also bundle workflow child steps when dismissing a parent
+        if not agent.is_workflow_child and agent.raw_suffix:
+            for step in self._agents:  # type: ignore[attr-defined]
+                if (
+                    step.is_workflow_child
+                    and step.parent_timestamp == agent.raw_suffix
+                    and step.parent_workflow == agent.workflow
+                ):
+                    bundles.append(step)
+
+        save_dismissed_bundles(bundles)
+
     def _persist_dismissed_agent(
         self, identity: tuple[AgentType, str, str | None]
     ) -> None:
@@ -342,6 +376,9 @@ class AgentKillingMixin:
                     f"workflow({workflow_name})",
                 )
 
+        # Save bundle before deleting artifacts (for revive support)
+        self._save_agent_bundle(agent)
+
         # Delete artifact files so the agent won't be reloaded on restart
         delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
 
@@ -419,6 +456,9 @@ class AgentKillingMixin:
 
             self.notify(f"Dismissed workflow {agent.workflow}")  # type: ignore[attr-defined]
 
+            # Save bundle before deleting artifacts (for revive support)
+            self._save_agent_bundle(agent)
+
             # Delete artifact files so the agent won't be reloaded on restart
             # (dismissed_agents.json has a size limit and can evict old entries)
             delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
@@ -459,6 +499,9 @@ class AgentKillingMixin:
             )
             self._load_agents()  # type: ignore[attr-defined]
             return
+
+        # Save bundle before deleting artifacts (for revive support)
+        self._save_agent_bundle(agent)
 
         # Delete artifact files so the agent won't be reloaded on restart
         delete_agent_artifacts(agent.get_artifacts_dir())

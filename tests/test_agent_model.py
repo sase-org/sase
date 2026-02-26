@@ -226,3 +226,126 @@ def test_agent_get_display_type_named_workflow_collapsed_shows_agent() -> None:
     )
     assert agent.get_display_type(is_expanded=False) == "agent"
     assert agent.get_display_type(is_expanded=True) == "gh"
+
+
+# --- Bundle Serialization Tests ---
+
+
+def test_bundle_round_trip_basic() -> None:
+    """Test to_bundle_dict / from_bundle_dict round-trip with basic fields."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        workspace_num=3,
+        raw_suffix="20250615103000",
+    )
+    bundle = agent.to_bundle_dict()
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert restored.agent_type == AgentType.RUNNING
+    assert restored.cl_name == "my_feature"
+    assert restored.project_file == "/tmp/test.gp"
+    assert restored.status == "DONE"
+    assert restored.start_time == datetime(2025, 6, 15, 10, 30, 0)
+    assert restored.workspace_num == 3
+    assert restored.raw_suffix == "20250615103000"
+    assert restored.identity == agent.identity
+
+
+def test_bundle_round_trip_datetime_serialization() -> None:
+    """Test that datetime is serialized as ISO string and restored."""
+    start = datetime(2025, 12, 25, 14, 30, 45)
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="test_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=start,
+        workflow="gh",
+    )
+    bundle = agent.to_bundle_dict()
+
+    # Verify datetime is serialized as ISO string
+    assert bundle["start_time"] == "2025-12-25T14:30:45"
+
+    # Verify round-trip preserves the datetime
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.start_time == start
+
+
+def test_bundle_round_trip_none_start_time() -> None:
+    """Test round-trip when start_time is None."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+    )
+    bundle = agent.to_bundle_dict()
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.start_time is None
+
+
+def test_bundle_round_trip_workflow_child() -> None:
+    """Test round-trip for a workflow child step."""
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        parent_workflow="gh",
+        parent_timestamp="20250615103000",
+        step_name="push",
+        step_type="agent",
+        step_index=2,
+        total_steps=5,
+    )
+    bundle = agent.to_bundle_dict()
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert restored.parent_workflow == "gh"
+    assert restored.parent_timestamp == "20250615103000"
+    assert restored.step_name == "push"
+    assert restored.step_type == "agent"
+    assert restored.step_index == 2
+    assert restored.total_steps == 5
+    assert restored.is_workflow_child
+
+
+def test_bundle_round_trip_agent_type_serialized_as_string() -> None:
+    """Test that AgentType is serialized as its string value."""
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+    )
+    bundle = agent.to_bundle_dict()
+    assert bundle["agent_type"] == "workflow"
+
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_type == AgentType.WORKFLOW
+
+
+def test_bundle_round_trip_list_fields() -> None:
+    """Test that list fields (extra_files, waiting_for) survive round-trip."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        extra_files=["/tmp/plan.md", "/tmp/diff.txt"],
+        waiting_for=["agent-1", "agent-2"],
+    )
+    bundle = agent.to_bundle_dict()
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert restored.extra_files == ["/tmp/plan.md", "/tmp/diff.txt"]
+    assert restored.waiting_for == ["agent-1", "agent-2"]
