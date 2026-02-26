@@ -304,7 +304,7 @@ async def test_tab_bar_integration_tab_key() -> None:
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
     ):
-        app = AceApp(refresh_interval=0)
+        app = AceApp(query="test_feature", refresh_interval=0)
         async with app.run_test() as pilot:
             # Initial state - changespecs tab
             assert app.current_tab == "changespecs"

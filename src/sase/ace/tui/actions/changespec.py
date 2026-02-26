@@ -160,6 +160,51 @@ class ChangeSpecMixin:
         except Exception as e:
             self.notify(f"Error loading query: {e}", severity="error")  # type: ignore[attr-defined]
 
+    def _try_startup_fallback(self) -> bool:
+        """Try saved queries as fallback when the startup query has no results.
+
+        Checks slots 1-9 then 0. If a saved query produces results, switches
+        to it and returns True.  Returns False if no saved query has results.
+        """
+        from ...query import parse_query, to_canonical_string
+        from ...saved_queries import load_saved_queries
+
+        queries = load_saved_queries()
+        if not queries:
+            return False
+
+        current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
+        original_parsed = self.parsed_query
+        original_string = self.query_string
+
+        slot_order = [str(i) for i in range(1, 10)] + ["0"]
+        for slot in slot_order:
+            if slot not in queries:
+                continue
+            query = queries[slot]
+            try:
+                parsed = parse_query(query)
+                canonical = to_canonical_string(parsed)
+                # Skip if identical to the initial query (already tried)
+                if canonical == current_canonical:
+                    continue
+                # Temporarily set the query so _filter_changespecs uses it
+                self.parsed_query = parsed
+                self.query_string = query
+                filtered = self._filter_changespecs(self._all_changespecs)
+                if filtered:
+                    # Found results – fully load this query
+                    self._load_changespecs()
+                    self._restore_selection_for_current_query()
+                    return True
+            except Exception:
+                continue
+
+        # No saved query produced results – restore original state
+        self.parsed_query = original_parsed
+        self.query_string = original_string
+        return False
+
     # --- Saved Query Actions ---
 
     def action_load_saved_query_1(self) -> None:

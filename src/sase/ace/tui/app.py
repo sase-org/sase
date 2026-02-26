@@ -380,8 +380,15 @@ class AceApp(
         # Initialize agent tracking for completion notifications
         self._initialize_agent_tracking()
 
-        # Load initial changespecs and save as last query
+        # Load initial changespecs with the startup query
         self._load_changespecs()
+
+        # If no results, try saved queries as fallback; if none work, open
+        # the Agents tab instead
+        if not self.changespecs:
+            if not self._try_startup_fallback():
+                self.current_tab = "agents"  # type: ignore[assignment]
+
         self._restore_last_selection()
         self._save_current_query()
 
