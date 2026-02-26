@@ -1,6 +1,5 @@
 """Modal dialogs for the ace TUI."""
 
-from .agent_kill_select_modal import AgentKillSelectModal
 from .agent_name_modal import AgentNameModal
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
@@ -31,7 +30,6 @@ from .workspace_input_modal import WorkspaceInputModal
 from .xprompt_select_modal import XPromptSelectModal
 
 __all__ = [
-    "AgentKillSelectModal",
     "AgentNameModal",
     "CommandHistoryModal",
     "CommandInputModal",

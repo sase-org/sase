@@ -95,32 +95,9 @@ class EntryPointsMixin:
             self._start_custom_agent_from_selection(last)
             return True
 
-        if key == "k":
-            self._show_agent_kill_modal()
-            return True
-
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
-
-    def _show_agent_kill_modal(self) -> None:
-        """Show modal to select and kill running agents."""
-        from ...modals import AgentKillSelectModal
-
-        killable = [a for a in self._agents if a.pid is not None]
-        if not killable:
-            self.notify("No running agents", severity="warning")  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return
-
-        def on_kill_select(result: list[int] | None) -> None:
-            if result is None:
-                return
-            for idx in result:
-                if 0 <= idx < len(killable):
-                    self._do_kill_agent(killable[idx])  # type: ignore[attr-defined]
-
-        self.push_screen(AgentKillSelectModal(killable), on_kill_select)  # type: ignore[attr-defined]
 
     def _start_agent_from_changespec_quick(self) -> None:
         """Start agent from current ChangeSpec without CL name modal.

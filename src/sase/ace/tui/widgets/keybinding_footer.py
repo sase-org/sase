@@ -259,7 +259,6 @@ class KeybindingFooter(Horizontal):
         bindings: list[tuple[str, str]] = []
         if current_tab == "changespecs":
             bindings.append(("!", "run cmd (CL)"))
-        bindings.append(("k", "kill agents"))
         bindings.append(("Space", "repeat last @/<space>"))
         bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)
