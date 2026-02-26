@@ -63,7 +63,8 @@ steps:
     output: { success: bool, entry_id: word, cl_name: word, diff_path: path, error: text }
 
   - name: update_pr
-    if: "{{ check_changes.has_changes and amend.success | default(false) and detect_branch.is_pr_branch | default(false) }}"
+    if: |
+      {{ check_changes.has_changes and amend.success | default(false) and detect_branch.is_pr_branch | default(false) }}
     hidden: true
     bash: |
       PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")
@@ -90,6 +91,6 @@ steps:
       else
         echo "message=Committed to master ({{ amend.entry_id | default('') }})"
       fi
-      echo "meta_new_amend={{ amend.entry_id | default('') }}"
+      echo "meta_new_commit={{ amend.entry_id | default('') }}"
       echo "diff_path={{ amend.diff_path | default('') }}"
-    output: { status: word, message: text, meta_new_amend: word, diff_path: path }
+    output: { status: word, message: text, meta_new_commit: word, diff_path: path }
