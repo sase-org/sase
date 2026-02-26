@@ -33,10 +33,38 @@ def test_shorthand_pattern_namespaced() -> None:
     assert match.group(1) == "mentor/aaa"
 
 
-def test_shorthand_pattern_not_mid_line() -> None:
-    """Test that shorthand pattern doesn't match mid-line."""
+def test_shorthand_pattern_mid_line_after_space() -> None:
+    """Test that shorthand pattern matches mid-line after a space."""
     match = re.search(SHORTHAND_PATTERN, "text #foo: bar")
+    assert match is not None
+    assert match.group(1) == "foo"
+
+
+def test_shorthand_pattern_mid_line_after_open_paren() -> None:
+    """Test that shorthand pattern matches mid-line after '('."""
+    match = re.search(SHORTHAND_PATTERN, "(#foo: bar")
+    assert match is not None
+    assert match.group(1) == "foo"
+
+
+def test_shorthand_pattern_mid_line_after_double_quote() -> None:
+    """Test that shorthand pattern matches mid-line after '\"'."""
+    match = re.search(SHORTHAND_PATTERN, '"#foo: bar')
+    assert match is not None
+    assert match.group(1) == "foo"
+
+
+def test_shorthand_pattern_not_mid_line_after_letter() -> None:
+    """Test that shorthand pattern doesn't match mid-line after a letter."""
+    match = re.search(SHORTHAND_PATTERN, "x#foo: bar")
     assert match is None
+
+
+def test_double_colon_shorthand_pattern_mid_line_after_space() -> None:
+    """Test that DOUBLE_COLON_SHORTHAND_PATTERN matches mid-line after a space."""
+    match = re.search(DOUBLE_COLON_SHORTHAND_PATTERN, "text #foo:: bar")
+    assert match is not None
+    assert match.group(1) == "foo"
 
 
 def test_shorthand_pattern_requires_space_after_colon() -> None:
@@ -67,3 +95,17 @@ def test_double_colon_shorthand_pattern_not_single_colon() -> None:
     """Test that DOUBLE_COLON_SHORTHAND_PATTERN does NOT match single colon."""
     match = re.search(DOUBLE_COLON_SHORTHAND_PATTERN, "#foo: some text")
     assert match is None
+
+
+def test_preprocess_shorthand_mid_line_after_space() -> None:
+    """Test preprocess_shorthand_syntax converts mid-line shorthand after space."""
+    result = preprocess_shorthand_syntax("expanded text #mentor: help me", {"mentor"})
+    assert result == "expanded text #mentor([[help me]])"
+
+
+def test_preprocess_shorthand_mid_line_after_newline_content() -> None:
+    """Test preprocess_shorthand_syntax converts shorthand appearing after expanded content."""
+    result = preprocess_shorthand_syntax(
+        "some expanded xprompt content #foo: bar baz", {"foo"}
+    )
+    assert result == "some expanded xprompt content #foo([[bar baz]])"

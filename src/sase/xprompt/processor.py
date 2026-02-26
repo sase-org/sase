@@ -236,9 +236,8 @@ def process_xprompt_references(
                         match_end = paren_end + 1  # Include the closing )
 
                         # Handle ": text" or ":: text" shorthand after closing
-                        # paren. This captures text that
-                        # _preprocess_paren_shorthand didn't handle because
-                        # it only processes start-of-line references.
+                        # paren. This is a fallback for references introduced
+                        # mid-iteration by prior expansions.
                         after_close = prompt[match_end:]
                         if after_close.startswith(":: ") or after_close.startswith(
                             ": "

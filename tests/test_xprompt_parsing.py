@@ -78,6 +78,12 @@ def test_paren_shorthand_unknown_name() -> None:
     assert result == "#unknown(arg): hello"
 
 
+def test_paren_shorthand_mid_line() -> None:
+    """Test paren shorthand matches mid-line after a space."""
+    result = _preprocess_paren_shorthand("expanded #test(arg1): hello world", {"test"})
+    assert result == "expanded #test(arg1, [[hello world]])"
+
+
 # Tests for _find_double_colon_text_end
 
 

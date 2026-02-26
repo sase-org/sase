@@ -59,22 +59,24 @@ def _process_text_block(value: str) -> str:
     return "\n".join(processed_lines).strip()
 
 
-# Pattern to match shorthand syntax: #name: text (at beginning of line)
+# Pattern to match shorthand syntax: #name: text
 # Note: The space after colon distinguishes from existing #name:arg syntax
 SHORTHAND_PATTERN = re.compile(
-    r"(?:^|(?<=\n))"  # Must be at start of string or after newline
+    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: name
     r": "  # Colon followed by space
 )
 
-# Pattern to match paren shorthand: #name( at beginning of line
+# Pattern to match paren shorthand: #name(
 _PAREN_SHORTHAND_PATTERN = re.compile(
-    r"(?:^|(?<=\n))" r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)" r"\("
+    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
+    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
+    r"\("
 )
 
-# Pattern to match double-colon shorthand: #name:: text (at beginning of line)
+# Pattern to match double-colon shorthand: #name:: text
 DOUBLE_COLON_SHORTHAND_PATTERN = re.compile(
-    r"(?:^|(?<=\n))"  # Must be at start of string or after newline
+    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: name
     r":: "  # Double colon followed by space
 )
