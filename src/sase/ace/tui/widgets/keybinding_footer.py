@@ -230,8 +230,6 @@ class KeybindingFooter(Horizontal):
             List of (key, label) tuples.
         """
         bindings: list[tuple[str, str]] = []
-        if self._runner_count > 0:
-            bindings.append(("r", f"runners ({self._runner_count})"))
         bindings.append(("x", "clear"))
         if axe_current_view == "axe":
             label = "stop axe" if self._axe_running else "start axe"
@@ -259,6 +257,8 @@ class KeybindingFooter(Horizontal):
         bindings: list[tuple[str, str]] = []
         if current_tab == "changespecs":
             bindings.append(("!", "run cmd (CL)"))
+        if self._runner_count > 0:
+            bindings.append(("r", f"runners ({self._runner_count})"))
         bindings.append(("Space", "repeat last @/<space>"))
         bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)

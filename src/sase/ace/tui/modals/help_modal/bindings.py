@@ -72,6 +72,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Leader Mode (,)",
         [
             (",!", "Run command (use current CL)"),
+            (",r", "Show runners info"),
             (",<space>", "Repeat last @/<space> selection"),
         ],
     ),
@@ -147,6 +148,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
+            (",r", "Show runners info"),
             (",<space>", "Repeat last @/<space> selection"),
         ],
     ),
@@ -186,7 +188,6 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("Ctrl+N / P", "Next / prev lumberjack output"),
             ("g", "Scroll to top"),
             ("G", "Scroll to bottom"),
-            ("r", "Show runners info"),
         ],
     ),
     (
@@ -199,6 +200,7 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
+            (",r", "Show runners info"),
             (",<space>", "Repeat last @/<space> selection"),
         ],
     ),

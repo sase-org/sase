@@ -86,6 +86,10 @@ class EntryPointsMixin:
             self._start_bgcmd_from_changespec()  # type: ignore[attr-defined]
             return True
 
+        if key == "r":
+            self.action_show_runners()  # type: ignore[attr-defined]
+            return True
+
         if key == "space":
             last = self._last_custom_agent_selection
             if last is None:
