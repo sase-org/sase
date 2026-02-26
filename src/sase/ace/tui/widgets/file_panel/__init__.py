@@ -127,6 +127,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         if self._current_worker is not None and self._current_worker.is_running:
             self._current_worker.cancel()
 
+        # Clear agent association so that the next update_display() call for a
+        # different agent won't incorrectly see same_agent=True and skip the
+        # full reset (which would leave this static file list on screen).
+        self._current_agent = None
+
         self._reset_trim_state()
         if files == self._file_list:
             return
