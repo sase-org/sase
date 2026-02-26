@@ -375,8 +375,19 @@ class AgentDetail(Static):
             thinking_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
             self.update_display(agent)
-            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-            self.call_after_refresh(file_panel.reset_trim)
+
+            # If file panel has no content and update_display didn't already
+            # auto-show thinking, fall back immediately instead of leaving
+            # an empty "No changes detected" panel visible.
+            if not self._has_file_content and not self._thinking_auto_shown:
+                if self._has_thinking_content:
+                    self._auto_show_thinking(agent)
+                else:
+                    file_scroll.add_class("hidden")
+                    prompt_scroll.add_class("expanded")
+            else:
+                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+                self.call_after_refresh(file_panel.reset_trim)
 
     def on_thinking_visibility_changed(
         self, message: ThinkingVisibilityChanged
