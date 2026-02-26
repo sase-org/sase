@@ -156,6 +156,11 @@ def handle_plan_approve_command() -> NoReturn:
 
     session_id = data.get("session_id", "unknown")
 
+    # Two-phase flow: approval handled externally by gemini.py
+    if os.environ.get("SASE_PLAN_EXTERNAL_APPROVAL"):
+        emit_hook_decision("deny", "Plan captured for external approval")
+        sys.exit(2)
+
     # If not launched by sase, just notify and approve
     if not os.environ.get("SASE_AGENT"):
         prefix = get_tmux_prefix()
