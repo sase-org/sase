@@ -167,13 +167,16 @@ class AgentRevivalMixin:
             artifacts_dir.mkdir(parents=True, exist_ok=True)
             done_file = artifacts_dir / "done.json"
             if not done_file.exists():
-                done_file.write_text(json.dumps({"status": "DONE"}))
+                done_data = self._build_done_json_data(agent)
+                done_file.write_text(json.dumps(done_data))
+            self._restore_agent_meta(agent, artifacts_dir)
 
         elif agent.agent_type == AgentType.WORKFLOW:
             if agent.is_workflow_child:
                 # Child step: write prompt_step_<idx>.json into parent's dir
-                if agent.parent_timestamp is None or agent.step_index is None:
+                if agent.parent_timestamp is None:
                     return
+                step_index = agent.step_index if agent.step_index is not None else 0
                 # Determine parent artifacts dir
                 parent_workflow = agent.parent_workflow or ""
                 base_workflow = (
@@ -192,10 +195,12 @@ class AgentRevivalMixin:
                     )
                 )
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
-                step_file = artifacts_dir / f"prompt_step_{agent.step_index}.json"
+                step_file = artifacts_dir / f"prompt_step_{step_index}.json"
                 if not step_file.exists():
                     step_data = self._build_step_marker_data(agent)
                     step_file.write_text(json.dumps(step_data))
+                if agent.artifacts_dir:
+                    self._restore_agent_meta(agent, Path(agent.artifacts_dir))
             else:
                 # Parent workflow: write workflow_state.json
                 timestamp = agent._extract_artifacts_timestamp()
@@ -214,6 +219,7 @@ class AgentRevivalMixin:
                 if not state_file.exists():
                     state_data = self._build_workflow_state_data(agent)
                     state_file.write_text(json.dumps(state_data))
+                self._restore_agent_meta(agent, artifacts_dir)
 
     @staticmethod
     def _build_workflow_state_data(agent: Agent) -> dict[str, Any]:
@@ -236,12 +242,27 @@ class AgentRevivalMixin:
             "appears_as_agent": agent.appears_as_agent,
             "is_anonymous": agent.is_anonymous,
         }
+        if agent.start_time is not None:
+            data["start_time"] = agent.start_time.isoformat()
         if agent.pid is not None:
             data["pid"] = agent.pid
         if agent.error_message:
             data["error"] = agent.error_message
         if agent.error_traceback:
             data["traceback"] = agent.error_traceback
+        # Add a steps entry so the loader can extract diff_path and step_output
+        if agent.step_output is not None or agent.diff_path:
+            step_entry: dict[str, Any] = {
+                "name": "agent",
+                "status": "completed",
+            }
+            if agent.step_output is not None:
+                step_entry["output"] = agent.step_output
+            if agent.diff_path:
+                if "output" not in step_entry:
+                    step_entry["output"] = {}
+                step_entry["output"]["diff_path"] = agent.diff_path
+            data["steps"] = [step_entry]
         return data
 
     @staticmethod
@@ -290,3 +311,69 @@ class AgentRevivalMixin:
         if agent.is_pre_prompt_step:
             data["is_pre_prompt_step"] = True
         return data
+
+    @staticmethod
+    def _build_done_json_data(agent: Agent) -> dict[str, Any]:
+        """Build a complete done.json dict from a RUNNING Agent.
+
+        Mirrors the fields that load_done_agents() reads so revived agents
+        appear identical to their originals.
+        """
+        outcome = "failed" if agent.status == "FAILED" else "completed"
+        data: dict[str, Any] = {
+            "status": "DONE",
+            "cl_name": agent.cl_name,
+            "project_file": agent.project_file,
+            "outcome": outcome,
+        }
+        if agent.response_path:
+            data["response_path"] = agent.response_path
+        if agent.diff_path:
+            data["diff_path"] = agent.diff_path
+        if agent.step_output is not None:
+            data["step_output"] = agent.step_output
+        if agent.workspace_num is not None:
+            data["workspace_num"] = agent.workspace_num
+        if agent.output_path:
+            data["output_path"] = agent.output_path
+        if agent.model:
+            data["model"] = agent.model
+        if agent.llm_provider:
+            data["llm_provider"] = agent.llm_provider
+        if agent.vcs_provider:
+            data["vcs_provider"] = agent.vcs_provider
+        if agent.agent_name:
+            data["name"] = agent.agent_name
+        if agent.approve:
+            data["approve"] = agent.approve
+        if agent.extra_files:
+            data["plan_path"] = agent.extra_files[0]
+        if agent.error_message:
+            data["error"] = agent.error_message
+        if agent.error_traceback:
+            data["traceback"] = agent.error_traceback
+        return data
+
+    @staticmethod
+    def _restore_agent_meta(agent: Agent, artifacts_dir: Path) -> None:
+        """Write agent_meta.json if missing and agent has metadata."""
+        meta_path = artifacts_dir / "agent_meta.json"
+        if meta_path.exists():
+            return
+
+        data: dict[str, Any] = {}
+        if agent.model:
+            data["model"] = agent.model
+        if agent.llm_provider:
+            data["llm_provider"] = agent.llm_provider
+        if agent.vcs_provider:
+            data["vcs_provider"] = agent.vcs_provider
+        if agent.agent_name:
+            data["name"] = agent.agent_name
+        if agent.waiting_for:
+            data["wait_for"] = agent.waiting_for
+        if agent.approve:
+            data["approve"] = agent.approve
+
+        if data:
+            meta_path.write_text(json.dumps(data))
