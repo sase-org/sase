@@ -132,7 +132,10 @@ class AgentRevivalMixin:
                     and dismissed_agent.parent_timestamp == agent.raw_suffix
                     and dismissed_agent.parent_workflow == agent.workflow
                 ):
-                    self._restore_agent_artifacts(dismissed_agent)
+                    self._restore_agent_artifacts(
+                        dismissed_agent,
+                        parent_artifacts_dir=agent.artifacts_dir,
+                    )
 
         # Clean up the bundle now that artifacts are restored
         remove_bundle_by_identity(agent.identity)
@@ -140,7 +143,12 @@ class AgentRevivalMixin:
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._load_agents()  # type: ignore[attr-defined]
 
-    def _restore_agent_artifacts(self, agent: Agent) -> None:
+    def _restore_agent_artifacts(
+        self,
+        agent: Agent,
+        *,
+        parent_artifacts_dir: str | None = None,
+    ) -> None:
         """Restore artifact files so load_all_agents() rediscovers the agent.
 
         Writes back the full state that the loaders expect so revived agents
@@ -149,6 +157,12 @@ class AgentRevivalMixin:
         For RUNNING agents: writes done.json to the artifacts directory.
         For WORKFLOW parents: writes workflow_state.json with all metadata.
         For WORKFLOW children: writes prompt_step_<idx>.json with all metadata.
+
+        Args:
+            agent: The agent whose artifacts should be restored.
+            parent_artifacts_dir: For child steps, the parent workflow's
+                artifacts directory (so the child marker is written alongside
+                the parent's workflow_state.json).
         """
         from ...models.agent import AgentType
 
@@ -177,23 +191,27 @@ class AgentRevivalMixin:
                 if agent.parent_timestamp is None:
                     return
                 step_index = agent.step_index if agent.step_index is not None else 0
-                # Determine parent artifacts dir
-                parent_workflow = agent.parent_workflow or ""
-                base_workflow = (
-                    parent_workflow.split("/")[-1]
-                    if "/" in parent_workflow
-                    else parent_workflow
-                )
-                workflow_dir_name = f"workflow-{base_workflow}"
-                # Convert parent_timestamp to artifacts format
-                parent_ts = agent.parent_timestamp
-                if len(parent_ts) == 13 and parent_ts[6] == "_":
-                    parent_ts = f"20{parent_ts[:6]}{parent_ts[7:]}"
-                artifacts_dir = Path(
-                    os.path.expanduser(
-                        f"~/.sase/projects/{project_name}/artifacts/{workflow_dir_name}/{parent_ts}"
+                # Use the parent's actual artifacts dir when provided,
+                # so the child marker lands alongside workflow_state.json
+                # (appears_as_agent workflows may use ace-run/).
+                if parent_artifacts_dir:
+                    artifacts_dir = Path(parent_artifacts_dir)
+                else:
+                    parent_workflow = agent.parent_workflow or ""
+                    base_workflow = (
+                        parent_workflow.split("/")[-1]
+                        if "/" in parent_workflow
+                        else parent_workflow
                     )
-                )
+                    workflow_dir_name = f"workflow-{base_workflow}"
+                    parent_ts = agent.parent_timestamp
+                    if len(parent_ts) == 13 and parent_ts[6] == "_":
+                        parent_ts = f"20{parent_ts[:6]}{parent_ts[7:]}"
+                    artifacts_dir = Path(
+                        os.path.expanduser(
+                            f"~/.sase/projects/{project_name}/artifacts/{workflow_dir_name}/{parent_ts}"
+                        )
+                    )
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
                 step_file = artifacts_dir / f"prompt_step_{step_index}.json"
                 if not step_file.exists():
@@ -203,17 +221,26 @@ class AgentRevivalMixin:
                     self._restore_agent_meta(agent, Path(agent.artifacts_dir))
             else:
                 # Parent workflow: write workflow_state.json
-                timestamp = agent._extract_artifacts_timestamp()
-                if not timestamp:
-                    return
-                workflow = agent.workflow or ""
-                base_workflow = workflow.split("/")[-1] if "/" in workflow else workflow
-                workflow_dir_name = f"workflow-{base_workflow}"
-                artifacts_dir = Path(
-                    os.path.expanduser(
-                        f"~/.sase/projects/{project_name}/artifacts/{workflow_dir_name}/{timestamp}"
+                # Use the agent's original artifacts_dir (from bundle) when
+                # available so the marker is recreated in the same directory
+                # where prompt files live.  appears_as_agent workflows may
+                # store artifacts in ace-run/ instead of workflow-{name}/.
+                if agent.artifacts_dir:
+                    artifacts_dir = Path(agent.artifacts_dir)
+                else:
+                    timestamp = agent._extract_artifacts_timestamp()
+                    if not timestamp:
+                        return
+                    workflow = agent.workflow or ""
+                    base_workflow = (
+                        workflow.split("/")[-1] if "/" in workflow else workflow
                     )
-                )
+                    workflow_dir_name = f"workflow-{base_workflow}"
+                    artifacts_dir = Path(
+                        os.path.expanduser(
+                            f"~/.sase/projects/{project_name}/artifacts/{workflow_dir_name}/{timestamp}"
+                        )
+                    )
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
                 state_file = artifacts_dir / "workflow_state.json"
                 if not state_file.exists():
