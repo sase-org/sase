@@ -46,22 +46,29 @@ def emit_hook_decision(decision: str, reason: str = "") -> None:
         print(reason, file=sys.stderr)
 
 
-def _find_plan_file(session_id: str) -> str | None:
+def _find_plan_file(session_id: str) -> str | None:  # noqa: ARG001
     """Find the most recently modified .md plan file for this session.
 
-    Searches ~/.claude/plans/ for the most recently modified markdown file.
+    Searches common plan directories (Claude and Gemini) for the most recently
+    modified markdown file.
 
     Args:
-        session_id: Claude Code session ID (for future per-session filtering).
+        session_id: Session ID (for future per-session filtering).
 
     Returns:
         Path to the plan file, or None if not found.
     """
-    plans_dir = Path.home() / ".claude" / "plans"
-    if not plans_dir.is_dir():
-        return None
+    search_dirs = [
+        Path.home() / ".claude" / "plans",
+        Path.home() / ".gemini" / "plans",
+        Path.home() / ".gemini",
+    ]
 
-    md_files = list(plans_dir.glob("*.md"))
+    md_files: list[Path] = []
+    for d in search_dirs:
+        if d.is_dir():
+            md_files.extend(d.glob("*.md"))
+
     if not md_files:
         return None
 
