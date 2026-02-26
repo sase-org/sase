@@ -256,7 +256,7 @@ class ClipboardMixin:
         contents = [("`sase ace` Snapshot", snapshot_content.strip())]
         final_content = _format_multi_copy_content(contents)
 
-        if copy_to_system_clipboard(final_content):
+        if copy_to_system_clipboard("\n" + final_content):
             self.notify("Copied: Snapshot")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
