@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from sase.sase_utils import get_vendored_tool
 
@@ -21,15 +21,29 @@ _POLL_INTERVAL = 0.5
 
 
 def emit_hook_decision(decision: str, reason: str = "") -> None:
-    """Print Claude Code PreToolUse hook decision JSON to stdout."""
-    output = {
+    """Print hook decision JSON to stdout.
+
+    Outputs a format compatible with both Claude Code (``hookSpecificOutput``)
+    and Gemini CLI (top-level ``decision``/``reason``).  For deny decisions,
+    the reason is also written to stderr so that Gemini CLI exit-code-2
+    rejections include a human-readable message.
+    """
+    output: dict[str, Any] = {
+        # Gemini CLI format
+        "decision": decision,
+        # Claude Code format
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": decision,
             "permissionDecisionReason": reason,
-        }
+        },
     }
+    if reason:
+        output["reason"] = reason
     print(json.dumps(output), flush=True)
+    # Gemini CLI reads stderr as the rejection reason for exit-code 2
+    if decision != "allow" and reason:
+        print(reason, file=sys.stderr)
 
 
 def _find_plan_file(session_id: str) -> str | None:
