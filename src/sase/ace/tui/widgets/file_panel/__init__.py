@@ -75,6 +75,16 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             self._start_background_fetch(agent)
             return
 
+        if (
+            same_agent
+            and self._current_worker is not None
+            and self._current_worker.is_running
+        ):
+            # Same agent with an in-flight worker but no cache yet — let
+            # the existing worker finish rather than cancelling and
+            # restarting on every auto-refresh cycle.
+            return
+
         # Different agent or no cache -- full reset (existing behavior)
         self._reset_trim_state()
         self._file_list = []
