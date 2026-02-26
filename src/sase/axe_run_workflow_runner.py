@@ -94,8 +94,9 @@ def main() -> None:
     if len(sys.argv) == 11 and sys.argv[10]:
         hitl_override = sys.argv[10] == "1"
 
-    # Get CL name from update_target for logging/backup purposes
-    cl_name = update_target or "workflow"
+    # Get CL name: prefer named_args (injected by launcher with the display
+    # name), fall back to update_target, then generic "workflow" sentinel.
+    cl_name = named_args.get("cl_name", "") or update_target or "workflow"
 
     # Extract project from workflow_name (e.g., "eval/amend_commit_propose" → "eval")
     project: str | None = None
