@@ -220,7 +220,6 @@ class WorkflowExecMixin:
         output_path = os.path.join(artifacts_dir, "workflow.log")
 
         # Inject cl_name from display context so the runner knows the CL name
-        # even when update_target is empty (e.g., workflow .yml handles checkout)
         if ctx.display_name:
             named_args = dict(named_args)
             named_args.setdefault("cl_name", ctx.display_name)
@@ -239,7 +238,7 @@ class WorkflowExecMixin:
                         ctx.workspace_dir,
                         str(ctx.workspace_num),
                         artifacts_dir,
-                        ctx.update_target or "",
+                        ctx.update_target or ctx.display_name or "",
                         "",  # not home mode
                         (
                             "1"
