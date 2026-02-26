@@ -86,7 +86,7 @@ def _calculate_entry_display_width(
     if agent.status in _DISMISSIBLE_STATUSES:
         parts.append(f"{_DONE_ICON} ")
     dt = agent.get_display_type(is_expanded=is_expanded)
-    parts.extend([f"[{dt}] ", agent.cl_name, " ", f"({agent.status})"])
+    parts.extend([f"[{dt}] ", agent.display_name, " ", f"({agent.status})"])
     if agent.agent_name:
         parts.append(f" @{agent.agent_name}")
     if fold_annotation:
