@@ -324,6 +324,9 @@ def load_all_agents() -> list[Agent]:
                 matched.step_output = agent.step_output
             if matched.agent_name is None and agent.agent_name is not None:
                 matched.agent_name = agent.agent_name
+            # Merge status: prefer non-RUNNING status (e.g. PLANNING, PLAN APPROVED)
+            if matched.status == "RUNNING" and agent.status != "RUNNING":
+                matched.status = agent.status
             continue  # Drop the RUNNING entry
         deduped_agents.append(agent)
 

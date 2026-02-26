@@ -488,6 +488,8 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         if agent is not None:
             if result.action == "approve":
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
+                # Persist approval to agent_meta.json so it survives TUI restarts
+                _persist_plan_approved(agent)
             # For reject with feedback: keep "PLANNING" override (no change)
             app._load_agents()  # type: ignore[attr-defined]
 
@@ -533,3 +535,32 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         # Reload agents to apply the restored status
         app._load_agents()  # type: ignore[attr-defined]
         break
+
+
+def _persist_plan_approved(agent: Agent) -> None:
+    """Write plan_approved flag to agent_meta.json so it survives TUI restarts.
+
+    Args:
+        agent: The agent whose plan was approved.
+    """
+    import json
+    from pathlib import Path
+
+    artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+    if not artifacts_dir:
+        return
+
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    meta: dict[str, object] = {}
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    meta["plan_approved"] = True
+    try:
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except OSError:
+        pass
