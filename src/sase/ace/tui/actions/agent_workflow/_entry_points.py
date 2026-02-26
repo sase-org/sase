@@ -93,6 +93,12 @@ class EntryPointsMixin:
         if key == "space":
             last = self._last_custom_agent_selection
             if last is None:
+                from sase.ace.last_agent_selection import load_last_agent_selection
+
+                last = load_last_agent_selection()
+                if last is not None:
+                    self._last_custom_agent_selection = last
+            if last is None:
                 self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
@@ -126,6 +132,9 @@ class EntryPointsMixin:
             project_name=changespec.project_basename,
             cl_name=cl_name,
         )
+        from sase.ace.last_agent_selection import save_last_agent_selection
+
+        save_last_agent_selection(self._last_custom_agent_selection)
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
@@ -182,6 +191,9 @@ class EntryPointsMixin:
 
             # Save for ,<space> repeat
             self._last_custom_agent_selection = selection
+            from sase.ace.last_agent_selection import save_last_agent_selection
+
+            save_last_agent_selection(selection)
             self._start_custom_agent_from_selection(
                 selection, open_in_editor=open_in_editor
             )
