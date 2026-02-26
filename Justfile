@@ -77,7 +77,7 @@ all: fmt lint pylimit pyvision test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
-    BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase \
+    BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260225 src/sase \
         {{ args }}
 
 # Check Python file line counts

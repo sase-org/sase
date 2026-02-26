@@ -234,7 +234,7 @@ timeout 5 .venv/bin/sase axe lumberjack run hooks || true
 Remove `--exclude-decorator register_chop` from the `pyvision` target (lines 80-82). Change from:
 
 ```
-BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase \
+BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260225 src/sase \
     --exclude-decorator register_chop \
     {{ args }}
 ```
@@ -242,7 +242,7 @@ BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase \
 to:
 
 ```
-BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260221 src/sase \
+BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260225 src/sase \
     {{ args }}
 ```
 
