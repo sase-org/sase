@@ -80,7 +80,10 @@ def preprocess_prompt_early(
     if context is not None:
         from sase.xprompt.workflow_executor_utils import render_template
 
+        fenced_blocks: list[str] = []
+        prompt = protect_fenced_blocks(prompt, fenced_blocks)
         prompt = render_template(prompt, context)
+        prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
     # 5. Expand xprompt references
     prompt = process_xprompt_references(

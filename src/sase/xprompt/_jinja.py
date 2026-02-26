@@ -8,6 +8,7 @@ from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
 from sase.rich_utils import print_status
 
 from ._exceptions import XPromptArgumentError
+from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from .models import UNSET, XPrompt, XPromptValidationError
 
 # Lazy-initialized Jinja2 environment
@@ -177,13 +178,18 @@ def render_toplevel_jinja2(content: str) -> str:
     Raises:
         SystemExit: On template errors
     """
+    fenced_blocks: list[str] = []
+    content = protect_fenced_blocks(content, fenced_blocks)
+
     env = _get_jinja_env()
     try:
         template = env.from_string(content)
-        return template.render()
+        content = template.render()
     except TemplateError as e:
         print_status(f"Jinja2 template error in prompt: {e}", "error")
         sys.exit(1)
+
+    return unprotect_fenced_blocks(content, fenced_blocks)
 
 
 def _substitute_legacy_placeholders(
@@ -236,9 +242,14 @@ def substitute_placeholders(
     Automatically detects whether to use Jinja2 or legacy substitution
     based on the content.
     """
+    fenced_blocks: list[str] = []
+    content = protect_fenced_blocks(content, fenced_blocks)
+
     if is_jinja2_template(content):
-        return _render_jinja2_template(
+        result = _render_jinja2_template(
             content, positional_args, named_args, xprompt_name, scope=scope
         )
     else:
-        return _substitute_legacy_placeholders(content, positional_args, xprompt_name)
+        result = _substitute_legacy_placeholders(content, positional_args, xprompt_name)
+
+    return unprotect_fenced_blocks(result, fenced_blocks)

@@ -10,6 +10,7 @@ from sase.xprompt._exceptions import XPromptArgumentError
 from sase.xprompt._jinja import (
     _substitute_legacy_placeholders,
     render_toplevel_jinja2,
+    substitute_placeholders,
     validate_and_convert_args,
 )
 from sase.xprompt.models import (
@@ -45,6 +46,36 @@ def test_render_toplevel_jinja2_simple() -> None:
     """Test render_toplevel_jinja2 with plain text (no Jinja2)."""
     result = render_toplevel_jinja2("Hello world")
     assert result == "Hello world"
+
+
+def test_render_toplevel_jinja2_ignores_fenced_block() -> None:
+    """{{ var }} inside triple backticks is not rendered."""
+    content = "```\n{{ undefined_var }}\n```"
+    result = render_toplevel_jinja2(content)
+    assert result == content
+
+
+def test_render_toplevel_jinja2_ignores_quadruple_backtick_block() -> None:
+    """{{ var }} inside quadruple backticks is not rendered."""
+    content = "````\n{{ undefined_var }}\n````"
+    result = render_toplevel_jinja2(content)
+    assert result == content
+
+
+def test_render_toplevel_jinja2_renders_outside_fenced_block() -> None:
+    """Jinja2 outside code blocks still works when code blocks are present."""
+    content = "```\ncode\n```\nValue is: {{ 1 + 1 }}"
+    result = render_toplevel_jinja2(content)
+    assert "```\ncode\n```" in result
+    assert "Value is: 2" in result
+
+
+def test_substitute_placeholders_ignores_jinja_in_fenced_block() -> None:
+    """{{ _1 }} inside fenced blocks in xprompt content is preserved."""
+    content = "Hello {{ _1 }}\n```\n{{ _1 }} should not expand\n```"
+    result = substitute_placeholders(content, ["world"], {}, "test")
+    assert "Hello world" in result
+    assert "{{ _1 }} should not expand" in result
 
 
 # Tests for substitute_placeholders
