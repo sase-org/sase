@@ -159,9 +159,25 @@ class Agent:
         return self.get_display_type(is_expanded=False)
 
     @property
+    def display_name(self) -> str:
+        """Name to show in list display.
+
+        Top-level workflow entries show the workflow name (e.g. "refresh_cl_desc")
+        instead of the CL name, since that's what the user cares about.
+        """
+        if (
+            self.agent_type == AgentType.WORKFLOW
+            and not self.appears_as_agent
+            and not self.is_workflow_child
+            and self.workflow
+        ):
+            return self.workflow
+        return self.cl_name
+
+    @property
     def display_label(self) -> str:
-        """Combined label for list display: Type + CL name."""
-        return f"[{self.display_type}] {self.cl_name}"
+        """Combined label for list display: Type + name."""
+        return f"[{self.display_type}] {self.display_name}"
 
     @property
     def start_time_display(self) -> str:

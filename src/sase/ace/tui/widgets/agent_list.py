@@ -264,9 +264,9 @@ class AgentList(OptionList):
             color = _AGENT_TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
         text.append(f"[{dt}] ", style=f"bold {color}")
 
-        # CL name
+        # Agent display name (workflow name for top-level workflows, CL name otherwise)
         name_style = "bold #00D7AF" if is_selected else "#00D7AF"
-        text.append(agent.cl_name, style=name_style)
+        text.append(agent.display_name, style=name_style)
 
         # Status (wrapped in parentheses, parens are dim)
         text.append(" (", style="dim")
