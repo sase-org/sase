@@ -292,6 +292,9 @@ class AceApp(
             tuple[AgentType, str, str | None], str | None
         ] = {}
 
+        # Debounce timer for j/k navigation detail panel updates
+        self._detail_update_timer: Timer | None = None
+
         # Axe state
         self._axe_status: AxeStatus | None = None
         self._axe_metrics: AxeMetrics | None = None
@@ -451,13 +454,18 @@ class AceApp(
         if old_idx != new_idx:
             if self.current_tab == "changespecs":
                 self._refresh_display()
-            else:
-                self._refresh_agents_display()
+            elif self.current_tab == "agents":
+                self._refresh_agents_display_debounced()
 
     def watch_current_tab(self, old_tab: TabName, new_tab: TabName) -> None:
         """React to tab changes by showing/hiding views."""
         if old_tab == new_tab:
             return
+
+        # Cancel any pending debounce timer when leaving agents tab
+        if old_tab == "agents" and self._detail_update_timer is not None:
+            self._detail_update_timer.stop()
+            self._detail_update_timer = None
 
         # Update tab bar indicator
         tab_bar = self.query_one("#tab-bar", TabBar)

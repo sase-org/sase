@@ -12,9 +12,12 @@ from ._revive import AgentRevivalMixin
 from ._workflow_hitl import AgentWorkflowHITLMixin
 
 if TYPE_CHECKING:
+    from textual.timer import Timer
+
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.fold_state import FoldStateManager
+    from ...widgets import AgentDetail, KeybindingFooter
 
 # Import ChangeSpec unconditionally since it's used as a type annotation
 # in attribute declarations (not just in function signatures)
@@ -130,6 +133,9 @@ class AgentsMixinCore(
     # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+
+    # Debounce timer for j/k navigation detail panel updates
+    _detail_update_timer: Timer | None
 
     def _load_agents(self) -> None:
         """Load agents from all sources."""
@@ -285,6 +291,11 @@ class AgentsMixinCore(
                 index moved (j/k navigation) — skip the expensive OptionList
                 clear-and-rebuild.
         """
+        # Cancel any pending debounce timer — full refresh supersedes
+        if self._detail_update_timer is not None:
+            self._detail_update_timer.stop()
+            self._detail_update_timer = None
+
         from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
         agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
@@ -298,6 +309,52 @@ class AgentsMixinCore(
         else:
             agent_list.update_highlight(self.current_idx)
 
+        self._apply_agent_detail_update(agent_detail, footer_widget)
+
+        self._update_agents_info_panel()
+
+    def _refresh_agents_display_debounced(self) -> None:
+        """Debounced refresh for j/k navigation on the agents tab.
+
+        Updates the list highlight and position counter immediately, but
+        debounces the expensive detail panel and footer updates (disk I/O,
+        Rich Syntax highlighting, background workers).
+        """
+        from ...widgets import AgentList
+
+        agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
+        agent_list.update_highlight(self.current_idx)
+        self._update_agents_info_panel()
+
+        # Cancel any pending debounce timer before scheduling a new one
+        if self._detail_update_timer is not None:
+            self._detail_update_timer.stop()
+
+        self._detail_update_timer = self.set_timer(  # type: ignore[attr-defined]
+            0.15, self._fire_debounced_detail_update
+        )
+
+    def _fire_debounced_detail_update(self) -> None:
+        """Timer callback that applies the debounced detail update."""
+        from ...widgets import AgentDetail, KeybindingFooter
+
+        self._detail_update_timer = None
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        self._apply_agent_detail_update(agent_detail, footer_widget)
+
+    def _apply_agent_detail_update(
+        self,
+        agent_detail: AgentDetail,
+        footer_widget: KeybindingFooter,
+    ) -> None:
+        """Apply the expensive agent detail panel and footer updates.
+
+        Args:
+            agent_detail: The agent detail panel widget.
+            footer_widget: The keybinding footer widget.
+        """
         current_agent = None
         if self._agents and 0 <= self.current_idx < len(self._agents):
             current_agent = self._agents[self.current_idx]
@@ -337,8 +394,6 @@ class AgentsMixinCore(
                 hide_non_run=self.hide_non_run_agents,
                 has_foldable=has_foldable,
             )
-
-        self._update_agents_info_panel()
 
     def _toggle_hide_non_run_agents(self) -> None:
         """Toggle visibility of non-run agents and refresh the display."""
