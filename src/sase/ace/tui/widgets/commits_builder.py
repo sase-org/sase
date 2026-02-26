@@ -19,21 +19,21 @@ def _should_show_commits_drawers(
     """Determine if drawers should be shown for a COMMITS entry.
 
     When collapsed, show drawers only for:
-    - Proposal entries (like "8a") where 8 is the highest numeric ID
+    - The highest-numbered entry and its proposal entries (like "8a")
 
     Hide drawers for:
-    - All regular entries including entry 1 and the current entry
+    - All other entries
 
     When expanded, show all drawers.
     """
     if not commits_collapsed:
         return True
-    # Show proposal entries for highest numeric ID only
-    if entry.is_proposed and changespec.commits:
+    if changespec.commits:
         max_number = max(
             (e.number for e in changespec.commits if not e.is_proposed),
             default=0,
         )
+        # Show drawers for the highest-numbered entry (and its proposals)
         if entry.number == max_number:
             return True
     return False
