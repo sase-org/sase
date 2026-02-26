@@ -108,6 +108,7 @@ class AgentKillingMixin:
 
     # Agent state (needed for _dismiss_done_agent)
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
+    _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
@@ -133,9 +134,11 @@ class AgentKillingMixin:
         bundles = load_dismissed_bundles()
         bundles.append(agent)
 
-        # Also bundle workflow child steps when dismissing a parent
+        # Also bundle workflow child steps when dismissing a parent.
+        # Use _agents_with_children (unfiltered by fold state) so children
+        # are included even when the workflow is collapsed.
         if not agent.is_workflow_child and agent.raw_suffix:
-            for step in self._agents:  # type: ignore[attr-defined]
+            for step in self._agents_with_children:
                 if (
                     step.is_workflow_child
                     and step.parent_timestamp == agent.raw_suffix
@@ -386,9 +389,10 @@ class AgentKillingMixin:
         # workspace release failed or RUNNING field persists)
         self._persist_dismissed_agent(agent.identity)
 
-        # Also dismiss child steps
+        # Also dismiss child steps (use unfiltered list so children are
+        # found even when the workflow fold is collapsed).
         if not agent.is_workflow_child:
-            for step in self._agents:  # type: ignore[attr-defined]
+            for step in self._agents_with_children:
                 if (
                     step.is_workflow_child
                     and step.parent_timestamp == agent.raw_suffix
@@ -466,9 +470,11 @@ class AgentKillingMixin:
             # Track dismissal as safety net for current session
             self._persist_dismissed_agent(agent.identity)
 
-            # If this is a parent workflow (not a child step), also dismiss all its steps
+            # If this is a parent workflow (not a child step), also dismiss all
+            # its steps.  Use unfiltered list so children are found even when
+            # the workflow fold is collapsed.
             if not agent.is_workflow_child:
-                for step in self._agents:  # type: ignore[attr-defined]
+                for step in self._agents_with_children:
                     if (
                         step.is_workflow_child
                         and step.parent_timestamp == agent.raw_suffix

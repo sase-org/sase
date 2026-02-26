@@ -246,6 +246,14 @@ class AgentRevivalMixin:
                 if not state_file.exists():
                     state_data = self._build_workflow_state_data(agent)
                     state_file.write_text(json.dumps(state_data))
+                # For appears_as_agent workflows, also write done.json so the
+                # RUNNING↔WORKFLOW dedup in load_all_agents() merges
+                # response_path from the RUNNING entry into the WORKFLOW agent.
+                if agent.appears_as_agent:
+                    done_file = artifacts_dir / "done.json"
+                    if not done_file.exists():
+                        done_data = self._build_done_json_data(agent)
+                        done_file.write_text(json.dumps(done_data))
                 self._restore_agent_meta(agent, artifacts_dir)
 
     @staticmethod

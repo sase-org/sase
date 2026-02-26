@@ -112,6 +112,7 @@ class AgentsMixinCore(
     hide_non_run_agents: bool
     _countdown_remaining: int
     _agents: list[Agent]
+    _agents_with_children: list[Agent]
     _agents_last_idx: int
     _has_always_visible: bool
     _hidden_count: int
@@ -222,6 +223,9 @@ class AgentsMixinCore(
         # Apply fold-state filtering for workflow children
         from ...models import filter_agents_by_fold_state
 
+        # Save unfiltered list (with children) for bundle/dismiss operations
+        # that need to find child steps even when fold state is COLLAPSED.
+        self._agents_with_children = list(self._agents)
         self._agents, self._fold_counts = filter_agents_by_fold_state(
             self._agents, self._fold_manager
         )
