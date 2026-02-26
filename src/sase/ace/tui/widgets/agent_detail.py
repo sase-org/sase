@@ -73,6 +73,15 @@ class AgentDetail(Static):
         Args:
             agent: The Agent to display thinking for.
         """
+        # Non-agent entries don't have thinking - just expand prompt
+        if not agent.is_agent_entry:
+            file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+            prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+            file_scroll.add_class("hidden")
+            prompt_scroll.add_class("expanded")
+            prompt_scroll.remove_class("layout-priority")
+            return
+
         # Don't auto-show thinking if user chose INFO mode
         if self._panel_mode == _DetailPanelMode.INFO:
             return
@@ -120,6 +129,12 @@ class AgentDetail(Static):
             self._thinking_auto_shown = False
             self._has_file_content = False
             self._has_thinking_content = False
+            # Reset from THINKING mode when switching to non-agent entry
+            if (
+                not agent.is_agent_entry
+                and self._panel_mode == _DetailPanelMode.THINKING
+            ):
+                self._panel_mode = _DetailPanelMode.AUTO
             if self._panel_mode != _DetailPanelMode.THINKING:
                 thinking_scroll = self.query_one(
                     "#agent-thinking-scroll", VerticalScroll
@@ -135,7 +150,9 @@ class AgentDetail(Static):
         # INFO mode — the thinking panel is hidden anyway and the cache will
         # be checked when the user toggles to thinking mode.
         same_agent = prev_agent is not None and prev_agent.identity == agent.identity
-        if not (same_agent and self._panel_mode == _DetailPanelMode.INFO):
+        if agent.is_agent_entry and not (
+            same_agent and self._panel_mode == _DetailPanelMode.INFO
+        ):
             thinking_panel.update_display(
                 agent, stale_threshold_seconds=stale_threshold_seconds
             )
@@ -296,17 +313,25 @@ class AgentDetail(Static):
     def _next_panel_mode(self) -> _DetailPanelMode:
         """Compute the next panel mode in the fixed cycle.
 
-        Always cycles: AUTO → THINKING → INFO → AUTO regardless of
-        content availability, so the ``i`` key behaves consistently.
+        For agent entries: AUTO → THINKING → INFO → AUTO.
+        For non-agent entries: AUTO → INFO → AUTO (no thinking).
 
         Returns:
             The next mode to transition to.
         """
-        cycle = [
-            _DetailPanelMode.AUTO,
-            _DetailPanelMode.THINKING,
-            _DetailPanelMode.INFO,
-        ]
+        if self._current_agent and self._current_agent.is_agent_entry:
+            cycle = [
+                _DetailPanelMode.AUTO,
+                _DetailPanelMode.THINKING,
+                _DetailPanelMode.INFO,
+            ]
+        else:
+            cycle = [
+                _DetailPanelMode.AUTO,
+                _DetailPanelMode.INFO,
+            ]
+        if self._panel_mode not in cycle:
+            return cycle[0]
         idx = cycle.index(self._panel_mode)
         return cycle[(idx + 1) % len(cycle)]
 
@@ -536,21 +561,23 @@ class AgentDetail(Static):
             text.append("○", style="dim")
             text.append(" files", style="dim")
 
-        text.append("  ")
+        # Thinking indicator - only for agent entries
+        if self._current_agent and self._current_agent.is_agent_entry:
+            text.append("  ")
 
-        # Thinking indicator
-        thinking_active = (
-            self._panel_mode == _DetailPanelMode.THINKING or self._thinking_auto_shown
-        ) and self._has_thinking_content
-        if thinking_active and self._panel_mode != _DetailPanelMode.INFO:
-            text.append("●", style="bold #af87d7")
-            text.append(" thinking", style="bold #af87d7")
-        elif self._has_thinking_content:
-            text.append("●", style="#af87d7")
-            text.append(" thinking", style="dim")
-        else:
-            text.append("○", style="dim")
-            text.append(" thinking", style="dim")
+            thinking_active = (
+                self._panel_mode == _DetailPanelMode.THINKING
+                or self._thinking_auto_shown
+            ) and self._has_thinking_content
+            if thinking_active and self._panel_mode != _DetailPanelMode.INFO:
+                text.append("●", style="bold #af87d7")
+                text.append(" thinking", style="bold #af87d7")
+            elif self._has_thinking_content:
+                text.append("●", style="#af87d7")
+                text.append(" thinking", style="dim")
+            else:
+                text.append("○", style="dim")
+                text.append(" thinking", style="dim")
 
         prompt_scroll.border_subtitle = text
 

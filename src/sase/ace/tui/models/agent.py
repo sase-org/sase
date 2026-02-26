@@ -212,6 +212,28 @@ class Agent:
         return self.parent_workflow is not None or self.parent_timestamp is not None
 
     @property
+    def is_agent_entry(self) -> bool:
+        """Check if this entry represents an agent process (with thinking support).
+
+        Agent entries run an LLM agent and may have thinking blocks:
+        RUNNING, FIX_HOOK, MENTOR, CRS agents, plus WORKFLOW entries
+        that appear as agents and workflow child steps of type ``agent``.
+        """
+        if self.agent_type in (
+            AgentType.RUNNING,
+            AgentType.FIX_HOOK,
+            AgentType.MENTOR,
+            AgentType.CRS,
+        ):
+            return True
+        if self.agent_type == AgentType.WORKFLOW:
+            if self.appears_as_agent:
+                return True
+            if self.is_workflow_child and self.step_type == "agent":
+                return True
+        return False
+
+    @property
     def is_project_agent(self) -> bool:
         """Check if this agent runs against a project (not a specific ChangeSpec)."""
         if not self.project_file:

@@ -255,10 +255,8 @@ def test_parallel_step_no_output_shows_placeholder() -> None:
         assert "AGENT PROMPT" not in header_str
 
 
-async def test_update_display_auto_shows_thinking_for_done_workflow_without_diff() -> (
-    None
-):
-    """Done top-level workflow agents without diff_path should auto-show thinking panel."""
+async def test_update_display_expands_prompt_for_done_workflow_without_diff() -> None:
+    """Done top-level workflow (non-agent) without diff_path should expand prompt, not thinking."""
     from sase.ace.tui.widgets.agent_detail import AgentDetail
     from textual.app import App, ComposeResult
 
@@ -277,9 +275,10 @@ async def test_update_display_auto_shows_thinking_for_done_workflow_without_diff
             start_time=None,
             workflow="my_workflow",
         )
-        # Sanity: top-level workflow is NOT a workflow child
+        # Sanity: top-level workflow is NOT a workflow child or agent entry
         assert not agent.is_workflow_child
         assert not agent.appears_as_agent
+        assert not agent.is_agent_entry
         assert agent.diff_path is None
 
         detail.update_display(agent)
@@ -288,9 +287,9 @@ async def test_update_display_auto_shows_thinking_for_done_workflow_without_diff
         thinking_scroll = detail.query_one("#agent-thinking-scroll")
         prompt_scroll = detail.query_one("#agent-prompt-scroll")
         assert diff_scroll.has_class("hidden")
-        assert not thinking_scroll.has_class("hidden")
-        assert not prompt_scroll.has_class("expanded")
-        assert detail.is_thinking_visible()
+        assert thinking_scroll.has_class("hidden")
+        assert prompt_scroll.has_class("expanded")
+        assert not detail.is_thinking_visible()
 
 
 async def test_tab_bar_integration_tab_key() -> None:
