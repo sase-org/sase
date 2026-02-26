@@ -65,6 +65,9 @@ def parse_bash_output(output: str) -> dict[str, Any]:
         Dictionary of parsed values.
     """
     output = output.strip()
+    # Strip leading ASCII control characters (e.g., bell \x07) that terminal
+    # commands sometimes emit, which prevents JSON detection.
+    output = re.sub(r"^[\x00-\x1f\x7f]+", "", output)
 
     # Try JSON first
     if output.startswith("{") or output.startswith("["):
