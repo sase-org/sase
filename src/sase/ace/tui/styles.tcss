@@ -1302,7 +1302,7 @@ DismissedAgentSelectModal #dismissed-agent-panels {
 }
 
 DismissedAgentSelectModal #dismissed-agent-list-panel {
-    width: 1fr;
+    width: 45%;
     height: 100%;
 }
 
@@ -1312,21 +1312,15 @@ DismissedAgentSelectModal OptionList {
 }
 
 DismissedAgentSelectModal #dismissed-agent-preview-panel {
-    width: 1fr;
+    width: 55%;
     height: 100%;
     margin-left: 1;
-}
-
-DismissedAgentSelectModal #dismissed-preview-label {
-    color: $text-muted;
-    text-style: bold;
-    height: 1;
 }
 
 DismissedAgentSelectModal #dismissed-preview-scroll {
     height: 1fr;
     border: solid $secondary;
-    padding: 0 1;
+    padding: 1 1;
 }
 
 DismissedAgentSelectModal #dismissed-preview-metadata {

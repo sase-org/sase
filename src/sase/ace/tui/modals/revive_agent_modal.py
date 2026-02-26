@@ -9,8 +9,24 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from ..models.agent import Agent
+from ..models.agent import Agent, AgentType
 from .base import OptionListNavigationMixin
+
+# Reuse the same type→color mapping from the agent list widget
+_TYPE_COLORS: dict[AgentType, str] = {
+    AgentType.RUNNING: "#87AFFF",
+    AgentType.FIX_HOOK: "#FFAF00",
+    AgentType.SUMMARIZE: "#D7AF5F",
+    AgentType.MENTOR: "#AF87D7",
+    AgentType.CRS: "#00D787",
+    AgentType.WORKFLOW: "#FF87D7",
+}
+
+_STATUS_COLORS: dict[str, str] = {
+    "DONE": "#5FD75F",
+    "FAILED": "#FF5F5F",
+    "WAITING INPUT": "#FF87D7",
+}
 
 
 class _ReviveFilterInput(Input):
@@ -47,20 +63,51 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
     _option_list_id = "dismissed-agent-list"
     BINDINGS = [*OptionListNavigationMixin.NAVIGATION_BINDINGS]
 
-    def __init__(self, agents: list[Agent]) -> None:
+    def __init__(
+        self,
+        agents: list[Agent],
+        *,
+        all_dismissed: list[Agent] | None = None,
+    ) -> None:
         """Initialize the modal.
 
         Args:
-            agents: Pre-filtered list of dismissed agents to display.
+            agents: Pre-filtered list of dismissed agents to display
+                (parent entries only).
+            all_dismissed: All dismissed agents in scope (including children),
+                used for computing step counts on workflow parents.
         """
         super().__init__()
         self.agents = agents
+        self._all_dismissed = all_dismissed or agents
         self._chat_contents: dict[int, str] = {}
         self._filtered: list[tuple[int, Agent]] = list(enumerate(agents))
+        self._step_counts: dict[str, int] = self._compute_step_counts()
+
+    def _compute_step_counts(self) -> dict[str, int]:
+        """Count child steps per parent (keyed by raw_suffix)."""
+        counts: dict[str, int] = {}
+        for agent in self._all_dismissed:
+            if agent.is_workflow_child and agent.parent_timestamp:
+                counts[agent.parent_timestamp] = (
+                    counts.get(agent.parent_timestamp, 0) + 1
+                )
+        return counts
+
+    def _get_child_steps(self, agent: Agent) -> list[Agent]:
+        """Get child steps for a parent workflow agent, sorted by step_index."""
+        if not agent.raw_suffix:
+            return []
+        children = [
+            a
+            for a in self._all_dismissed
+            if a.is_workflow_child and a.parent_timestamp == agent.raw_suffix
+        ]
+        children.sort(key=lambda a: a.step_index if a.step_index is not None else 0)
+        return children
 
     def on_mount(self) -> None:
         """Focus the filter input and pre-load chat contents."""
-        # Pre-load chat content for search filtering
         for i, agent in enumerate(self.agents):
             content = agent.get_response_content()
             if content:
@@ -68,7 +115,6 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
 
         filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
         filter_input.focus()
-        # Show preview for first item
         if self._filtered:
             self._update_preview(self._filtered[0][1])
 
@@ -86,7 +132,6 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
                         id="dismissed-agent-list",
                     )
                 with Vertical(id="dismissed-agent-preview-panel"):
-                    yield Label("Preview", id="dismissed-preview-label")
                     with VerticalScroll(id="dismissed-preview-scroll"):
                         yield Static("", id="dismissed-preview-metadata")
                         yield Static("", id="dismissed-preview-content")
@@ -95,25 +140,59 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
                 id="dismissed-agent-hints",
             )
 
+    def _get_type_color(self, agent: Agent) -> str:
+        """Get the color for an agent's type label."""
+        if agent.appears_as_agent:
+            return _TYPE_COLORS[AgentType.RUNNING]
+        return _TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
+
+    def _get_status_style(self, status: str) -> str:
+        """Get Rich style string for a status value."""
+        color = _STATUS_COLORS.get(status)
+        if color:
+            return f"bold {color}"
+        return "dim"
+
     def _format_agent_label(self, agent: Agent) -> Text:
         """Create styled text for an agent option."""
         text = Text()
-        # [type] in colored brackets
-        display_type = agent.display_type
-        text.append(f"[{display_type}]", style="bold #FF87D7")
+
+        # Status icon
+        if agent.status == "DONE":
+            text.append(" \u2714 ", style="bold #5FD75F")
+        elif agent.status == "FAILED":
+            text.append(" \u2718 ", style="bold #FF5F5F")
+        else:
+            text.append(" \u25cb ", style="dim")
+
+        # [type] colored by type
+        type_color = self._get_type_color(agent)
+        text.append(f"[{agent.display_type}]", style=f"bold {type_color}")
         text.append(" ")
-        # CL name
-        text.append(agent.cl_name, style="bold")
-        text.append("  ")
-        # Time
-        text.append(agent.start_time_short, style="dim")
-        # Agent name if set
+
+        # Display name
+        text.append(agent.display_name, style="bold")
+
+        # Agent name
         if agent.agent_name:
             text.append("  ")
             text.append(f"@{agent.agent_name}", style="#87D7FF")
-        # Status
+
+        # Start time
         text.append("  ")
-        text.append(agent.status, style="dim italic")
+        text.append(agent.start_time_short, style="dim")
+
+        # Model
+        if agent.model:
+            text.append("  ")
+            text.append(agent.model, style="dim italic")
+
+        # Step count for workflow parents
+        if agent.raw_suffix and agent.raw_suffix in self._step_counts:
+            count = self._step_counts[agent.raw_suffix]
+            text.append("  ")
+            text.append(f"({count} steps)", style="dim #00D7D7")
+
         return text
 
     def _create_options(self, agents: list[Agent]) -> list[Option]:
@@ -124,23 +203,18 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
         ]
 
     def _get_filtered_agents(self, filter_text: str) -> list[tuple[int, Agent]]:
-        """Get agents matching the filter text.
-
-        Returns list of (original_index, agent) tuples.
-        """
+        """Get agents matching the filter text."""
         if not filter_text:
             return list(enumerate(self.agents))
         filter_lower = filter_text.lower()
         results: list[tuple[int, Agent]] = []
         for i, agent in enumerate(self.agents):
-            # Match against display label
-            label = f"[{agent.display_type}] {agent.cl_name}"
+            label = f"[{agent.display_type}] {agent.display_name}"
             if agent.agent_name:
                 label += f" @{agent.agent_name}"
             if filter_lower in label.lower():
                 results.append((i, agent))
                 continue
-            # Match against chat content
             if i in self._chat_contents and filter_lower in self._chat_contents[i]:
                 results.append((i, agent))
         return results
@@ -154,7 +228,6 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
             option_list.add_option(
                 Option(self._format_agent_label(agent), id=str(orig_idx))
             )
-        # Update preview for first filtered item
         if self._filtered:
             self._update_preview(self._filtered[0][1])
         else:
@@ -202,48 +275,90 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
         scroll.scroll_relative(y=-(height // 2), animate=False)
 
     def _update_preview(self, agent: Agent) -> None:
-        """Update preview panel with agent metadata and response content."""
+        """Update preview panel with structured agent metadata and response."""
         try:
             metadata_widget = self.query_one("#dismissed-preview-metadata", Static)
             content_widget = self.query_one("#dismissed-preview-content", Static)
 
-            # Build metadata
             meta = Text()
-            meta.append(f"[{agent.display_type}]", style="bold #FF87D7")
-            meta.append(" ")
-            meta.append(agent.cl_name, style="bold")
-            if agent.agent_name:
-                meta.append(f"  @{agent.agent_name}", style="#87D7FF")
+
+            # Header line with decorative separator
+            type_color = self._get_type_color(agent)
+            header = f"[{agent.display_type}] {agent.display_name}"
+            meta.append("\u2501\u2501\u2501 ", style="dim")
+            meta.append(header, style=f"bold {type_color}")
+            meta.append(
+                " " + "\u2501" * max(1, 36 - len(header)),
+                style="dim",
+            )
+            meta.append("\n\n")
+
+            # Structured metadata with aligned labels
+            label_width = 12
+
+            meta.append(f"  {'Status':<{label_width}}", style="bold")
+            meta.append(agent.status, style=self._get_status_style(agent.status))
             meta.append("\n")
 
-            meta.append("Status: ", style="bold")
-            meta.append(f"{agent.status}\n")
+            meta.append(f"  {'Started':<{label_width}}", style="bold")
+            meta.append(f"{agent.start_time_display}\n", style="dim")
 
-            meta.append("Started: ", style="bold")
-            meta.append(f"{agent.start_time_display}\n")
-
-            if agent.workflow and not agent.appears_as_agent:
-                meta.append("Workflow: ", style="bold")
-                meta.append(f"{agent.workflow}\n")
+            meta.append(f"  {'Duration':<{label_width}}", style="bold")
+            meta.append(f"{agent.duration_display}\n", style="dim")
 
             if agent.model:
-                meta.append("Model: ", style="bold")
-                meta.append(f"{agent.model}\n")
+                meta.append(f"  {'Model':<{label_width}}", style="bold")
+                meta.append(f"{agent.model}\n", style="dim italic")
 
+            if agent.llm_provider:
+                meta.append(f"  {'Provider':<{label_width}}", style="bold")
+                meta.append(f"{agent.llm_provider}\n", style="dim")
+
+            if agent.agent_name:
+                meta.append(f"  {'Agent':<{label_width}}", style="bold")
+                meta.append(f"@{agent.agent_name}\n", style="#87D7FF")
+
+            if agent.workflow and not agent.appears_as_agent:
+                meta.append(f"  {'Workflow':<{label_width}}", style="bold")
+                meta.append(f"{agent.workflow}\n", style="dim")
+
+            # Child step summary
+            children = self._get_child_steps(agent)
+            if children:
+                meta.append(f"\n  \u2500\u2500 Steps ({len(children)}) ")
+                meta.append(
+                    "\u2500" * 24 + "\n",
+                    style="dim",
+                )
+                for i, child in enumerate(children, 1):
+                    step_type = child.step_type or "step"
+                    step_name = child.step_name or child.cl_name
+                    status_style = self._get_status_style(child.status)
+                    meta.append(f"  {i}. ", style="dim #AAAAAA")
+                    meta.append(f"[{step_type}] ", style=f"dim {type_color}")
+                    meta.append(f"{step_name:<20}", style="dim")
+                    meta.append(f"{child.status}\n", style=status_style)
+
+            # Error details
             if agent.error_message:
-                meta.append("Error: ", style="bold red")
-                meta.append(f"{agent.error_message}\n", style="red")
+                meta.append("\n  \u2500\u2500 Error ")
+                meta.append("\u2500" * 28 + "\n", style="dim")
+                meta.append(f"  {agent.error_message}\n", style="bold #FF5F5F")
+                if agent.error_traceback:
+                    meta.append(f"  {agent.error_traceback}\n", style="dim #FF5F5F")
 
             metadata_widget.update(meta)
 
-            # Show response content preview (always use original casing)
+            # Response content
             raw = agent.get_response_content()
             content = raw.strip() if raw else None
 
             if content:
-                # Show separator and content
                 preview = Text()
-                preview.append("--- Response ---\n", style="dim")
+                preview.append(
+                    "\n  \u2500\u2500 Response " + "\u2500" * 26 + "\n",
+                    style="dim",
+                )
                 preview.append(content[:5000])
                 if len(content) > 5000:
                     preview.append("\n... (truncated)", style="dim")

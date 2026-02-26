@@ -79,6 +79,10 @@ class AgentRevivalMixin:
         else:
             return
 
+        # Only show top-level DONE entries (no child steps)
+        all_in_scope = list(filtered)
+        filtered = [a for a in filtered if not a.is_workflow_child]
+
         if not filtered:
             self.notify("No dismissed agents in this scope")  # type: ignore[attr-defined]
             return
@@ -93,7 +97,8 @@ class AgentRevivalMixin:
             self._do_revive_agent(agent)
 
         self.app.push_screen(  # type: ignore[attr-defined]
-            DismissedAgentSelectModal(filtered), _on_agent_selected
+            DismissedAgentSelectModal(filtered, all_dismissed=all_in_scope),
+            _on_agent_selected,
         )
 
     def _do_revive_agent(self, agent: object) -> None:
