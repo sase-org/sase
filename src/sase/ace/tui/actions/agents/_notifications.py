@@ -69,7 +69,15 @@ class AgentNotificationMixin:
         PLANNING. For UserQuestion notifications, sets the override to QUESTION
         and conditionally saves the pre-question status (only if not already
         saved, to preserve the original status across multiple questions).
+
+        Also clears stale PLANNING overrides when a PlanApproval notification
+        is no longer unread (plan was approved or notification was dismissed).
         """
+        from ...models._timestamps import normalize_to_14_digit
+
+        # Track which agent identities have active unread PlanApproval notifications
+        agents_with_plan_notification: set[tuple[AgentType, str, str | None]] = set()
+
         for notification in unread:
             if notification.action not in ("PlanApproval", "UserQuestion"):
                 continue
@@ -85,8 +93,6 @@ class AgentNotificationMixin:
             # agent.raw_suffix (which is always normalized to 14-digit).
             # The env var SASE_AGENT_TIMESTAMP uses YYmmdd_HHMMSS (13-char)
             # but raw_suffix uses YYYYmmddHHMMSS (14-digit).
-            from ...models._timestamps import normalize_to_14_digit
-
             agent_timestamp = normalize_to_14_digit(agent_timestamp)
 
             # Find matching agent
@@ -102,6 +108,7 @@ class AgentNotificationMixin:
 
                 if notification.action == "PlanApproval":
                     self._agent_status_overrides[agent.identity] = "PLANNING"
+                    agents_with_plan_notification.add(agent.identity)
                 elif notification.action == "UserQuestion":
                     # Save pre-question status only if not already saved
                     if agent.identity not in self._agent_pre_question_status:
@@ -109,6 +116,12 @@ class AgentNotificationMixin:
                     self._agent_status_overrides[agent.identity] = "QUESTION"
 
                 break
+
+        # Clear stale PLANNING overrides for agents whose PlanApproval
+        # notification is no longer unread (plan was approved or dismissed)
+        for identity, status in list(self._agent_status_overrides.items()):
+            if status == "PLANNING" and identity not in agents_with_plan_notification:
+                self._agent_status_overrides.pop(identity)
 
     def _refresh_notification_count(self) -> None:
         """Reload unread notification count from disk and update the indicator.

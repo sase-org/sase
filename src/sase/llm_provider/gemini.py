@@ -114,6 +114,32 @@ def _write_plan_path_artifact(saved_plan_path: Path) -> None:
         plan_path_file.write_text(json.dumps({"plan_path": str(saved_plan_path)}))
 
 
+def _mark_plan_approved_in_meta() -> None:
+    """Set ``plan_approved: true`` in ``agent_meta.json``.
+
+    This persists the plan-approved state on disk so that any TUI instance
+    (including on other machines) can show PLAN APPROVED instead of PLANNING.
+    """
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    meta: dict[str, object] = {}
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    meta["plan_approved"] = True
+    try:
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except OSError:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Plan approval and ask_user handling
 # ---------------------------------------------------------------------------
@@ -413,6 +439,10 @@ class GeminiProvider(LLMProvider):
         response_content, stderr_content, return_code, approved_plan = result
 
         if approved_plan:
+            # Mark plan as approved in agent_meta.json so other TUI instances
+            # (e.g. on another machine) show PLAN APPROVED instead of PLANNING
+            _mark_plan_approved_in_meta()
+
             # Save plan to ~/.sase/plans/
             saved_plan_path = _save_plan_to_sase(approved_plan)
             _write_plan_path_artifact(saved_plan_path)
