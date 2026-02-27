@@ -1,0 +1,16 @@
+#!/bin/bash
+# Vendored from https://github.com/bbugyi200/dotfiles via pyvendor on 2026-02-27
+
+# Wrapper around pylimit that only outputs the filenames with violations,
+# separated by spaces.
+
+output=$(pylimit "$@" 2>&1)
+ec=$?
+
+files=$(echo "${output}" | grep 'VIOLATION:' | sed 's/VIOLATION: \(.*\) has .*/\1/' | tr '\n' ' ' | sed 's/ $//')
+
+if [[ -n "${files}" ]]; then
+  echo "${files}"
+fi
+
+exit "${ec}"
