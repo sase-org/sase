@@ -36,7 +36,9 @@ class AgentNotificationMixin:
 
         notifications = load_notifications()
         unread = [n for n in notifications if not n.read]
+        read = [n for n in notifications if n.read]
         unread_count = len(unread)
+        read_count = len(read)
 
         # Detect newly arrived notifications
         if unread_count > self._last_unread_count:
@@ -57,7 +59,7 @@ class AgentNotificationMixin:
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_count(unread_count)
+        indicator.set_counts(read_count, unread_count)
 
         # Scan unread notifications for PLANNING/QUESTION status overrides
         self._apply_notification_status_overrides(unread)
@@ -111,7 +113,7 @@ class AgentNotificationMixin:
                 break
 
     def _refresh_notification_count(self) -> None:
-        """Reload unread notification count from disk and update the indicator.
+        """Reload notification counts from disk and update the indicator.
 
         Called after notifications are dismissed outside the notification modal
         (e.g. when an agent is killed or dismissed-done).
@@ -122,14 +124,16 @@ class AgentNotificationMixin:
 
         notifications = load_notifications()
         unread = [n for n in notifications if not n.read]
+        read = [n for n in notifications if n.read]
         unread_count = len(unread)
+        read_count = len(read)
 
         self._last_unread_count = unread_count
 
         indicator = self.query_one(  # type: ignore[attr-defined]
             "#notification-indicator", NotificationIndicator
         )
-        indicator.set_count(unread_count)
+        indicator.set_counts(read_count, unread_count)
 
     def _ring_tmux_bell(self) -> None:
         """Ring tmux bell to notify user of agent completion."""
@@ -153,8 +157,8 @@ class AgentNotificationMixin:
             pass  # Script not available
 
     def action_show_notifications(self) -> None:
-        """Show the notification modal with unread notifications."""
-        from sase.notifications import load_notifications, mark_read
+        """Show the notification modal with all non-dismissed notifications."""
+        from sase.notifications import load_notifications, mark_all_read
 
         from ._notification_actions import (
             handle_hitl,
@@ -165,14 +169,22 @@ class AgentNotificationMixin:
             handle_user_question,
         )
         from ...modals import NotificationModal
+        from ...widgets import NotificationIndicator
 
         notifications = load_notifications()
-        unread = [n for n in notifications if not n.read]
+
+        # Mark all as read on open
+        mark_all_read()
+
+        # Update indicator immediately (all become read, 0 unread)
+        read_count = len(notifications)
+        indicator = self.query_one(  # type: ignore[attr-defined]
+            "#notification-indicator", NotificationIndicator
+        )
+        indicator.set_counts(read_count, 0)
+        self._last_unread_count = 0
 
         def _on_dismiss(result: Notification | None) -> None:
-            if result is not None:
-                mark_read(result.id)
-
             # Always refresh count from disk — covers x-dismiss, R-read-all, Enter-select
             self._refresh_notification_count()
 
@@ -193,4 +205,4 @@ class AgentNotificationMixin:
             elif result.action == "UserQuestion":
                 handle_user_question(self, result)
 
-        self.push_screen(NotificationModal(unread), callback=_on_dismiss)  # type: ignore[attr-defined]
+        self.push_screen(NotificationModal(notifications), callback=_on_dismiss)  # type: ignore[attr-defined]
