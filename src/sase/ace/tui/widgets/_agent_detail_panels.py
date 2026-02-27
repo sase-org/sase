@@ -183,6 +183,7 @@ class AgentDetailPanelMixin(Static):
                     prompt_scroll.add_class("expanded")
             else:
                 file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+                file_panel._deferred_trim_pending = True
                 self.call_after_refresh(file_panel.reset_trim)
 
     # ------------------------------------------------------------------
@@ -284,6 +285,7 @@ class AgentDetailPanelMixin(Static):
                 file_scroll.add_class("layout-secondary")
             if was_hidden:
                 file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+                file_panel._deferred_trim_pending = True
                 self.call_after_refresh(file_panel.reset_trim)
         else:
             # File has no content - auto-show thinking as fallback

@@ -41,6 +41,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._visible_line_count: int = 0
         self._base_trim_size: int = 0
         self._is_trimmed: bool = False
+        self._deferred_trim_pending: bool = False
         self._full_content: str | None = None
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"

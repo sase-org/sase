@@ -261,6 +261,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         # Recalculate file panel trim after layout change takes effect
         if self.is_file_visible():
             file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
+            file_panel._deferred_trim_pending = True
             self.call_after_refresh(file_panel.reset_trim)
 
     def is_thinking_visible(self) -> bool:

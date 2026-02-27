@@ -93,6 +93,7 @@ class FilePanelDisplayMixin:
                 self.update(syntax)  # type: ignore[attr-defined]
                 # Container was hidden/not laid out — trim after layout
                 if trim_size == 0:
+                    self._deferred_trim_pending = True  # type: ignore[attr-defined]
                     self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
 
             self._post_trim_changed()  # type: ignore[attr-defined]
@@ -178,6 +179,7 @@ class FilePanelDisplayMixin:
             self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
             # Container was hidden/not laid out — trim after layout
             if trim_size == 0:
+                self._deferred_trim_pending = True  # type: ignore[attr-defined]
                 self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
@@ -256,6 +258,7 @@ class FilePanelDisplayMixin:
             self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
             # Container was hidden/not laid out — trim after layout
             if trim_size == 0:
+                self._deferred_trim_pending = True  # type: ignore[attr-defined]
                 self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
