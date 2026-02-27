@@ -99,15 +99,27 @@ class RunnerProvider(ABC):
 
 
 def get_runner_providers() -> dict[str, RunnerProvider]:
-    """Discover runner providers via ``sase_runner_provider`` entry points.
+    """Discover runner providers via built-ins and entry points.
 
-    Follows the same pattern as
-    :func:`sase.vcs_provider._registry._build_classification_pm`.
+    Built-in providers (e.g. ``GitRunnerProvider``) are loaded first.
+    Entry points from the ``sase_runner_provider`` group can override
+    built-ins by registering under the same name.
 
     Returns:
         A dict mapping provider name to provider instance.
     """
     providers: dict[str, RunnerProvider] = {}
+
+    # Load built-in providers first
+    try:
+        from sase.runner_providers.git import GitRunnerProvider
+
+        git_provider = GitRunnerProvider()
+        providers[git_provider.name] = git_provider
+    except Exception:
+        logger.debug("Failed to load built-in GitRunnerProvider")
+
+    # Entry points can override built-ins
     for ep in importlib.metadata.entry_points(group="sase_runner_provider"):
         try:
             cls = ep.load()
