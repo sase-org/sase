@@ -14,10 +14,10 @@ class RefResolutionMixin:
         Returns (project_file, project_name, workspace_dir, workspace_num,
         ref) or None if not found or resolution fails.
         """
-        return _resolve_ref_from_prompt(prompt, workflow_type)
+        return resolve_ref_from_prompt(prompt, workflow_type)
 
 
-def _resolve_ref_from_prompt(
+def resolve_ref_from_prompt(
     prompt: str, workflow_type: str
 ) -> tuple[str, str, str, int, str] | None:
     """Resolve a VCS reference from a prompt using the plugin system.

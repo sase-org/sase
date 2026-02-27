@@ -397,6 +397,12 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Options for 'run' (keep sorted alphabetically by long option name)
     run_parser.add_argument(
+        "-d",
+        "--daemon",
+        action="store_true",
+        help="Run prompt as a detached background agent (appears in TUI Agents tab)",
+    )
+    run_parser.add_argument(
         "-l",
         "--list",
         action="store_true",

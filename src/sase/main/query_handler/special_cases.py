@@ -6,6 +6,7 @@ from pathlib import Path
 from sase.chat_history import list_chat_histories
 from sase.shared_utils import create_artifacts_directory
 
+from ._daemon import run_query_daemon
 from ._editor import open_editor_for_prompt, show_prompt_history_picker
 from ._query import run_query
 from ._resume import handle_run_with_resume
@@ -14,7 +15,7 @@ from ._resume import handle_run_with_resume
 def handle_run_special_cases(args_after_run: list[str]) -> bool:
     """Handle special cases for 'sase run' before argparse processes it.
 
-    This handles queries that contain spaces and special flags like -l, -r.
+    This handles queries that contain spaces and special flags like -l, -r, -d.
 
     Args:
         args_after_run: Arguments after 'run' command.
@@ -22,8 +23,19 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     Returns:
         True if a special case was handled (and sys.exit was called), False otherwise.
     """
-    # Handle -l/--list flag
+    # Detect and strip -d/--daemon flag
+    daemon_mode = False
+    if "-d" in args_after_run or "--daemon" in args_after_run:
+        args_after_run = [a for a in args_after_run if a not in ("-d", "--daemon")]
+        daemon_mode = True
+
+    _run_query = run_query_daemon if daemon_mode else run_query
+
+    # Handle -l/--list flag (incompatible with daemon)
     if args_after_run and args_after_run[0] in ("-l", "--list"):
+        if daemon_mode:
+            print("Error: -d/--daemon is incompatible with -l/--list")
+            sys.exit(1)
         histories = list_chat_histories()
         if not histories:
             print("No chat histories found.")
@@ -67,7 +79,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 from sase.xprompt import strip_vcs_workflow_tag
 
                 prompt = strip_vcs_workflow_tag(prompt)
-                run_query(f"{vcs_prefix} {prompt}")
+                _run_query(f"{vcs_prefix} {prompt}")
                 sys.exit(0)
 
     # Handle '.' - show prompt history picker
@@ -76,7 +88,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if prompt is None:
             print("No prompt selected. Aborting.")
             sys.exit(1)
-        run_query(prompt)
+        _run_query(prompt)
         sys.exit(0)
 
     # Handle no arguments - open editor for prompt
@@ -85,11 +97,14 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if prompt is None:
             print("No prompt provided. Aborting.")
             sys.exit(1)
-        run_query(prompt)
+        _run_query(prompt)
         sys.exit(0)
 
-    # Handle -r/--resume flag
+    # Handle -r/--resume flag (incompatible with daemon)
     if args_after_run and args_after_run[0] in ("-r", "--resume"):
+        if daemon_mode:
+            print("Error: -d/--daemon is incompatible with -r/--resume")
+            sys.exit(1)
         handle_run_with_resume(args_after_run)
         # handle_run_with_resume calls sys.exit, but just in case:
         sys.exit(0)
@@ -126,7 +141,13 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 # through run_query so their embedded pre/post steps and
                 # prompt_part expansion work correctly.
                 if workflow.has_prompt_part() and not workflow.is_simple_xprompt():
-                    run_query(potential_query)
+                    _run_query(potential_query)
+                    sys.exit(0)
+
+                # In daemon mode, pass the full #workflow_name as the prompt
+                # — the runner script handles xprompt expansion.
+                if daemon_mode:
+                    run_query_daemon(potential_query)
                     sys.exit(0)
 
                 # Create artifacts directory in ~/.sase/projects/ so TUI can find it
@@ -159,7 +180,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
 
         known_prompts = set(get_all_prompts().keys())
         if potential_query not in known_prompts and " " in potential_query:
-            run_query(potential_query)
+            _run_query(potential_query)
             sys.exit(0)
 
     # No special case handled
