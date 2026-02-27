@@ -54,3 +54,6 @@ CLAUDE.local.md
 
 # Copied context files (from @ file references)
 .sase/
+
+# Hypothesis
+.hypothesis/
