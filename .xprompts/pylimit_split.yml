@@ -1,5 +1,5 @@
 input:
-  limits: { type: text, default: "1000 850 700" }
+  limits: { type: text, default: "1000 850 666" }
 steps:
   - name: find_files
     hidden: true
