@@ -4,8 +4,7 @@ Loads ``default_config.yml`` (bundled in the package) as the base layer,
 then deep-merges plugin ``default_config.yml`` files, then
 ``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
-alphabetically, with list concatenation), then finally merges a local CWD
-``.sase.yml`` or ``sase.yml`` file (with list replacement) on top.
+alphabetically, with list concatenation) on top.
 """
 
 import importlib.resources
@@ -94,20 +93,6 @@ def _get_overlay_paths() -> list[Path]:
     return sorted(CONFIG_DIR.glob("sase_*.yml"))
 
 
-def _get_local_config_path(cwd: Path | None = None) -> Path | None:
-    """Return the path to a local CWD config file, or ``None`` if absent.
-
-    Checks for ``.sase.yml`` first (hidden, higher priority), then
-    ``sase.yml``.  Only the first found is returned.
-    """
-    root = cwd or Path.cwd()
-    for name in (".sase.yml", "sase.yml"):
-        path = root / name
-        if path.is_file():
-            return path
-    return None
-
-
 def _load_plugin_configs() -> list[dict[str, Any]]:
     """Load ``default_config.yml`` from each plugin in the ``sase_config`` group.
 
@@ -133,7 +118,7 @@ def _load_plugin_configs() -> list[dict[str, Any]]:
     return configs
 
 
-def load_merged_config(cwd: Path | None = None) -> dict[str, Any]:
+def load_merged_config() -> dict[str, Any]:
     """Load and merge all sase config files.
 
     Merge chain (each layer merges on top of the previous):
@@ -141,7 +126,6 @@ def load_merged_config(cwd: Path | None = None) -> dict[str, Any]:
     2. Plugin ``default_config.yml`` files (sorted by EP name, lists concatenate)
     3. ``sase.yml`` (user config — lists **replace** defaults)
     4. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
-    5. Local CWD ``.sase.yml`` or ``sase.yml`` (lists **replace**)
 
     Returns at least the defaults even when no user config files exist.
     """
@@ -160,13 +144,5 @@ def load_merged_config(cwd: Path | None = None) -> dict[str, Any]:
         overlay = _load_yaml_file(overlay_path)
         if overlay:
             result = _deep_merge(result, overlay)
-
-    # 5. Local CWD config (highest priority, lists replace)
-    local_path = _get_local_config_path(cwd)
-    if local_path:
-        local_config = _load_yaml_file(local_path)
-        if local_config:
-            log.info("Loaded local config: %s", local_path)
-            result = _deep_merge(result, local_config, list_strategy="replace")
 
     return result

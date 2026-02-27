@@ -28,36 +28,26 @@ All sase configuration lives under `~/.config/sase/`. The base config file is:
 Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file (see
 [Deep-Merge System](#deep-merge-system) below).
 
-### Local (CWD) Config
-
-A project can carry its own sase configuration by placing a `.sase.yml` or `sase.yml` file in the working directory.
-This local config is merged as the highest-priority layer on top of everything else, using list **replace** semantics.
-
-If both `.sase.yml` (hidden) and `sase.yml` exist, only `.sase.yml` is loaded. No CWD overlay files (`sase_*.yml`) are
-supported — a single file suffices for project-level config.
-
 ## Deep-Merge System
 
-Sase builds a merged configuration through five layers, each merged on top of the previous:
+Sase builds a merged configuration through four layers, each merged on top of the previous:
 
 1. **`default_config.yml`** — bundled package defaults
 2. **Plugin `default_config.yml` files** — from installed plugin packages (via `sase_config` entry points), sorted by
    entry-point name; lists concatenate
 3. **`sase.yml`** — user config; lists **replace** defaults (not concatenate)
 4. **`sase_*.yml` overlays** — sorted alphabetically; lists **concatenate**
-5. **Local CWD `.sase.yml` or `sase.yml`** — project-level config; lists **replace** (highest priority)
 
 This allows splitting configuration across multiple files (e.g., `sase_work.yml`, `sase_personal.yml`) without
-duplication, plugins can provide sensible defaults that users can override, and individual projects can customize
-behavior via a local config file.
+duplication, and plugins can provide sensible defaults that users can override.
 
 Merge semantics:
 
-| Type        | Behavior                                                        |
-| ----------- | --------------------------------------------------------------- |
-| **Dicts**   | Merged recursively (overlay keys override base keys).           |
-| **Lists**   | Concatenated in layers 2 and 4; **replaced** in layers 3 and 5. |
-| **Scalars** | Override (overlay value replaces base value).                   |
+| Type        | Behavior                                                               |
+| ----------- | ---------------------------------------------------------------------- |
+| **Dicts**   | Merged recursively (overlay keys override base keys).                  |
+| **Lists**   | Concatenated in layers 2 and 4; **replaced** in layer 3 (user config). |
+| **Scalars** | Override (overlay value replaces base value).                          |
 
 For example, given a base file with two mentor profiles and an overlay that adds a third, the merged result contains all
 three profiles. If both files define the same scalar key (e.g., `axe.max_runners`), the overlay wins.
