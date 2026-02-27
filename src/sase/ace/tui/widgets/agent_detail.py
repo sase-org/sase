@@ -12,7 +12,6 @@ from ..models.agent import Agent
 from .file_panel import (
     AgentFilePanel,
     FileListChanged,
-    FileTrimChanged,
     FileVisibilityChanged,
 )
 from .prompt_panel import AgentPromptPanel
@@ -53,9 +52,6 @@ class AgentDetail(Static):
         self._has_thinking_content: bool = False
         self._file_count: int = 0
         self._file_index: int = 0
-        self._trim_visible_lines: int = 0
-        self._trim_total_lines: int = 0
-        self._trim_is_trimmed: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
@@ -232,11 +228,7 @@ class AgentDetail(Static):
         self._has_thinking_content = False
         self._file_count = 0
         self._file_index = 0
-        self._trim_visible_lines = 0
-        self._trim_total_lines = 0
-        self._trim_is_trimmed = False
         prompt_scroll.border_subtitle = ""
-        file_scroll.border_subtitle = ""
 
     def refresh_current_file(self, agent: Agent) -> None:
         """Force refresh the file for the given agent.
@@ -266,37 +258,6 @@ class AgentDetail(Static):
         self._file_count = message.file_count
         self._file_index = message.file_index
         self._update_panel_indicators()
-
-    def on_file_trim_changed(self, message: FileTrimChanged) -> None:
-        """Handle file trim state changes from the file panel.
-
-        Args:
-            message: The trim change message.
-        """
-        self._trim_visible_lines = message.visible_lines
-        self._trim_total_lines = message.total_lines
-        self._trim_is_trimmed = message.is_trimmed
-        self._update_file_scroll_subtitle()
-
-    def _update_file_scroll_subtitle(self) -> None:
-        """Update the border subtitle on the file scroll panel to show line counts."""
-        try:
-            file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        except Exception:
-            return
-
-        if self._trim_total_lines == 0:
-            file_scroll.border_subtitle = ""
-        elif self._trim_is_trimmed:
-            file_scroll.border_subtitle = Text(
-                f"Lines 1-{self._trim_visible_lines} of {self._trim_total_lines}",
-                style="dim #87D7FF",
-            )
-        else:
-            file_scroll.border_subtitle = Text(
-                f"{self._trim_total_lines} lines",
-                style="dim green",
-            )
 
     def toggle_thinking(self, agent: Agent) -> None:
         """Cycle to the next panel mode.
@@ -410,9 +371,6 @@ class AgentDetail(Static):
                 else:
                     file_scroll.add_class("hidden")
                     prompt_scroll.add_class("expanded")
-            else:
-                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-                self.call_after_refresh(file_panel.reset_trim)
 
     def on_thinking_visibility_changed(
         self, message: ThinkingVisibilityChanged
@@ -471,7 +429,6 @@ class AgentDetail(Static):
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
 
         if message.has_file:
-            was_hidden = file_scroll.has_class("hidden")
             if self._thinking_auto_shown:
                 # File appeared - switch from auto-shown thinking to file
                 thinking_scroll = self.query_one(
@@ -486,9 +443,6 @@ class AgentDetail(Static):
             if self._layout_swapped:
                 prompt_scroll.add_class("layout-priority")
                 file_scroll.add_class("layout-secondary")
-            if was_hidden:
-                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-                self.call_after_refresh(file_panel.reset_trim)
         else:
             # File has no content - auto-show thinking as fallback
             if self._current_agent is not None:
@@ -518,11 +472,6 @@ class AgentDetail(Static):
         else:
             prompt_scroll.remove_class("layout-priority")
             secondary_scroll.remove_class("layout-secondary")
-
-        # Recalculate file panel trim after layout change takes effect
-        if self.is_file_visible():
-            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-            self.call_after_refresh(file_panel.reset_trim)
 
     def _update_panel_indicators(self) -> None:
         """Update the border subtitle on the prompt panel to show panel state."""
@@ -628,35 +577,6 @@ class AgentDetail(Static):
             thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
             return (None, thinking_panel.get_thinking_text(), ".md")
         return (None, None, "")
-
-    def expand_file_trim(self) -> None:
-        """Expand file content by one page."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.expand_by_page()
-
-    def collapse_file_trim(self) -> None:
-        """Collapse file content by one page."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.collapse_by_page()
-
-    def reset_file_trim(self) -> None:
-        """Reset file trim to default page size."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.reset_trim()
-
-    def show_all_file_lines(self) -> None:
-        """Show all file lines (remove trimming)."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.show_all_lines()
-
-    def is_file_trimmed(self) -> bool:
-        """Check if file content is currently trimmed.
-
-        Returns:
-            True if the file content is trimmed, False otherwise.
-        """
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        return file_panel.is_trimmed
 
     def is_layout_swapped(self) -> bool:
         """Check if the layout is currently swapped.

@@ -133,9 +133,6 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("i", "Cycle panels: file → thinking → metadata"),
             ("p", "Toggle file/prompt layout"),
             ("Ctrl+N / P", "Next / prev file in panel"),
-            ("+ / -", "Expand / collapse file content"),
-            ("=", "Reset file trim to default"),
-            ("*", "Show all file lines"),
         ],
     ),
     (

@@ -6,6 +6,7 @@ from datetime import datetime
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
+from textual.containers import VerticalScroll
 
 from ._messages import _EXTENSION_TO_LEXER
 
@@ -57,45 +58,14 @@ class FilePanelDisplayMixin:
             self._full_content_lexer = "diff"
             self._content_mode = "diff"
 
-            # Compute trimming
-            total = self._count_lines(diff_with_header)  # type: ignore[attr-defined]
-            trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
-            self._total_line_count = total
-            self._base_trim_size = trim_size
-
-            if trim_size > 0 and total > trim_size:
-                self._visible_line_count = trim_size
-                self._is_trimmed = True
-                syntax = Syntax(
-                    diff_with_header,
-                    "diff",
-                    theme="monokai",
-                    line_numbers=True,
-                    word_wrap=True,
-                    line_range=(1, trim_size),
-                )
-                remaining = total - trim_size
-                indicator = Text(
-                    f"\n  \u25be {remaining} more lines below",
-                    style="dim italic #87D7FF",
-                )
-                self.update(Group(syntax, indicator))  # type: ignore[attr-defined]
-            else:
-                self._visible_line_count = total
-                self._is_trimmed = False
-                syntax = Syntax(
-                    diff_with_header,
-                    "diff",
-                    theme="monokai",
-                    line_numbers=True,
-                    word_wrap=True,
-                )
-                self.update(syntax)  # type: ignore[attr-defined]
-                # Container was hidden/not laid out — trim after layout
-                if trim_size == 0:
-                    self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
-
-            self._post_trim_changed()  # type: ignore[attr-defined]
+            syntax = Syntax(
+                diff_with_header,
+                "diff",
+                theme="monokai",
+                line_numbers=True,
+                word_wrap=True,
+            )
+            self.update(syntax)  # type: ignore[attr-defined]
         else:
             text = Text()
             text.append("Last fetched: ", style="dim")
@@ -105,7 +75,6 @@ class FilePanelDisplayMixin:
             text.append("\n\n")
             text.append("No changes detected.\n", style="dim italic")
             self.update(text)  # type: ignore[attr-defined]
-            self._post_trim_changed()  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
 
@@ -140,49 +109,18 @@ class FilePanelDisplayMixin:
         self._content_mode = "static_diff"
         self._static_header_path = expanded_path
 
-        # Compute trimming
-        total = self._count_lines(diff_with_header)  # type: ignore[attr-defined]
-        trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
-        self._total_line_count = total
-        self._base_trim_size = trim_size
-
         header = Text(expanded_path, style="bold #D7AF5F underline")
-
-        if trim_size > 0 and total > trim_size:
-            self._visible_line_count = trim_size
-            self._is_trimmed = True
-            syntax = Syntax(
-                diff_with_header,
-                "diff",
-                theme="monokai",
-                line_numbers=True,
-                word_wrap=True,
-                line_range=(1, trim_size),
-            )
-            remaining = total - trim_size
-            indicator = Text(
-                f"\n  \u25be {remaining} more lines below",
-                style="dim italic #87D7FF",
-            )
-            self.update(Group(header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
-        else:
-            self._visible_line_count = total
-            self._is_trimmed = False
-            syntax = Syntax(
-                diff_with_header,
-                "diff",
-                theme="monokai",
-                line_numbers=True,
-                word_wrap=True,
-            )
-            self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
-            # Container was hidden/not laid out — trim after layout
-            if trim_size == 0:
-                self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
+        syntax = Syntax(
+            diff_with_header,
+            "diff",
+            theme="monokai",
+            line_numbers=True,
+            word_wrap=True,
+        )
+        self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
-        self._post_trim_changed()  # type: ignore[attr-defined]
 
     def display_static_file(self, file_path: str) -> None:
         """Display a static file with syntax highlighting (no auto-refresh).
@@ -218,49 +156,18 @@ class FilePanelDisplayMixin:
         self._content_mode = "static"
         self._static_header_path = expanded_path
 
-        # Compute trimming
-        total = self._count_lines(content)  # type: ignore[attr-defined]
-        trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
-        self._total_line_count = total
-        self._base_trim_size = trim_size
-
         header = Text(expanded_path, style="bold #D7AF5F underline")
-
-        if trim_size > 0 and total > trim_size:
-            self._visible_line_count = trim_size
-            self._is_trimmed = True
-            syntax = Syntax(
-                content,
-                lexer,
-                theme="monokai",
-                line_numbers=True,
-                word_wrap=True,
-                line_range=(1, trim_size),
-            )
-            remaining = total - trim_size
-            indicator = Text(
-                f"\n  \u25be {remaining} more lines below",
-                style="dim italic #87D7FF",
-            )
-            self.update(Group(header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
-        else:
-            self._visible_line_count = total
-            self._is_trimmed = False
-            syntax = Syntax(
-                content,
-                lexer,
-                theme="monokai",
-                line_numbers=True,
-                word_wrap=True,
-            )
-            self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
-            # Container was hidden/not laid out — trim after layout
-            if trim_size == 0:
-                self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
+        syntax = Syntax(
+            content,
+            lexer,
+            theme="monokai",
+            line_numbers=True,
+            word_wrap=True,
+        )
+        self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
-        self._post_trim_changed()  # type: ignore[attr-defined]
 
     def _show_loading(self) -> None:
         """Display loading indicator only if panel was previously visible."""
@@ -273,7 +180,84 @@ class FilePanelDisplayMixin:
 
     def show_empty(self) -> None:
         """Show empty state."""
-        self._reset_trim_state()  # type: ignore[attr-defined]
+        self._reset_content_state()
         self._has_displayed_content = False
         text = Text("No agent selected", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]
+
+    def _reset_content_state(self) -> None:
+        """Reset content-related fields to defaults."""
+        self._full_content = None
+        self._full_content_lexer = "text"
+        self._content_mode = "none"
+        self._static_header_path = None
+
+    def _render_content(self) -> None:
+        """Re-render full_content."""
+        if self._full_content is None:
+            return
+
+        lexer = (
+            "diff"
+            if self._content_mode in ("diff", "static_diff")
+            else self._full_content_lexer
+        )
+        syntax = Syntax(
+            self._full_content,
+            lexer,
+            theme="monokai",
+            line_numbers=True,
+            word_wrap=True,
+        )
+        if self._content_mode in ("static", "static_diff"):
+            header = Text(
+                self._static_header_path or "", style="bold #D7AF5F underline"
+            )
+            self.update(Group(header, Text(""), syntax))  # type: ignore[attr-defined]
+        else:
+            self.update(syntax)  # type: ignore[attr-defined]
+
+    def _update_timestamp_header(
+        self, fetch_time: datetime, *, refreshing: bool = False
+    ) -> None:
+        """Update the timestamp line in _full_content without re-fetching."""
+        if self._full_content is None or self._content_mode != "diff":
+            return
+        newline_idx = self._full_content.index("\n")
+        suffix = " (refreshing...)" if refreshing else ""
+        new_header = f"# Last fetched: {fetch_time.strftime('%H:%M:%S')}{suffix}"
+        self._full_content = new_header + self._full_content[newline_idx:]
+
+    def _get_scroll_container(self) -> VerticalScroll | None:
+        """Get the parent scroll container for this file panel.
+
+        Returns:
+            The VerticalScroll container, or None if not found.
+        """
+        try:
+            return self.app.query_one("#agent-file-scroll", VerticalScroll)  # type: ignore[attr-defined]
+        except Exception:
+            return None
+
+    def _save_scroll_position(self) -> float:
+        """Save the current scroll position.
+
+        Returns:
+            The current scroll Y position, or 0 if unavailable.
+        """
+        container = self._get_scroll_container()
+        if container is not None:
+            return container.scroll_y
+        return 0.0
+
+    def _restore_scroll_position(self, position: float) -> None:
+        """Restore a previously saved scroll position.
+
+        Args:
+            position: The scroll Y position to restore.
+        """
+        container = self._get_scroll_container()
+        if container is not None:
+            self.call_after_refresh(  # type: ignore[attr-defined]
+                lambda: container.scroll_to(y=position, animate=False)
+            )
