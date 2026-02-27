@@ -41,7 +41,6 @@ class FilePanelTrimMixin:
         self._visible_line_count = 0
         self._base_trim_size = 0
         self._is_trimmed = False
-        self._deferred_trim_pending = False
         self._full_content: str | None = None
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"
@@ -84,12 +83,7 @@ class FilePanelTrimMixin:
 
         Called via ``call_after_refresh`` when the initial render could
         not determine the container height (e.g. container was hidden).
-        If a user action has already cleared ``_deferred_trim_pending``,
-        this becomes a no-op so it won't undo the user's action.
         """
-        if not self._deferred_trim_pending:
-            return
-        self._deferred_trim_pending = False
         if self._full_content is None or self._is_trimmed:
             return
         trim_size = self._compute_trim_size()
@@ -100,32 +94,6 @@ class FilePanelTrimMixin:
             self._visible_line_count = trim_size
             self._is_trimmed = True
             self._render_trimmed_content()
-
-    def _force_initial_trim(self) -> bool:
-        """Attempt to eagerly compute and apply the initial trim.
-
-        Called by user actions (``+``, ``-``, ``*``) that fire during the
-        deferred-trim window.  Clears ``_deferred_trim_pending`` so the
-        scheduled callback becomes a no-op.
-
-        Returns:
-            True if the content is now trimmed, False otherwise.
-        """
-        if not self._deferred_trim_pending:
-            return False
-        self._deferred_trim_pending = False
-        if self._full_content is None or self._is_trimmed:
-            return self._is_trimmed
-        trim_size = self._compute_trim_size()
-        if trim_size <= 0:
-            return False
-        self._base_trim_size = trim_size
-        if self._total_line_count > trim_size:
-            self._visible_line_count = trim_size
-            self._is_trimmed = True
-            self._render_trimmed_content()
-            return True
-        return False
 
     def _render_trimmed_content(self) -> None:
         """Re-render full_content with current trim state."""
@@ -165,15 +133,12 @@ class FilePanelTrimMixin:
     @property
     def is_trimmed(self) -> bool:
         """Whether the content is currently trimmed."""
-        return self._is_trimmed or self._deferred_trim_pending
+        return self._is_trimmed
 
     def expand_by_page(self) -> None:
         """Expand visible lines by one page (base_trim_size)."""
-        if not self._full_content:
+        if not self._full_content or not self._is_trimmed:
             return
-        if not self._is_trimmed:
-            if not self._force_initial_trim():
-                return
         if self._base_trim_size <= 0:
             self._base_trim_size = self._compute_trim_size()
             if self._base_trim_size <= 0:
@@ -191,7 +156,6 @@ class FilePanelTrimMixin:
 
     def collapse_by_page(self) -> None:
         """Collapse visible lines by one page (base_trim_size)."""
-        self._deferred_trim_pending = False
         if not self._full_content:
             return
         if self._base_trim_size <= 0:
@@ -213,7 +177,6 @@ class FilePanelTrimMixin:
 
     def reset_trim(self) -> None:
         """Reset trim to the default page size for current viewport."""
-        self._deferred_trim_pending = False
         if not self._full_content:
             return
         self._base_trim_size = self._compute_trim_size()
@@ -229,7 +192,6 @@ class FilePanelTrimMixin:
 
     def show_all_lines(self) -> None:
         """Show all lines (remove trimming)."""
-        self._deferred_trim_pending = False
         if not self._full_content:
             return
         self._visible_line_count = self._total_line_count
