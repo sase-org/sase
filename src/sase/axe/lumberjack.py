@@ -125,6 +125,8 @@ class Lumberjack:
         write_chop_context(ctx, context_file)
 
         for chop in self.config.chops:
+            if self._metrics.cycles_run % chop.run_every != 0:
+                continue
             if chop.xprompt is not None:
                 self._run_xprompt_chop(chop)
                 continue

@@ -17,6 +17,7 @@ class ChopConfig:
     name: str
     description: str
     xprompt: str | None = None
+    run_every: int = 1
 
 
 @dataclass
@@ -61,11 +62,18 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
         chops: list[ChopConfig] = []
         for entry in raw_chops:
             if isinstance(entry, dict):
+                raw_run_every = entry.get("run_every", 1)
+                run_every = (
+                    raw_run_every
+                    if isinstance(raw_run_every, int) and raw_run_every >= 1
+                    else 1
+                )
                 chops.append(
                     ChopConfig(
                         name=entry["name"],
                         description=entry.get("description", ""),
                         xprompt=entry.get("xprompt"),
+                        run_every=run_every,
                     )
                 )
             elif isinstance(entry, str):

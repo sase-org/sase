@@ -66,6 +66,50 @@ def test_parse_lumberjacks_skips_non_dict_entries() -> None:
     assert "hooks" in result
 
 
+def test_chop_config_run_every_defaults_to_one() -> None:
+    """Test that run_every defaults to 1."""
+    chop = ChopConfig(name="test", description="")
+    assert chop.run_every == 1
+
+
+def test_parse_lumberjacks_run_every_from_dict() -> None:
+    """Test that run_every is parsed from dict chop entries."""
+    raw = {
+        "checks": {
+            "interval": 60,
+            "chops": [{"name": "slow_check", "run_every": 5}],
+        },
+    }
+    result = _parse_lumberjacks(raw)
+    assert result["checks"].chops[0].run_every == 5
+
+
+def test_parse_lumberjacks_run_every_clamps_invalid() -> None:
+    """Test that invalid run_every values are clamped to 1."""
+    raw = {
+        "checks": {
+            "interval": 60,
+            "chops": [
+                {"name": "zero", "run_every": 0},
+                {"name": "negative", "run_every": -3},
+                {"name": "string", "run_every": "bad"},
+            ],
+        },
+    }
+    result = _parse_lumberjacks(raw)
+    for chop in result["checks"].chops:
+        assert chop.run_every == 1
+
+
+def test_parse_lumberjacks_string_chops_get_default_run_every() -> None:
+    """Test that string chops get default run_every=1."""
+    raw = {
+        "hooks": {"interval": 1, "chops": ["hook_checks"]},
+    }
+    result = _parse_lumberjacks(raw)
+    assert result["hooks"].chops[0].run_every == 1
+
+
 def test_load_axe_config_empty_data() -> None:
     """Test loading config with empty data returns AxeConfig defaults."""
     with patch("sase.axe.config.load_merged_config", return_value={}):
