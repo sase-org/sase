@@ -116,7 +116,7 @@ class PromptInputBar(Static):
             """Initialize the message.
 
             Args:
-                vcs_prefix: VCS workflow prefix (e.g., "%gh:sase") to prepend
+                vcs_prefix: VCS workflow prefix (e.g., "#gh:sase") to prepend
                     to the selected prompt. Empty string for plain dot-prompt.
             """
             super().__init__()
@@ -174,10 +174,10 @@ class PromptInputBar(Static):
             self.post_message(self.HistoryRequested())
             return
 
-        # Check for VCS dot-prompt (e.g., "%gh:sase ." or "%git:repo .")
-        # The '%' or '#' prefix indicates a VCS reference; trailing " ." means
+        # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .")
+        # The '#' prefix indicates a workflow reference; trailing " ." means
         # the user wants to pick from prompt history for that VCS context.
-        if value.endswith(" .") and value[0] in ("#", "%"):
+        if value.endswith(" .") and value[0] == "#":
             vcs_prefix = value[:-2].rstrip()
             self.post_message(self.HistoryRequested(vcs_prefix=vcs_prefix))
             return

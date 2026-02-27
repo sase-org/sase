@@ -44,11 +44,11 @@ def _build_mentor_prompt(
         vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
 
     Returns:
-        The complete prompt with ``%<vcs_type>:<cl_name>`` prepended and
+        The complete prompt with ``#<vcs_type>:<cl_name>`` prepended and
         xprompt references expanded.
     """
     expanded = process_xprompt_references(mentor.prompt)
-    return f"%{vcs_type}:{cl_name}\n\n{expanded}"
+    return f"#{vcs_type}:{cl_name}\n\n{expanded}"
 
 
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:

@@ -183,7 +183,7 @@ class AgentLaunchMixin:
 
             # Detect VCS type and build per-CL prompt with prefix
             workflow_type = detect_workflow_type(project_file)
-            cl_prompt = f"%{workflow_type}:{cl_name} {prompt}"
+            cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
             self._launch_background_agent(
                 cl_name=cl_name,

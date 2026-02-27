@@ -45,10 +45,10 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 print(f"  {history}")
         sys.exit(0)
 
-    # Handle VCS workflow prefix + '.' (e.g., "%gh:sase ." or "%hg:my_cl .")
+    # Handle VCS workflow prefix + '.' (e.g., "#gh(sase) ." or "#hg:my_cl .")
     # Opens prompt history picker with the specified project's prompts sorted to top,
     # then runs the selected prompt wrapped in the VCS workflow.
-    # Handles both split args (['%gh:sase', '.']) and single arg (['%gh:sase .'])
+    # Handles both split args (['#gh:sase', '.']) and single arg (['#gh:sase .'])
     # since shell may or may not split depending on quoting.
     vcs_prefix: str | None = None
     if len(args_after_run) >= 2 and args_after_run[-1] == ".":
@@ -56,10 +56,10 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     elif len(args_after_run) == 1 and args_after_run[0].endswith(" ."):
         vcs_prefix = args_after_run[0][:-2]
     if vcs_prefix is not None:
-        if vcs_prefix.startswith(("#", "%")):
+        if vcs_prefix.startswith("#"):
             from sase.xprompt import parse_workflow_reference, strip_hitl_suffix
 
-            workflow_ref = vcs_prefix[1:]  # Strip leading "#" or "%"
+            workflow_ref = vcs_prefix[1:]  # Strip leading "#"
             workflow_ref, _ = strip_hitl_suffix(workflow_ref)
             workflow_name, positional_args, _ = parse_workflow_reference(workflow_ref)
 
