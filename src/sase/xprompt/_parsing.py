@@ -354,16 +354,21 @@ def extract_vcs_workflow_tag(prompt: str) -> str | None:
     """Extract a leading VCS workflow tag from a prompt string.
 
     Skips leading ``%directive`` lines before checking for a VCS tag.
-    Returns the matched tag (e.g., ``"#gh:sase "``) or ``None``.
+    Returns the matched tag (e.g., ``"%gh:sase "``) or ``None``.
     """
+    pattern = _get_vcs_tag_pattern()
     stripped = prompt
     while stripped.startswith("%"):
+        # Check if this % line is itself a VCS tag before skipping
+        match = pattern.match(stripped)
+        if match:
+            return match.group(0)
         line_end = stripped.find("\n")
         if line_end == -1:
             return None
         stripped = stripped[line_end + 1 :]
 
-    match = _get_vcs_tag_pattern().match(stripped)
+    match = pattern.match(stripped)
     if match:
         return match.group(0)
     return None
@@ -372,7 +377,7 @@ def extract_vcs_workflow_tag(prompt: str) -> str | None:
 def strip_vcs_workflow_tag(prompt: str) -> str:
     """Strip a leading VCS workflow tag from a prompt string.
 
-    Removes prefixes like ``#gh:sase``, ``#git(repo)``, ``#hg!!:cl``, etc.
+    Removes prefixes like ``%gh:sase``, ``%git(repo)``, ``%hg!!:cl``, etc.
     so the prompt can be re-wrapped with a different VCS workflow.
     """
     return _get_vcs_tag_pattern().sub("", prompt)

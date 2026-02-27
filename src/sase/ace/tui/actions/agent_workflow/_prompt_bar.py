@@ -258,9 +258,9 @@ class PromptBarMixin:
             """Prepend VCS prefix to the selected prompt if present.
 
             Strips any existing VCS workflow tag from the prompt text
-            first to avoid doubling (e.g., "#gh:sase #gh:sase Do the
+            first to avoid doubling (e.g., "%gh:sase %gh:sase Do the
             thing") and to handle cross-VCS reuse (e.g., a prompt
-            originally used with ``#git`` being reused via ``#gh``).
+            originally used with ``%git`` being reused via ``%gh``).
             """
             if vcs_prefix:
                 from sase.xprompt import strip_vcs_workflow_tag

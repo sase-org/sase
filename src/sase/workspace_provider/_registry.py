@@ -100,7 +100,7 @@ def get_pre_allocated_env_prefix(workflow_type: str) -> str | None:
 def get_vcs_tag_pattern() -> re.Pattern[str]:
     """Build a regex matching any VCS workflow tag at the start of a prompt."""
     names = "|".join(re.escape(n) for n in sorted(get_workflow_names()))
-    return re.compile(rf"^#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|:[^\s]*|)\s")
+    return re.compile(rf"^[#%](?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|:[^\s]*|)\s")
 
 
 def detect_workflow_type(project_file: str) -> str:
