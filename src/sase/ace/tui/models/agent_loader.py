@@ -70,11 +70,19 @@ def filter_agents_by_fold_state(
         hidden = sum(1 for c in children if c.is_hidden_step)
         fold_counts[parent_key] = (non_hidden, hidden)
 
+    # Identify parents whose children are ALL hidden (no visible work occurred)
+    hidden_only_parents: set[str] = set()
+    for parent_key, (non_hidden, hidden) in fold_counts.items():
+        if non_hidden == 0 and hidden > 0:
+            hidden_only_parents.add(parent_key)
+
     # Second pass: build filtered list
     result: list[Agent] = []
     for agent in agents:
         if agent.is_workflow_child and agent.parent_timestamp:
             parent_key = agent.parent_timestamp
+            if parent_key in hidden_only_parents:
+                continue
             level = fold_manager.get(parent_key)
             if level == FoldLevel.COLLAPSED:
                 continue
@@ -83,6 +91,9 @@ def filter_agents_by_fold_state(
             # FULLY_EXPANDED: include all children
             result.append(agent)
         else:
+            # Skip parents whose only children are hidden
+            if agent.raw_suffix in hidden_only_parents:
+                continue
             result.append(agent)
 
     return result, fold_counts

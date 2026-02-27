@@ -1,5 +1,6 @@
 """Tests for loop execution in workflow_executor."""
 
+import json
 import os
 import tempfile
 from typing import Any
@@ -62,6 +63,31 @@ def test_for_loop_empty_list() -> None:
 
     assert success
     assert executor.context["process"] == []
+
+
+def test_for_loop_empty_list_sets_zero_iteration_flags() -> None:
+    """Test zero-iteration for-loop sets tracking flags and writes hidden marker."""
+    steps = [
+        WorkflowStep(
+            name="process",
+            bash="echo result={{ item }}",
+            for_loop={"item": "{{ items }}"},
+        ),
+    ]
+    workflow = _create_workflow("test", steps)
+    executor = _create_executor(workflow, {"items": []})
+
+    success = executor.execute()
+
+    assert success
+    # Verify zero-iteration tracking
+    assert "process" in executor._zero_iteration_steps
+
+    # Verify the marker file was written with hidden: true
+    marker_path = os.path.join(executor.artifacts_dir, "prompt_step_process.json")
+    with open(marker_path) as f:
+        marker = json.loads(f.read())
+    assert marker["hidden"] is True
 
 
 def test_for_loop_parallel_iteration() -> None:

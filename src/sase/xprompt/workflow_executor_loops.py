@@ -41,6 +41,8 @@ class LoopMixin:
     context: dict[str, Any]
     state: Any  # WorkflowState
     output_handler: "WorkflowOutputHandler | None"
+    _zero_iteration_steps: set[str]
+    _last_for_zero_iterations: bool
 
     # Method type declarations for methods provided by other mixins/main class
     # These are not implemented here - they're provided via MRO
@@ -171,6 +173,8 @@ class LoopMixin:
             step_state.output = self._collect_results([], step.join)
             self.context[step.name] = step_state.output
             self.state.context = dict(self.context)
+            self._zero_iteration_steps.add(step.name)
+            self._last_for_zero_iterations = True
             return True
 
         results: list[dict[str, Any]] = []
@@ -364,6 +368,8 @@ class LoopMixin:
             step_state.output = self._collect_results([], step.join)
             self.context[step.name] = step_state.output
             self.state.context = dict(self.context)
+            self._zero_iteration_steps.add(step.name)
+            self._last_for_zero_iterations = True
             return True
 
         config: ParallelConfig = step.parallel_config

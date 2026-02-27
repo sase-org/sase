@@ -65,6 +65,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self.output_handler = output_handler
         self.hitl_override = hitl_override
         self._current_embedded_workflow_name: str | None = None
+        self._zero_iteration_steps: set[str] = set()
+        self._last_for_zero_iterations: bool = False
 
         # Detect step inputs - args that match step names with output schemas
         # These are used to skip steps and use pre-provided outputs
@@ -126,7 +128,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                     "output": s.output,
                     "error": s.error,
                     "traceback": s.traceback,
-                    "hidden": self.workflow.steps[i].hidden,
+                    "hidden": self.workflow.steps[i].hidden
+                    or s.name in self._zero_iteration_steps,
                     "output_types": self._get_output_types(i),
                 }
                 for i, s in enumerate(self.state.steps)
@@ -248,6 +251,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                     loop_info=loop_info,
                 )
 
+            self._last_for_zero_iterations = False
+
             try:
                 # Handle control flow constructs
                 if step.for_loop and step.parallel_config:
@@ -285,13 +290,16 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                     if step_type == "bash"
                     else (step.python if step_type == "python" else None)
                 )
+                effective_hidden = step.hidden or (
+                    step.for_loop is not None and self._last_for_zero_iterations
+                )
                 self._save_prompt_step_marker(
                     step.name,
                     step_state,
                     step_type,
                     step_source,
                     i,
-                    hidden=step.hidden,
+                    hidden=effective_hidden,
                     output_types=self._get_output_types(i),
                 )
 

@@ -139,6 +139,37 @@ def _make_anonymous_parent(raw_suffix: str) -> Agent:
     )
 
 
+def test_hidden_only_children_hides_parent() -> None:
+    """Test parent is filtered out when all children are hidden."""
+    parent = _make_parent("ts1")
+    child1 = _make_child("ts1", "step1", is_hidden=True)
+    child2 = _make_child("ts1", "step2", is_hidden=True)
+    agents = [parent, child1, child2]
+
+    mgr = FoldStateManager()
+    filtered, counts = filter_agents_by_fold_state(agents, mgr)
+
+    # Both parent and children should be removed
+    assert len(filtered) == 0
+    assert counts["ts1"] == (0, 2)
+
+
+def test_mixed_children_keeps_parent() -> None:
+    """Test parent remains when at least one child is non-hidden."""
+    parent = _make_parent("ts1")
+    child1 = _make_child("ts1", "step1")
+    child2 = _make_child("ts1", "step2", is_hidden=True)
+    agents = [parent, child1, child2]
+
+    mgr = FoldStateManager()
+    filtered, counts = filter_agents_by_fold_state(agents, mgr)
+
+    # Parent should remain (collapsed by default, children not shown)
+    assert len(filtered) == 1
+    assert filtered[0] is parent
+    assert counts["ts1"] == (1, 1)
+
+
 def test_annotation_suppressed_anonymous_single_prompt() -> None:
     """Test annotation suppressed for collapsed anonymous single-prompt workflow."""
     parent = _make_anonymous_parent("ts1")
