@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -315,6 +316,8 @@ class EmbeddedWorkflowMixin:
         self,
         prompt: str,
         pre_step_offset: int = 0,
+        *,
+        runner_active_provider_name: str | None = None,
     ) -> tuple[str, list[EmbeddedWorkflowInfo], int]:
         """Detect and expand embedded workflows in a prompt.
 
@@ -425,6 +428,36 @@ class EmbeddedWorkflowMixin:
                 f"Multiple wraps_all workflows in one prompt: {names}. "
                 "At most one wraps_all workflow is allowed per prompt."
             )
+
+        # ── Phase 2b: Runner provider backward compat ───────────────────
+        # If a wraps_all workflow's name matches a known runner provider,
+        # emit a deprecation warning.  When the runner directive is already
+        # active for the same provider, skip the wraps_all workflow entirely.
+        from sase.runner_provider import get_runner_provider_names
+
+        runner_provider_names = get_runner_provider_names()
+        if runner_provider_names:
+            new_pending: list[_PendingEmbeddedWorkflow] = []
+            for p in pending:
+                if p.workflow.wraps_all and p.name in runner_provider_names:
+                    if runner_active_provider_name == p.name:
+                        warnings.warn(
+                            f"wraps_all workflow '#{p.name}' is redundant when "
+                            f"the '%{p.name}' runner directive is active. "
+                            f"Remove '#{p.name}' from your prompt.",
+                            DeprecationWarning,
+                            stacklevel=2,
+                        )
+                        continue  # skip — runner directive handles it
+                    else:
+                        warnings.warn(
+                            f"wraps_all workflow '#{p.name}' should be migrated "
+                            f"to the '%{p.name}' runner directive syntax.",
+                            DeprecationWarning,
+                            stacklevel=2,
+                        )
+                new_pending.append(p)
+            pending = new_pending
 
         # ── Phase 3: Pre-step execution ──────────────────────────────────
         # Execute in priority order: wraps_all first, then remaining in
