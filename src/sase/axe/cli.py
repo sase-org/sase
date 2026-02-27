@@ -34,7 +34,10 @@ def handle_axe_chop_list(args: argparse.Namespace) -> None:
             if chop.name not in seen:
                 seen[chop.name] = chop
     for chop in sorted(seen.values(), key=lambda c: c.name):
-        console.print(f"[bold cyan]{chop.name}[/bold cyan]")
+        label = f"[bold cyan]{chop.name}[/bold cyan]"
+        if chop.xprompt is not None:
+            label += f"  [magenta](xprompt: {chop.xprompt})[/magenta]"
+        console.print(label)
         if chop.description:
             console.print(f"  [dim]{chop.description}[/dim]")
     sys.exit(0)
@@ -42,16 +45,23 @@ def handle_axe_chop_list(args: argparse.Namespace) -> None:
 
 def handle_axe_chop_run(args: argparse.Namespace) -> None:
     """Run a single chop once in the foreground, then exit."""
-    from sase.ace.changespec import find_all_changespecs
-    from sase.ace.query import evaluate_query, parse_query
-
     chop_name: str = args.chop_name
     config = load_axe_config()
 
+    # Check if this is an xprompt chop (defined in config with xprompt field)
+    chop_config = _find_chop_config(chop_name, config)
+    if chop_config is not None and chop_config.xprompt is not None:
+        _run_xprompt_chop_oneshot(chop_config)
+        return
+
+    # Script-based chop
     script = discover_chop_script(chop_name, config.chop_script_dirs)
     if script is None:
         print(f"Error: unknown chop '{chop_name}'")
         sys.exit(1)
+
+    from sase.ace.changespec import find_all_changespecs
+    from sase.ace.query import evaluate_query, parse_query
 
     query: str = getattr(args, "query", "") or config.query
 
@@ -96,6 +106,30 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     if result.stderr:
         print(result.stderr, end="", file=sys.stderr)
     sys.exit(result.returncode)
+
+
+def _find_chop_config(chop_name: str, config: AxeConfig) -> ChopConfig | None:
+    """Look up a chop by name across all lumberjack configs."""
+    for lj in config.lumberjacks.values():
+        for chop in lj.chops:
+            if chop.name == chop_name:
+                return chop
+    return None
+
+
+def _run_xprompt_chop_oneshot(chop: ChopConfig) -> None:
+    """Run an xprompt chop as a one-shot agent launch."""
+    from sase.agent_launcher import launch_agent_from_cwd
+
+    assert chop.xprompt is not None
+    try:
+        result = launch_agent_from_cwd(chop.xprompt)
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Agent started for chop '{chop.name}' (PID {result.pid})")
+    sys.exit(0)
 
 
 def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:

@@ -16,6 +16,7 @@ class ChopConfig:
 
     name: str
     description: str
+    xprompt: str | None = None
 
 
 @dataclass
@@ -64,6 +65,7 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
                     ChopConfig(
                         name=entry["name"],
                         description=entry.get("description", ""),
+                        xprompt=entry.get("xprompt"),
                     )
                 )
             elif isinstance(entry, str):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import sys
 import time
 from typing import TYPE_CHECKING
 
@@ -249,110 +248,22 @@ class AgentLaunchMixin:
             vcs_ref: If set, a (workflow_type, ref) tuple for the pre-resolved
                 VCS reference.  Used to set SASE_*_PRE_ALLOCATED env vars.
         """
-        import subprocess
-        import tempfile
+        from sase.agent_launcher import spawn_agent_subprocess
 
-        from sase.running_field import claim_workspace
-        from sase.sase_utils import ensure_sase_directory
-        from sase.shared_utils import convert_timestamp_to_artifacts_format
-
-        # Write prompt to temp file (runner will read and delete)
-        fd, prompt_file = tempfile.mkstemp(suffix=".md", prefix="sase_ace_prompt_")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(prompt)
-
-        # Get output file path
-        workflows_dir = ensure_sase_directory("workflows")
-        # Sanitize cl_name for filename
-        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in cl_name)
-        output_path = os.path.join(
-            workflows_dir, f"{safe_name}_ace-run-{timestamp}.txt"
-        )
-
-        # Build runner script path
-        # From src/ace/tui/actions/agent_workflow/ we need 5 dirname calls to get to src/
-        runner_script = os.path.join(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    )
-                )
-            ),
-            "axe_run_agent_runner.py",
-        )
-
-        # Build subprocess environment (copy to avoid mutating os.environ)
-        subprocess_env = dict(os.environ)
-        subprocess_env["SASE_AGENT"] = "1"
-        subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
-        subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
-        subprocess_env["SASE_AGENT_TIMESTAMP"] = timestamp
-        if vcs_ref is not None:
-            from sase.workspace_provider import get_pre_allocated_env_prefix
-
-            prefix = get_pre_allocated_env_prefix(vcs_ref[0])
-            if prefix:
-                subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
-                subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
-                subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
-
-        # Args: cl_name, project_file, workspace_dir, output_path, workspace_num,
-        #       workflow_name, prompt_file, timestamp,
-        #       update_target, project_name, history_sort_key, is_home_mode
         try:
-            with open(output_path, "w") as output_file:
-                process = subprocess.Popen(
-                    [
-                        sys.executable,
-                        runner_script,
-                        cl_name,
-                        project_file,
-                        workspace_dir,
-                        output_path,
-                        str(workspace_num),
-                        workflow_name,
-                        prompt_file,
-                        timestamp,
-                        update_target,
-                        project_name,
-                        history_sort_key,
-                        "1" if is_home_mode else "",
-                    ],
-                    cwd=workspace_dir,
-                    stdout=output_file,
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,  # Detach from TUI process
-                    env=subprocess_env,
-                )
-        except Exception as e:
+            spawn_agent_subprocess(
+                cl_name=cl_name,
+                project_file=project_file,
+                workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
+                workflow_name=workflow_name,
+                prompt=prompt,
+                timestamp=timestamp,
+                update_target=update_target,
+                project_name=project_name,
+                history_sort_key=history_sort_key,
+                is_home_mode=is_home_mode,
+                vcs_ref=vcs_ref,
+            )
+        except (RuntimeError, OSError) as e:
             self.notify(f"Failed to start agent: {e}", severity="error")  # type: ignore[attr-defined]
-            return
-
-        # Claim workspace so agent appears in Agents tab while running
-        if not is_home_mode:
-            artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
-            if not claim_workspace(
-                project_file,
-                workspace_num,
-                workflow_name,
-                process.pid,
-                cl_name,
-                artifacts_timestamp=artifacts_timestamp,
-            ):
-                self.notify("Failed to claim workspace", severity="error")  # type: ignore[attr-defined]
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                return
-
-        # Create home project directory and file if needed (for artifact path resolution)
-        if is_home_mode:
-            home_project_dir = os.path.expanduser("~/.sase/projects/home")
-            home_project_file = os.path.join(home_project_dir, "home.gp")
-            os.makedirs(home_project_dir, exist_ok=True)
-            if not os.path.exists(home_project_file):
-                with open(home_project_file, "w", encoding="utf-8") as f:
-                    f.write("")  # Empty file - just needs to exist

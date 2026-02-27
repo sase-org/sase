@@ -26,7 +26,7 @@ from .chop_script_context import (
     write_chop_context,
 )
 from .chop_script_runner import discover_chop_script, run_chop_script
-from .config import AxeConfig, LumberjackConfig
+from .config import AxeConfig, ChopConfig, LumberjackConfig
 from .runner_pool import RunnerPool
 from .state import (
     AxeMetrics,
@@ -78,6 +78,8 @@ class Lumberjack:
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(self.parsed_query, self._log)
+        # PID guard for xprompt chops: track running processes
+        self._xprompt_pids: dict[str, int] = {}
 
     def _log(self, message: str, style: str | None = None) -> None:
         timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -122,15 +124,18 @@ class Lumberjack:
         )
         write_chop_context(ctx, context_file)
 
-        for chop_name in self.config.chop_names:
+        for chop in self.config.chops:
+            if chop.xprompt is not None:
+                self._run_xprompt_chop(chop)
+                continue
             try:
                 script = discover_chop_script(
-                    chop_name, self.axe_config.chop_script_dirs
+                    chop.name, self.axe_config.chop_script_dirs
                 )
                 if script is None:
                     self._handle_error(
-                        chop_name,
-                        RuntimeError(f"Chop script not found: {chop_name}"),
+                        chop.name,
+                        RuntimeError(f"Chop script not found: {chop.name}"),
                     )
                     continue
                 result = run_chop_script(script, context_file)
@@ -143,16 +148,48 @@ class Lumberjack:
                 else:
                     stderr = result.stderr.strip() if result.stderr else ""
                     self._handle_error(
-                        chop_name,
+                        chop.name,
                         RuntimeError(
                             f"exit code {result.returncode}"
                             + (f": {stderr}" if stderr else "")
                         ),
                     )
             except Exception as e:
-                self._handle_error(chop_name, e)
+                self._handle_error(chop.name, e)
 
         self._metrics.cycles_run += 1
+
+    def _run_xprompt_chop(self, chop: ChopConfig) -> None:
+        """Launch an xprompt chop as a background agent.
+
+        Skips the launch if a previous agent for this chop is still alive.
+        """
+        assert chop.xprompt is not None
+
+        # PID guard: skip if previous process still running
+        prev_pid = self._xprompt_pids.get(chop.name)
+        if prev_pid is not None:
+            try:
+                os.kill(prev_pid, 0)
+                # Process is still alive — skip
+                self._log(
+                    f"Skipping xprompt chop '{chop.name}': "
+                    f"previous agent (PID {prev_pid}) still running"
+                )
+                return
+            except OSError:
+                # Process has exited — clear and continue
+                del self._xprompt_pids[chop.name]
+
+        try:
+            from sase.agent_launcher import launch_agent_from_cwd
+
+            result = launch_agent_from_cwd(chop.xprompt)
+            self._xprompt_pids[chop.name] = result.pid
+            self._log(f"Launched xprompt chop '{chop.name}' (PID {result.pid})")
+            self._metrics.chops_executed += 1
+        except Exception as e:
+            self._handle_error(chop.name, e)
 
     def _handle_error(self, job_name: str, error: Exception) -> None:
         self._log(f"Error in {job_name}: {error}", style="red")
