@@ -322,6 +322,7 @@ class _AxeOutputSection(Static):
         text.append(f"{'CYCLES':>8}", style="bold #87D7FF")
         text.append(f"{'CHOPS':>8}", style="bold #87D7FF")
         text.append(f"{'ERRORS':>8}", style="bold #87D7FF")
+        text.append("  ")
         text.append(f"{'LAST CYCLE':<18}", style="bold #87D7FF")
         text.append("\n")
         text.append("  " + "─" * 68 + "\n", style="dim")
