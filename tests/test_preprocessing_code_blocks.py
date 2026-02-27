@@ -49,7 +49,7 @@ class TestPreprocessPromptCodeBlockProtection:
             mock_strip,
         ]:
             mock.side_effect = _passthrough
-        mock_directives.side_effect = lambda x: (x, PromptDirectives())
+        mock_directives.side_effect = lambda x, **_kw: (x, PromptDirectives())
 
         prompt = "outside text\n```\ninside block\n```\nmore outside"
         preprocess_prompt(prompt)

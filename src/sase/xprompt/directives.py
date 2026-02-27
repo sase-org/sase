@@ -52,6 +52,8 @@ class PromptDirectives:
     Attributes:
         model: Model override string, or None to use the default.
         name: Agent name assigned via %name directive, or None.
+        runner: Runner provider directive as (provider_name, ref, named_args),
+            or None if no runner directive was found.
         wait: List of agent names to wait for via %wait directives.
     """
 
@@ -59,24 +61,36 @@ class PromptDirectives:
     model: str | None = None
     name: str | None = None
     plan: bool = False
+    runner: tuple[str, str, dict[str, str]] | None = None
     wait: list[str] = field(default_factory=list)
 
 
-def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
+def extract_prompt_directives(
+    prompt: str,
+    *,
+    runner_provider_names: frozenset[str] | None = None,
+) -> tuple[str, PromptDirectives]:
     """Extract ``%name`` directives from a prompt.
 
     Finds all ``%name`` patterns in the prompt. Known directives are parsed,
     their xprompt references expanded, and they are stripped from the prompt.
     Unknown ``%name`` patterns are left in the prompt unchanged.
 
+    When *runner_provider_names* is provided, directives whose name matches
+    a runner provider are parsed as runner directives (at most one allowed).
+
     Args:
         prompt: The raw prompt text.
+        runner_provider_names: Optional set of known runner provider names.
+            Keeps this module as a pure parser with no import dependency on
+            ``runner_provider.py``.
 
     Returns:
         Tuple of (cleaned_prompt, directives).
 
     Raises:
-        DirectiveError: If a known directive appears more than once.
+        DirectiveError: If a known directive appears more than once, or if
+            multiple runner directives are found.
     """
     if "%" not in prompt:
         return prompt, PromptDirectives()
@@ -89,20 +103,59 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
     if not matches:
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
+    # All names we recognize (built-in + runner providers)
+    all_known = _KNOWN_DIRECTIVES | (runner_provider_names or frozenset())
+
     # Collect known directive matches (we'll strip these from the prompt)
     seen: dict[str, str] = {}  # directive name -> raw arg value (single-value)
     seen_multi: dict[
         str, list[str]
     ] = {}  # directive name -> raw arg values (multi-value)
+    # Runner directive data: (provider_name, ref, named_args)
+    runner_directive_data: tuple[str, str, dict[str, str]] | None = None
     # Regions to remove: list of (start, end) character positions
     regions_to_remove: list[tuple[int, int]] = []
 
     for match in matches:
         name = match.group(1)
         name = _DIRECTIVE_ALIASES.get(name, name)  # resolve alias
-        if name not in _KNOWN_DIRECTIVES:
+        if name not in all_known:
             continue
 
+        # --- Runner provider directive ---
+        if runner_provider_names and name in runner_provider_names:
+            if runner_directive_data is not None:
+                raise DirectiveError(
+                    f"Multiple runner directives found: '%{runner_directive_data[0]}'"
+                    f" and '%{name}'"
+                )
+
+            # Extract ref (first positional arg) and named args
+            has_open_paren = match.group(2) is not None
+            colon_arg = match.group(3)
+            match_end = match.end()
+            runner_ref = ""
+            runner_named_args: dict[str, str] = {}
+
+            if has_open_paren:
+                paren_start = match.end() - 1
+                paren_end = find_matching_paren_for_args(prompt, paren_start)
+                if paren_end is not None:
+                    paren_content = prompt[paren_start + 1 : paren_end]
+                    positional_args, runner_named_args = parse_args(paren_content)
+                    runner_ref = positional_args[0] if positional_args else ""
+                    match_end = paren_end + 1
+            elif colon_arg is not None:
+                if colon_arg.startswith("`") and colon_arg.endswith("`"):
+                    runner_ref = colon_arg[1:-1]
+                else:
+                    runner_ref = colon_arg
+
+            runner_directive_data = (name, runner_ref, runner_named_args)
+            regions_to_remove.append((match.start(), match_end))
+            continue
+
+        # --- Built-in directive ---
         # Check for duplicates (multi-value directives are allowed to repeat)
         if name in _MULTI_VALUE_DIRECTIVES:
             pass  # handled below after arg extraction
@@ -173,12 +226,20 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
                 expanded_list.append(raw_arg)
         expanded_multi[directive_name] = expanded_list
 
+    # Expand xprompt references in runner ref if it contains #
+    if runner_directive_data is not None:
+        rp_name, rp_ref, rp_named = runner_directive_data
+        if rp_ref and "#" in rp_ref:
+            rp_ref = process_xprompt_references(rp_ref).strip()
+        runner_directive_data = (rp_name, rp_ref, rp_named)
+
     # Build PromptDirectives from expanded args
     directives = PromptDirectives(
         approve="approve" in expanded_args,
         model=expanded_args.get("model") or None,
         name=expanded_args.get("name") or None,
         plan="plan" in expanded_args,
+        runner=runner_directive_data,
         wait=expanded_multi.get("wait", []),
     )
 
