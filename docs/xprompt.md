@@ -366,9 +366,6 @@ the prompt before further processing.
 | `%model`  | `%m`  | Override the LLM model for this prompt        |
 | `%name`   | `%n`  | Assign a name to the agent                    |
 | `%wait`   | `%w`  | Wait for another agent to finish (can repeat) |
-| `%git`    | --    | Run in a local git workspace                  |
-| `%gh`     | --    | Run in a GitHub workspace                     |
-| `%hg`     | --    | Run in a Mercurial workspace                  |
 
 ### Syntax
 
@@ -406,20 +403,6 @@ The `%wait` directive supports multiple occurrences — each adds to the wait li
 %wait:agent3
 Do work after all three agents finish.
 ```
-
-### Runner Provider Directives
-
-Runner provider directives (`%git`, `%gh`, `%hg`) set up a VCS workspace before the agent runs and tear it down
-afterward. They are discovered via `sase_runner_provider` entry points.
-
-```
-%git:sase               # Run in a local git workspace for the "sase" project
-%gh:org/repo             # Run in a GitHub workspace for org/repo
-%hg:my-cl                # Run in a Mercurial workspace for the "my-cl" changelist
-```
-
-Each runner provider manages workspace allocation, preparation, and cleanup through its `pre_agent()` and `post_agent()`
-lifecycle methods. See [docs/workspace.md](workspace.md) for details on workspace providers.
 
 ## Command Substitution
 

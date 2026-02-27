@@ -10,4 +10,4 @@ steps:
   - name: split_file
     for: { file_path: "{{ find_files.files }}" }
     agent: |
-      %gh:sase /split {{ file_path }}
+      #gh:sase /split {{ file_path }}

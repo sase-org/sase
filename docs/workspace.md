@@ -2,8 +2,8 @@
 
 The **workspace provider layer** is an abstraction that handles workspace-level operations that vary across VCS hosting
 environments. While the [VCS provider](vcs.md) handles low-level version control commands (commit, diff, checkout), the
-workspace provider handles higher-level concerns: workflow type detection, reference resolution (e.g., `%git:repo` or
-`%gh:org/repo`), change submission, mail preparation, and workspace directory management.
+workspace provider handles higher-level concerns: workflow type detection, reference resolution (e.g., `#git:repo` or
+`#gh:org/repo`), change submission, mail preparation, and workspace directory management.
 
 ## Plugin Architecture
 
