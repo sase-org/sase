@@ -237,7 +237,7 @@ class RenameMixin:
             claim_agent_name(new_name, artifacts_dir)
             agent.agent_name = new_name
             self.notify(f"Agent named: {new_name}")  # type: ignore[attr-defined]
-            self._reload_and_reposition()  # type: ignore[attr-defined]
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
             AgentNameModal(current_name=agent.agent_name),
