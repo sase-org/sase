@@ -13,18 +13,15 @@ from sase.ace.mentors import (
 )
 from sase.mentor_config import MentorConfig, MentorProfileConfig
 
-# Tests for Draft filtering
 
-
-def test_format_profile_with_count_wip_filters_started() -> None:
-    """Test that is_draft=True only counts started mentors with run_on_draft."""
-    # Mock a profile with 3 mentors, only 1 has run_on_draft=True
+def test_format_profile_with_count_counts_all_mentors() -> None:
+    """Test that _format_profile_with_count counts all started mentors."""
     mock_profile = MentorProfileConfig(
         profile_name="test_profile",
         mentors=[
-            MentorConfig(mentor_name="quick", prompt="p1", run_on_draft=True),
-            MentorConfig(mentor_name="full", prompt="p2", run_on_draft=False),
-            MentorConfig(mentor_name="detailed", prompt="p3", run_on_draft=False),
+            MentorConfig(mentor_name="quick", prompt="p1"),
+            MentorConfig(mentor_name="full", prompt="p2"),
+            MentorConfig(mentor_name="detailed", prompt="p3"),
         ],
         file_globs=["*.py"],
     )
@@ -34,7 +31,6 @@ def test_format_profile_with_count_wip_filters_started() -> None:
             return mock_profile
         return None
 
-    # Status lines for 2 mentors (1 with run_on_draft, 1 without)
     status_lines = [
         MentorStatusLine(
             timestamp="251231_120000",
@@ -54,31 +50,21 @@ def test_format_profile_with_count_wip_filters_started() -> None:
         "sase.mentor_config.get_mentor_profile_by_name",
         side_effect=mock_get_profile,
     ):
-        # Without WIP: should count both started mentors (2/3)
-        result_normal = _format_profile_with_count(
-            "test_profile", status_lines, is_draft=False
-        )
-        assert result_normal == "test_profile[2/3]"
-
-        # With WIP: should only count the run_on_draft mentor (1/1)
-        result_wip = _format_profile_with_count(
-            "test_profile", status_lines, is_draft=True
-        )
-        assert result_wip == "test_profile[1/1]"
+        result = _format_profile_with_count("test_profile", status_lines)
+        assert result == "test_profile[2/3]"
 
 
-def test_format_mentors_field_non_wip_shows_all_profiles() -> None:
-    """Test that non-WIP entries show all profiles regardless of run_on_draft."""
-    # Profile A has run_on_draft mentors, Profile B does not
+def test_format_mentors_field_shows_all_profiles() -> None:
+    """Test that entries show all profiles."""
     profiles = {
         "profile_a": MentorProfileConfig(
             profile_name="profile_a",
-            mentors=[MentorConfig(mentor_name="m1", prompt="p1", run_on_draft=True)],
+            mentors=[MentorConfig(mentor_name="m1", prompt="p1")],
             file_globs=["*.py"],
         ),
         "profile_b": MentorProfileConfig(
             profile_name="profile_b",
-            mentors=[MentorConfig(mentor_name="m2", prompt="p2", run_on_draft=False)],
+            mentors=[MentorConfig(mentor_name="m2", prompt="p2")],
             file_globs=["*.js"],
         ),
     }
@@ -90,7 +76,7 @@ def test_format_mentors_field_non_wip_shows_all_profiles() -> None:
         entry_id="1",
         profiles=["profile_a", "profile_b"],
         status_lines=None,
-        is_draft=False,  # Not WIP
+        is_draft=False,
     )
 
     with patch(
@@ -127,11 +113,9 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    # Mock profile functions to allow any profile
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            result = clear_mentor_draft_flags(file_path, "test-cl")
-            assert result is True
+    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
+        result = clear_mentor_draft_flags(file_path, "test-cl")
+        assert result is True
 
     with open(file_path) as f:
         updated_content = f.read()
@@ -188,10 +172,9 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    with patch("sase.mentor_config.profile_has_draft_mentors", return_value=True):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            result = clear_mentor_draft_flags(file_path, "test-cl")
-            assert result is True
+    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
+        result = clear_mentor_draft_flags(file_path, "test-cl")
+        assert result is True
 
     with open(file_path) as f:
         updated_content = f.read()
@@ -243,8 +226,8 @@ STATUS: Ready
 # Tests for set_mentor_draft_flags (was set_mentor_wip_flags)
 
 
-def test_set_mentor_draft_flags_filters_profiles() -> None:
-    """Test that set_mentor_draft_flags filters to only WIP-enabled profiles."""
+def test_set_mentor_draft_flags_keeps_all_profiles() -> None:
+    """Test that set_mentor_draft_flags keeps all profiles (no filtering)."""
     content = """NAME: test-cl
 STATUS: Ready
 MENTORS:
@@ -254,23 +237,16 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    def mock_has_wip(name: str) -> bool:
-        # profile_a has WIP mentors, profile_b does not
-        return name == "profile_a"
-
-    with patch(
-        "sase.mentor_config.profile_has_draft_mentors", side_effect=mock_has_wip
-    ):
-        with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
-            result = set_mentor_draft_flags(file_path, "test-cl")
-            assert result is True
+    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
+        result = set_mentor_draft_flags(file_path, "test-cl")
+        assert result is True
 
     with open(file_path) as file_obj:
         updated_content = file_obj.read()
 
-    # Only profile_a should remain, profile_b should be filtered out
+    # Both profiles should remain
     assert "profile_a" in updated_content
-    assert "profile_b" not in updated_content
+    assert "profile_b" in updated_content
     assert "#Draft" in updated_content
 
     Path(file_path).unlink()

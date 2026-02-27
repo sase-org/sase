@@ -5,7 +5,6 @@ Performs the following replacements:
   - STATUS: WIP       -> STATUS: Draft   (with optional workspace suffix)
   - STATUS: Drafted    -> STATUS: Ready   (with optional READY TO MAIL / workspace suffix)
   - #WIP               -> #Draft          (mentor markers in MENTORS entries)
-  - run_on_wip         -> run_on_draft    (embedded config references)
 
 Uses atomic writes (write to temp file, then rename) so that partial
 failures never leave a corrupt .gp file on disk.  The script is
@@ -47,8 +46,6 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
     ),
     # #WIP  ->  #Draft  (mentor markers)
     (re.compile(r"#WIP\b"), "#Draft"),
-    # run_on_wip  ->  run_on_draft  (embedded config)
-    (re.compile(r"\brun_on_wip\b"), "run_on_draft"),
 ]
 
 

@@ -18,14 +18,12 @@ from .changespec import (
 def _format_profile_with_count(
     profile_name: str,
     status_lines: list[MentorStatusLine] | None,
-    is_draft: bool = False,
 ) -> str:
     """Format profile name with [started/total] count.
 
     Args:
         profile_name: Name of the profile.
         status_lines: List of MentorStatusLine objects to count started mentors.
-        is_draft: If True, only count mentors with run_on_draft=True.
 
     Returns:
         Formatted string like "profile[2/3]".
@@ -36,23 +34,13 @@ def _format_profile_with_count(
     if profile_config is None:
         return profile_name  # Fallback if profile not found in config
 
-    # Calculate total based on Draft status
-    if is_draft:
-        total = sum(1 for m in profile_config.mentors if m.run_on_draft)
-        draft_mentor_names = {
-            m.mentor_name for m in profile_config.mentors if m.run_on_draft
-        }
-    else:
-        total = len(profile_config.mentors)
-        draft_mentor_names = None
+    total = len(profile_config.mentors)
 
     started = 0
     if status_lines:
         for sl in status_lines:
             if sl.profile_name == profile_name:
-                # For Draft, only count status lines for run_on_draft mentors
-                if draft_mentor_names is None or sl.mentor_name in draft_mentor_names:
-                    started += 1
+                started += 1
 
     return f"{profile_name}[{started}/{total}]"
 
@@ -66,20 +54,12 @@ def _format_mentors_field(mentors: list[MentorEntry]) -> list[str]:
     Returns:
         List of formatted lines including "MENTORS:\n" header.
     """
-    from sase.mentor_config import profile_has_draft_mentors
-
     if not mentors:
         return []
 
     lines = ["MENTORS:\n"]
     for entry in mentors:
-        # Filter profiles for Draft entries - only show profiles with run_on_draft mentors
-        if entry.is_draft:
-            visible_profiles = [
-                p for p in entry.profiles if profile_has_draft_mentors(p)
-            ]
-        else:
-            visible_profiles = entry.profiles
+        visible_profiles = entry.profiles
 
         # Skip entry entirely if no visible profiles
         if not visible_profiles:
@@ -87,8 +67,7 @@ def _format_mentors_field(mentors: list[MentorEntry]) -> list[str]:
 
         # Format entry header: (<id>) <profile1>[x/y] [<profile2>[x/y] ...]
         profiles_with_counts = [
-            _format_profile_with_count(p, entry.status_lines, is_draft=entry.is_draft)
-            for p in visible_profiles
+            _format_profile_with_count(p, entry.status_lines) for p in visible_profiles
         ]
         profiles_str = " ".join(profiles_with_counts)
         draft_suffix = " #Draft" if entry.is_draft else ""
@@ -231,7 +210,6 @@ def add_mentor_entry(
     changespec_name: str,
     entry_id: str,
     profile_names: list[str],
-    is_draft: bool = False,
 ) -> bool:
     """Add a new MENTORS entry for a ChangeSpec.
 
@@ -243,7 +221,6 @@ def add_mentor_entry(
         changespec_name: Name of the ChangeSpec.
         entry_id: The commit entry ID (e.g., "1", "2").
         profile_names: List of profile names that were triggered.
-        is_draft: True if entry is being created during Draft status.
 
     Returns:
         True if successful, False otherwise.
@@ -275,7 +252,6 @@ def add_mentor_entry(
                     entry_id=entry_id,
                     profiles=profile_names,
                     status_lines=[],
-                    is_draft=is_draft,
                 )
                 current_mentors.append(new_entry)
 
@@ -584,12 +560,11 @@ def clear_mentor_status_lines(
 
 
 def set_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
-    """Set is_draft flag and filter profiles for the LAST MENTORS entry.
+    """Set is_draft flag for the LAST MENTORS entry.
 
     This is called when transitioning from Ready to Draft status. It:
     1. Finds the MENTORS entry with the highest entry_id
     2. Sets the is_draft flag to True
-    3. Filters profiles to only those with run_on_draft mentors
 
     Args:
         project_file: Path to the project file.
@@ -598,8 +573,6 @@ def set_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
     Returns:
         True if successful (or no mentors to update), False on error.
     """
-    from sase.mentor_config import profile_has_draft_mentors
-
     try:
         changespecs = parse_project_file(project_file)
         for cs in changespecs:
@@ -615,11 +588,6 @@ def set_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
 
                 # Set the Draft flag
                 last_entry.is_draft = True
-
-                # Filter profiles to only those with run_on_draft mentors
-                last_entry.profiles = [
-                    p for p in last_entry.profiles if profile_has_draft_mentors(p)
-                ]
 
                 # Write back
                 return update_changespec_mentors_field(

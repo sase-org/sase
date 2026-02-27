@@ -44,8 +44,7 @@ def _make_hint_tracker(counter: int = 0) -> HintTracker:
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-@patch("sase.mentor_config.profile_has_draft_mentors", return_value=True)
-def test_error_non_path_suffix_no_hint(_mock_wip: object, _mock_fmt: object) -> None:
+def test_error_non_path_suffix_no_hint(_mock_fmt: object) -> None:
     """Error suffix that is NOT a file path does not get a hint."""
     msl = MentorStatusLine(
         profile_name="prof",
@@ -86,10 +85,7 @@ def test_error_non_path_suffix_no_hint(_mock_wip: object, _mock_fmt: object) -> 
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-@patch("sase.mentor_config.profile_has_draft_mentors", return_value=True)
-def test_error_file_path_no_hint_without_with_hints(
-    _mock_wip: object, _mock_fmt: object
-) -> None:
+def test_error_file_path_no_hint_without_with_hints(_mock_fmt: object) -> None:
     """Error file path suffix does NOT get a hint when with_hints=False."""
     error_path = "~/.sase/mentors/fixit_wells-260206_100530.txt"
     msl = MentorStatusLine(
@@ -129,10 +125,7 @@ def test_error_file_path_no_hint_without_with_hints(
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-@patch("sase.mentor_config.profile_has_draft_mentors", return_value=True)
-def test_error_absolute_path_suffix_gets_hint(
-    _mock_wip: object, _mock_fmt: object
-) -> None:
+def test_error_absolute_path_suffix_gets_hint(_mock_fmt: object) -> None:
     """Error suffix with absolute path (starting with /) gets a hint."""
     error_path = "/home/user/.sase/mentors/fixit_wells-260206_100530.txt"
     msl = MentorStatusLine(

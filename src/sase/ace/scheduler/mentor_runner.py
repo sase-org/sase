@@ -13,7 +13,6 @@ from sase.sase_utils import (
     strip_reverted_suffix,
 )
 from sase.mentor_config import MentorProfileConfig
-from sase.status_state_machine import remove_workspace_suffix
 
 from ..changespec import ChangeSpec
 from ..hooks import generate_timestamp
@@ -173,8 +172,6 @@ def start_mentors_for_profile(
 ) -> tuple[int, list[str]]:
     """Start mentor workflows for a profile.
 
-    During Draft status, only mentors with run_on_draft=True will be started.
-
     Args:
         changespec: The ChangeSpec to run mentors for.
         entry_id: The commit entry ID.
@@ -190,9 +187,6 @@ def start_mentors_for_profile(
     updates: list[str] = []
     started = 0
 
-    # Check if we're in Draft status (only run mentors with run_on_draft=True)
-    is_draft_status = remove_workspace_suffix(changespec.status) == "Draft"
-
     # Start each mentor in the profile
     # Note: Profile entry is already added upfront by _add_matching_profiles_upfront()
     for mentor in profile.mentors:
@@ -204,10 +198,6 @@ def start_mentors_for_profile(
             started_mentors
             and (profile.profile_name, mentor.mentor_name) in started_mentors
         ):
-            continue
-
-        # During Draft status, skip mentors without run_on_draft=True
-        if is_draft_status and not mentor.run_on_draft:
             continue
 
         result = _start_single_mentor(

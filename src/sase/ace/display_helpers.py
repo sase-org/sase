@@ -117,14 +117,12 @@ class _MentorStatusLineLike(Protocol):
 def format_profile_with_count(
     profile_name: str,
     status_lines: Sequence[_MentorStatusLineLike] | None,
-    is_draft: bool = False,
 ) -> str:
     """Format profile name with [started/total] count for display.
 
     Args:
         profile_name: Name of the mentor profile.
         status_lines: List of MentorStatusLine objects to count started mentors.
-        is_draft: If True, only count mentors with run_on_draft=True.
 
     Returns:
         Formatted string like "profile[2/3]".
@@ -135,22 +133,12 @@ def format_profile_with_count(
     if profile_config is None:
         return profile_name  # Fallback if profile not found in config
 
-    # Calculate total based on Draft status
-    if is_draft:
-        total = sum(1 for m in profile_config.mentors if m.run_on_draft)
-        draft_mentor_names = {
-            m.mentor_name for m in profile_config.mentors if m.run_on_draft
-        }
-    else:
-        total = len(profile_config.mentors)
-        draft_mentor_names = None
+    total = len(profile_config.mentors)
 
     started = 0
     if status_lines:
         for sl in status_lines:
             if sl.profile_name == profile_name:
-                # For Draft, only count status lines for run_on_draft mentors
-                if draft_mentor_names is None or sl.mentor_name in draft_mentor_names:
-                    started += 1
+                started += 1
 
     return f"{profile_name}[{started}/{total}]"

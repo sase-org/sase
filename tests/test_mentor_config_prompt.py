@@ -11,15 +11,6 @@ def test_mentor_config_with_prompt() -> None:
 
     assert config.mentor_name == "aaa"
     assert config.prompt == "#mentor/aaa"
-    assert config.run_on_draft is False
-
-
-def test_mentor_config_with_prompt_and_run_on_draft() -> None:
-    """Test MentorConfig with prompt and run_on_draft=True."""
-    config = MentorConfig(mentor_name="test", prompt="#mentor/test", run_on_draft=True)
-
-    assert config.prompt == "#mentor/test"
-    assert config.run_on_draft is True
 
 
 def test_load_mentor_profiles_without_prompt_raises() -> None:
@@ -29,7 +20,6 @@ mentor_profiles:
   - profile_name: test_profile
     mentors:
       - mentor_name: invalid
-        run_on_draft: true
     file_globs:
       - "*.py"
 """

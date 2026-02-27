@@ -134,11 +134,6 @@
                 "mentor_name": {
                   "type": "string",
                   "description": "Name for the mentor (required when using prompt)"
-                },
-                "run_on_draft": {
-                  "type": "boolean",
-                  "description": "Whether to run this mentor on Draft commits",
-                  "default": false
                 }
               }
             }
