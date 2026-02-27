@@ -14,6 +14,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+# pyvision: tests/test_runner_provider.py
 @dataclass
 class RunnerContext:
     """Carries workspace state between pre/post agent phases.
@@ -41,6 +42,7 @@ class RunnerContext:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+# pyvision: tests/test_runner_provider.py
 @dataclass
 class PostAgentResult:
     """Return type from the post-agent phase.
@@ -54,6 +56,7 @@ class PostAgentResult:
     meta: dict[str, Any] = field(default_factory=dict)
 
 
+# pyvision: tests/test_runner_provider.py
 class RunnerProvider(ABC):
     """Abstract base class for runner providers.
 
@@ -98,6 +101,7 @@ class RunnerProvider(ABC):
         """
 
 
+# pyvision: tests/test_runner_provider.py
 def get_runner_providers() -> dict[str, RunnerProvider]:
     """Discover runner providers via ``sase_runner_provider`` entry points.
 

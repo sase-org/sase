@@ -183,50 +183,18 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     vcs_ref: tuple[str, str] | None = None
     workspace_dir: str | None = None
 
-    # Check for runner directives (%git:ref, %gh:org/repo) first — they take
-    # priority over legacy #name:ref workflow references.
-    from sase.runner_provider import get_runner_provider_names
-    from sase.xprompt.directives import extract_prompt_directives
-
-    _, directives = extract_prompt_directives(
-        query, runner_provider_names=get_runner_provider_names()
-    )
-    if directives.runner is not None:
-        from sase.running_field import get_first_available_axe_workspace
-        from sase.workspace_provider import get_workspace_directory, resolve_ref
-
-        provider_name, ref, _named_args = directives.runner
-        try:
-            runner_resolved = resolve_ref(ref, provider_name)
-            workspace_num = get_first_available_axe_workspace(
-                runner_resolved.project_file
-            )
-            workspace_dir = get_workspace_directory(
-                provider_name,
-                workspace_num,
-                runner_resolved.project_name,
-                runner_resolved.primary_workspace_dir,
-            )
-            project_file = runner_resolved.project_file
-            project_name = runner_resolved.project_name
-            vcs_ref = (provider_name, ref)
-            is_home_mode = False
-        except (ValueError, RuntimeError):
-            pass  # Fall through to legacy detection
-
     # Try full VCS ref resolution — this updates project_file, workspace_dir,
     # etc. when the prompt contains an explicit ref like #gh:sase.  Must run
     # in both home and non-home mode so xprompt chops launched from CWDs that
     # resolve to a different project still target the correct one.
-    if vcs_ref is None:
-        for wf_name in get_workflow_names():
-            resolved = resolve_ref_from_prompt(query, wf_name)
-            if resolved is not None:
-                project_file, project_name, workspace_dir, ws_num, ref_value = resolved
-                workspace_num = ws_num
-                vcs_ref = (wf_name, ref_value)
-                is_home_mode = False
-                break
+    for wf_name in get_workflow_names():
+        resolved = resolve_ref_from_prompt(query, wf_name)
+        if resolved is not None:
+            project_file, project_name, workspace_dir, ws_num, ref_value = resolved
+            workspace_num = ws_num
+            vcs_ref = (wf_name, ref_value)
+            is_home_mode = False
+            break
 
     if vcs_ref is None and not is_home_mode:
         from sase.workspace_provider import get_ref_patterns
