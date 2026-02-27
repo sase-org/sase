@@ -131,9 +131,11 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key  | Action                               |
-| ---- | ------------------------------------ |
-| `,!` | Run command using current CL context |
+| Key        | Action                               |
+| ---------- | ------------------------------------ |
+| `,!`       | Run command using current CL context |
+| `,r`       | Show runners info                    |
+| `,<space>` | Repeat last @/Space selection        |
 
 ### Copy Mode (`%` prefix)
 
@@ -163,8 +165,8 @@ The modal supports live filtering as you type in the search box and displays las
 | Key                 | Action                                   |
 | ------------------- | ---------------------------------------- |
 | `@`                 | Run custom agent                         |
+| `a`                 | Toggle auto-approve / answer HITL        |
 | `n`                 | Name agent                               |
-| `R`                 | Revive dismissed agent (opens selection) |
 | `r`                 | Revive chat as agent                     |
 | `x`                 | Kill / dismiss agent                     |
 | `e`                 | Edit chat in editor                      |
@@ -172,6 +174,9 @@ The modal supports live filtering as you type in the search box and displays las
 | `i`                 | Cycle panels: file → thinking → metadata |
 | `p`                 | Toggle file / prompt layout              |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel            |
+| `+` / `-`           | Expand / collapse file content           |
+| `=`                 | Reset file trim to default               |
+| `*`                 | Show all file lines                      |
 
 ### Workflow Folding
 
@@ -179,6 +184,13 @@ The modal supports live filtering as you type in the search box and displays las
 | --------- | -------------------------------- |
 | `l` / `h` | Expand / collapse workflow steps |
 | `L` / `H` | Expand / collapse all workflows  |
+
+### Leader Mode (`,` prefix)
+
+| Key        | Action                        |
+| ---------- | ----------------------------- |
+| `,r`       | Show runners info             |
+| `,<space>` | Repeat last @/Space selection |
 
 ### Bang Mode (`!` prefix)
 
@@ -189,11 +201,10 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Copy Mode (`%` prefix)
 
-| Key  | Action                      |
-| ---- | --------------------------- |
-| `%c` | Copy chat file path         |
-| `%E` | Copy file path (file panel) |
-| `%s` | Copy sase ace snapshot      |
+| Key  | Action                 |
+| ---- | ---------------------- |
+| `%c` | Copy chat file path    |
+| `%s` | Copy sase ace snapshot |
 
 ## Keybindings: Axe Tab
 
@@ -205,7 +216,6 @@ The modal supports live filtering as you type in the search box and displays las
 | `Ctrl+N` / `Ctrl+P` | Next / previous lumberjack output   |
 | `g`                 | Scroll to top                       |
 | `G`                 | Scroll to bottom (pins auto-scroll) |
-| `r`                 | Show runners info                   |
 
 ### Background Commands
 
@@ -213,6 +223,13 @@ The modal supports live filtering as you type in the search box and displays las
 | --- | ------------------------------------ |
 | `@` | Run agent                            |
 | `X` | Kill current command (or toggle axe) |
+
+### Leader Mode (`,` prefix)
+
+| Key        | Action                        |
+| ---------- | ----------------------------- |
+| `,r`       | Show runners info             |
+| `,<space>` | Repeat last @/Space selection |
 
 ### Bang Mode (`!` prefix)
 
@@ -279,27 +296,9 @@ These work on all tabs:
 ## File Panel Trimming
 
 When viewing agent files on the Agents tab, large files are automatically trimmed to fit the visible viewport. A blue
-indicator shows "N more lines below" when content is trimmed.
-
-### Trim Controls
-
-| Key | Action                               |
-| --- | ------------------------------------ |
-| `+` | Expand file by one page              |
-| `-` | Collapse file by one page            |
-| `=` | Reset file trim to default page size |
-| `*` | Show all file lines (remove trim)    |
-
-Trim state is preserved when switching between agents or refreshing data.
-
-## Agent Revive
-
-Pressing `R` on the Agents tab opens a two-step selection flow to restore a previously dismissed agent:
-
-1. **Scope selection** — Choose from "all", "home", "project", or "cl" to filter dismissed agents.
-2. **Agent selection** — Pick which dismissed agent to revive from the filtered list.
-
-Reviving a workflow parent also revives all its child steps.
+indicator shows "N more lines below" when content is trimmed. Trim controls (`+`, `-`, `=`, `*`) are listed in the
+[Agent Actions](#agent-actions) keybindings above. Trim state is preserved when switching between agents or refreshing
+data.
 
 ## Auto-Refresh
 

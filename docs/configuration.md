@@ -168,14 +168,26 @@ axe:
 | `interval` | int                  | `1`     | Seconds between chop polling cycles.            |
 | `chops`    | list[string\|object] | `[]`    | List of chops to run on each cycle (see below). |
 
-**Chop format**: Each chop entry can be either a plain string (chop name only) or an object with `name` and
-`description` fields. Descriptions are required for all chops.
+**Chop fields** (per entry under `chops`):
+
+| Field         | Type   | Required | Default | Description                                                                  |
+| ------------- | ------ | -------- | ------- | ---------------------------------------------------------------------------- |
+| `name`        | string | yes      | -       | Chop name identifying the chop script to run.                                |
+| `description` | string | yes      | -       | Human-readable description of what the chop does.                            |
+| `xprompt`     | string | no       | `null`  | XPrompt reference to expand and pass to the chop script.                     |
+| `run_every`   | int    | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 lumberjack cycles). |
+
+Each chop entry can also be a plain string (chop name only, legacy format):
 
 ```yaml
 chops:
   # Object format (required for new chops)
   - name: hook_checks
     description: Check for completed or failed hooks
+  - name: custom_chop
+    description: Run custom analysis
+    xprompt: "#analyze"
+    run_every: 5
   # String format (legacy, description defaults to empty)
   - hook_checks
 ```
@@ -199,7 +211,6 @@ mentor_profiles:
       - prompt: "#mentor/python_style"
       - mentor_name: docstrings
         prompt: "#mentor/docstrings"
-        run_on_wip: true
 
   - profile_name: proto_check
     diff_regexes:
@@ -228,7 +239,8 @@ mentor_profiles:
 | ------------- | ------ | -------- | ------- | --------------------------------------------------------------- |
 | `prompt`      | string | yes      | -       | The xprompt reference (e.g., `"#mentor/foo"`) or inline prompt. |
 | `mentor_name` | string | no       | -       | Derived from `prompt` if omitted (last segment after `/`).      |
-| `run_on_wip`  | bool   | no       | `false` | If `true`, the mentor runs even when CL status is WIP.          |
+
+Mentors run automatically on ChangeSpecs with Draft or Mailed status when their matching criteria are met.
 
 Source: `src/sase/mentor_config.py`
 
@@ -425,6 +437,7 @@ No flags. Stops the running axe orchestrator.
 
 | Flag           | Values | Default | Description                                                   |
 | -------------- | ------ | ------- | ------------------------------------------------------------- |
+| `-d, --daemon` | flag   | -       | Run in daemon mode (background, detached from terminal).      |
 | `-l, --list`   | flag   | -       | List all available chat history files.                        |
 | `-r, --resume` | string | -       | Resume a previous conversation (optional: history file path). |
 

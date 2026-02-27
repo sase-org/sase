@@ -163,6 +163,7 @@ src/sase/
 │   └── plugins/           # Built-in workspace plugins
 │       └── bare_git_*.py  # BareGitWorkspacePlugin (ref resolution, submit, mail)
 ├── plugin_discovery.py    # Entry-point-based plugin discovery (shared)
+├── agent_launcher.py      # Agent subprocess launcher
 ├── commit_workflow/       # Commit creation workflows
 ├── commit_utils/          # COMMITS entry management
 ├── accept_workflow/       # Change acceptance workflows
@@ -170,6 +171,9 @@ src/sase/
 ├── gemini_wrapper/        # Gemini-specific integration
 ├── notifications/         # Notification system and delivery
 ├── status_state_machine/  # ChangeSpec status transitions
+├── mentor_config.py       # Mentor profile configuration loading
+├── metahook_config.py     # Metahook configuration loading
+├── chat_history.py        # Chat history persistence
 ├── scripts/               # Extracted Python utility scripts
 tests/                     # Test suite (mirrors src/sase/ structure)
 docs/                      # Detailed documentation
