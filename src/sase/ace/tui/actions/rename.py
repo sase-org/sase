@@ -219,6 +219,10 @@ class RenameMixin:
             )
             return
 
+        # Capture stable identity — the agent object may be replaced by
+        # periodic _load_agents() while the modal is open.
+        agent_identity = agent.identity
+
         def handle_name_result(new_name: str | None) -> None:
             if new_name is None:
                 return
@@ -235,7 +239,14 @@ class RenameMixin:
             from sase.agent_names import claim_agent_name
 
             claim_agent_name(new_name, artifacts_dir)
-            agent.agent_name = new_name
+
+            # Find the current agent by identity (may have been replaced by
+            # periodic refresh while the modal was open)
+            for a in self._agents:
+                if a.identity == agent_identity:
+                    a.agent_name = new_name
+                    break
+
             self.notify(f"Agent named: {new_name}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
