@@ -183,15 +183,18 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     vcs_ref: tuple[str, str] | None = None
     workspace_dir: str | None = None
 
-    if is_home_mode:
-        for wf_name in get_workflow_names():
-            resolved = resolve_ref_from_prompt(query, wf_name)
-            if resolved is not None:
-                project_file, project_name, workspace_dir, ws_num, ref_value = resolved
-                workspace_num = ws_num
-                vcs_ref = (wf_name, ref_value)
-                is_home_mode = False
-                break
+    # Try full VCS ref resolution — this updates project_file, workspace_dir,
+    # etc. when the prompt contains an explicit ref like #gh:sase.  Must run
+    # in both home and non-home mode so xprompt chops launched from CWDs that
+    # resolve to a different project still target the correct one.
+    for wf_name in get_workflow_names():
+        resolved = resolve_ref_from_prompt(query, wf_name)
+        if resolved is not None:
+            project_file, project_name, workspace_dir, ws_num, ref_value = resolved
+            workspace_num = ws_num
+            vcs_ref = (wf_name, ref_value)
+            is_home_mode = False
+            break
 
     if vcs_ref is None and not is_home_mode:
         from sase.workspace_provider import get_ref_patterns
