@@ -1,0 +1,11 @@
+steps:
+  - name: find_files
+    hidden: true
+    bash: |
+      tools/pylimit_files-260227 src 1000 850 700 | python3 -c "import sys, json; print('files=' + json.dumps([l.strip() for l in sys.stdin if l.strip()]))"
+    output: { files: text }
+
+  - name: split_file
+    for: { file_path: "{{ find_files.files }}" }
+    agent: |
+      #gh:sase /split {{ file_path }}
