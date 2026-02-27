@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from sase.main.plan_approve_handler import (
+    is_auto_approve_active,
     emit_hook_decision,
     get_tmux_prefix,
     ring_tmux_bell,
@@ -89,7 +90,7 @@ def handle_user_question_command() -> NoReturn:
         sys.exit(0)
 
     # Auto-select first option when %approve directive is active
-    if os.environ.get("SASE_AGENT_AUTO_APPROVE"):
+    if is_auto_approve_active():
         answers = []
         for q in questions:
             question_text = q.get("question", "")

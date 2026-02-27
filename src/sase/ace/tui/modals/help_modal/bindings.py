@@ -125,6 +125,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Agent Actions",
         [
             ("@", "Run custom agent"),
+            ("a", "Toggle auto-approve / answer HITL"),
             ("n", "Name agent"),
             ("r", "Revive chat as agent"),
             ("x", "Kill / dismiss agent"),

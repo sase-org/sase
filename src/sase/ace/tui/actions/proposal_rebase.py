@@ -191,7 +191,7 @@ class ProposalRebaseMixin:
         """Accept a proposal for the current ChangeSpec, or answer HITL on agents tab."""
         from ..models import Agent
 
-        # Check if we're on agents tab with a WAITING INPUT workflow
+        # Check if we're on agents tab
         if hasattr(self, "current_tab") and self.current_tab == "agents":  # type: ignore[attr-defined]
             agents: list[Agent] = getattr(self, "_agents", [])
             if agents and 0 <= self.current_idx < len(agents):
@@ -199,6 +199,17 @@ class ProposalRebaseMixin:
                 if agent.status == "WAITING INPUT":
                     self._answer_workflow_hitl(agent)  # type: ignore[attr-defined]
                     return
+                _APPROVE_ELIGIBLE = {
+                    "RUNNING",
+                    "PLANNING",
+                    "PLAN APPROVED",
+                    "WAITING",
+                    "QUESTION",
+                }
+                if agent.status in _APPROVE_ELIGIBLE:
+                    self.action_toggle_approve()  # type: ignore[attr-defined]
+                    return
+            return
 
         if not self.changespecs:
             return

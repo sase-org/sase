@@ -104,7 +104,9 @@ def _handle_plan_approval(plan_file: str | None, session_id: str) -> str | None:
 
     Returns the plan file path if approved, ``None`` if rejected or missing.
     """
-    if os.environ.get("SASE_AGENT_AUTO_APPROVE"):
+    from sase.main.plan_approve_handler import is_auto_approve_active
+
+    if is_auto_approve_active():
         return plan_file
 
     if not plan_file:

@@ -20,6 +20,30 @@ from sase.sase_utils import get_vendored_tool
 _POLL_INTERVAL = 0.5
 
 
+def is_auto_approve_active() -> bool:
+    """Check if auto-approve is active via env var or agent_meta.json.
+
+    Returns True if SASE_AGENT_AUTO_APPROVE env var is set, or if the
+    ``approve`` field is truthy in the agent's ``agent_meta.json`` (located
+    via SASE_ARTIFACTS_DIR).
+    """
+    if os.environ.get("SASE_AGENT_AUTO_APPROVE"):
+        return True
+
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if artifacts_dir:
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict) and data.get("approve"):
+                return True
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+
+    return False
+
+
 def emit_hook_decision(decision: str, reason: str = "") -> None:
     """Print hook decision JSON to stdout.
 
@@ -172,7 +196,7 @@ def handle_plan_approve_command() -> NoReturn:
         sys.exit(0)
 
     # Auto-approve plans when %approve directive is active
-    if os.environ.get("SASE_AGENT_AUTO_APPROVE"):
+    if is_auto_approve_active():
         response_dir = Path.home() / ".sase" / "plan_approval" / session_id
         response_dir.mkdir(parents=True, exist_ok=True)
         plan_file = _find_plan_file(session_id)

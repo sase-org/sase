@@ -376,6 +376,18 @@ class KeybindingFooter(Horizontal):
                     bindings.append(("x", "dismiss"))
                 else:
                     bindings.append(("x", "kill"))
+                _APPROVE_ELIGIBLE = {
+                    "RUNNING",
+                    "PLANNING",
+                    "PLAN APPROVED",
+                    "WAITING",
+                    "QUESTION",
+                }
+                if agent.status in _APPROVE_ELIGIBLE:
+                    if not agent.approve:
+                        bindings.append(("a", "approve"))
+                    else:
+                        bindings.append(("a", "unapprove"))
 
         # Name agent
         if agent is not None:
