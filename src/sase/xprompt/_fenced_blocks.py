@@ -36,6 +36,16 @@ def protect_fenced_blocks(text: str, blocks: list[str]) -> str:
     return _FENCED_CODE_BLOCK_RE.sub(_replacer, text)
 
 
+def fenced_block_ranges(text: str) -> list[tuple[int, int]]:
+    """Return (start, end) ranges for all fenced code blocks in *text*.
+
+    Useful when callers need to filter regex matches that fall inside
+    fenced code blocks without altering the text (and therefore without
+    shifting character offsets).
+    """
+    return [(m.start(), m.end()) for m in _FENCED_CODE_BLOCK_RE.finditer(text)]
+
+
 def unprotect_fenced_blocks(text: str, blocks: list[str]) -> str:
     """Restore all fenced code block placeholders with original content.
 

@@ -229,6 +229,44 @@ def test_flatten_anonymous_workflow_slow_path_multiple_standalone_workflows(
 
 
 @patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_slow_path_ignores_fenced_code_blocks(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Test slow path ignores workflow references inside fenced code blocks.
+
+    When a standalone workflow reference like #pylimit_split appears inside
+    triple-backtick code blocks, it should not be detected as a real workflow
+    reference, so the anonymous workflow should not be flattened.
+    """
+    gh_wf = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="GitHub: {{ 1 }}")],
+    )
+    pylimit_wf = Workflow(
+        name="pylimit_split",
+        steps=[
+            WorkflowStep(name="find_files", bash="echo files=[]"),
+            WorkflowStep(name="split_file", agent="Split {{ file_path }}"),
+        ],
+    )
+    mock_get_all_prompts.return_value = {
+        "gh": gh_wf,
+        "pylimit_split": pylimit_wf,
+    }
+    prompt = (
+        "#gh:sase Some text about the pylimit_split workflow.\n"
+        "\n"
+        "```\n"
+        'sase run "#gh:sase #pylimit_split(1000 850 666)"\n'
+        "```\n"
+    )
+    workflow = _make_anonymous_workflow(prompt)
+    result = _flatten_anonymous_workflow(workflow)
+    # Should NOT flatten — the only standalone workflow ref is inside a code block
+    assert result is None
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
 def test_flatten_anonymous_workflow_slow_path_with_args(
     mock_get_all_prompts: MagicMock,
 ) -> None:

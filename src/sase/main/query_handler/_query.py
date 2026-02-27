@@ -62,6 +62,7 @@ def expand_embedded_workflows_in_query(
     Returns:
         Tuple of (expanded_query, list of EmbeddedWorkflowResult objects).
     """
+    from sase.xprompt._fenced_blocks import fenced_block_ranges
     from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
     from sase.xprompt.loader import get_all_workflows
     from sase.xprompt.processor import process_xprompt_references
@@ -71,12 +72,19 @@ def expand_embedded_workflows_in_query(
     post_workflows: list[EmbeddedWorkflowResult] = []
     expanded_metadata: list[dict[str, Any]] = []
 
+    # Compute fenced code block ranges so we can skip references inside them.
+    fenced_ranges = fenced_block_ranges(query)
+
     # Find all potential workflow references
     matches = list(re.finditer(_WORKFLOW_REF_PATTERN, query, re.MULTILINE))
 
     # Process from last to first to preserve positions
     for match in reversed(matches):
         name = match.group(1)
+
+        # Skip references inside fenced code blocks
+        if any(start <= match.start() < end for start, end in fenced_ranges):
+            continue
 
         # Skip if not a workflow
         if name not in workflows:

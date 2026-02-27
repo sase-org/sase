@@ -53,7 +53,14 @@ def _find_standalone_workflow_ref(
         Tuple of (workflow, positional_args, named_args) if exactly one
         standalone workflow was found, None otherwise.
     """
-    matches = list(re.finditer(_REF_PATTERN, prompt_text, re.MULTILINE))
+    from ._fenced_blocks import protect_fenced_blocks
+
+    # Protect fenced code blocks so that references inside triple-backtick
+    # blocks are not mistaken for real workflow references.
+    fenced_blocks: list[str] = []
+    protected_text = protect_fenced_blocks(prompt_text, fenced_blocks)
+
+    matches = list(re.finditer(_REF_PATTERN, protected_text, re.MULTILINE))
 
     standalone_refs: list[tuple[str, re.Match[str]]] = []
     for match in matches:
@@ -77,9 +84,9 @@ def _find_standalone_workflow_ref(
 
     if has_open_paren:
         paren_start = match.end() - 1
-        paren_end = find_matching_paren_for_args(prompt_text, paren_start)
+        paren_end = find_matching_paren_for_args(protected_text, paren_start)
         if paren_end is not None:
-            paren_content = prompt_text[paren_start + 1 : paren_end]
+            paren_content = protected_text[paren_start + 1 : paren_end]
             positional_args, named_args = parse_args(paren_content)
     elif colon_arg is not None:
         if colon_arg.startswith("`") and colon_arg.endswith("`"):
