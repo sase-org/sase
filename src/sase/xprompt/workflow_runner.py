@@ -1,15 +1,23 @@
 """Workflow execution and embedding for xprompt workflows."""
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from ._parsing import parse_workflow_reference
+from ._parsing import find_matching_paren_for_args, parse_args, parse_workflow_reference
 from .loader import get_all_workflows
 from .models import UNSET
 from .workflow_models import WorkflowStep, WorkflowValidationError
 
 if TYPE_CHECKING:
     from .workflow_models import Workflow
+
+# Pattern to match workflow/xprompt references in prompts (same as processor.py)
+_REF_PATTERN = (
+    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
+    r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
+)
 
 
 def is_workflow_reference(name: str) -> bool:
@@ -25,6 +33,64 @@ def is_workflow_reference(name: str) -> bool:
     return name in workflows
 
 
+def _find_standalone_workflow_ref(
+    prompt_text: str,
+    prompts: "dict[str, Workflow]",
+) -> "tuple[Workflow, list[str], dict[str, str]] | None":
+    """Scan prompt text for exactly one standalone (no prompt_part) workflow ref.
+
+    Used as a fallback when the fast-path single-reference check in
+    ``_flatten_anonymous_workflow`` fails. The prompt may contain multiple
+    ``#name`` references — some xprompt parts, some workflows with
+    ``prompt_part`` — but if exactly one is a pure multi-step workflow
+    (no ``prompt_part``), return it with its parsed arguments.
+
+    Args:
+        prompt_text: The full prompt text to scan.
+        prompts: The combined prompts dict (xprompts + workflows).
+
+    Returns:
+        Tuple of (workflow, positional_args, named_args) if exactly one
+        standalone workflow was found, None otherwise.
+    """
+    matches = list(re.finditer(_REF_PATTERN, prompt_text, re.MULTILINE))
+
+    standalone_refs: list[tuple[str, re.Match[str]]] = []
+    for match in matches:
+        name = match.group(1)
+        if name in prompts and not prompts[name].has_prompt_part():
+            standalone_refs.append((name, match))
+
+    if len(standalone_refs) != 1:
+        return None
+
+    wf_name, match = standalone_refs[0]
+    referenced = prompts[wf_name]
+
+    # Parse arguments for this specific reference
+    has_open_paren = match.group(2) is not None
+    colon_arg = match.group(3)
+    plus_suffix = match.group(4)
+
+    positional_args: list[str] = []
+    named_args: dict[str, str] = {}
+
+    if has_open_paren:
+        paren_start = match.end() - 1
+        paren_end = find_matching_paren_for_args(prompt_text, paren_start)
+        if paren_end is not None:
+            paren_content = prompt_text[paren_start + 1 : paren_end]
+            positional_args, named_args = parse_args(paren_content)
+    elif colon_arg is not None:
+        if colon_arg.startswith("`") and colon_arg.endswith("`"):
+            colon_arg = colon_arg[1:-1]
+        positional_args = [colon_arg]
+    elif plus_suffix is not None:
+        positional_args = ["true"]
+
+    return referenced, positional_args, named_args
+
+
 def _flatten_anonymous_workflow(
     workflow: "Workflow",
     project: str | None = None,
@@ -34,6 +100,11 @@ def _flatten_anonymous_workflow(
     If the anonymous workflow's single prompt step is entirely a ``#name(args)``
     reference to a pure multi-step workflow (one without a prompt_part), return
     that referenced workflow with the parsed args. Otherwise return None.
+
+    Also handles the case where the prompt contains multiple references (e.g.,
+    ``#gh:sase #pylimit_split``) where some are xprompt parts and exactly one
+    is a standalone workflow (no prompt_part). In that case, the standalone
+    workflow is extracted and flattened.
 
     Args:
         workflow: The anonymous workflow to check.
@@ -51,36 +122,44 @@ def _flatten_anonymous_workflow(
 
     prompt_text = (workflow.steps[0].agent or "").strip()
 
-    # Must be exactly a single #name or #name(args) reference
+    # Must contain at least one #reference
     if not prompt_text.startswith("#"):
         return None
 
-    # Reject if there's extra text beyond the reference
+    prompts = get_all_prompts(project=project)
+
+    # ── Fast path: entire prompt is a single #name or #name(args) ──
     ref_text = prompt_text[1:]  # Strip leading #
     wf_name, positional_args, named_args = parse_workflow_reference(ref_text)
 
-    # Reconstruct what the reference should look like and verify it matches
-    # (i.e., no extra text around the reference)
-    prompts = get_all_prompts(project=project)
-    if wf_name not in prompts:
-        return None
+    if wf_name in prompts:
+        referenced = prompts[wf_name]
 
-    referenced = prompts[wf_name]
+        # Only flatten pure multi-step workflows (no prompt_part)
+        # Workflows with prompt_part are handled by embedded workflow expansion
+        if referenced.has_prompt_part():
+            # Rename so workflow_state.json shows the real workflow name
+            # instead of the anonymous "tmp_*" name (e.g., "resume" not
+            # "tmp_260223_115114"). But don't rename if the args contain
+            # additional # references, indicating a multi-reference prompt
+            # (e.g., "#gh:sase #bd/next ...") rather than a single workflow
+            # reference.
+            has_extra_refs = any("#" in arg for arg in positional_args)
+            if has_extra_refs:
+                # Multi-reference prompt — fall through to slow path which
+                # scans for a standalone workflow among the references.
+                pass
+            else:
+                workflow.name = wf_name
+                return None
+        else:
+            return referenced, positional_args, named_args
 
-    # Only flatten pure multi-step workflows (no prompt_part)
-    # Workflows with prompt_part are handled by embedded workflow expansion
-    if referenced.has_prompt_part():
-        # Rename so workflow_state.json shows the real workflow name
-        # instead of the anonymous "tmp_*" name (e.g., "resume" not "tmp_260223_115114").
-        # But don't rename if the args contain additional # references,
-        # indicating a multi-reference prompt (e.g., "#gh:sase #bd/next ...")
-        # rather than a single workflow reference.
-        has_extra_refs = any("#" in arg for arg in positional_args)
-        if not has_extra_refs:
-            workflow.name = wf_name
-        return None
-
-    return referenced, positional_args, named_args
+    # ── Slow path: multiple references, extract standalone workflow ──
+    # The prompt may mix xprompt parts (e.g., #gh:sase) with a single
+    # standalone workflow (no prompt_part). Scan for exactly one standalone
+    # workflow reference and flatten to it.
+    return _find_standalone_workflow_ref(prompt_text, prompts)
 
 
 def _write_failed_workflow_state(

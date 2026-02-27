@@ -137,3 +137,119 @@ def test_flatten_anonymous_workflow_returns_workflow_for_pure_multistep(
     assert ref_wf.name == "split"
     assert pos_args == []
     assert named_args == {}
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_slow_path_with_xprompt_and_workflow(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Test slow path: xprompt part + standalone workflow in same prompt.
+
+    When a prompt like '#gh:sase #pylimit_split' is used, the fast path
+    fails because 'gh' (with colon arg 'sase #pylimit_split') isn't in
+    prompts. The slow path should scan all references and find the single
+    standalone workflow.
+    """
+    # gh is an xprompt part (has prompt_part)
+    gh_wf = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="GitHub setup: {{ 1 }}")],
+    )
+    # pylimit_split is a standalone workflow (no prompt_part)
+    pylimit_wf = Workflow(
+        name="pylimit_split",
+        steps=[
+            WorkflowStep(name="find_files", bash="echo files=[]"),
+            WorkflowStep(name="split_file", agent="Split {{ file_path }}"),
+        ],
+    )
+    mock_get_all_prompts.return_value = {
+        "gh": gh_wf,
+        "pylimit_split": pylimit_wf,
+    }
+    workflow = _make_anonymous_workflow("#gh:sase #pylimit_split")
+    result = _flatten_anonymous_workflow(workflow)
+    assert result is not None
+    ref_wf, pos_args, named_args = result
+    assert ref_wf.name == "pylimit_split"
+    assert pos_args == []
+    assert named_args == {}
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_slow_path_no_standalone_workflow(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Test slow path returns None when no standalone workflow is found.
+
+    If all references are xprompt parts (with prompt_part), the slow path
+    should return None.
+    """
+    gh_wf = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="GitHub: {{ 1 }}")],
+    )
+    context_wf = Workflow(
+        name="context",
+        steps=[WorkflowStep(name="main", prompt_part="Context setup")],
+    )
+    mock_get_all_prompts.return_value = {"gh": gh_wf, "context": context_wf}
+    workflow = _make_anonymous_workflow("#gh:sase #context")
+    result = _flatten_anonymous_workflow(workflow)
+    assert result is None
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_slow_path_multiple_standalone_workflows(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Test slow path returns None when multiple standalone workflows found.
+
+    If the prompt contains two or more standalone workflows, we can't
+    determine which one to flatten to, so return None.
+    """
+    wf1 = Workflow(
+        name="split",
+        steps=[
+            WorkflowStep(name="s1", agent="Split"),
+            WorkflowStep(name="s2", agent="Do"),
+        ],
+    )
+    wf2 = Workflow(
+        name="merge",
+        steps=[
+            WorkflowStep(name="s1", agent="Merge"),
+            WorkflowStep(name="s2", agent="Do"),
+        ],
+    )
+    mock_get_all_prompts.return_value = {"split": wf1, "merge": wf2}
+    workflow = _make_anonymous_workflow("#split #merge")
+    result = _flatten_anonymous_workflow(workflow)
+    assert result is None
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_slow_path_with_args(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Test slow path parses arguments for the standalone workflow reference."""
+    gh_wf = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="GitHub: {{ 1 }}")],
+    )
+    target_wf = Workflow(
+        name="deploy",
+        inputs=[InputArg(name="env", type=InputType.WORD)],
+        steps=[
+            WorkflowStep(name="build", bash="make build"),
+            WorkflowStep(name="push", agent="Deploy to {{ env }}"),
+        ],
+    )
+    mock_get_all_prompts.return_value = {"gh": gh_wf, "deploy": target_wf}
+    workflow = _make_anonymous_workflow("#gh:sase #deploy:prod")
+    result = _flatten_anonymous_workflow(workflow)
+    assert result is not None
+    ref_wf, pos_args, named_args = result
+    assert ref_wf.name == "deploy"
+    assert pos_args == ["prod"]
+    assert named_args == {}
