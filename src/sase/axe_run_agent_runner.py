@@ -191,11 +191,7 @@ def main() -> None:
             from sase.vcs_provider._registry import detect_vcs
             from sase.xprompt.directives import extract_prompt_directives
 
-            from sase.runner_provider import get_runner_provider_names
-
-            _, directives = extract_prompt_directives(
-                prompt, runner_provider_names=get_runner_provider_names()
-            )
+            _, directives = extract_prompt_directives(prompt)
             agent_name = directives.name
             agent_wait_names = directives.wait
             agent_model = directives.model
