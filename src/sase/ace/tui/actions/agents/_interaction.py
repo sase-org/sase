@@ -235,6 +235,54 @@ class AgentInteractionMixin:
             history_sort_key=agent.cl_name or "resume",
         )
 
+    def action_expand_file_trim(self) -> None:
+        """Expand file content by one page."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        if not agent_detail.is_file_visible():
+            return
+        agent_detail.expand_file_trim()
+
+    def action_collapse_file_trim(self) -> None:
+        """Collapse file content by one page."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        if not agent_detail.is_file_visible():
+            return
+        agent_detail.collapse_file_trim()
+
+    def action_reset_file_trim(self) -> None:
+        """Reset file trim to default page size."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        if not agent_detail.is_file_visible():
+            return
+        agent_detail.reset_file_trim()
+
+    def action_show_all_file_lines(self) -> None:
+        """Show all file lines (remove trimming)."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        if not agent_detail.is_file_visible():
+            return
+        agent_detail.show_all_file_lines()
+
     def action_toggle_thinking(self) -> None:
         """Toggle the thinking panel for the selected agent."""
         if self.current_tab != "agents":

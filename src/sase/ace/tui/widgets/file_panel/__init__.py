@@ -13,15 +13,17 @@ from ._diff import get_agent_diff
 from ._display import FilePanelDisplayMixin
 from ._messages import (
     FileListChanged,
+    FileTrimChanged,
     FileVisibilityChanged,
     FileCacheEntry,
     _EXTENSION_TO_LEXER,
     file_cache,
     get_cache_key,
 )
+from ._trim import FilePanelTrimMixin
 
 
-class AgentFilePanel(FilePanelDisplayMixin, Static):
+class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
     """Bottom panel showing agent file output (diffs, markdown, etc.)."""
 
     def __init__(self, **kwargs: Any) -> None:
@@ -34,7 +36,11 @@ class AgentFilePanel(FilePanelDisplayMixin, Static):
         self._is_background_refreshing: bool = False
         self._file_list: list[str] = []
         self._current_file_index: int = 0
-        # Content state for re-rendering
+        # Trim state
+        self._total_line_count: int = 0
+        self._visible_line_count: int = 0
+        self._base_trim_size: int = 0
+        self._is_trimmed: bool = False
         self._full_content: str | None = None
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"
@@ -59,7 +65,7 @@ class AgentFilePanel(FilePanelDisplayMixin, Static):
             age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
             if age_seconds < stale_threshold_seconds:
                 self._current_agent = agent
-                return  # Fresh cache, same agent -- preserve display state
+                return  # Fresh cache, same agent -- preserve trim state
             # Stale cache, same agent -- start background worker only
             self._current_agent = agent
             self._is_background_refreshing = True
@@ -80,7 +86,7 @@ class AgentFilePanel(FilePanelDisplayMixin, Static):
             return
 
         # Different agent or no cache -- full reset (existing behavior)
-        self._reset_content_state()
+        self._reset_trim_state()
         self._file_list = []
         self._current_file_index = 0
         self._current_agent = agent
@@ -126,7 +132,7 @@ class AgentFilePanel(FilePanelDisplayMixin, Static):
         # full reset (which would leave this static file list on screen).
         self._current_agent = None
 
-        self._reset_content_state()
+        self._reset_trim_state()
         if files == self._file_list:
             return
         self._file_list = list(files)
@@ -206,7 +212,10 @@ class AgentFilePanel(FilePanelDisplayMixin, Static):
             # Existing content displayed -- update timestamp in-place
             self._is_background_refreshing = True
             self._update_timestamp_header(cache_entry.fetch_time, refreshing=True)
-            self._render_content()
+            if self._is_trimmed:
+                self._render_trimmed_content()
+            else:
+                self._render_full_content()
         elif cache_entry is not None:
             # Cache exists but not yet displayed -- full display
             self._is_background_refreshing = True
@@ -276,9 +285,13 @@ class AgentFilePanel(FilePanelDisplayMixin, Static):
                         and cache_entry.diff_output == self._last_file_content
                     ):
                         # Content unchanged - just update timestamp header
+                        # and re-render with current trim state preserved
                         scroll_pos = self._save_scroll_position()
                         self._update_timestamp_header(cache_entry.fetch_time)
-                        self._render_content()
+                        if self._is_trimmed:
+                            self._render_trimmed_content()
+                        else:
+                            self._render_full_content()
                         self._restore_scroll_position(scroll_pos)
                     else:
                         # Content changed - save scroll, update, restore scroll
@@ -311,6 +324,7 @@ class AgentFilePanel(FilePanelDisplayMixin, Static):
 __all__ = [
     "AgentFilePanel",
     "FileListChanged",
+    "FileTrimChanged",
     "FileVisibilityChanged",
     "_EXTENSION_TO_LEXER",
 ]

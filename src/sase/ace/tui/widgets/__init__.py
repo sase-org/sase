@@ -3,6 +3,7 @@
 from .agent_detail import AgentDetail
 from .agent_info_panel import AgentInfoPanel
 from .agent_list import AgentList
+from .file_panel import FileTrimChanged
 from .ancestors_children_panel import AncestorsChildrenPanel
 from .axe_dashboard import AxeDashboard
 from .axe_info_panel import AxeInfoPanel
@@ -29,6 +30,7 @@ __all__ = [
     "ChangeSpecDetail",
     "ChangeSpecInfoPanel",
     "ChangeSpecList",
+    "FileTrimChanged",
     "HintInputBar",
     "KeybindingFooter",
     "NotificationIndicator",
