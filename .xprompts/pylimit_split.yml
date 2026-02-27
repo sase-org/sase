@@ -1,8 +1,10 @@
+input:
+  limits: { type: text, default: "1000 850 700" }
 steps:
   - name: find_files
     hidden: true
     bash: |
-      tools/pylimit_files-260227 src 1000 850 700 | python3 -c "import sys, json; print('files=' + json.dumps([l.strip() for l in sys.stdin if l.strip()]))"
+      tools/pylimit_files-260227 src {{ limits }} | python3 -c "import sys, json; print('files=' + json.dumps([l.strip() for l in sys.stdin if l.strip()]))"
     output: { files: text }
 
   - name: split_file
