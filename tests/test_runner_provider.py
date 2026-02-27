@@ -87,29 +87,17 @@ class TestGetRunnerProviders:
         bad_ep = MagicMock()
         bad_ep.name = "broken"
         bad_ep.load.side_effect = ImportError("missing dependency")
-        with (
-            patch(
-                "sase.runner_provider.importlib.metadata.entry_points",
-                return_value=[bad_ep],
-            ),
-            patch(
-                "sase.runner_providers.git.GitRunnerProvider",
-                side_effect=ImportError,
-            ),
+        with patch(
+            "sase.runner_provider.importlib.metadata.entry_points",
+            return_value=[bad_ep],
         ):
             providers = get_runner_providers()
         assert providers == {}
 
-    def test_empty_when_no_entry_points_and_no_builtin(self) -> None:
-        with (
-            patch(
-                "sase.runner_provider.importlib.metadata.entry_points",
-                return_value=[],
-            ),
-            patch(
-                "sase.runner_providers.git.GitRunnerProvider",
-                side_effect=ImportError,
-            ),
+    def test_empty_when_no_entry_points(self) -> None:
+        with patch(
+            "sase.runner_provider.importlib.metadata.entry_points",
+            return_value=[],
         ):
             providers = get_runner_providers()
         assert providers == {}
@@ -125,8 +113,7 @@ class TestGetRunnerProviderNames:
             return_value=[ep],
         ):
             names = get_runner_provider_names()
-        # Includes both the built-in "git" and the mock "test" entry point
-        assert names == frozenset({"test", "git"})
+        assert names == frozenset({"test"})
 
 
 # ---------------------------------------------------------------------------
