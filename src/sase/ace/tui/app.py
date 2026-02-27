@@ -409,7 +409,7 @@ class AceApp(
             )
 
     def _initialize_agent_tracking(self) -> None:
-        """Initialize notification tracking by seeding read/unread counts.
+        """Initialize notification tracking by seeding unread count.
 
         This ensures we don't trigger bell/toast for notifications that
         were already unread when the TUI started.
@@ -418,11 +418,10 @@ class AceApp(
 
         notifications = load_notifications()
         unread_count = sum(1 for n in notifications if not n.read)
-        read_count = sum(1 for n in notifications if n.read)
         self._last_unread_count = unread_count
 
         indicator = self.query_one("#notification-indicator", NotificationIndicator)
-        indicator.set_counts(read_count, unread_count)
+        indicator.set_count(unread_count)
 
     def _save_current_selection(self) -> None:
         """Save the currently selected ChangeSpec name."""
