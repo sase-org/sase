@@ -461,8 +461,12 @@ class AceApp(
     async def action_quit(self) -> None:
         """Quit the application, saving the current selection."""
         self._save_current_selection()
-        from sase.ace.tui_activity import remove_tui_pid
+        from sase.ace.tui_activity import (
+            remove_tui_pid,
+            write_activity_timestamp,
+        )
 
+        write_activity_timestamp(time.time())
         remove_tui_pid()
         self.exit()
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui_activity import (
-    _get_tui_last_activity,
+    get_tui_last_activity,
     get_tui_inactive_seconds,
     is_tui_running,
     remove_tui_pid,
@@ -63,25 +63,25 @@ def test_write_overwrites_existing(tmp_path: Path) -> None:
         assert mock_file.read_text() == "2.0"
 
 
-# ── _get_tui_last_activity ───────────────────────────────────────────
+# ── get_tui_last_activity ───────────────────────────────────────────
 
 
 def test_get_last_activity_reads_epoch(tmp_path: Path) -> None:
     with _patch_activity_file(tmp_path):
         write_activity_timestamp(1700000000.5)
-        assert _get_tui_last_activity() == 1700000000.5
+        assert get_tui_last_activity() == 1700000000.5
 
 
 def test_get_last_activity_returns_none_when_missing(tmp_path: Path) -> None:
     with _patch_activity_file(tmp_path):
-        assert _get_tui_last_activity() is None
+        assert get_tui_last_activity() is None
 
 
 def test_get_last_activity_returns_none_on_invalid(tmp_path: Path) -> None:
     target = tmp_path / "tui_last_activity"
     target.write_text("not-a-number")
     with patch("sase.ace.tui_activity.ACTIVITY_FILE", target):
-        assert _get_tui_last_activity() is None
+        assert get_tui_last_activity() is None
 
 
 # ── get_tui_inactive_seconds ─────────────────────────────────────────

@@ -25,7 +25,7 @@ def write_activity_timestamp(epoch: float) -> None:
     os.replace(tmp, ACTIVITY_FILE)
 
 
-def _get_tui_last_activity() -> float | None:
+def get_tui_last_activity() -> float | None:
     """Return the epoch stored in the activity file, or ``None``."""
     try:
         return float(ACTIVITY_FILE.read_text().strip())
@@ -86,7 +86,7 @@ def get_tui_inactive_seconds() -> float | None:
     """
     import time
 
-    epoch = _get_tui_last_activity()
+    epoch = get_tui_last_activity()
     if epoch is None:
         return None
     if epoch == 0:
