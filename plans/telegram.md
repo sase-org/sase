@@ -511,7 +511,7 @@ def main() -> None:
 
 ## Phase 5: Lumberjack Config + Integration + Polish
 
-**Repos**: Both `sase` and `sase-chop-telegram`
+**Repos**: The chezmoi repo and `sase-chop-telegram`
 
 ### 5.1 Lumberjack configuration
 
