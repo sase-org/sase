@@ -138,11 +138,13 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         if key == "x":
             # !x → toggle axe / select process (global)
             self._toggle_axe_global()
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == "exclamation_mark":
             # !! → start background command
             self.action_start_bgcmd()
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         # Unknown key - just exit mode and restore footer

@@ -84,10 +84,12 @@ class EntryPointsMixin:
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
             self._start_bgcmd_from_changespec()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == "r":
             self.action_show_runners()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == "space":
@@ -103,6 +105,7 @@ class EntryPointsMixin:
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
             self._start_custom_agent_from_selection(last)
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         # Unknown key - just exit mode and restore footer
