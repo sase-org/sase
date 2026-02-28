@@ -69,10 +69,22 @@ class AgentNotificationMixin:
         PLANNING. For UserQuestion notifications, sets the override to QUESTION
         and conditionally saves the pre-question status (only if not already
         saved, to preserve the original status across multiple questions).
+
+        Also auto-dismisses PlanApproval notifications that were responded to
+        externally (e.g. user approved via Telegram), updating agent status
+        accordingly.
         """
+        dismissed_any = False
         for notification in unread:
             if notification.action not in ("PlanApproval", "UserQuestion"):
                 continue
+
+            # Check if PlanApproval was already responded to externally
+            # (e.g. via Telegram). If so, auto-dismiss and update status.
+            if notification.action == "PlanApproval":
+                if self._auto_dismiss_external_plan_response(notification):
+                    dismissed_any = True
+                    continue
 
             # Extract agent identity fields from notification
             cl_name = notification.action_data.get("agent_cl_name")
@@ -109,6 +121,59 @@ class AgentNotificationMixin:
                     self._agent_status_overrides[agent.identity] = "QUESTION"
 
                 break
+
+        if dismissed_any:
+            self._refresh_notification_count()
+
+    def _auto_dismiss_external_plan_response(self, notification: Notification) -> bool:
+        """Auto-dismiss a PlanApproval notification responded to externally.
+
+        When a plan is approved/rejected via Telegram (or another external
+        source), the response file (plan_response.json) exists but the TUI
+        notification isn't dismissed. This detects that and handles it.
+
+        Returns True if the notification was auto-dismissed.
+        """
+        import json
+        from pathlib import Path
+
+        from sase.notifications import mark_dismissed
+
+        from ._notification_actions import (
+            find_agent_for_notification,
+            persist_plan_approved,
+        )
+
+        response_dir = notification.action_data.get("response_dir")
+        if not response_dir:
+            return False
+
+        response_file = Path(response_dir) / "plan_response.json"
+        if not response_file.exists():
+            return False
+
+        # Response file exists — was handled externally
+        mark_dismissed(notification.id)
+
+        # Read response to update agent status accordingly
+        try:
+            with open(response_file, encoding="utf-8") as f:
+                response = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return True
+
+        agent = find_agent_for_notification(self, notification)
+        if agent is not None:
+            action = response.get("action")
+            if action == "approve":
+                self._agent_status_overrides[agent.identity] = "PLAN APPROVED"
+                persist_plan_approved(agent)
+            else:
+                # Reject with feedback: clear PLANNING override
+                self._agent_status_overrides.pop(agent.identity, None)
+            self._load_agents()  # type: ignore[attr-defined]
+
+        return True
 
     def _refresh_notification_count(self) -> None:
         """Reload unread notification count from disk and update the indicator.

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
-def _find_agent_for_notification(
+def find_agent_for_notification(
     app: object, notification: Notification
 ) -> Agent | None:
     """Find the agent matching a notification's identity fields.
@@ -425,7 +425,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             return
 
         # Find matching agent for status override updates
-        agent = _find_agent_for_notification(app, notification)
+        agent = find_agent_for_notification(app, notification)
 
         # Reject without feedback: kill agent, no response file needed
         # (killing the process group also kills the plan_approve_handler)
@@ -489,7 +489,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             if result.action == "approve":
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 # Persist approval to agent_meta.json so it survives TUI restarts
-                _persist_plan_approved(agent)
+                persist_plan_approved(agent)
             # For reject with feedback: keep "PLANNING" override (no change)
             app._load_agents()  # type: ignore[attr-defined]
 
@@ -537,7 +537,7 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         break
 
 
-def _persist_plan_approved(agent: Agent) -> None:
+def persist_plan_approved(agent: Agent) -> None:
     """Write plan_approved flag to agent_meta.json so it survives TUI restarts.
 
     Args:
