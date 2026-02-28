@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 from typing import Literal
 
 from textual.app import App, ComposeResult
@@ -155,6 +156,7 @@ class AceApp(
         Binding("L", "expand_all_folds", "Expand All", show=False),
         Binding("p", "toggle_layout", "Layout", show=False),
         Binding("i", "toggle_thinking", "Thinking", show=False),
+        Binding("I", "mark_inactive", "Mark Inactive", show=False),
         # Copy to clipboard (changespecs tab - % followed by key)
         Binding("percent_sign", "copy_tab_content", "Copy", show=False),
         # Scroll to top/bottom (Axe tab)
@@ -248,6 +250,10 @@ class AceApp(
 
         # Copy mode state (for % key sub-commands)
         self._copy_mode_active: bool = False
+
+        # Activity tracking state (for inactivity detection)
+        self._last_activity_time: float = 0.0
+        self._last_activity_flush: float = 0.0
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
@@ -398,6 +404,13 @@ class AceApp(
         # Initialize axe status
         self._load_axe_status()
 
+        # Write initial activity timestamp
+        self._last_activity_time = time.monotonic()
+        self._last_activity_flush = time.monotonic()
+        from sase.ace.tui_activity import write_activity_timestamp
+
+        write_activity_timestamp(time.time())
+
         # Set up auto-refresh timer if enabled
         if self.refresh_interval > 0:
             self._countdown_remaining = self.refresh_interval
@@ -448,6 +461,13 @@ class AceApp(
         """Quit the application, saving the current selection."""
         self._save_current_selection()
         self.exit()
+
+    def action_mark_inactive(self) -> None:
+        """Mark user as inactive by writing epoch 0."""
+        from sase.ace.tui_activity import write_activity_timestamp
+
+        write_activity_timestamp(0)
+        self.notify("Marked as inactive")
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""

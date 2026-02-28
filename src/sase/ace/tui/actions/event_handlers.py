@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Literal
 
 from textual import events
@@ -44,6 +45,8 @@ class EventHandlersMixin:
     _accept_mode_active: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
+    _last_activity_time: float
+    _last_activity_flush: float
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
@@ -86,6 +89,13 @@ class EventHandlersMixin:
 
     def _on_countdown_tick(self) -> None:
         """Countdown tick handler called every second."""
+        now_mono = time.monotonic()
+        if now_mono - self._last_activity_flush >= 10:
+            if hasattr(self, "_last_activity_time"):
+                from sase.ace.tui_activity import write_activity_timestamp
+
+                write_activity_timestamp(time.time())
+                self._last_activity_flush = now_mono
         self._countdown_remaining -= 1
         if self._countdown_remaining < 0:
             self._countdown_remaining = self.refresh_interval
@@ -98,6 +108,7 @@ class EventHandlersMixin:
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout/tmux, copy, and ancestry sub-keys."""
+        self._last_activity_time = time.monotonic()
         if self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
