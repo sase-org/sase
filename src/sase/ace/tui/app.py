@@ -49,6 +49,7 @@ from .widgets import (
     ChangeSpecDetail,
     ChangeSpecInfoPanel,
     ChangeSpecList,
+    InactiveIndicator,
     KeybindingFooter,
     NotificationIndicator,
     SearchQueryPanel,
@@ -332,6 +333,15 @@ class AceApp(
 
         self._changespec_history = create_cs_history_stacks()
 
+        # Load inactive_seconds from merged config
+        from sase.config import load_merged_config
+
+        merged = load_merged_config()
+        ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
+        self._inactive_seconds: int = int(
+            ace_cfg.get("inactive_seconds", 600) if isinstance(ace_cfg, dict) else 600
+        )
+
         # Set global model tier override in environment if specified
         if model_tier_override:
             os.environ["SASE_MODEL_TIER_OVERRIDE"] = model_tier_override
@@ -352,6 +362,7 @@ class AceApp(
         yield Header()
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
+            yield InactiveIndicator(id="inactive-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
             # ChangeSpecs Tab (default visible)
@@ -480,6 +491,8 @@ class AceApp(
         # real key press will re-enable tracking via on_key().
         if hasattr(self, "_last_activity_time"):
             del self._last_activity_time
+        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+        indicator.set_idle(True)
         self.notify("Marked as inactive")
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:

@@ -20,6 +20,11 @@
     background: $surface;
 }
 
+#inactive-indicator {
+    width: auto;
+    content-align: right middle;
+}
+
 #notification-indicator {
     width: auto;
     content-align: right middle;

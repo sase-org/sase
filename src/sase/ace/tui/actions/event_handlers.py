@@ -11,6 +11,7 @@ from ..widgets import (
     AgentList,
     BgCmdList,
     ChangeSpecList,
+    InactiveIndicator,
     TabBar,
 )
 
@@ -45,6 +46,7 @@ class EventHandlersMixin:
     _accept_mode_active: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
+    _inactive_seconds: int
     _last_activity_time: float
     _last_activity_flush: float
 
@@ -96,6 +98,7 @@ class EventHandlersMixin:
 
                 write_activity_timestamp(time.time())
                 self._last_activity_flush = now_mono
+        self._check_idle_state(now_mono)
         self._countdown_remaining -= 1
         if self._countdown_remaining < 0:
             self._countdown_remaining = self.refresh_interval
@@ -106,9 +109,21 @@ class EventHandlersMixin:
         else:  # axe
             self._update_axe_info_panel()  # type: ignore[attr-defined]
 
+    def _check_idle_state(self, now_mono: float) -> None:
+        """Update the idle indicator based on elapsed inactivity."""
+        if not hasattr(self, "_last_activity_time"):
+            # Already manually marked inactive (I key) — leave idle on
+            return
+        elapsed = now_mono - self._last_activity_time
+        idle = elapsed >= self._inactive_seconds
+        indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
+        indicator.set_idle(idle)
+
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout/tmux, copy, and ancestry sub-keys."""
         self._last_activity_time = time.monotonic()
+        indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
+        indicator.set_idle(False)
         if self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()

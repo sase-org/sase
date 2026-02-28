@@ -14,6 +14,7 @@ from .changespec_list import ChangeSpecList
 from .hint_input_bar import HintInputBar
 from .keybinding_footer import KeybindingFooter
 from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
+from .inactive_indicator import InactiveIndicator
 from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
 from .tab_bar import TabBar
@@ -32,6 +33,7 @@ __all__ = [
     "ChangeSpecList",
     "FileTrimChanged",
     "HintInputBar",
+    "InactiveIndicator",
     "KeybindingFooter",
     "NotificationIndicator",
     "PromptInputBar",
