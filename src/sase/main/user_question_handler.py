@@ -2,7 +2,11 @@
 
 Reads hook JSON from stdin, creates a sase notification, writes a request file,
 and polls for a response file written by the TUI's UserQuestionModal.
-Exit codes: 0 = non-agent fallback, 2 = deny with answers.
+Exit codes: 0 = all paths (non-agent fallback, deny with answers via JSON).
+
+NOTE: We must use exit 0 (not exit 2) when returning answers.  Claude Code
+only processes stdout JSON on exit 0.  Exit 2 causes JSON to be ignored and
+stderr to be fed to the model as a raw error, which makes it retry.
 """
 
 import json
@@ -99,7 +103,7 @@ def handle_user_question_command() -> NoReturn:
             answers.append({"question": question_text, "selected": selected})
         formatted = _format_answers({"answers": answers})
         emit_hook_decision("deny", formatted)
-        sys.exit(2)
+        sys.exit(0)
 
     # Set up response directory
     response_dir = Path.home() / ".sase" / "user_question" / session_id
@@ -108,48 +112,53 @@ def handle_user_question_command() -> NoReturn:
     request_path = response_dir / "question_request.json"
     response_path = response_dir / "question_response.json"
 
-    # Clean stale response file
-    if response_path.exists():
-        response_path.unlink()
+    # Only create notification if request doesn't already exist (idempotency).
+    # On retries (agent calls AskUserQuestion again), we reuse the existing
+    # request and poll for the same response file instead of creating a
+    # duplicate notification.
+    if not request_path.exists():
+        # Clean stale response file
+        if response_path.exists():
+            response_path.unlink()
 
-    # Write request file
-    request_data = {
-        "session_id": session_id,
-        "timestamp": time.time(),
-        "questions": questions,
-    }
-    with open(request_path, "w", encoding="utf-8") as f:
-        json.dump(request_data, f, indent=2)
+        # Write request file
+        request_data = {
+            "session_id": session_id,
+            "timestamp": time.time(),
+            "questions": questions,
+        }
+        with open(request_path, "w", encoding="utf-8") as f:
+            json.dump(request_data, f, indent=2)
 
-    # Create sase notification
-    from sase.notifications.senders import notify_user_question
+        # Create sase notification
+        from sase.notifications.senders import notify_user_question
 
-    # Use first question text as notification note (truncated)
-    first_question = ""
-    if questions:
-        first_question = questions[0].get("question", "")
-    if len(first_question) > 80:
-        first_question = first_question[:77] + "..."
+        # Use first question text as notification note (truncated)
+        first_question = ""
+        if questions:
+            first_question = questions[0].get("question", "")
+        if len(first_question) > 80:
+            first_question = first_question[:77] + "..."
 
-    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
-    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
-    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
-    notify_user_question(
-        response_dir=str(response_dir),
-        session_id=session_id,
-        notes=first_question,
-        agent_cl_name=agent_cl_name,
-        agent_project_file=agent_project_file,
-        agent_timestamp=agent_timestamp,
-    )
+        agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
+        agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+        agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
+        notify_user_question(
+            response_dir=str(response_dir),
+            session_id=session_id,
+            notes=first_question,
+            agent_cl_name=agent_cl_name,
+            agent_project_file=agent_project_file,
+            agent_timestamp=agent_timestamp,
+        )
 
-    # Send desktop notification + tmux bell
-    prefix = get_tmux_prefix()
-    send_desktop_notification(
-        f"{prefix} User Question",
-        first_question or "Claude is asking a question",
-    )
-    ring_tmux_bell()
+        # Send desktop notification + tmux bell
+        prefix = get_tmux_prefix()
+        send_desktop_notification(
+            f"{prefix} User Question",
+            first_question or "Claude is asking a question",
+        )
+        ring_tmux_bell()
 
     # Poll for response file (no timeout — wait until the user acts)
     while True:
@@ -165,7 +174,7 @@ def handle_user_question_command() -> NoReturn:
 
                 formatted = _format_answers(response_data)
                 emit_hook_decision("deny", formatted)
-                sys.exit(2)
+                sys.exit(0)
             except (json.JSONDecodeError, OSError):
                 # Response file exists but couldn't be read, wait and retry
                 pass
