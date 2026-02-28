@@ -12,7 +12,12 @@ import time
 from typing import Any
 
 from sase.ace.hooks import format_duration
-from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace, was_killed
+from sase.axe_runner_utils import (
+    all_steps_hidden,
+    install_sigterm_handler,
+    prepare_workspace,
+    was_killed,
+)
 from sase.chat_history import save_chat_history
 from sase.shared_utils import (
     convert_timestamp_to_artifacts_format,
@@ -446,7 +451,9 @@ def main() -> None:
 
         # Skip notification if the agent was killed by the user (SIGTERM).
         # The user already knows it died because they killed it from the TUI.
-        if not was_killed():
+        # Also skip when every step in the workflow was hidden (e.g. for-loops
+        # over empty lists) — there's nothing useful to report.
+        if not was_killed() and not all_steps_hidden(artifacts_dir):
             from sase.notifications.senders import notify_workflow_complete
 
             extra_files = [p for p in [saved_path, diff_path] if p]
