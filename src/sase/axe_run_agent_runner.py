@@ -462,6 +462,7 @@ def main() -> None:
                     "cl_name": cl_name,
                     "raw_suffix": artifacts_timestamp,
                     **({"agent_name": agent_name} if agent_name else {}),
+                    "prompt": prompt,
                 },
                 extra_files=extra_files,
             )
