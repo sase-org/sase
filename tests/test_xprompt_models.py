@@ -55,11 +55,11 @@ def test_input_arg_path_rejects_whitespace() -> None:
         arg.validate_and_convert("/path/with spaces/file.txt")
 
 
-def test_input_arg_path_rejects_nonexistent() -> None:
-    """Test that path type rejects non-existent paths."""
+def test_input_arg_path_accepts_nonexistent() -> None:
+    """Test that path type accepts non-existent paths (no existence check)."""
     arg = InputArg(name="test", type=InputType.PATH)
-    with pytest.raises(XPromptValidationError, match="does not exist"):
-        arg.validate_and_convert("/nonexistent/path/that/does/not/exist.txt")
+    result = arg.validate_and_convert("/nonexistent/path/that/does/not/exist.txt")
+    assert result == "/nonexistent/path/that/does/not/exist.txt"
 
 
 def test_input_arg_float_invalid_raises_error() -> None:

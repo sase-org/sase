@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -114,12 +113,7 @@ class InputArg:
                 raise XPromptValidationError(
                     f"Argument '{self.name}' expects path (no spaces), got '{value}'"
                 )
-            expanded = os.path.expanduser(value)
-            if not os.path.exists(expanded):
-                raise XPromptValidationError(
-                    f"Argument '{self.name}' path does not exist: '{value}'"
-                )
-            return value  # Return original value, not expanded
+            return value
         elif self.type == InputType.INT:
             try:
                 return int(value)
