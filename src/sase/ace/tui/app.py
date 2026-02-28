@@ -475,6 +475,11 @@ class AceApp(
         from sase.ace.tui_activity import write_activity_timestamp
 
         write_activity_timestamp(0)
+        # Clear activity tracking so _on_countdown_tick() doesn't overwrite
+        # the inactive marker (epoch 0) with the current time.  The next
+        # real key press will re-enable tracking via on_key().
+        if hasattr(self, "_last_activity_time"):
+            del self._last_activity_time
         self.notify("Marked as inactive")
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
