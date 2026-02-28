@@ -16,7 +16,7 @@ class ChopConfig:
 
     name: str
     description: str
-    xprompt: str | None = None
+    agent: str | None = None
     run_every: int = 1
 
 
@@ -72,7 +72,7 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
                     ChopConfig(
                         name=entry["name"],
                         description=entry.get("description", ""),
-                        xprompt=entry.get("xprompt"),
+                        agent=entry.get("agent") or entry.get("xprompt"),
                         run_every=run_every,
                     )
                 )

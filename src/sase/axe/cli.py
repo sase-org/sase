@@ -35,8 +35,8 @@ def handle_axe_chop_list(args: argparse.Namespace) -> None:
                 seen[chop.name] = chop
     for chop in sorted(seen.values(), key=lambda c: c.name):
         label = f"[bold cyan]{chop.name}[/bold cyan]"
-        if chop.xprompt is not None:
-            label += f"  [magenta](xprompt: {chop.xprompt})[/magenta]"
+        if chop.agent is not None:
+            label += f"  [magenta](agent: {chop.agent})[/magenta]"
         console.print(label)
         if chop.description:
             console.print(f"  [dim]{chop.description}[/dim]")
@@ -48,10 +48,10 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     chop_name: str = args.chop_name
     config = load_axe_config()
 
-    # Check if this is an xprompt chop (defined in config with xprompt field)
+    # Check if this is an agent chop (defined in config with agent field)
     chop_config = _find_chop_config(chop_name, config)
-    if chop_config is not None and chop_config.xprompt is not None:
-        _run_xprompt_chop_oneshot(chop_config)
+    if chop_config is not None and chop_config.agent is not None:
+        _run_agent_chop_oneshot(chop_config)
         return
 
     # Script-based chop
@@ -117,13 +117,13 @@ def _find_chop_config(chop_name: str, config: AxeConfig) -> ChopConfig | None:
     return None
 
 
-def _run_xprompt_chop_oneshot(chop: ChopConfig) -> None:
-    """Run an xprompt chop as a one-shot agent launch."""
+def _run_agent_chop_oneshot(chop: ChopConfig) -> None:
+    """Run an agent chop as a one-shot launch."""
     from sase.agent_launcher import launch_agent_from_cwd
 
-    assert chop.xprompt is not None
+    assert chop.agent is not None
     try:
-        result = launch_agent_from_cwd(chop.xprompt)
+        result = launch_agent_from_cwd(chop.agent)
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

@@ -78,8 +78,8 @@ class Lumberjack:
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(self.parsed_query, self._log)
-        # PID guard for xprompt chops: track running processes
-        self._xprompt_pids: dict[str, int] = {}
+        # PID guard for agent chops: track running processes
+        self._agent_pids: dict[str, int] = {}
 
     def _log(self, message: str, style: str | None = None) -> None:
         timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -127,8 +127,8 @@ class Lumberjack:
         for chop in self.config.chops:
             if self._metrics.cycles_run % chop.run_every != 0:
                 continue
-            if chop.xprompt is not None:
-                self._run_xprompt_chop(chop)
+            if chop.agent is not None:
+                self._run_agent_chop(chop)
                 continue
             try:
                 script = discover_chop_script(
@@ -161,34 +161,34 @@ class Lumberjack:
 
         self._metrics.cycles_run += 1
 
-    def _run_xprompt_chop(self, chop: ChopConfig) -> None:
-        """Launch an xprompt chop as a background agent.
+    def _run_agent_chop(self, chop: ChopConfig) -> None:
+        """Launch an agent chop as a background process.
 
         Skips the launch if a previous agent for this chop is still alive.
         """
-        assert chop.xprompt is not None
+        assert chop.agent is not None
 
         # PID guard: skip if previous process still running
-        prev_pid = self._xprompt_pids.get(chop.name)
+        prev_pid = self._agent_pids.get(chop.name)
         if prev_pid is not None:
             try:
                 os.kill(prev_pid, 0)
                 # Process is still alive — skip
                 self._log(
-                    f"Skipping xprompt chop '{chop.name}': "
+                    f"Skipping agent chop '{chop.name}': "
                     f"previous agent (PID {prev_pid}) still running"
                 )
                 return
             except OSError:
                 # Process has exited — clear and continue
-                del self._xprompt_pids[chop.name]
+                del self._agent_pids[chop.name]
 
         try:
             from sase.agent_launcher import launch_agent_from_cwd
 
-            result = launch_agent_from_cwd(chop.xprompt)
-            self._xprompt_pids[chop.name] = result.pid
-            self._log(f"Launched xprompt chop '{chop.name}' (PID {result.pid})")
+            result = launch_agent_from_cwd(chop.agent)
+            self._agent_pids[chop.name] = result.pid
+            self._log(f"Launched agent chop '{chop.name}' (PID {result.pid})")
             self._metrics.chops_executed += 1
         except Exception as e:
             self._handle_error(chop.name, e)

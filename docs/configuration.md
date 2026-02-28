@@ -170,12 +170,12 @@ axe:
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type   | Required | Default | Description                                                                  |
-| ------------- | ------ | -------- | ------- | ---------------------------------------------------------------------------- |
-| `name`        | string | yes      | -       | Chop name identifying the chop script to run.                                |
-| `description` | string | yes      | -       | Human-readable description of what the chop does.                            |
-| `xprompt`     | string | no       | `null`  | XPrompt reference to expand and pass to the chop script.                     |
-| `run_every`   | int    | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 lumberjack cycles). |
+| Field         | Type   | Required | Default | Description                                                                       |
+| ------------- | ------ | -------- | ------- | --------------------------------------------------------------------------------- |
+| `name`        | string | yes      | -       | Chop name identifying the chop script to run.                                     |
+| `description` | string | yes      | -       | Human-readable description of what the chop does.                                 |
+| `agent`       | string | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key). |
+| `run_every`   | int    | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 lumberjack cycles).      |
 
 Each chop entry can also be a plain string (chop name only, legacy format):
 
@@ -186,7 +186,7 @@ chops:
     description: Check for completed or failed hooks
   - name: custom_chop
     description: Run custom analysis
-    xprompt: "#analyze"
+    agent: "#analyze"
     run_every: 5
   # String format (legacy, description defaults to empty)
   - hook_checks
