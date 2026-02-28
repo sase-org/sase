@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui_activity import (
-    get_tui_last_activity,
     get_tui_inactive_seconds,
+    get_tui_last_activity,
     is_tui_running,
     remove_tui_pid,
     write_activity_timestamp,
