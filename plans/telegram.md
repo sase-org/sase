@@ -1,5 +1,6 @@
 ---
 bead_id: sase-70gx
+status: done
 ---
 
 # Telegram Integration Plan
