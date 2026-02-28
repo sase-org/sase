@@ -419,6 +419,22 @@ class Agent:
 
         return Agent(**kwargs)
 
+    def get_raw_xprompt_content(self) -> str | None:
+        """Get the raw xprompt content (before preprocessing/expansion).
+
+        Returns:
+            Raw xprompt content string, or None if not available.
+        """
+        artifacts_dir = self.get_artifacts_dir()
+        if artifacts_dir is None:
+            return None
+        raw_path = os.path.join(artifacts_dir, "raw_xprompt.md")
+        try:
+            with open(raw_path, encoding="utf-8") as f:
+                return f.read()
+        except (FileNotFoundError, OSError):
+            return None
+
     def get_response_content(self) -> str | None:
         """Get the response content for DONE agents.
 

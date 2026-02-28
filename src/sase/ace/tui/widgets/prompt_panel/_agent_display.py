@@ -173,6 +173,17 @@ class AgentDisplayMixin:
             self._update_parallel_display(agent, header_text, error_tb_syntax)
             return
 
+        # AGENT XPROMPT section (only shown while agent is running/waiting)
+        if agent.status not in ("DONE", "FAILED"):
+            raw_xprompt = agent.get_raw_xprompt_content()
+            if raw_xprompt:
+                header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
+                header_text.append("\n")
+                header_text.append(f"{raw_xprompt}\n")
+                header_text.append("\n")
+                header_text.append("─" * 50 + "\n", style="dim")
+                header_text.append("\n")
+
         # AGENT PROMPT section
         header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
         header_text.append("\n")

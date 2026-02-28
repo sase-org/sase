@@ -158,6 +158,11 @@ def main() -> None:
         timestamp=timestamp,
     )
 
+    # Save raw xprompt for TUI display (before any preprocessing)
+    raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
+    with open(raw_xprompt_path, "w", encoding="utf-8") as f:
+        f.write(prompt)
+
     # Defaults for agent metadata (populated later, but needed by error handler)
     agent_name: str | None = None
     agent_model: str | None = None
