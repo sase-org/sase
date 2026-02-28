@@ -11,10 +11,12 @@ from sase.axe.state import (
     append_error,
     read_cycle_result,
     read_errors,
+    read_last_error_digest_ts,
     read_metrics,
     read_pid_file,
     read_status,
     write_cycle_result,
+    write_last_error_digest_ts,
 )
 
 
@@ -116,6 +118,35 @@ def test_read_errors_returns_empty_list_when_missing(temp_state_dir: Path) -> No
     """Test that read_errors returns empty list when file doesn't exist."""
     with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
         assert read_errors() == []
+
+
+# --- Error Digest Timestamp Tests ---
+
+
+def test_write_and_read_last_error_digest_ts(temp_state_dir: Path) -> None:
+    """Test round-trip of the error digest high-water mark timestamp."""
+    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+        ts = "2025-01-15T10:30:00-05:00"
+        write_last_error_digest_ts(ts)
+        assert read_last_error_digest_ts() == ts
+
+
+def test_read_last_error_digest_ts_returns_none_when_missing(
+    temp_state_dir: Path,
+) -> None:
+    """Test that read_last_error_digest_ts returns None when file doesn't exist."""
+    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+        assert read_last_error_digest_ts() is None
+
+
+def test_read_last_error_digest_ts_returns_none_on_empty_file(
+    temp_state_dir: Path,
+) -> None:
+    """Test that read_last_error_digest_ts returns None for an empty file."""
+    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+        temp_state_dir.mkdir(parents=True, exist_ok=True)
+        (temp_state_dir / "last_error_digest_ts").write_text("")
+        assert read_last_error_digest_ts() is None
 
 
 # --- Utility Tests ---

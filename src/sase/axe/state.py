@@ -259,6 +259,33 @@ def read_errors() -> list[dict]:
     return errors
 
 
+def write_last_error_digest_ts(ts: str) -> None:
+    """Write the timestamp of the newest error in the last digest notification.
+
+    Args:
+        ts: ISO formatted timestamp string.
+    """
+    _ensure_state_dir()
+    ts_file = AXE_STATE_DIR / "last_error_digest_ts"
+    ts_file.write_text(ts)
+
+
+def read_last_error_digest_ts() -> str | None:
+    """Read the high-water mark timestamp from the last error digest.
+
+    Returns:
+        ISO timestamp string, or None if file is missing or empty.
+    """
+    ts_file = AXE_STATE_DIR / "last_error_digest_ts"
+    if not ts_file.exists():
+        return None
+    try:
+        content = ts_file.read_text().strip()
+        return content if content else None
+    except OSError:
+        return None
+
+
 # --- Output Log ---
 
 
