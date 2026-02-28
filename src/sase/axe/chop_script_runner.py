@@ -54,6 +54,7 @@ def run_chop_script(
     script_path: Path,
     context_file: str,
     timeout: float | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Execute a chop script with the given context file.
 
@@ -61,15 +62,22 @@ def run_chop_script(
         script_path: Path to the executable script.
         context_file: Path to the JSON context file.
         timeout: Optional timeout in seconds.
+        env: Extra environment variables to inject into the subprocess.
 
     Returns:
         The completed process result.
     """
+    subprocess_env: dict[str, str] | None = None
+    if env:
+        subprocess_env = dict(os.environ)
+        subprocess_env.update(env)
+
     return subprocess.run(
         [str(script_path), "--context", str(context_file)],
         capture_output=True,
         text=True,
         timeout=timeout,
+        env=subprocess_env,
     )
 
 

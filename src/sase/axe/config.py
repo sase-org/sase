@@ -18,6 +18,7 @@ class ChopConfig:
     description: str
     agent: str | None = None
     run_every: int = 1
+    env: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -68,12 +69,19 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
                     if isinstance(raw_run_every, int) and raw_run_every >= 1
                     else 1
                 )
+                raw_env = entry.get("env", {})
+                env = (
+                    {str(k): str(v) for k, v in raw_env.items()}
+                    if isinstance(raw_env, dict)
+                    else {}
+                )
                 chops.append(
                     ChopConfig(
                         name=entry["name"],
                         description=entry.get("description", ""),
                         agent=entry.get("agent") or entry.get("xprompt"),
                         run_every=run_every,
+                        env=env,
                     )
                 )
             elif isinstance(entry, str):

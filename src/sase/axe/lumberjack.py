@@ -140,7 +140,7 @@ class Lumberjack:
                         RuntimeError(f"Chop script not found: {chop.name}"),
                     )
                     continue
-                result = run_chop_script(script, context_file)
+                result = run_chop_script(script, context_file, env=chop.env)
                 if result.stdout:
                     for line in result.stdout.strip().splitlines():
                         if line:

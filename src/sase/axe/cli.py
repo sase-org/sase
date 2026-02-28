@@ -100,7 +100,8 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     )
     write_chop_context(ctx, context_file)
 
-    result = run_chop_script(script, context_file)
+    chop_env = chop_config.env if chop_config is not None else {}
+    result = run_chop_script(script, context_file, env=chop_env)
     if result.stdout:
         print(result.stdout, end="")
     if result.stderr:
