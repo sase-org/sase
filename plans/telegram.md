@@ -1,3 +1,7 @@
+---
+bead_id: sase-70gx
+---
+
 # Telegram Integration Plan
 
 ## Context
