@@ -25,6 +25,7 @@ def write_activity_timestamp(epoch: float) -> None:
     os.replace(tmp, ACTIVITY_FILE)
 
 
+# pyvision: public_api_methods.txt
 def get_tui_last_activity() -> float | None:
     """Return the epoch stored in the activity file, or ``None``."""
     try:
