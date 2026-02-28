@@ -207,13 +207,27 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
                     vcs_ref = (wf_name, ref_value)
                     break
 
+    # If no VCS ref found and we're not already in home mode, fall back to
+    # home mode — matches TUI behavior where prompts without VCS refs always
+    # run from home.
+    if vcs_ref is None and not is_home_mode:
+        is_home_mode = True
+        project_name = "home"
+        project_file = os.path.expanduser("~/.sase/projects/home/home.gp")
+
     # --- Allocate axe workspace ---
     timestamp = generate_timestamp()
     workflow_name = f"ace(run)-{timestamp}"
 
     if workspace_dir is None:
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir, _ = get_workspace_directory_for_num(workspace_num, project_name)
+        if is_home_mode:
+            workspace_dir = os.path.expanduser("~")
+            workspace_num = 0
+        else:
+            workspace_num = get_first_available_axe_workspace(project_file)
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, project_name
+            )
 
     # --- Determine display name / sort key ---
     if vcs_ref is not None:
