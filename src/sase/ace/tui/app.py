@@ -404,12 +404,13 @@ class AceApp(
         # Initialize axe status
         self._load_axe_status()
 
-        # Write initial activity timestamp
+        # Write initial activity timestamp and PID file
         self._last_activity_time = time.monotonic()
         self._last_activity_flush = time.monotonic()
-        from sase.ace.tui_activity import write_activity_timestamp
+        from sase.ace.tui_activity import write_activity_timestamp, write_tui_pid
 
         write_activity_timestamp(time.time())
+        write_tui_pid()
 
         # Set up auto-refresh timer if enabled
         if self.refresh_interval > 0:
@@ -460,6 +461,9 @@ class AceApp(
     async def action_quit(self) -> None:
         """Quit the application, saving the current selection."""
         self._save_current_selection()
+        from sase.ace.tui_activity import remove_tui_pid
+
+        remove_tui_pid()
         self.exit()
 
     def action_mark_inactive(self) -> None:

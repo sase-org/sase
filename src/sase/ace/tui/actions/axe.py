@@ -166,6 +166,9 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         if self.axe_running:
             self._stop_axe()
         self._save_current_selection()  # type: ignore[attr-defined]
+        from sase.ace.tui_activity import remove_tui_pid
+
+        remove_tui_pid()
         self.exit()  # type: ignore[attr-defined]
 
     def action_clear_axe_output(self) -> None:

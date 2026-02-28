@@ -139,7 +139,6 @@ def spawn_agent_subprocess(
     )
 
 
-# pyvision: public_api_methods.txt
 def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     """Resolve project context from CWD and launch a background agent.
 
