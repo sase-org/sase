@@ -11,7 +11,12 @@ import os
 import sys
 from datetime import datetime
 
-from sase.axe_runner_utils import install_sigterm_handler, prepare_workspace, was_killed
+from sase.axe_runner_utils import (
+    all_steps_hidden,
+    install_sigterm_handler,
+    prepare_workspace,
+    was_killed,
+)
 from sase.running_field import release_workspace
 
 install_sigterm_handler("workflow")
@@ -214,7 +219,9 @@ def main() -> None:
 
         # Skip notification if the workflow was killed by the user (SIGTERM).
         # The user already knows it died because they killed it from the TUI.
-        if not was_killed():
+        # Also skip when every step in the workflow was hidden (e.g. for-loops
+        # over empty lists) — there's nothing useful to report.
+        if not was_killed() and not all_steps_hidden(artifacts_dir):
             from sase.chat_history import list_chat_histories
             from sase.notifications.senders import notify_workflow_complete
             from sase.sase_utils import get_sase_directory

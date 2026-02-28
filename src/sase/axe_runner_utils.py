@@ -1,5 +1,7 @@
 """Shared utilities for axe runner scripts."""
 
+import json
+import os
 import signal
 import sys
 from collections.abc import Callable
@@ -82,6 +84,25 @@ def prepare_workspace(
 
     print("Workspace ready")
     return True
+
+
+def all_steps_hidden(artifacts_dir: str) -> bool:
+    """Check if every step in a workflow was hidden.
+
+    Reads workflow_state.json from the artifacts directory and returns True
+    when all steps have ``hidden: true``.  Returns False when the state file
+    is missing, unreadable, or contains at least one visible step.
+    """
+    state_path = os.path.join(artifacts_dir, "workflow_state.json")
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    steps = data.get("steps", [])
+    if not steps:
+        return False
+    return all(step.get("hidden", False) for step in steps)
 
 
 def finalize_axe_runner(

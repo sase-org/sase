@@ -1,16 +1,78 @@
 """Tests for axe_runner_utils module."""
 
+import json
+import os
 import signal
+import tempfile
 from unittest.mock import MagicMock, patch
 
 from sase.axe_runner_utils import (
     _killed_state,
+    all_steps_hidden,
     finalize_axe_runner,
     install_sigterm_handler,
     prepare_workspace,
     was_killed,
 )
 from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+
+# Tests for all_steps_hidden
+
+
+def test_all_steps_hidden_all_hidden() -> None:
+    """Test returns True when every step has hidden: true."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state = {
+            "steps": [
+                {"name": "a", "hidden": True},
+                {"name": "b", "hidden": True},
+            ]
+        }
+        with open(os.path.join(tmpdir, "workflow_state.json"), "w") as f:
+            json.dump(state, f)
+        assert all_steps_hidden(tmpdir) is True
+
+
+def test_all_steps_hidden_mixed() -> None:
+    """Test returns False when at least one step is visible."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state = {
+            "steps": [
+                {"name": "a", "hidden": True},
+                {"name": "b", "hidden": False},
+            ]
+        }
+        with open(os.path.join(tmpdir, "workflow_state.json"), "w") as f:
+            json.dump(state, f)
+        assert all_steps_hidden(tmpdir) is False
+
+
+def test_all_steps_hidden_no_hidden_key() -> None:
+    """Test returns False when steps lack hidden key (defaults to visible)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state = {"steps": [{"name": "a"}]}
+        with open(os.path.join(tmpdir, "workflow_state.json"), "w") as f:
+            json.dump(state, f)
+        assert all_steps_hidden(tmpdir) is False
+
+
+def test_all_steps_hidden_empty_steps() -> None:
+    """Test returns False when steps list is empty."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state: dict[str, list[object]] = {"steps": []}
+        with open(os.path.join(tmpdir, "workflow_state.json"), "w") as f:
+            json.dump(state, f)
+        assert all_steps_hidden(tmpdir) is False
+
+
+def test_all_steps_hidden_missing_file() -> None:
+    """Test returns False when workflow_state.json doesn't exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        assert all_steps_hidden(tmpdir) is False
+
+
+# Tests for finalize_axe_runner
 
 
 def test_finalize_axe_runner_success() -> None:
