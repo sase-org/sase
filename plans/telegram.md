@@ -28,7 +28,7 @@ Core sase changes are minimal: activity timestamp tracking in the TUI + a public
 
 ## Phase 1: Activity Tracking in sase Core
 
-**Repo**: `sase__101` (sase core)
+**Repo**: `sase` (sase core)
 
 ### 1.1 New module: `src/sase/ace/tui_activity.py`
 
@@ -511,7 +511,7 @@ def main() -> None:
 
 ## Phase 5: Lumberjack Config + Integration + Polish
 
-**Repos**: Both `sase__101` and `sase-chop-telegram`
+**Repos**: Both `sase` and `sase-chop-telegram`
 
 ### 5.1 Lumberjack configuration
 
