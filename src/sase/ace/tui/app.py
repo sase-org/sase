@@ -165,6 +165,8 @@ class AceApp(
         Binding("G", "scroll_to_bottom", "Bottom", show=False),
         # Help
         Binding("question_mark", "show_help", "Help", show=False),
+        # XPrompt browser
+        Binding("number_sign", "browse_xprompts", "XPrompts", show=False),
         # Query history navigation
         Binding("circumflex_accent", "prev_query", "Prev Query", show=False),
         Binding("underscore", "next_query", "Next Query", show=False),

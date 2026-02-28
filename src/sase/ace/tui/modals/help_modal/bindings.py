@@ -102,6 +102,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("Tab / Shift+Tab", "Switch tabs"),
             (".", "Show/hide reverted CLs"),
+            ("#", "Browse xprompts"),
             ("N", "Show notifications"),
             ("Q", "Stop axe and quit"),
             ("y", "Refresh"),
@@ -172,6 +173,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("Tab / Shift+Tab", "Switch tabs"),
             (".", "Show/hide non-run agents"),
+            ("#", "Browse xprompts"),
             ("N", "Show notifications"),
             ("Q", "Stop axe and quit"),
             ("y", "Refresh"),
@@ -232,6 +234,7 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "General",
         [
             ("Tab / Shift+Tab", "Switch tabs"),
+            ("#", "Browse xprompts"),
             ("N", "Show notifications"),
             ("y", "Refresh"),
             ("q", "Quit"),

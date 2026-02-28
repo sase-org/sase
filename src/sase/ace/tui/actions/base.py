@@ -322,3 +322,9 @@ class BaseActionsMixin:
                     self.notify(f"Invalid query: {e}", severity="error")  # type: ignore[attr-defined]
 
         self.push_screen(QueryEditModal(current_canonical), on_dismiss)  # type: ignore[attr-defined]
+
+    def action_browse_xprompts(self) -> None:
+        """Open the XPrompt browser modal."""
+        from ..modals import XPromptBrowserModal
+
+        self.push_screen(XPromptBrowserModal())  # type: ignore[attr-defined]
