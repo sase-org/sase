@@ -4,5 +4,6 @@
 # Used as a pyvision pragma target: `# pyvision: public_api_methods.txt`
 
 create_changespec_for_workflow
+get_next_auto_name
 get_tui_inactive_seconds
 is_tui_running

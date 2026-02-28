@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent_names import claim_agent_name, find_named_agent
+from sase.agent_names import claim_agent_name, find_named_agent, get_next_auto_name
 
 
 def _make_agent(
@@ -93,3 +93,27 @@ class TestClaimAgentName:
         # Should not raise
         with patch.object(Path, "home", return_value=tmp_path):
             claim_agent_name("foo", "/nonexistent")
+
+
+class TestGetNextAutoName:
+    def test_returns_a_when_no_agents(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"
+
+    def test_skips_active_names(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "a")
+        _make_agent(tmp_path, "proj", "run2", "b")
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "c"
+
+    def test_reuses_done_agent_name(self, tmp_path: Path) -> None:
+        _make_agent(tmp_path, "proj", "run1", "a", done=True)
+        _make_agent(tmp_path, "proj", "run2", "b")
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"
+
+    def test_wraps_to_double_letter(self, tmp_path: Path) -> None:
+        for i, letter in enumerate("abcdefghijklmnopqrstuvwxyz"):
+            _make_agent(tmp_path, "proj", f"run{i}", letter)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "aa"

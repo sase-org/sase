@@ -458,7 +458,11 @@ def main() -> None:
                     f"Agent {'completed' if success else 'failed'}: {workflow_name}"
                 ],
                 action="JumpToAgent",
-                action_data={"cl_name": cl_name, "raw_suffix": artifacts_timestamp},
+                action_data={
+                    "cl_name": cl_name,
+                    "raw_suffix": artifacts_timestamp,
+                    **({"agent_name": agent_name} if agent_name else {}),
+                },
                 extra_files=extra_files,
             )
 

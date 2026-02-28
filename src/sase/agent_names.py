@@ -4,7 +4,10 @@ Scans artifact directories across all projects to find agents by their
 assigned name (via %name directive or manual TUI naming).
 """
 
+import itertools
 import json
+import string
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -153,3 +156,73 @@ def _strip_name_from_json(path: Path, name: str) -> None:
             json.dump(data, f, indent=2)
     except (json.JSONDecodeError, OSError, KeyError):
         pass
+
+
+# pyvision: public_api_methods.txt
+def get_next_auto_name() -> str:
+    """Return the lowest available alphabetic agent name.
+
+    Scans active (non-done) agents across all projects and returns the
+    first name in the sequence ``a, b, ..., z, aa, ab, ...`` that is not
+    currently in use.
+    """
+    used = _get_active_agent_names()
+    return _next_available_name(used)
+
+
+def _get_active_agent_names() -> set[str]:
+    """Return the set of names used by currently running agents."""
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return set()
+
+    names: set[str] = set()
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        for artifact_dir in ace_run_dir.iterdir():
+            if not artifact_dir.is_dir():
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            # Skip agents that are done
+            done_path = artifact_dir / "done.json"
+            if done_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if isinstance(data, dict) and (name := data.get("name")):
+                names.add(name)
+
+    return names
+
+
+def _name_sequence() -> Iterator[str]:
+    """Yield alphabetic names: a, b, ..., z, aa, ab, ..."""
+    length = 1
+    while True:
+        for combo in itertools.product(string.ascii_lowercase, repeat=length):
+            yield "".join(combo)
+        length += 1
+
+
+def _next_available_name(used: set[str]) -> str:
+    """Return the first name from the alphabetic sequence not in *used*."""
+    for name in _name_sequence():
+        if name not in used:
+            return name
+    # Unreachable — infinite generator
+    raise AssertionError("unreachable")
