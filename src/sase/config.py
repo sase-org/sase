@@ -118,6 +118,60 @@ def _load_plugin_configs() -> list[dict[str, Any]]:
     return configs
 
 
+def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
+    """Load xprompt entries from each config source with provenance tracking.
+
+    Instead of merging all configs and extracting xprompts (which loses source
+    information), this returns xprompt dicts from each source separately so the
+    xprompt loader can assign proper source attribution.
+
+    Returns:
+        List of ``(source_label, xprompts_dict)`` tuples in priority order
+        (lowest priority first).  Source labels:
+
+        - ``"default_config"`` — built-in package defaults
+        - ``"plugin_config:{module_name}"`` — plugin default configs
+        - ``"config"`` — user ``sase.yml``
+        - ``"config_overlay:{filename}"`` — ``sase_*.yml`` overlays
+    """
+    results: list[tuple[str, dict[str, Any]]] = []
+
+    # 1. Built-in default config (lowest priority)
+    default = _load_default_config()
+    if isinstance(default.get("xprompts"), dict):
+        results.append(("default_config", default["xprompts"]))
+
+    # 2. Plugin configs
+    if not is_plugin_disabled("CONFIG"):
+        for module in discover_plugin_resources("sase_config"):
+            try:
+                ref = importlib.resources.files(module).joinpath("default_config.yml")
+                text = ref.read_text(encoding="utf-8")
+                data = yaml.safe_load(text)
+                if isinstance(data, dict) and isinstance(data.get("xprompts"), dict):
+                    module_name = getattr(module, "__name__", str(module))
+                    results.append((f"plugin_config:{module_name}", data["xprompts"]))
+            except Exception:
+                log.debug(
+                    "Failed to load plugin xprompts from %s",
+                    getattr(module, "__name__", module),
+                    exc_info=True,
+                )
+
+    # 3. User config (sase.yml)
+    user_base = _load_yaml_file(CONFIG_DIR / "sase.yml")
+    if user_base and isinstance(user_base.get("xprompts"), dict):
+        results.append(("config", user_base["xprompts"]))
+
+    # 4. Overlay files (highest priority among config sources)
+    for overlay_path in _get_overlay_paths():
+        overlay = _load_yaml_file(overlay_path)
+        if overlay and isinstance(overlay.get("xprompts"), dict):
+            results.append((f"config_overlay:{overlay_path.name}", overlay["xprompts"]))
+
+    return results
+
+
 def load_merged_config() -> dict[str, Any]:
     """Load and merge all sase config files.
 

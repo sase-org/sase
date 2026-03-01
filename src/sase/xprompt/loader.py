@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.config import load_merged_config
+from sase.config import load_xprompts_by_source
 from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 from .loader_parsing import (
@@ -203,34 +203,29 @@ def _load_xprompts_from_files() -> dict[str, XPrompt]:
 
 
 def _load_xprompts_from_config() -> dict[str, XPrompt]:
-    """Load xprompts from sase.yml configuration file.
+    """Load xprompts from config sources with proper source attribution.
 
-    Supports both simple string format and structured dict format:
+    Loads xprompts from each config source separately (built-in defaults,
+    plugin default configs, user sase.yml, overlay files) so that each
+    xprompt gets the correct source attribution instead of all being
+    tagged as ``"config"``.
 
-    Simple format:
-        xprompts:
-          foo: "Content here"
-
-    Structured format (with inputs):
-        xprompts:
-          bar:
-            input: {name: word, count: {type: int, default: 0}}
-            content: "Hello {{ name }}, count is {{ count }}"
-            output: {result: text}  # optional
+    Priority order (within config sources, later overrides earlier):
+    1. Built-in ``default_config.yml``
+    2. Plugin ``default_config.yml`` files
+    3. User ``sase.yml``
+    4. Overlay ``sase_*.yml`` files
 
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
     """
-    data = load_merged_config()
+    all_xprompts: dict[str, XPrompt] = {}
 
-    if not isinstance(data, dict):
-        return {}
+    for source_label, xprompts_data in load_xprompts_by_source():
+        parsed = parse_xprompt_entries(xprompts_data, source_label)
+        all_xprompts.update(parsed)
 
-    config_data = data.get("xprompts")
-    if not isinstance(config_data, dict):
-        return {}
-
-    return parse_xprompt_entries(config_data, "config")
+    return all_xprompts
 
 
 def _load_xprompts_from_internal() -> dict[str, XPrompt]:

@@ -240,7 +240,7 @@ def test_get_all_xprompts_includes_directory_config_entries() -> None:
                 "sase.xprompt.loader.get_xprompt_search_paths",
                 return_value=[search_dir],
             ),
-            patch("sase.xprompt.loader.load_merged_config", return_value={}),
+            patch("sase.xprompt.loader.load_xprompts_by_source", return_value=[]),
             patch("sase.xprompt.loader._load_xprompts_from_internal", return_value={}),
         ):
             result = get_all_xprompts()
@@ -300,7 +300,7 @@ def test_get_all_xprompts_file_overrides_project() -> None:
     file_xprompt = XPrompt(name="test", content="From file")
 
     with (
-        patch("sase.xprompt.loader.load_merged_config", return_value={}),
+        patch("sase.xprompt.loader.load_xprompts_by_source", return_value=[]),
         patch(
             "sase.xprompt.loader._load_xprompts_from_files",
             return_value={"test": file_xprompt},

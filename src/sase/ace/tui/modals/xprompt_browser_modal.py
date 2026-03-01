@@ -45,16 +45,31 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
     cwd = str(Path.cwd())
     sase_pkg_dir = str(get_sase_package_xprompts_dir())
 
-    # Plugin sources: "plugin:module_name/filename.md"
-    if source_path.startswith("plugin:"):
-        module_part = source_path.removeprefix("plugin:")
-        module_name = module_part.split("/")[0] if "/" in module_part else module_part
+    # Plugin sources: "plugin:module_name/filename.md" (xprompts/ dirs)
+    # or "plugin_config:module_name" (default_config.yml)
+    if source_path.startswith("plugin:") or source_path.startswith("plugin_config:"):
+        if source_path.startswith("plugin_config:"):
+            module_name = source_path.removeprefix("plugin_config:")
+        else:
+            module_part = source_path.removeprefix("plugin:")
+            module_name = (
+                module_part.split("/")[0] if "/" in module_part else module_part
+            )
         short_name = module_name.replace("_", "-")
         return f"Plugin ({short_name})", source_path, False
 
-    # Config sources
+    # Built-in default config xprompts
+    if source_path == "default_config":
+        return "Built-in", "sase default_config.yml", False
+
+    # Config sources: user sase.yml
     if source_path == "config":
         return "sase.yml Config", "~/.config/sase/sase.yml", True
+
+    # Config overlay sources: sase_*.yml files
+    if source_path.startswith("config_overlay:"):
+        filename = source_path.removeprefix("config_overlay:")
+        return "sase.yml Config", f"~/.config/sase/{filename}", True
 
     # Inside sase package (built-in)
     if source_path.startswith(sase_pkg_dir):
@@ -403,6 +418,13 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
         # For config-based xprompts, open the config file
         if item.source_path == "config":
             config_path = Path.home() / ".config" / "sase" / "sase.yml"
+            if not config_path.exists():
+                self.notify("Config file not found", severity="error")
+                return
+            file_path = str(config_path)
+        elif item.source_path and item.source_path.startswith("config_overlay:"):
+            filename = item.source_path.removeprefix("config_overlay:")
+            config_path = Path.home() / ".config" / "sase" / filename
             if not config_path.exists():
                 self.notify("Config file not found", severity="error")
                 return
