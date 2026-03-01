@@ -291,7 +291,11 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
     def _create_item_label(self, item: _BrowserItem) -> Text:
         """Create styled label for an xprompt item."""
         text = Text()
-        text.append("  #", style="bold #87D7FF")
+        if item.item_type == "workflow":
+            text.append("  ⚙ ", style="bold #FFD700")  # Gold gear for workflows
+            text.append("#", style="bold #87D7FF")
+        else:
+            text.append("  #", style="bold #87D7FF")
         text.append(item.name)
         return text
 
