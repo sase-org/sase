@@ -120,11 +120,19 @@ class EventHandlersMixin:
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
         indicator.set_idle(idle)
 
-    def on_key(self, event: events.Key) -> None:
-        """Handle key events, including fold, checkout/tmux, copy, and ancestry sub-keys."""
+    def _record_user_activity(self) -> None:
+        """Record user activity to reset the idle indicator.
+
+        Called from on_key() for normal bindings and directly from
+        priority-binding actions (e.g. tab switching) that bypass on_key().
+        """
         self._last_activity_time = time.monotonic()
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
         indicator.set_idle(False)
+
+    def on_key(self, event: events.Key) -> None:
+        """Handle key events, including fold, checkout/tmux, copy, and ancestry sub-keys."""
+        self._record_user_activity()
         if self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()

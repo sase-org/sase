@@ -211,6 +211,7 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def action_next_tab(self) -> None:
         """Switch to the next tab (cycling: CLs -> Agents -> Axe -> CLs)."""
+        self._record_user_activity()  # type: ignore[attr-defined]
         self._save_current_tab_position()
         if self.current_tab == "changespecs":
             self.current_tab = "agents"  # type: ignore[assignment]
@@ -224,6 +225,7 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def action_prev_tab(self) -> None:
         """Switch to the previous tab (cycling: CLs <- Agents <- Axe <- CLs)."""
+        self._record_user_activity()  # type: ignore[attr-defined]
         self._save_current_tab_position()
         if self.current_tab == "changespecs":
             self.current_tab = "axe"  # type: ignore[assignment]
