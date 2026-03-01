@@ -228,13 +228,13 @@ This project was heavily influenced by two research papers:
   name and overall direction. Its concepts of the Agent Command Environment (ACE) and Agent Execution Environment (AEE)
   directly informed the naming and design of the `ace` TUI and `axe` daemon, respectively.
 
-  <img src="docs/images/sase.png" alt="Visual overview of the SASE paper" width="600">
+  <img src="docs/images/sase_paper.png" alt="Visual overview of the SASE paper" width="600">
 
 - **[PDL: A Declarative Prompt Programming Language](https://arxiv.org/abs/2410.19135)** (Vaziri et al., 2024) — PDL's
   approach to declarative, YAML-based prompt programming influenced the design of xprompt workflows, sase's YAML-defined
   multi-step pipelines for orchestrating LLM calls and tool execution.
 
-  <img src="docs/images/pdl.png" alt="Visual overview of the PDL paper" width="600">
+  <img src="docs/images/pdl_paper.png" alt="Visual overview of the PDL paper" width="600">
 
 <sub>Paper overviews generated with [Nano Banana](https://notebooklm.google.com/) (Google's NotebookLM) via
 Gemini.</sub>
