@@ -1,10 +1,14 @@
 """Tests for sase.agent_names module."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.agent_names import claim_agent_name, find_named_agent, get_next_auto_name
+
+# A PID that is guaranteed not to exist (beyond kernel PID_MAX_LIMIT)
+_DEAD_PID = 99_999_999
 
 
 def _make_agent(
@@ -15,13 +19,16 @@ def _make_agent(
     *,
     done: bool = False,
     outcome: str | None = None,
+    pid: int | None = None,
 ) -> Path:
     """Create a fake agent artifact directory with agent_meta.json."""
     artifact_dir = (
         base / ".sase" / "projects" / project / "artifacts" / "ace-run" / suffix
     )
     artifact_dir.mkdir(parents=True)
-    meta = {"name": name, "model": "test"}
+    meta: dict[str, object] = {"name": name, "model": "test"}
+    if pid is not None:
+        meta["pid"] = pid
     (artifact_dir / "agent_meta.json").write_text(json.dumps(meta))
     if done:
         done_data: dict[str, object] = {}
@@ -101,19 +108,31 @@ class TestGetNextAutoName:
             assert get_next_auto_name() == "a"
 
     def test_skips_active_names(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "a")
-        _make_agent(tmp_path, "proj", "run2", "b")
+        _make_agent(tmp_path, "proj", "run1", "a", pid=os.getpid())
+        _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "c"
 
     def test_reuses_done_agent_name(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "a", done=True)
-        _make_agent(tmp_path, "proj", "run2", "b")
+        _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
 
     def test_wraps_to_double_letter(self, tmp_path: Path) -> None:
         for i, letter in enumerate("abcdefghijklmnopqrstuvwxyz"):
-            _make_agent(tmp_path, "proj", f"run{i}", letter)
+            _make_agent(tmp_path, "proj", f"run{i}", letter, pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "aa"
+
+    def test_reuses_name_of_dead_process(self, tmp_path: Path) -> None:
+        """Agent without done.json but with a dead PID gets its name reused."""
+        _make_agent(tmp_path, "proj", "run1", "a", pid=_DEAD_PID)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"
+
+    def test_reuses_name_when_no_pid(self, tmp_path: Path) -> None:
+        """Agent without done.json and no PID info gets its name reused."""
+        _make_agent(tmp_path, "proj", "run1", "a")
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"

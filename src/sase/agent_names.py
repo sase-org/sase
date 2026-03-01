@@ -303,10 +303,55 @@ def _get_active_agent_names() -> set[str]:
             except (json.JSONDecodeError, OSError):
                 continue
 
-            if isinstance(data, dict) and (name := data.get("name")):
-                names.add(name)
+            if not isinstance(data, dict):
+                continue
+
+            name = data.get("name")
+            if not name:
+                continue
+
+            # Verify the agent process is actually alive — orphaned agents
+            # (killed via SIGKILL, system crash, etc.) may lack done.json
+            # but their process is long dead.
+            if not _is_process_alive(data, artifact_dir):
+                continue
+
+            names.add(name)
 
     return names
+
+
+def _is_process_alive(meta: dict[str, object], artifact_dir: Path) -> bool:
+    """Check if an agent's process is still running.
+
+    Checks the PID from ``agent_meta.json`` (preferred) or
+    ``running.json`` (fallback for older home-mode agents).
+    Returns ``False`` if no PID can be found or the process is dead.
+    """
+    pid = meta.get("pid")
+
+    # Fallback: home-mode agents store PID in running.json
+    if pid is None:
+        running_path = artifact_dir / "running.json"
+        if running_path.exists():
+            try:
+                with open(running_path, encoding="utf-8") as f:
+                    running_data = json.load(f)
+                pid = running_data.get("pid")
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    if not isinstance(pid, int):
+        return False
+
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Process exists but owned by another user
+        return True
 
 
 def _name_sequence() -> Iterator[str]:

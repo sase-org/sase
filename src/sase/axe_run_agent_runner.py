@@ -219,7 +219,7 @@ def main() -> None:
                 agent_vcs_provider = None
 
             # Persist model, provider, VCS, name, and wait_for to agent_meta.json
-            agent_meta: dict[str, Any] = {}
+            agent_meta: dict[str, Any] = {"pid": os.getpid()}
             if agent_name:
                 agent_meta["name"] = agent_name
             if agent_wait_names:
