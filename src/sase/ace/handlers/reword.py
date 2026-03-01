@@ -108,7 +108,7 @@ def _add_prettier_ignore_before_tags(description: str) -> str:
     unchanged.
     """
     lines = description.split("\n")
-    tag_pattern = re.compile(r"^[A-Z][A-Za-z_\s-]*[=:]")
+    tag_pattern = re.compile(r"^[A-Z][A-Z0-9_]*=")
 
     # Skip trailing blank lines
     last_non_blank = len(lines) - 1
