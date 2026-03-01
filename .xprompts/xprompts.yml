@@ -1,3 +1,6 @@
+gh_sase:
+  content: "#gh:sase"
+
 bd/next:
   input:
     prompt: { type: text, default: "" }
