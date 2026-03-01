@@ -88,12 +88,10 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
 
 class _BrowserFilterInput(Input):
-    """Custom input for XPrompt browser with scroll key bindings.
+    """Custom input for XPrompt browser with navigation key bindings.
 
-    Keys j/k/e/a/q are intercepted here because Input._on_key captures all
-    printable characters (calling event.stop()) before parent bindings are
-    checked.  When the filter is empty these keys forward to the modal's
-    navigation/action methods; when filtering, they insert normally.
+    Since the filter input always has focus, Ctrl-key combinations are used
+    for navigation and actions to avoid conflicts with text input.
     """
 
     BINDINGS = [
@@ -101,18 +99,14 @@ class _BrowserFilterInput(Input):
         ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+d", "scroll_preview_down", "Scroll Down"),
         ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
-        ("j", "nav_key('j', 'next_option')", ""),
-        ("k", "nav_key('k', 'prev_option')", ""),
-        ("e", "nav_key('e', 'edit_xprompt')", ""),
-        ("a", "nav_key('a', 'add_xprompt')", ""),
-        ("q", "nav_key('q', 'cancel')", ""),
+        ("ctrl+n", "forward('next_option')", "Next"),
+        ("ctrl+p", "forward('prev_option')", "Prev"),
+        ("enter", "forward('edit_xprompt')", "Edit"),
+        ("ctrl+o", "forward('add_xprompt')", "Add"),
     ]
 
-    def action_nav_key(self, char: str, action_name: str) -> None:
-        """Forward action to modal when input is empty, otherwise insert char."""
-        if self.value:
-            self.insert_text_at_cursor(char)
-            return
+    def action_forward(self, action_name: str) -> None:
+        """Forward an action to the parent modal."""
         modal = self.screen
         if isinstance(modal, XPromptBrowserModal):
             getattr(modal, f"action_{action_name}")()
@@ -141,9 +135,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
     _option_list_id = "browser-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        ("e", "edit_xprompt", "Edit"),
         ("enter", "edit_xprompt", "Edit"),
-        ("a", "add_xprompt", "Add New"),
     ]
 
     def __init__(self, project: str | None = None) -> None:
@@ -267,7 +259,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
                         yield Static("", id="browser-preview")
                     yield Static("", id="browser-meta")
             yield Static(
-                "j/k: navigate  e: edit  a: add new  ^d/^u: scroll  Esc: close",
+                "^n/^p: navigate  enter: edit  ^o: add new  ^d/^u: scroll  Esc: close",
                 id="browser-hints",
             )
 
