@@ -96,7 +96,8 @@ class EventHandlersMixin:
             if hasattr(self, "_last_activity_time"):
                 from sase.ace.tui_activity import write_activity_timestamp
 
-                write_activity_timestamp(time.time())
+                activity_wall = time.time() - (now_mono - self._last_activity_time)
+                write_activity_timestamp(activity_wall)
                 self._last_activity_flush = now_mono
         self._check_idle_state(now_mono)
         self._countdown_remaining -= 1
