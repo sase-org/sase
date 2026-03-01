@@ -88,14 +88,34 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
 
 class _BrowserFilterInput(Input):
-    """Custom input for XPrompt browser with scroll key bindings."""
+    """Custom input for XPrompt browser with scroll key bindings.
+
+    Keys j/k/e/a/q are intercepted here because Input._on_key captures all
+    printable characters (calling event.stop()) before parent bindings are
+    checked.  When the filter is empty these keys forward to the modal's
+    navigation/action methods; when filtering, they insert normally.
+    """
 
     BINDINGS = [
         ("ctrl+f", "cursor_right", "Forward"),
         ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+d", "scroll_preview_down", "Scroll Down"),
         ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
+        ("j", "nav_key('j', 'next_option')", ""),
+        ("k", "nav_key('k', 'prev_option')", ""),
+        ("e", "nav_key('e', 'edit_xprompt')", ""),
+        ("a", "nav_key('a', 'add_xprompt')", ""),
+        ("q", "nav_key('q', 'cancel')", ""),
     ]
+
+    def action_nav_key(self, char: str, action_name: str) -> None:
+        """Forward action to modal when input is empty, otherwise insert char."""
+        if self.value:
+            self.insert_text_at_cursor(char)
+            return
+        modal = self.screen
+        if isinstance(modal, XPromptBrowserModal):
+            getattr(modal, f"action_{action_name}")()
 
     def action_scroll_preview_down(self) -> None:
         """Scroll the preview panel down."""
