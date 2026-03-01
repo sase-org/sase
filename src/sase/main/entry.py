@@ -64,6 +64,8 @@ def main() -> NoReturn:
             print(xprompts_dir)
         elif args.name == "xprompts-schema":
             print(xprompts_dir / "workflow.schema.json")
+        elif args.name == "xprompts-collection-schema":
+            print(xprompts_dir / "xprompts.schema.json")
         sys.exit(0)
 
     # --- notify ---
