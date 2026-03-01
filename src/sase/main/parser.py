@@ -72,6 +72,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40)",
     )
     ace_parser.add_argument(
+        "--no-axe",
+        action="store_true",
+        help="Disable auto-starting the axe daemon on startup",
+    )
+    ace_parser.add_argument(
         "--vcs-provider",
         choices=["git", "hg", "auto"],
         default=None,

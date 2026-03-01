@@ -290,6 +290,7 @@ def main() -> NoReturn:
                     Literal["large", "small"] | None, model_tier_override
                 ),
                 refresh_interval=args.refresh_interval,
+                auto_start_axe=not getattr(args, "no_axe", False),
             )
         except QueryParseError as e:
             print(f"Error: Invalid query: {e}")
