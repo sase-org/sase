@@ -132,9 +132,9 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         # full reset (which would leave this static file list on screen).
         self._current_agent = None
 
-        self._reset_trim_state()
         if files == self._file_list:
             return
+        self._reset_trim_state()
         self._file_list = list(files)
         self._current_file_index = 0
         self.post_message(
