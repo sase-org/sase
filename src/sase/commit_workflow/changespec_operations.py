@@ -74,7 +74,7 @@ def add_changespec_to_project_file(
 
     Args:
         project: Project name.
-        cl_name: NAME field value (will be suffixed with __<N> for uniqueness).
+        cl_name: NAME field value (will be suffixed with _<N> for uniqueness).
         description: DESCRIPTION field value (raw, will be indented).
         parent: PARENT field value (or None for "None").
         cl_url: CL/PR URL (e.g., ``"http://cl/12345"`` or a GitHub PR URL).
@@ -89,7 +89,7 @@ def add_changespec_to_project_file(
         status: STATUS field value (e.g., "Draft", "WIP"). Defaults to "Draft".
 
     Returns:
-        The suffixed cl_name (e.g., "foo_bar__1") on success, None on failure.
+        The suffixed cl_name (e.g., "foo_bar_1") on success, None on failure.
     """
     project_file = get_project_file_path(project)
 
@@ -134,11 +134,11 @@ def add_changespec_to_project_file(
                 if line.startswith("NAME: "):
                     existing_names.add(line[6:].strip())
 
-            # Add __<N> suffix to make name unique (for WIP ChangeSpecs)
+            # Add _<N> suffix to make name unique (for WIP ChangeSpecs)
             from sase.sase_utils import get_next_suffix_number
 
             suffix_num = get_next_suffix_number(cl_name, existing_names)
-            cl_name = f"{cl_name}__{suffix_num}"
+            cl_name = f"{cl_name}_{suffix_num}"
 
             # Determine insertion point and collect parent hooks
             parent_hooks_to_add: list[str] = []

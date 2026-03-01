@@ -179,7 +179,7 @@ def calculate_lifecycle_new_name(
 ) -> str:
     """Calculate the new name for a lifecycle operation (archive/revert).
 
-    Appends a `__<N>` suffix, skipping if the ChangeSpec is WIP and already
+    Appends a `_<N>` suffix, skipping if the ChangeSpec is WIP and already
     has a suffix.
 
     Args:
@@ -193,7 +193,7 @@ def calculate_lifecycle_new_name(
         return changespec.name
     existing_names = {cs.name for cs in all_changespecs}
     suffix = get_next_suffix_number(changespec.name, existing_names)
-    return f"{changespec.name}__{suffix}"
+    return f"{changespec.name}_{suffix}"
 
 
 def rename_changespec_with_references(

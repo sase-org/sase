@@ -91,23 +91,30 @@ def make_safe_filename(name: str) -> str:
 
 
 def strip_reverted_suffix(name: str) -> str:
-    """Remove the __<N> suffix from a reverted ChangeSpec name.
+    """Remove the _<N> suffix from a reverted ChangeSpec name.
+
+    Supports both legacy ``__<N>`` and current ``_<N>`` suffixes.
 
     Args:
-        name: ChangeSpec name (e.g., "foobar_feature__2")
+        name: ChangeSpec name (e.g., "foobar_feature_2")
 
     Returns:
         Name without the suffix (e.g., "foobar_feature")
     """
+    # Try legacy double-underscore first to avoid partial matches
     match = re.match(r"^(.+)__\d+$", name)
+    if match:
+        return match.group(1)
+    # Then try single-underscore
+    match = re.match(r"^(.+)_\d+$", name)
     return match.group(1) if match else name
 
 
 def changespec_name_to_branch(name: str, project_basename: str) -> str:
     """Derive the git branch name from a ChangeSpec NAME.
 
-    Strips project prefix and __<N> suffix, converts underscores to hyphens.
-    Example: changespec_name_to_branch("sase_dull_basin__1", "sase") -> "dull-basin"
+    Strips project prefix and _<N> / __<N> suffix, converts underscores to hyphens.
+    Example: changespec_name_to_branch("sase_dull_basin_1", "sase") -> "dull-basin"
     """
     name = strip_reverted_suffix(name)
     prefix = f"{project_basename}_"
@@ -117,19 +124,21 @@ def changespec_name_to_branch(name: str, project_basename: str) -> str:
 
 
 def has_suffix(name: str) -> bool:
-    """Check if a ChangeSpec name has a __<N> suffix.
+    """Check if a ChangeSpec name has a _<N> or legacy __<N> suffix.
 
     Args:
         name: ChangeSpec name to check
 
     Returns:
-        True if name has __<N> suffix, False otherwise
+        True if name has a suffix, False otherwise
     """
-    return bool(re.match(r"^.+__\d+$", name))
+    return bool(re.match(r"^.+__\d+$", name) or re.match(r"^.+_\d+$", name))
 
 
 def get_next_suffix_number(base_name: str, existing_names: set[str]) -> int:
-    """Find the lowest positive integer N such that `<base_name>__<N>` doesn't exist.
+    """Find the lowest positive integer N such that `<base_name>_<N>` doesn't exist.
+
+    Also checks legacy ``__<N>`` names to avoid slot collisions.
 
     Args:
         base_name: The base name to append suffix to
@@ -139,7 +148,7 @@ def get_next_suffix_number(base_name: str, existing_names: set[str]) -> int:
         The lowest available suffix number
     """
     n = 1
-    while f"{base_name}__{n}" in existing_names:
+    while f"{base_name}_{n}" in existing_names or f"{base_name}__{n}" in existing_names:
         n += 1
     return n
 

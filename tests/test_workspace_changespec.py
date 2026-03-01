@@ -134,7 +134,7 @@ def test_create_changespec_for_workflow_success() -> None:
         patch("sase.workspace_changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_changespec.add_changespec_to_project_file",
-            return_value="proj_add_thing__1",
+            return_value="proj_add_thing_1",
         ) as mock_add,
         patch("sase.workspace_changespec.subprocess.run"),  # Prevent real git branch -m
     ):
@@ -148,7 +148,7 @@ def test_create_changespec_for_workflow_success() -> None:
             workflow_name="gh",
             cl_url="https://github.com/org/repo/pull/1",
         )
-        assert result == "proj_add_thing__1"
+        assert result == "proj_add_thing_1"
         mock_add.assert_called_once_with(
             "proj",
             "proj_add_thing",

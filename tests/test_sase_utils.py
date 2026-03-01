@@ -52,7 +52,14 @@ def test_get_next_suffix_number_ignores_other_bases() -> None:
     """Test get_next_suffix_number ignores names with different bases."""
     existing = {"other__1", "other__2", "feature__1"}
     result = get_next_suffix_number("feature", existing)
-    assert result == 2  # Only considers feature__*, so next is 2
+    assert result == 2  # feature__1 (legacy) is taken, so next is 2
+
+
+def test_get_next_suffix_number_checks_both_formats() -> None:
+    """Test get_next_suffix_number skips slots taken by either suffix format."""
+    existing = {"feature_1", "feature__2"}
+    result = get_next_suffix_number("feature", existing)
+    assert result == 3  # _1 (new) and __2 (legacy) are both taken
 
 
 # Tests for run_workspace_command

@@ -46,11 +46,11 @@ HOOKS:
             content = f.read()
 
         # Verify child ChangeSpec exists
-        assert "NAME: child_feature__1" in content
+        assert "NAME: child_feature_1" in content
 
         # Parse to verify hooks - find the child ChangeSpec
         changespecs = parse_project_file(project_file)
-        child_cs = next(cs for cs in changespecs if cs.name == "child_feature__1")
+        child_cs = next(cs for cs in changespecs if cs.name == "child_feature_1")
         assert child_cs.hooks is not None
 
         # Get hook commands from the child
@@ -99,7 +99,7 @@ STATUS: Draft
 
         # Parse to verify BUG inheritance
         changespecs = parse_project_file(project_file)
-        child_cs = next(cs for cs in changespecs if cs.name == "child_feature__1")
+        child_cs = next(cs for cs in changespecs if cs.name == "child_feature_1")
 
         # Child should have inherited parent's BUG
         assert child_cs.bug == "http://b/12345678"

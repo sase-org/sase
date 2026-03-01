@@ -296,12 +296,12 @@ def _handle_draft_transition(
         f"Update STATUS to {new_status} for {changespec_name}",
     )
 
-    # Add __<N> suffix when transitioning to Draft
+    # Add _<N> suffix when transitioning to Draft
     existing_names = {cs.name for cs in all_changespecs}
     suffix_num = get_next_suffix_number(changespec_name, existing_names)
     suffix_append_info = (
         changespec_name,
-        f"{changespec_name}__{suffix_num}",
+        f"{changespec_name}_{suffix_num}",
     )
 
     # Set #Draft flag on mentors
