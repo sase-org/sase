@@ -495,7 +495,6 @@ class AceApp(
             del self._last_activity_time
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)
         indicator.set_idle(True)
-        self.notify("Marked as inactive")
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
