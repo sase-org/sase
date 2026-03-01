@@ -235,6 +235,26 @@ def extract_prompt_from_chat_file(file_ref: str) -> str | None:
     return turns[-1][0]  # last turn = most recent prompt
 
 
+# pyvision: public_api_methods.txt
+def extract_response_from_chat_file(file_ref: str) -> str | None:
+    """Extract the most recent response text from a chat file.
+
+    Args:
+        file_ref: Either a basename or full path to the chat history file.
+
+    Returns:
+        The most recent response text, or None if the file can't be read or parsed.
+    """
+    try:
+        content = _load_chat_history(file_ref)
+    except (FileNotFoundError, OSError):
+        return None
+    turns = _parse_chat_turns(content)
+    if not turns:
+        return None
+    return turns[-1][1]  # last turn = most recent response
+
+
 def load_chat_for_resume(file_ref: str) -> str:
     """Load a chat history file and format it as flat turns for resume.
 
