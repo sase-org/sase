@@ -11,6 +11,10 @@
 daemon, a YAML workflow engine, and pluggable LLM/VCS abstractions into a cohesive system for managing code changes at
 scale.
 
+<img src="docs/images/sase_overview.jpg" alt="Visual overview of sase" width="600">
+
+<sub>Generated with [Nano Banana](https://notebooklm.google.com/) (Google's NotebookLM) via Gemini.</sub>
+
 ## Key Features
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
