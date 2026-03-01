@@ -13,8 +13,6 @@ scale.
 
 <img src="docs/images/sase_overview.jpg" alt="Visual overview of sase" width="600">
 
-<sub>Generated with [Nano Banana](https://notebooklm.google.com/) (Google's NotebookLM) via Gemini.</sub>
-
 ## Key Features
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
@@ -240,8 +238,7 @@ This project was heavily influenced by two research papers:
 
   <img src="docs/images/pdl_paper.png" alt="Visual overview of the PDL paper" width="600">
 
-<sub>Paper overviews generated with [Nano Banana](https://notebooklm.google.com/) (Google's NotebookLM) via
-Gemini.</sub>
+<sub>Images generated with [Nano Banana](https://notebooklm.google.com/) (Google's NotebookLM) via Gemini.</sub>
 
 ## License
 
