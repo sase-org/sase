@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=../xprompts/xprompts.schema.json
 
-gh_sase:
-  content: "#gh:sase"
-
 bd/next:
   input:
     prompt: { type: text, default: "" }
