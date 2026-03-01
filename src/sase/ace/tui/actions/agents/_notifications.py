@@ -132,6 +132,13 @@ class AgentNotificationMixin:
         source), the response file (plan_response.json) exists but the TUI
         notification isn't dismissed. This detects that and handles it.
 
+        Detection uses three signals (checked in order):
+        1. plan_response.json exists — response written, handler may not have
+           consumed it yet.
+        2. plan_approved.marker exists — handler already processed approval.
+        3. plan_request.json is gone — handler already consumed the response
+           (rejection, since approval would leave a marker).
+
         Returns True if the notification was auto-dismissed.
         """
         import json
@@ -148,32 +155,60 @@ class AgentNotificationMixin:
         if not response_dir:
             return False
 
-        response_file = Path(response_dir) / "plan_response.json"
-        if not response_file.exists():
-            return False
+        response_dir_path = Path(response_dir)
+        response_file = response_dir_path / "plan_response.json"
+        request_file = response_dir_path / "plan_request.json"
+        marker_file = response_dir_path / "plan_approved.marker"
 
-        # Response file exists — was handled externally
-        mark_dismissed(notification.id)
+        # Case 1: Response file exists — read action from it.
+        if response_file.exists():
+            mark_dismissed(notification.id)
 
-        # Read response to update agent status accordingly
-        try:
-            with open(response_file, encoding="utf-8") as f:
-                response = json.load(f)
-        except (json.JSONDecodeError, OSError):
+            # Read response to update agent status accordingly
+            try:
+                with open(response_file, encoding="utf-8") as f:
+                    response = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                return True
+
+            agent = find_agent_for_notification(self, notification)
+            if agent is not None:
+                action = response.get("action")
+                if action == "approve":
+                    self._agent_status_overrides[agent.identity] = "PLAN APPROVED"
+                    persist_plan_approved(agent)
+                else:
+                    # Reject with feedback: clear PLANNING override
+                    self._agent_status_overrides.pop(agent.identity, None)
+                self._load_agents()  # type: ignore[attr-defined]
+
             return True
 
-        agent = find_agent_for_notification(self, notification)
-        if agent is not None:
-            action = response.get("action")
-            if action == "approve":
+        # Case 2: Approval marker exists — handler already processed approval.
+        if marker_file.exists():
+            mark_dismissed(notification.id)
+
+            agent = find_agent_for_notification(self, notification)
+            if agent is not None:
                 self._agent_status_overrides[agent.identity] = "PLAN APPROVED"
                 persist_plan_approved(agent)
-            else:
-                # Reject with feedback: clear PLANNING override
-                self._agent_status_overrides.pop(agent.identity, None)
-            self._load_agents()  # type: ignore[attr-defined]
+                self._load_agents()  # type: ignore[attr-defined]
 
-        return True
+            return True
+
+        # Case 3: Request file gone but directory exists — handler consumed
+        # the response (rejection, since approval leaves a marker).
+        if not request_file.exists() and response_dir_path.is_dir():
+            mark_dismissed(notification.id)
+
+            agent = find_agent_for_notification(self, notification)
+            if agent is not None:
+                self._agent_status_overrides.pop(agent.identity, None)
+                self._load_agents()  # type: ignore[attr-defined]
+
+            return True
+
+        return False
 
     def _refresh_notification_count(self) -> None:
         """Reload unread notification count from disk and update the indicator.

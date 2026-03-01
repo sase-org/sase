@@ -278,10 +278,12 @@ def handle_plan_approve_command() -> NoReturn:
                 with open(response_path, encoding="utf-8") as f:
                     response_data = json.load(f)
 
-                # Clean up
+                # Clean up request file; leave response file so the TUI's
+                # auto-dismiss polling can detect external responses (e.g.
+                # Telegram approval).  Stale response files are cleaned by the
+                # idempotency guard on the next invocation.
                 if request_path.exists():
                     request_path.unlink()
-                response_path.unlink()
 
                 action = response_data.get("action", "reject")
                 if action == "approve":
