@@ -93,3 +93,38 @@ def get_tui_inactive_seconds() -> float | None:
     if epoch == 0:
         return float("inf")
     return time.time() - epoch
+
+
+# pyvision: public_api_methods.txt
+def is_idle() -> bool:
+    """Return True if the user is idle.
+
+    The user is considered idle when:
+    - The TUI is not running, OR
+    - The IDLE indicator is (or would be) shown in the TUI
+      (inactivity >= configured ``ace.inactive_seconds`` threshold,
+       or user manually marked inactive via the I key).
+    """
+    if not is_tui_running():
+        return True
+    inactive = get_tui_inactive_seconds()
+    if inactive is None:
+        return True
+    return inactive >= _get_idle_threshold()
+
+
+def _get_idle_threshold() -> int:
+    """Return the idle threshold in seconds from sase config.
+
+    Reads ``ace.inactive_seconds`` from the merged config, defaulting to 600.
+    """
+    try:
+        from sase.config import load_merged_config
+
+        cfg = load_merged_config()
+        ace_cfg = cfg.get("ace", {})
+        if isinstance(ace_cfg, dict) and "inactive_seconds" in ace_cfg:
+            return int(ace_cfg["inactive_seconds"])
+    except Exception:
+        pass
+    return 600
