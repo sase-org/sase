@@ -70,6 +70,10 @@ def sase_migrate_statuses() -> NoReturn:
     _exec_script("sase_migrate_statuses")
 
 
+def sase_bug() -> NoReturn:
+    _exec_script("sase_bug")
+
+
 def sase_chop_hook_checks() -> None:
     from sase.scripts.sase_chop_hook_checks import main
 

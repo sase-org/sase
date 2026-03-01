@@ -37,6 +37,7 @@ dev = [
 
 [project.scripts]
 sase = "sase.main.entry:main"
+sase_bug = "sase.scripts:sase_bug"
 sase_commit_workflow = "sase.scripts:sase_commit_workflow"
 sase_json_workflow = "sase.scripts:sase_json_workflow"
 sase_split_setup = "sase.scripts:sase_split_setup"
