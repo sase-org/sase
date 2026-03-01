@@ -150,7 +150,7 @@ class TestParseSuffixPrefix:
 
     @given(st.sampled_from(list("~!@$?%^:")) | st.text(min_size=1, max_size=3))
     def test_prefix_stripping(self, msg: str) -> None:
-        """For all known prefix types, the returned value never includes the prefix."""
+        """For all known prefix types, the returned value is the msg after the prefix."""
         for prefix, suffix_type in [
             ("@:", "running_agent"),
             ("$:", "running_process"),
@@ -160,7 +160,7 @@ class TestParseSuffixPrefix:
             result = parse_suffix_prefix(f"{prefix} {msg}")
             assert result.suffix_type == suffix_type
             assert result.value is not None
-            assert not result.value.startswith(prefix)
+            assert result.value == msg.strip()
 
 
 # ===================================================================
