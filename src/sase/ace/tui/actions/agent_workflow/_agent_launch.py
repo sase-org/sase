@@ -11,6 +11,7 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.ace.changespec import ChangeSpec
+    from sase.ace.tui.modals import SelectionItem
     from sase.ace.tui.models import Agent
 
 
@@ -26,6 +27,8 @@ class AgentLaunchMixin:
     _bulk_changespecs: list[ChangeSpec] | None = None
     # State for prompt input (from AgentWorkflowMixin)
     _prompt_context: PromptContext | None = None
+    # State for repeat-last-@/<space> selection (from EntryPointsMixin)
+    _last_custom_agent_selection: SelectionItem | None = None
 
     def _finish_agent_launch(self, prompt: str) -> None:
         """Complete agent launch with the given prompt.
@@ -75,6 +78,33 @@ class AgentLaunchMixin:
                     ctx.update_target = ""  # workflow .yml handles checkout
                     ctx.is_home_mode = False  # Enable workspace claiming/releasing
                     break
+
+            # Update `,<space>` saved selection to reflect the resolved VCS
+            # ref from the actual submitted prompt.  Without this, editing
+            # ``#gh:sase-chop-telegram`` to ``#gh:sase`` before submitting
+            # would still replay as ``#gh:sase-chop-telegram`` on the next
+            # `,<space>`.
+            if vcs_ref is not None:
+                from ...modals import SelectionItem
+                from sase.ace.last_agent_selection import save_last_agent_selection
+
+                _ref = vcs_ref[1]
+                if _ref == ctx.project_name:
+                    sel = SelectionItem(
+                        display_name=f"[P] {ctx.project_name}",
+                        item_type="project",
+                        project_name=ctx.project_name,
+                        cl_name=None,
+                    )
+                else:
+                    sel = SelectionItem(
+                        display_name=f"[C] {_ref}",
+                        item_type="cl",
+                        project_name=ctx.project_name,
+                        cl_name=_ref,
+                    )
+                self._last_custom_agent_selection = sel
+                save_last_agent_selection(sel)
 
         # Also detect VCS refs in non-home mode: the ace(run) workspace and
         # the embedded workflow must share the same workspace number,
