@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <bug-name>"
+  exit 1
+fi
+
+NAME="$1"
+shift
+
+sase search "&$NAME" -f plain | grep '^BUG:' | cut -d' ' -f2 | rev | cut -d'/' -f1 | rev
