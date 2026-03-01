@@ -6,6 +6,8 @@ assigned name (via %name directive or manual TUI naming).
 
 import itertools
 import json
+import os
+import signal
 import string
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -20,6 +22,14 @@ class _NamedAgent:
     artifacts_dir: str
     is_done: bool
     outcome: str | None
+
+
+@dataclass
+class _KillResult:
+    """Result of a kill_named_agent() attempt."""
+
+    success: bool
+    message: str
 
 
 def find_named_agent(name: str) -> _NamedAgent | None:
@@ -98,6 +108,95 @@ def find_named_agent(name: str) -> _NamedAgent | None:
                 best_match = agent
 
     return best_match
+
+
+# pyvision: public_api_methods.txt
+def kill_named_agent(name: str) -> _KillResult:
+    """Kill a running agent by its assigned name.
+
+    Locates the agent via find_named_agent(), derives the project context
+    from its artifacts_dir, looks up the PID, sends SIGTERM to the process
+    group, and cleans up the workspace claim or running marker.
+
+    Args:
+        name: The agent name to kill.
+
+    Returns:
+        A _KillResult with success status and a human-readable message.
+    """
+    agent = find_named_agent(name)
+    if agent is None:
+        return _KillResult(False, f"No agent found with name '{name}'")
+
+    if agent.is_done:
+        outcome_str = f" ({agent.outcome})" if agent.outcome else ""
+        return _KillResult(False, f"Agent '{name}' already completed{outcome_str}")
+
+    # Derive project context from artifacts_dir
+    # Format: ~/.sase/projects/{project}/artifacts/ace-run/{timestamp}/
+    artifacts_path = Path(agent.artifacts_dir)
+    timestamp = artifacts_path.name
+    project_name = artifacts_path.parent.parent.parent.name
+    project_dir = artifacts_path.parent.parent.parent
+    project_file = str(project_dir / f"{project_name}.gp")
+
+    # Find PID
+    pid: int | None = None
+    is_home = project_name == "home"
+
+    if is_home:
+        # Home mode: read PID from running.json
+        running_json = artifacts_path / "running.json"
+        if running_json.exists():
+            try:
+                with open(running_json, encoding="utf-8") as f:
+                    data = json.load(f)
+                pid = data.get("pid")
+            except (json.JSONDecodeError, OSError):
+                pass
+    else:
+        # Non-home: scan RUNNING field for matching artifacts_timestamp
+        from sase.running_field import get_claimed_workspaces
+
+        for claim in get_claimed_workspaces(project_file):
+            if claim.artifacts_timestamp == timestamp:
+                pid = claim.pid
+                break
+
+    if pid is None:
+        return _KillResult(False, f"Could not find PID for agent '{name}'")
+
+    # Kill the process group
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass  # Already dead — continue with cleanup
+    except PermissionError:
+        return _KillResult(
+            False,
+            f"Permission denied killing agent '{name}' (PID {pid})",
+        )
+
+    # Cleanup
+    if is_home:
+        # Delete running.json (idempotent with runner's own cleanup)
+        running_json = artifacts_path / "running.json"
+        try:
+            running_json.unlink(missing_ok=True)
+        except OSError:
+            pass
+    else:
+        # Release workspace (idempotent)
+        from sase.running_field import get_claimed_workspaces, release_workspace
+
+        for claim in get_claimed_workspaces(project_file):
+            if claim.artifacts_timestamp == timestamp:
+                release_workspace(
+                    project_file, claim.workspace_num, claim.workflow, claim.cl_name
+                )
+                break
+
+    return _KillResult(True, f"Killed agent '{name}' (PID {pid})")
 
 
 def claim_agent_name(name: str, claiming_dir: str) -> None:
