@@ -8,6 +8,7 @@ and CLI flags.
 - [Config File Location](#config-file-location)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
+  - [ace](#ace)
   - [llm_provider](#llm_provider)
   - [vcs_provider](#vcs_provider)
   - [axe](#axe)
@@ -55,6 +56,24 @@ three profiles. If both files define the same scalar key (e.g., `axe.max_runners
 Source: `src/sase/config.py`
 
 ## Configuration Sections
+
+### ace
+
+Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_config.yml`.
+
+```yaml
+ace:
+  inactive_seconds: 600 # seconds before showing IDLE indicator (default: 600)
+```
+
+| Field              | Type | Default | Description                                                             |
+| ------------------ | ---- | ------- | ----------------------------------------------------------------------- |
+| `inactive_seconds` | int  | `600`   | Seconds of inactivity before the IDLE badge appears in the TUI top bar. |
+
+The IDLE indicator can also be triggered manually via the `I` keybinding. External tools can query idle status via
+`sase.ace.tui_activity.is_idle()`.
+
+Source: `src/sase/default_config.yml`, `src/sase/ace/tui_activity.py`
 
 ### llm_provider
 
@@ -170,12 +189,13 @@ axe:
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type   | Required | Default | Description                                                                       |
-| ------------- | ------ | -------- | ------- | --------------------------------------------------------------------------------- |
-| `name`        | string | yes      | -       | Chop name identifying the chop script to run.                                     |
-| `description` | string | yes      | -       | Human-readable description of what the chop does.                                 |
-| `agent`       | string | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key). |
-| `run_every`   | int    | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 lumberjack cycles).      |
+| Field         | Type         | Required | Default | Description                                                                       |
+| ------------- | ------------ | -------- | ------- | --------------------------------------------------------------------------------- |
+| `name`        | string       | yes      | -       | Chop name identifying the chop script to run.                                     |
+| `description` | string       | yes      | -       | Human-readable description of what the chop does.                                 |
+| `agent`       | string       | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key). |
+| `run_every`   | int          | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 lumberjack cycles).      |
+| `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.                       |
 
 Each chop entry can also be a plain string (chop name only, legacy format):
 
@@ -188,6 +208,8 @@ chops:
     description: Run custom analysis
     agent: "#analyze"
     run_every: 5
+    env:
+      MY_API_KEY: "secret"
   # String format (legacy, description defaults to empty)
   - hook_checks
 ```

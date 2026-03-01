@@ -286,12 +286,46 @@ These work on all tabs:
 | Key                 | Action                                                                     |
 | ------------------- | -------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                   |
+| `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)       |
 | `.`                 | Toggle visibility of reverted CLs (CLs tab) or non-run agents (Agents tab) |
+| `I`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)    |
 | `N`                 | Show notifications                                                         |
 | `Q`                 | Stop axe daemon and quit                                                   |
 | `y`                 | Refresh current tab                                                        |
 | `q`                 | Quit                                                                       |
 | `?`                 | Show help modal                                                            |
+
+## XPrompt Browser
+
+Press `#` on any tab to open the XPrompt Browser modal. It displays all discovered xprompts in a two-panel layout: a
+filterable list on the left and a syntax-highlighted preview on the right.
+
+Xprompts are grouped by source (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`, Home `~/xprompts/`,
+project-specific, config `sase.yml`, plugins, built-in). Workflow xprompts (multi-step YAML) are marked with a gear
+icon.
+
+### Keybindings
+
+| Key      | Action                                |
+| -------- | ------------------------------------- |
+| `Ctrl+N` | Navigate to next xprompt              |
+| `Ctrl+P` | Navigate to previous xprompt          |
+| `Ctrl+D` | Scroll preview panel down             |
+| `Ctrl+U` | Scroll preview panel up / clear input |
+| `Enter`  | Edit highlighted xprompt in `$EDITOR` |
+| `Ctrl+O` | Add a new xprompt                     |
+| `Esc`    | Close browser                         |
+
+Type in the filter input to narrow the list in real time.
+
+## Idle Detection
+
+ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
+than the configured threshold (`ace.inactive_seconds`, default: 600 seconds). The badge is also shown when the user
+presses `I` to manually mark themselves as inactive.
+
+Any keypress re-activates the user and hides the badge. External tools (e.g., chop scripts) can call `is_idle()` from
+`sase.ace.tui_activity` to check idle status programmatically.
 
 ## File Panel Trimming
 

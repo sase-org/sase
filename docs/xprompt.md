@@ -219,7 +219,7 @@ input:
 | `word`  | --        | No whitespace allowed                                   |
 | `line`  | --        | No newlines allowed (default type)                      |
 | `text`  | --        | Any content, no restrictions                            |
-| `path`  | --        | No whitespace; file must exist                          |
+| `path`  | --        | No whitespace                                           |
 | `int`   | `integer` | Must parse as an integer                                |
 | `bool`  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
 | `float` | --        | Must parse as a float                                   |

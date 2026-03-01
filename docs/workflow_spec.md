@@ -76,7 +76,7 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple CLs" } }
 | `word`  | Single word, no whitespace                          |
 | `line`  | Single line, no newlines                            |
 | `text`  | Multi-line text (any content)                       |
-| `path`  | File path (no whitespace, must exist)               |
+| `path`  | File path (no whitespace)                           |
 | `int`   | Integer value                                       |
 | `bool`  | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`) |
 | `float` | Floating point value                                |
