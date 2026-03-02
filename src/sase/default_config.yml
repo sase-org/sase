@@ -37,7 +37,7 @@ axe:
       interval: 60
       chops:
         - name: comment_checks
-          description: "Start background critique_comments checks for mailed leaf CLs"
+          description: "Start background critique_comments checks for all mailed CLs"
     housekeeping:
       interval: 3600
       chops:

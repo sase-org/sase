@@ -251,10 +251,7 @@ class CheckCycleRunner:
 
         # Start reviewer comments check if conditions are met
         if not has_pending_check(changespec, CHECK_TYPE_REVIEWER_COMMENTS):
-            if (
-                is_parent_submitted(changespec)
-                and get_base_status(changespec.status) == "Mailed"
-            ):
+            if get_base_status(changespec.status) == "Mailed":
                 # Check if we need to start
                 existing_reviewer_entry = None
                 if changespec.comments:
