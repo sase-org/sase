@@ -134,6 +134,9 @@ class AgentsMixinCore(
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
+    # Agent search/filter query
+    _agent_search_query: str
+
     # Debounce timer for j/k navigation detail panel updates
     _detail_update_timer: Timer | None
 
@@ -235,6 +238,35 @@ class AgentsMixinCore(
         self._agents, self._fold_counts = filter_agents_by_fold_state(
             self._agents, self._fold_manager
         )
+
+        # Apply agent search filter (case-insensitive substring match)
+        if self._agent_search_query:
+            query_lower = self._agent_search_query.lower()
+            # Collect identities of matching parents so children stay visible
+            matching_parent_names: set[str] = set()
+            for agent in self._agents:
+                if not agent.is_workflow_child and any(
+                    query_lower in (getattr(agent, field, "") or "").lower()
+                    for field in ("cl_name", "display_name", "agent_name", "status")
+                ):
+                    matching_parent_names.add(agent.agent_name or agent.cl_name)
+
+            self._agents = [
+                a
+                for a in self._agents
+                if (
+                    # Direct match
+                    any(
+                        query_lower in (getattr(a, field, "") or "").lower()
+                        for field in ("cl_name", "display_name", "agent_name", "status")
+                    )
+                    # Or child of a matching parent (preserve hierarchy)
+                    or (
+                        a.is_workflow_child
+                        and (a.agent_name or a.cl_name) in matching_parent_names
+                    )
+                )
+            ]
 
         # Apply status overrides (PLANNING/PLAN APPROVED/QUESTION)
         loaded_identities = {a.identity for a in self._agents}
@@ -412,6 +444,21 @@ class AgentsMixinCore(
 
         navigate_to_changespec_tab(self, agent.cl_name, agent.project_file)
 
+    def _edit_agent_search_query(self) -> None:
+        """Open modal to edit the agent search/filter query."""
+        from ...modals import QueryEditModal
+
+        def on_dismiss(new_query: str | None) -> None:
+            if new_query is None:
+                return
+            self._agent_search_query = new_query
+            self._load_agents()
+
+        self.push_screen(  # type: ignore[attr-defined]
+            QueryEditModal(self._agent_search_query, title="Filter Agents"),
+            on_dismiss,
+        )
+
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
         from ...widgets import AgentDetail, AgentInfoPanel
@@ -423,6 +470,7 @@ class AgentsMixinCore(
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )
+        agent_info_panel.update_search_query(self._agent_search_query)
         # Show current panel view mode when an agent is selected
         if self._agents and 0 <= self.current_idx < len(self._agents):
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]

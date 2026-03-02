@@ -17,6 +17,7 @@ class AgentInfoPanel(Static):
         self._countdown = 0
         self._interval = 0
         self._view_mode: str = ""
+        self._search_query: str = ""
 
     def update_position(self, position: int, total: int) -> None:
         """Update the position display.
@@ -50,6 +51,15 @@ class AgentInfoPanel(Static):
         self._view_mode = mode
         self._update_display()
 
+    def update_search_query(self, query: str) -> None:
+        """Update the search query filter display.
+
+        Args:
+            query: The current search query string. Empty string hides the filter.
+        """
+        self._search_query = query
+        self._update_display()
+
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
         "thinking": "bold #af87d7",
@@ -61,6 +71,10 @@ class AgentInfoPanel(Static):
         text = Text()
         text.append("Agents: ", style="bold #87D7FF")
         text.append(f"{self._position}/{self._total}", style="#00D7AF")
+        if self._search_query:
+            text.append("   ")
+            text.append("filter: ", style="dim italic")
+            text.append(self._search_query, style="bold #FFD700")
         if self._view_mode:
             text.append("   ")
             text.append("[", style="dim")

@@ -22,19 +22,21 @@ class QueryEditModal(ModalScreen[str | None]):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, current_query: str) -> None:
+    def __init__(self, current_query: str, title: str = "Edit Search Query") -> None:
         """Initialize the query edit modal.
 
         Args:
             current_query: The current query string
+            title: The modal title text
         """
         super().__init__()
         self.current_query = current_query
+        self._title = title
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container():
-            yield Label("Edit Search Query", id="modal-title")
+            yield Label(self._title, id="modal-title")
             yield _QueryInput(value=self.current_query, id="query-input")
             with Horizontal(id="button-row"):
                 yield Button("Apply", id="apply", variant="primary")

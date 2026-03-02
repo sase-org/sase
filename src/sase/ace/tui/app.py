@@ -284,6 +284,7 @@ class AceApp(
         self._agents: list[Agent] = []
         self._has_always_visible: bool = False
         self._hidden_count: int = 0
+        self._agent_search_query: str = ""
 
         # Fold state for nested workflow steps
         from .models.fold_state import FoldStateManager

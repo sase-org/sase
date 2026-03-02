@@ -238,11 +238,17 @@ class BaseActionsMixin:
     def action_edit_query(self) -> None:
         """Edit the search query.
 
+        On the agents tab, delegates to the agent search filter.
+
         Supports saving queries with # prefix:
         - #<N> <query> - Save query to slot N (0-9)
         - # <query> - Save query to next available slot
         - #<N> (no query) - Delete query from slot N
         """
+        if self.current_tab == "agents":
+            self._edit_agent_search_query()  # type: ignore[attr-defined]
+            return
+
         current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
 
         def on_dismiss(new_query: str | None) -> None:

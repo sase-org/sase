@@ -169,6 +169,12 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
+        "Search",
+        [
+            ("/", "Filter agents by name"),
+        ],
+    ),
+    (
         "General",
         [
             ("Tab / Shift+Tab", "Switch tabs"),
