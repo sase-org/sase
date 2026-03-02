@@ -13,6 +13,19 @@ scale.
 
 <img src="docs/images/sase_overview.jpg" alt="Visual overview of sase" width="800">
 
+## Supported Coding Agents
+
+sase is designed to work with the coding agents you already use:
+
+| Agent                                                         | Status        |
+| ------------------------------------------------------------- | ------------- |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Supported** |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | **Supported** |
+| [Codex](https://github.com/openai/codex)                      | Coming soon   |
+
+sase doesn't replace these agents — it **orchestrates** them. It provides the scheduling, tracking, and workflow
+infrastructure that turns individual agent runs into a managed software engineering pipeline.
+
 ## Key Features
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
