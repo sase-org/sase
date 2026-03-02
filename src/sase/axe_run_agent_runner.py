@@ -163,11 +163,6 @@ def main() -> None:
         timestamp=timestamp,
     )
 
-    # Resolve aliases before saving so the TUI shows canonical names
-    from sase.xprompt import resolve_xprompt_aliases
-
-    prompt = resolve_xprompt_aliases(prompt)
-
     # Save raw xprompt for TUI display (before any preprocessing)
     raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
     with open(raw_xprompt_path, "w", encoding="utf-8") as f:

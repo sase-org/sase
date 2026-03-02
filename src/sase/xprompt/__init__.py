@@ -43,7 +43,6 @@ from .processor import (
     is_jinja2_template,
     process_xprompt_references,
     render_toplevel_jinja2,
-    resolve_xprompt_aliases,
 )
 from .workflow_runner import (
     WorkflowResult,
@@ -103,7 +102,6 @@ __all__ = [
     "is_workflow_reference",
     "process_xprompt_references",
     "render_toplevel_jinja2",
-    "resolve_xprompt_aliases",
     # Workflow models
     "StepState",
     "StepStatus",

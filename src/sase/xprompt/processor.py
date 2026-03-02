@@ -53,30 +53,6 @@ _XPROMPT_PATTERN = (
 )
 
 
-def resolve_xprompt_aliases(prompt: str) -> str:
-    """Resolve xprompt aliases via raw text substitution.
-
-    Aliases are defined in the ``xprompt_aliases`` config field and are
-    substituted *before* any other xprompt processing.  This allows aliases
-    like ``#gh_sase`` → ``#gh:sase`` where the colon syntax must be present
-    in the raw text for VCS directory-switching logic.
-    """
-    from sase.config import load_merged_config
-
-    aliases: dict[str, str] = load_merged_config().get("xprompt_aliases", {})
-    if not aliases or "#" not in prompt:
-        return prompt
-
-    for alias_name, target in aliases.items():
-        pattern = (
-            r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-            r"#" + re.escape(alias_name) + r"(?![a-zA-Z0-9_/])"
-        )
-        prompt = re.sub(pattern, f"#{target}", prompt, flags=re.MULTILINE)
-
-    return prompt
-
-
 def _expand_single_xprompt(
     xprompt: XPrompt,
     positional_args: list[str],
@@ -179,8 +155,6 @@ def process_xprompt_references(
     Raises:
         SystemExit: If any xprompt processing error occurs
     """
-    prompt = resolve_xprompt_aliases(prompt)
-
     xprompts = get_all_xprompts()
     if extra_xprompts:
         xprompts.update(extra_xprompts)
@@ -354,5 +328,4 @@ __all__ = [
     "is_jinja2_template",
     "process_xprompt_references",
     "render_toplevel_jinja2",
-    "resolve_xprompt_aliases",
 ]
