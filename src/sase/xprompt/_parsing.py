@@ -424,11 +424,14 @@ def parse_workflow_reference(
             return workflow_name, positional_args, named_args
         return workflow_name, [], {}
 
-    # Colon syntax: workflow:value or workflow: text
+    # Colon syntax: workflow:value or workflow: text or workflow:: text
     if ":" in workflow_ref:
         colon_idx = workflow_ref.index(":")
         workflow_name = workflow_ref[:colon_idx]
         rest = workflow_ref[colon_idx + 1 :]
+        # Double-colon shorthand: workflow:: text → strip the extra colon
+        if rest.startswith(": "):
+            return workflow_name, [rest[2:]], {}
         # The entire rest (with or without leading space) is a single positional arg
         # But we strip leading space for multi-line syntax aesthetics
         if rest.startswith(" "):

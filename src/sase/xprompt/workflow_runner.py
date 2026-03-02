@@ -4,7 +4,13 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from ._parsing import find_matching_paren_for_args, parse_args, parse_workflow_reference
+from ._parsing import (
+    find_double_colon_text_end,
+    find_matching_paren_for_args,
+    find_shorthand_text_end,
+    parse_args,
+    parse_workflow_reference,
+)
 from .loader import get_all_workflows
 from .models import UNSET
 from .workflow_models import WorkflowStep, WorkflowValidationError
@@ -94,6 +100,25 @@ def _find_standalone_workflow_ref(
         positional_args = [colon_arg]
     elif plus_suffix is not None:
         positional_args = ["true"]
+    else:
+        # Check for :: or : shorthand after the reference. The regex
+        # doesn't capture double-colon syntax (#name:: text), so we
+        # handle it here by looking at the original (unprotected) text.
+        # Positions are safe to reuse because protect_fenced_blocks
+        # preserves string length.
+        after_match = prompt_text[match.end() :]
+        if after_match.startswith(":: "):
+            text_start = match.end() + 3
+            text_end = find_double_colon_text_end(prompt_text, text_start)
+            text = prompt_text[text_start:text_end].rstrip()
+            if text:
+                positional_args = [text]
+        elif after_match.startswith(": "):
+            text_start = match.end() + 2
+            text_end = find_shorthand_text_end(prompt_text, text_start)
+            text = prompt_text[text_start:text_end].rstrip()
+            if text:
+                positional_args = [text]
 
     return referenced, positional_args, named_args
 
