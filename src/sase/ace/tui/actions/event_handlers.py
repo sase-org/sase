@@ -16,6 +16,8 @@ from ..widgets import (
 )
 
 if TYPE_CHECKING:
+    from textual.widgets import Input
+
     from ...changespec import ChangeSpec
     from ..models import Agent
 
@@ -161,6 +163,16 @@ class EventHandlersMixin:
             if self._handle_bang_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
+
+    def on_input_changed(self, _event: Input.Changed) -> None:
+        """Record activity when user types in a focused Input widget.
+
+        Textual's ``Input`` widget calls ``event.stop()`` on key events,
+        preventing them from bubbling to the App's ``on_key()`` handler.
+        The ``Input.Changed`` message still bubbles, so we catch it here
+        to keep the idle timer accurate while the user types.
+        """
+        self._record_user_activity()
 
     def on_change_spec_list_selection_changed(
         self, event: ChangeSpecList.SelectionChanged
