@@ -6,10 +6,24 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.events import Key
 from textual.message import Message
+from textual.suggester import Suggester
 from textual.widgets import Input, Label, Static
 
 if TYPE_CHECKING:
     from ..app import AceApp
+
+
+class _SingleSuggester(Suggester):
+    """Suggester that returns a single fixed suggestion."""
+
+    def __init__(self, suggestion: str) -> None:
+        super().__init__(use_cache=False, case_sensitive=True)
+        self._suggestion = suggestion
+
+    async def get_suggestion(self, value: str) -> str | None:
+        if self._suggestion.startswith(value):
+            return self._suggestion
+        return None
 
 
 class _PromptInput(Input):
@@ -60,9 +74,9 @@ class _PromptInput(Input):
             parent = parent.parent
 
     def action_end_or_fill_placeholder(self) -> None:
-        """Fill placeholder if input is empty, otherwise move cursor to end."""
-        if not self.value and self.placeholder:
-            self.value = self.placeholder
+        """Accept suggestion if available, otherwise move cursor to end."""
+        if self._suggestion:
+            self.value = self._suggestion
             self.cursor_position = len(self.value)
         else:
             self.action_end()
@@ -158,15 +172,16 @@ class PromptInputBar(Static):
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
+        cancelled = PromptInputBar._last_cancelled_prompt
         placeholder = (
-            PromptInputBar._last_cancelled_prompt
-            if PromptInputBar._last_cancelled_prompt
-            else "Type prompt, '.' for history, '##' for snippets [^G] editor [^Y] workflow"
+            "Type prompt, '.' for history, '##' for snippets [^G] editor [^Y] workflow"
         )
+        suggester = _SingleSuggester(cancelled) if cancelled else None
         with Horizontal(id="prompt-input-container"):
             yield Label("Prompt: ", id="prompt-label")
             yield _PromptInput(
                 placeholder=placeholder,
+                suggester=suggester,
                 id="prompt-input",
                 value=self._initial_value,
                 select_on_focus=not self._initial_value,
