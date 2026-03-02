@@ -130,7 +130,16 @@ class EventHandlersMixin:
         """
         self._last_activity_time = time.monotonic()
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
+        was_idle = indicator._idle
         indicator.set_idle(False)
+        if was_idle:
+            # Flush to disk immediately when transitioning from idle to
+            # active so external consumers (e.g. Telegram outbound chop)
+            # see the change before their next poll cycle.
+            from sase.ace.tui_activity import write_activity_timestamp
+
+            write_activity_timestamp(time.time())
+            self._last_activity_flush = time.monotonic()
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout/tmux, copy, and ancestry sub-keys."""
