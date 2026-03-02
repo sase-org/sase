@@ -425,12 +425,17 @@ class AceApp(
         if self._auto_start_axe and not self.axe_running:
             self._start_axe()
 
-        # Write initial activity timestamp and PID file
+        # Write initial activity timestamp, idle state, and PID file
         self._last_activity_time = time.monotonic()
         self._last_activity_flush = time.monotonic()
-        from sase.ace.tui_activity import write_activity_timestamp, write_tui_pid
+        from sase.ace.tui_activity import (
+            write_activity_timestamp,
+            write_idle_state,
+            write_tui_pid,
+        )
 
         write_activity_timestamp(time.time())
+        write_idle_state(False)
         write_tui_pid()
 
         # Set up auto-refresh timer if enabled
@@ -483,19 +488,22 @@ class AceApp(
         """Quit the application, saving the current selection."""
         self._save_current_selection()
         from sase.ace.tui_activity import (
+            remove_idle_state,
             remove_tui_pid,
             write_activity_timestamp,
         )
 
         write_activity_timestamp(time.time())
+        remove_idle_state()
         remove_tui_pid()
         self.exit()
 
     def action_mark_inactive(self) -> None:
         """Mark user as inactive by writing epoch 0."""
-        from sase.ace.tui_activity import write_activity_timestamp
+        from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
 
         write_activity_timestamp(0)
+        write_idle_state(True)
         # Clear activity tracking so _on_countdown_tick() doesn't overwrite
         # the inactive marker (epoch 0) with the current time.  The next
         # real key press will re-enable tracking via on_key().

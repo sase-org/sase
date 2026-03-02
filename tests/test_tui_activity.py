@@ -11,8 +11,10 @@ from sase.ace.tui_activity import (
     get_tui_last_activity,
     is_idle,
     is_tui_running,
+    remove_idle_state,
     remove_tui_pid,
     write_activity_timestamp,
+    write_idle_state,
     write_tui_pid,
 )
 
@@ -25,6 +27,11 @@ def _patch_activity_file(tmp_path: Path):
 def _patch_pid_file(tmp_path: Path):
     """Return a mock.patch targeting PID_FILE to use *tmp_path*."""
     return patch("sase.ace.tui_activity.PID_FILE", tmp_path / "tui_pid")
+
+
+def _patch_idle_state_file(tmp_path: Path):
+    """Return a mock.patch targeting IDLE_STATE_FILE to use *tmp_path*."""
+    return patch("sase.ace.tui_activity.IDLE_STATE_FILE", tmp_path / "tui_idle_state")
 
 
 # ── write_activity_timestamp ──────────────────────────────────────────
@@ -131,6 +138,48 @@ def test_remove_pid_no_error_when_missing(tmp_path: Path) -> None:
         remove_tui_pid()  # should not raise
 
 
+# ── write_idle_state / remove_idle_state ─────────────────────────────
+
+
+def test_write_idle_state_true(tmp_path: Path) -> None:
+    with _patch_idle_state_file(tmp_path) as mock_file:
+        write_idle_state(True)
+        assert mock_file.read_text() == "1"
+
+
+def test_write_idle_state_false(tmp_path: Path) -> None:
+    with _patch_idle_state_file(tmp_path) as mock_file:
+        write_idle_state(False)
+        assert mock_file.read_text() == "0"
+
+
+def test_write_idle_state_overwrites(tmp_path: Path) -> None:
+    with _patch_idle_state_file(tmp_path) as mock_file:
+        write_idle_state(True)
+        write_idle_state(False)
+        assert mock_file.read_text() == "0"
+
+
+def test_write_idle_state_creates_parent_dirs(tmp_path: Path) -> None:
+    target = tmp_path / "nested" / "dir" / "tui_idle_state"
+    with patch("sase.ace.tui_activity.IDLE_STATE_FILE", target):
+        write_idle_state(True)
+        assert target.exists()
+        assert target.read_text() == "1"
+
+
+def test_remove_idle_state_deletes_file(tmp_path: Path) -> None:
+    with _patch_idle_state_file(tmp_path):
+        write_idle_state(True)
+        remove_idle_state()
+        assert not (tmp_path / "tui_idle_state").exists()
+
+
+def test_remove_idle_state_no_error_when_missing(tmp_path: Path) -> None:
+    with _patch_idle_state_file(tmp_path):
+        remove_idle_state()  # should not raise
+
+
 # ── is_tui_running ──────────────────────────────────────────────────
 
 
@@ -176,52 +225,49 @@ def test_is_idle_true_when_tui_not_running(_mock_running: object) -> None:
     assert is_idle() is True
 
 
-@patch("sase.ace.tui_activity.is_tui_running", return_value=True)
-@patch("sase.ace.tui_activity.get_tui_inactive_seconds", return_value=None)
-def test_is_idle_true_when_activity_file_missing(
-    _mock_inactive: object, _mock_running: object
-) -> None:
-    assert is_idle() is True
+def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
+    with (
+        _patch_idle_state_file(tmp_path),
+        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+    ):
+        assert is_idle() is True
 
 
-@patch("sase.ace.tui_activity.is_tui_running", return_value=True)
-@patch("sase.ace.tui_activity.get_tui_inactive_seconds", return_value=700.0)
-def test_is_idle_true_when_inactive_above_threshold(
-    _mock_inactive: object, _mock_running: object
-) -> None:
-    assert is_idle() is True
+def test_is_idle_true_when_state_says_idle(tmp_path: Path) -> None:
+    with (
+        _patch_idle_state_file(tmp_path),
+        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+    ):
+        write_idle_state(True)
+        assert is_idle() is True
 
 
-@patch("sase.ace.tui_activity.is_tui_running", return_value=True)
-@patch("sase.ace.tui_activity.get_tui_inactive_seconds", return_value=300.0)
-def test_is_idle_false_when_active_below_threshold(
-    _mock_inactive: object, _mock_running: object
-) -> None:
-    assert is_idle() is False
+def test_is_idle_false_when_state_says_active(tmp_path: Path) -> None:
+    with (
+        _patch_idle_state_file(tmp_path),
+        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+    ):
+        write_idle_state(False)
+        assert is_idle() is False
 
 
-@patch("sase.ace.tui_activity.is_tui_running", return_value=True)
-@patch("sase.ace.tui_activity.get_tui_inactive_seconds", return_value=float("inf"))
-def test_is_idle_true_when_manually_marked_inactive(
-    _mock_inactive: object, _mock_running: object
-) -> None:
-    """Epoch 0 → inf inactive seconds → idle."""
-    assert is_idle() is True
+def test_is_idle_true_after_state_transitions_to_idle(tmp_path: Path) -> None:
+    with (
+        _patch_idle_state_file(tmp_path),
+        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+    ):
+        write_idle_state(False)
+        assert is_idle() is False
+        write_idle_state(True)
+        assert is_idle() is True
 
 
-@patch("sase.ace.tui_activity._get_idle_threshold", return_value=120)
-@patch("sase.ace.tui_activity.is_tui_running", return_value=True)
-@patch("sase.ace.tui_activity.get_tui_inactive_seconds", return_value=150.0)
-def test_is_idle_respects_custom_threshold(
-    _mock_inactive: object, _mock_running: object, _mock_threshold: object
-) -> None:
-    assert is_idle() is True
-
-
-@patch("sase.ace.tui_activity._get_idle_threshold", return_value=120)
-@patch("sase.ace.tui_activity.is_tui_running", return_value=True)
-@patch("sase.ace.tui_activity.get_tui_inactive_seconds", return_value=60.0)
-def test_is_idle_false_with_custom_threshold_below(
-    _mock_inactive: object, _mock_running: object, _mock_threshold: object
-) -> None:
-    assert is_idle() is False
+def test_is_idle_true_after_state_file_removed(tmp_path: Path) -> None:
+    with (
+        _patch_idle_state_file(tmp_path),
+        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+    ):
+        write_idle_state(False)
+        assert is_idle() is False
+        remove_idle_state()
+        assert is_idle() is True

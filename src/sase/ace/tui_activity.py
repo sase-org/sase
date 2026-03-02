@@ -11,6 +11,7 @@ from pathlib import Path
 
 ACTIVITY_FILE: Path = Path.home() / ".sase" / "tui_last_activity"
 PID_FILE: Path = Path.home() / ".sase" / "tui_pid"
+IDLE_STATE_FILE: Path = Path.home() / ".sase" / "tui_idle_state"
 
 
 def write_activity_timestamp(epoch: float) -> None:
@@ -49,6 +50,27 @@ def remove_tui_pid() -> None:
     """Delete the PID file, ignoring if it doesn't exist."""
     try:
         PID_FILE.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def write_idle_state(idle: bool) -> None:
+    """Atomically write the TUI's idle state to disk.
+
+    The TUI is the single authority on idle state.  External consumers
+    (e.g. the Telegram outbound chop) read this file via ``is_idle()``
+    instead of independently recomputing idle from raw timestamps.
+    """
+    IDLE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = IDLE_STATE_FILE.with_suffix(".tmp")
+    tmp.write_text("1" if idle else "0")
+    os.replace(tmp, IDLE_STATE_FILE)
+
+
+def remove_idle_state() -> None:
+    """Delete the idle-state file, ignoring if it doesn't exist."""
+    try:
+        IDLE_STATE_FILE.unlink()
     except FileNotFoundError:
         pass
 
@@ -99,32 +121,17 @@ def get_tui_inactive_seconds() -> float | None:
 def is_idle() -> bool:
     """Return True if the user is idle.
 
-    The user is considered idle when:
-    - The TUI is not running, OR
-    - The IDLE indicator is (or would be) shown in the TUI
-      (inactivity >= configured ``ace.inactive_seconds`` threshold,
-       or user manually marked inactive via the I key).
+    Reads the authoritative idle state written by the TUI process.
+    The TUI is the single source of truth — it writes the state file
+    whenever its idle indicator changes, so external consumers never
+    need to independently recompute idle from raw timestamps.
+
+    Falls back to True (idle) when the TUI is not running or the
+    state file is missing/unreadable.
     """
     if not is_tui_running():
         return True
-    inactive = get_tui_inactive_seconds()
-    if inactive is None:
-        return True
-    return inactive >= _get_idle_threshold()
-
-
-def _get_idle_threshold() -> int:
-    """Return the idle threshold in seconds from sase config.
-
-    Reads ``ace.inactive_seconds`` from the merged config, defaulting to 600.
-    """
     try:
-        from sase.config import load_merged_config
-
-        cfg = load_merged_config()
-        ace_cfg = cfg.get("ace", {})
-        if isinstance(ace_cfg, dict) and "inactive_seconds" in ace_cfg:
-            return int(ace_cfg["inactive_seconds"])
-    except Exception:
-        pass
-    return 600
+        return IDLE_STATE_FILE.read_text().strip() == "1"
+    except (FileNotFoundError, ValueError):
+        return True

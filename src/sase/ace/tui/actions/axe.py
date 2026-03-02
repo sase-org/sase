@@ -166,8 +166,16 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         if self.axe_running:
             self._stop_axe()
         self._save_current_selection()  # type: ignore[attr-defined]
-        from sase.ace.tui_activity import remove_tui_pid
+        from sase.ace.tui_activity import (
+            remove_idle_state,
+            remove_tui_pid,
+            write_activity_timestamp,
+        )
 
+        import time
+
+        write_activity_timestamp(time.time())
+        remove_idle_state()
         remove_tui_pid()
         self.exit()  # type: ignore[attr-defined]
 

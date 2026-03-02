@@ -120,7 +120,12 @@ class EventHandlersMixin:
         elapsed = now_mono - self._last_activity_time
         idle = elapsed >= self._inactive_seconds
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
+        was_idle = indicator._idle
         indicator.set_idle(idle)
+        if idle != was_idle:
+            from sase.ace.tui_activity import write_idle_state
+
+            write_idle_state(idle)
 
     def _record_user_activity(self) -> None:
         """Record user activity to reset the idle indicator.
@@ -136,8 +141,9 @@ class EventHandlersMixin:
             # Flush to disk immediately when transitioning from idle to
             # active so external consumers (e.g. Telegram outbound chop)
             # see the change before their next poll cycle.
-            from sase.ace.tui_activity import write_activity_timestamp
+            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
 
+            write_idle_state(False)
             write_activity_timestamp(time.time())
             self._last_activity_flush = time.monotonic()
 
