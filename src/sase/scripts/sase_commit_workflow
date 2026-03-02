@@ -9,7 +9,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 
 
 def _get_project_from_workspace() -> str | None:
@@ -37,7 +36,7 @@ def _get_cl_name_from_branch() -> str | None:
 def _build_note(
     who: str,
     note: str,
-    response: str,
+    diff_path: str,
 ) -> str:
     """Build commit note with [who] prefix, auto-generating if needed."""
     from sase.summarize_utils import get_file_summary
@@ -45,21 +44,12 @@ def _build_note(
     if note:
         return f"[{who}] {note}"
 
-    # Auto-generate summary from response
-    fd, response_tmp = tempfile.mkstemp(suffix=".md", prefix="sase_amend_response_")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(response)
-        summary = get_file_summary(
-            response_tmp,
-            usage="a concise description of the changes made",
-            fallback="Agent changes",
-        )
-    finally:
-        try:
-            os.unlink(response_tmp)
-        except OSError:
-            pass
+    # Auto-generate summary from diff
+    summary = get_file_summary(
+        diff_path,
+        usage="a concise description of the changes made",
+        fallback="Agent changes",
+    )
     return f"[{who}] {summary}"
 
 
@@ -127,7 +117,7 @@ def _amend_cl_git(
         return False, "", "", "No changes to commit (diff is empty)", ""
 
     # Build note
-    commit_note = _build_note(who, note, response)
+    commit_note = _build_note(who, note, diff_path)
 
     # Save chat history
     save_chat_history(
@@ -267,7 +257,7 @@ def _amend_cl_hg(
         return False, "", "", "No changes to amend (diff is empty)", ""
 
     # Build note with [who] prefix
-    commit_note = _build_note(who, note, response)
+    commit_note = _build_note(who, note, diff_path)
 
     # Save chat history with actual prompt
     chat_path = save_chat_history(
