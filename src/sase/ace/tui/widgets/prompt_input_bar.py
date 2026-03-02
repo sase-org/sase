@@ -194,12 +194,6 @@ class PromptInputBar(Static):
         prompt_input.focus()
         if self._initial_value:
             prompt_input.cursor_position = len(self._initial_value)
-            # Re-trigger suggestion computation: the watcher may have fired
-            # before the widget was fully mounted, so the suggester worker
-            # didn't run.  Calling _watch_value now that we're mounted
-            # ensures ghost text appears immediately.
-            if prompt_input.suggester:
-                prompt_input._watch_value(prompt_input.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input."""
