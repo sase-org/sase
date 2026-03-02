@@ -21,7 +21,7 @@ class _PromptInput(Input):
         ("ctrl+g", "open_editor", "Edit in editor"),
         ("ctrl+y", "open_workflow_editor", "Workflow YAML"),
         ("ctrl+u", "unix_line_discard", "Clear to start"),
-        ("ctrl+e", "end", "End of line"),
+        ("ctrl+e", "end_or_fill_placeholder", "End/Fill"),
     ]
 
     @property
@@ -59,6 +59,14 @@ class _PromptInput(Input):
                 return
             parent = parent.parent
 
+    def action_end_or_fill_placeholder(self) -> None:
+        """Fill placeholder if input is empty, otherwise move cursor to end."""
+        if not self.value and self.placeholder:
+            self.value = self.placeholder
+            self.cursor_position = len(self.value)
+        else:
+            self.action_end()
+
     def on_key(self, event: Key) -> None:
         """Handle key events for special triggers like '##' for snippets."""
         if event.character == "#":
@@ -77,6 +85,8 @@ class _PromptInput(Input):
 
 class PromptInputBar(Static):
     """Prompt input bar for agent workflow, positioned at bottom of screen."""
+
+    _last_cancelled_prompt: str = ""
 
     class Submitted(Message):
         """Message sent when prompt is submitted."""
@@ -148,10 +158,15 @@ class PromptInputBar(Static):
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
+        placeholder = (
+            PromptInputBar._last_cancelled_prompt
+            if PromptInputBar._last_cancelled_prompt
+            else "Type prompt, '.' for history, '##' for snippets [^G] editor [^Y] workflow"
+        )
         with Horizontal(id="prompt-input-container"):
             yield Label("Prompt: ", id="prompt-label")
             yield _PromptInput(
-                placeholder="Type prompt, '.' for history, '##' for snippets [^G] editor [^Y] workflow",
+                placeholder=placeholder,
                 id="prompt-input",
                 value=self._initial_value,
                 select_on_focus=not self._initial_value,
@@ -187,6 +202,9 @@ class PromptInputBar(Static):
 
     def action_cancel(self) -> None:
         """Cancel the input bar."""
+        prompt_input = self.query_one("#prompt-input", _PromptInput)
+        if prompt_input.value.strip():
+            PromptInputBar._last_cancelled_prompt = prompt_input.value
         self.post_message(self.Cancelled())
 
     def insert_snippet(self, snippet_name: str) -> None:
