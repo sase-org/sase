@@ -165,7 +165,7 @@ def _get_git_clone_dir(primary_workspace_dir: str, workspace_num: int) -> str:
         return primary_workspace_dir
 
     base = primary_workspace_dir.rstrip("/")
-    return f"{base}__{workspace_num}/"
+    return f"{base}_{workspace_num}/"
 
 
 def ensure_git_clone(primary_workspace_dir: str, workspace_num: int) -> str:

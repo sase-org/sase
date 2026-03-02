@@ -131,7 +131,7 @@ class TestEnsureGitClone:
             primary = os.path.join(d, "repo") + "/"
             os.makedirs(primary)
             result = ensure_git_clone(primary, 2)
-            expected = os.path.join(d, "repo") + "__2/"
+            expected = os.path.join(d, "repo") + "_2/"
             assert result == expected
             # Should have called: get-url, clone, set-url, fetch
             assert mock_run.call_count == 4

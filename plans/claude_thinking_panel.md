@@ -80,8 +80,7 @@ def resolve_agent_session(agent: Agent) -> Path | None
 - Extract `project_name` from `agent.project_file` (e.g., `~/.sase/projects/sase/sase.gp` → `"sase"`)
 - Get workspace CWD via `get_workspace_directory(project_name, workspace_num)` from `sase.running_field`
 - Convert CWD to Claude's project hash directory name: replace all non-alphanumeric chars with `-`, prepend `-`
-  - Example: `/home/bryan/projects/github/bbugyi200/sase__100` → `-home-bryan-projects-github-bbugyi200-sase--100`
-  - The `__` in workspace paths naturally becomes `--` since each `_` → `-`
+  - Example: `/home/bryan/projects/github/bbugyi200/sase_100` → `-home-bryan-projects-github-bbugyi200-sase-100`
 - Find the most recently modified `.jsonl` in `~/.claude/projects/{hash}/`
 - If agent has no `workspace_num`, fall back to workspace 1
 - Catch `RuntimeError` from `get_workspace_directory()` gracefully (return None)

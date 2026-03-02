@@ -6,11 +6,11 @@ set -euo pipefail
 #
 # Workspace pattern:
 #   Primary:     .../sase/
-#   Non-primary: .../sase__100/, sase__101/, etc.
+#   Non-primary: .../sase_100/, sase_101/, etc.
 
 resolve_primary_dir() {
     local dir="$1"
-    if [[ "$dir" =~ ^(.+)__[0-9]+$ ]]; then
+    if [[ "$dir" =~ ^(.+)_[0-9]+$ ]]; then
         echo "${BASH_REMATCH[1]}"
     else
         echo "$dir"

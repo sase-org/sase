@@ -17,8 +17,8 @@ hooks, xprompts, scripts, and config defaults via entry points.
 ## Directory Convention
 
 Each phase is executed by a distinct `claude` instance. These instances run in directories like
-`~/projects/github/bbugyi200/sase__<N>/` (not the real `~/projects/github/bbugyi200/sase/`). When a phase makes changes
-to sase core, the agent should modify files in whatever `sase__<N>` directory it was started in. Plugin repos
+`~/projects/github/bbugyi200/sase_<N>/` (not the real `~/projects/github/bbugyi200/sase/`). When a phase makes changes
+to sase core, the agent should modify files in whatever `sase_<N>` directory it was started in. Plugin repos
 (`sase-github`, `sase-hg`) are at their canonical paths (`~/projects/github/bbugyi200/sase-github/`, etc.).
 
 ## What Stays in Core vs What Moves
@@ -407,7 +407,7 @@ jobs:
 
 ### Repos to update
 
-- The sase core repo (the `sase__<N>` dir the agent is running in): `.github/workflows/publish.yml` (new file)
+- The sase core repo (the `sase_<N>` dir the agent is running in): `.github/workflows/publish.yml` (new file)
 - `~/projects/github/bbugyi200/sase-github/.github/workflows/publish.yml` (already created in Phase 2 skeleton,
   finalize)
 - `~/projects/github/bbugyi200/sase-hg/.github/workflows/publish.yml` (already created in Phase 3 skeleton, finalize)
@@ -441,7 +441,7 @@ they have fewer tests and no beads dependency).
 ### Verification
 
 ```bash
-# Full end-to-end (run from the sase__<N> dir the agent is in):
+# Full end-to-end (run from the sase_<N> dir the agent is in):
 just install
 pip install -e ~/projects/github/bbugyi200/sase-github/
 pip install -e ~/projects/github/bbugyi200/sase-hg/
