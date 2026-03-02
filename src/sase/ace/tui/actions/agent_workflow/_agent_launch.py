@@ -40,6 +40,12 @@ class AgentLaunchMixin:
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
 
+        # Resolve aliases early so VCS ref detection below can match
+        # canonical forms like #gh:sase even when the user typed #gh_sase.
+        from sase.xprompt import resolve_xprompt_aliases
+
+        prompt = resolve_xprompt_aliases(prompt)
+
         # Save prompt to history IMMEDIATELY (before background subprocess)
         from sase.prompt_history import add_or_update_prompt
 
