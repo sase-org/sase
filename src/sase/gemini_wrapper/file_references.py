@@ -324,6 +324,7 @@ def _execute_cmd_cached(cmd: str) -> tuple[str | None, bool]:
             capture_output=True,
             text=True,
             check=False,
+            timeout=10,
         )
         output = result.stdout
         success = result.returncode == 0
