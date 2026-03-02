@@ -11,10 +11,23 @@ def main() -> None:
     """Run the setup step for split workflow."""
     from sase.ace.changespec import find_all_changespecs
 
-    # Always get CL name from current branch
-    cl_name = subprocess.run(
-        ["branch_name"], capture_output=True, text=True, check=True
-    ).stdout.strip()
+    # Use cl_name from workflow context arg if provided, otherwise fall back
+    # to the current branch.  The workflow context is the source of truth for
+    # which CL is being split; relying on branch_name alone is fragile when
+    # the workspace may be on a different branch.
+    if len(sys.argv) > 1 and sys.argv[1]:
+        cl_name = sys.argv[1]
+        # Navigate to the correct branch so branch_diff gets the right diff
+        subprocess.run(
+            ["sase_hg_update", cl_name],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    else:
+        cl_name = subprocess.run(
+            ["branch_name"], capture_output=True, text=True, check=True
+        ).stdout.strip()
 
     # Check for children (used to skip revert step)
     cs_list = find_all_changespecs()
