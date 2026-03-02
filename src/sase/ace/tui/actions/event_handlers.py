@@ -89,9 +89,33 @@ class EventHandlersMixin:
             self._load_agents()  # type: ignore[attr-defined]
         # No else needed - axe display already refreshed by _load_axe_status()
 
+    def _detect_input_activity(self) -> None:
+        """Record activity when user types in a focused Input widget.
+
+        Textual's ``Input`` widget stops key events from bubbling to the
+        App, so ``on_key()`` never fires while the user types in an Input.
+        This method polls the focused widget's state each countdown tick
+        to detect typing activity.
+        """
+        from textual.widgets import Input
+
+        try:
+            focused = self.focused  # type: ignore[attr-defined]
+        except Exception:
+            return
+        if focused is not None and isinstance(focused, Input):
+            state = (focused.value, focused.cursor_position)
+            prev = getattr(self, "_prev_input_state", None)
+            if prev is not None and state != prev:
+                self._record_user_activity()
+            self._prev_input_state = state
+        elif hasattr(self, "_prev_input_state"):
+            del self._prev_input_state
+
     def _on_countdown_tick(self) -> None:
         """Countdown tick handler called every second."""
         now_mono = time.monotonic()
+        self._detect_input_activity()
         if now_mono - self._last_activity_flush >= 10:
             if hasattr(self, "_last_activity_time"):
                 from sase.ace.tui_activity import write_activity_timestamp
