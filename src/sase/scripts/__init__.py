@@ -58,10 +58,6 @@ def sase_json_workflow() -> NoReturn:
     _exec_script("sase_json_workflow")
 
 
-def sase_split_setup() -> NoReturn:
-    _exec_script("sase_split_setup")
-
-
 def sase_split_prepare_execute() -> NoReturn:
     _exec_script("sase_split_prepare_execute")
 
