@@ -332,7 +332,11 @@ def _handle_ready_transition(
         parent_cs = next(
             (cs for cs in changespecs if cs.name == current_cs.parent), None
         )
-        if parent_cs and parent_cs.status in ("WIP", "Draft"):
+        if (
+            parent_cs
+            and parent_cs.status in ("WIP", "Draft")
+            and new_status not in ("WIP", "Draft", "Reverted")
+        ):
             error_msg = (
                 f"Cannot transition '{changespec_name}' to {new_status}: "
                 f"parent '{current_cs.parent}' is {parent_cs.status}. "
