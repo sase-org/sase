@@ -170,6 +170,17 @@ class StatusActionsMixin:
             self._reload_and_reposition()  # type: ignore[attr-defined]
             return
 
+        # Kill running processes when transitioning to WIP
+        if new_status == "WIP":
+            from ..hooks.processes import kill_and_persist_all_running_processes
+
+            kill_and_persist_all_running_processes(
+                changespec,
+                changespec.file_path,
+                changespec.name,
+                "Killed: ChangeSpec transitioned to WIP.",
+            )
+
         # Remove READY TO MAIL suffix if present before transitioning
         remove_ready_to_mail_suffix(changespec.file_path, changespec.name)
 
