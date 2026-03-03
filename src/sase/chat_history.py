@@ -87,6 +87,7 @@ def save_chat_history(
     agent: str | None = None,
     previous_history: str | None = None,
     timestamp: str | None = None,
+    extra_sections: str | None = None,
 ) -> str:
     """Save a chat history to a file.
 
@@ -97,6 +98,8 @@ def save_chat_history(
         agent: Optional agent name for multi-agent workflows
         previous_history: Optional previous conversation history to prepend
         timestamp: Optional timestamp for filename (YYmmdd_HHMMSS format)
+        extra_sections: Optional markdown content (plan feedback, Q&A) to
+            insert after the timestamp and before the prompt.
 
     Returns:
         The full path to the saved chat history file
@@ -116,6 +119,10 @@ def save_chat_history(
     if agent:
         content_parts.append(f" ({agent})")
     content_parts.append(f"\n\n**Timestamp:** {display_timestamp}\n")
+
+    # Add extra sections (plan feedback, Q&A) before prompt
+    if extra_sections:
+        content_parts.append(f"\n{extra_sections}\n")
 
     # Add previous history if present
     if previous_history:

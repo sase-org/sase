@@ -19,6 +19,7 @@ from sase.axe_runner_utils import (
     was_killed,
 )
 from sase.chat_history import save_chat_history
+from sase.chat_history_extras import format_extra_sections
 from sase.shared_utils import (
     convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
@@ -329,11 +330,13 @@ def main() -> None:
             response_content = result.response_text or ""
 
             # Prepare and save chat history
+            extra = format_extra_sections(artifacts_dir)
             saved_path = save_chat_history(
                 prompt=prompt,
                 response=response_content,
                 workflow="ace-run",
                 timestamp=timestamp,
+                extra_sections=extra,
             )
             print(f"\nChat history saved to: {saved_path}")
 

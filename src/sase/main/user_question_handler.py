@@ -14,7 +14,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from sase.main.plan_approve_handler import (
     is_auto_approve_active,
@@ -61,6 +61,25 @@ def _format_answers(response_data: dict) -> str:
     return "\n".join(lines)
 
 
+def _append_qa_log(questions: list[dict[str, Any]], response_data: dict) -> None:
+    """Append a Q&A record to qa_log.jsonl in SASE_ARTIFACTS_DIR."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    record = {
+        "questions": questions,
+        "answers": response_data.get("answers", []),
+        "global_note": response_data.get("global_note", ""),
+        "timestamp": time.time(),
+    }
+    try:
+        qa_path = os.path.join(artifacts_dir, "qa_log.jsonl")
+        with open(qa_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except OSError:
+        pass
+
+
 def handle_user_question_command() -> NoReturn:
     """Handle the user-question subcommand.
 
@@ -101,7 +120,9 @@ def handle_user_question_command() -> NoReturn:
             options = q.get("options", [])
             selected = [options[0].get("label", "")] if options else []
             answers.append({"question": question_text, "selected": selected})
-        formatted = _format_answers({"answers": answers})
+        response_data = {"answers": answers}
+        _append_qa_log(questions, response_data)
+        formatted = _format_answers(response_data)
         emit_hook_decision("deny", formatted)
         sys.exit(0)
 
@@ -172,6 +193,7 @@ def handle_user_question_command() -> NoReturn:
                     request_path.unlink()
                 response_path.unlink()
 
+                _append_qa_log(questions, response_data)
                 formatted = _format_answers(response_data)
                 emit_hook_decision("deny", formatted)
                 sys.exit(0)

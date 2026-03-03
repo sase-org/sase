@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import uuid
 from pathlib import Path
 
@@ -60,6 +61,24 @@ def _read_plan_feedback(approval_dir: Path) -> str | None:
     except (json.JSONDecodeError, OSError):
         pass
     return None
+
+
+def _append_plan_feedback_log(feedback: str, round_num: int) -> None:
+    """Append a plan feedback record to plan_feedback.jsonl in SASE_ARTIFACTS_DIR."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    record = {
+        "round": round_num,
+        "feedback": feedback,
+        "timestamp": time.time(),
+    }
+    try:
+        path = os.path.join(artifacts_dir, "plan_feedback.jsonl")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except OSError:
+        pass
 
 
 class ClaudeCodeProvider(LLMProvider):
@@ -123,7 +142,7 @@ class ClaudeCodeProvider(LLMProvider):
         approval_dir = Path()
         marker_path = Path()
 
-        for _ in range(_MAX_PLAN_FEEDBACK_RETRIES + 1):
+        for retry_round in range(_MAX_PLAN_FEEDBACK_RETRIES + 1):
             session_uuid = str(uuid.uuid4())
             base_args = [
                 "claude",
@@ -184,6 +203,7 @@ class ClaudeCodeProvider(LLMProvider):
             if is_plan_mode and return_code != 0:
                 feedback = _read_plan_feedback(approval_dir)
                 if feedback:
+                    _append_plan_feedback_log(feedback, retry_round)
                     # Find the plan file Claude wrote so we can include it
                     plan_file = _find_plan_file()
                     if plan_file:

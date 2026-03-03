@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 
 from sase.chat_history import save_chat_history
+from sase.chat_history_extras import format_extra_sections
 from sase.sase_utils import EASTERN_TZ
 from sase.rich_utils import print_prompt_and_response
 from sase.shared_utils import get_sase_log_file, run_bam_command
@@ -209,12 +210,17 @@ def _save_to_chat_history(
         if normalized_agent != normalized_workflow:
             chat_agent = context.agent_type
 
+    extra = None
+    if context.artifacts_dir:
+        extra = format_extra_sections(context.artifacts_dir)
+
     save_chat_history(
         prompt=prompt,
         response=response,
         workflow=context.workflow or "",
         agent=chat_agent,
         timestamp=start_timestamp,
+        extra_sections=extra,
     )
 
 
@@ -235,10 +241,15 @@ def _save_error_to_chat_history(
     else:
         chat_agent_error = "_ERROR"
 
+    extra = None
+    if context.artifacts_dir:
+        extra = format_extra_sections(context.artifacts_dir)
+
     save_chat_history(
         prompt=prompt,
         response=error_content,
         workflow=context.workflow or "",
         agent=chat_agent_error,
         timestamp=start_timestamp,
+        extra_sections=extra,
     )

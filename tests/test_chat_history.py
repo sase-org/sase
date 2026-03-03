@@ -339,6 +339,74 @@ def test_extract_prompt_from_chat_file_no_turns() -> None:
     assert result is None
 
 
+def test_save_chat_history_with_extra_sections() -> None:
+    """Test save_chat_history inserts extra sections before prompt."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_chats_dir = os.path.join(tmpdir, "chats")
+        os.makedirs(test_chats_dir)
+
+        with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
+            with patch(
+                "sase.chat_history._get_branch_or_workspace_name",
+                return_value="test-branch",
+            ):
+                with patch(
+                    "sase.chat_history.generate_timestamp", return_value="251128120000"
+                ):
+                    extra = "## Plan Feedback\n\n### Round 1\n> Fix the bug\n"
+                    result = save_chat_history(
+                        prompt="Fix login",
+                        response="Done!",
+                        workflow="run",
+                        extra_sections=extra,
+                    )
+
+                    with open(result) as f:
+                        content = f.read()
+                    # Extra sections present between timestamp and prompt
+                    assert "## Plan Feedback" in content
+                    assert "### Round 1" in content
+                    assert "> Fix the bug" in content
+                    # Verify ordering: timestamp < extra < prompt
+                    ts_pos = content.index("**Timestamp:**")
+                    extra_pos = content.index("## Plan Feedback")
+                    prompt_pos = content.index("## Prompt")
+                    assert ts_pos < extra_pos < prompt_pos
+
+
+def test_parse_chat_turns_with_extra_sections() -> None:
+    """Test _parse_chat_turns still works when extra sections are present."""
+    from sase.chat_history import _parse_chat_turns
+
+    content = """\
+# Chat History - run
+
+**Timestamp:** 2024-01-01
+
+## Plan Feedback
+
+### Round 1
+> Please add tests
+
+## Questions & Answers
+
+### Q1: Which DB?
+**Selected:** PostgreSQL
+
+## Prompt
+
+Fix the login bug
+
+## Response
+
+Done!
+"""
+    turns = _parse_chat_turns(content)
+    assert len(turns) == 1
+    assert turns[0][0] == "Fix the login bug"
+    assert turns[0][1] == "Done!"
+
+
 def test_load_chat_for_resume_fallback() -> None:
     """Test load_chat_for_resume falls back to raw content if no turns found."""
     content = "Just some raw text with no prompt/response structure."
