@@ -12,9 +12,11 @@ from sase.ace.changespec import (
 )
 from sase.ace.scheduler.mentor_checks import (
     _all_non_skip_hooks_ready,
+    _get_started_mentors_for_entry,
+)
+from sase.ace.scheduler.mentor_profile_matching import (
     _extract_changed_files_from_diff,
     _get_commits_since_last_mentors,
-    _get_started_mentors_for_entry,
 )
 from sase.mentor_config import MentorConfig
 
@@ -286,15 +288,17 @@ def test_get_commits_since_last_mentors_no_commits() -> None:
     assert result == []
 
 
-# Tests for _get_profiles_registered_for_entry
+# Tests for get_profiles_registered_for_entry
 
 
-def test_get_profiles_registered_for_entry_no_mentors() -> None:
+def testget_profiles_registered_for_entry_no_mentors() -> None:
     """Test with no MENTORS returns empty set."""
-    from sase.ace.scheduler.mentor_checks import _get_profiles_registered_for_entry
+    from sase.ace.scheduler.mentor_profile_matching import (
+        get_profiles_registered_for_entry,
+    )
 
     cs = _make_changespec(mentors=None)
-    result = _get_profiles_registered_for_entry(cs, "1")
+    result = get_profiles_registered_for_entry(cs, "1")
     assert result == set()
 
 
@@ -312,7 +316,9 @@ def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
     """
     from unittest.mock import MagicMock
 
-    from sase.ace.scheduler.mentor_checks import _get_matching_profiles_for_entry
+    from sase.ace.scheduler.mentor_profile_matching import (
+        _get_matching_profiles_for_entry,
+    )
 
     # Create a mock profile that matches "[mentor:complete]" in amend note
     mock_profile = MagicMock()
@@ -324,7 +330,7 @@ def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
 
     # Mock get_all_mentor_profiles to return our test profile
     monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_checks.get_all_mentor_profiles",
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
         lambda: [mock_profile],
     )
 
@@ -361,7 +367,9 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     """
     from unittest.mock import MagicMock
 
-    from sase.ace.scheduler.mentor_checks import _get_matching_profiles_for_entry
+    from sase.ace.scheduler.mentor_profile_matching import (
+        _get_matching_profiles_for_entry,
+    )
 
     # Create two mock profiles
     mock_profile_code = MagicMock()
@@ -383,7 +391,7 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     mock_profile_feature.amend_note_regexes = [r"Initial Commit"]
 
     monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_checks.get_all_mentor_profiles",
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
         lambda: [mock_profile_code, mock_profile_feature],
     )
 

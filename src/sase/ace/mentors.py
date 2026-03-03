@@ -445,7 +445,7 @@ def clear_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
     """
     from sase.mentor_config import get_all_mentor_profiles
 
-    from sase.ace.scheduler.mentor_checks import profile_matches_any_commit
+    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
 
     try:
         changespecs = parse_project_file(project_file)
