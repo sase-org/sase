@@ -6,6 +6,7 @@ import tempfile
 
 from sase.chat_history_extras import (
     _format_plan_feedback,
+    _format_plan_link,
     _format_qa_log,
     _read_jsonl,
     format_extra_sections,
@@ -44,6 +45,34 @@ def test_read_jsonl_skips_bad_lines() -> None:
         assert len(records) == 2
     finally:
         os.unlink(path)
+
+
+def test_format_plan_link_missing() -> None:
+    """Returns None when no plan_path.json exists."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        assert _format_plan_link(tmpdir) is None
+
+
+def test_format_plan_link_valid() -> None:
+    """Formats plan path from plan_path.json."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "plan_path.json")
+        with open(path, "w") as f:
+            json.dump({"plan_path": "/home/user/.sase/plans/my_plan.md"}, f)
+
+        result = _format_plan_link(tmpdir)
+        assert result is not None
+        assert "**Plan:** /home/user/.sase/plans/my_plan.md" in result
+
+
+def test_format_plan_link_no_plan_path_key() -> None:
+    """Returns None when plan_path key is missing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "plan_path.json")
+        with open(path, "w") as f:
+            json.dump({"other_key": "value"}, f)
+
+        assert _format_plan_link(tmpdir) is None
 
 
 def test_format_plan_feedback_empty() -> None:
@@ -170,8 +199,12 @@ def test_format_extra_sections_none_when_empty() -> None:
 
 
 def test_format_extra_sections_combined() -> None:
-    """Combines plan feedback and Q&A into one string."""
+    """Combines plan link, plan feedback, and Q&A into one string."""
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Write plan path
+        with open(os.path.join(tmpdir, "plan_path.json"), "w") as f:
+            json.dump({"plan_path": "/tmp/plan.md"}, f)
+
         # Write plan feedback
         with open(os.path.join(tmpdir, "plan_feedback.jsonl"), "w") as f:
             f.write(
@@ -190,12 +223,14 @@ def test_format_extra_sections_combined() -> None:
 
         result = format_extra_sections(tmpdir)
         assert result is not None
+        assert "**Plan:**" in result
         assert "## Plan Feedback" in result
         assert "## Questions & Answers" in result
-        # Plan feedback comes first
+        # Plan link comes first, then feedback, then Q&A
+        plan_pos = result.index("**Plan:**")
         pf_pos = result.index("## Plan Feedback")
         qa_pos = result.index("## Questions & Answers")
-        assert pf_pos < qa_pos
+        assert plan_pos < pf_pos < qa_pos
 
 
 def test_format_qa_log_multiple_records_number_sequentially() -> None:

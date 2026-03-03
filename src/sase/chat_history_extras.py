@@ -16,6 +16,10 @@ def format_extra_sections(artifacts_dir: str) -> str | None:
     """
     parts: list[str] = []
 
+    plan_link = _format_plan_link(artifacts_dir)
+    if plan_link:
+        parts.append(plan_link)
+
     feedback_md = _format_plan_feedback(artifacts_dir)
     if feedback_md:
         parts.append(feedback_md)
@@ -27,6 +31,22 @@ def format_extra_sections(artifacts_dir: str) -> str | None:
     if not parts:
         return None
     return "\n".join(parts)
+
+
+def _format_plan_link(artifacts_dir: str) -> str | None:
+    """Format a plan file link from plan_path.json."""
+    plan_path_file = os.path.join(artifacts_dir, "plan_path.json")
+    if not Path(plan_path_file).exists():
+        return None
+    try:
+        with open(plan_path_file, encoding="utf-8") as f:
+            data = json.load(f)
+        plan_path = data.get("plan_path")
+        if plan_path:
+            return f"**Plan:** {plan_path}\n"
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 def _format_plan_feedback(artifacts_dir: str) -> str | None:
