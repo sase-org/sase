@@ -24,9 +24,10 @@ You need to be mindful not to run commands outside of these workspace directorie
 virtual environments. So, for example, if you need to run `sase`, make sure to run `.venv/bin/sase` from within the
 `sase_<N>` directory; you should NEVER run just `sase`.
 
-IMPORTANT: One consequence of this is that you need to run `just install` before running other commands like `just lint`
-or `just test` (since it is possible we haven't used this workspace directory in a long time and package dependencies
-may have changed).
+One consequence of this is that you need to run `just install` before running other commands like `just lint` or
+`just test` (since it is possible we haven't used this workspace directory in a long time and package dependencies may
+have changed). **IMPORTANT**: Another consequence of this is that you should run `git pull` to sync the branch you are
+working on before starting on the task you were given.
 
 ## Architecture
 
