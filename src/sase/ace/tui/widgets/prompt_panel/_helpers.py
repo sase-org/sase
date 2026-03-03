@@ -145,7 +145,7 @@ def append_model_field(
 
     Args:
         header_text: Rich Text object to append to.
-        model: Model name string (e.g., "opus", "gemini-3.1-pro-preview").
+        model: Model name string (e.g., "opus", "gemini-3-flash-preview").
         llm_provider: Provider name (e.g., "claude", "gemini"), or None.
     """
     if not model:

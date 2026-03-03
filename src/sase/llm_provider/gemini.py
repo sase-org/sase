@@ -20,7 +20,7 @@ from ._subprocess import stream_process_output
 from .base import LLMProvider
 from .types import ModelTier
 
-_DEFAULT_MODEL = "gemini-3.1-pro-preview"
+_DEFAULT_MODEL = "gemini-3-flash-preview"
 
 # Poll interval for plan approval responses (seconds)
 _POLL_INTERVAL = 0.5

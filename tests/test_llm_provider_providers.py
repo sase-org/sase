@@ -130,9 +130,9 @@ def test_claude_provider_resolve_model_name() -> None:
 def test_gemini_provider_resolve_model_name() -> None:
     """Test that GeminiProvider.resolve_model_name() returns the default model."""
     provider = GeminiProvider()
-    assert provider.resolve_model_name() == "gemini-3.1-pro-preview"
-    assert provider.resolve_model_name("large") == "gemini-3.1-pro-preview"
-    assert provider.resolve_model_name("small") == "gemini-3.1-pro-preview"
+    assert provider.resolve_model_name() == "gemini-3-flash-preview"
+    assert provider.resolve_model_name("large") == "gemini-3-flash-preview"
+    assert provider.resolve_model_name("small") == "gemini-3-flash-preview"
 
 
 @patch("sase.llm_provider.claude.stream_and_parse_json_output")

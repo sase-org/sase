@@ -148,7 +148,7 @@ The prompt is written to stdin, and output is streamed from stdout in real-time.
 
 ### Default Model
 
-The Gemini provider uses `gemini-3.1-pro-preview` as its default model. This can be overridden per-prompt using the
+The Gemini provider uses `gemini-3-flash-preview` as its default model. This can be overridden per-prompt using the
 `%model` directive (e.g., `%model:gemini-2.5-flash`).
 
 ### Timer Display
