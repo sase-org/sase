@@ -29,6 +29,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("d", "Show diff"),
             ("h", "Edit hooks"),
             ("H", "Add hooks from failed targets"),
+            ("L", "Agent run log"),
             ("M", "Mail CL"),
             ("m", "Mark/unmark current CL"),
             ("n", "Rename CL (non-Sub/Rev)"),

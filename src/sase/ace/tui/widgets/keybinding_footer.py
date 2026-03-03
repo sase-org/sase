@@ -497,6 +497,9 @@ class KeybindingFooter(Horizontal):
         if get_failed_hooks_file_path(changespec):
             bindings.append(("H", "hooks (failed)"))
 
+        # Agent run log
+        bindings.append(("L", "agent log"))
+
         # Fold toggle
         bindings.append(("z", "fold (c,h,m,z)"))
 

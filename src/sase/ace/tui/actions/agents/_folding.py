@@ -135,6 +135,18 @@ class AgentFoldingMixin:
             self.action_hooks_from_failed()  # type: ignore[attr-defined]
 
     def action_expand_all_folds(self) -> None:
-        """Expand all workflow folds one level (agents tab only)."""
+        """Expand all workflow folds (agents tab) or show agent run log (CLs tab)."""
         if self.current_tab == "agents":
             self._expand_all_folds()
+        elif self.current_tab == "changespecs":
+            self._show_agent_run_log()
+
+    def _show_agent_run_log(self) -> None:
+        """Open the Agent Run Log modal for the current CL."""
+        from ...modals.agent_run_log_modal import AgentRunLogModal
+
+        changespecs = self.changespecs  # type: ignore[attr-defined]
+        if not changespecs:
+            return
+        changespec = changespecs[self.current_idx]
+        self.app.push_screen(AgentRunLogModal(cl_name=changespec.name))  # type: ignore[attr-defined]
