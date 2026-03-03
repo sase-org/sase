@@ -19,6 +19,7 @@ from sase.axe.state import AxeMetrics, AxeStatus
 from ..changespec import ChangeSpec
 from ..query import parse_query, to_canonical_string
 from ..query.types import QueryExpr
+from .models.fold_state import FoldLevel
 from .actions import (
     AgentsMixin,
     AgentWorkflowMixin,
@@ -196,9 +197,15 @@ class AceApp(
     # Reactive properties
     changespecs: reactive[list[ChangeSpec]] = reactive([], recompose=False)
     current_idx: reactive[int] = reactive(0, recompose=False)
-    hooks_collapsed: reactive[bool] = reactive(True, recompose=False)
-    commits_collapsed: reactive[bool] = reactive(True, recompose=False)
-    mentors_collapsed: reactive[bool] = reactive(True, recompose=False)
+    hooks_collapsed: reactive[FoldLevel] = reactive(
+        FoldLevel.COLLAPSED, recompose=False
+    )
+    commits_collapsed: reactive[FoldLevel] = reactive(
+        FoldLevel.COLLAPSED, recompose=False
+    )
+    mentors_collapsed: reactive[FoldLevel] = reactive(
+        FoldLevel.COLLAPSED, recompose=False
+    )
     current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
     axe_running: reactive[bool] = reactive(False, recompose=False)
     hide_reverted: reactive[bool] = reactive(True, recompose=False)

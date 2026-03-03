@@ -16,6 +16,7 @@ from ...hooks import (
     format_timestamp_display,
     get_hook_output_path,
 )
+from ..models.fold_state import FoldLevel
 from .hint_tracker import HintTracker
 from .suffix_formatting import SUFFIX_STYLES, append_suffix_to_text, should_show_suffix
 
@@ -95,18 +96,24 @@ def build_hooks_section(
     changespec: ChangeSpec,
     with_hints: bool,
     hints_for: str | None,
-    hooks_collapsed: bool,
+    hooks_fold: FoldLevel,
     non_historical_ids: set[str],
     hint_tracker: HintTracker,
 ) -> HintTracker:
     """Build the HOOKS section of the display.
+
+    Fold levels:
+    - COLLAPSED: Hide PASSED lines, hide historical FAILED/DEAD.
+    - EXPANDED: Show PASSED lines, hide historical FAILED/DEAD.
+      Fold summary only shows historical FAILED/DEAD.
+    - FULLY_EXPANDED: Show everything.
 
     Args:
         text: The Rich Text object to append to.
         changespec: The ChangeSpec to display.
         with_hints: Whether hints are enabled.
         hints_for: Controls which entries get hints.
-        hooks_collapsed: Whether to collapse hook status lines.
+        hooks_fold: Fold level for the hooks section.
         non_historical_ids: Set of current/proposal entry IDs.
         hint_tracker: Current hint tracking state.
 
@@ -124,18 +131,21 @@ def build_hooks_section(
     # Get current + proposal entry IDs for filtering
     current_and_proposal_ids = set(get_current_and_proposal_entry_ids(changespec))
 
+    hide_passed = hooks_fold == FoldLevel.COLLAPSED
+    hide_historical = hooks_fold != FoldLevel.FULLY_EXPANDED
+
     text.append("HOOKS:\n", style="bold #87D7FF")
     for hook_idx, hook in enumerate(changespec.hooks):
-        # When collapsed, collect hidden status IDs for summary
+        # Collect hidden status IDs for fold summary
         passed_ids: list[str] = []
         failed_ids: list[str] = []  # Historical only
         dead_ids: list[str] = []  # Historical only
-        if hooks_collapsed and hook.status_lines:
+        if hooks_fold != FoldLevel.FULLY_EXPANDED and hook.status_lines:
             for sl in hook.status_lines:
                 # Skip old proposal IDs in folded summary
                 if _is_old_proposal(sl.commit_entry_num, changespec):
                     continue
-                if sl.status == "PASSED":
+                if sl.status == "PASSED" and hide_passed:
                     # Exclude fix-hook proposal PASSED (shown, not folded)
                     if not _is_fix_hook_proposal_for_this_hook(
                         hook, sl.commit_entry_num, changespec
@@ -143,11 +153,17 @@ def build_hooks_section(
                         passed_ids.append(sl.commit_entry_num)
                 elif sl.status == "FAILED":
                     # Only collect historical FAILED (not current/proposals)
-                    if sl.commit_entry_num not in current_and_proposal_ids:
+                    if (
+                        hide_historical
+                        and sl.commit_entry_num not in current_and_proposal_ids
+                    ):
                         failed_ids.append(sl.commit_entry_num)
                 elif sl.status == "DEAD":
                     # Only collect historical DEAD (not current/proposals)
-                    if sl.commit_entry_num not in current_and_proposal_ids:
+                    if (
+                        hide_historical
+                        and sl.commit_entry_num not in current_and_proposal_ids
+                    ):
                         dead_ids.append(sl.commit_entry_num)
             # Sort all IDs by commit entry ID order
             passed_ids.sort(key=parse_commit_entry_id)
@@ -158,7 +174,7 @@ def build_hooks_section(
         # Contract test target commands to shorthand format
         display_command = contract_test_target_command(hook.command)
         text.append(f"  {display_command}", style="#D7D7AF")
-        if hooks_collapsed and (passed_ids or failed_ids or dead_ids):
+        if passed_ids or failed_ids or dead_ids:
             text.append("  [folded: ", style="italic #808080")  # Grey italic
             # Build sections for each status type
             sections: list[tuple[str, str, list[str]]] = []
@@ -187,17 +203,15 @@ def build_hooks_section(
             )
             for sl in sorted_status_lines:
                 # Determine if we should show this status line
-                if hooks_collapsed:
-                    # When collapsed:
-                    # - PASSED: hide unless fix-hook proposal for this hook
-                    # - RUNNING: always show
-                    # - FAILED/DEAD in current/proposals: show
-                    # - FAILED/DEAD historical: hide
-                    if sl.status == "PASSED":
+                if hooks_fold != FoldLevel.FULLY_EXPANDED:
+                    # PASSED: hide when COLLAPSED, show when EXPANDED
+                    # (unless fix-hook proposal — always shown)
+                    if sl.status == "PASSED" and hide_passed:
                         if not _is_fix_hook_proposal_for_this_hook(
                             hook, sl.commit_entry_num, changespec
                         ):
                             continue
+                    # FAILED/DEAD historical: hide unless FULLY_EXPANDED
                     if sl.status in ("FAILED", "DEAD"):
                         if sl.commit_entry_num not in current_and_proposal_ids:
                             continue

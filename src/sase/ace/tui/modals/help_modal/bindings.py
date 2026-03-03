@@ -47,10 +47,10 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Fold Mode",
         [
-            ("z c", "Toggle commits section"),
-            ("z h", "Toggle hooks section"),
-            ("z m", "Toggle mentors section"),
-            ("z z", "Toggle all sections"),
+            ("z c", "Cycle commits folding"),
+            ("z h", "Cycle hooks folding"),
+            ("z m", "Cycle mentors folding"),
+            ("z z", "Cycle all sections"),
         ],
     ),
     (

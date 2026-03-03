@@ -7,6 +7,7 @@ from rich.text import Text
 from ...changespec import ChangeSpec
 from ...hooks import format_timestamp_display
 from ...scheduler.mentor_runner import get_mentor_chat_path
+from ..models.fold_state import FoldLevel
 from .hint_tracker import HintTracker
 from .suffix_formatting import SUFFIX_STYLES, append_suffix_to_text
 
@@ -14,16 +15,22 @@ from .suffix_formatting import SUFFIX_STYLES, append_suffix_to_text
 def build_mentors_section(
     text: Text,
     changespec: ChangeSpec,
-    mentors_collapsed: bool = True,
+    mentors_fold: FoldLevel = FoldLevel.COLLAPSED,
     with_hints: bool = False,
     hint_tracker: HintTracker | None = None,
 ) -> HintTracker:
     """Build the MENTORS section of the display.
 
+    Fold levels:
+    - COLLAPSED: Non-latest all hidden. Latest shows only RUNNING/FAILED.
+    - EXPANDED: Non-latest still hidden. Latest shows ALL statuses
+      (including PASSED/DEAD).
+    - FULLY_EXPANDED: Everything shown for all entries.
+
     Args:
         text: The Rich Text object to append to.
         changespec: The ChangeSpec to display.
-        mentors_collapsed: Whether to collapse mentor status lines.
+        mentors_fold: Fold level for the mentors section.
         with_hints: Whether to show hint numbers for viewable entries.
         hint_tracker: Current hint tracking state (counter, mappings, etc.).
 
@@ -69,19 +76,33 @@ def build_mentors_section(
         is_latest_entry = mentor_entry.entry_id == latest_entry_id
 
         # Count non-RUNNING statuses for folded summary
-        # (FAILED for latest entry is always shown, so don't count as folded)
+        # What's folded depends on the fold level:
+        # - COLLAPSED: PASSED always folded; FAILED folded for non-latest; DEAD always
+        # - EXPANDED: PASSED folded for non-latest; FAILED folded for non-latest; DEAD
+        #   folded for non-latest
+        # - FULLY_EXPANDED: nothing folded
         passed_count = 0
         failed_count = 0
         dead_count = 0
-        if mentor_entry.status_lines:
+        if mentors_fold != FoldLevel.FULLY_EXPANDED and mentor_entry.status_lines:
             for msl in mentor_entry.status_lines:
                 if msl.status == "PASSED":
-                    passed_count += 1
+                    if mentors_fold == FoldLevel.COLLAPSED:
+                        # COLLAPSED: all PASSED are folded
+                        passed_count += 1
+                    elif not is_latest_entry:
+                        # EXPANDED: only non-latest PASSED are folded
+                        passed_count += 1
                 elif msl.status == "FAILED":
                     if not is_latest_entry:
                         failed_count += 1
                 elif msl.status == "DEAD":
-                    dead_count += 1
+                    if mentors_fold == FoldLevel.COLLAPSED:
+                        # COLLAPSED: all DEAD are folded
+                        dead_count += 1
+                    elif not is_latest_entry:
+                        # EXPANDED: only non-latest DEAD are folded
+                        dead_count += 1
 
         # Entry line (2-space indented): (N) profile1[x/y] [profile2[x/y] ...]
         text.append("  ", style="")
@@ -94,8 +115,8 @@ def build_mentors_section(
         if mentor_entry.is_draft:
             text.append(" #Draft", style="bold #FFD700")
 
-        # Add folded suffix if collapsed and has non-RUNNING statuses
-        if mentors_collapsed and (passed_count or failed_count or dead_count):
+        # Add folded suffix if has folded statuses
+        if passed_count or failed_count or dead_count:
             text.append("  [folded: ", style="italic #808080")
             parts: list[tuple[str, int, str]] = []
             if passed_count:
@@ -116,12 +137,16 @@ def build_mentors_section(
         # Status lines (if present) - 6-space indented
         if mentor_entry.status_lines:
             for msl in mentor_entry.status_lines:
-                # For non-latest entries, hide ALL status lines when collapsed
-                if mentors_collapsed and not is_latest_entry:
-                    continue
-                # For latest entry, hide only PASSED and DEAD (show RUNNING and FAILED)
-                if mentors_collapsed and msl.status in ("PASSED", "DEAD"):
-                    continue
+                if mentors_fold != FoldLevel.FULLY_EXPANDED:
+                    # COLLAPSED: non-latest → hide all; latest → hide PASSED/DEAD
+                    # EXPANDED: non-latest → hide all; latest → show all
+                    if not is_latest_entry:
+                        continue
+                    if mentors_fold == FoldLevel.COLLAPSED and msl.status in (
+                        "PASSED",
+                        "DEAD",
+                    ):
+                        continue
 
                 text.append("      ", style="")
                 text.append("| ", style="#808080")

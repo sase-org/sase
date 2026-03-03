@@ -8,25 +8,22 @@ from rich.text import Text
 
 from ...changespec import ChangeSpec, CommitEntry
 from ...display_helpers import is_suffix_timestamp
+from ..models.fold_state import FoldLevel
 from .hint_tracker import HintTracker
 
 
 def _should_show_commits_drawers(
     entry: CommitEntry,
     changespec: ChangeSpec,
-    commits_collapsed: bool,
+    commits_fold: FoldLevel,
 ) -> bool:
-    """Determine if drawers should be shown for a COMMITS entry.
+    """Determine if drawers (CHAT/DIFF) should be shown for a COMMITS entry.
 
-    When collapsed, show drawers only for:
-    - The highest-numbered entry and its proposal entries (like "8a")
-
-    Hide drawers for:
-    - All other entries
-
-    When expanded, show all drawers.
+    - COLLAPSED: Show drawers only for the latest entry (highest number).
+    - EXPANDED: Show drawers for all entries.
+    - FULLY_EXPANDED: Show drawers for all entries.
     """
-    if not commits_collapsed:
+    if commits_fold != FoldLevel.COLLAPSED:
         return True
     if changespec.commits:
         max_number = max(
@@ -42,7 +39,7 @@ def _should_show_commits_drawers(
 def _should_show_chat_drawer(
     entry: CommitEntry,
     changespec: ChangeSpec,
-    commits_collapsed: bool,
+    commits_fold: FoldLevel,
 ) -> bool:
     """Determine if CHAT drawer should be shown for a COMMITS entry.
 
@@ -51,7 +48,7 @@ def _should_show_chat_drawer(
     """
     if entry.number == 1 and not entry.is_proposed:
         return True
-    return _should_show_commits_drawers(entry, changespec, commits_collapsed)
+    return _should_show_commits_drawers(entry, changespec, commits_fold)
 
 
 def _get_rejected_proposals_for_entry(
@@ -83,20 +80,36 @@ def _get_rejected_proposals_for_entry(
     ]
 
 
+def _should_hide_rejected_proposals(commits_fold: FoldLevel) -> bool:
+    """Whether rejected proposals should be hidden at this fold level.
+
+    - COLLAPSED: Hidden (folded under parent).
+    - EXPANDED: Hidden (folded under parent).
+    - FULLY_EXPANDED: Visible.
+    """
+    return commits_fold != FoldLevel.FULLY_EXPANDED
+
+
 def build_commits_section(
     text: Text,
     changespec: ChangeSpec,
     show_history_hints: bool,
-    commits_collapsed: bool,
+    commits_fold: FoldLevel,
     hint_tracker: HintTracker,
 ) -> HintTracker:
     """Build the COMMITS section of the display.
+
+    Fold levels:
+    - COLLAPSED: Show CHAT/DIFF only for latest entry. Hide rejected proposals.
+    - EXPANDED: Show CHAT/DIFF for all entries. Hide rejected proposals.
+      Fold summary only shows proposals.
+    - FULLY_EXPANDED: Show everything including rejected proposals.
 
     Args:
         text: The Rich Text object to append to.
         changespec: The ChangeSpec to display.
         show_history_hints: Whether to show file path hints.
-        commits_collapsed: Whether to collapse commit drawer lines.
+        commits_fold: Fold level for the commits section.
         hint_tracker: Current hint tracking state.
 
     Returns:
@@ -114,10 +127,12 @@ def build_commits_section(
         default=0,
     )
 
+    hide_rejected = _should_hide_rejected_proposals(commits_fold)
+
     text.append("COMMITS:\n", style="bold #87D7FF")
     for entry in changespec.commits:
-        # Skip rejected proposals when collapsed (they're folded under parent)
-        if commits_collapsed and entry.is_proposed and entry.number != max_number:
+        # Skip rejected proposals when not fully expanded
+        if hide_rejected and entry.is_proposed and entry.number != max_number:
             continue
 
         entry_style = "bold #D7AF5F"
@@ -166,15 +181,13 @@ def build_commits_section(
                 text.append(f"({entry.suffix})")
 
         # Determine if drawers should be shown for this entry
-        show_drawers = _should_show_commits_drawers(
-            entry, changespec, commits_collapsed
-        )
-        show_chat = _should_show_chat_drawer(entry, changespec, commits_collapsed)
+        show_drawers = _should_show_commits_drawers(entry, changespec, commits_fold)
+        show_chat = _should_show_chat_drawer(entry, changespec, commits_fold)
 
         # Add folded suffix if drawers are hidden or proposals are folded
         rejected_proposals = (
             _get_rejected_proposals_for_entry(entry, changespec.commits, max_number)
-            if commits_collapsed
+            if hide_rejected
             else []
         )
         has_folded_chat = not show_chat and entry.chat

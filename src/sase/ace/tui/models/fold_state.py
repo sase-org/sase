@@ -1,14 +1,23 @@
-"""Fold state management for nested workflow steps in the Agents tab."""
+"""Fold state management for collapsible sections in the TUI."""
 
 from enum import Enum
 
 
 class FoldLevel(Enum):
-    """Fold level for a workflow entry's children."""
+    """Fold level for a collapsible section."""
 
     COLLAPSED = "collapsed"
     EXPANDED = "expanded"
     FULLY_EXPANDED = "fully_expanded"
+
+
+def cycle_forward(level: FoldLevel) -> FoldLevel:
+    """Cycle fold level forward: COLLAPSED -> EXPANDED -> FULLY_EXPANDED -> COLLAPSED."""
+    if level == FoldLevel.COLLAPSED:
+        return FoldLevel.EXPANDED
+    if level == FoldLevel.EXPANDED:
+        return FoldLevel.FULLY_EXPANDED
+    return FoldLevel.COLLAPSED
 
 
 class FoldStateManager:

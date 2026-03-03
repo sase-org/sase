@@ -63,9 +63,9 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
         "marked": sorted(app.marked_indices),
         "modal": _get_modal_name(app),
         "hide_reverted": app.hide_reverted,
-        "hooks_collapsed": app.hooks_collapsed,
-        "commits_collapsed": app.commits_collapsed,
-        "mentors_collapsed": app.mentors_collapsed,
+        "hooks_collapsed": app.hooks_collapsed.value,
+        "commits_collapsed": app.commits_collapsed.value,
+        "mentors_collapsed": app.mentors_collapsed.value,
     }
 
     # Selected changespec info

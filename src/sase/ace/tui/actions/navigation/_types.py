@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...bgcmd import BackgroundCommandInfo
     from ...changespec_history import ChangeSpecHistoryStacks
     from ...models import Agent
+    from ...models.fold_state import FoldLevel
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
@@ -26,9 +27,9 @@ class NavigationMixinBase:
     changespecs: list[ChangeSpec]
     current_idx: int
     current_tab: TabName
-    hooks_collapsed: bool
-    commits_collapsed: bool
-    mentors_collapsed: bool
+    hooks_collapsed: FoldLevel
+    commits_collapsed: FoldLevel
+    mentors_collapsed: FoldLevel
     _agents: list[Agent]
     _fold_mode_active: bool
     _changespecs_last_idx: int

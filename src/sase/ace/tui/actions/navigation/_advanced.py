@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ...changespec_history import ChangeSpecHistoryEntry
+from ...models.fold_state import FoldLevel, cycle_forward
 from ._types import NavigationMixinBase
 
 
@@ -23,23 +24,23 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         self._fold_mode_active = False
 
         if key == "c":
-            self.commits_collapsed = not self.commits_collapsed
+            self.commits_collapsed = cycle_forward(self.commits_collapsed)
             self._refresh_display()  # type: ignore[attr-defined]
             return True
         elif key == "h":
-            self.hooks_collapsed = not self.hooks_collapsed
+            self.hooks_collapsed = cycle_forward(self.hooks_collapsed)
             self._refresh_display()  # type: ignore[attr-defined]
             return True
         elif key == "m":
-            self.mentors_collapsed = not self.mentors_collapsed
+            self.mentors_collapsed = cycle_forward(self.mentors_collapsed)
             self._refresh_display()  # type: ignore[attr-defined]
             return True
         elif key == "z":
-            # Toggle all - if different states, collapse all
+            # Cycle all - if all at same level, cycle forward; otherwise collapse all
             if self.commits_collapsed == self.hooks_collapsed == self.mentors_collapsed:
-                new_state = not self.commits_collapsed
+                new_state = cycle_forward(self.commits_collapsed)
             else:
-                new_state = True  # Default to collapsed if mismatched
+                new_state = FoldLevel.COLLAPSED
             self.commits_collapsed = new_state
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state

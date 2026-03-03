@@ -16,6 +16,7 @@ from ...display_helpers import (
     get_status_color,
 )
 from ...query.highlighting import QUERY_TOKEN_STYLES, tokenize_query_for_display
+from ..models.fold_state import FoldLevel
 from .section_builders import (
     HintTracker,
     build_comments_section,
@@ -108,18 +109,18 @@ class ChangeSpecDetail(Static):
         self,
         changespec: ChangeSpec,
         query_string: str,
-        hooks_collapsed: bool = True,
-        commits_collapsed: bool = True,
-        mentors_collapsed: bool = True,
+        hooks_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> None:
         """Update the detail view with a new changespec.
 
         Args:
             changespec: The ChangeSpec to display
             query_string: The current query string
-            hooks_collapsed: Whether to collapse hook status lines
-            commits_collapsed: Whether to collapse COMMITS drawer lines
-            mentors_collapsed: Whether to collapse MENTORS entries
+            hooks_collapsed: Fold level for hook status lines
+            commits_collapsed: Fold level for COMMITS drawer lines
+            mentors_collapsed: Fold level for MENTORS entries
         """
         content, _, _, _, _ = self._build_display_content(
             changespec,
@@ -135,9 +136,9 @@ class ChangeSpecDetail(Static):
         changespec: ChangeSpec,
         query_string: str,
         hints_for: str | None = None,
-        hooks_collapsed: bool = True,
-        commits_collapsed: bool = True,
-        mentors_collapsed: bool = True,
+        hooks_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> tuple[
         dict[int, str], dict[int, int], dict[int, str], dict[int, tuple[str, str]]
     ]:
@@ -150,9 +151,9 @@ class ChangeSpecDetail(Static):
                 - None or "all": Show hints for all entries
                 - "hooks_latest_only": Show hints only for hook status lines
                   that match current/proposal entry IDs
-            hooks_collapsed: Whether to collapse hook status lines
-            commits_collapsed: Whether to collapse COMMITS drawer lines
-            mentors_collapsed: Whether to collapse MENTORS entries
+            hooks_collapsed: Fold level for hook status lines
+            commits_collapsed: Fold level for COMMITS drawer lines
+            mentors_collapsed: Fold level for MENTORS entries
 
         Returns:
             Tuple of:
@@ -199,9 +200,9 @@ class ChangeSpecDetail(Static):
         query_string: str,
         with_hints: bool = False,
         hints_for: str | None = None,
-        hooks_collapsed: bool = True,
-        commits_collapsed: bool = True,
-        mentors_collapsed: bool = True,
+        hooks_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> tuple[
         Panel,
         dict[int, str],

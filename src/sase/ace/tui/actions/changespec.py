@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ...changespec import ChangeSpec
     from ...query.types import QueryExpr
     from ...query_history import QueryHistoryStacks
+    from ..models.fold_state import FoldLevel
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -23,9 +24,9 @@ class ChangeSpecMixin:
     current_tab: TabName
     query_string: str
     parsed_query: QueryExpr
-    hooks_collapsed: bool
-    commits_collapsed: bool
-    mentors_collapsed: bool
+    hooks_collapsed: FoldLevel
+    commits_collapsed: FoldLevel
+    mentors_collapsed: FoldLevel
     hide_reverted: bool
     marked_indices: set[int]
     _hint_mode_active: bool

@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec, CommitEntry, MentorEntry, MentorStatusLine
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.hint_tracker import HintTracker
 from sase.ace.tui.widgets.mentors_builder import build_mentors_section
 from rich.text import Text
@@ -69,7 +70,7 @@ def test_error_non_path_suffix_no_hint(_mock_fmt: object) -> None:
     tracker = build_mentors_section(
         text,
         changespec,
-        mentors_collapsed=False,
+        mentors_fold=FoldLevel.FULLY_EXPANDED,
         with_hints=True,
         hint_tracker=_make_hint_tracker(counter=5),
     )
@@ -111,7 +112,7 @@ def test_error_file_path_no_hint_without_with_hints(_mock_fmt: object) -> None:
     tracker = build_mentors_section(
         text,
         changespec,
-        mentors_collapsed=False,
+        mentors_fold=FoldLevel.FULLY_EXPANDED,
         with_hints=False,
         hint_tracker=_make_hint_tracker(counter=0),
     )
@@ -151,7 +152,7 @@ def test_error_absolute_path_suffix_gets_hint(_mock_fmt: object) -> None:
     tracker = build_mentors_section(
         text,
         changespec,
-        mentors_collapsed=False,
+        mentors_fold=FoldLevel.FULLY_EXPANDED,
         with_hints=True,
         hint_tracker=_make_hint_tracker(counter=0),
     )

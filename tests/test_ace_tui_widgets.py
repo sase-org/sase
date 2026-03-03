@@ -10,6 +10,7 @@ from sase.ace.changespec import ChangeSpec, CommentEntry, CommitEntry, HookEntry
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import TabBar
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.commits_builder import _should_show_commits_drawers
 from sase.ace.tui.widgets.prompt_panel import (
     AgentPromptPanel,
@@ -49,7 +50,7 @@ def _make_changespec(
 
 
 def test_should_show_commits_drawers_expanded() -> None:
-    """All entries show drawers when expanded (commits_collapsed=False)."""
+    """All entries show drawers when expanded."""
     entry = CommitEntry(number=5, note="test")
     changespec = _make_changespec(
         commits=[
@@ -58,7 +59,7 @@ def test_should_show_commits_drawers_expanded() -> None:
         ]
     )
 
-    assert _should_show_commits_drawers(entry, changespec, commits_collapsed=False)
+    assert _should_show_commits_drawers(entry, changespec, FoldLevel.EXPANDED)
 
 
 def test_should_show_commits_drawers_collapsed_intermediate_hidden() -> None:
@@ -72,7 +73,7 @@ def test_should_show_commits_drawers_collapsed_intermediate_hidden() -> None:
         ]
     )
 
-    assert not _should_show_commits_drawers(entry, changespec, commits_collapsed=True)
+    assert not _should_show_commits_drawers(entry, changespec, FoldLevel.COLLAPSED)
 
 
 def test_should_show_commits_drawers_collapsed_old_proposal_hidden() -> None:
@@ -87,7 +88,7 @@ def test_should_show_commits_drawers_collapsed_old_proposal_hidden() -> None:
         ]
     )
 
-    assert not _should_show_commits_drawers(entry, changespec, commits_collapsed=True)
+    assert not _should_show_commits_drawers(entry, changespec, FoldLevel.COLLAPSED)
 
 
 def test_should_show_commits_drawers_collapsed_multiple_proposals_shown() -> None:
@@ -104,8 +105,8 @@ def test_should_show_commits_drawers_collapsed_multiple_proposals_shown() -> Non
     entry_a = CommitEntry(number=3, note="proposal a", proposal_letter="a")
     entry_b = CommitEntry(number=3, note="proposal b", proposal_letter="b")
 
-    assert _should_show_commits_drawers(entry_a, changespec, commits_collapsed=True)
-    assert _should_show_commits_drawers(entry_b, changespec, commits_collapsed=True)
+    assert _should_show_commits_drawers(entry_a, changespec, FoldLevel.COLLAPSED)
+    assert _should_show_commits_drawers(entry_b, changespec, FoldLevel.COLLAPSED)
 
 
 # --- TabBar Widget Tests ---
