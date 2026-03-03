@@ -209,6 +209,9 @@ class MentorWorkflow(BaseWorkflow):
                 if self._who:
                     ewf_result.context["who"] = self._who
                 ewf_result.context["_start_timestamp"] = self._timestamp
+                # Propagate cl_name so #propose targets the correct ChangeSpec
+                # even if the workspace branch was renamed (split/revert).
+                ewf_result.context["cl_name"] = resolved_cl_name
                 try:
                     execute_standalone_steps(
                         ewf_result.post_steps,
