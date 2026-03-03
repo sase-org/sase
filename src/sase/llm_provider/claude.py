@@ -1,5 +1,6 @@
 """Claude Code LLM provider implementation."""
 
+import json
 import os
 import re
 import shutil
@@ -18,6 +19,47 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "opus",
     "small": "sonnet",
 }
+
+# Maximum number of plan feedback retry rounds before giving up
+_MAX_PLAN_FEEDBACK_RETRIES = 5
+
+
+def _find_plan_file() -> str | None:
+    """Find the most recently modified .md plan file.
+
+    Searches common plan directories for the most recently modified markdown
+    file.
+    """
+    search_dirs = [
+        Path.home() / ".claude" / "plans",
+        Path.home() / ".gemini" / "plans",
+    ]
+    md_files: list[Path] = []
+    for d in search_dirs:
+        if d.is_dir():
+            md_files.extend(d.glob("*.md"))
+    if not md_files:
+        return None
+    return str(max(md_files, key=lambda f: f.stat().st_mtime))
+
+
+def _read_plan_feedback(approval_dir: Path) -> str | None:
+    """Read plan rejection feedback from plan_response.json if present.
+
+    Returns the feedback string if the plan was rejected with feedback,
+    or None otherwise.
+    """
+    response_path = approval_dir / "plan_response.json"
+    if not response_path.exists():
+        return None
+    try:
+        with open(response_path, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("action") == "reject" and data.get("feedback"):
+            return data["feedback"]
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
 
 
 class ClaudeCodeProvider(LLMProvider):
@@ -51,25 +93,7 @@ class ClaudeCodeProvider(LLMProvider):
             subprocess.CalledProcessError: If the Claude CLI process fails.
         """
         model_alias = model_override if model_override else _TIER_TO_MODEL[model_tier]
-
-        # Build base command arguments
-        session_uuid = str(uuid.uuid4())
-        base_args = [
-            "claude",
-            "-p",
-            "--verbose",
-            "--model",
-            model_alias,
-            "--output-format",
-            "stream-json",
-            "--dangerously-skip-permissions",
-            "--session-id",
-            session_uuid,
-        ]
-
-        # Enable plan mode when requested via %plan directive
-        if os.environ.get("SASE_AGENT_PLAN_MODE"):
-            base_args.append("--permission-mode=plan")
+        is_plan_mode = bool(os.environ.get("SASE_AGENT_PLAN_MODE"))
 
         # Parse additional args from environment variable based on tier
         # Check generic SASE_LLM_*_ARGS first, fall back to Claude-specific
@@ -82,85 +106,26 @@ class ClaudeCodeProvider(LLMProvider):
                 "SASE_LLM_SMALL_ARGS", os.environ.get("SASE_CLAUDE_SMALL_ARGS")
             )
 
-        if extra_args_env:
-            for arg in extra_args_env.split():
-                base_args.append(arg)
-
-        # Construct marker path for plan approval monitoring
-        approval_dir = Path.home() / ".sase" / "plan_approval" / session_uuid
-        marker_path = approval_dir / "plan_approved.marker"
-
-        # Start the process and stream output in real-time with timer.
-        # Pass marker_path so the monitoring thread can terminate the process
-        # if Claude Code gets stuck in an ExitPlanMode loop after approval.
         timer_context = (
             gemini_timer("Waiting for Claude") if not suppress_output else None
         )
 
-        if timer_context:
-            with timer_context:
-                response_content, stderr_content, return_code = self._run_subprocess(
-                    base_args, prompt, suppress_output, plan_marker_path=marker_path
-                )
-                # Add newline to separate agent output from timer
-                print()
-        else:
-            response_content, stderr_content, return_code = self._run_subprocess(
-                base_args, prompt, suppress_output, plan_marker_path=marker_path
-            )
+        # Plan feedback retry loop: when the user rejects a plan with feedback,
+        # Claude Code in pipe mode exits instead of revising.  We detect this
+        # via plan_response.json and re-launch phase 1 with the feedback
+        # appended to the prompt.
+        current_prompt = prompt
+        plan_session_uuid: str | None = None
+        response_content = ""
+        stderr_content = ""
+        return_code = 0
+        base_args: list[str] = []
+        approval_dir = Path()
+        marker_path = Path()
 
-        # Check if plan was approved BEFORE checking return code.
-        # When the monitoring thread terminates the process (due to ExitPlanMode
-        # loop), the return code is non-zero (signal), but we should proceed
-        # to phase 2 rather than raising an error.
-        if marker_path.exists():
-            plan_file_path = marker_path.read_text().strip()
-            # Clean up the approval directory
-            shutil.rmtree(approval_dir)
-
-            if plan_file_path:
-                # Copy plan to ~/.sase/plans/ for the new session
-                sase_plans_dir = Path.home() / ".sase" / "plans"
-                sase_plans_dir.mkdir(parents=True, exist_ok=True)
-                src = Path(plan_file_path)
-                dest = sase_plans_dir / src.name
-                # Handle name conflicts by appending a suffix
-                if dest.exists():
-                    stem = src.stem
-                    suffix = src.suffix
-                    counter = 1
-                    while dest.exists():
-                        dest = sase_plans_dir / f"{stem}_{counter}{suffix}"
-                        counter += 1
-                shutil.copy2(src, dest)
-                saved_plan_path = dest
-
-                # Write plan_path.json so agent runner can thread it to done.json
-                artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-                if artifacts_dir:
-                    import json
-
-                    plan_path_file = Path(artifacts_dir) / "plan_path.json"
-                    plan_path_file.write_text(
-                        json.dumps({"plan_path": str(saved_plan_path)})
-                    )
-            else:
-                saved_plan_path = None
-
-            impl_session_uuid = str(uuid.uuid4())
-
-            # Write sidecar link so thinking panel finds both plan + impl sessions
-            try:
-                cwd = os.getcwd()
-                hashed_cwd = re.sub(r"[^a-zA-Z0-9]", "-", cwd)
-                claude_project_dir = Path.home() / ".claude" / "projects" / hashed_cwd
-                if claude_project_dir.is_dir():
-                    link_file = claude_project_dir / f"{session_uuid}.impl_session"
-                    link_file.write_text(impl_session_uuid)
-            except OSError:
-                pass  # Best-effort; thinking panel still works without it
-
-            impl_args = [
+        for _ in range(_MAX_PLAN_FEEDBACK_RETRIES + 1):
+            session_uuid = str(uuid.uuid4())
+            base_args = [
                 "claude",
                 "-p",
                 "--verbose",
@@ -170,47 +135,101 @@ class ClaudeCodeProvider(LLMProvider):
                 "stream-json",
                 "--dangerously-skip-permissions",
                 "--session-id",
-                impl_session_uuid,
+                session_uuid,
             ]
+
+            if is_plan_mode:
+                base_args.append("--permission-mode=plan")
+
             if extra_args_env:
                 for arg in extra_args_env.split():
-                    impl_args.append(arg)
+                    base_args.append(arg)
 
-            if saved_plan_path:
-                impl_prompt = (
-                    f"@{saved_plan_path}\n\n"
-                    "The above plan has been reviewed and approved. "
-                    "Implement it now."
-                )
-            else:
-                impl_prompt = (
-                    "Your plan has been reviewed and approved by the user. "
-                    "Proceed with implementing the plan now."
-                )
+            approval_dir = Path.home() / ".sase" / "plan_approval" / session_uuid
+            marker_path = approval_dir / "plan_approved.marker"
+
+            # Track first planning session for sidecar link
+            if plan_session_uuid is None:
+                plan_session_uuid = session_uuid
 
             if timer_context:
-                with gemini_timer("Implementing plan"):
-                    impl_content, impl_stderr, impl_rc = self._run_subprocess(
-                        impl_args, impl_prompt, suppress_output
+                with timer_context:
+                    response_content, stderr_content, return_code = (
+                        self._run_subprocess(
+                            base_args,
+                            current_prompt,
+                            suppress_output,
+                            plan_marker_path=marker_path,
+                        )
                     )
                     print()
             else:
-                impl_content, impl_stderr, impl_rc = self._run_subprocess(
-                    impl_args, impl_prompt, suppress_output
+                response_content, stderr_content, return_code = self._run_subprocess(
+                    base_args,
+                    current_prompt,
+                    suppress_output,
+                    plan_marker_path=marker_path,
                 )
 
-            if impl_rc != 0:
+            # Check if plan was approved BEFORE checking return code.
+            # When the monitoring thread terminates the process (due to
+            # ExitPlanMode loop), the return code is non-zero (signal),
+            # but we should proceed to phase 2 rather than raising an error.
+            if marker_path.exists():
+                break  # Plan approved — fall through to phase 2
+
+            # In plan mode, check if the user rejected with feedback.
+            # Claude Code in pipe mode doesn't reliably revise after a hook
+            # denial, so we re-launch phase 1 with the feedback included.
+            if is_plan_mode and return_code != 0:
+                feedback = _read_plan_feedback(approval_dir)
+                if feedback:
+                    # Find the plan file Claude wrote so we can include it
+                    plan_file = _find_plan_file()
+                    if plan_file:
+                        try:
+                            plan_content = Path(plan_file).read_text(encoding="utf-8")
+                        except OSError:
+                            plan_content = None
+                    else:
+                        plan_content = None
+
+                    if plan_content:
+                        current_prompt = (
+                            f"{prompt}\n\n"
+                            f"--- Previous Plan ---\n{plan_content}\n"
+                            f"--- User Feedback ---\n{feedback}\n\n"
+                            "Please revise the plan based on the feedback "
+                            "above and resubmit it."
+                        )
+                    else:
+                        current_prompt = (
+                            f"{prompt}\n\n"
+                            f"--- User Feedback on Previous Plan ---\n"
+                            f"{feedback}\n\n"
+                            "Please revise the plan based on the feedback "
+                            "above and resubmit it."
+                        )
+
+                    # Clean up old approval directory before retry
+                    shutil.rmtree(approval_dir, ignore_errors=True)
+                    continue  # Retry phase 1 with feedback
+
+            # No marker and no feedback retry — check if process failed
+            if return_code != 0:
                 raise subprocess.CalledProcessError(
-                    impl_rc,
-                    impl_args,
-                    output=impl_content,
-                    stderr=impl_stderr,
+                    return_code,
+                    base_args,
+                    output=response_content,
+                    stderr=stderr_content,
                 )
 
-            # Combine phase 1 + phase 2 response text
-            response_content = response_content.strip() + "\n\n" + impl_content.strip()
-        elif return_code != 0:
-            # No plan approval marker — check if process failed
+            # return_code == 0, no marker — normal completion (no plan mode)
+            return response_content.strip()
+
+        # --- Plan approved: proceed to phase 2 (implementation) ---
+        if not marker_path.exists():
+            # Exhausted retries without approval
             raise subprocess.CalledProcessError(
                 return_code,
                 base_args,
@@ -218,6 +237,99 @@ class ClaudeCodeProvider(LLMProvider):
                 stderr=stderr_content,
             )
 
+        plan_file_path = marker_path.read_text().strip()
+        # Clean up the approval directory
+        shutil.rmtree(approval_dir)
+
+        if plan_file_path:
+            # Copy plan to ~/.sase/plans/ for the new session
+            sase_plans_dir = Path.home() / ".sase" / "plans"
+            sase_plans_dir.mkdir(parents=True, exist_ok=True)
+            src = Path(plan_file_path)
+            dest = sase_plans_dir / src.name
+            # Handle name conflicts by appending a suffix
+            if dest.exists():
+                stem = src.stem
+                suffix = src.suffix
+                counter = 1
+                while dest.exists():
+                    dest = sase_plans_dir / f"{stem}_{counter}{suffix}"
+                    counter += 1
+            shutil.copy2(src, dest)
+            saved_plan_path = dest
+
+            # Write plan_path.json so agent runner can thread it to done.json
+            artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+            if artifacts_dir:
+                plan_path_file = Path(artifacts_dir) / "plan_path.json"
+                plan_path_file.write_text(
+                    json.dumps({"plan_path": str(saved_plan_path)})
+                )
+        else:
+            saved_plan_path = None
+
+        impl_session_uuid = str(uuid.uuid4())
+
+        # Write sidecar link so thinking panel finds both plan + impl sessions
+        try:
+            cwd = os.getcwd()
+            hashed_cwd = re.sub(r"[^a-zA-Z0-9]", "-", cwd)
+            claude_project_dir = Path.home() / ".claude" / "projects" / hashed_cwd
+            if claude_project_dir.is_dir():
+                link_file = claude_project_dir / f"{plan_session_uuid}.impl_session"
+                link_file.write_text(impl_session_uuid)
+        except OSError:
+            pass  # Best-effort; thinking panel still works without it
+
+        impl_args = [
+            "claude",
+            "-p",
+            "--verbose",
+            "--model",
+            model_alias,
+            "--output-format",
+            "stream-json",
+            "--dangerously-skip-permissions",
+            "--session-id",
+            impl_session_uuid,
+        ]
+        if extra_args_env:
+            for arg in extra_args_env.split():
+                impl_args.append(arg)
+
+        if saved_plan_path:
+            impl_prompt = (
+                f"@{saved_plan_path}\n\n"
+                "The above plan has been reviewed and approved. "
+                "Implement it now."
+            )
+        else:
+            impl_prompt = (
+                "Your plan has been reviewed and approved by the user. "
+                "Proceed with implementing the plan now."
+            )
+
+        if timer_context:
+            with gemini_timer("Implementing plan"):
+                impl_content, impl_stderr, impl_rc = self._run_subprocess(
+                    impl_args, impl_prompt, suppress_output
+                )
+                print()
+        else:
+            impl_content, impl_stderr, impl_rc = self._run_subprocess(
+                impl_args, impl_prompt, suppress_output
+            )
+
+        if impl_rc != 0:
+            raise subprocess.CalledProcessError(
+                impl_rc,
+                impl_args,
+                output=impl_content,
+                stderr=impl_stderr,
+            )
+
+        # Combine phase 1 + phase 2 response text
+        response_content = response_content.strip() + "\n\n" + impl_content.strip()
         return response_content.strip()
 
     def _run_subprocess(
