@@ -310,15 +310,18 @@ def kill_running_processes_for_hooks(
 
 def kill_running_mentor_processes(
     changespec: ChangeSpec,
+    only_entry_ids: set[str] | None = None,
 ) -> list[tuple[MentorEntry, MentorStatusLine, int]]:
-    """Kill all running mentor processes for a ChangeSpec.
+    """Kill running mentor processes for a ChangeSpec.
 
-    Finds all mentors with suffix_type="running_agent", extracts the PID
+    Finds mentors with suffix_type="running_agent", extracts the PID
     from the suffix (format: mentor_<name>-<PID>-<timestamp>),
     and sends SIGTERM to terminate the process group.
 
     Args:
         changespec: The ChangeSpec to kill running mentors for.
+        only_entry_ids: If provided, only kill mentors for these entry IDs.
+            If None, kills ALL running mentors.
 
     Returns:
         List of (mentor_entry, status_line, pid) tuples for processes that
@@ -330,6 +333,8 @@ def kill_running_mentor_processes(
         return killed
 
     for entry in changespec.mentors:
+        if only_entry_ids is not None and entry.entry_id not in only_entry_ids:
+            continue
         if not entry.status_lines:
             continue
         for sl in entry.status_lines:
@@ -400,7 +405,7 @@ def mark_mentor_agents_as_killed(
     return updated_mentors
 
 
-def _extract_mentor_workflow_from_suffix(suffix: str) -> str | None:
+def extract_mentor_workflow_from_suffix(suffix: str) -> str | None:
     """Extract workflow name from mentor suffix.
 
     Args:
@@ -493,7 +498,7 @@ def kill_and_persist_all_running_processes(
             if not status_line.suffix:
                 continue
 
-            workflow = _extract_mentor_workflow_from_suffix(status_line.suffix)
+            workflow = extract_mentor_workflow_from_suffix(status_line.suffix)
             if not workflow:
                 continue
 

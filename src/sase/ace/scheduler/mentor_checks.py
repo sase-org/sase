@@ -18,7 +18,11 @@ from ..changespec import (
     extract_pid_from_agent_suffix,
 )
 from ..display_helpers import is_entry_ref_suffix
-from ..hooks.processes import is_process_running
+from ..hooks.processes import (
+    is_process_running,
+    kill_running_mentor_processes,
+    mark_mentor_agents_as_killed,
+)
 from ..mentors import update_changespec_mentors_field
 
 # Type alias for logging callback
@@ -436,6 +440,104 @@ def _get_mentor_profiles_to_run(
     return result
 
 
+def _kill_stale_mentors(
+    changespec: ChangeSpec,
+    log: LogCallback,
+) -> list[str]:
+    """Kill mentor processes running for older commits when a newer commit exists.
+
+    When a new commit is added (e.g., manually), mentors from the previous
+    commit become stale and should be terminated. This prevents old mentors
+    from continuing to run after new code has been committed.
+
+    Args:
+        changespec: The ChangeSpec to check.
+        log: Logging callback.
+
+    Returns:
+        List of update messages.
+    """
+    updates: list[str] = []
+
+    if not changespec.mentors or not changespec.commits:
+        return updates
+
+    # Find the latest regular (non-proposal) commit entry ID
+    latest_entry_id = None
+    for entry in reversed(changespec.commits):
+        if entry.display_number.isdigit():
+            latest_entry_id = entry.display_number
+            break
+
+    if latest_entry_id is None:
+        return updates
+
+    # Collect entry IDs that are older than the latest
+    stale_entry_ids: set[str] = set()
+    for me in changespec.mentors:
+        if me.entry_id != latest_entry_id and me.entry_id.isdigit():
+            # Check if this entry actually has running mentors
+            if me.status_lines:
+                for sl in me.status_lines:
+                    if sl.suffix_type == "running_agent":
+                        stale_entry_ids.add(me.entry_id)
+                        break
+
+    if not stale_entry_ids:
+        return updates
+
+    # Kill only mentors for stale entries
+    killed = kill_running_mentor_processes(changespec, only_entry_ids=stale_entry_ids)
+
+    if not killed:
+        return updates
+
+    # Mark killed mentors and persist
+    updated_mentors = mark_mentor_agents_as_killed(changespec.mentors, killed)
+    update_changespec_mentors_field(
+        changespec.file_path,
+        changespec.name,
+        updated_mentors,
+    )
+
+    # Release workspaces claimed by killed mentor processes
+    from sase.running_field import get_claimed_workspaces, release_workspace
+
+    from ..hooks.processes import extract_mentor_workflow_from_suffix
+
+    for _entry, status_line, _pid in killed:
+        if not status_line.suffix:
+            continue
+
+        workflow = extract_mentor_workflow_from_suffix(status_line.suffix)
+        if not workflow:
+            continue
+
+        for claim in get_claimed_workspaces(changespec.file_path):
+            if claim.workflow == workflow and claim.cl_name == changespec.name:
+                release_workspace(
+                    changespec.file_path,
+                    claim.workspace_num,
+                    workflow,
+                    changespec.name,
+                )
+                log(
+                    f"Released workspace #{claim.workspace_num} for stale mentor",
+                    "dim",
+                )
+                break
+
+    for _entry, sl, _pid in killed:
+        msg = (
+            f"Killed stale MENTOR '{sl.profile_name}:{sl.mentor_name}' "
+            f"({_entry.entry_id}) - newer commit {latest_entry_id} exists"
+        )
+        updates.append(msg)
+        log(msg, "cyan")
+
+    return updates
+
+
 def _check_mentor_completion(
     changespec: ChangeSpec,
     log: LogCallback,
@@ -552,6 +654,10 @@ def check_mentors(
         changespec, log, zombie_timeout_seconds
     )
     updates.extend(completion_updates)
+
+    # Phase 1.5: Kill stale mentors from older commits
+    stale_updates = _kill_stale_mentors(changespec, log)
+    updates.extend(stale_updates)
 
     # Phase 2: Add matching profiles upfront (before hooks are ready)
     # This adds profiles with [0/N] counts as soon as they're detected
