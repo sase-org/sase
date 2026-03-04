@@ -7,10 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui_activity import (
-    get_tui_inactive_seconds,
+    _is_tui_running,
     get_tui_last_activity,
     is_idle,
-    is_tui_running,
     remove_idle_state,
     remove_tui_pid,
     write_activity_timestamp,
@@ -92,29 +91,6 @@ def test_get_last_activity_returns_none_on_invalid(tmp_path: Path) -> None:
         assert get_tui_last_activity() is None
 
 
-# ── get_tui_inactive_seconds ─────────────────────────────────────────
-
-
-def test_inactive_seconds_calculates_correctly(tmp_path: Path) -> None:
-    with _patch_activity_file(tmp_path):
-        write_activity_timestamp(1700000000.0)
-        with patch("time.time", return_value=1700000030.0):
-            result = get_tui_inactive_seconds()
-            assert result is not None
-            assert abs(result - 30.0) < 0.01
-
-
-def test_inactive_seconds_returns_none_when_missing(tmp_path: Path) -> None:
-    with _patch_activity_file(tmp_path):
-        assert get_tui_inactive_seconds() is None
-
-
-def test_inactive_seconds_returns_inf_for_epoch_zero(tmp_path: Path) -> None:
-    with _patch_activity_file(tmp_path):
-        write_activity_timestamp(0)
-        assert get_tui_inactive_seconds() == float("inf")
-
-
 # ── write_tui_pid / remove_tui_pid ──────────────────────────────────
 
 
@@ -186,19 +162,19 @@ def test_remove_idle_state_no_error_when_missing(tmp_path: Path) -> None:
 def test_is_tui_running_true_for_current_process(tmp_path: Path) -> None:
     with _patch_pid_file(tmp_path):
         write_tui_pid()
-        assert is_tui_running() is True
+        assert _is_tui_running() is True
 
 
 def test_is_tui_running_false_when_no_file(tmp_path: Path) -> None:
     with _patch_pid_file(tmp_path):
-        assert is_tui_running() is False
+        assert _is_tui_running() is False
 
 
 def test_is_tui_running_false_for_dead_pid(tmp_path: Path) -> None:
     pid_file = tmp_path / "tui_pid"
     pid_file.write_text("999999")
     with _patch_pid_file(tmp_path), patch("os.kill", side_effect=ProcessLookupError):
-        assert is_tui_running() is False
+        assert _is_tui_running() is False
         # Stale PID file should be cleaned up
         assert not pid_file.exists()
 
@@ -207,20 +183,20 @@ def test_is_tui_running_false_for_invalid_content(tmp_path: Path) -> None:
     pid_file = tmp_path / "tui_pid"
     pid_file.write_text("not-a-number")
     with _patch_pid_file(tmp_path):
-        assert is_tui_running() is False
+        assert _is_tui_running() is False
 
 
 def test_is_tui_running_true_on_permission_error(tmp_path: Path) -> None:
     pid_file = tmp_path / "tui_pid"
     pid_file.write_text("12345")
     with _patch_pid_file(tmp_path), patch("os.kill", side_effect=PermissionError):
-        assert is_tui_running() is True
+        assert _is_tui_running() is True
 
 
 # ── is_idle ────────────────────────────────────────────────────────
 
 
-@patch("sase.ace.tui_activity.is_tui_running", return_value=False)
+@patch("sase.ace.tui_activity._is_tui_running", return_value=False)
 def test_is_idle_true_when_tui_not_running(_mock_running: object) -> None:
     assert is_idle() is True
 
@@ -228,7 +204,7 @@ def test_is_idle_true_when_tui_not_running(_mock_running: object) -> None:
 def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
-        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         assert is_idle() is True
 
@@ -236,7 +212,7 @@ def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
 def test_is_idle_true_when_state_says_idle(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
-        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(True)
         assert is_idle() is True
@@ -245,7 +221,7 @@ def test_is_idle_true_when_state_says_idle(tmp_path: Path) -> None:
 def test_is_idle_false_when_state_says_active(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
-        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
         assert is_idle() is False
@@ -254,7 +230,7 @@ def test_is_idle_false_when_state_says_active(tmp_path: Path) -> None:
 def test_is_idle_true_after_state_transitions_to_idle(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
-        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
         assert is_idle() is False
@@ -265,7 +241,7 @@ def test_is_idle_true_after_state_transitions_to_idle(tmp_path: Path) -> None:
 def test_is_idle_true_after_state_file_removed(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
-        patch("sase.ace.tui_activity.is_tui_running", return_value=True),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
         assert is_idle() is False

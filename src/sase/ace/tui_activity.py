@@ -75,8 +75,7 @@ def remove_idle_state() -> None:
         pass
 
 
-# pyvision: public_api_methods.txt
-def is_tui_running() -> bool:
+def _is_tui_running() -> bool:
     """Return whether the TUI process is currently alive.
 
     Reads the PID from the PID file and probes it with ``os.kill(pid, 0)``.
@@ -100,24 +99,6 @@ def is_tui_running() -> bool:
 
 
 # pyvision: public_api_methods.txt
-def get_tui_inactive_seconds() -> float | None:
-    """Return seconds since the last recorded TUI activity.
-
-    Returns ``float('inf')`` when the epoch is 0 (user manually marked
-    inactive).  Returns ``None`` if the activity file is missing or
-    unreadable.
-    """
-    import time
-
-    epoch = get_tui_last_activity()
-    if epoch is None:
-        return None
-    if epoch == 0:
-        return float("inf")
-    return time.time() - epoch
-
-
-# pyvision: public_api_methods.txt
 def is_idle() -> bool:
     """Return True if the user is idle.
 
@@ -129,7 +110,7 @@ def is_idle() -> bool:
     Falls back to True (idle) when the TUI is not running or the
     state file is missing/unreadable.
     """
-    if not is_tui_running():
+    if not _is_tui_running():
         return True
     try:
         return IDLE_STATE_FILE.read_text().strip() == "1"
