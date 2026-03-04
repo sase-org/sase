@@ -157,9 +157,12 @@ def update_hook_status_line_suffix_type(
     hook_command: str,
     commit_entry_num: str,
     new_suffix_type: str,
-    hooks: list[HookEntry],
 ) -> bool:
     """Update the suffix_type of a specific hook status line.
+
+    Re-reads hooks from disk under lock to avoid clobbering concurrent
+    changes (e.g., hook_checks writing PASSED while suffix_transforms
+    strips error markers in the same tick).
 
     Args:
         project_file: Path to the project file.
@@ -167,44 +170,72 @@ def update_hook_status_line_suffix_type(
         hook_command: The hook command to find.
         commit_entry_num: The history entry number of the status line.
         new_suffix_type: The new suffix type ("error" or "plain").
-        hooks: Current list of HookEntry objects.
 
     Returns:
         True if update succeeded, False otherwise.
     """
-    updated_hooks: list[HookEntry] = []
-    found = False
+    from ..changespec import parse_project_file
 
-    for hook in hooks:
-        if hook.command == hook_command and hook.status_lines:
-            updated_status_lines: list[HookStatusLine] = []
-            for sl in hook.status_lines:
-                # Allow transitioning from "error" to other types, or to "plain" from any type
-                if (
-                    sl.commit_entry_num == commit_entry_num
-                    and sl.suffix
-                    and (sl.suffix_type == "error" or new_suffix_type == "plain")
-                ):
-                    found = True
-                    updated_status_lines.append(
-                        HookStatusLine(
-                            commit_entry_num=sl.commit_entry_num,
-                            timestamp=sl.timestamp,
-                            status=sl.status,
-                            duration=sl.duration,
-                            suffix=sl.suffix,
-                            suffix_type=new_suffix_type,
+    try:
+        with changespec_lock(project_file):
+            # Re-read current hooks from disk while holding lock
+            changespecs = parse_project_file(project_file)
+            current_hooks: list[HookEntry] = []
+            for cs in changespecs:
+                if cs.name == changespec_name:
+                    current_hooks = list(cs.hooks) if cs.hooks else []
+                    break
+
+            if not current_hooks:
+                return False
+
+            updated_hooks: list[HookEntry] = []
+            found = False
+
+            for hook in current_hooks:
+                if hook.command == hook_command and hook.status_lines:
+                    updated_status_lines: list[HookStatusLine] = []
+                    for sl in hook.status_lines:
+                        # Allow transitioning from "error" to other types, or to "plain" from any type
+                        if (
+                            sl.commit_entry_num == commit_entry_num
+                            and sl.suffix
+                            and (
+                                sl.suffix_type == "error" or new_suffix_type == "plain"
+                            )
+                        ):
+                            found = True
+                            updated_status_lines.append(
+                                HookStatusLine(
+                                    commit_entry_num=sl.commit_entry_num,
+                                    timestamp=sl.timestamp,
+                                    status=sl.status,
+                                    duration=sl.duration,
+                                    suffix=sl.suffix,
+                                    suffix_type=new_suffix_type,
+                                )
+                            )
+                        else:
+                            updated_status_lines.append(sl)
+                    updated_hooks.append(
+                        HookEntry(
+                            command=hook.command, status_lines=updated_status_lines
                         )
                     )
                 else:
-                    updated_status_lines.append(sl)
-            updated_hooks.append(
-                HookEntry(command=hook.command, status_lines=updated_status_lines)
-            )
-        else:
-            updated_hooks.append(hook)
+                    updated_hooks.append(hook)
 
-    if not found:
+            if not found:
+                return False
+
+            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
+            return True
+
+    except LockTimeoutError:
+        logging.warning(
+            f"Lock timeout updating hook suffix_type for {changespec_name} in {project_file}"
+        )
         return False
-
-    return update_changespec_hooks_field(project_file, changespec_name, updated_hooks)
+    except Exception as e:
+        logging.error(f"Failed to update hook suffix_type for {changespec_name}: {e}")
+        return False

@@ -141,7 +141,6 @@ def strip_old_entry_error_markers(changespec: ChangeSpec) -> list[str]:
                     hook.command,
                     sl.commit_entry_num,
                     "plain",
-                    changespec.hooks,
                 )
                 if success:
                     updates.append(
