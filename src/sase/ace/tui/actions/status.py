@@ -172,7 +172,7 @@ class StatusActionsMixin:
 
         # Kill running processes when transitioning to WIP
         if new_status == "WIP":
-            from ..hooks.processes import kill_and_persist_all_running_processes
+            from sase.ace.hooks.processes import kill_and_persist_all_running_processes
 
             kill_and_persist_all_running_processes(
                 changespec,
