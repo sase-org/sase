@@ -200,9 +200,14 @@ def main() -> None:
                 get_provider,
             )
             from sase.vcs_provider._registry import detect_vcs
+            from sase.xprompt import process_xprompt_references
             from sase.xprompt.directives import extract_prompt_directives
 
-            _, directives = extract_prompt_directives(prompt)
+            # Expand xprompts before extracting directives so that
+            # directives embedded in xprompts (e.g. %model:#pro inside
+            # #mentor) are discovered for agent metadata.
+            expanded_for_directives = process_xprompt_references(prompt)
+            _, directives = extract_prompt_directives(expanded_for_directives)
             agent_name = directives.name
             agent_wait_names = directives.wait
             agent_model = directives.model
