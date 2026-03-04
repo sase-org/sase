@@ -26,13 +26,19 @@ class MentorProfileConfig:
     file_globs: list[str] | None = None  # Glob patterns to match changed file paths
     diff_regexes: list[str] | None = None  # Regex patterns to match diff content
     amend_note_regexes: list[str] | None = None  # Regex patterns to match commit notes
+    first_commit: bool = False  # Whether to match on the first commit of a ChangeSpec
 
     def __post_init__(self) -> None:
         """Validate that at least one matching criterion is provided."""
-        if not (self.file_globs or self.diff_regexes or self.amend_note_regexes):
+        if not (
+            self.file_globs
+            or self.diff_regexes
+            or self.amend_note_regexes
+            or self.first_commit
+        ):
             raise ValueError(
                 f"MentorProfile '{self.profile_name}' must have at least one of: "
-                "file_globs, diff_regexes, or amend_note_regexes"
+                "file_globs, diff_regexes, amend_note_regexes, or first_commit"
             )
 
 
@@ -110,6 +116,7 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
                 file_globs=item.get("file_globs"),
                 diff_regexes=item.get("diff_regexes"),
                 amend_note_regexes=item.get("amend_note_regexes"),
+                first_commit=item.get("first_commit", False),
             )
         )
 

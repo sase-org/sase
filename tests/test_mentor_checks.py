@@ -415,4 +415,57 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     assert result[0][1].profile_name == "feature"  # profile
 
 
+# Tests for first_commit matching
+
+
+def test_first_commit_matches_on_commit_1() -> None:
+    """Test that first_commit profile matches when commit 1 is in the list."""
+    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
+    from sase.mentor_config import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="complete",
+        mentors=[MentorConfig(mentor_name="complete", prompt="#mentor/complete")],
+        first_commit=True,
+        amend_note_regexes=[r"\[mentor:complete\]"],
+    )
+    commits = [CommitEntry(number=1, note="Initial commit")]
+    assert profile_matches_any_commit(profile, commits) is True
+
+
+def test_first_commit_does_not_match_on_later_commits() -> None:
+    """Test that first_commit profile does NOT match when commit 1 is filtered out."""
+    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
+    from sase.mentor_config import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="complete",
+        mentors=[MentorConfig(mentor_name="complete", prompt="#mentor/complete")],
+        first_commit=True,
+        amend_note_regexes=[r"\[mentor:complete\]"],
+    )
+    # Only later commits remain (commit 1 already has MENTORS entry, filtered out)
+    commits = [
+        CommitEntry(number=2, note="Second commit"),
+        CommitEntry(number=3, note="Third commit"),
+    ]
+    assert profile_matches_any_commit(profile, commits) is False
+
+
+def test_first_commit_matches_later_via_amend_note_regexes() -> None:
+    """Test that first_commit profile matches later commits via amend_note_regexes."""
+    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
+    from sase.mentor_config import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="complete",
+        mentors=[MentorConfig(mentor_name="complete", prompt="#mentor/complete")],
+        first_commit=True,
+        amend_note_regexes=[r"\[mentor:complete\]"],
+    )
+    # Commit 1 filtered out, but commit 2 has amend note that matches
+    commits = [CommitEntry(number=2, note="[mentor:complete] Review complete")]
+    assert profile_matches_any_commit(profile, commits) is True
+
+
 # Tests for WIP status being skipped entirely by mentor checks

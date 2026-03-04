@@ -99,3 +99,37 @@ mentor_profiles:
     # Should derive name from #foo -> foo
     assert profiles[0].mentors[0].mentor_name == "foo"
     assert profiles[0].mentors[0].prompt == "#foo"
+
+
+def test_load_mentor_profiles_parses_first_commit() -> None:
+    """Test that first_commit is parsed from YAML config."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: complete_profile
+    mentors:
+      - prompt: "#mentor/complete"
+    first_commit: true
+    amend_note_regexes:
+      - "\\\\[mentor:complete\\\\]"
+"""
+    with mentor_config_from_yaml(yaml_content):
+        profiles = _load_mentor_profiles()
+
+    assert len(profiles) == 1
+    assert profiles[0].first_commit is True
+
+
+def test_load_mentor_profiles_first_commit_defaults_to_false() -> None:
+    """Test that first_commit defaults to False when not specified."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: test_profile
+    mentors:
+      - prompt: "#foo"
+    file_globs:
+      - "*.py"
+"""
+    with mentor_config_from_yaml(yaml_content):
+        profiles = _load_mentor_profiles()
+
+    assert profiles[0].first_commit is False

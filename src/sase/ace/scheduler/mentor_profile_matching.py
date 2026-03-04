@@ -138,6 +138,11 @@ def profile_matches_any_commit(
     Returns:
         True if the profile matches any commit's diff/note.
     """
+    if profile.first_commit:
+        for commit in commits:
+            if commit.display_number == "1":
+                return True
+
     for commit in commits:
         diff_path = commit.diff
         amend_note = commit.note
