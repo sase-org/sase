@@ -221,9 +221,23 @@ class PromptStepMixin:
         if pre_step_meta:
             step_state.output = dict(pre_step_meta)
 
+        # Resolve model and LLM provider for TUI display in the step marker
+        from sase.llm_provider.registry import get_default_provider_name, get_provider
+
+        step_llm_provider = get_default_provider_name()
+        step_model = early.directives.model
+        if not step_model:
+            step_model = get_provider().resolve_model_name()
+
         # Save initial marker to show step is running in TUI
         step_state.status = StepStatus.IN_PROGRESS
-        self._save_prompt_step_marker(step.name, step_state, hidden=step.hidden)
+        self._save_prompt_step_marker(
+            step.name,
+            step_state,
+            hidden=step.hidden,
+            model=step_model,
+            llm_provider=step_llm_provider,
+        )
 
         # Invoke agent (skip preprocessing — we already did early+late)
         # Extract base workflow name (without project prefix) to avoid slashes in filenames

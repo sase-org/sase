@@ -423,6 +423,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         output_types: dict[str, str] | None = None,
         embedded_workflow_name: str | None = None,
         response_path: str | None = None,
+        model: str | None = None,
+        llm_provider: str | None = None,
     ) -> None:
         """Save a marker file for prompt steps to track them in the TUI.
 
@@ -476,6 +478,12 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         if response_path is None and existing_marker:
             response_path = existing_marker.get("response_path")
 
+        # Preserve model/llm_provider from existing marker when not provided
+        if model is None and existing_marker:
+            model = existing_marker.get("model")
+        if llm_provider is None and existing_marker:
+            llm_provider = existing_marker.get("llm_provider")
+
         marker_data = {
             "workflow_name": self.workflow.name,
             "step_name": step_name,
@@ -496,6 +504,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "response_path": response_path,
             "error": step_state.error,
             "traceback": step_state.traceback,
+            "model": model,
+            "llm_provider": llm_provider,
         }
         try:
             with open(marker_path, "w", encoding="utf-8") as f:

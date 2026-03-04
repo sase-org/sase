@@ -403,6 +403,8 @@ def load_workflow_agent_steps() -> tuple[list[Agent], dict[str, dict[str, str]]]
                     response_path=response_path,
                     embedded_workflow_name=embedded_workflow_name,
                     is_pre_prompt_step=is_pre_prompt_step,
+                    model=data.get("model"),
+                    llm_provider=data.get("llm_provider"),
                 )
                 # If step is still RUNNING but parent workflow failed,
                 # mark step as FAILED and propagate the workflow error
