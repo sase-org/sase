@@ -51,14 +51,13 @@ def preprocess_prompt_early(
     scope: dict[str, Any] | None = None,
     context: dict[str, Any] | None = None,
 ) -> PreprocessResult:
-    """Early preprocessing phase: directives, Jinja2 context, xprompt expansion.
+    """Early preprocessing phase: Jinja2 context, xprompt expansion, directives.
 
     Steps:
-        1. Protect fenced code blocks (so directive extraction is safe).
-        2. Extract ``%name`` prompt directives.
-        3. Unprotect fenced code blocks.
-        4. Render Jinja2 with *context* dict (for workflow variables).
-        5. Expand ``#name`` xprompt references.
+        1. Render Jinja2 with *context* dict (for workflow variables).
+        2. Expand ``#name`` xprompt references.
+        3. Extract ``%name`` prompt directives (after xprompt expansion so
+           directives embedded in xprompts are also discovered).
 
     Args:
         prompt: The raw prompt text.
@@ -73,10 +72,7 @@ def preprocess_prompt_early(
     """
     from sase.xprompt import process_xprompt_references
 
-    # 1. Directive extraction (fenced-block protection is built in)
-    prompt, directives = extract_prompt_directives(prompt)
-
-    # 4. Optional Jinja2 rendering (workflow variables)
+    # 1. Optional Jinja2 rendering (workflow variables)
     if context is not None:
         from sase.xprompt.workflow_executor_utils import render_template
 
@@ -85,10 +81,15 @@ def preprocess_prompt_early(
         prompt = render_template(prompt, context)
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
-    # 5. Expand xprompt references
+    # 2. Expand xprompt references
     prompt = process_xprompt_references(
         prompt, extra_xprompts=extra_xprompts, scope=scope
     )
+
+    # 3. Directive extraction (after xprompt expansion so directives inside
+    #    expanded xprompts are also discovered; fenced-block protection is
+    #    built into extract_prompt_directives)
+    prompt, directives = extract_prompt_directives(prompt)
 
     return PreprocessResult(prompt=prompt, directives=directives)
 
