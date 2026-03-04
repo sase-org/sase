@@ -245,7 +245,6 @@ def handle_add_tag(
             self.console.print(
                 f"[green]Tag {tag_name}={tag_value} added successfully[/green]"
             )
-            _sync_description_after_reword(workspace_dir, changespec, self.console)
             from ..hooks import reset_dollar_hooks
 
             reset_dollar_hooks(
