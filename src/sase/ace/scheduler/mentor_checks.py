@@ -7,17 +7,14 @@ from sase.mentor_config import (
 
 from ..changespec import (
     ChangeSpec,
-    MentorEntry,
-    MentorStatusLine,
     extract_pid_from_agent_suffix,
 )
 from ..display_helpers import is_entry_ref_suffix
 from ..hooks.processes import (
     is_process_running,
     kill_running_mentor_processes,
-    mark_mentor_agents_as_killed,
 )
-from ..mentors import update_changespec_mentors_field
+from ..mentors import set_mentor_status
 from .mentor_profile_matching import (
     LogCallback,
     add_matching_profiles_upfront,
@@ -224,13 +221,20 @@ def _kill_stale_mentors(
     if not killed:
         return updates
 
-    # Mark killed mentors and persist
-    updated_mentors = mark_mentor_agents_as_killed(changespec.mentors, killed)
-    update_changespec_mentors_field(
-        changespec.file_path,
-        changespec.name,
-        updated_mentors,
-    )
+    # Mark killed mentors via set_mentor_status (atomic, lock-safe)
+    for kill_entry, kill_sl, _kill_pid in killed:
+        set_mentor_status(
+            changespec.file_path,
+            changespec.name,
+            kill_entry.entry_id,
+            kill_sl.profile_name,
+            kill_sl.mentor_name,
+            kill_sl.status,
+            timestamp=kill_sl.timestamp,
+            suffix=kill_sl.suffix,
+            suffix_type="killed_agent",
+            duration=kill_sl.duration,
+        )
 
     # Release workspaces claimed by killed mentor processes
     from sase.running_field import get_claimed_workspaces, release_workspace
@@ -278,6 +282,8 @@ def _check_mentor_completion(
     """Check completion status of running mentors.
 
     Detects mentor processes that are no longer running and marks them as killed.
+    Uses set_mentor_status() for each dead mentor to avoid race conditions with
+    concurrent status updates.
 
     Args:
         changespec: The ChangeSpec to check.
@@ -294,58 +300,35 @@ def _check_mentor_completion(
     if not changespec.mentors:
         return updates
 
-    mentors_to_update: list[MentorEntry] = []
-    mentor_updates: list[str] = []
-
     for entry in changespec.mentors:
         if not entry.status_lines:
-            mentors_to_update.append(entry)
             continue
 
-        updated_status_lines: list[MentorStatusLine] = []
         for msl in entry.status_lines:
             if msl.suffix_type == "running_agent" and msl.suffix:
                 pid = extract_pid_from_agent_suffix(msl.suffix)
                 if pid is not None and not is_process_running(pid):
-                    # Process is dead - mark as killed
-                    updated_status_lines.append(
-                        MentorStatusLine(
-                            profile_name=msl.profile_name,
-                            mentor_name=msl.mentor_name,
-                            status="DEAD",
-                            timestamp=msl.timestamp,
-                            duration=msl.duration,
-                            suffix=msl.suffix,
-                            suffix_type="killed_agent",
+                    # Process is dead - mark as killed via set_mentor_status
+                    success = set_mentor_status(
+                        changespec.file_path,
+                        changespec.name,
+                        entry.entry_id,
+                        msl.profile_name,
+                        msl.mentor_name,
+                        "DEAD",
+                        timestamp=msl.timestamp,
+                        suffix=msl.suffix,
+                        suffix_type="killed_agent",
+                        duration=msl.duration,
+                    )
+                    if success:
+                        msg = (
+                            f"Marked dead MENTOR "
+                            f"'{msl.profile_name}:{msl.mentor_name}' "
+                            f"({entry.entry_id}) - PID {pid} not running"
                         )
-                    )
-                    mentor_updates.append(
-                        f"Marked dead MENTOR '{msl.profile_name}:{msl.mentor_name}' "
-                        f"({entry.entry_id}) - PID {pid} not running"
-                    )
-                else:
-                    updated_status_lines.append(msl)
-            else:
-                updated_status_lines.append(msl)
-
-        mentors_to_update.append(
-            MentorEntry(
-                entry_id=entry.entry_id,
-                profiles=entry.profiles,
-                status_lines=updated_status_lines,
-            )
-        )
-
-    if mentor_updates:
-        success = update_changespec_mentors_field(
-            changespec.file_path,
-            changespec.name,
-            mentors_to_update,
-        )
-        if success:
-            updates.extend(mentor_updates)
-            for msg in mentor_updates:
-                log(msg, "cyan")
+                        updates.append(msg)
+                        log(msg, "cyan")
 
     return updates
 

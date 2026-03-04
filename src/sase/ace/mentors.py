@@ -393,6 +393,53 @@ def set_mentor_status(
         return False
 
 
+def _merge_mentor_status_lines(
+    current_mentors: list[MentorEntry],
+    caller_mentors: list[MentorEntry],
+) -> list[MentorEntry]:
+    """Merge status_lines from disk that the caller doesn't have.
+
+    Preserves any (profile_name, mentor_name) status_lines that exist on disk
+    but NOT in the caller's data (they were added after the caller's read).
+
+    Args:
+        current_mentors: Mentor entries freshly read from disk inside the lock.
+        caller_mentors: Mentor entries provided by the caller (possibly stale).
+
+    Returns:
+        The caller_mentors list with missing status_lines merged in.
+    """
+    # Build lookup of caller's status line keys per entry_id
+    caller_status_keys: dict[str, set[tuple[str, str]]] = {}
+    caller_entry_lookup: dict[str, MentorEntry] = {}
+    for entry in caller_mentors:
+        keys: set[tuple[str, str]] = set()
+        if entry.status_lines:
+            for sl in entry.status_lines:
+                keys.add((sl.profile_name, sl.mentor_name))
+        caller_status_keys[entry.entry_id] = keys
+        caller_entry_lookup[entry.entry_id] = entry
+
+    # For each entry on disk, find status_lines not in caller's data
+    for disk_entry in current_mentors:
+        if disk_entry.entry_id not in caller_entry_lookup:
+            continue  # Caller doesn't have this entry, skip
+        if not disk_entry.status_lines:
+            continue
+
+        caller_keys = caller_status_keys[disk_entry.entry_id]
+        caller_entry = caller_entry_lookup[disk_entry.entry_id]
+
+        for sl in disk_entry.status_lines:
+            if (sl.profile_name, sl.mentor_name) not in caller_keys:
+                # Status line exists on disk but not in caller's data
+                if caller_entry.status_lines is None:
+                    caller_entry.status_lines = []
+                caller_entry.status_lines.append(sl)
+
+    return caller_mentors
+
+
 def update_changespec_mentors_field(
     project_file: str,
     changespec_name: str,
@@ -401,7 +448,8 @@ def update_changespec_mentors_field(
     """Update the MENTORS field for a ChangeSpec.
 
     Replaces the entire MENTORS field with the provided mentor entries.
-    This is useful for bulk updates like marking killed agents.
+    Uses locking and merges status_lines from disk that the caller may
+    not have (added by concurrent set_mentor_status calls).
 
     Args:
         project_file: Path to the project file.
@@ -412,18 +460,30 @@ def update_changespec_mentors_field(
         True if successful, False otherwise.
     """
     try:
-        with open(project_file, encoding="utf-8") as f:
-            lines = f.readlines()
+        with changespec_lock(project_file):
+            # Re-read current state inside the lock
+            current_changespecs = parse_project_file(project_file)
+            current_mentors: list[MentorEntry] = []
+            for cs in current_changespecs:
+                if cs.name == changespec_name:
+                    current_mentors = list(cs.mentors) if cs.mentors else []
+                    break
 
-        updated_lines = _apply_mentors_update(lines, changespec_name, mentors)
-        content = "".join(updated_lines)
+            # Merge status_lines from disk that caller doesn't have
+            merged = _merge_mentor_status_lines(current_mentors, mentors)
 
-        write_changespec_atomic(
-            project_file,
-            content,
-            f"Update MENTORS field for {changespec_name}",
-        )
-        return True
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            updated_lines = _apply_mentors_update(lines, changespec_name, merged)
+            content = "".join(updated_lines)
+
+            write_changespec_atomic(
+                project_file,
+                content,
+                f"Update MENTORS field for {changespec_name}",
+            )
+            return True
     except Exception:
         return False
 
