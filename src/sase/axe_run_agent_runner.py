@@ -327,6 +327,7 @@ def main() -> None:
 
             axe_cfg = load_axe_config()
             max_retries = axe_cfg.max_agent_retries
+            retry_delay = axe_cfg.agent_retry_delay_seconds
 
             anon_workflow = create_anonymous_workflow(prompt)
 
@@ -388,7 +389,11 @@ def main() -> None:
                                 file=sys.stderr,
                             )
                             last_error = error_snippet
-                            time.sleep(5)
+                            print(
+                                f"Waiting {retry_delay}s before retry...",
+                                file=sys.stderr,
+                            )
+                            time.sleep(retry_delay)
                             continue
                         else:
                             print(
@@ -411,8 +416,12 @@ def main() -> None:
                             file=sys.stderr,
                         )
                         tb_mod.print_exc()
-                        # Brief delay before retry
-                        time.sleep(5)
+                        # Delay before retry
+                        print(
+                            f"Waiting {retry_delay}s before retry...",
+                            file=sys.stderr,
+                        )
+                        time.sleep(retry_delay)
                     else:
                         print(
                             f"Attempt {attempt}/{max_retries} failed "
