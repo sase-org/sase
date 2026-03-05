@@ -19,4 +19,4 @@ input:
 @{{ output_file }} file. Can you help me fix this command by making the appropriate file changes? Verify that your fix
 worked when you are done by re-running that command.
 
-%model:#pro #propose
+#propose
