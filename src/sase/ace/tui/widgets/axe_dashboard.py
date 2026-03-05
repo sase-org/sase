@@ -147,15 +147,23 @@ class _AxeStatusSection(Static):
             text.append("Cycles: ", style="bold #87D7FF")
             text.append(f"{self._full_cycles}", style="#00D7AF bold")
 
-            # Runners (current/max) - always show, "..." if no status
+            # Hook runners (current/max)
             text.append("  │  ", style="dim")
-            text.append("Runners: ", style="bold #87D7FF")
+            text.append("Hooks: ", style="bold #87D7FF")
             if self._status:
-                max_total = (
-                    self._status.max_hook_runners + self._status.max_agent_runners
-                )
                 text.append(
-                    f"({self._status.current_runners}/{max_total})",
+                    f"({self._status.current_hook_runners}/{self._status.max_hook_runners})",
+                    style="#00D7AF",
+                )
+            else:
+                text.append("...", style="#00D7AF")
+
+            # Agent runners (current/max)
+            text.append("  │  ", style="dim")
+            text.append("Agents: ", style="bold #87D7FF")
+            if self._status:
+                text.append(
+                    f"({self._status.current_agent_runners}/{self._status.max_agent_runners})",
                     style="#00D7AF",
                 )
             else:

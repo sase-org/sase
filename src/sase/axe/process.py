@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sase.ace.changespec import count_all_runners_global
+from sase.ace.changespec import count_agent_runners_global, count_hook_runners_global
 from sase.ace.hooks.processes import is_process_running
 
 from .config import AxeConfig, load_axe_config
@@ -133,7 +133,8 @@ def get_axe_status() -> dict | None:
         "max_agent_runners": status.max_agent_runners,
         "zombie_timeout": status.zombie_timeout,
         "query": status.query,
-        "current_runners": status.current_runners,
+        "current_hook_runners": status.current_hook_runners,
+        "current_agent_runners": status.current_agent_runners,
         "last_full_cycle": status.last_full_cycle,
         "last_hook_cycle": status.last_hook_cycle,
         "next_full_cycle": status.next_full_cycle,
@@ -161,12 +162,13 @@ def get_axe_status() -> dict | None:
     if lumberjacks_status:
         result["lumberjacks"] = lumberjacks_status
 
-    # Derive started_at and current_runners from live data — the legacy
-    # status.json is not written by the new orchestrator architecture so
-    # its fields can be stale from a previous run.
+    # Derive started_at and current runner counts from live data — the
+    # legacy status.json is not written by the new orchestrator
+    # architecture so its fields can be stale from a previous run.
     if lj_start_times:
         result["started_at"] = min(lj_start_times)
-    result["current_runners"] = count_all_runners_global()
+    result["current_hook_runners"] = count_hook_runners_global()
+    result["current_agent_runners"] = count_agent_runners_global()
 
     return result
 

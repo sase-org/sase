@@ -40,7 +40,8 @@ class AxeStatus:
     max_agent_runners: int
     query: str
     zombie_timeout: int
-    current_runners: int
+    current_hook_runners: int
+    current_agent_runners: int
     last_full_cycle: str | None
     last_hook_cycle: str | None
     next_full_cycle: str | None
