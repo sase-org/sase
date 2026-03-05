@@ -53,6 +53,8 @@ def save_diff(
 
     with open(diff_path, "w", encoding="utf-8") as f:
         f.write(diff_content)
+        if not diff_content.endswith("\n"):
+            f.write("\n")
 
     # Return path with ~ for home directory
     return diff_path.replace(str(Path.home()), "~")

@@ -136,6 +136,8 @@ class GitCommon(CommandRunner):
         try:
             with open(diff_name, "w") as f:
                 f.write(diff_out.stdout)
+                if not diff_out.stdout.endswith("\n"):
+                    f.write("\n")
         except OSError as e:
             return (False, f"Failed to write diff file: {e}")
         reset_out = self._run(["git", "reset", "--hard", "HEAD"], cwd, timeout=timeout)

@@ -254,7 +254,10 @@ def save_diff_to_file(
             return (False, f"hg diff failed: {diff_text}")
 
         with open(diff_file, "w", encoding="utf-8") as f:
-            f.write(diff_text if diff_text else "")
+            content = diff_text if diff_text else ""
+            f.write(content)
+            if content and not content.endswith("\n"):
+                f.write("\n")
 
         return (True, None)
     except Exception as e:

@@ -99,6 +99,8 @@ def _save_committed_diff(
 
     with open(diff_path, "w", encoding="utf-8") as f:
         f.write(result.stdout)
+        if not result.stdout.endswith("\n"):
+            f.write("\n")
 
     return shorten_path(diff_path)
 
