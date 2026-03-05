@@ -87,6 +87,8 @@ def _calculate_entry_display_width(
         parts.append(f"{_DONE_ICON} ")
     dt = agent.get_display_type(is_expanded=is_expanded)
     parts.extend([f"[{dt}] ", agent.display_name, " ", f"({agent.status})"])
+    if agent.retry_attempt > 1:
+        parts.append(f" ×{agent.retry_attempt}")
     if agent.agent_name:
         parts.append(f" @{agent.agent_name}")
     if fold_annotation:
@@ -287,6 +289,10 @@ class AgentList(OptionList):
         else:
             text.append(agent.status, style="dim")
         text.append(")", style="dim")
+
+        # Retry attempt indicator (e.g., "×2" for second attempt)
+        if agent.retry_attempt > 1:
+            text.append(f" ×{agent.retry_attempt}", style="bold #FF8700")  # Orange
 
         # Fold annotation for workflow parents
         if fold_annotation:

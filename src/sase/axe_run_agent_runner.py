@@ -174,6 +174,7 @@ def main() -> None:
     agent_model: str | None = None
     agent_llm_provider: str | None = None
     agent_vcs_provider: str | None = None
+    attempt: int = 1
 
     try:
         try:
@@ -321,15 +322,59 @@ def main() -> None:
             if directives.plan:
                 os.environ["SASE_AGENT_PLAN_MODE"] = "1"
 
+            # Load max retries from config
+            from sase.axe.config import load_axe_config
+
+            axe_cfg = load_axe_config()
+            max_retries = axe_cfg.max_agent_retries
+
             anon_workflow = create_anonymous_workflow(prompt)
-            result = execute_workflow(
-                anon_workflow.name,
-                [],
-                {"cl_name": cl_name},
-                artifacts_dir=artifacts_dir,
-                silent=True,
-                workflow_obj=anon_workflow,
-            )
+
+            # Retry loop for transient failures
+            result = None
+            last_error: Exception | None = None
+            for attempt in range(1, max_retries + 1):
+                if attempt > 1:
+                    # Update agent_meta.json with retry attempt number
+                    agent_meta["retry_attempt"] = attempt
+                    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+                    with open(meta_path, "w", encoding="utf-8") as f:
+                        json.dump(agent_meta, f, indent=2)
+                    print(f"\n=== RETRY ATTEMPT {attempt}/{max_retries} ===\n")
+
+                try:
+                    result = execute_workflow(
+                        anon_workflow.name,
+                        [],
+                        {"cl_name": cl_name},
+                        artifacts_dir=artifacts_dir,
+                        silent=True,
+                        workflow_obj=anon_workflow,
+                    )
+                    last_error = None
+                    break
+                except Exception as retry_exc:
+                    last_error = retry_exc
+                    if attempt < max_retries:
+                        import traceback as tb_mod
+
+                        print(
+                            f"Attempt {attempt}/{max_retries} failed: {retry_exc}",
+                            file=sys.stderr,
+                        )
+                        tb_mod.print_exc()
+                        # Brief delay before retry
+                        time.sleep(5)
+                    else:
+                        print(
+                            f"Attempt {attempt}/{max_retries} failed "
+                            f"(max retries reached): {retry_exc}",
+                            file=sys.stderr,
+                        )
+
+            if last_error is not None:
+                raise last_error
+            assert result is not None
 
             # Extract response text for chat history
             response_content = result.response_text or ""
@@ -382,6 +427,8 @@ def main() -> None:
                 done_marker["llm_provider"] = agent_llm_provider
             if agent_vcs_provider:
                 done_marker["vcs_provider"] = agent_vcs_provider
+            if attempt > 1:
+                done_marker["retry_attempt"] = attempt
             done_path = os.path.join(artifacts_dir, "done.json")
             with open(done_path, "w", encoding="utf-8") as f:
                 json.dump(done_marker, f, indent=2)
@@ -416,6 +463,8 @@ def main() -> None:
                     error_done["llm_provider"] = agent_llm_provider
                 if agent_vcs_provider:
                     error_done["vcs_provider"] = agent_vcs_provider
+                if attempt > 1:
+                    error_done["retry_attempt"] = attempt
                 done_path = os.path.join(artifacts_dir, "done.json")
                 with open(done_path, "w", encoding="utf-8") as f:
                     json.dump(error_done, f, indent=2)

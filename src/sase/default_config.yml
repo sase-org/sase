@@ -4,6 +4,7 @@ ace:
 axe:
   max_hook_runners: 3
   max_agent_runners: 3
+  max_agent_retries: 3
   zombie_timeout_seconds: 7200
   query: ""
   chop_script_dirs: []

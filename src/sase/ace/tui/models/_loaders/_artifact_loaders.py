@@ -46,6 +46,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.waiting_for = data["wait_for"]
     if data.get("approve"):
         agent.approve = True
+    if data.get("retry_attempt"):
+        agent.retry_attempt = data["retry_attempt"]
 
     # Check for waiting.json to set WAITING status (takes precedence over PLANNING
     # since the agent can't plan until its dependencies are resolved)
@@ -238,6 +240,7 @@ def load_done_agents(
                         vcs_provider=data.get("vcs_provider"),
                         agent_name=data.get("name"),
                         approve=bool(data.get("approve")),
+                        retry_attempt=data.get("retry_attempt", 0),
                     )
                 )
             except Exception:

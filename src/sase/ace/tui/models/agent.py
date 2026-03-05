@@ -135,6 +135,9 @@ class Agent:
     # Whether this agent was launched with %approve (fully autonomous)
     approve: bool = False
 
+    # Current retry attempt (1 = first try, 2 = first retry, etc.)
+    retry_attempt: int = 0
+
     def get_display_type(self, *, is_expanded: bool = False) -> str:
         """Compute display type with optional fold-state context.
 
