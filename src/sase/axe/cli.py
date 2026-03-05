@@ -65,7 +65,12 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
 
     query: str = getattr(args, "query", "") or config.query
 
-    max_runners: int = getattr(args, "max_runners", None) or config.max_runners
+    max_hook_runners: int = (
+        getattr(args, "max_hook_runners", None) or config.max_hook_runners
+    )
+    max_agent_runners: int = (
+        getattr(args, "max_agent_runners", None) or config.max_agent_runners
+    )
     zombie_timeout: int = (
         getattr(args, "zombie_timeout", None) or config.zombie_timeout_seconds
     )
@@ -90,7 +95,8 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     serialize_changespecs(filtered_changespecs, filtered_cs_file)
 
     ctx = ChopScriptContext(
-        max_runners=max_runners,
+        max_hook_runners=max_hook_runners,
+        max_agent_runners=max_agent_runners,
         zombie_timeout_seconds=zombie_timeout,
         query=query,
         lumberjack_name="_oneshot",
@@ -162,13 +168,19 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
 
     # Apply CLI overrides to AxeConfig
     query = getattr(args, "query", "") or config.query
-    max_runners = getattr(args, "max_runners", None) or config.max_runners
+    max_hook_runners = (
+        getattr(args, "max_hook_runners", None) or config.max_hook_runners
+    )
+    max_agent_runners = (
+        getattr(args, "max_agent_runners", None) or config.max_agent_runners
+    )
     zombie_timeout = (
         getattr(args, "zombie_timeout", None) or config.zombie_timeout_seconds
     )
 
     config = AxeConfig(
-        max_runners=max_runners,
+        max_hook_runners=max_hook_runners,
+        max_agent_runners=max_agent_runners,
         zombie_timeout_seconds=zombie_timeout,
         query=query,
         chop_script_dirs=config.chop_script_dirs,

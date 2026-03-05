@@ -106,11 +106,16 @@ def create_parser() -> argparse.ArgumentParser:
         "start", help="Start the axe orchestrator (spawns all lumberjacks)"
     )
     axe_start_parser.add_argument(
-        "-r",
-        "--max-runners",
+        "--max-hook-runners",
         type=int,
         default=None,
-        help="Maximum concurrent runners (hooks, agents, mentors) globally (default: 5)",
+        help="Maximum concurrent hook runners (default: 3)",
+    )
+    axe_start_parser.add_argument(
+        "--max-agent-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent agent runners (default: 3)",
     )
     axe_start_parser.add_argument(
         "-q",
@@ -171,11 +176,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="Query string for filtering ChangeSpecs",
     )
     axe_lj_run_parser.add_argument(
-        "-r",
-        "--max-runners",
+        "--max-hook-runners",
         type=int,
         default=None,
-        help="Maximum concurrent runners globally",
+        help="Maximum concurrent hook runners",
+    )
+    axe_lj_run_parser.add_argument(
+        "--max-agent-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent agent runners",
     )
     axe_lj_run_parser.add_argument(
         "--zombie-timeout",

@@ -2,7 +2,8 @@ ace:
   inactive_seconds: 600
 
 axe:
-  max_runners: 5
+  max_hook_runners: 3
+  max_agent_runners: 3
   zombie_timeout_seconds: 7200
   query: ""
   chop_script_dirs: []

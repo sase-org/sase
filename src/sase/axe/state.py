@@ -36,7 +36,8 @@ class AxeStatus:
     status: Literal["running", "stopped", "error"]
     full_check_interval: int
     hook_interval: int
-    max_runners: int
+    max_hook_runners: int
+    max_agent_runners: int
     query: str
     zombie_timeout: int
     current_runners: int

@@ -275,38 +275,54 @@ def count_running_agents_global() -> int:
     return count
 
 
-def count_all_runners_global() -> int:
-    """Count all running processes globally (hooks and agents).
+def count_hook_runners_global() -> int:
+    """Count running hook processes globally, skipping unlimited hooks.
 
-    This provides a unified count of all concurrent runners:
-    - Running hooks (suffix_type="running_process")
-    - Running agents (suffix_type="running_agent") in HOOKS, COMMENTS, and MENTORS
+    Only counts ``running_process`` entries from hooks that are NOT
+    ``$``-prefixed (unlimited).  This is the count used to enforce the
+    ``max_hook_runners`` limit.
 
     Returns:
-        Total count of all running processes globally.
+        Total count of limited running hook processes globally.
     """
     from . import find_all_changespecs
 
     count = 0
     for changespec in find_all_changespecs():
-        # Count running hooks and running agents in HOOKS
         if changespec.hooks:
             for hook in changespec.hooks:
-                # Skip $-prefixed hooks from runner count (unlimited concurrency)
                 if hook.is_unlimited:
                     continue
                 if hook.status_lines:
                     for sl in hook.status_lines:
                         if sl.suffix_type == "running_process":
                             count += 1
+    return count
+
+
+def count_agent_runners_global() -> int:
+    """Count running agents globally (HOOKS, COMMENTS, and MENTORS).
+
+    Counts ``running_agent`` entries across all three sections.  This is
+    the count used to enforce the ``max_agent_runners`` limit.
+
+    Returns:
+        Total count of running agents globally.
+    """
+    from . import find_all_changespecs
+
+    count = 0
+    for changespec in find_all_changespecs():
+        if changespec.hooks:
+            for hook in changespec.hooks:
+                if hook.status_lines:
+                    for sl in hook.status_lines:
                         if sl.suffix_type == "running_agent":
                             count += 1
-        # Count running agents in COMMENTS (CRS)
         if changespec.comments:
             for comment in changespec.comments:
                 if comment.suffix_type == "running_agent":
                     count += 1
-        # Count running agents in MENTORS
         if changespec.mentors:
             for mentor in changespec.mentors:
                 if mentor.status_lines:
@@ -314,3 +330,16 @@ def count_all_runners_global() -> int:
                         if msl.suffix_type == "running_agent":
                             count += 1
     return count
+
+
+def count_all_runners_global() -> int:
+    """Count all running processes globally (hooks and agents).
+
+    This provides a unified count of all concurrent runners:
+    - Running hooks (suffix_type="running_process"), skipping unlimited
+    - Running agents (suffix_type="running_agent") in HOOKS, COMMENTS, and MENTORS
+
+    Returns:
+        Total count of all running processes globally.
+    """
+    return count_hook_runners_global() + count_agent_runners_global()

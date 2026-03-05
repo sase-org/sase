@@ -55,7 +55,8 @@ class Orchestrator:
         # Forward relevant options
         if self.config.query:
             cmd.extend(["-q", self.config.query])
-        cmd.extend(["-r", str(self.config.max_runners)])
+        cmd.extend(["--max-hook-runners", str(self.config.max_hook_runners)])
+        cmd.extend(["--max-agent-runners", str(self.config.max_agent_runners)])
         cmd.extend(["--zombie-timeout", str(self.config.zombie_timeout_seconds)])
 
         # Ensure log directory exists

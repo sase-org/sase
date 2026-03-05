@@ -23,7 +23,7 @@ from ...changespec import (
     ChangeSpec,
     CommentEntry,
     HookEntry,
-    count_all_runners_global,
+    count_agent_runners_global,
     get_current_and_proposal_entry_ids,
 )
 from ...comments import (
@@ -531,7 +531,7 @@ def start_stale_workflows(
     # Check global concurrency limit before starting any workflows
     # Include runners started this cycle (across all ChangeSpecs) that aren't
     # yet written to disk
-    current_running = count_all_runners_global() + runners_started_this_cycle
+    current_running = count_agent_runners_global() + runners_started_this_cycle
     if current_running >= max_runners:
         log(
             f"Skipping workflow start: {current_running} runners running "

@@ -35,7 +35,9 @@ def lj_config() -> LumberjackConfig:
 
 @pytest.fixture
 def axe_config() -> AxeConfig:
-    return AxeConfig(max_runners=3, zombie_timeout_seconds=3600, query="")
+    return AxeConfig(
+        max_hook_runners=3, max_agent_runners=3, zombie_timeout_seconds=3600, query=""
+    )
 
 
 def _ok_result() -> subprocess.CompletedProcess[str]:

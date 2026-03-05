@@ -51,7 +51,7 @@ Merge semantics:
 | **Scalars** | Override (overlay value replaces base value).                          |
 
 For example, given a base file with two mentor profiles and an overlay that adds a third, the merged result contains all
-three profiles. If both files define the same scalar key (e.g., `axe.max_runners`), the overlay wins.
+three profiles. If both files define the same scalar key (e.g., `axe.max_hook_runners`), the overlay wins.
 
 Source: `src/sase/config.py`
 
@@ -127,7 +127,8 @@ lumberjacks, each running a set of chops on a fixed interval. Defaults are provi
 
 ```yaml
 axe:
-  max_runners: 5 # concurrent runners (default: 5)
+  max_hook_runners: 3 # concurrent hook runners (default: 3)
+  max_agent_runners: 3 # concurrent agent runners (default: 3)
   zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
   query: "" # query filter for ChangeSpecs (default: all)
   chop_script_dirs: [] # additional directories to search for chop scripts
@@ -172,13 +173,14 @@ axe:
 
 **Top-level fields:**
 
-| Field                    | Type         | Default | Description                                                                 |
-| ------------------------ | ------------ | ------- | --------------------------------------------------------------------------- |
-| `max_runners`            | int          | `5`     | Maximum concurrent runners (hooks, agents, mentors) across all ChangeSpecs. |
-| `zombie_timeout_seconds` | int          | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.      |
-| `query`                  | string       | `""`    | Query string for filtering ChangeSpecs (empty = all).                       |
-| `chop_script_dirs`       | list[string] | `[]`    | Additional directories to search for external chop scripts.                 |
-| `lumberjacks`            | dict         | -       | Mapping of lumberjack name → config (see below).                            |
+| Field                    | Type         | Default | Description                                                                   |
+| ------------------------ | ------------ | ------- | ----------------------------------------------------------------------------- |
+| `max_hook_runners`       | int          | `3`     | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
+| `max_agent_runners`      | int          | `3`     | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
+| `zombie_timeout_seconds` | int          | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.        |
+| `query`                  | string       | `""`    | Query string for filtering ChangeSpecs (empty = all).                         |
+| `chop_script_dirs`       | list[string] | `[]`    | Additional directories to search for external chop scripts.                   |
+| `lumberjacks`            | dict         | -       | Mapping of lumberjack name → config (see below).                              |
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
@@ -214,8 +216,8 @@ chops:
   - hook_checks
 ```
 
-CLI flags on `sase axe start` override `max_runners`, `zombie_timeout_seconds`, and `query` for a single run (see
-[CLI Flags](#cli-flags)).
+CLI flags on `sase axe start` override `max_hook_runners`, `max_agent_runners`, `zombie_timeout_seconds`, and `query`
+for a single run (see [CLI Flags](#cli-flags)).
 
 Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
 
@@ -395,11 +397,12 @@ These are set automatically by sase when launching agent subprocesses and are no
 
 ### `sase axe start`
 
-| Flag                | Values        | Default          | Description                                         |
-| ------------------- | ------------- | ---------------- | --------------------------------------------------- |
-| `-q, --query`       | string        | `""` (all)       | Query string for filtering ChangeSpecs.             |
-| `-r, --max-runners` | int           | config or `5`    | Maximum concurrent runners globally.                |
-| `--zombie-timeout`  | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
+| Flag                  | Values        | Default          | Description                                         |
+| --------------------- | ------------- | ---------------- | --------------------------------------------------- |
+| `-q, --query`         | string        | `""` (all)       | Query string for filtering ChangeSpecs.             |
+| `--max-hook-runners`  | int           | config or `3`    | Maximum concurrent hook runners.                    |
+| `--max-agent-runners` | int           | config or `3`    | Maximum concurrent agent runners.                   |
+| `--zombie-timeout`    | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
 
 For `sase axe start`, CLI flags take precedence over values from the `axe` config section in `sase.yml`. If neither is
 set, the built-in defaults from `default_config.yml` are used.

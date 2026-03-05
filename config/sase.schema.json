@@ -30,10 +30,15 @@
           "description": "Zombie detection timeout in seconds. Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
           "default": 7200
         },
-        "max_runners": {
+        "max_hook_runners": {
           "type": "integer",
-          "description": "Maximum concurrent runners (hooks, agents, mentors) globally",
-          "default": 5
+          "description": "Maximum concurrent hook runners (non-$ hooks)",
+          "default": 3
+        },
+        "max_agent_runners": {
+          "type": "integer",
+          "description": "Maximum concurrent agent runners (agents and mentors)",
+          "default": 3
         },
         "query": {
           "type": "string",

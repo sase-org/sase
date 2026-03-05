@@ -23,7 +23,8 @@ class TestChopScriptContextRoundTrip:
 
     def test_round_trip(self, tmp_path):
         ctx = ChopScriptContext(
-            max_runners=3,
+            max_hook_runners=3,
+            max_agent_runners=3,
             zombie_timeout_seconds=600,
             query="status:Ready",
             lumberjack_name="hooks",

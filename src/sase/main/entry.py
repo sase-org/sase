@@ -345,8 +345,15 @@ def main() -> NoReturn:
             config = load_axe_config()
 
             # Apply CLI overrides
-            max_runners = (
-                args.max_runners if args.max_runners is not None else config.max_runners
+            max_hook_runners = (
+                args.max_hook_runners
+                if args.max_hook_runners is not None
+                else config.max_hook_runners
+            )
+            max_agent_runners = (
+                args.max_agent_runners
+                if args.max_agent_runners is not None
+                else config.max_agent_runners
             )
             zombie_timeout = (
                 args.zombie_timeout
@@ -356,7 +363,8 @@ def main() -> NoReturn:
             query = args.query or config.query
 
             config = AxeConfig(
-                max_runners=max_runners,
+                max_hook_runners=max_hook_runners,
+                max_agent_runners=max_agent_runners,
                 zombie_timeout_seconds=zombie_timeout,
                 query=query,
                 lumberjacks=config.lumberjacks,

@@ -38,7 +38,8 @@ def test_lumberjack_config_default_chops() -> None:
 def test_axe_config_defaults() -> None:
     """Test AxeConfig has correct defaults."""
     cfg = AxeConfig()
-    assert cfg.max_runners == 5
+    assert cfg.max_hook_runners == 3
+    assert cfg.max_agent_runners == 3
     assert cfg.zombie_timeout_seconds == 7200
     assert cfg.query == ""
     assert cfg.lumberjacks == {}
@@ -122,11 +123,11 @@ def test_load_axe_config_partial_fields_use_defaults() -> None:
     """Test that missing fields use defaults."""
     data = yaml.safe_load("""
 axe:
-  max_runners: 7
+  max_hook_runners: 7
 """)
     with patch("sase.axe.config.load_merged_config", return_value=data):
         config = load_axe_config()
 
-    assert config.max_runners == 7
+    assert config.max_hook_runners == 7
     assert config.zombie_timeout_seconds == 7200
     assert config.query == ""

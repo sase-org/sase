@@ -151,8 +151,11 @@ class _AxeStatusSection(Static):
             text.append("  │  ", style="dim")
             text.append("Runners: ", style="bold #87D7FF")
             if self._status:
+                max_total = (
+                    self._status.max_hook_runners + self._status.max_agent_runners
+                )
                 text.append(
-                    f"({self._status.current_runners}/{self._status.max_runners})",
+                    f"({self._status.current_runners}/{max_total})",
                     style="#00D7AF",
                 )
             else:

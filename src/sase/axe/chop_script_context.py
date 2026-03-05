@@ -23,7 +23,8 @@ from sase.ace.changespec import (
 class ChopScriptContext:
     """JSON-serializable context passed to an external chop script."""
 
-    max_runners: int
+    max_hook_runners: int
+    max_agent_runners: int
     zombie_timeout_seconds: int
     query: str
     lumberjack_name: str

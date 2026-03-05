@@ -15,7 +15,7 @@ from ..changespec import (
     ChangeSpec,
     HookEntry,
     HookStatusLine,
-    count_all_runners_global,
+    count_hook_runners_global,
     get_current_and_proposal_entry_ids,
 )
 from ..constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
@@ -458,7 +458,7 @@ def check_hooks(
         # Check global concurrency limit before starting any hooks
         # Include runners started this cycle (across all ChangeSpecs) that aren't
         # yet written to disk
-        current_running = count_all_runners_global() + runners_started_this_cycle
+        current_running = count_hook_runners_global() + runners_started_this_cycle
         available_slots = max(0, max_runners - current_running)
         limit_logged = False
 

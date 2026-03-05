@@ -27,7 +27,6 @@ from .chop_script_context import (
 )
 from .chop_script_runner import discover_chop_script, run_chop_script
 from .config import AxeConfig, ChopConfig, LumberjackConfig
-from .runner_pool import RunnerPool
 from .state import (
     AxeMetrics,
     LumberjackMetrics,
@@ -69,7 +68,6 @@ class Lumberjack:
 
         self.console = Console(record=True, force_terminal=True)
         self.scheduler = schedule.Scheduler()
-        self.runner_pool = RunnerPool(axe_config.max_runners)
 
         self._state_dir = ensure_lumberjack_dirs(name)
         self._log_file_path = lumberjack_log_path(name)
@@ -114,7 +112,8 @@ class Lumberjack:
         serialize_changespecs(filtered_changespecs, filtered_cs_file)
 
         ctx = ChopScriptContext(
-            max_runners=self.axe_config.max_runners,
+            max_hook_runners=self.axe_config.max_hook_runners,
+            max_agent_runners=self.axe_config.max_agent_runners,
             zombie_timeout_seconds=self.axe_config.zombie_timeout_seconds,
             query=self.axe_config.query,
             lumberjack_name=self.name,

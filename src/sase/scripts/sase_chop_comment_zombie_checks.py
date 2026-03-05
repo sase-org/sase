@@ -8,7 +8,6 @@ from sase.axe.chop_script_context import (
     read_chop_context,
 )
 from sase.axe.hook_jobs import HookJobRunner
-from sase.axe.runner_pool import RunnerPool
 from sase.axe.state import AxeMetrics
 
 
@@ -24,10 +23,10 @@ def main() -> None:
         print(message)
 
     runner = HookJobRunner(
-        RunnerPool(ctx.max_runners),
         AxeMetrics(),
         ctx.zombie_timeout_seconds,
-        ctx.max_runners,
+        ctx.max_hook_runners,
+        ctx.max_agent_runners,
         log,
     )
     runner.run_comment_zombie_checks(filtered)

@@ -388,9 +388,9 @@ def check_mentors(
     # Check global concurrency limit
     # Include runners started this cycle (across all ChangeSpecs) that aren't
     # yet written to disk
-    from ..changespec import count_all_runners_global
+    from ..changespec import count_agent_runners_global
 
-    current_running = count_all_runners_global() + runners_started_this_cycle
+    current_running = count_agent_runners_global() + runners_started_this_cycle
 
     if current_running >= max_runners:
         log(

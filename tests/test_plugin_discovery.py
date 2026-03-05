@@ -109,7 +109,7 @@ def test_config_plugin_user_overrides_plugin(tmp_path: Path) -> None:
     fake_module = types.ModuleType("fake_config_plugin")
     fake_module.__name__ = "fake_config_plugin"
 
-    plugin_config_text = yaml.dump({"axe": {"max_runners": 99}})
+    plugin_config_text = yaml.dump({"axe": {"max_hook_runners": 99}})
 
     mock_ref = MagicMock()
     mock_ref.read_text.return_value = plugin_config_text
@@ -119,7 +119,7 @@ def test_config_plugin_user_overrides_plugin(tmp_path: Path) -> None:
 
     # User config that overrides plugin
     user_config = tmp_path / "sase.yml"
-    user_config.write_text(yaml.dump({"axe": {"max_runners": 3}}))
+    user_config.write_text(yaml.dump({"axe": {"max_hook_runners": 3}}))
 
     with (
         patch("sase.config.CONFIG_DIR", tmp_path),
@@ -138,7 +138,7 @@ def test_config_plugin_user_overrides_plugin(tmp_path: Path) -> None:
         result = load_merged_config()
 
     # User's value wins over plugin
-    assert result["axe"]["max_runners"] == 3
+    assert result["axe"]["max_hook_runners"] == 3
 
 
 def test_config_plugin_disabled_returns_defaults(tmp_path: Path) -> None:
@@ -150,7 +150,7 @@ def test_config_plugin_disabled_returns_defaults(tmp_path: Path) -> None:
         result = load_merged_config()
 
     # Should have the default value, not any plugin value
-    assert result["axe"]["max_runners"] == 5
+    assert result["axe"]["max_hook_runners"] == 3
 
 
 # === Tests for VCS registry with entry points ===

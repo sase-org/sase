@@ -30,7 +30,8 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 @pytest.fixture
 def axe_config() -> AxeConfig:
     return AxeConfig(
-        max_runners=5,
+        max_hook_runners=3,
+        max_agent_runners=3,
         zombie_timeout_seconds=7200,
         query="",
         lumberjacks={

@@ -26,7 +26,6 @@ from sase.ace.scheduler.workflows_runner import (
 )
 from sase.sase_utils import EASTERN_TZ
 
-from .runner_pool import RunnerPool
 from .state import AxeMetrics
 
 # Type alias for log callback
@@ -47,26 +46,28 @@ class HookJobRunner:
 
     def __init__(
         self,
-        runner_pool: RunnerPool,
         metrics: AxeMetrics,
         zombie_timeout_seconds: int,
-        max_runners: int,
+        max_hook_runners: int,
+        max_agent_runners: int,
         log_callback: LogCallback,
     ) -> None:
         """Initialize the hook job runner.
 
         Args:
-            runner_pool: The runner pool for concurrency management.
             metrics: Metrics object for tracking statistics.
             zombie_timeout_seconds: Timeout in seconds for zombie detection.
-            max_runners: Maximum concurrent runners allowed.
+            max_hook_runners: Maximum concurrent hook runners allowed.
+            max_agent_runners: Maximum concurrent agent runners allowed.
             log_callback: Callback function for logging messages.
         """
-        self.runner_pool = runner_pool
         self.metrics = metrics
         self.zombie_timeout_seconds = zombie_timeout_seconds
-        self.max_runners = max_runners
+        self.max_hook_runners = max_hook_runners
+        self.max_agent_runners = max_agent_runners
         self._log = log_callback
+        self._hooks_started_this_tick = 0
+        self._agents_started_this_tick = 0
 
     def run_hook_checks(self, filtered_changespecs: list[ChangeSpec]) -> None:
         """Run hook completion and startup checks.
@@ -74,7 +75,8 @@ class HookJobRunner:
         Args:
             filtered_changespecs: List of changespecs to check.
         """
-        self.runner_pool.reset_tick()
+        self._hooks_started_this_tick = 0
+        self._agents_started_this_tick = 0
 
         for changespec in filtered_changespecs:
             if not changespec.hooks:
@@ -84,11 +86,11 @@ class HookJobRunner:
                 changespec,
                 self._log,
                 self.zombie_timeout_seconds,
-                self.max_runners,
-                self.runner_pool.get_started_this_tick(),
+                self.max_hook_runners,
+                self._hooks_started_this_tick,
             )
 
-            self.runner_pool.add_started(hooks_started)
+            self._hooks_started_this_tick += hooks_started
             self.metrics.hooks_started += hooks_started
             self.metrics.total_updates += len(hook_updates)
 
@@ -106,11 +108,11 @@ class HookJobRunner:
                 changespec,
                 self._log,
                 self.zombie_timeout_seconds,
-                self.max_runners,
-                self.runner_pool.get_started_this_tick(),
+                self.max_agent_runners,
+                self._agents_started_this_tick,
             )
 
-            self.runner_pool.add_started(mentors_started)
+            self._agents_started_this_tick += mentors_started
             self.metrics.mentors_started += mentors_started
             self.metrics.total_updates += len(mentor_updates)
 
@@ -135,11 +137,11 @@ class HookJobRunner:
             start_updates, started, _ = start_stale_workflows(
                 changespec,
                 self._log,
-                self.max_runners,
-                self.runner_pool.get_started_this_tick(),
+                self.max_agent_runners,
+                self._agents_started_this_tick,
             )
 
-            self.runner_pool.add_started(started)
+            self._agents_started_this_tick += started
             self.metrics.workflows_started += started
             self.metrics.total_updates += len(start_updates)
 
