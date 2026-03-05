@@ -18,6 +18,22 @@ class GitCommon(CommandRunner):
 
     @hookimpl
     def vcs_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+        # When asked to checkout a remote-tracking ref like origin/master,
+        # prefer the local branch to avoid detaching HEAD.
+        if revision.startswith("origin/"):
+            local_branch = revision[len("origin/") :]
+            verify = self._run(
+                [
+                    "git",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    f"refs/heads/{local_branch}",
+                ],
+                cwd,
+            )
+            if verify.success:
+                revision = local_branch
         out = self._run(["git", "checkout", revision], cwd)
         return self._to_result(out, "git checkout")
 
