@@ -330,9 +330,31 @@ def main() -> None:
 
             anon_workflow = create_anonymous_workflow(prompt)
 
+            # Patterns in response text that indicate transient/retriable failures.
+            # These occur when invoke_agent() catches a subprocess error and returns
+            # the error content as a "successful" AIMessage instead of raising.
+            _RETRIABLE_PATTERNS = [
+                "Error running LLM provider command",
+                "exceeded your current quota",
+                "RetryableQuotaError",
+                "rate limit",
+                "Per user memory limit reached",
+                "RESOURCE_EXHAUSTED",
+                "500 Internal Server Error",
+                "503 Service Unavailable",
+                "overloaded",
+            ]
+
+            def _is_retriable_response(response_text: str | None) -> bool:
+                """Check if a workflow response indicates a transient failure."""
+                if not response_text:
+                    return False
+                text_lower = response_text.lower()
+                return any(p.lower() in text_lower for p in _RETRIABLE_PATTERNS)
+
             # Retry loop for transient failures
             result = None
-            last_error: Exception | None = None
+            last_error: Exception | str | None = None
             for attempt in range(1, max_retries + 1):
                 if attempt > 1:
                     # Update agent_meta.json with retry attempt number
@@ -341,6 +363,9 @@ def main() -> None:
                     with open(meta_path, "w", encoding="utf-8") as f:
                         json.dump(agent_meta, f, indent=2)
                     print(f"\n=== RETRY ATTEMPT {attempt}/{max_retries} ===\n")
+
+                    # Re-create the anonymous workflow for a fresh execution
+                    anon_workflow = create_anonymous_workflow(prompt)
 
                 try:
                     result = execute_workflow(
@@ -351,8 +376,31 @@ def main() -> None:
                         silent=True,
                         workflow_obj=anon_workflow,
                     )
-                    last_error = None
-                    break
+
+                    # Check if the "successful" response actually contains
+                    # a transient error (invoke_agent swallows exceptions)
+                    if _is_retriable_response(result.response_text):
+                        error_snippet = (result.response_text or "")[:200]
+                        if attempt < max_retries:
+                            print(
+                                f"Attempt {attempt}/{max_retries} failed "
+                                f"(retriable error in response): {error_snippet}",
+                                file=sys.stderr,
+                            )
+                            last_error = error_snippet
+                            time.sleep(5)
+                            continue
+                        else:
+                            print(
+                                f"Attempt {attempt}/{max_retries} failed "
+                                f"(max retries reached): {error_snippet}",
+                                file=sys.stderr,
+                            )
+                            last_error = error_snippet
+                    else:
+                        last_error = None
+                        break
+
                 except Exception as retry_exc:
                     last_error = retry_exc
                     if attempt < max_retries:
@@ -373,7 +421,9 @@ def main() -> None:
                         )
 
             if last_error is not None:
-                raise last_error
+                if isinstance(last_error, Exception):
+                    raise last_error
+                raise RuntimeError(last_error)
             assert result is not None
 
             # Extract response text for chat history
