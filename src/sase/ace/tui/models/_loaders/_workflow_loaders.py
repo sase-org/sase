@@ -246,6 +246,19 @@ def load_workflow_agents(
             except (ValueError, TypeError):
                 pass
 
+        # Read plan_path from plan_path.json if available in artifacts
+        extra_files: list[str] = []
+        if entry.artifacts_dir:
+            plan_path_file = Path(entry.artifacts_dir) / "plan_path.json"
+            try:
+                with open(plan_path_file, encoding="utf-8") as f:
+                    plan_data = json.load(f)
+                plan_path = plan_data.get("plan_path")
+                if plan_path:
+                    extra_files = [plan_path]
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                pass
+
         agent = Agent(
             agent_type=AgentType.WORKFLOW,
             cl_name=entry.cl_name,
@@ -259,6 +272,7 @@ def load_workflow_agents(
             is_anonymous=entry.is_anonymous,
             artifacts_dir=entry.artifacts_dir,
             diff_path=entry.diff_path,
+            extra_files=extra_files,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
             step_output=step_output,

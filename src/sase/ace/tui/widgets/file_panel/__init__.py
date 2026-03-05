@@ -22,6 +22,10 @@ from ._messages import (
 )
 from ._trim import FilePanelTrimMixin
 
+# Sentinel value used in _file_list to represent the auto-refreshing live
+# diff slot (index 0) when extra static files (e.g. plan) are also present.
+_LIVE_DIFF_SENTINEL = "__live_diff__"
+
 
 class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
     """Bottom panel showing agent file output (diffs, markdown, etc.)."""
@@ -65,9 +69,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
             if age_seconds < stale_threshold_seconds:
                 self._current_agent = agent
+                self._pick_up_extra_files(agent)
                 return  # Fresh cache, same agent -- preserve trim state
             # Stale cache, same agent -- start background worker only
             self._current_agent = agent
+            self._pick_up_extra_files(agent)
             self._is_background_refreshing = True
             if self._current_worker is not None and self._current_worker.is_running:
                 self._current_worker.cancel()
@@ -83,13 +89,22 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             # Same agent with an in-flight worker but no cache yet — let
             # the existing worker finish rather than cancelling and
             # restarting on every auto-refresh cycle.
+            self._pick_up_extra_files(agent)
             return
 
         # Different agent or no cache -- full reset (existing behavior)
         self._reset_trim_state()
-        self._file_list = []
         self._current_file_index = 0
         self._current_agent = agent
+
+        # Populate file list with live diff sentinel + extra files
+        if agent.extra_files:
+            self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
+            self.post_message(
+                FileListChanged(file_count=len(self._file_list), file_index=0)
+            )
+        else:
+            self._file_list = []
 
         if cache_entry is not None:
             age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
@@ -180,10 +195,36 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         return self._current_file_index
 
     def _display_file_at_current_index(self) -> None:
-        """Display the file at the current index using static file display."""
+        """Display the file at the current index.
+
+        Handles both the live diff sentinel (re-displays cached diff)
+        and static file paths.
+        """
         if not self._file_list:
             return
-        self.display_static_file(self._file_list[self._current_file_index])
+        path = self._file_list[self._current_file_index]
+        if path == _LIVE_DIFF_SENTINEL:
+            # Re-display the cached live diff
+            if self._current_agent:
+                cache_key = get_cache_key(self._current_agent)
+                cache_entry = file_cache.get(cache_key)
+                if cache_entry:
+                    self._display_file_with_timestamp(
+                        cache_entry.diff_output, cache_entry.fetch_time
+                    )
+            return
+        self.display_static_file(path)
+
+    def _pick_up_extra_files(self, agent: Agent) -> None:
+        """Populate the file list when extra_files first appear on a same-agent refresh."""
+        if agent.extra_files and not self._file_list:
+            self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
+            self.post_message(
+                FileListChanged(
+                    file_count=len(self._file_list),
+                    file_index=self._current_file_index,
+                )
+            )
 
     def _post_file_visibility(self, has_file: bool) -> None:
         """Post a FileVisibilityChanged message with current file list state."""
@@ -270,6 +311,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._is_background_refreshing = False
 
         if event.state == WorkerState.SUCCESS:
+            # If the user is viewing a static extra file (not the live diff),
+            # don't overwrite it with the refreshed diff content.
+            if self._file_list and self._current_file_index != 0:
+                return
+
             # Worker completed - display result from cache
             if self._current_agent:
                 cache_key = get_cache_key(self._current_agent)
@@ -313,7 +359,10 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
     def get_current_file_path(self) -> str | None:
         """Return the expanded path of the currently displayed file, or None."""
         if self._file_list:
-            return os.path.expanduser(self._file_list[self._current_file_index])
+            path = self._file_list[self._current_file_index]
+            if path == _LIVE_DIFF_SENTINEL:
+                return None
+            return os.path.expanduser(path)
         return None
 
     def get_current_content(self) -> str | None:
