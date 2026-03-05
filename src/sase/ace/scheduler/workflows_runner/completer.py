@@ -354,14 +354,6 @@ def check_and_complete_workflows(
                                     current_summary = sl.summary
                                 break
 
-                    # Prepend output file path to summary for easy access
-                    # to fix-hook logs
-                    shortened_output = shorten_path(output_path)
-                    if current_summary:
-                        current_summary = f"{shortened_output} | {current_summary}"
-                    else:
-                        current_summary = shortened_output
-
                     success = set_hook_suffix(
                         changespec.file_path,
                         changespec.name,
