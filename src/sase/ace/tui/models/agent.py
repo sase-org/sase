@@ -13,10 +13,6 @@ class AgentType(Enum):
     """Types of agents that can be tracked."""
 
     RUNNING = "run"  # Manual sase run commands (RUNNING field)
-    FIX_HOOK = "fix-hook"  # Fix-hook agents (HOOKS suffix_type=running_agent)
-    SUMMARIZE = "summarize"  # Summarize-hook agents (HOOKS)
-    MENTOR = "mentor"  # Mentor agents (MENTORS)
-    CRS = "crs"  # Comment Resolution System (COMMENTS)
     WORKFLOW = "workflow"  # Multi-step YAML workflows
 
 
@@ -33,11 +29,11 @@ class Agent:
     # Type-specific fields
     workspace_num: int | None = None  # For RUNNING type
     workflow: str | None = None  # For RUNNING type (e.g., "crs")
-    hook_command: str | None = None  # For FIX_HOOK/SUMMARIZE types
+    hook_command: str | None = None  # For hook-based agents
     commit_entry_id: str | None = None  # For hook-based agents
-    mentor_profile: str | None = None  # For MENTOR type
-    mentor_name: str | None = None  # For MENTOR type
-    reviewer: str | None = None  # For CRS type (e.g., "critique")
+    mentor_profile: str | None = None  # For mentor agents
+    mentor_name: str | None = None  # For mentor agents
+    reviewer: str | None = None  # For CRS agents (e.g., "critique")
 
     # PID for process management
     pid: int | None = None
@@ -135,6 +131,9 @@ class Agent:
     # Whether this agent should be hidden by default (shown with '.' toggle)
     hidden: bool = False
 
+    # Whether this agent was loaded from a ChangeSpec field (HOOKS/MENTORS/COMMENTS)
+    _from_changespec: bool = False
+
     # Whether this agent was launched with %approve (fully autonomous)
     approve: bool = False
 
@@ -157,7 +156,7 @@ class Agent:
             return self.step_type
         if self.agent_type == AgentType.RUNNING:
             return "agent"
-        return self.agent_type.value
+        return "agent"
 
     @property
     def display_type(self) -> str:
@@ -239,15 +238,10 @@ class Agent:
         """Check if this entry represents an agent process (with thinking support).
 
         Agent entries run an LLM agent and may have thinking blocks:
-        RUNNING, FIX_HOOK, MENTOR, CRS agents, plus WORKFLOW entries
-        that appear as agents and workflow child steps of type ``agent``.
+        RUNNING agents, plus WORKFLOW entries that appear as agents
+        and workflow child steps of type ``agent``.
         """
-        if self.agent_type in (
-            AgentType.RUNNING,
-            AgentType.FIX_HOOK,
-            AgentType.MENTOR,
-            AgentType.CRS,
-        ):
+        if self.agent_type == AgentType.RUNNING:
             return True
         if self.agent_type == AgentType.WORKFLOW:
             if self.appears_as_agent:
@@ -295,17 +289,6 @@ class Agent:
                 workflow_name = f"mentor-{parts[1]}" if len(parts) >= 2 else "mentor"
             else:
                 workflow_name = workflow
-        elif self.agent_type == AgentType.FIX_HOOK:
-            workflow_name = "fix-hook"
-        elif self.agent_type == AgentType.SUMMARIZE:
-            workflow_name = "summarize-hook"
-        elif self.agent_type == AgentType.MENTOR:
-            if self.mentor_name:
-                workflow_name = f"mentor-{self.mentor_name}"
-            else:
-                workflow_name = "mentor"
-        elif self.agent_type == AgentType.CRS:
-            workflow_name = "crs"
         elif self.agent_type == AgentType.WORKFLOW:
             # Workflow artifacts: workflow-{name}, or ace-run for appears_as_agent
             if self.workflow:
@@ -355,7 +338,7 @@ class Agent:
         """Extract and convert timestamp from raw_suffix to artifacts format.
 
         For RUNNING agents: raw_suffix is already YYYYmmddHHMMSS (14 chars)
-        For other agents: raw_suffix uses YYmmdd_HHMMSS format (13 chars with underscore)
+        For ChangeSpec-sourced agents: raw_suffix uses YYmmdd_HHMMSS format (13 chars with underscore)
         artifacts_dir expects: YYYYmmddHHMMSS format (14 chars, no underscore)
 
         Returns:
@@ -406,7 +389,13 @@ class Agent:
 
         Uses .get() with defaults for forward-compatibility with new fields.
         """
-        agent_type = AgentType(data["agent_type"])
+        # Map removed AgentType values to RUNNING for backward compatibility
+        _LEGACY_AGENT_TYPES = {"fix-hook", "summarize", "mentor", "crs"}
+        raw_type = data["agent_type"]
+        if raw_type in _LEGACY_AGENT_TYPES:
+            agent_type = AgentType.RUNNING
+        else:
+            agent_type = AgentType(raw_type)
         start_time = data.get("start_time")
         if isinstance(start_time, str):
             start_time = datetime.fromisoformat(start_time)

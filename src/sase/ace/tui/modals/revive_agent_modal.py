@@ -15,10 +15,6 @@ from .base import OptionListNavigationMixin
 # Reuse the same type→color mapping from the agent list widget
 _TYPE_COLORS: dict[AgentType, str] = {
     AgentType.RUNNING: "#87AFFF",
-    AgentType.FIX_HOOK: "#FFAF00",
-    AgentType.SUMMARIZE: "#D7AF5F",
-    AgentType.MENTOR: "#AF87D7",
-    AgentType.CRS: "#00D787",
     AgentType.WORKFLOW: "#FF87D7",
 }
 

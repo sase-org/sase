@@ -40,18 +40,18 @@ def load_agents_from_hooks(
                 else:
                     error_message = sl.suffix
 
-            # Determine agent type from suffix
+            # Determine workflow name from suffix
             # - Running summarize agents: suffix contains "summarize_hook-<PID>-<timestamp>"
             # - Failed summarize agents: suffix is "summarize-hook Failed"
-            agent_type = AgentType.FIX_HOOK
+            workflow = "fix-hook"
             if sl.suffix:
                 suffix_lower = sl.suffix.lower()
                 if "summarize" in suffix_lower:
-                    agent_type = AgentType.SUMMARIZE
+                    workflow = "summarize-hook"
 
             agents.append(
                 Agent(
-                    agent_type=agent_type,
+                    agent_type=AgentType.RUNNING,
                     cl_name=cs.name,
                     project_file=cs.file_path,
                     # Fix-hook agents that are running should have RUNNING status,
@@ -60,6 +60,7 @@ def load_agents_from_hooks(
                         "RUNNING" if sl.suffix_type == "running_agent" else sl.status
                     ),
                     start_time=parse_timestamp_from_suffix(sl.suffix),
+                    workflow=workflow,
                     hook_command=hook.display_command,
                     commit_entry_id=sl.commit_entry_num,
                     pid=extract_pid_from_agent_suffix(sl.suffix),
@@ -68,6 +69,7 @@ def load_agents_from_hooks(
                     cl_num=cl_num,
                     error_message=error_message,
                     hidden=True,
+                    _from_changespec=True,
                 )
             )
 
@@ -102,11 +104,12 @@ def load_agents_from_mentors(
 
             agents.append(
                 Agent(
-                    agent_type=AgentType.MENTOR,
+                    agent_type=AgentType.RUNNING,
                     cl_name=cs.name,
                     project_file=cs.file_path,
                     status=msl.status,
                     start_time=parse_timestamp_from_suffix(msl.suffix),
+                    workflow="mentor",
                     mentor_profile=msl.profile_name,
                     mentor_name=msl.mentor_name,
                     commit_entry_id=mentor_entry.entry_id,
@@ -115,6 +118,7 @@ def load_agents_from_mentors(
                     bug=bug,
                     cl_num=cl_num,
                     hidden=True,
+                    _from_changespec=True,
                 )
             )
 
@@ -145,17 +149,19 @@ def load_agents_from_comments(
 
         agents.append(
             Agent(
-                agent_type=AgentType.CRS,
+                agent_type=AgentType.RUNNING,
                 cl_name=cs.name,
                 project_file=cs.file_path,
                 status="RUNNING",
                 start_time=parse_timestamp_from_suffix(comment.suffix),
+                workflow="crs",
                 reviewer=comment.reviewer,
                 pid=extract_pid_from_agent_suffix(comment.suffix),
                 raw_suffix=comment.suffix,
                 bug=bug,
                 cl_num=cl_num,
                 hidden=True,
+                _from_changespec=True,
             )
         )
 

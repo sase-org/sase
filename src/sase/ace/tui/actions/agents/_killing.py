@@ -116,19 +116,12 @@ class AgentKillingMixin:
         """Save a serialized bundle of agent data before artifact deletion.
 
         Bundles are used to populate the revive modal after TUI restart.
-        Hook-based agents (FIX_HOOK, SUMMARIZE, MENTOR, CRS) are skipped
-        since they load from .gp file fields and persist across restarts.
+        ChangeSpec-loaded agents are skipped since they persist via .gp file fields.
         """
-        from ...models.agent import AgentType
         from ....dismissed_agents import load_dismissed_bundles, save_dismissed_bundles
 
-        # Skip hook-based agents — they persist via .gp file fields
-        if agent.agent_type in (
-            AgentType.FIX_HOOK,
-            AgentType.SUMMARIZE,
-            AgentType.MENTOR,
-            AgentType.CRS,
-        ):
+        # Skip ChangeSpec-loaded agents — they persist via .gp file fields
+        if agent._from_changespec:
             return
 
         bundles = load_dismissed_bundles()
@@ -161,17 +154,21 @@ class AgentKillingMixin:
         """Perform the actual agent kill after confirmation."""
         from ...models.agent import AgentType
 
-        # Dispatch based on agent type
-        if agent.agent_type == AgentType.RUNNING:
-            self._kill_running_agent(agent)
-        elif agent.agent_type in (AgentType.FIX_HOOK, AgentType.SUMMARIZE):
-            self._kill_hook_agent(agent)
-        elif agent.agent_type == AgentType.MENTOR:
-            self._kill_mentor_agent(agent)
-        elif agent.agent_type == AgentType.CRS:
-            self._kill_crs_agent(agent)
-        elif agent.agent_type == AgentType.WORKFLOW:
+        # Dispatch based on agent type and workflow pattern
+        workflow = agent.workflow or ""
+        if agent.agent_type == AgentType.WORKFLOW:
             self._kill_workflow_agent(agent)
+        elif workflow.startswith("axe(fix-hook)") or workflow in (
+            "fix-hook",
+            "summarize-hook",
+        ):
+            self._kill_hook_agent(agent)
+        elif workflow.startswith("axe(mentor)") or workflow == "mentor":
+            self._kill_mentor_agent(agent)
+        elif workflow.startswith("axe(crs)") or workflow == "crs":
+            self._kill_crs_agent(agent)
+        elif agent.agent_type == AgentType.RUNNING:
+            self._kill_running_agent(agent)
         else:
             self.notify(  # type: ignore[attr-defined]
                 f"Unknown agent type: {agent.agent_type}", severity="error"
@@ -229,7 +226,7 @@ class AgentKillingMixin:
             )
 
     def _kill_hook_agent(self, agent: Agent) -> None:
-        """Kill a hook agent (FIX_HOOK or SUMMARIZE)."""
+        """Kill a hook agent (fix-hook or summarize-hook)."""
         from ....changespec import parse_project_file
         from ....hooks import update_changespec_hooks_field
         from ....hooks.processes import mark_hook_agents_as_killed
@@ -489,19 +486,14 @@ class AgentKillingMixin:
             self._load_agents()  # type: ignore[attr-defined]
             return
 
-        # Handle hook-based agents (FIX_HOOK, SUMMARIZE, MENTOR, CRS)
+        # Handle ChangeSpec-loaded agents (hooks, mentors, CRS)
         # These don't have a done.json file - they're stored as status lines
         # in the project file. We track dismissal in _dismissed_agents.
-        if agent.agent_type in (
-            AgentType.FIX_HOOK,
-            AgentType.SUMMARIZE,
-            AgentType.MENTOR,
-            AgentType.CRS,
-        ):
+        if agent._from_changespec:
             self._persist_dismissed_agent(agent.identity)
 
             self.notify(  # type: ignore[attr-defined]
-                f"Dismissed {agent.agent_type.value.lower()} agent for {agent.cl_name}"
+                f"Dismissed agent for {agent.cl_name}"
             )
             self._load_agents()  # type: ignore[attr-defined]
             return

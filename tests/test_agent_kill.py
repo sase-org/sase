@@ -101,11 +101,12 @@ def test_kill_hook_agent_marks_as_killed() -> None:
     app = MockApp()
 
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
         start_time=None,
+        workflow="fix-hook",
         hook_command="bb_test",
         pid=12345,
         raw_suffix="fix_hook-12345-251230_151429",
@@ -165,11 +166,12 @@ def test_kill_mentor_agent_marks_as_killed() -> None:
     app = MockApp()
 
     agent = Agent(
-        agent_type=AgentType.MENTOR,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
         start_time=None,
+        workflow="mentor",
         mentor_profile="profile1",
         mentor_name="mentor1",
         pid=12345,
@@ -233,11 +235,12 @@ def test_kill_crs_agent_marks_as_killed() -> None:
     app = MockApp()
 
     agent = Agent(
-        agent_type=AgentType.CRS,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
         start_time=None,
+        workflow="crs",
         reviewer="critique",
         pid=12345,
         raw_suffix="crs-12345-251230_151429",
@@ -295,11 +298,12 @@ def test_kill_agent_with_no_pid() -> None:
     app = MockApp()
 
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
         start_time=None,
+        workflow="fix-hook",
         pid=None,  # No PID
     )
 

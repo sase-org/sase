@@ -13,10 +13,6 @@ from ..models.agent import Agent, AgentType
 # Color mapping for agent types
 _AGENT_TYPE_COLORS: dict[AgentType, str] = {
     AgentType.RUNNING: "#87AFFF",  # Blue
-    AgentType.FIX_HOOK: "#FFAF00",  # Orange
-    AgentType.SUMMARIZE: "#D7AF5F",  # Gold
-    AgentType.MENTOR: "#AF87D7",  # Purple
-    AgentType.CRS: "#00D787",  # Cyan-green
     AgentType.WORKFLOW: "#FF87D7",  # Pink for workflow agent steps
 }
 

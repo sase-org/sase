@@ -95,7 +95,8 @@ def test_load_all_agents_with_summarize_agents() -> None:
     ):
         agents = load_all_agents()
         assert len(agents) == 1
-        assert agents[0].agent_type == AgentType.SUMMARIZE
+        assert agents[0].agent_type == AgentType.RUNNING
+        assert agents[0].workflow == "summarize-hook"
 
 
 def test_load_all_agents_with_mentor_agents() -> None:
@@ -154,7 +155,8 @@ def test_load_all_agents_with_mentor_agents() -> None:
     ):
         agents = load_all_agents()
         assert len(agents) == 1
-        assert agents[0].agent_type == AgentType.MENTOR
+        assert agents[0].agent_type == AgentType.RUNNING
+        assert agents[0].workflow == "mentor"
         assert agents[0].mentor_profile == "profile1"
         assert agents[0].mentor_name == "mentor1"
 
@@ -205,7 +207,8 @@ def test_load_all_agents_with_crs_agents() -> None:
     ):
         agents = load_all_agents()
         assert len(agents) == 1
-        assert agents[0].agent_type == AgentType.CRS
+        assert agents[0].agent_type == AgentType.RUNNING
+        assert agents[0].workflow == "crs"
         assert agents[0].reviewer == "critique"
 
 

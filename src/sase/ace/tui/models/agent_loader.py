@@ -208,8 +208,8 @@ def load_all_agents() -> list[Agent]:
 
     # Deduplicate axe-spawned agents by timestamp
     # Axe agents appear in both RUNNING field (as RUNNING type with axe(...) workflow)
-    # and ChangeSpec fields (as FIX_HOOK/MENTOR/CRS type). Prefer the RUNNING entry
-    # (shows as [agent]) and merge type-specific metadata from ChangeSpec entry.
+    # and ChangeSpec fields (also RUNNING type, with _from_changespec=True).
+    # Prefer the RUNNING field entry and merge type-specific metadata from ChangeSpec.
 
     # Build index of RUNNING agents with axe(...) workflows by (cl_name, timestamp)
     running_axe_agents_by_key: dict[tuple[str, str], Agent] = {}
@@ -245,11 +245,10 @@ def load_all_agents() -> list[Agent]:
                     key = (agent.cl_name, ts_13)
                     running_axe_agents_by_key[key] = agent
 
-    # Match ChangeSpec entries with RUNNING entries — keep RUNNING, drop ChangeSpec
+    # Match ChangeSpec entries with RUNNING field entries — keep RUNNING field, drop ChangeSpec
     final_agents: list[Agent] = []
     for agent in agents:
-        if agent.agent_type != AgentType.RUNNING:
-            # ChangeSpec agent — check for matching RUNNING entry
+        if agent._from_changespec:
             ts = extract_timestamp_str_from_suffix(agent.raw_suffix)
             if ts:
                 key = (agent.cl_name, ts)

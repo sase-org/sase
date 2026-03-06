@@ -42,8 +42,6 @@ def _is_always_visible(agent: Agent) -> bool:
     Returns:
         True if agent should always be visible, False if it's hideable.
     """
-    from ...models.agent import AgentType
-
     # Workflow children: visibility managed by fold state, not hide toggle
     if agent.is_workflow_child:
         return True
@@ -57,10 +55,7 @@ def _is_always_visible(agent: Agent) -> bool:
     if _is_axe_spawned_agent(agent):
         return False
 
-    return (
-        agent.agent_type in (AgentType.RUNNING, AgentType.WORKFLOW)
-        or agent.status in DISMISSABLE_STATUSES
-    )
+    return True
 
 
 def _is_axe_spawned_agent(agent: Agent) -> bool:
@@ -75,26 +70,13 @@ def _is_axe_spawned_agent(agent: Agent) -> bool:
     Returns:
         True if agent was spawned by axe, False if user-initiated.
     """
-    from ...models.agent import AgentType
-
-    # Hook-based types are always axe-spawned
-    if agent.agent_type in (
-        AgentType.FIX_HOOK,
-        AgentType.SUMMARIZE,
-        AgentType.MENTOR,
-        AgentType.CRS,
-    ):
-        return True
-
-    # RUNNING/WORKFLOW types spawned by axe have specific workflow patterns
-    if agent.agent_type in (AgentType.RUNNING, AgentType.WORKFLOW):
-        if agent.workflow:
-            # axe-spawned workflows start with axe(...)
-            if agent.workflow.startswith(("axe(mentor)", "axe(fix-hook)", "axe(crs)")):
-                return True
-            # Plain workflow names for axe-spawned types (from workflow_state.json)
-            if agent.workflow in ("fix-hook", "crs", "mentor", "summarize-hook"):
-                return True
+    if agent.workflow:
+        # axe-spawned workflows start with axe(...)
+        if agent.workflow.startswith(("axe(mentor)", "axe(fix-hook)", "axe(crs)")):
+            return True
+        # Plain workflow names for axe-spawned types (from workflow_state.json or ChangeSpec)
+        if agent.workflow in ("fix-hook", "crs", "mentor", "summarize-hook"):
+            return True
 
     return False
 

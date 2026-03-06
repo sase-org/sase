@@ -24,20 +24,21 @@ def test_agent_display_type_running() -> None:
 def test_agent_display_label() -> None:
     """Test Agent.display_label property."""
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
         start_time=None,
+        workflow="fix-hook",
     )
-    assert agent.display_label == "[fix-hook] my_feature"
+    assert agent.display_label == "[agent] my_feature"
 
 
 def test_agent_start_time_short_with_time() -> None:
     """Test Agent.start_time_short with a valid time."""
     start = datetime(2025, 1, 10, 14, 30, 45)
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
@@ -49,7 +50,7 @@ def test_agent_start_time_short_with_time() -> None:
 def test_agent_start_time_short_without_time() -> None:
     """Test Agent.start_time_short when time is None."""
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
@@ -61,7 +62,7 @@ def test_agent_start_time_short_without_time() -> None:
 def test_agent_duration_display_without_time() -> None:
     """Test Agent.duration_display when time is None."""
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
@@ -74,7 +75,7 @@ def test_agent_duration_display_seconds() -> None:
     """Test Agent.duration_display for seconds only."""
     start = datetime.now() - timedelta(seconds=45)
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
@@ -89,7 +90,7 @@ def test_agent_duration_display_minutes() -> None:
     """Test Agent.duration_display for minutes."""
     start = datetime.now() - timedelta(minutes=5, seconds=30)
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
@@ -104,7 +105,7 @@ def test_agent_duration_display_hours() -> None:
     """Test Agent.duration_display for hours."""
     start = datetime.now() - timedelta(hours=2, minutes=15)
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
@@ -120,17 +121,14 @@ def test_agent_duration_display_hours() -> None:
 def test_agent_type_values() -> None:
     """Test AgentType enum values."""
     assert AgentType.RUNNING.value == "run"
-    assert AgentType.FIX_HOOK.value == "fix-hook"
-    assert AgentType.SUMMARIZE.value == "summarize"
-    assert AgentType.MENTOR.value == "mentor"
-    assert AgentType.CRS.value == "crs"
+    assert AgentType.WORKFLOW.value == "workflow"
 
 
 def test_agent_optional_fields() -> None:
     """Test Agent with all optional fields."""
     start = datetime.now()
     agent = Agent(
-        agent_type=AgentType.FIX_HOOK,
+        agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.gp",
         status="RUNNING",
