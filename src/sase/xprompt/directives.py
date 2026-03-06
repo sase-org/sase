@@ -30,7 +30,7 @@ _DIRECTIVE_PATTERN = (
 )
 
 # Known directive names
-_KNOWN_DIRECTIVES = frozenset({"approve", "model", "name", "plan", "wait"})
+_KNOWN_DIRECTIVES = frozenset({"approve", "hide", "model", "name", "plan", "wait"})
 
 # Directives that allow multiple occurrences (values are collected into a list)
 _MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
@@ -38,6 +38,7 @@ _MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
 # Short aliases for directives (alias -> canonical name)
 _DIRECTIVE_ALIASES: dict[str, str] = {
     "a": "approve",
+    "h": "hide",
     "m": "model",
     "n": "name",
     "p": "plan",
@@ -56,6 +57,7 @@ class PromptDirectives:
     """
 
     approve: bool = False
+    hide: bool = False
     model: str | None = None
     name: str | None = None
     plan: bool = False
@@ -176,6 +178,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
     # Build PromptDirectives from expanded args
     directives = PromptDirectives(
         approve="approve" in expanded_args,
+        hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
         name=expanded_args.get("name") or None,
         plan="plan" in expanded_args,

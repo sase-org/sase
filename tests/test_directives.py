@@ -215,6 +215,56 @@ def test_plan_duplicate_raises() -> None:
         extract_prompt_directives(prompt)
 
 
+# --- %hide directive tests ---
+
+
+def test_hide_bare() -> None:
+    """%hide (bare) sets hide=True."""
+    prompt = "%hide\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.hide is True
+
+
+def test_hide_plus() -> None:
+    """%hide+ sets hide=True."""
+    prompt = "%hide+\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.hide is True
+
+
+def test_hide_alias() -> None:
+    """%h (alias) sets hide=True."""
+    prompt = "%h\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.hide is True
+
+
+def test_hide_default_false() -> None:
+    """Default hide is False."""
+    prompt = "Just a normal prompt"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.hide is False
+
+
+def test_hide_with_other_directives() -> None:
+    """%hide combined with %model works."""
+    prompt = "%hide\n%model:opus\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.hide is True
+    assert directives.model == "opus"
+
+
+def test_hide_duplicate_raises() -> None:
+    """Duplicate %hide raises DirectiveError."""
+    prompt = "%hide\n%hide\nDo the work"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%hide'"):
+        extract_prompt_directives(prompt)
+
+
 # --- Fenced code block protection tests ---
 
 

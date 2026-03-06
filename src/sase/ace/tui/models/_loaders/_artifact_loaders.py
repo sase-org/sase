@@ -46,6 +46,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.waiting_for = data["wait_for"]
     if data.get("approve"):
         agent.approve = True
+    if data.get("hidden"):
+        agent.hidden = True
     if data.get("retry_attempt"):
         agent.retry_attempt = data["retry_attempt"]
 
@@ -239,6 +241,7 @@ def load_done_agents(
                         llm_provider=data.get("llm_provider"),
                         vcs_provider=data.get("vcs_provider"),
                         agent_name=data.get("name"),
+                        hidden=bool(data.get("hidden")),
                         approve=bool(data.get("approve")),
                         retry_attempt=data.get("retry_attempt", 0),
                     )

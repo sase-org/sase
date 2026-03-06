@@ -48,6 +48,11 @@ def _is_always_visible(agent: Agent) -> bool:
     if agent.is_workflow_child:
         return True
 
+    # Agents marked hidden (via %hide directive or ChangeSpec-loaded agents)
+    # are hideable (hidden by default, shown with '.' toggle)
+    if agent.hidden:
+        return False
+
     # Axe-spawned agents are hideable (hidden by default, shown with '.' toggle)
     if _is_axe_spawned_agent(agent):
         return False

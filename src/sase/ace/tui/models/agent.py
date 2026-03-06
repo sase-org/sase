@@ -132,6 +132,9 @@ class Agent:
     # Whether this is a pre-prompt step from an embedded workflow
     is_pre_prompt_step: bool = False
 
+    # Whether this agent should be hidden by default (shown with '.' toggle)
+    hidden: bool = False
+
     # Whether this agent was launched with %approve (fully autonomous)
     approve: bool = False
 

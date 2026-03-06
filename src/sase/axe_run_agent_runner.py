@@ -174,6 +174,7 @@ def main() -> None:
     agent_model: str | None = None
     agent_llm_provider: str | None = None
     agent_vcs_provider: str | None = None
+    agent_hidden: bool = False
     attempt: int = 1
 
     try:
@@ -239,6 +240,9 @@ def main() -> None:
                 agent_meta["vcs_provider"] = agent_vcs_provider
             if directives.approve:
                 agent_meta["approve"] = True
+            if directives.hide:
+                agent_meta["hidden"] = True
+                agent_hidden = True
             if directives.plan:
                 agent_meta["plan"] = True
             if agent_meta:
@@ -479,6 +483,8 @@ def main() -> None:
                 done_marker["vcs_provider"] = agent_vcs_provider
             if attempt > 1:
                 done_marker["retry_attempt"] = attempt
+            if agent_hidden:
+                done_marker["hidden"] = True
             done_path = os.path.join(artifacts_dir, "done.json")
             with open(done_path, "w", encoding="utf-8") as f:
                 json.dump(done_marker, f, indent=2)
@@ -515,6 +521,8 @@ def main() -> None:
                     error_done["vcs_provider"] = agent_vcs_provider
                 if attempt > 1:
                     error_done["retry_attempt"] = attempt
+                if agent_hidden:
+                    error_done["hidden"] = True
                 done_path = os.path.join(artifacts_dir, "done.json")
                 with open(done_path, "w", encoding="utf-8") as f:
                     json.dump(error_done, f, indent=2)

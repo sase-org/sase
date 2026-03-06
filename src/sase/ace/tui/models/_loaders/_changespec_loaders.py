@@ -67,6 +67,7 @@ def load_agents_from_hooks(
                     bug=bug,
                     cl_num=cl_num,
                     error_message=error_message,
+                    hidden=True,
                 )
             )
 
@@ -113,6 +114,7 @@ def load_agents_from_mentors(
                     raw_suffix=msl.suffix,
                     bug=bug,
                     cl_num=cl_num,
+                    hidden=True,
                 )
             )
 
@@ -153,6 +155,7 @@ def load_agents_from_comments(
                 raw_suffix=comment.suffix,
                 bug=bug,
                 cl_num=cl_num,
+                hidden=True,
             )
         )
 
