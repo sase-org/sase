@@ -105,6 +105,58 @@ def all_steps_hidden(artifacts_dir: str) -> bool:
     return all(step.get("hidden", False) for step in steps)
 
 
+def write_done_marker(
+    artifacts_dir: str,
+    cl_name: str,
+    project_file: str,
+    timestamp: str,
+    exit_code: int,
+    *,
+    workspace_num: int | None = None,
+    response_path: str | None = None,
+    diff_path: str | None = None,
+) -> None:
+    """Write a done.json marker to an axe runner's artifacts directory.
+
+    Args:
+        artifacts_dir: Path to the artifacts directory.
+        cl_name: Name of the ChangeSpec / CL.
+        project_file: Path to the project file.
+        timestamp: Timestamp in YYmmdd_HHMMSS format.
+        exit_code: Exit code (0 for success).
+        workspace_num: Optional workspace number.
+        response_path: Optional path to the response/chat file.
+        diff_path: Optional path to the diff file.
+    """
+    from sase.shared_utils import convert_timestamp_to_artifacts_format
+
+    artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
+    outcome = "completed" if exit_code == 0 else "failed"
+
+    done_data: dict[str, object] = {
+        "cl_name": cl_name,
+        "project_file": project_file,
+        "timestamp": timestamp,
+        "artifacts_timestamp": artifacts_timestamp,
+        "outcome": outcome,
+        "hidden": True,
+    }
+    if workspace_num is not None:
+        done_data["workspace_num"] = workspace_num
+    if response_path:
+        done_data["response_path"] = response_path
+    if diff_path:
+        done_data["diff_path"] = diff_path
+
+    done_path = os.path.join(artifacts_dir, "done.json")
+    try:
+        with open(done_path, "w", encoding="utf-8") as f:
+            json.dump(done_data, f, indent=2)
+        print(f"Done marker written to: {done_path}")
+    except Exception as e:
+        print(f"Warning: Failed to write done marker: {e}")
+
+
 def finalize_axe_runner(
     project_file: str,
     changespec_name: str,

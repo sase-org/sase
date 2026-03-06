@@ -8,11 +8,13 @@ It handles workspace cleanup and status updates upon completion.
 import os
 import sys
 import time
+from pathlib import Path
 
 from sase.ace.hooks import format_duration
 from sase.ace.mentors import set_mentor_status
-from sase.axe_runner_utils import install_sigterm_handler, was_killed
+from sase.axe_runner_utils import install_sigterm_handler, was_killed, write_done_marker
 from sase.mentor_workflow import MentorWorkflow
+from sase.shared_utils import create_artifacts_directory
 
 install_sigterm_handler("mentor")
 
@@ -39,6 +41,14 @@ def main() -> None:
     success = False
     final_status = "FAILED"
     duration = "0s"
+
+    # Create artifacts directory early so done.json can be written even on error
+    # Note: MentorWorkflow also creates this same directory internally
+    artifacts_dir = create_artifacts_directory(
+        f"mentor-{mentor_name}",
+        project_name=Path(project_file).parent.name,
+        timestamp=timestamp,
+    )
 
     print(f"Starting mentor workflow: {mentor_name}")
     print(f"CL: {cl_name}")
@@ -129,6 +139,16 @@ def main() -> None:
                 print(f"Error updating mentor status: {e}", file=sys.stderr)
 
     finally:
+        # Write done.json marker for Agents tab visibility
+        exit_code = 0 if success else 1
+        write_done_marker(
+            artifacts_dir,
+            cl_name=cl_name,
+            project_file=project_file,
+            timestamp=timestamp,
+            exit_code=exit_code,
+        )
+
         # Write completion marker
         try:
             with open(output_path, "a") as f:

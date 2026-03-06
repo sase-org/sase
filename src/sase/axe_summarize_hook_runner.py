@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from sase.ace.hooks import set_hook_suffix
+from sase.axe_runner_utils import write_done_marker
 from sase.metahook_config import MetahookConfig, find_matching_metahook
 from sase.shared_utils import create_artifacts_directory
 from sase.summarize_utils import get_file_summary
@@ -46,6 +47,13 @@ def main() -> int:
     timestamp = sys.argv[7]  # Same timestamp used in agent suffix
 
     exit_code = 1
+
+    # Create artifacts directory early so done.json can be written even on error
+    artifacts_dir = create_artifacts_directory(
+        "summarize-hook",
+        project_name=Path(project_file).parent.name,
+        timestamp=timestamp,
+    )
 
     try:
         print(f"Running summarize-hook workflow for {changespec_name}")
@@ -97,7 +105,14 @@ def main() -> int:
                         )
                         exit_code = 1
 
-                    # Write completion marker and return early
+                    # Write done.json and completion marker, then return early
+                    write_done_marker(
+                        artifacts_dir,
+                        cl_name=changespec_name,
+                        project_file=project_file,
+                        timestamp=timestamp,
+                        exit_code=exit_code,
+                    )
                     print()
                     print(f"{WORKFLOW_COMPLETE_MARKER}None EXIT_CODE: {exit_code}")
                     return exit_code
@@ -114,14 +129,6 @@ def main() -> int:
                 )
             except Exception as e:
                 print(f"Error running metahook: {e}, continuing with normal flow")
-
-        # Create artifacts directory using same timestamp as agent suffix
-        # This ensures the Agents tab can find the prompt file
-        artifacts_dir = create_artifacts_directory(
-            "summarize-hook",
-            project_name=Path(project_file).parent.name,
-            timestamp=timestamp,
-        )
 
         # Get summary of the hook failure
         summary = get_file_summary(
@@ -159,6 +166,15 @@ def main() -> int:
 
         traceback.print_exc()
         exit_code = 1
+
+    # Write done.json marker for Agents tab visibility
+    write_done_marker(
+        artifacts_dir,
+        cl_name=changespec_name,
+        project_file=project_file,
+        timestamp=timestamp,
+        exit_code=exit_code,
+    )
 
     # Write completion marker (no proposal ID for summarize workflows)
     print()

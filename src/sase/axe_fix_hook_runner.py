@@ -18,7 +18,7 @@ from pathlib import Path
 
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.ace.hooks import contract_test_target_command, set_hook_suffix
-from sase.axe_runner_utils import finalize_axe_runner
+from sase.axe_runner_utils import finalize_axe_runner, write_done_marker
 from sase.chat_history import find_chat_by_timestamp
 from sase.sase_utils import shorten_path, strip_hook_prefix
 from sase.llm_provider import invoke_agent
@@ -113,6 +113,13 @@ def main() -> int:
 
     vcs_type = detect_workflow_type(project_file)
 
+    # Create artifacts directory early so done.json can be written even on error
+    artifacts_dir = create_artifacts_directory(
+        "fix-hook",
+        project_name=Path(project_file).parent.name,
+        timestamp=timestamp,
+    )
+
     try:
         print(f"Running fix-hook workflow for {changespec_name}")
         print(f"Hook command: {run_hook_command}")
@@ -131,13 +138,6 @@ def main() -> int:
         prompt = process_xprompt_references(prompt_ref)
 
         # Expand embedded workflows (#propose from fix_hook.md)
-        # Create artifacts directory using same timestamp as agent suffix
-        # This ensures the Agents tab can find the prompt file
-        artifacts_dir = create_artifacts_directory(
-            "fix-hook",
-            project_name=Path(project_file).parent.name,
-            timestamp=timestamp,
-        )
 
         expanded_prompt, post_workflows = expand_embedded_workflows_in_query(
             prompt, artifacts_dir
@@ -225,6 +225,15 @@ def main() -> int:
         exit_code = 1
 
     finally:
+        # Write done.json marker for Agents tab visibility
+        write_done_marker(
+            artifacts_dir,
+            cl_name=changespec_name,
+            project_file=project_file,
+            timestamp=timestamp,
+            exit_code=exit_code,
+        )
+
         # Finalize: update suffix, release workspace, write completion marker
         finalize_axe_runner(
             project_file=project_file,

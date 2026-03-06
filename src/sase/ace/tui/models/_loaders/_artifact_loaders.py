@@ -160,20 +160,55 @@ def load_agents_from_running_field(
     return agents
 
 
+_DONE_AGENT_WORKFLOW_DIRS = [
+    "ace-run",
+    "fix-hook",
+    "crs",
+    "summarize-hook",
+]
+
+_DONE_AGENT_WORKFLOW_PREFIXES = [
+    "mentor-",
+]
+
+
+def _iter_artifact_workflow_dirs(artifacts_dir: Path) -> list[Path]:
+    """Yield workflow directories under an artifacts dir that may contain done.json.
+
+    Handles both fixed-name directories (ace-run, fix-hook, crs, summarize-hook)
+    and prefix-matched directories (mentor-*).
+    """
+    dirs: list[Path] = []
+    for name in _DONE_AGENT_WORKFLOW_DIRS:
+        d = artifacts_dir / name
+        if d.exists():
+            dirs.append(d)
+    if artifacts_dir.exists():
+        for d in artifacts_dir.iterdir():
+            if not d.is_dir():
+                continue
+            for prefix in _DONE_AGENT_WORKFLOW_PREFIXES:
+                if d.name.startswith(prefix):
+                    dirs.append(d)
+                    break
+    return dirs
+
+
 def load_done_agents(
     bug_by_cl_name: dict[str, str | None],
     cl_by_cl_name: dict[str, str | None],
 ) -> list[Agent]:
     """Load completed agents from done.json marker files.
 
-    Scans ~/.sase/projects/*/artifacts/ace-run/*/done.json for completed agents.
+    Scans ~/.sase/projects/*/artifacts/<workflow>/*/done.json for completed agents.
+    Supported workflow directories: ace-run, fix-hook, crs, summarize-hook, mentor-*.
 
     Args:
         bug_by_cl_name: Mapping of CL names to bug URLs.
         cl_by_cl_name: Mapping of CL names to CL numbers.
 
     Returns:
-        List of Agent objects with status="DONE".
+        List of Agent objects with DONE or FAILED status.
     """
     agents: list[Agent] = []
     projects_dir = Path.home() / ".sase" / "projects"
@@ -185,69 +220,70 @@ def load_done_agents(
         if not project_dir.is_dir():
             continue
 
-        ace_run_dir = project_dir / "artifacts" / "ace-run"
-        if not ace_run_dir.exists():
+        artifacts_base = project_dir / "artifacts"
+        if not artifacts_base.exists():
             continue
 
-        for artifact_dir in ace_run_dir.iterdir():
-            if not artifact_dir.is_dir():
-                continue
+        for workflow_dir in _iter_artifact_workflow_dirs(artifacts_base):
+            for artifact_dir in workflow_dir.iterdir():
+                if not artifact_dir.is_dir():
+                    continue
 
-            done_file = artifact_dir / "done.json"
-            if not done_file.exists():
-                continue
+                done_file = artifact_dir / "done.json"
+                if not done_file.exists():
+                    continue
 
-            try:
-                with open(done_file, encoding="utf-8") as f:
-                    data = json.load(f)
+                try:
+                    with open(done_file, encoding="utf-8") as f:
+                        data = json.load(f)
 
-                # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
-                timestamp_str = artifact_dir.name
-                start_time = parse_timestamp_14_digit(timestamp_str)
+                    # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
+                    timestamp_str = artifact_dir.name
+                    start_time = parse_timestamp_14_digit(timestamp_str)
 
-                cl_name = data.get("cl_name", "unknown")
-                outcome = data.get("outcome", "completed")
-                if outcome == "failed":
-                    status = "FAILED"
-                    error_message = data.get("error")
-                    error_traceback = data.get("traceback")
-                else:
-                    status = "DONE"
-                    error_message = None
-                    error_traceback = None
-                plan_path = data.get("plan_path")
-                extra_files = [plan_path] if plan_path else []
+                    cl_name = data.get("cl_name", "unknown")
+                    outcome = data.get("outcome", "completed")
+                    if outcome == "failed":
+                        status = "FAILED"
+                        error_message = data.get("error")
+                        error_traceback = data.get("traceback")
+                    else:
+                        status = "DONE"
+                        error_message = None
+                        error_traceback = None
+                    plan_path = data.get("plan_path")
+                    extra_files = [plan_path] if plan_path else []
 
-                agents.append(
-                    Agent(
-                        agent_type=AgentType.RUNNING,
-                        cl_name=cl_name,
-                        project_file=data.get("project_file", ""),
-                        status=status,
-                        start_time=start_time,
-                        workflow="ace(run)",
-                        raw_suffix=timestamp_str,
-                        response_path=data.get("response_path"),
-                        diff_path=data.get("diff_path"),
-                        extra_files=extra_files,
-                        step_output=data.get("step_output"),
-                        workspace_num=data.get("workspace_num"),
-                        bug=bug_by_cl_name.get(cl_name),
-                        cl_num=cl_by_cl_name.get(cl_name),
-                        error_message=error_message,
-                        error_traceback=error_traceback,
-                        output_path=data.get("output_path"),
-                        model=data.get("model"),
-                        llm_provider=data.get("llm_provider"),
-                        vcs_provider=data.get("vcs_provider"),
-                        agent_name=data.get("name"),
-                        hidden=bool(data.get("hidden")),
-                        approve=bool(data.get("approve")),
-                        retry_attempt=data.get("retry_attempt", 0),
+                    agents.append(
+                        Agent(
+                            agent_type=AgentType.RUNNING,
+                            cl_name=cl_name,
+                            project_file=data.get("project_file", ""),
+                            status=status,
+                            start_time=start_time,
+                            workflow=workflow_dir.name,
+                            raw_suffix=timestamp_str,
+                            response_path=data.get("response_path"),
+                            diff_path=data.get("diff_path"),
+                            extra_files=extra_files,
+                            step_output=data.get("step_output"),
+                            workspace_num=data.get("workspace_num"),
+                            bug=bug_by_cl_name.get(cl_name),
+                            cl_num=cl_by_cl_name.get(cl_name),
+                            error_message=error_message,
+                            error_traceback=error_traceback,
+                            output_path=data.get("output_path"),
+                            model=data.get("model"),
+                            llm_provider=data.get("llm_provider"),
+                            vcs_provider=data.get("vcs_provider"),
+                            agent_name=data.get("name"),
+                            hidden=bool(data.get("hidden")),
+                            approve=bool(data.get("approve")),
+                            retry_attempt=data.get("retry_attempt", 0),
+                        )
                     )
-                )
-            except Exception:
-                continue
+                except Exception:
+                    continue
 
     return agents
 

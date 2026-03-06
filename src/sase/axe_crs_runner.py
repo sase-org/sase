@@ -18,10 +18,11 @@ import sys
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
-from sase.axe_runner_utils import finalize_axe_runner
+from sase.axe_runner_utils import finalize_axe_runner, write_done_marker
 from sase.chat_history import find_chat_by_timestamp
 from sase.crs_workflow import CrsWorkflow
 from sase.sase_utils import shorten_path
+from sase.shared_utils import create_artifacts_directory
 
 
 def _update_comment_suffix(
@@ -72,14 +73,19 @@ def main() -> int:
 
     vcs_type = detect_workflow_type(project_file)
 
+    # Create artifacts directory early so done.json can be written even on error
+    project_basename = os.path.splitext(os.path.basename(project_file))[0]
+    artifacts_dir = create_artifacts_directory(
+        "crs",
+        project_name=project_basename,
+        timestamp=timestamp,
+    )
+
     try:
         print(f"Running CRS workflow for {changespec_name}")
         print(f"Comments file: {comments_file}")
         print(f"Reviewer type: {reviewer_type}")
         print()
-
-        # Get project basename
-        project_basename = os.path.splitext(os.path.basename(project_file))[0]
 
         # Build who identifier for proposal
         comments_ref = shorten_path(comments_file) if comments_file else "comments"
@@ -112,6 +118,15 @@ def main() -> int:
         exit_code = 1
 
     finally:
+        # Write done.json marker for Agents tab visibility
+        write_done_marker(
+            artifacts_dir,
+            cl_name=changespec_name,
+            project_file=project_file,
+            timestamp=timestamp,
+            exit_code=exit_code,
+        )
+
         # Finalize: update suffix, write completion marker
         # Workspace release is handled by the scheduler's completer
         finalize_axe_runner(
