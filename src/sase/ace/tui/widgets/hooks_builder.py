@@ -140,6 +140,7 @@ def build_hooks_section(
         passed_ids: list[str] = []
         failed_ids: list[str] = []  # Historical only
         dead_ids: list[str] = []  # Historical only
+        pending_dead_ids: list[str] = []
         if hooks_fold != FoldLevel.FULLY_EXPANDED and hook.status_lines:
             for sl in hook.status_lines:
                 # Skip old proposal IDs in folded summary
@@ -165,16 +166,21 @@ def build_hooks_section(
                         and sl.commit_entry_num not in current_and_proposal_ids
                     ):
                         dead_ids.append(sl.commit_entry_num)
+                elif (
+                    sl.status == "RUNNING" and sl.suffix_type == "pending_dead_process"
+                ):
+                    pending_dead_ids.append(sl.commit_entry_num)
             # Sort all IDs by commit entry ID order
             passed_ids.sort(key=parse_commit_entry_id)
             failed_ids.sort(key=parse_commit_entry_id)
             dead_ids.sort(key=parse_commit_entry_id)
+            pending_dead_ids.sort(key=parse_commit_entry_id)
 
         # Hook command line with optional status summary
         # Contract test target commands to shorthand format
         display_command = contract_test_target_command(hook.command)
         text.append(f"  {display_command}", style="#D7D7AF")
-        if passed_ids or failed_ids or dead_ids:
+        if passed_ids or failed_ids or dead_ids or pending_dead_ids:
             text.append("  [folded: ", style="italic #808080")  # Grey italic
             # Build sections for each status type
             sections: list[tuple[str, str, list[str]]] = []
@@ -184,6 +190,8 @@ def build_hooks_section(
                 sections.append(("FAILED", "#FF5F5F", failed_ids))
             if dead_ids:
                 sections.append(("DEAD", "#B8A800", dead_ids))
+            if pending_dead_ids:
+                sections.append(("PENDING DEAD", "#B8A800", pending_dead_ids))
             for i, (status, color, ids) in enumerate(sections):
                 if i > 0:
                     text.append(" | ", style="italic #808080")
@@ -215,6 +223,12 @@ def build_hooks_section(
                     if sl.status in ("FAILED", "DEAD"):
                         if sl.commit_entry_num not in current_and_proposal_ids:
                             continue
+                    # PENDING DEAD (RUNNING + pending_dead_process): always fold
+                    if (
+                        sl.status == "RUNNING"
+                        and sl.suffix_type == "pending_dead_process"
+                    ):
+                        continue
 
                 text.append("      ", style="")
                 text.append("| ", style="#808080")
