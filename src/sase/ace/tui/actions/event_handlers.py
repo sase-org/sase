@@ -208,6 +208,12 @@ class EventHandlersMixin:
         if self.current_tab == "agents" and 0 <= event.index < len(self._agents):
             self.current_idx = event.index
 
+    def on_agent_list_agent_activated(self, event: AgentList.AgentActivated) -> None:
+        """Handle agent activation (Enter or double-click) in the Agent list."""
+        if self.current_tab == "agents" and 0 <= event.index < len(self._agents):
+            self.current_idx = event.index
+            self.action_jump_to_agent_changespec()  # type: ignore[attr-defined]
+
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""
         if event.tab != self.current_tab:
