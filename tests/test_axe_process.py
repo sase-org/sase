@@ -46,13 +46,14 @@ def test_stop_axe_daemon_sends_sigterm(
     mock_kill: MagicMock,
     temp_state_dir: Path,
 ) -> None:
-    """Test stop_axe_daemon sends SIGTERM to the process."""
+    """Test stop_axe_daemon sends SIGTERM and waits for exit."""
     import signal
 
     pid_file = temp_state_dir / "pid"
     pid_file.write_text("12345")
 
-    mock_is_running.return_value = True
+    # First call: pid lookup says running; subsequent calls: process exited
+    mock_is_running.side_effect = [True, False]
 
     assert stop_axe_daemon() is True
     mock_kill.assert_called_once_with(12345, signal.SIGTERM)

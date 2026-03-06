@@ -10,6 +10,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from sase.ace.changespec import count_agent_runners_global, count_hook_runners_global
@@ -87,10 +88,19 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
     return process.pid
 
 
-def stop_axe_daemon() -> bool:
-    """Stop the running axe orchestrator.
+def stop_axe_daemon(
+    timeout: float = 15.0,
+    kill_timeout: float = 5.0,
+) -> bool:
+    """Stop the running axe orchestrator and wait for full shutdown.
 
-    Sends SIGTERM for graceful shutdown (orchestrator forwards to children).
+    Sends SIGTERM for graceful shutdown (orchestrator forwards to children),
+    then polls until the process exits.  If the process doesn't exit within
+    *timeout* seconds, escalates to SIGKILL.
+
+    Args:
+        timeout: Seconds to wait after SIGTERM before sending SIGKILL.
+        kill_timeout: Seconds to wait after SIGKILL before giving up.
 
     Returns:
         True if process was stopped, False if not running.
@@ -101,10 +111,38 @@ def stop_axe_daemon() -> bool:
 
     try:
         os.kill(pid, signal.SIGTERM)
-        return True
     except (ProcessLookupError, PermissionError):
         _cleanup_pid_file()
         return False
+
+    # Wait for the orchestrator (and its children) to exit.
+    if _wait_for_exit(pid, timeout):
+        _cleanup_pid_file()
+        return True
+
+    # Escalate: SIGKILL the orchestrator process group.
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        _cleanup_pid_file()
+        return True
+
+    _wait_for_exit(pid, kill_timeout)
+    _cleanup_pid_file()
+    return True
+
+
+def _wait_for_exit(pid: int, timeout: float) -> bool:
+    """Poll until *pid* is no longer running or *timeout* elapses.
+
+    Returns True if the process exited, False on timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not is_process_running(pid):
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def get_axe_status() -> dict | None:

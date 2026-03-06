@@ -379,12 +379,24 @@ def main() -> NoReturn:
             sys.exit(0 if success else 1)
 
         elif axe_sub == "stop":
+            import time as _time
+
+            from rich.console import Console
+
             from sase.axe.process import stop_axe_daemon
 
+            console = Console()
+            t0 = _time.monotonic()
             if stop_axe_daemon():
-                print("Axe orchestrator stopped.")
+                elapsed = _time.monotonic() - t0
+                console.print(
+                    f"[bold green]Axe stopped[/bold green] — all lumberjacks"
+                    f" terminated in [cyan]{elapsed:.1f}s[/cyan]"
+                )
             else:
-                print("Axe orchestrator is not running.")
+                console.print(
+                    "[bold yellow]Axe orchestrator is not running.[/bold yellow]"
+                )
             sys.exit(0)
 
         else:

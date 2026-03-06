@@ -83,13 +83,7 @@ class Orchestrator:
 
     def _handle_shutdown(self, _signum: int, _frame: object) -> None:
         self._running = False
-        # Forward SIGTERM to all children
-        for name, proc in self._children.items():
-            if proc.poll() is None:
-                try:
-                    os.kill(proc.pid, signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
-                    pass
+        self._terminate_children()
 
     def run(self) -> bool:
         """Run the orchestrator main loop.
@@ -133,20 +127,26 @@ class Orchestrator:
                 time.sleep(1)
         except KeyboardInterrupt:
             self._running = False
-            # Forward SIGTERM to all children
-            for proc in self._children.values():
-                if proc.poll() is None:
-                    try:
-                        os.kill(proc.pid, signal.SIGTERM)
-                    except (ProcessLookupError, PermissionError):
-                        pass
+            self._terminate_children()
         finally:
-            # Wait for all children to exit
+            # Wait for all children to exit (with escalation to SIGKILL)
+            deadline = time.monotonic() + 10
             for name, proc in self._children.items():
+                remaining = max(0, deadline - time.monotonic())
                 try:
-                    proc.wait(timeout=10)
+                    proc.wait(timeout=remaining)
                 except subprocess.TimeoutExpired:
                     proc.kill()
+                    proc.wait(timeout=5)
             self._remove_pid()
 
         return True
+
+    def _terminate_children(self) -> None:
+        """Send SIGTERM to all live child processes."""
+        for _name, proc in self._children.items():
+            if proc.poll() is None:
+                try:
+                    os.kill(proc.pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    pass
