@@ -40,7 +40,6 @@ class StatusActionsMixin:
         """Apply a status change to a ChangeSpec."""
         from sase.sase_utils import has_suffix, strip_reverted_suffix
         from sase.status_state_machine import (
-            remove_ready_to_mail_suffix,
             transition_changespec_status,
         )
 
@@ -180,9 +179,6 @@ class StatusActionsMixin:
                 changespec.name,
                 "Killed: ChangeSpec transitioned to WIP.",
             )
-
-        # Remove READY TO MAIL suffix if present before transitioning
-        remove_ready_to_mail_suffix(changespec.file_path, changespec.name)
 
         # Check if this is a Draft→Ready transition with suffix (may trigger sibling reverts)
         may_have_sibling_reverts = (

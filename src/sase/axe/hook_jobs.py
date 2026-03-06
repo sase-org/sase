@@ -15,7 +15,6 @@ from sase.ace.scheduler.mentor_checks import check_mentors
 from sase.ace.scheduler.orphan_cleanup import cleanup_orphaned_workspace_claims
 from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
 from sase.ace.scheduler.suffix_transforms import (
-    check_ready_to_mail,
     strip_old_entry_error_markers,
     strip_terminal_status_markers,
     transform_old_proposal_suffixes,
@@ -199,9 +198,6 @@ class HookJobRunner:
 
             # Acknowledge terminal status attention markers
             updates.extend(strip_terminal_status_markers(changespec))
-
-            # Check if ChangeSpec is ready to mail
-            updates.extend(check_ready_to_mail(changespec, all_changespecs))
 
             self.metrics.total_updates += len(updates)
 

@@ -12,7 +12,6 @@ from ...changespec import (
     has_any_error_suffix,
     has_any_running_agent,
     has_any_running_process,
-    has_ready_to_mail_suffix,
 )
 
 _PREFIX_CHAR_COLORS: dict[str, str] = {
@@ -45,20 +44,15 @@ def _calculate_entry_display_width(changespec: ChangeSpec, is_marked: bool) -> i
     return text.cell_len
 
 
-def _get_status_letter_and_color(
-    status: str, *, has_ready_to_mail: bool
-) -> tuple[str, str]:
+def _get_status_letter_and_color(status: str) -> tuple[str, str]:
     """Map a status string to its letter and natural color.
 
     Args:
         status: The ChangeSpec status string
-        has_ready_to_mail: Whether the status has a ready-to-mail suffix
 
     Returns:
         Tuple of (letter, color)
     """
-    if has_ready_to_mail:
-        return "*", "#00D787"
     if "..." in status:
         return "~", "#87AFFF"
     elif status.startswith("Draft"):
@@ -86,11 +80,7 @@ def _get_status_indicator(changespec: ChangeSpec) -> tuple[str, str]:
     has_running = has_any_running_agent(changespec)
     has_process = has_any_running_process(changespec)
     has_error = has_any_error_suffix(changespec)
-    ready_to_mail = has_ready_to_mail_suffix(status)
-
-    letter, letter_color = _get_status_letter_and_color(
-        status, has_ready_to_mail=ready_to_mail
-    )
+    letter, letter_color = _get_status_letter_and_color(status)
 
     # Build prefix components
     error_prefix = "!" if has_error else ""

@@ -201,15 +201,15 @@ class BaseActionsMixin:
 
     def action_mail(self) -> None:
         """Mail the current ChangeSpec."""
-        from ...changespec import has_ready_to_mail_suffix
+        from ...changespec import get_base_status
 
         if not self.changespecs:
             return
 
         changespec = self.changespecs[self.current_idx]
 
-        if not has_ready_to_mail_suffix(changespec.status):
-            self.notify("ChangeSpec is not ready to mail", severity="warning")  # type: ignore[attr-defined]
+        if get_base_status(changespec.status) != "Ready":
+            self.notify("ChangeSpec must be Ready to mail", severity="warning")  # type: ignore[attr-defined]
             return
 
         from ...handlers import handle_mail

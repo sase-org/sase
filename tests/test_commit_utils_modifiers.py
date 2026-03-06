@@ -17,8 +17,8 @@ def _create_test_project_file(content: str) -> Path:
     return Path(path)
 
 
-def test_reject_proposals_and_set_status_atomic_add_ready_to_mail() -> None:
-    """Test adding READY TO MAIL suffix while rejecting proposals."""
+def test_reject_proposals_and_set_status_atomic_keeps_status() -> None:
+    """Test empty final_status keeps current status while rejecting proposals."""
     content = """NAME: test-cl
 STATUS: Ready
 COMMITS:
@@ -36,7 +36,7 @@ COMMITS:
         with open(project_file) as f:
             new_content = f.read()
 
-        assert "STATUS: Ready - (!: READY TO MAIL)" in new_content
+        assert "STATUS: Ready\n" in new_content
         assert "(~!: NEW PROPOSAL)" in new_content
     finally:
         project_file.unlink()
@@ -56,30 +56,6 @@ COMMITS:
         )
         # Should fail because the CL name doesn't match
         assert result is False
-    finally:
-        project_file.unlink()
-
-
-def test_reject_proposals_and_set_status_atomic_already_has_suffix() -> None:
-    """Test when status already has READY TO MAIL suffix."""
-    content = """NAME: test-cl
-STATUS: Ready - (!: READY TO MAIL)
-COMMITS:
-  (1) First commit
-"""
-    project_file = _create_test_project_file(content)
-    try:
-        result = reject_proposals_and_set_status_atomic(
-            str(project_file), "test-cl", ""
-        )
-        assert result is True
-
-        # Read back and verify - should keep the existing suffix
-        with open(project_file) as f:
-            new_content = f.read()
-
-        # Should not double the suffix
-        assert new_content.count("(!: READY TO MAIL)") == 1
     finally:
         project_file.unlink()
 

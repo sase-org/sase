@@ -53,8 +53,8 @@ class AcceptWorkflow(BaseWorkflow):
             cl_name: Optional CL name. Defaults to current branch name.
             project_file: Optional path to project file. If not provided,
                 will try to infer from workspace_name command.
-            mark_ready_to_mail: If True, also reject remaining proposals and add
-                READY TO MAIL suffix to STATUS, all in the same atomic write
+            mark_ready_to_mail: If True, also reject remaining proposals
+                the same atomic write
                 with the commit entry renumbering.
             skip_amend: If True, skip the checkout/apply/amend steps and only
                 perform bookkeeping (renumber commit entries, etc.).
@@ -168,7 +168,7 @@ class AcceptWorkflow(BaseWorkflow):
 
         # Renumber commit entries once for all accepted proposals
         # If mark_ready_to_mail is True, this also rejects remaining proposals
-        # and adds READY TO MAIL suffix in the same atomic write
+        # in the same atomic write
         if self._mark_ready_to_mail:
             print_status(
                 f"Renumbering COMMITS entries and marking ready to mail{bookkeeping_suffix}...",

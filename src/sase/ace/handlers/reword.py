@@ -283,7 +283,7 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
 
     from ..changespec import get_base_status
 
-    # Validate status (strip any suffix like "READY TO MAIL")
+    # Validate status
     base_status = get_base_status(changespec.status)
     if base_status not in ("WIP", "Draft", "Ready", "Mailed"):
         self.console.print(

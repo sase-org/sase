@@ -36,15 +36,6 @@ def test_evaluate_or_match(make_changespec: Any) -> None:
     assert evaluate_query(query, cs3) is False
 
 
-def test_evaluate_error_suffix_matches_ready_to_mail(
-    make_changespec: Any,
-) -> None:
-    """Test !!! matches ChangeSpec with READY TO MAIL suffix."""
-    query = parse_query("!!!")
-    cs = make_changespec.create(status="Ready - (!: READY TO MAIL)")
-    assert evaluate_query(query, cs) is True
-
-
 def test_evaluate_error_suffix_matches_history_suffix(
     make_changespec: Any,
 ) -> None:

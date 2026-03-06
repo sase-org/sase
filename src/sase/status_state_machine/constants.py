@@ -11,17 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 def remove_workspace_suffix(status: str) -> str:
-    """Remove workspace share suffix and READY TO MAIL suffix from a status value.
+    """Remove workspace share suffix and legacy READY TO MAIL suffix from a status value.
 
     Args:
-        status: STATUS value, possibly with workspace or READY TO MAIL suffix
+        status: STATUS value, possibly with workspace or legacy READY TO MAIL suffix
 
     Returns:
         STATUS value without suffixes (base status only)
     """
     # Remove pattern: " (<project>_<N>)" at the end
     result = re.sub(r" \([a-zA-Z0-9_-]+_\d+\)$", "", status)
-    # Remove READY TO MAIL suffix pattern: " - (!: READY TO MAIL)"
+    # Remove legacy READY TO MAIL suffix pattern: " - (!: READY TO MAIL)"
     result = re.sub(r" - \(!\: READY TO MAIL\)$", "", result)
     return result
 

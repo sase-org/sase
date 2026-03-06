@@ -107,12 +107,7 @@ class AcceptMailMixin(HintMixinBase):
             self._trigger_mail_after_accept()  # type: ignore[attr-defined]
 
     def _trigger_mail_after_accept(self) -> None:
-        """Trigger the mail flow after a successful accept with @ suffix.
-
-        This reloads the changespec (which now has READY TO MAIL suffix)
-        and triggers the mail action.
-        """
-        # Reload to get updated changespec with READY TO MAIL suffix
+        """Trigger the mail flow after a successful accept with @ suffix."""
         self._reload_and_reposition()  # type: ignore[attr-defined]
 
         # Now call the mail action (same as pressing 'm')
@@ -126,7 +121,7 @@ class AcceptMailMixin(HintMixinBase):
         2. Run mail prep FIRST (reviewer prompts, description modification, nvim)
         3. Ask user if they want to mail
         4. Run mark_ready_to_mail operations (kill processes, reject proposals)
-        5. Set status atomically (to "Mailed" if user confirmed, or READY TO MAIL if not)
+        5. Set status atomically (to "Mailed" if user confirmed, or keep Ready if not)
         6. Execute hg mail if user confirmed
         7. Release the workspace
 
@@ -143,16 +138,13 @@ class AcceptMailMixin(HintMixinBase):
             release_workspace,
         )
 
-        from ....changespec import get_base_status, has_ready_to_mail_suffix
+        from ....changespec import get_base_status
         from ....mail_ops import MailPrepResult, execute_mail, prepare_mail
 
-        # Validate: must be Ready without READY TO MAIL suffix
+        # Validate: must be Ready status
         base_status = get_base_status(changespec.status)
         if base_status != "Ready":
             self.notify("Must be Ready status", severity="warning")  # type: ignore[attr-defined]
-            return
-        if has_ready_to_mail_suffix(changespec.status):
-            self.notify("Already marked as ready to mail", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Claim a workspace in the 100-199 range
@@ -190,7 +182,7 @@ class AcceptMailMixin(HintMixinBase):
 
             # STEP 2: Mark ready to mail with appropriate final status
             # If user said "yes" to mail, set status directly to "Mailed"
-            # If user said "no", just add READY TO MAIL suffix
+            # If user said "no", keep current status (Ready)
             final_status = "Mailed" if prep_result.should_mail else None
             success = self._mark_ready_to_mail_atomic(changespec, final_status)  # type: ignore[attr-defined]
 

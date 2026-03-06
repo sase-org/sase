@@ -10,7 +10,6 @@ from .locking import (
 )
 from .models import (
     ERROR_SUFFIX_MESSAGES,
-    READY_TO_MAIL_SUFFIX,
     ChangeSpec,
     CommentEntry,
     CommitEntry,
@@ -20,7 +19,6 @@ from .models import (
     MentorStatusLine,
     extract_pid_from_agent_suffix,
     get_base_status,
-    has_ready_to_mail_suffix,
     is_error_suffix,
     is_plain_suffix,
     is_running_agent_suffix,
@@ -55,7 +53,6 @@ __all__ = [
     "MentorStatusLine",
     # Constants
     "ERROR_SUFFIX_MESSAGES",
-    "READY_TO_MAIL_SUFFIX",
     # Locking
     "LockTimeoutError",
     "changespec_lock",
@@ -66,7 +63,6 @@ __all__ = [
     "is_plain_suffix",
     "is_running_agent_suffix",
     "is_running_process_suffix",
-    "has_ready_to_mail_suffix",
     "get_base_status",
     "parse_commit_entry_id",
     "count_agent_runners_global",

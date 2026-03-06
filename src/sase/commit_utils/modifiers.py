@@ -4,29 +4,20 @@ import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
 
-# Ready to mail suffix constant
-_READY_TO_MAIL_SUFFIX = " - (!: READY TO MAIL)"
-
 
 def reject_proposals_and_set_status_atomic(
     project_file: str,
     cl_name: str,
     final_status: str,
 ) -> bool:
-    """Reject all new proposals and set STATUS in a single atomic write.
-
-    This combines reject_all_new_proposals and status transition into one
-    atomic operation. Use this when you want to:
-    - Reject all new proposals
-    - Set status to "Mailed" or add READY TO MAIL suffix
-    All in one lock acquisition and file write.
+    """Reject all new proposals and optionally set STATUS in a single atomic write.
 
     Args:
         project_file: Path to the project file.
         cl_name: The CL name to update.
         final_status: The final status to set. Should be either:
             - "Mailed" to set status directly to Mailed
-            - None or empty to add READY TO MAIL suffix to current status
+            - Empty string to keep current status unchanged
 
     Returns:
         True if successful, False otherwise.
@@ -97,17 +88,11 @@ def reject_proposals_and_set_status_atomic(
                 return False
 
             # Update the status line based on final_status
-            if final_status == "Mailed":
-                # Set status directly to "Mailed"
-                new_status = "Mailed"
+            if final_status:
+                new_status = final_status
+                lines[status_line_idx] = f"STATUS: {new_status}\n"
             else:
-                # Add READY TO MAIL suffix if not already present
-                if "(!: READY TO MAIL)" in current_status:
-                    new_status = current_status  # Already has suffix
-                else:
-                    new_status = current_status + _READY_TO_MAIL_SUFFIX
-
-            lines[status_line_idx] = f"STATUS: {new_status}\n"
+                new_status = current_status
 
             # Write atomically
             write_changespec_atomic(

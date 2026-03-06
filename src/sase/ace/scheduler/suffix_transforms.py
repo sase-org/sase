@@ -4,14 +4,9 @@ This module handles:
 - Transforming old proposal suffixes (error -> removed)
 - Stripping error markers from old commit entry hooks (error -> plain)
 - Stripping terminal status markers (error -> removed)
-- Checking and updating ready-to-mail status
 """
 
 from sase.commit_utils import update_commit_entry_suffix
-from sase.status_state_machine import (
-    add_ready_to_mail_suffix,
-    remove_ready_to_mail_suffix,
-)
 
 from ..changespec import (
     ChangeSpec,
@@ -19,12 +14,6 @@ from ..changespec import (
     HookStatusLine,
     MentorEntry,
     MentorStatusLine,
-    all_hooks_passed_for_entries,
-    get_base_status,
-    get_current_and_proposal_entry_ids,
-    has_any_error_suffix,
-    has_ready_to_mail_suffix,
-    is_parent_ready_for_mail,
     parse_commit_entry_id,
 )
 from ..comments import clear_comment_suffix
@@ -309,65 +298,5 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
             )
             if success:
                 updates.extend(mentor_updates)
-
-    return updates
-
-
-def check_ready_to_mail(
-    changespec: ChangeSpec, all_changespecs: list[ChangeSpec]
-) -> list[str]:
-    """Check if a ChangeSpec is ready to mail and add/remove suffix accordingly.
-
-    A ChangeSpec is ready to mail if:
-    - STATUS is "Ready" (base status)
-    - No error suffixes exist in COMMITS/HOOKS/COMMENTS
-    - Parent is ready (no parent, Submitted, or Mailed)
-    - All hooks have PASSED for current history entry and its proposals
-
-    If a ChangeSpec has the READY TO MAIL suffix but conditions are no longer
-    met, the suffix will be removed.
-
-    Args:
-        changespec: The ChangeSpec to check.
-        all_changespecs: All changespecs (for parent lookup).
-
-    Returns:
-        List of update messages.
-    """
-    updates: list[str] = []
-
-    # Get base status (strip any existing suffix)
-    base_status = get_base_status(changespec.status)
-
-    # Only applies to Ready status
-    if base_status != "Ready":
-        return updates
-
-    already_has_suffix = has_ready_to_mail_suffix(changespec.status)
-    has_errors = has_any_error_suffix(changespec)
-    parent_ready = is_parent_ready_for_mail(changespec, all_changespecs)
-
-    # Check if all hooks have PASSED for current entry and proposals
-    entry_ids = get_current_and_proposal_entry_ids(changespec)
-    hooks_passed = all_hooks_passed_for_entries(changespec, entry_ids)
-
-    # Determine if conditions are met
-    conditions_met = not has_errors and parent_ready and hooks_passed
-
-    if conditions_met and not already_has_suffix:
-        # Add the suffix
-        success = add_ready_to_mail_suffix(changespec.file_path, changespec.name)
-        if success:
-            updates.append("Added READY TO MAIL suffix")
-    elif not conditions_met and already_has_suffix:
-        # Remove the suffix - conditions no longer met
-        success = remove_ready_to_mail_suffix(changespec.file_path, changespec.name)
-        if success:
-            if has_errors:
-                updates.append("Removed READY TO MAIL suffix (error suffix appeared)")
-            elif not parent_ready:
-                updates.append("Removed READY TO MAIL suffix (parent no longer ready)")
-            else:
-                updates.append("Removed READY TO MAIL suffix (hooks not all passed)")
 
     return updates

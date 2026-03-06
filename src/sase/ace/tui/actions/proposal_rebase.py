@@ -24,18 +24,16 @@ class ProposalRebaseMixin:
     # --- Ready to Mail Actions ---
 
     def action_mark_ready_to_mail(self) -> None:
-        """Mark the current ChangeSpec as ready to mail.
+        """Prepare the current ChangeSpec for mailing.
 
         This action:
         1. Kills all running agents
         2. Kills running hooks (except $-prefixed ones)
         3. Rejects all new proposals
-        4. Adds the READY TO MAIL suffix to the STATUS line
         """
         from sase.commit_utils import reject_all_new_proposals
-        from sase.status_state_machine import add_ready_to_mail_suffix
 
-        from ...changespec import get_base_status, has_ready_to_mail_suffix
+        from ...changespec import get_base_status
         from ...comments import update_changespec_comments_field
         from ...comments.operations import mark_comment_agents_as_killed
         from ...hooks import (
@@ -51,13 +49,10 @@ class ProposalRebaseMixin:
 
         changespec = self.changespecs[self.current_idx]
 
-        # Validate: must be Ready without READY TO MAIL suffix
+        # Validate: must be Ready status
         base_status = get_base_status(changespec.status)
         if base_status != "Ready":
             self.notify("Must be Ready status", severity="warning")  # type: ignore[attr-defined]
-            return
-        if has_ready_to_mail_suffix(changespec.status):
-            self.notify("Already marked as ready to mail", severity="warning")  # type: ignore[attr-defined]
             return
 
         # 1. Kill all running agents (hooks and comments)
@@ -98,14 +93,7 @@ class ProposalRebaseMixin:
         # 3. Reject all new proposals
         reject_all_new_proposals(changespec.file_path, changespec.name)
 
-        # 4. Add READY TO MAIL suffix
-        success = add_ready_to_mail_suffix(changespec.file_path, changespec.name)
-
-        if success:
-            self.notify("Marked as ready to mail")  # type: ignore[attr-defined]
-        else:
-            self.notify("Failed to mark as ready to mail", severity="error")  # type: ignore[attr-defined]
-
+        self.notify("Marked as ready to mail")  # type: ignore[attr-defined]
         self._reload_and_reposition()  # type: ignore[attr-defined]
 
     def _mark_ready_to_mail_atomic(
@@ -113,18 +101,18 @@ class ProposalRebaseMixin:
         changespec: ChangeSpec,
         final_status: str | None = None,
     ) -> bool:
-        """Mark as ready to mail with atomic proposal rejection and status update.
+        """Prepare for mailing with atomic proposal rejection and optional status update.
 
         This is similar to action_mark_ready_to_mail() but:
         - Takes a changespec parameter (doesn't use current selection)
         - Combines proposal rejection and status update atomically
-        - Allows specifying final status ("Mailed" or None for READY TO MAIL suffix)
+        - Allows specifying final status ("Mailed" or None to keep current)
         - Does NOT call _reload_and_reposition() - caller must do that
 
         Args:
-            changespec: The ChangeSpec to mark as ready to mail
+            changespec: The ChangeSpec to prepare for mailing
             final_status: If "Mailed", set status directly to Mailed.
-                          If None, add READY TO MAIL suffix to current status.
+                          If None, keep current status.
 
         Returns:
             True if successful, False otherwise.
@@ -176,7 +164,7 @@ class ProposalRebaseMixin:
                 changespec.file_path, changespec.name, updated_hooks
             )
 
-        # 3 & 4. Atomically reject proposals and set status
+        # 3. Atomically reject proposals and optionally set status
         success = reject_proposals_and_set_status_atomic(
             changespec.file_path,
             changespec.name,
@@ -261,8 +249,8 @@ class ProposalRebaseMixin:
         Args:
             changespec: The ChangeSpec to accept proposals for.
             entries: List of (proposal_id, msg) tuples.
-            mark_ready_to_mail: If True, also reject remaining proposals and add
-                READY TO MAIL suffix to STATUS, all in the same atomic write.
+            mark_ready_to_mail: If True, also reject remaining proposals in the
+                same atomic write.
             skip_amend: If True, skip checkout/apply/amend steps and only do
                 bookkeeping (renumber commit entries, etc.).
         """

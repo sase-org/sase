@@ -55,35 +55,8 @@ def test_renumber_commit_entries_preserves_diffs() -> None:
         os.unlink(temp_path)
 
 
-def test_renumber_commit_entries_mark_ready_to_mail_idempotent() -> None:
-    """Test mark_ready_to_mail doesn't duplicate suffix if already present."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
-        f.write("NAME: test_cl\n")
-        f.write("STATUS: Ready - (!: READY TO MAIL)\n")
-        f.write("COMMITS:\n")
-        f.write("  (1) First commit\n")
-        f.write("  (1a) Only proposal - (!: NEW PROPOSAL)\n")
-        temp_path = f.name
-
-    try:
-        result = renumber_commit_entries(
-            temp_path, "test_cl", [(1, "a")], mark_ready_to_mail=True
-        )
-        assert result is True
-
-        with open(temp_path) as f:
-            content = f.read()
-
-        # Should still have exactly one READY TO MAIL suffix
-        assert content.count("(!: READY TO MAIL)") == 1
-        # Check it's formatted correctly
-        assert "STATUS: Ready - (!: READY TO MAIL)" in content
-    finally:
-        os.unlink(temp_path)
-
-
-def test_renumber_commit_entries_mark_ready_to_mail_with_extra_msgs() -> None:
-    """Test mark_ready_to_mail works correctly with extra_msgs."""
+def test_renumber_commit_entries_mark_ready_to_mail_rejects_proposals() -> None:
+    """Test mark_ready_to_mail rejects remaining proposals."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
@@ -110,7 +83,7 @@ def test_renumber_commit_entries_mark_ready_to_mail_with_extra_msgs() -> None:
         assert "(2) Proposal A - Added the foobar" in content
         # (1b) stays as (1b) but rejected
         assert "(1b) Proposal B - (~!: NEW PROPOSAL)" in content
-        # READY TO MAIL suffix added
-        assert "STATUS: Ready - (!: READY TO MAIL)" in content
+        # Status should remain Ready (no suffix added)
+        assert "STATUS: Ready\n" in content
     finally:
         os.unlink(temp_path)

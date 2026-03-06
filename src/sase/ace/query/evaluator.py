@@ -146,17 +146,17 @@ def _match_string(text: str, match: StringMatch) -> bool:
 
 
 def _get_base_status(status: str) -> str:
-    """Get base status without workspace suffix or READY TO MAIL suffix.
+    """Get base status without workspace suffix or legacy READY TO MAIL suffix.
 
     Args:
-        status: The full status string (e.g., "Ready (fig_1)" or "Ready - (!: READY TO MAIL)").
+        status: The full status string (e.g., "Ready (fig_1)").
 
     Returns:
         The base status value (e.g., "Ready").
     """
     # Strip workspace suffix: " (<project>_<N>)" at end
     status = re.sub(r" \([a-zA-Z0-9_-]+_\d+\)$", "", status)
-    # Strip READY TO MAIL suffix
+    # Strip legacy READY TO MAIL suffix
     status = re.sub(r" - \(!\: READY TO MAIL\)$", "", status)
     return status.strip()
 

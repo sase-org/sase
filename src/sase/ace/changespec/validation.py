@@ -1,13 +1,13 @@
 """ChangeSpec validation functions."""
 
-from .models import READY_TO_MAIL_SUFFIX, ChangeSpec, get_base_status
+from .models import ChangeSpec, get_base_status
 
 
 def has_any_status_suffix(changespec: ChangeSpec) -> bool:
     """Check if a ChangeSpec has any ERROR suffix in STATUS/COMMITS/HOOKS/COMMENTS.
 
     This checks for error suffix patterns (!: ...) in all locations. Used by
-    the !!! and !! query shorthands. Includes READY_TO_MAIL suffix.
+    the !!! and !! query shorthands.
 
     Args:
         changespec: The ChangeSpec to check.
@@ -15,7 +15,7 @@ def has_any_status_suffix(changespec: ChangeSpec) -> bool:
     Returns:
         True if any field has an error suffix, False otherwise.
     """
-    # Check STATUS field for error suffix format (including READY_TO_MAIL)
+    # Check STATUS field for error suffix format
     if " - (!: " in changespec.status:
         return True
     # Check COMMITS entries for error suffixes
@@ -41,17 +41,14 @@ def has_any_status_suffix(changespec: ChangeSpec) -> bool:
 def has_any_error_suffix(changespec: ChangeSpec) -> bool:
     """Check if a ChangeSpec has any error suffixes in STATUS/COMMITS/HOOKS/COMMENTS.
 
-    This is used to determine if a ChangeSpec has any attention markers that
-    would prevent the READY TO MAIL suffix from being added.
-
     Args:
         changespec: The ChangeSpec to check.
 
     Returns:
         True if any field has an error suffix, False otherwise.
     """
-    # Check STATUS field for error suffix format (but not READY_TO_MAIL)
-    if " - (!: " in changespec.status and READY_TO_MAIL_SUFFIX not in changespec.status:
+    # Check STATUS field for error suffix format
+    if " - (!: " in changespec.status:
         return True
     # Check COMMITS entries
     if changespec.commits:
@@ -157,7 +154,7 @@ def all_hooks_passed_for_entries(changespec: ChangeSpec, entry_ids: list[str]) -
         return True
 
     for hook in changespec.hooks:
-        # Skip $-prefixed hooks entirely - they don't block READY TO MAIL
+        # Skip $-prefixed hooks entirely - they are unlimited
         if hook.skip_proposal_runs:
             continue
 

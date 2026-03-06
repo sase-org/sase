@@ -359,47 +359,6 @@ def _reject_remaining_proposals_unlocked(
     return updated_lines
 
 
-def _add_ready_to_mail_suffix_unlocked(
-    lines: list[str],
-    cl_name: str,
-) -> list[str]:
-    """Add the READY TO MAIL suffix to a ChangeSpec's STATUS line.
-
-    This is an unlocked version that operates on in-memory lines.
-    Must be called while holding the changespec lock.
-
-    Args:
-        lines: All lines from the project file.
-        cl_name: The CL name.
-
-    Returns:
-        Updated lines with READY TO MAIL suffix added to STATUS.
-    """
-    ready_to_mail_suffix = " - (!: READY TO MAIL)"
-    updated_lines: list[str] = []
-    in_target_changespec = False
-
-    for line in lines:
-        if line.startswith("NAME: "):
-            current_name = line[6:].strip()
-            in_target_changespec = current_name == cl_name
-            updated_lines.append(line)
-        elif in_target_changespec and line.startswith("STATUS:"):
-            # Get current status value
-            current_status = line.split(":", 1)[1].strip()
-            # Only add suffix if not already present
-            if "(!: READY TO MAIL)" not in current_status:
-                new_status = current_status + ready_to_mail_suffix
-                updated_lines.append(f"STATUS: {new_status}\n")
-            else:
-                updated_lines.append(line)
-            in_target_changespec = False  # Done updating this ChangeSpec
-        else:
-            updated_lines.append(line)
-
-    return updated_lines
-
-
 def renumber_commit_entries(
     project_file: str,
     cl_name: str,
@@ -421,8 +380,8 @@ def renumber_commit_entries(
             in the order they should become regular entries.
         extra_msgs: Optional list of messages to append to each accepted entry's note.
             Must be same length as accepted_proposals if provided.
-        mark_ready_to_mail: If True, also reject remaining proposals and add
-            READY TO MAIL suffix to STATUS, all in the same atomic write.
+        mark_ready_to_mail: If True, also reject remaining proposals in the
+            same atomic write.
 
     Returns:
         True if successful, False otherwise.
@@ -530,10 +489,8 @@ def renumber_commit_entries(
             new_lines = sort_hook_status_lines(new_lines, cl_name)
 
             # If mark_ready_to_mail is True, also reject remaining proposals
-            # and add READY TO MAIL suffix (all in this same atomic write)
             if mark_ready_to_mail:
                 new_lines = _reject_remaining_proposals_unlocked(new_lines, cl_name)
-                new_lines = _add_ready_to_mail_suffix_unlocked(new_lines, cl_name)
 
             # Write atomically
             commit_msg = f"Renumber commit entries for {cl_name}"

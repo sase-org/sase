@@ -129,34 +129,18 @@ def extract_pid_from_agent_suffix(suffix: str | None) -> int | None:
     return int(pid_str)
 
 
-# Suffix appended to STATUS line when ChangeSpec is ready to be mailed
-READY_TO_MAIL_SUFFIX = " - (!: READY TO MAIL)"
-
-
-def has_ready_to_mail_suffix(status: str) -> bool:
-    """Check if a status has the READY TO MAIL suffix.
-
-    Args:
-        status: The STATUS value (e.g., "Ready - (!: READY TO MAIL)").
-
-    Returns:
-        True if the status contains the READY TO MAIL marker.
-    """
-    return "(!: READY TO MAIL)" in status
-
-
 def get_base_status(status: str) -> str:
-    """Get base status without READY TO MAIL suffix.
+    """Get base status without legacy READY TO MAIL suffix.
 
     Args:
-        status: The STATUS value (e.g., "Ready - (!: READY TO MAIL)").
+        status: The STATUS value.
 
     Returns:
         The base status value (e.g., "Ready").
     """
-    if has_ready_to_mail_suffix(status):
-        return status.replace(READY_TO_MAIL_SUFFIX, "").strip()
-    return status
+    # Strip legacy READY TO MAIL suffix for backward compatibility
+    result = status.replace(" - (!: READY TO MAIL)", "").strip()
+    return result if result else status
 
 
 @dataclass

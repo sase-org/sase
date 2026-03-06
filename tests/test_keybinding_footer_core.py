@@ -50,10 +50,10 @@ def test_keybinding_footer_reword_hidden_reverted() -> None:
 # --- Mail Binding Tests ---
 
 
-def test_keybinding_footer_mail_visible_ready_to_mail() -> None:
-    """Test 'M' binding is visible with READY TO MAIL suffix."""
+def test_keybinding_footer_mail_visible_ready_status() -> None:
+    """Test 'M' binding is visible when status is Ready."""
     footer = KeybindingFooter()
-    changespec = _make_changespec(status="Ready - (!: READY TO MAIL)", cl="123456")
+    changespec = _make_changespec(status="Ready", cl="123456")
 
     bindings = footer._compute_available_bindings(changespec)
     binding_keys = [b[0] for b in bindings]

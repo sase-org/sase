@@ -18,10 +18,6 @@ from .field_updates import (
     update_changespec_parent_atomic,
     update_parent_references_atomic,
 )
-from .mail_suffix import (
-    add_ready_to_mail_suffix,
-    remove_ready_to_mail_suffix,
-)
 from .transitions import (
     SiblingRevertResult,
     transition_changespec_status,
@@ -40,9 +36,6 @@ __all__ = [
     "update_changespec_description_atomic",
     "update_changespec_parent_atomic",
     "update_parent_references_atomic",
-    # Mail suffix
-    "add_ready_to_mail_suffix",
-    "remove_ready_to_mail_suffix",
     # Transitions
     "SiblingRevertResult",
     "transition_changespec_status",

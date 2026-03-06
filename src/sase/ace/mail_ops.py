@@ -10,7 +10,6 @@ from rich.markup import escape as _esc
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from sase.status_state_machine import (
-    remove_ready_to_mail_suffix,
     transition_changespec_status,
 )
 from sase.vcs_provider import get_vcs_provider
@@ -152,9 +151,6 @@ def handle_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> bo
     success = execute_mail(changespec, target_dir, console)
     if not success:
         return False
-
-    # Remove READY TO MAIL suffix if present before transitioning
-    remove_ready_to_mail_suffix(changespec.file_path, changespec.name)
 
     # Update status to "Mailed"
     console.print("[cyan]Updating status to 'Mailed'...[/cyan]")

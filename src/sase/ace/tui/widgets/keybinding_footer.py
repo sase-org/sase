@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Static
 
-from ...changespec import ChangeSpec, has_ready_to_mail_suffix
+from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
 
@@ -468,8 +468,8 @@ class KeybindingFooter(Horizontal):
             if base_status in ("WIP", "Draft", "Ready", "Mailed"):
                 bindings.append(("w", "reword"))
 
-        # Mail (only if READY TO MAIL)
-        if has_ready_to_mail_suffix(changespec.status):
+        # Mail (only if status is Ready)
+        if base_status == "Ready":
             bindings.append(("M", "mail"))
 
         # Rebase (only if status is WIP, Draft, Ready, or Mailed)

@@ -117,18 +117,8 @@ def display_changespec(
 
     # STATUS field
     text.append("STATUS: ", style="bold #87D7FF")
-    # Check for READY TO MAIL suffix and highlight it specially (like Vim syntax)
-    ready_to_mail_suffix = " - (!: READY TO MAIL)"
-    if changespec.status.endswith(ready_to_mail_suffix):
-        base_status = changespec.status[: -len(ready_to_mail_suffix)]
-        status_color = get_status_color(base_status)
-        text.append(base_status, style=f"bold {status_color}")
-        # " - " in default style, suffix with white (#FFFFFF) on red background
-        text.append(" - ")
-        text.append("(!: READY TO MAIL)\n", style="bold #FFFFFF on #AF0000")
-    else:
-        status_color = get_status_color(changespec.status)
-        text.append(f"{changespec.status}\n", style=f"bold {status_color}")
+    status_color = get_status_color(changespec.status)
+    text.append(f"{changespec.status}\n", style=f"bold {status_color}")
 
     # TEST TARGETS field (only display if present)
     if changespec.test_targets:
