@@ -53,7 +53,7 @@ def _build_mentor_prompt(
     """
     expanded = process_xprompt_references(mentor.prompt)
     label = f"mentor({mentor_name})"
-    return f'#{vcs_type}(workflow_label="{label}"):{cl_name}\n\n{expanded}'
+    return f'#{vcs_type}({cl_name}, workflow_label="{label}")\n\n{expanded}'
 
 
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
