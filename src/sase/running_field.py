@@ -503,16 +503,22 @@ def get_first_available_axe_workspace(
 
 
 def get_workspace_directory_for_num(
-    workspace_num: int, project_basename: str
+    workspace_num: int, project_basename: str, *, clean: bool = True
 ) -> tuple[str, str | None]:
     """Get the workspace directory path for a given workspace number.
 
     Calls sase_hg_get_workspace to get the directory path, which will create
     workspace shares if they don't exist.
 
+    For non-main workspaces (workspace_num > 1), automatically cleans the
+    workspace to revert any uncommitted changes before returning.  This
+    prevents ``checkout`` / ``hg update`` failures caused by leftover dirty
+    state from a previous run.
+
     Args:
         workspace_num: Workspace number (1 = main, 2+ = shares)
         project_basename: Project name
+        clean: If True (default), clean non-main workspaces before returning.
 
     Returns:
         Tuple of (workspace_directory, workspace_suffix)
@@ -526,9 +532,16 @@ def get_workspace_directory_for_num(
 
     if workspace_num == 1:
         return (workspace_dir, None)
-    else:
-        workspace_suffix = f"{project_basename}_{workspace_num}"
-        return (workspace_dir, workspace_suffix)
+
+    # Clean non-main workspaces to avoid checkout conflicts from leftover
+    # dirty state.
+    if clean:
+        from sase.commit_utils import clean_workspace
+
+        clean_workspace(workspace_dir)
+
+    workspace_suffix = f"{project_basename}_{workspace_num}"
+    return (workspace_dir, workspace_suffix)
 
 
 def get_workspace_directory(project: str, workspace_num: int = 1) -> str:

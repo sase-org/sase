@@ -8,8 +8,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from rich.markup import escape as _esc
 
-from sase.commit_utils import run_sase_hg_clean
-
 from ..changespec import ChangeSpec
 from ..mail_ops import handle_mail as mail_ops_handle_mail
 from ..operations import update_to_changespec
@@ -71,15 +69,6 @@ def handle_mail(
 
         if workspace_suffix:
             self.console.print(f"[cyan]Using workspace: {workspace_suffix}[/cyan]")
-
-        # Clean workspace before switching branches
-        clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec.name}-mail"
-        )
-        if not clean_success:
-            self.console.print(
-                f"[yellow]Warning: sase_hg_clean failed: {_esc(str(clean_error))}[/yellow]"
-            )
 
         # Update to the changespec branch (NAME field) to ensure we're on the correct branch
         success, error_msg = update_to_changespec(
