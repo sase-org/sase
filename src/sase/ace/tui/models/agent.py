@@ -285,6 +285,14 @@ class Agent:
             # Extract base workflow: "ace(run)-timestamp" -> "ace-run"
             if workflow.startswith("ace(run)"):
                 workflow_name = "ace-run"
+            elif workflow.startswith("axe(fix-hook)"):
+                workflow_name = "fix-hook"
+            elif workflow.startswith("axe(crs)"):
+                workflow_name = "crs"
+            elif workflow.startswith("axe(mentor)"):
+                # "axe(mentor)-complete-TIMESTAMP" -> "mentor-complete"
+                parts = workflow.split("-")
+                workflow_name = f"mentor-{parts[1]}" if len(parts) >= 2 else "mentor"
             else:
                 workflow_name = workflow
         elif self.agent_type == AgentType.FIX_HOOK:

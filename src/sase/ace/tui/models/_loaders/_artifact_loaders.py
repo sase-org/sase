@@ -155,6 +155,12 @@ def load_agents_from_running_field(
                 cl_num=cl_by_cl_name.get(cl_name),
             )
             enrich_agent_from_meta(agent, agent.get_artifacts_dir())
+            # Axe-spawned agents are always hidden
+            if claim.workflow and any(
+                claim.workflow.startswith(p)
+                for p in ["axe(mentor)", "axe(fix-hook)", "axe(crs)"]
+            ):
+                agent.hidden = True
             agents.append(agent)
 
     return agents

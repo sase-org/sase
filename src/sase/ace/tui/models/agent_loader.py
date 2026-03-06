@@ -206,46 +206,68 @@ def load_all_agents() -> list[Agent]:
 
     agents = verified_agents
 
-    # Deduplicate loop-spawned agents by timestamp
-    # Loop agents have different PIDs in RUNNING (loop process) vs ChangeSpec (subprocess),
-    # but share the same timestamp. Match by (cl_name, timestamp) to deduplicate.
+    # Deduplicate axe-spawned agents by timestamp
+    # Axe agents appear in both RUNNING field (as RUNNING type with axe(...) workflow)
+    # and ChangeSpec fields (as FIX_HOOK/MENTOR/CRS type). Prefer the RUNNING entry
+    # (shows as [agent]) and merge type-specific metadata from ChangeSpec entry.
 
-    # Build index of ChangeSpec agents (non-RUNNING) by (cl_name, timestamp)
-    changespec_agents_by_key: dict[tuple[str, str], Agent] = {}
-    for agent in agents:
-        if agent.agent_type != AgentType.RUNNING:
-            ts = extract_timestamp_str_from_suffix(agent.raw_suffix)
-            if ts:
-                key = (agent.cl_name, ts)
-                changespec_agents_by_key[key] = agent
-
-    # Match RUNNING entries with ChangeSpec entries
-    # Keep RUNNING entries only if they don't match a ChangeSpec entry
-    final_agents: list[Agent] = []
+    # Build index of RUNNING agents with axe(...) workflows by (cl_name, timestamp)
+    running_axe_agents_by_key: dict[tuple[str, str], Agent] = {}
+    _axe_workflow_prefixes = ["axe(mentor)", "axe(fix-hook)", "axe(crs)"]
     for agent in agents:
         if agent.agent_type == AgentType.RUNNING:
             workflow = agent.workflow or ""
-            # Check if this is an axe agent workflow
-            is_axe_agent = any(
-                workflow.startswith(prefix)
-                for prefix in ["axe(mentor)", "axe(fix-hook)", "axe(crs)"]
-            )
-            if is_axe_agent:
+            if any(workflow.startswith(p) for p in _axe_workflow_prefixes):
                 ts = extract_timestamp_from_workflow(workflow)
                 if ts:
                     key = (agent.cl_name, ts)
-                    if key in changespec_agents_by_key:
-                        # Match found! Copy workspace_num and workflow, skip RUNNING entry
-                        matched = changespec_agents_by_key[key]
-                        if matched.workspace_num is None:
-                            matched.workspace_num = agent.workspace_num
-                        if matched.workflow is None:
-                            matched.workflow = agent.workflow
-                        continue  # Don't add RUNNING entry (deduplicated)
-            # Non-loop workflow or no match found - keep RUNNING entry
-            final_agents.append(agent)
-        else:
-            final_agents.append(agent)
+                    running_axe_agents_by_key[key] = agent
+
+    # Also index done.json RUNNING agents by (cl_name, timestamp)
+    # These have workflow like "fix-hook", "crs", "mentor-*" and raw_suffix as
+    # 14-digit timestamp that needs converting to 13-char format for matching
+    _done_axe_workflows = {"fix-hook", "crs", "summarize-hook"}
+    _done_axe_prefixes = ["mentor-"]
+    for agent in agents:
+        if (
+            agent.agent_type == AgentType.RUNNING
+            and agent.status in ("DONE", "FAILED")
+            and agent.workflow
+        ):
+            is_done_axe = agent.workflow in _done_axe_workflows or any(
+                agent.workflow.startswith(p) for p in _done_axe_prefixes
+            )
+            if is_done_axe and agent.raw_suffix:
+                ts_14 = agent.raw_suffix
+                if len(ts_14) == 14 and ts_14.isdigit():
+                    # Convert YYYYmmddHHMMSS -> YYmmdd_HHMMSS for matching
+                    ts_13 = ts_14[2:8] + "_" + ts_14[8:]
+                    key = (agent.cl_name, ts_13)
+                    running_axe_agents_by_key[key] = agent
+
+    # Match ChangeSpec entries with RUNNING entries — keep RUNNING, drop ChangeSpec
+    final_agents: list[Agent] = []
+    for agent in agents:
+        if agent.agent_type != AgentType.RUNNING:
+            # ChangeSpec agent — check for matching RUNNING entry
+            ts = extract_timestamp_str_from_suffix(agent.raw_suffix)
+            if ts:
+                key = (agent.cl_name, ts)
+                if key in running_axe_agents_by_key:
+                    # Merge type-specific fields onto the RUNNING entry
+                    matched = running_axe_agents_by_key[key]
+                    if agent.hook_command:
+                        matched.hook_command = agent.hook_command
+                    if agent.mentor_profile:
+                        matched.mentor_profile = agent.mentor_profile
+                    if agent.mentor_name:
+                        matched.mentor_name = agent.mentor_name
+                    if agent.reviewer:
+                        matched.reviewer = agent.reviewer
+                    if agent.commit_entry_id:
+                        matched.commit_entry_id = agent.commit_entry_id
+                    continue  # Drop the ChangeSpec entry
+        final_agents.append(agent)
 
     agents = final_agents
 

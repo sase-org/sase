@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 
 
@@ -76,9 +76,11 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
     ):
         agents = load_all_agents()
         assert len(agents) == 1
-        # Should have FIX_HOOK type with workspace_num copied from RUNNING entry
-        assert agents[0].agent_type == AgentType.FIX_HOOK
+        # Should keep RUNNING type (preferred over ChangeSpec) with metadata merged
+        assert agents[0].agent_type == AgentType.RUNNING
         assert agents[0].workspace_num == 5
+        # hook_command should be merged from the ChangeSpec entry
+        assert agents[0].hook_command == "bb_test"
 
 
 def test_workflow_dedup_propagates_failed_status() -> None:
@@ -236,3 +238,90 @@ def test_running_workflow_dedup_ace_run() -> None:
     assert result[0].vcs_provider == "GitHub"
     # PID should come from the WORKFLOW agent
     assert result[0].pid == 55555
+
+
+def test_done_json_dedup_with_changespec() -> None:
+    """Test that done.json RUNNING agents are preferred over ChangeSpec entries.
+
+    When a completed axe agent has both a done.json (RUNNING type) and a
+    ChangeSpec entry (CRS type), the RUNNING entry should be kept and
+    type-specific metadata (reviewer) merged from the CRS entry.
+    """
+    from sase.ace.changespec import ChangeSpec, CommentEntry
+
+    # done.json RUNNING agent (status=DONE, workflow="crs", 14-digit raw_suffix)
+    done_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        workflow="crs",
+        raw_suffix="20251230151429",  # 14-digit timestamp
+        hidden=True,
+    )
+
+    # ChangeSpec CRS entry with matching timestamp (13-char format in suffix)
+    mock_comment = CommentEntry(
+        reviewer="critique",
+        file_path="/tmp/comments.json",
+        suffix="crs-22222-251230_151429",
+        suffix_type="running_agent",
+    )
+
+    mock_cs = ChangeSpec(
+        name="my_feature",
+        description="Test",
+        parent=None,
+        cl="12345",
+        status="Ready",
+        test_targets=None,
+        kickstart=None,
+        file_path="/tmp/test.gp",
+        line_number=1,
+        comments=[mock_comment],
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[mock_cs],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[done_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    # Should be deduplicated to one agent (RUNNING preferred)
+    assert len(result) == 1
+    assert result[0].agent_type == AgentType.RUNNING
+    assert result[0].status == "DONE"
+    # reviewer should be merged from the CRS ChangeSpec entry
+    assert result[0].reviewer == "critique"
+    assert result[0].hidden is True
