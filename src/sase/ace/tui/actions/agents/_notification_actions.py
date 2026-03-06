@@ -131,18 +131,14 @@ def navigate_to_changespec_tab(
     from ....query import parse_query, to_canonical_string
     from ....query_history import push_to_prev_stack, save_query_history
 
-    # Save current tab position before switching
-    app._save_current_tab_position()  # type: ignore[attr-defined]
+    app.current_tab = "changespecs"  # type: ignore[attr-defined]
 
-    # Search in current filtered list first (before switching tab, to set correct idx)
+    # Search in current filtered list
     changespecs = app.changespecs  # type: ignore[attr-defined]
     for idx, cs in enumerate(changespecs):
         if cs.name == changespec_name:
             app.current_idx = idx  # type: ignore[attr-defined]
-            app.current_tab = "changespecs"  # type: ignore[attr-defined]
             return True
-
-    app.current_tab = "changespecs"  # type: ignore[attr-defined]
 
     # Not found — change query to show the target ChangeSpec
     if not project_file:

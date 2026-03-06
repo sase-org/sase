@@ -106,13 +106,6 @@ class AgentList(OptionList):
             self.index = index
             super().__init__()
 
-    class AgentActivated(Message):
-        """Message sent when an agent is activated (Enter or double-click)."""
-
-        def __init__(self, index: int) -> None:
-            self.index = index
-            super().__init__()
-
     class WidthChanged(Message):
         """Message sent when optimal width changes."""
 
@@ -333,7 +326,6 @@ class AgentList(OptionList):
         """Handle option selection (mouse click or Enter)."""
         if event.option_index is not None:
             self.post_message(self.SelectionChanged(event.option_index))
-            self.post_message(self.AgentActivated(event.option_index))
 
 
 def _compute_fold_annotation(
