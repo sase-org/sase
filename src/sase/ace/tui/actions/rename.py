@@ -92,6 +92,7 @@ class RenameMixin:
         old_name = changespec.name
         project_basename = os.path.basename(changespec.file_path).replace(".gp", "")
         workspace_num: int | None = None
+        cl_name_updated = False
 
         def run_handler() -> tuple[bool, str]:
             """Execute rename in suspended TUI context.
@@ -99,7 +100,7 @@ class RenameMixin:
             Returns:
                 Tuple of (success, message)
             """
-            nonlocal workspace_num
+            nonlocal workspace_num, cl_name_updated
 
             # For Reverted CLs, skip Mercurial operations (no CL exists)
             if base_status == "Reverted":
@@ -178,19 +179,22 @@ class RenameMixin:
                     update_running_field_cl_name(
                         changespec.file_path, old_name, new_name
                     )
+                    cl_name_updated = True
                 except Exception as e:
                     return (False, f"Failed to update spec file: {e}")
 
                 return (True, f"Renamed {old_name} to {new_name}")
 
             finally:
-                # Always release workspace
+                # Always release workspace — use new_name if the CL name
+                # was already updated in the RUNNING field, otherwise old_name.
                 if workspace_num is not None:
+                    release_cl_name = new_name if cl_name_updated else old_name
                     release_workspace(
                         changespec.file_path,
                         workspace_num,
                         workflow_name,
-                        old_name,
+                        release_cl_name,
                     )
 
         with self.suspend():  # type: ignore[attr-defined]
