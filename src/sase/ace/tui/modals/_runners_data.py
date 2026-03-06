@@ -21,7 +21,7 @@ from ..models._loaders import get_all_project_files
 _AXE_WORKFLOW_PREFIXES = ("axe(mentor)", "axe(fix-hook)", "axe(crs)", "axe(hooks)")
 _AXE_WORKFLOW_NAMES = {"fix-hook", "crs", "mentor", "summarize-hook"}
 
-_PROMPT_PREVIEW_MAX = 80
+_PROMPT_PREVIEW_MAX = 500
 
 
 @dataclass
