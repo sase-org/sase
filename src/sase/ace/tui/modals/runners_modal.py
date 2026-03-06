@@ -33,12 +33,14 @@ class _RunnerInfo:
     runner_type: Literal["process", "agent"]
     cl_name: str
     project_name: str
+    project_file: str
     hook_command: str | None  # For processes/hook agents
     agent_type: str | None  # fix-hook, summarize-hook, mentor, crs
     pid: int | None
     start_time: datetime | None
     reviewer: str | None  # For CRS agents
     raw_suffix: str | None
+    workspace_num: int | None = None
 
 
 def _parse_timestamp(ts: str) -> datetime | None:
@@ -104,6 +106,7 @@ def _collect_hook_runners(
             runner_type="process",
             cl_name=changespec.name,
             project_name=changespec.project_basename,
+            project_file=changespec.file_path,
             hook_command=hook.display_command,
             agent_type=None,
             pid=pid,
@@ -122,6 +125,7 @@ def _collect_hook_runners(
             runner_type="agent",
             cl_name=changespec.name,
             project_name=changespec.project_basename,
+            project_file=changespec.file_path,
             hook_command=hook.display_command,
             agent_type=agent_type,
             pid=pid,
@@ -153,6 +157,7 @@ def _collect_mentor_runners(
         runner_type="agent",
         cl_name=changespec.name,
         project_name=changespec.project_basename,
+        project_file=changespec.file_path,
         hook_command=None,
         agent_type=f"mentor:{status_line.profile_name}:{status_line.mentor_name}",
         pid=pid,
@@ -185,6 +190,7 @@ def _collect_comment_runners(changespec: ChangeSpec) -> list[_RunnerInfo]:
                 runner_type="agent",
                 cl_name=changespec.name,
                 project_name=changespec.project_basename,
+                project_file=changespec.file_path,
                 hook_command=None,
                 agent_type="crs",
                 pid=pid,
@@ -196,11 +202,71 @@ def _collect_comment_runners(changespec: ChangeSpec) -> list[_RunnerInfo]:
     return runners
 
 
-def _collect_runners() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
-    """Collect all running processes and agents from all ChangeSpecs.
+def _build_workspace_maps(
+    project_file: str,
+) -> tuple[dict[int, int], dict[str, int]]:
+    """Build PID-to-workspace and cl_name-to-workspace maps from RUNNING field.
+
+    Args:
+        project_file: Path to the ProjectSpec file.
 
     Returns:
-        Tuple of (processes, agents) lists.
+        Tuple of (pid_to_ws, cl_to_ws) dicts mapping to workspace numbers.
+    """
+    from sase.running_field import get_claimed_workspaces
+
+    pid_to_ws: dict[int, int] = {}
+    cl_to_ws: dict[str, int] = {}
+
+    for claim in get_claimed_workspaces(project_file):
+        pid_to_ws[claim.pid] = claim.workspace_num
+        if claim.cl_name:
+            cl_to_ws[claim.cl_name] = claim.workspace_num
+
+    return pid_to_ws, cl_to_ws
+
+
+def _resolve_workspace_num(
+    runner: _RunnerInfo,
+    pid_to_ws: dict[int, int],
+    cl_to_ws: dict[str, int],
+) -> int:
+    """Resolve the workspace number for a runner.
+
+    Tries PID match first (for agents that claim workspaces directly),
+    then falls back to cl_name match (for hook processes running in a
+    workspace claimed by the scheduler).
+
+    Args:
+        runner: The runner info to resolve.
+        pid_to_ws: PID-to-workspace mapping.
+        cl_to_ws: CL-name-to-workspace mapping.
+
+    Returns:
+        The workspace number.
+
+    Raises:
+        RuntimeError: If no workspace number can be resolved.
+    """
+    # Try PID match first (agents claim workspaces with their own PID)
+    if runner.pid is not None and runner.pid in pid_to_ws:
+        return pid_to_ws[runner.pid]
+
+    # Fall back to cl_name match (hook processes run in scheduler's workspace)
+    if runner.cl_name in cl_to_ws:
+        return cl_to_ws[runner.cl_name]
+
+    raise RuntimeError(
+        f"Could not resolve workspace number for runner: "
+        f"cl={runner.cl_name}, pid={runner.pid}, type={runner.runner_type}"
+    )
+
+
+def _collect_runners_raw() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
+    """Collect all running processes and agents without workspace resolution.
+
+    Returns:
+        Tuple of (processes, agents) lists with workspace_num unset.
     """
     processes: list[_RunnerInfo] = []
     agents: list[_RunnerInfo] = []
@@ -233,13 +299,37 @@ def _collect_runners() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
     return processes, agents
 
 
+def _collect_runners() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
+    """Collect all running processes and agents with workspace numbers resolved.
+
+    Returns:
+        Tuple of (processes, agents) lists with workspace_num set.
+
+    Raises:
+        RuntimeError: If any runner's workspace number cannot be resolved.
+    """
+    processes, agents = _collect_runners_raw()
+
+    # Build workspace maps per project file (cached)
+    ws_maps_cache: dict[str, tuple[dict[int, int], dict[str, int]]] = {}
+
+    for runner in [*processes, *agents]:
+        project_file = runner.project_file
+        if project_file not in ws_maps_cache:
+            ws_maps_cache[project_file] = _build_workspace_maps(project_file)
+        pid_to_ws, cl_to_ws = ws_maps_cache[project_file]
+        runner.workspace_num = _resolve_workspace_num(runner, pid_to_ws, cl_to_ws)
+
+    return processes, agents
+
+
 def get_runner_count() -> int:
     """Get the total count of running processes and agents.
 
     Returns:
         Total number of running processes and agents.
     """
-    processes, agents = _collect_runners()
+    processes, agents = _collect_runners_raw()
     return len(processes) + len(agents)
 
 
@@ -429,6 +519,16 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         # Build content parts and track length
         parts: list[tuple[str, str]] = []  # (text, style) tuples
         content_len = 0
+
+        # Workspace number
+        assert runner.workspace_num is not None, (
+            f"workspace_num must be set for runner: "
+            f"cl={runner.cl_name}, pid={runner.pid}, type={runner.runner_type}"
+        )
+        ws_str = f"#{runner.workspace_num}"
+        parts.append((ws_str, "bold #AF87FF"))
+        parts.append((" ", ""))
+        content_len += len(ws_str) + 1
 
         # CL name (no truncation)
         cl_name = runner.cl_name
