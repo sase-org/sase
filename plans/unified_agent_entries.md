@@ -1,5 +1,6 @@
 ---
 bead_id: sase-our6
+status: done
 ---
 
 # Plan: Unified Agent Entries for Axe-Spawned Agents
