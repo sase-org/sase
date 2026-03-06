@@ -17,7 +17,12 @@ from ...changespec import (
     MentorStatusLine,
     find_all_changespecs,
 )
+from ..models._loaders import get_all_project_files
 from .base import CopyModeForwardingMixin
+
+# Workflow prefixes/names that indicate axe-spawned agents (not user-initiated)
+_AXE_WORKFLOW_PREFIXES = ("axe(mentor)", "axe(fix-hook)", "axe(crs)", "axe(hooks)")
+_AXE_WORKFLOW_NAMES = {"fix-hook", "crs", "mentor", "summarize-hook"}
 
 # Dynamic box sizing constants
 _CSS_MAX_WIDTH = 200  # Must match max-width in styles.tcss for RunnersModal
@@ -202,6 +207,59 @@ def _collect_comment_runners(changespec: ChangeSpec) -> list[_RunnerInfo]:
     return runners
 
 
+def _collect_manual_agents() -> list[_RunnerInfo]:
+    """Collect manually started agents from RUNNING fields in all project files.
+
+    These are agents started by the user (e.g., via @ or space in the TUI),
+    as opposed to agents spawned by sase axe.
+
+    Returns:
+        List of _RunnerInfo for manually started agents (workspace_num already set).
+    """
+    from sase.running_field import get_claimed_workspaces
+
+    from pathlib import Path
+
+    agents: list[_RunnerInfo] = []
+
+    for project_file in get_all_project_files():
+        project_name = Path(project_file).stem
+        claims = get_claimed_workspaces(project_file)
+        for claim in claims:
+            # Skip axe-spawned agents
+            if claim.workflow and (
+                any(claim.workflow.startswith(p) for p in _AXE_WORKFLOW_PREFIXES)
+                or claim.workflow in _AXE_WORKFLOW_NAMES
+            ):
+                continue
+
+            # Parse timestamp from workflow name if available
+            start_time = None
+            workflow = claim.workflow or ""
+            # Workflows like "ace(run)-260306_143210" have embedded timestamps
+            if "-" in workflow:
+                ts_part = workflow.rsplit("-", 1)[-1]
+                start_time = _parse_timestamp(ts_part)
+
+            agents.append(
+                _RunnerInfo(
+                    runner_type="agent",
+                    cl_name=claim.cl_name or "unknown",
+                    project_name=project_name,
+                    project_file=project_file,
+                    hook_command=None,
+                    agent_type=workflow or "manual",
+                    pid=claim.pid,
+                    start_time=start_time,
+                    reviewer=None,
+                    raw_suffix=None,
+                    workspace_num=claim.workspace_num,
+                )
+            )
+
+    return agents
+
+
 def _build_workspace_maps(
     project_file: str,
 ) -> tuple[dict[int, int], dict[str, int]]:
@@ -262,14 +320,18 @@ def _resolve_workspace_num(
     )
 
 
-def _collect_runners_raw() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
+def _collect_runners_raw() -> tuple[
+    list[_RunnerInfo], list[_RunnerInfo], list[_RunnerInfo]
+]:
     """Collect all running processes and agents without workspace resolution.
 
     Returns:
-        Tuple of (processes, agents) lists with workspace_num unset.
+        Tuple of (processes, axe_agents, manual_agents) lists.
+        processes and axe_agents have workspace_num unset;
+        manual_agents have workspace_num already set from RUNNING field.
     """
     processes: list[_RunnerInfo] = []
-    agents: list[_RunnerInfo] = []
+    axe_agents: list[_RunnerInfo] = []
 
     for changespec in find_all_changespecs():
         # Collect from HOOKS
@@ -282,10 +344,10 @@ def _collect_runners_raw() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
                             if runner.runner_type == "process":
                                 processes.append(runner)
                             else:
-                                agents.append(runner)
+                                axe_agents.append(runner)
 
         # Collect from COMMENTS (CRS agents)
-        agents.extend(_collect_comment_runners(changespec))
+        axe_agents.extend(_collect_comment_runners(changespec))
 
         # Collect from MENTORS
         if changespec.mentors:
@@ -294,43 +356,50 @@ def _collect_runners_raw() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
                     for msl in mentor.status_lines:
                         runner = _collect_mentor_runners(changespec, msl)
                         if runner:
-                            agents.append(runner)
+                            axe_agents.append(runner)
 
-    return processes, agents
+    # Collect manually started agents from RUNNING field
+    manual_agents = _collect_manual_agents()
+
+    return processes, axe_agents, manual_agents
 
 
-def _collect_runners() -> tuple[list[_RunnerInfo], list[_RunnerInfo]]:
+def _collect_runners() -> tuple[
+    list[_RunnerInfo], list[_RunnerInfo], list[_RunnerInfo]
+]:
     """Collect all running processes and agents with workspace numbers resolved.
 
     Returns:
-        Tuple of (processes, agents) lists with workspace_num set.
+        Tuple of (processes, axe_agents, manual_agents) lists with workspace_num set.
 
     Raises:
         RuntimeError: If any runner's workspace number cannot be resolved.
     """
-    processes, agents = _collect_runners_raw()
+    processes, axe_agents, manual_agents = _collect_runners_raw()
 
     # Build workspace maps per project file (cached)
     ws_maps_cache: dict[str, tuple[dict[int, int], dict[str, int]]] = {}
 
-    for runner in [*processes, *agents]:
+    # Only resolve workspace for processes and axe_agents
+    # (manual_agents already have workspace_num from RUNNING field)
+    for runner in [*processes, *axe_agents]:
         project_file = runner.project_file
         if project_file not in ws_maps_cache:
             ws_maps_cache[project_file] = _build_workspace_maps(project_file)
         pid_to_ws, cl_to_ws = ws_maps_cache[project_file]
         runner.workspace_num = _resolve_workspace_num(runner, pid_to_ws, cl_to_ws)
 
-    return processes, agents
+    return processes, axe_agents, manual_agents
 
 
 def get_runner_count() -> int:
     """Get the total count of running processes and agents.
 
     Returns:
-        Total number of running processes and agents.
+        Total number of running processes and agents (both axe and manual).
     """
-    processes, agents = _collect_runners_raw()
-    return len(processes) + len(agents)
+    processes, axe_agents, manual_agents = _collect_runners_raw()
+    return len(processes) + len(axe_agents) + len(manual_agents)
 
 
 def _abbreviate_agent_type(agent_type: str) -> str:
@@ -435,10 +504,21 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
 
     def _build_content(self) -> Text:
         """Build the main content showing processes and agents."""
-        processes, agents = _collect_runners()
+        processes, axe_agents, manual_agents = _collect_runners()
         text = Text()
 
-        # Running Processes section (yellow)
+        # Manual Agents section (cyan) - user-started agents
+        self._add_section_header(text, "Manual Agents", "#00CED1")
+        if manual_agents:
+            for runner in manual_agents:
+                self._add_runner_entry(text, runner, "#00CED1")
+        else:
+            self._add_empty_row(text, "No manual agents", "#00CED1")
+        self._add_section_footer(text, "#00CED1")
+
+        text.append("\n")
+
+        # Running Processes section (yellow) - axe hook processes
         self._add_section_header(text, "Running Processes", "#FFD700")
         if processes:
             for runner in processes:
@@ -449,13 +529,13 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
 
         text.append("\n")
 
-        # Running Agents section (orange)
-        self._add_section_header(text, "Running Agents", "#FF8C00")
-        if agents:
-            for runner in agents:
+        # Running Agents section (orange) - axe-spawned agents
+        self._add_section_header(text, "Axe Agents", "#FF8C00")
+        if axe_agents:
+            for runner in axe_agents:
                 self._add_runner_entry(text, runner, "#FF8C00")
         else:
-            self._add_empty_row(text, "No running agents", "#FF8C00")
+            self._add_empty_row(text, "No axe agents", "#FF8C00")
         self._add_section_footer(text, "#FF8C00")
 
         return text
