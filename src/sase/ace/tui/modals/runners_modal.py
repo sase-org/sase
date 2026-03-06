@@ -46,6 +46,7 @@ class _RunnerInfo:
     reviewer: str | None  # For CRS agents
     raw_suffix: str | None
     workspace_num: int | None = None
+    prompt_preview: str | None = None
 
 
 def _parse_timestamp(ts: str) -> datetime | None:
@@ -207,6 +208,49 @@ def _collect_comment_runners(changespec: ChangeSpec) -> list[_RunnerInfo]:
     return runners
 
 
+_PROMPT_PREVIEW_MAX = 80
+
+
+def _read_prompt_preview(
+    project_name: str, artifacts_timestamp: str | None
+) -> str | None:
+    """Read a truncated prompt preview from the agent's raw_xprompt.md artifact.
+
+    Args:
+        project_name: The project name (e.g., "yserve").
+        artifacts_timestamp: The artifacts timestamp (YYYYmmddHHMMSS or YYmmdd_HHMMSS).
+
+    Returns:
+        A single-line prompt preview string, or None if unavailable.
+    """
+    if not artifacts_timestamp:
+        return None
+
+    import os
+
+    # Convert YYmmdd_HHMMSS to YYYYmmddHHMMSS if needed
+    ts = artifacts_timestamp
+    if len(ts) == 13 and ts[6] == "_":
+        from sase.shared_utils import convert_timestamp_to_artifacts_format
+
+        ts = convert_timestamp_to_artifacts_format(ts)
+
+    raw_path = os.path.expanduser(
+        f"~/.sase/projects/{project_name}/artifacts/ace-run/{ts}/raw_xprompt.md"
+    )
+    try:
+        with open(raw_path, encoding="utf-8") as f:
+            # Read first line only for preview
+            first_line = f.readline().strip()
+        if not first_line:
+            return None
+        if len(first_line) > _PROMPT_PREVIEW_MAX:
+            return first_line[:_PROMPT_PREVIEW_MAX] + "..."
+        return first_line
+    except OSError:
+        return None
+
+
 def _collect_manual_agents() -> list[_RunnerInfo]:
     """Collect manually started agents from RUNNING fields in all project files.
 
@@ -241,6 +285,11 @@ def _collect_manual_agents() -> list[_RunnerInfo]:
                 ts_part = workflow.rsplit("-", 1)[-1]
                 start_time = _parse_timestamp(ts_part)
 
+            # Read prompt preview from artifacts raw_xprompt.md
+            prompt_preview = _read_prompt_preview(
+                project_name, claim.artifacts_timestamp
+            )
+
             agents.append(
                 _RunnerInfo(
                     runner_type="agent",
@@ -254,6 +303,7 @@ def _collect_manual_agents() -> list[_RunnerInfo]:
                     reviewer=None,
                     raw_suffix=None,
                     workspace_num=claim.workspace_num,
+                    prompt_preview=prompt_preview,
                 )
             )
 
@@ -665,6 +715,32 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         # Pad to content_width and add right border
         if content_len < self._content_width:
             text.append(" " * (self._content_width - content_len), style="")
+        text.append(" \u2502", style=f"dim {color}")
+        text.append("\n")
+
+        # Show prompt preview on a second line for manual agents
+        if runner.prompt_preview:
+            self._add_prompt_preview_row(text, runner.prompt_preview, color)
+
+    def _add_prompt_preview_row(self, text: Text, preview: str, color: str) -> None:
+        """Add a prompt preview row below a runner entry.
+
+        Args:
+            text: The Text object to append to.
+            preview: The prompt preview string.
+            color: The color for the box drawing border.
+        """
+        indent = "    "  # 4-space indent for visual nesting
+        max_preview_len = self._content_width - len(indent)
+        if len(preview) > max_preview_len:
+            preview = preview[: max_preview_len - 3] + "..."
+
+        text.append("  \u2502  ", style=f"dim {color}")
+        text.append(indent, style="")
+        text.append(preview, style="dim italic")
+        padding = self._content_width - len(indent) - len(preview)
+        if padding > 0:
+            text.append(" " * padding, style="")
         text.append(" \u2502", style=f"dim {color}")
         text.append("\n")
 
