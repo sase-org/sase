@@ -8,6 +8,8 @@ Can you help me start showing all agents run by `sase axe` using the same `[agen
 - Agent's running with this `hidden` property set to `true` should be hidden by default, but can be shown using the `.`
   keymap (just like we do for `[crs]`, `[fix_hook]`, and `[mentor]` agents right now).
 - Manually created agents should also be able to be marked as hidden using a new `%hide` directive.
+- Hidden agents should be auto-dismissed when they reach DONE or FAILED status (just like `[mentor]`, `[crs]`, and
+  `[fix_hook]` agents are now — they simply disappear from the list rather than sitting in a dismissable state).
 
 This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but keep
 in mind that each phase will be completed by a distinct `claude` instance.

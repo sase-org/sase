@@ -29,6 +29,11 @@ type-based checks. Pure additive change.
   hook/mentor/comment loaders.
 - **src/sase/axe_run_agent_runner.py** (or agent_meta writer): Write `hide` field to `agent_meta.json` when `%hide`
   directive is set.
+- **src/sase/ace/tui/actions/agents/\_core.py**: In `_load_agents()`, after loading and filtering, auto-dismiss hidden
+  agents that have reached DONE or FAILED status. For each agent where
+  `agent.hidden and agent.status in DISMISSABLE_STATUSES`, call `self._persist_dismissed_agent(agent.identity)` and
+  filter it out of the agent list. This ensures hidden agents disappear automatically when complete rather than sitting
+  in a dismissable state behind the `.` toggle.
 
 ### Acceptance Criteria
 
@@ -37,6 +42,7 @@ type-based checks. Pure additive change.
 - `_is_always_visible()` uses `agent.hidden` for visibility.
 - All ChangeSpec-loaded agents (FIX_HOOK, SUMMARIZE, MENTOR, CRS) have `hidden=True`.
 - `.` toggle behavior unchanged from user perspective.
+- Hidden agents with DONE/FAILED status are auto-dismissed (removed from agent list, added to dismissed set).
 - `just check` passes.
 
 ---
