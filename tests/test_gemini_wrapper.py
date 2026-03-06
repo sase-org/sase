@@ -43,12 +43,12 @@ def testprocess_file_references_tilde_expansion() -> None:
                     ):
                         result = process_file_references(prompt)
 
-                # The tilde path should be replaced with a relative path to .sase/
+                # The tilde path should be replaced with a relative path to .sase/home/
                 assert f"@{tilde_path}" not in result
-                assert f"@.sase/{rel_path}" in result
+                assert f"@.sase/home/{rel_path}" in result
 
                 # Check that the file was copied with home-relative structure
-                copied_file = os.path.join(".sase", rel_path)
+                copied_file = os.path.join(".sase", "home", rel_path)
                 assert os.path.exists(copied_file)
 
                 # Verify content was copied correctly

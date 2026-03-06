@@ -194,7 +194,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
     Process file paths prefixed with '@' in the prompt.
 
     For absolute paths (when is_home_mode=False):
-    - Home-directory files (~/ paths): copy to .sase/<path_relative_to_home>/
+    - Home-directory files (~/ paths): copy to .sase/home/<path_relative_to_home>/
     - Non-home absolute files: leave the absolute path in the prompt unchanged
 
     For absolute paths (when is_home_mode=True):
@@ -204,7 +204,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
 
     This function extracts all file paths from the prompt that are prefixed
     with '@' and verifies that:
-    1. Home-dir absolute paths are copied to .sase/ (or just expanded in home mode)
+    1. Home-dir absolute paths are copied to .sase/home/ (or just expanded in home mode)
     2. Non-home absolute paths are left unchanged in the prompt
     3. Relative paths do not start with '..' (to prevent escaping CWD)
     4. All files exist
@@ -218,7 +218,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
         is_home_mode: If True, skip copying files and just expand tilde paths
 
     Returns:
-        The modified prompt with home-dir paths replaced by relative paths to .sase/
+        The modified prompt with home-dir paths replaced by relative paths to .sase/home/
         (or expanded paths in home mode)
 
     Raises:
@@ -255,12 +255,12 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
         else:
             non_home_paths.append((original_path, expanded_path))
 
-    # Copy home-directory files to .sase/<relative_path>
+    # Copy home-directory files to .sase/home/<relative_path>
     if home_paths:
         file_count = len(home_paths)
         file_word = "file" if file_count == 1 else "files"
         print_status(
-            f"Processing {file_count} home-dir {file_word} - copying to .sase/",
+            f"Processing {file_count} home-dir {file_word} - copying to .sase/home/",
             "info",
         )
 
@@ -268,7 +268,7 @@ def process_file_references(prompt: str, *, is_home_mode: bool = False) -> str:
 
     for original_path, expanded_path in home_paths:
         rel_path = os.path.relpath(expanded_path, home_dir)
-        dest_path = os.path.join(".sase", rel_path)
+        dest_path = os.path.join(".sase", "home", rel_path)
 
         # Create parent directories as needed
         Path(dest_path).parent.mkdir(parents=True, exist_ok=True)

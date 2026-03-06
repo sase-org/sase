@@ -106,7 +106,7 @@ def test_process_file_references_home_mode_absolute_path_unchanged() -> None:
 def test_process_file_references_normal_mode_copies_home_files(
     tmp_path: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that normal mode copies home-dir files to .sase/."""
+    """Test that normal mode copies home-dir files to .sase/home/."""
     monkeypatch.chdir(tmp_path)
 
     home_dir = os.path.expanduser("~")
@@ -124,12 +124,12 @@ def test_process_file_references_normal_mode_copies_home_files(
         prompt = f"Check @{tilde_path}"
         result = process_file_references(prompt, is_home_mode=False)
 
-        # .sase should be created with home-relative structure
-        dest_path = os.path.join(tmp_path, ".sase", rel_path)
+        # .sase/home should be created with home-relative structure
+        dest_path = os.path.join(tmp_path, ".sase", "home", rel_path)
         assert os.path.exists(dest_path)
 
         # Prompt should reference the copied file
-        assert f"@.sase/{rel_path}" in result
+        assert f"@.sase/home/{rel_path}" in result
     finally:
         os.unlink(temp_path)
 
