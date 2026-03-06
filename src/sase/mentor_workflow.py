@@ -34,13 +34,17 @@ from sase.xprompt import process_xprompt_references
 
 
 def _build_mentor_prompt(
-    mentor: MentorConfig, cl_name: str, vcs_type: str = "hg"
+    mentor: MentorConfig,
+    cl_name: str,
+    mentor_name: str,
+    vcs_type: str = "hg",
 ) -> str:
     """Build the mentor prompt with VCS workspace management prepended.
 
     Args:
         mentor: The mentor configuration.
         cl_name: CL name passed to the embedded workflow.
+        mentor_name: Name of the specific mentor (used in workflow label).
         vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
 
     Returns:
@@ -48,7 +52,8 @@ def _build_mentor_prompt(
         xprompt references expanded.
     """
     expanded = process_xprompt_references(mentor.prompt)
-    return f"#{vcs_type}:{cl_name}\n\n{expanded}"
+    label = f"mentor({mentor_name})"
+    return f'#{vcs_type}(workflow_label="{label}"):{cl_name}\n\n{expanded}'
 
 
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
@@ -182,7 +187,9 @@ class MentorWorkflow(BaseWorkflow):
 
             # Build and run prompt
             print_status("Building mentor prompt...", "progress")
-            prompt = _build_mentor_prompt(self._mentor, resolved_cl_name, vcs_type)
+            prompt = _build_mentor_prompt(
+                self._mentor, resolved_cl_name, self.mentor_name, vcs_type
+            )
 
             # Expand embedded workflows (like #propose from #p expansion)
             expanded_prompt, post_workflows = expand_embedded_workflows_in_query(

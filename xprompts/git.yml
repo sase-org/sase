@@ -9,6 +9,9 @@ input:
   - name: release
     type: bool
     default: true
+  - name: workflow_label
+    type: word
+    default: null
 
 steps:
   - name: setup
@@ -18,6 +21,7 @@ steps:
           git_ref={{ git_ref | tojson }},
           n={{ n | tojson }},
           release={{ release | tojson }},
+          workflow_label={{ workflow_label | tojson }},
       )
     output:
       project_name: word
@@ -27,6 +31,7 @@ steps:
       checkout_target: word
       primary_workspace_dir: path
       should_release: bool
+      workflow_name: word
 
   - name: prepare
     bash: |
@@ -100,7 +105,7 @@ steps:
       release_workspace(
           {{ setup.project_file | tojson }},
           {{ setup.workspace_num }},
-          f"git-{{ git_ref }}",
+          {{ setup.workflow_name | tojson }},
           {{ git_ref | tojson }} if "/" not in {{ git_ref | tojson }} else None,
       )
       print("released=true")
