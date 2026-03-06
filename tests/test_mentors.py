@@ -211,4 +211,164 @@ STATUS: Ready
     Path(file_path).unlink()
 
 
+def test_merge_preserves_terminal_status_from_disk() -> None:
+    """Test that _merge_mentor_status_lines preserves terminal disk status.
+
+    When the caller has a stale RUNNING status but the disk has been updated
+    to PASSED by set_mentor_status(), the merge should prefer the disk version.
+    This prevents the race condition where update_changespec_mentors_field()
+    overwrites a newer terminal status with a stale RUNNING status.
+    """
+    from sase.ace.mentors import _merge_mentor_status_lines
+
+    # Disk has PASSED (updated by set_mentor_status after caller's read)
+    disk_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="PASSED",
+                    timestamp="260306_093014",
+                    duration="5m30s",
+                ),
+            ],
+        )
+    ]
+
+    # Caller has stale RUNNING (read before set_mentor_status ran)
+    caller_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="RUNNING",
+                    timestamp="260306_093014",
+                    suffix="mentor_quality-12345-260306_093014",
+                    suffix_type="running_agent",
+                ),
+            ],
+        )
+    ]
+
+    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+
+    # The disk's PASSED status should win over the caller's stale RUNNING
+    assert result[0].status_lines is not None
+    sl = result[0].status_lines[0]
+    assert sl.status == "PASSED"
+    assert sl.duration == "5m30s"
+    assert sl.suffix_type is None  # PASSED has no running_agent suffix
+
+
+def test_merge_preserves_caller_killed_agent() -> None:
+    """Test that merge preserves caller's killed_agent over disk's RUNNING.
+
+    When the caller intentionally marks a mentor as killed_agent (e.g.,
+    mark_mentor_agents_as_killed), the caller's version should win over
+    the disk's RUNNING status.
+    """
+    from sase.ace.mentors import _merge_mentor_status_lines
+
+    # Disk still has RUNNING (process was just killed, hasn't updated yet)
+    disk_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="RUNNING",
+                    timestamp="260306_093014",
+                    suffix="mentor_quality-12345-260306_093014",
+                    suffix_type="running_agent",
+                ),
+            ],
+        )
+    ]
+
+    # Caller has killed_agent (set by mark_mentor_agents_as_killed)
+    caller_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="RUNNING",
+                    timestamp="260306_093014",
+                    suffix="mentor_quality-12345-260306_093014",
+                    suffix_type="killed_agent",
+                ),
+            ],
+        )
+    ]
+
+    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+
+    # Caller's killed_agent should be preserved (disk is non-terminal)
+    assert result[0].status_lines is not None
+    sl = result[0].status_lines[0]
+    assert sl.suffix_type == "killed_agent"
+
+
+def test_merge_adds_missing_status_lines() -> None:
+    """Test that merge still adds status lines the caller doesn't have."""
+    from sase.ace.mentors import _merge_mentor_status_lines
+
+    # Disk has two status lines
+    disk_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="RUNNING",
+                    timestamp="260306_093014",
+                ),
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="tests",
+                    status="PASSED",
+                    timestamp="260306_093016",
+                    duration="3m",
+                ),
+            ],
+        )
+    ]
+
+    # Caller only has one (the other was added after caller's read)
+    caller_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="RUNNING",
+                    timestamp="260306_093014",
+                ),
+            ],
+        )
+    ]
+
+    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+
+    # Should now have both status lines
+    assert result[0].status_lines is not None
+    assert len(result[0].status_lines) == 2
+    names = {sl.mentor_name for sl in result[0].status_lines}
+    assert names == {"quality", "tests"}
+
+
 # Tests for clear_mentor_draft_flags

@@ -274,6 +274,30 @@ def _kill_stale_mentors(
     return updates
 
 
+def _is_mentor_process(pid: int) -> bool:
+    """Check if a PID belongs to a mentor runner process.
+
+    Uses /proc/<pid>/cmdline on Linux to verify the process is actually
+    an axe_mentor_runner.  This guards against PID reuse: after a mentor
+    process exits, a completely unrelated process may receive the same
+    PID, causing ``is_process_running()`` to return True.
+
+    Args:
+        pid: The process ID to check.
+
+    Returns:
+        True if the process appears to be a mentor runner, or if the
+        check cannot be performed (non-Linux). False if the PID clearly
+        belongs to a different process.
+    """
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            cmdline = f.read().decode("utf-8", errors="replace")
+        return "axe_mentor_runner" in cmdline
+    except (FileNotFoundError, PermissionError, OSError):
+        return True  # Can't check — assume it's the mentor
+
+
 def _check_mentor_completion(
     changespec: ChangeSpec,
     log: LogCallback,
@@ -284,6 +308,9 @@ def _check_mentor_completion(
     Detects mentor processes that are no longer running and marks them as killed.
     Uses set_mentor_status() for each dead mentor to avoid race conditions with
     concurrent status updates.
+
+    Also detects PID reuse: if the PID is alive but belongs to an unrelated
+    process (not axe_mentor_runner), the mentor is marked as DEAD.
 
     Args:
         changespec: The ChangeSpec to check.
@@ -307,7 +334,13 @@ def _check_mentor_completion(
         for msl in entry.status_lines:
             if msl.suffix_type == "running_agent" and msl.suffix:
                 pid = extract_pid_from_agent_suffix(msl.suffix)
-                if pid is not None and not is_process_running(pid):
+                if pid is None:
+                    continue
+
+                process_alive = is_process_running(pid)
+                pid_reused = process_alive and not _is_mentor_process(pid)
+                if not process_alive or pid_reused:
+                    reason = "PID reused" if pid_reused else "not running"
                     # Process is dead - mark as killed via set_mentor_status
                     success = set_mentor_status(
                         changespec.file_path,
@@ -325,7 +358,7 @@ def _check_mentor_completion(
                         msg = (
                             f"Marked dead MENTOR "
                             f"'{msl.profile_name}:{msl.mentor_name}' "
-                            f"({entry.entry_id}) - PID {pid} not running"
+                            f"({entry.entry_id}) - PID {pid} {reason}"
                         )
                         updates.append(msg)
                         log(msg, "cyan")

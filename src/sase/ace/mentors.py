@@ -393,6 +393,9 @@ def set_mentor_status(
         return False
 
 
+_TERMINAL_MENTOR_STATUSES = frozenset({"PASSED", "FAILED", "DEAD", "KILLED"})
+
+
 def _merge_mentor_status_lines(
     current_mentors: list[MentorEntry],
     caller_mentors: list[MentorEntry],
@@ -402,25 +405,36 @@ def _merge_mentor_status_lines(
     Preserves any (profile_name, mentor_name) status_lines that exist on disk
     but NOT in the caller's data (they were added after the caller's read).
 
+    Also preserves terminal statuses from disk: if the disk has a completed
+    status (PASSED/FAILED/DEAD/KILLED) or killed_agent suffix_type for a
+    status line that the caller still shows as non-terminal, the disk version
+    wins.  This prevents stale reads from overwriting status updates made by
+    ``set_mentor_status()`` between the caller's read and write.
+
     Args:
         current_mentors: Mentor entries freshly read from disk inside the lock.
         caller_mentors: Mentor entries provided by the caller (possibly stale).
 
     Returns:
-        The caller_mentors list with missing status_lines merged in.
+        The caller_mentors list with missing/newer status_lines merged in.
     """
-    # Build lookup of caller's status line keys per entry_id
+    # Build lookup of caller's status line keys and objects per entry_id
     caller_status_keys: dict[str, set[tuple[str, str]]] = {}
     caller_entry_lookup: dict[str, MentorEntry] = {}
+    caller_sl_lookup: dict[str, dict[tuple[str, str], MentorStatusLine]] = {}
     for entry in caller_mentors:
         keys: set[tuple[str, str]] = set()
+        sl_map: dict[tuple[str, str], MentorStatusLine] = {}
         if entry.status_lines:
             for sl in entry.status_lines:
-                keys.add((sl.profile_name, sl.mentor_name))
+                key = (sl.profile_name, sl.mentor_name)
+                keys.add(key)
+                sl_map[key] = sl
         caller_status_keys[entry.entry_id] = keys
         caller_entry_lookup[entry.entry_id] = entry
+        caller_sl_lookup[entry.entry_id] = sl_map
 
-    # For each entry on disk, find status_lines not in caller's data
+    # For each entry on disk, merge status_lines into caller's data
     for disk_entry in current_mentors:
         if disk_entry.entry_id not in caller_entry_lookup:
             continue  # Caller doesn't have this entry, skip
@@ -429,13 +443,35 @@ def _merge_mentor_status_lines(
 
         caller_keys = caller_status_keys[disk_entry.entry_id]
         caller_entry = caller_entry_lookup[disk_entry.entry_id]
+        caller_sls = caller_sl_lookup[disk_entry.entry_id]
 
-        for sl in disk_entry.status_lines:
-            if (sl.profile_name, sl.mentor_name) not in caller_keys:
+        for disk_sl in disk_entry.status_lines:
+            key = (disk_sl.profile_name, disk_sl.mentor_name)
+            if key not in caller_keys:
                 # Status line exists on disk but not in caller's data
                 if caller_entry.status_lines is None:
                     caller_entry.status_lines = []
-                caller_entry.status_lines.append(sl)
+                caller_entry.status_lines.append(disk_sl)
+            else:
+                # Status line exists in both — prefer disk if it has a
+                # terminal status that the caller's stale read might miss
+                disk_is_terminal = (
+                    disk_sl.status in _TERMINAL_MENTOR_STATUSES
+                    or disk_sl.suffix_type == "killed_agent"
+                )
+                caller_sl = caller_sls[key]
+                caller_is_terminal = (
+                    caller_sl.status in _TERMINAL_MENTOR_STATUSES
+                    or caller_sl.suffix_type == "killed_agent"
+                )
+                if disk_is_terminal and not caller_is_terminal:
+                    # Disk has a newer terminal status — replace caller's
+                    # stale version with the disk version
+                    if caller_entry.status_lines:
+                        caller_entry.status_lines = [
+                            disk_sl if (s.profile_name, s.mentor_name) == key else s
+                            for s in caller_entry.status_lines
+                        ]
 
     return caller_mentors
 

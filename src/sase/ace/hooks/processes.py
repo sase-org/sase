@@ -36,6 +36,9 @@ def _try_kill_process_group(pid: int) -> bool:
 def is_process_running(pid: int) -> bool:
     """Check if a process with the given PID is still running.
 
+    Also detects zombie processes on Linux (state "Z" in /proc) which
+    appear alive to ``os.kill(pid, 0)`` but are effectively dead.
+
     Args:
         pid: The process ID to check.
 
@@ -44,12 +47,24 @@ def is_process_running(pid: int) -> bool:
     """
     try:
         os.kill(pid, 0)  # Signal 0 doesn't kill, just checks existence
-        return True
     except ProcessLookupError:
         return False
     except PermissionError:
         # Process exists but we don't have permission to signal it
         return True
+
+    # On Linux, check /proc/<pid>/status for zombie state.
+    # Zombies have exited but haven't been reaped by their parent;
+    # os.kill(pid, 0) still succeeds for them.
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            for line in f:
+                if line.startswith("State:"):
+                    return "Z" not in line
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+
+    return True
 
 
 def kill_running_hook_processes(
