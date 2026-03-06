@@ -135,11 +135,24 @@ def write_changespec_atomic(
     This function should be called WHILE holding a lock on the file.
     It handles the temp file + os.replace() pattern and commits to git.
 
+    Skips the write entirely if the new content is identical to what is
+    already on disk, avoiding unnecessary file modifications (which can
+    trigger editor warnings, inotify events, etc.).
+
     Args:
         project_file: Path to the .gp file.
         content: The full file content to write.
         commit_message: Git commit message describing the change.
     """
+    # Skip write if content hasn't changed
+    try:
+        with open(project_file, encoding="utf-8") as f:
+            existing = f.read()
+        if existing == content:
+            return
+    except FileNotFoundError:
+        pass
+
     project_dir = os.path.dirname(project_file)
     fd, temp_path = tempfile.mkstemp(dir=project_dir, prefix=".tmp_", suffix=".gp")
     try:
