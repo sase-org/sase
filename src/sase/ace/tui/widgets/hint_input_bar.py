@@ -71,7 +71,9 @@ class HintInputBar(Static):
         def __init__(
             self,
             value: str,
-            mode: Literal["view", "hooks", "accept", "failed_hooks", "rewind"],
+            mode: Literal[
+                "view", "hooks", "accept", "failed_hooks", "rewind", "mentors"
+            ],
         ) -> None:
             """Initialize the message.
 
@@ -94,7 +96,7 @@ class HintInputBar(Static):
 
     def __init__(
         self,
-        mode: Literal["view", "hooks", "accept", "failed_hooks", "rewind"],
+        mode: Literal["view", "hooks", "accept", "failed_hooks", "rewind", "mentors"],
         placeholder: str | None = None,
         initial_value: str = "",
         **kwargs: Any,
@@ -132,6 +134,12 @@ class HintInputBar(Static):
                 yield Label("Failed Hooks: ", id="hint-label")
                 yield _HintInput(
                     placeholder="1-5 or 1 3 5 (select targets to add as hooks)",
+                    id="hint-input",
+                )
+            elif self.mode == "mentors":
+                yield Label("Kill Mentors: ", id="hint-label")
+                yield _HintInput(
+                    placeholder="1-5 or 1 3 5 (select running mentors to kill)",
                     id="hint-input",
                 )
             elif self.mode == "rewind":

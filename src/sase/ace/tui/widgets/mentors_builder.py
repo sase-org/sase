@@ -17,6 +17,7 @@ def build_mentors_section(
     changespec: ChangeSpec,
     mentors_fold: FoldLevel = FoldLevel.COLLAPSED,
     with_hints: bool = False,
+    hints_for: str | None = None,
     hint_tracker: HintTracker | None = None,
 ) -> HintTracker:
     """Build the MENTORS section of the display.
@@ -138,21 +139,42 @@ def build_mentors_section(
         if mentor_entry.status_lines:
             for msl in mentor_entry.status_lines:
                 if mentors_fold != FoldLevel.FULLY_EXPANDED:
-                    # COLLAPSED: non-latest → hide all; latest → hide PASSED/DEAD
-                    # EXPANDED: non-latest → hide all; latest → show all
-                    if not is_latest_entry:
-                        continue
-                    if mentors_fold == FoldLevel.COLLAPSED and msl.status in (
-                        "PASSED",
-                        "DEAD",
-                    ):
-                        continue
+                    # In mentors_running mode, always show RUNNING mentors
+                    # regardless of fold level or entry age
+                    force_show = (
+                        hints_for == "mentors_running"
+                        and msl.suffix_type == "running_agent"
+                    )
+                    if not force_show:
+                        # COLLAPSED: non-latest → hide all; latest → hide PASSED/DEAD
+                        # EXPANDED: non-latest → hide all; latest → show all
+                        if not is_latest_entry:
+                            continue
+                        if mentors_fold == FoldLevel.COLLAPSED and msl.status in (
+                            "PASSED",
+                            "DEAD",
+                        ):
+                            continue
 
                 text.append("      ", style="")
                 text.append("| ", style="#808080")
 
-                # Show hint for viewable mentor entries (PASSED/FAILED with timestamp)
-                if with_hints and msl.timestamp and msl.status in ("PASSED", "FAILED"):
+                # Show hints based on mode:
+                # - mentors_running: hints for RUNNING mentors (for ,m kill mode)
+                # - default: hints for PASSED/FAILED mentors (for view mode)
+                if with_hints and hints_for == "mentors_running":
+                    if msl.suffix_type == "running_agent":
+                        hint_mappings[hint_counter] = ""  # No file to view
+                        hint_to_entry_id[hint_counter] = mentor_entry.entry_id
+                        mentor_hint_to_info[hint_counter] = (
+                            msl.mentor_name,
+                            msl.profile_name,
+                        )
+                        text.append(f"[{hint_counter}] ", style="bold #FF5F5F")
+                        hint_counter += 1
+                elif (
+                    with_hints and msl.timestamp and msl.status in ("PASSED", "FAILED")
+                ):
                     chat_path = get_mentor_chat_path(
                         changespec.name, msl.mentor_name, msl.timestamp
                     )

@@ -267,8 +267,16 @@ class ChangeSpecDetail(Static):
         )
 
         # Build MENTORS section
+        # Don't show mentor hints in hooks_latest_only mode (h key) —
+        # mentor killing has its own dedicated mode (,m)
+        show_mentor_hints = with_hints and hints_for != "hooks_latest_only"
         hint_tracker = build_mentors_section(
-            text, changespec, mentors_collapsed, with_hints, hint_tracker
+            text,
+            changespec,
+            mentors_collapsed,
+            show_mentor_hints,
+            hints_for,
+            hint_tracker,
         )
 
         text.rstrip()

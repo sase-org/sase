@@ -3,6 +3,7 @@
 from ._accept import AcceptMailMixin
 from ._files import FileViewingMixin
 from ._hooks import HookEditingMixin
+from ._mentors import MentorKillingMixin
 from ._processing import InputProcessingMixin
 from ._rewind import RewindMixin
 
@@ -11,9 +12,10 @@ class HintActionsMixin(
     AcceptMailMixin,
     FileViewingMixin,
     HookEditingMixin,
+    MentorKillingMixin,
     InputProcessingMixin,
     RewindMixin,
 ):
-    """Mixin providing hint-based actions (edit hooks, view files, rewind)."""
+    """Mixin providing hint-based actions (edit hooks, view files, kill mentors, rewind)."""
 
     pass

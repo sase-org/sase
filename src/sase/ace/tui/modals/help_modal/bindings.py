@@ -73,6 +73,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Leader Mode (,)",
         [
             (",!", "Run command (use current CL)"),
+            (",m", "Kill running mentors"),
             (",r", "Show runners info"),
             (",<space>", "Repeat last @/<space> selection"),
         ],

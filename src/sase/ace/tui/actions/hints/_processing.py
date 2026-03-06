@@ -26,6 +26,8 @@ class InputProcessingMixin(HintMixinBase):
             self._process_hooks_input(event.value)
         elif event.mode == "failed_hooks":
             self._process_failed_hooks_input(event.value)
+        elif event.mode == "mentors":
+            self._process_mentors_input(event.value)  # type: ignore[attr-defined]
         elif event.mode == "rewind":
             self._process_rewind_input(event.value)  # type: ignore[attr-defined]
         else:  # accept mode

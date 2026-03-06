@@ -257,6 +257,7 @@ class KeybindingFooter(Horizontal):
         bindings: list[tuple[str, str]] = []
         if current_tab == "changespecs":
             bindings.append(("!", "run cmd (CL)"))
+            bindings.append(("m", "kill mentors"))
         if self._runner_count > 0:
             bindings.append(("r", f"runners ({self._runner_count})"))
         bindings.append(("Space", "repeat last @/<space>"))
