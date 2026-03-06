@@ -311,8 +311,9 @@ def load_all_agents() -> list[Agent]:
         or seen_suffixes.get(a.raw_suffix) is a
     ]
 
-    # Deduplicate RUNNING↔WORKFLOW: ace(run) RUNNING agents vs WORKFLOW agents
+    # Deduplicate RUNNING↔WORKFLOW: ace-run RUNNING agents vs WORKFLOW agents
     # from the same artifacts directory (matching raw_suffix / timestamp).
+    # RUNNING field uses "ace(run)" workflow; done.json uses "ace-run" (dir name).
     # Prefer WORKFLOW (has step info / appears_as_agent), merge metadata from RUNNING.
     workflow_by_suffix: dict[str, Agent] = {}
     for agent in agents:
@@ -324,7 +325,7 @@ def load_all_agents() -> list[Agent]:
         if (
             agent.agent_type == AgentType.RUNNING
             and agent.workflow is not None
-            and agent.workflow.startswith("ace(run)")
+            and (agent.workflow.startswith("ace(run)") or agent.workflow == "ace-run")
             and agent.raw_suffix
             and agent.raw_suffix in workflow_by_suffix
         ):
