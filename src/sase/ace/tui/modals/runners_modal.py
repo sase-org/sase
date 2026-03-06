@@ -288,7 +288,7 @@ def _resolve_workspace_num(
     runner: _RunnerInfo,
     pid_to_ws: dict[int, int],
     cl_to_ws: dict[str, int],
-) -> int:
+) -> int | None:
     """Resolve the workspace number for a runner.
 
     Tries PID match first (for agents that claim workspaces directly),
@@ -301,10 +301,7 @@ def _resolve_workspace_num(
         cl_to_ws: CL-name-to-workspace mapping.
 
     Returns:
-        The workspace number.
-
-    Raises:
-        RuntimeError: If no workspace number can be resolved.
+        The workspace number, or None if it cannot be resolved.
     """
     # Try PID match first (agents claim workspaces with their own PID)
     if runner.pid is not None and runner.pid in pid_to_ws:
@@ -314,10 +311,7 @@ def _resolve_workspace_num(
     if runner.cl_name in cl_to_ws:
         return cl_to_ws[runner.cl_name]
 
-    raise RuntimeError(
-        f"Could not resolve workspace number for runner: "
-        f"cl={runner.cl_name}, pid={runner.pid}, type={runner.runner_type}"
-    )
+    return None
 
 
 def _collect_runners_raw() -> tuple[
@@ -370,10 +364,8 @@ def _collect_runners() -> tuple[
     """Collect all running processes and agents with workspace numbers resolved.
 
     Returns:
-        Tuple of (processes, axe_agents, manual_agents) lists with workspace_num set.
-
-    Raises:
-        RuntimeError: If any runner's workspace number cannot be resolved.
+        Tuple of (processes, axe_agents, manual_agents) lists with workspace_num set
+        (or None if resolution failed).
     """
     processes, axe_agents, manual_agents = _collect_runners_raw()
 
@@ -601,11 +593,9 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         content_len = 0
 
         # Workspace number
-        assert runner.workspace_num is not None, (
-            f"workspace_num must be set for runner: "
-            f"cl={runner.cl_name}, pid={runner.pid}, type={runner.runner_type}"
+        ws_str = (
+            f"#{runner.workspace_num}" if runner.workspace_num is not None else "#?"
         )
-        ws_str = f"#{runner.workspace_num}"
         parts.append((ws_str, "bold #AF87FF"))
         parts.append((" ", ""))
         content_len += len(ws_str) + 1
