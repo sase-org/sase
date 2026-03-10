@@ -163,7 +163,7 @@ class AgentKillingMixin:
             "summarize-hook",
         ):
             self._kill_hook_agent(agent)
-        elif workflow.startswith("axe(mentor)") or workflow == "mentor":
+        elif workflow.startswith(("axe(mentor)", "mentor(")) or workflow == "mentor":
             self._kill_mentor_agent(agent)
         elif workflow.startswith("axe(crs)") or workflow == "crs":
             self._kill_crs_agent(agent)

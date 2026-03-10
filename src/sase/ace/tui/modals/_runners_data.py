@@ -24,6 +24,7 @@ _AXE_WORKFLOW_PREFIXES = (
     "axe(crs)",
     "axe(hooks)",
     "mentor-",
+    "mentor(",
 )
 _AXE_WORKFLOW_NAMES = {"fix-hook", "crs", "mentor", "summarize-hook"}
 

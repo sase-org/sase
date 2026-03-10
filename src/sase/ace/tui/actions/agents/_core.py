@@ -72,7 +72,9 @@ def _is_axe_spawned_agent(agent: Agent) -> bool:
     """
     if agent.workflow:
         # axe-spawned workflows start with axe(...)
-        if agent.workflow.startswith(("axe(mentor)", "axe(fix-hook)", "axe(crs)")):
+        if agent.workflow.startswith(
+            ("axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor(")
+        ):
             return True
         # Plain workflow names for axe-spawned types (from workflow_state.json or ChangeSpec)
         if agent.workflow in ("fix-hook", "crs", "mentor", "summarize-hook"):
