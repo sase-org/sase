@@ -206,6 +206,7 @@ class MentorWorkflow(BaseWorkflow):
                 artifacts_dir=artifacts_dir,
                 workflow=f"mentor-{self.mentor_name}",
                 timestamp=self._timestamp,
+                branch_or_workspace=resolved_cl_name,
             )
 
             # Execute post-steps from embedded workflows

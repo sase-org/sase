@@ -88,6 +88,7 @@ def save_chat_history(
     previous_history: str | None = None,
     timestamp: str | None = None,
     extra_sections: str | None = None,
+    branch_or_workspace: str | None = None,
 ) -> str:
     """Save a chat history to a file.
 
@@ -106,7 +107,9 @@ def save_chat_history(
     """
     ensure_sase_directory("chats")
 
-    basename = _generate_chat_filename(workflow, agent, timestamp=timestamp)
+    basename = _generate_chat_filename(
+        workflow, agent, branch_or_workspace=branch_or_workspace, timestamp=timestamp
+    )
     file_path = _get_chat_file_path(basename)
 
     display_timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S EST")

@@ -42,6 +42,7 @@ def invoke_agent(
     suppress_output: bool = False,
     timestamp: str | None = None,
     is_home_mode: bool = False,
+    branch_or_workspace: str | None = None,
     decision_counts: dict[str, Any] | None = None,
     provider_name: str | None = None,
     skip_preprocessing: bool = False,
@@ -72,6 +73,9 @@ def invoke_agent(
         suppress_output: If True, suppress output display.
         timestamp: Optional timestamp for chat file naming (YYmmdd_HHMMSS).
         is_home_mode: If True, skip file copying for ``@`` file references.
+        branch_or_workspace: Optional branch/workspace name for chat history
+            filenames. When not provided, auto-detected from the current
+            working directory.
         decision_counts: Optional planning agent decision counts for display.
         provider_name: Optional provider name override (default from config).
         skip_preprocessing: If True, skip the ``preprocess_prompt()`` call
@@ -107,6 +111,7 @@ def invoke_agent(
         workflow=workflow,
         timestamp=timestamp,
         is_home_mode=is_home_mode,
+        branch_or_workspace=branch_or_workspace,
         decision_counts=decision_counts,
     )
 

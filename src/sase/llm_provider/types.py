@@ -24,4 +24,5 @@ class LoggingContext:
     workflow: str | None = None
     timestamp: str | None = None
     is_home_mode: bool = False
+    branch_or_workspace: str | None = None
     decision_counts: dict[str, Any] | None = field(default=None)

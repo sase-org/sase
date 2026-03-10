@@ -221,6 +221,7 @@ def _save_to_chat_history(
         agent=chat_agent,
         timestamp=start_timestamp,
         extra_sections=extra,
+        branch_or_workspace=context.branch_or_workspace,
     )
 
 
@@ -252,4 +253,5 @@ def _save_error_to_chat_history(
         agent=chat_agent_error,
         timestamp=start_timestamp,
         extra_sections=extra,
+        branch_or_workspace=context.branch_or_workspace,
     )
