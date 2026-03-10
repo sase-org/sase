@@ -26,6 +26,9 @@ _DISMISSIBLE_STATUSES = (
     "FAILED",
 )
 
+# Icon for hidden agents (shown when visibility is toggled on)
+_HIDDEN_ICON = "◌"
+
 # Indentation prefix for workflow child agents
 _CHILD_INDENT = "  └─ "
 
@@ -79,6 +82,8 @@ def _calculate_entry_display_width(
                 # Regular step: format as "1/3 "
                 step_num = agent.step_index + 1
                 parts.append(f"{step_num}/{agent.total_steps} ")
+    if agent.hidden:
+        parts.append(f"{_HIDDEN_ICON} ")
     if agent.status in _DISMISSIBLE_STATUSES:
         parts.append(f"{_DONE_ICON} ")
     dt = agent.get_display_type(is_expanded=is_expanded)
@@ -247,6 +252,10 @@ class AgentList(OptionList):
                     # Regular step: format as "1/3"
                     step_num = agent.step_index + 1
                     text.append(f"{step_num}/{agent.total_steps} ", style="dim #AAAAAA")
+
+        # Hidden icon for agents that are normally hidden
+        if agent.hidden:
+            text.append(f"{_HIDDEN_ICON} ", style="dim #808080")
 
         # Done icon for dismissible agents
         if agent.status in _DISMISSIBLE_STATUSES:
