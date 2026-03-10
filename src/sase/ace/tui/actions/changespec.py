@@ -97,7 +97,8 @@ class ChangeSpecMixin:
         from ...changespec import find_all_changespecs
 
         if current_name is None and self.changespecs:
-            current_name = self.changespecs[self.current_idx].name
+            idx = min(self.current_idx, len(self.changespecs) - 1)
+            current_name = self.changespecs[idx].name
 
         all_changespecs = find_all_changespecs()
         self._all_changespecs = all_changespecs  # Cache for ancestry lookup
