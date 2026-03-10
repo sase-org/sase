@@ -1,11 +1,10 @@
 """Functions for loading and aggregating agents from all sources."""
 
-from datetime import datetime
-
 from ...changespec import find_all_changespecs
 from ...hooks.processes import is_process_running
 from ._loaders import (
     get_all_project_files,
+    get_workflow_timestamp_dirs,
     load_agents_from_comments,
     load_agents_from_hooks,
     load_agents_from_mentors,
@@ -171,16 +170,13 @@ def load_all_agents() -> list[Agent]:
     # Load all ChangeSpecs early to build bug lookup
     all_changespecs = find_all_changespecs()
 
-    # Build bug URL lookup by CL name
+    # Build bug URL and CL number lookups by CL name (single pass)
     bug_by_cl_name: dict[str, str | None] = {}
+    cl_by_cl_name: dict[str, str | None] = {}
     for cs in all_changespecs:
         if cs.bug:
             bug_id = cs.bug.removeprefix("http://b/")
             bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
-
-    # Build CL number lookup by CL name
-    cl_by_cl_name: dict[str, str | None] = {}
-    for cs in all_changespecs:
         if cs.cl:
             cl_by_cl_name[cs.name] = cs.cl
 
@@ -198,10 +194,19 @@ def load_all_agents() -> list[Agent]:
     # 1d. Load workflow agent steps first — also collects meta_* fields
     # per parent timestamp so load_workflow_agents() can skip redundant
     # prompt_step_*.json reads.
-    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps()
+    # Cache the directory traversal so both loaders share a single scan.
+    wf_timestamp_dirs = get_workflow_timestamp_dirs()
+    workflow_agent_steps, step_meta_by_parent = load_workflow_agent_steps(
+        timestamp_dirs=wf_timestamp_dirs,
+    )
 
     # 1c. Load workflow entries as agents (with pre-collected meta fields)
-    agents.extend(load_workflow_agents(step_meta_by_parent=step_meta_by_parent))
+    agents.extend(
+        load_workflow_agents(
+            step_meta_by_parent=step_meta_by_parent,
+            timestamp_dirs=wf_timestamp_dirs,
+        )
+    )
 
     # 2. Load from each ChangeSpec's fields
     for cs in all_changespecs:
@@ -498,63 +503,54 @@ def load_all_agents() -> list[Agent]:
         agents = [a for a in agents if id(a) not in pid_remove_ids]
 
     # Sort by start time (most recent first), with None times at end
-    def sort_key(a: Agent) -> tuple[bool, datetime]:
-        if a.start_time is None:
-            # Put None times at the end, sorted by a far-future date
-            return (True, datetime.max)
-        # Put non-None times first, sorted newest to oldest (reverse)
-        return (False, a.start_time)
-
-    agents.sort(key=sort_key, reverse=True)
-
-    # Since we sorted reverse=True, we need to flip the None/non-None order
-    # Actually, let's redo this more simply
     agents_with_time = [a for a in agents if a.start_time is not None]
     agents_without_time = [a for a in agents if a.start_time is None]
 
-    # Sort with-time by start_time descending (most recent first)
     agents_with_time.sort(key=lambda a: a.start_time, reverse=True)  # type: ignore
 
     sorted_agents = agents_with_time + agents_without_time
 
     # Insert workflow agent steps immediately after their parent workflows
     if workflow_agent_steps:
+        # Pre-index steps by parent_timestamp for O(1) lookup
+        steps_by_parent: dict[str, list[Agent]] = {}
+        for step in workflow_agent_steps:
+            if step.parent_timestamp:
+                if step.parent_timestamp not in steps_by_parent:
+                    steps_by_parent[step.parent_timestamp] = []
+                steps_by_parent[step.parent_timestamp].append(step)
+
+        # Pre-sort each group once
+        for steps in steps_by_parent.values():
+            steps.sort(
+                key=lambda s: (
+                    _get_status_priority(s.status),
+                    (
+                        s.parent_step_index
+                        if s.parent_step_index is not None
+                        else (s.step_index or 0)
+                    ),
+                    1 if s.parent_step_index is not None else 0,
+                    s.step_index or 0,
+                )
+            )
+
         result: list[Agent] = []
         for agent in sorted_agents:
             result.append(agent)
-            # Check if any agent steps belong to this agent (matching workflow+timestamp)
-            if agent.agent_type == AgentType.WORKFLOW or (
-                agent.workflow
-                and (
-                    agent.workflow.startswith("workflow-")
-                    or agent.workflow.startswith("ace(run)")
-                )
-            ):
-                # Find matching agent steps by timestamp
-                matching_steps = [
-                    step
-                    for step in workflow_agent_steps
-                    if step.parent_timestamp == agent.raw_suffix
-                ]
-                # Sort by workflow position: main steps first, then substeps
-                matching_steps.sort(
-                    key=lambda s: (
-                        # Primary: completed/failed steps (0) before running/waiting steps (1)
-                        _get_status_priority(s.status),
-                        # Secondary: position in workflow (parent_step_index for
-                        # substeps, step_index for main steps)
-                        (
-                            s.parent_step_index
-                            if s.parent_step_index is not None
-                            else (s.step_index or 0)
-                        ),
-                        # Tertiary: substeps (1) come after main steps (0)
-                        1 if s.parent_step_index is not None else 0,
-                        # Quaternary: order within substeps
-                        s.step_index or 0,
+            if agent.raw_suffix and (
+                agent.agent_type == AgentType.WORKFLOW
+                or (
+                    agent.workflow
+                    and (
+                        agent.workflow.startswith("workflow-")
+                        or agent.workflow.startswith("ace(run)")
                     )
                 )
-                result.extend(matching_steps)
+            ):
+                matching = steps_by_parent.get(agent.raw_suffix)
+                if matching:
+                    result.extend(matching)
         return result
 
     return sorted_agents

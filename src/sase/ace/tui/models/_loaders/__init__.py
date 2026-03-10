@@ -12,6 +12,7 @@ from ._changespec_loaders import (
     load_agents_from_mentors,
 )
 from ._workflow_loaders import (
+    _get_workflow_timestamp_dirs as get_workflow_timestamp_dirs,
     load_workflow_agent_steps,
     load_workflow_agents,
     load_workflow_states,
@@ -19,6 +20,7 @@ from ._workflow_loaders import (
 
 __all__ = [
     "get_all_project_files",
+    "get_workflow_timestamp_dirs",
     "load_agents_from_comments",
     "load_agents_from_hooks",
     "load_agents_from_mentors",

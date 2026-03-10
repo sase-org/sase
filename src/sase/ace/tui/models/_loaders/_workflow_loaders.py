@@ -58,10 +58,27 @@ def _iter_workflow_timestamp_dirs() -> Iterator[tuple[Path, Path]]:
                 yield project_dir, timestamp_dir
 
 
-def load_workflow_states() -> list[WorkflowEntry]:
+def _get_workflow_timestamp_dirs() -> list[tuple[Path, Path]]:
+    """Return cached list of (project_dir, timestamp_dir) pairs.
+
+    Materializes the iterator once so multiple callers can reuse the result
+    without re-traversing the filesystem.
+    """
+    return list(_iter_workflow_timestamp_dirs())
+
+
+def load_workflow_states(
+    *,
+    timestamp_dirs: list[tuple[Path, Path]] | None = None,
+) -> list[WorkflowEntry]:
     """Load running/completed workflows from workflow_state.json marker files.
 
     Scans ~/.sase/projects/*/artifacts/workflow-*/*/workflow_state.json for workflows.
+
+    Args:
+        timestamp_dirs: Pre-computed (project_dir, timestamp_dir) pairs to
+            avoid re-traversing the filesystem.  When ``None``, the directory
+            tree is scanned from scratch.
 
     Returns:
         List of WorkflowEntry objects.
@@ -70,7 +87,10 @@ def load_workflow_states() -> list[WorkflowEntry]:
 
     entries: list[WorkflowEntry] = []
 
-    for project_dir, timestamp_dir in _iter_workflow_timestamp_dirs():
+    dirs = (
+        timestamp_dirs if timestamp_dirs is not None else _get_workflow_timestamp_dirs()
+    )
+    for project_dir, timestamp_dir in dirs:
         state_file = timestamp_dir / "workflow_state.json"
         if not state_file.exists():
             continue
@@ -193,6 +213,7 @@ def load_workflow_states() -> list[WorkflowEntry]:
 def load_workflow_agents(
     *,
     step_meta_by_parent: dict[str, dict[str, str]] | None = None,
+    timestamp_dirs: list[tuple[Path, Path]] | None = None,
 ) -> list[Agent]:
     """Load workflow entries as Agent objects for display in Agents tab.
 
@@ -204,11 +225,14 @@ def load_workflow_agents(
             files, keyed by parent timestamp.  When provided, the expensive
             per-directory prompt_step scan is skipped (the caller already
             loaded the steps and collected meta fields).
+        timestamp_dirs: Pre-computed (project_dir, timestamp_dir) pairs to
+            pass through to ``load_workflow_states()``, avoiding a redundant
+            filesystem traversal.
 
     Returns:
         List of Agent objects with agent_type=AgentType.WORKFLOW.
     """
-    entries = load_workflow_states()
+    entries = load_workflow_states(timestamp_dirs=timestamp_dirs)
     agents: list[Agent] = []
 
     for entry in entries:
@@ -284,12 +308,19 @@ def load_workflow_agents(
     return agents
 
 
-def load_workflow_agent_steps() -> tuple[list[Agent], dict[str, dict[str, str]]]:
+def load_workflow_agent_steps(
+    *,
+    timestamp_dirs: list[tuple[Path, Path]] | None = None,
+) -> tuple[list[Agent], dict[str, dict[str, str]]]:
     """Load agent step entries from workflow prompt_step_*.json marker files.
 
     Scans ~/.sase/projects/*/artifacts/workflow-*/*/prompt_step_*.json for agent steps.
     Also collects meta_* fields per parent timestamp so the caller can enrich
     parent workflow agents without re-reading these files.
+
+    Args:
+        timestamp_dirs: Pre-computed (project_dir, timestamp_dir) pairs to
+            avoid re-traversing the filesystem.
 
     Returns:
         Tuple of:
@@ -300,7 +331,10 @@ def load_workflow_agent_steps() -> tuple[list[Agent], dict[str, dict[str, str]]]
     agents: list[Agent] = []
     meta_by_parent: dict[str, dict[str, str]] = {}
 
-    for project_dir, timestamp_dir in _iter_workflow_timestamp_dirs():
+    dirs = (
+        timestamp_dirs if timestamp_dirs is not None else _get_workflow_timestamp_dirs()
+    )
+    for project_dir, timestamp_dir in dirs:
         # Read parent workflow state for error propagation to child steps
         parent_wf_error: str | None = None
         parent_wf_traceback: str | None = None
