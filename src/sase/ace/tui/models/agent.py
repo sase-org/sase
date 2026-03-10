@@ -287,6 +287,10 @@ class Agent:
                 # "axe(mentor)-complete-TIMESTAMP" -> "mentor-complete"
                 parts = workflow.split("-")
                 workflow_name = f"mentor-{parts[1]}" if len(parts) >= 2 else "mentor"
+            elif workflow == "mentor" and self.mentor_profile:
+                # ChangeSpec-sourced mentor: workflow="mentor", profile="complete"
+                # -> artifacts dir "mentor-complete"
+                workflow_name = f"mentor-{self.mentor_profile}"
             else:
                 workflow_name = workflow
         elif self.agent_type == AgentType.WORKFLOW:
