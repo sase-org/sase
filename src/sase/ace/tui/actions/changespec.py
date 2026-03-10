@@ -452,7 +452,8 @@ class ChangeSpecMixin:
         from ...query_selection import save_query_selections
 
         if self.changespecs:
-            name = self.changespecs[self.current_idx].name
+            idx = min(self.current_idx, len(self.changespecs) - 1)
+            name = self.changespecs[idx].name
             canonical = self.canonical_query_string  # type: ignore[attr-defined]
             # Pop and re-insert to mark as recently used
             self._query_selections.pop(canonical, None)
