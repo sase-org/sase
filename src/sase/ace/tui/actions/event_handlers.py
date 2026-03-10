@@ -96,10 +96,18 @@ class EventHandlersMixin:
         now_mono = time.monotonic()
         if now_mono - self._last_activity_flush >= 10:
             if hasattr(self, "_last_activity_time"):
-                from sase.ace.tui_activity import write_activity_timestamp
+                # Only write activity timestamp while the user is active.
+                # When idle, _check_idle_state already wrote the idle
+                # transition time and we must not overwrite it with the
+                # stale last-keypress time — that would let the Telegram
+                # outbound chop's high-water mark fall behind notifications
+                # that the user already saw in the TUI.
+                indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
+                if not indicator._idle:
+                    from sase.ace.tui_activity import write_activity_timestamp
 
-                activity_wall = time.time() - (now_mono - self._last_activity_time)
-                write_activity_timestamp(activity_wall)
+                    activity_wall = time.time() - (now_mono - self._last_activity_time)
+                    write_activity_timestamp(activity_wall)
                 self._last_activity_flush = now_mono
         self._check_idle_state(now_mono)
         self._countdown_remaining -= 1
@@ -123,9 +131,17 @@ class EventHandlersMixin:
         was_idle = indicator._idle
         indicator.set_idle(idle)
         if idle != was_idle:
-            from sase.ace.tui_activity import write_idle_state
+            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
 
             write_idle_state(idle)
+            if idle:
+                # Write the current wall-clock time (idle transition time)
+                # so the Telegram outbound chop's high-water mark advances
+                # past notifications the user already saw in the TUI.
+                # Without this, the high-water mark stays at the last
+                # keypress time, and any notification created between the
+                # last keypress and the idle transition leaks to Telegram.
+                write_activity_timestamp(time.time())
 
     def _record_user_activity(self) -> None:
         """Record user activity to reset the idle indicator.
