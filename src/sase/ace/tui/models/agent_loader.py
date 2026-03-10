@@ -18,6 +18,7 @@ from ._loaders import (
 from ._timestamps import (
     extract_timestamp_from_workflow,
     extract_timestamp_str_from_suffix,
+    normalize_to_14_digit,
 )
 from .agent import Agent, AgentType
 from .fold_state import FoldLevel, FoldStateManager
@@ -55,6 +56,10 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.waiting_for = source.waiting_for
     if target.approve is False and source.approve is True:
         target.approve = source.approve
+    if target.start_time is None and source.start_time is not None:
+        target.start_time = source.start_time
+    if target.raw_suffix is None and source.raw_suffix is not None:
+        target.raw_suffix = source.raw_suffix
 
 
 def _get_status_priority(status: str) -> int:
@@ -309,6 +314,15 @@ def load_all_agents() -> list[Agent]:
                         matched.reviewer = agent.reviewer
                     if agent.commit_entry_id:
                         matched.commit_entry_id = agent.commit_entry_id
+                    if matched.start_time is None and agent.start_time is not None:
+                        matched.start_time = agent.start_time
+                    if matched.raw_suffix is None and agent.raw_suffix:
+                        # ChangeSpec raw_suffix is full suffix
+                        # (e.g. "mentor_code_quality-PID-YYmmdd_HHMMSS");
+                        # extract and normalize timestamp to 14-digit format
+                        cs_ts = extract_timestamp_str_from_suffix(agent.raw_suffix)
+                        if cs_ts:
+                            matched.raw_suffix = normalize_to_14_digit(cs_ts)
                     continue  # Drop the ChangeSpec entry
         final_agents.append(agent)
 
