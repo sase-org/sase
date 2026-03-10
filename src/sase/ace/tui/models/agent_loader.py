@@ -219,6 +219,12 @@ def load_all_agents() -> list[Agent]:
             workflow = agent.workflow or ""
             if any(workflow.startswith(p) for p in _axe_workflow_prefixes):
                 ts = extract_timestamp_from_workflow(workflow)
+                # Fallback: mentor( workflows don't embed timestamps in
+                # their name — use raw_suffix (14-digit) converted to 13-char
+                if not ts and agent.raw_suffix:
+                    ts_14 = agent.raw_suffix
+                    if len(ts_14) == 14 and ts_14.isdigit():
+                        ts = ts_14[2:8] + "_" + ts_14[8:]
                 if ts:
                     key = (agent.cl_name, ts)
                     running_axe_agents_by_key[key] = agent

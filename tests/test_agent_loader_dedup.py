@@ -406,3 +406,102 @@ def test_done_json_dedup_with_changespec() -> None:
     # reviewer should be merged from the CRS ChangeSpec entry
     assert result[0].reviewer == "critique"
     assert result[0].hidden is True
+
+
+def test_mentor_workflow_dedup_with_changespec() -> None:
+    """Test that mentor( workflow agents are deduped with ChangeSpec MENTORS entries.
+
+    mentor( workflows (e.g. "mentor(code_quality)") don't embed timestamps in
+    their workflow name. The dedup should fall back to using raw_suffix (14-digit
+    timestamp) to match against ChangeSpec entries.
+    """
+    from sase.ace.changespec import ChangeSpec, MentorEntry, MentorStatusLine
+
+    # RUNNING field entry: mentor(code_quality) workflow with 14-digit raw_suffix
+    mentor_running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="mentor(code_quality)",
+        raw_suffix="20260310163936",
+        workspace_num=104,
+        pid=2363350,
+        hidden=True,
+    )
+
+    # ChangeSpec MENTORS entry with matching timestamp (13-char format in suffix)
+    mock_mentor_status = MentorStatusLine(
+        timestamp="260310_163936",
+        status="RUNNING",
+        suffix="mentor_agent-2363350-260310_163936",
+        suffix_type="running_agent",
+        profile_name="code_quality",
+        mentor_name="quality_mentor",
+    )
+
+    mock_mentor_entry = MentorEntry(
+        entry_id="1",
+        profiles=["code_quality"],
+        status_lines=[mock_mentor_status],
+    )
+
+    mock_cs = ChangeSpec(
+        name="my_feature",
+        description="Test",
+        parent=None,
+        cl="12345",
+        status="Ready",
+        test_targets=None,
+        kickstart=None,
+        file_path="/tmp/test.gp",
+        line_number=1,
+        mentors=[mock_mentor_entry],
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[mock_cs],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[mentor_running],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    # Should be deduplicated to one agent (RUNNING field preferred)
+    assert len(result) == 1
+    assert result[0].agent_type == AgentType.RUNNING
+    assert result[0].workflow == "mentor(code_quality)"
+    assert result[0].workspace_num == 104
+    # mentor_profile and mentor_name should be merged from ChangeSpec
+    assert result[0].mentor_profile == "code_quality"
+    assert result[0].mentor_name == "quality_mentor"
+    assert result[0].hidden is True
