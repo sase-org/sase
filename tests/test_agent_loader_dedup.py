@@ -240,6 +240,87 @@ def test_running_workflow_dedup_ace_run() -> None:
     assert result[0].pid == 55555
 
 
+def test_embedded_vcs_hidden_by_axe_pid() -> None:
+    """Test that embedded VCS workspace claims are hidden when sharing PID with axe agent.
+
+    When an axe(crs) agent embeds #hg, the VCS workflow claims its own workspace
+    with a "hg-<cl_name>" workflow. Both share the same PID. The VCS entry should
+    be marked hidden so it doesn't appear as a duplicate on the Agents tab.
+    """
+    # axe(crs) agent on workspace #100
+    axe_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="axe(crs)-critique-260310_140240",
+        raw_suffix="20260310140240",
+        workspace_num=100,
+        pid=781497,
+    )
+
+    # Embedded #hg workspace claim on workspace #101 (same PID)
+    hg_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="hg-my_feature",
+        raw_suffix=None,
+        workspace_num=101,
+        pid=781497,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[axe_agent, hg_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    # Both agents should be present
+    assert len(result) == 2
+    # The axe agent should be hidden (axe-spawned agents are hidden in artifact loader,
+    # but here we're bypassing that, so check it's at least present)
+    axe_result = [a for a in result if a.workflow and "axe(crs)" in a.workflow]
+    hg_result = [a for a in result if a.workflow == "hg-my_feature"]
+    assert len(axe_result) == 1
+    assert len(hg_result) == 1
+    # The embedded VCS agent should be marked hidden
+    assert hg_result[0].hidden is True
+
+
 def test_done_json_dedup_with_changespec() -> None:
     """Test that done.json RUNNING agents are preferred over ChangeSpec entries.
 

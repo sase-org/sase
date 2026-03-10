@@ -270,6 +270,32 @@ def load_all_agents() -> list[Agent]:
 
     agents = final_agents
 
+    # Hide embedded VCS workspace claims from axe-spawned agents.
+    # When an axe agent embeds #hg or #gh, the VCS workflow claims its own
+    # workspace (appearing as a separate RUNNING entry like "hg-<cl_name>").
+    # These share the same PID as the parent axe agent via os.getppid().
+    _vcs_workflow_prefixes = ("hg-", "gh-", "git-")
+    axe_pids: set[int] = set()
+    for agent in agents:
+        if (
+            agent.agent_type == AgentType.RUNNING
+            and agent.pid is not None
+            and agent.workflow
+            and any(agent.workflow.startswith(p) for p in _axe_workflow_prefixes)
+        ):
+            axe_pids.add(agent.pid)
+
+    if axe_pids:
+        for agent in agents:
+            if (
+                agent.agent_type == AgentType.RUNNING
+                and agent.pid is not None
+                and agent.pid in axe_pids
+                and agent.workflow
+                and agent.workflow.startswith(_vcs_workflow_prefixes)
+            ):
+                agent.hidden = True
+
     # Deduplicate workflow entries: match by raw_suffix (timestamp)
     # Prefer workflow_state.json entries (accurate status), but copy
     # workspace_num and cl_name from RUNNING field entries
