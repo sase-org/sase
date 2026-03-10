@@ -18,9 +18,32 @@ from textual.widgets.option_list import Option
 from sase.ace.hints import build_editor_args
 from sase.xprompt import get_all_prompts
 from sase.xprompt.loader import get_sase_package_xprompts_dir
+from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
+
+
+def _append_input_args(text: Text, inputs: list[InputArg]) -> None:
+    """Append styled input arg signatures to a Rich Text label.
+
+    Renders each user-facing input as ``name:type`` (or ``name:type=default``
+    for optional args) in a subdued style after the xprompt name.
+    """
+    user_inputs = [inp for inp in inputs if not inp.is_step_input]
+    if not user_inputs:
+        return
+    text.append("  ")
+    for i, inp in enumerate(user_inputs):
+        if i > 0:
+            text.append("  ")
+        required = inp.default is UNSET
+        name_style = "#D7AF87" if required else "dim #D7AF87"
+        text.append(inp.name, style=name_style)
+        text.append(":", style="dim")
+        text.append(inp.type.value, style="dim italic #87D7FF")
+        if not required and inp.default is not None:
+            text.append(f"={inp.default}", style="dim italic #888888")
 
 
 @dataclass
@@ -304,6 +327,8 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
         else:
             text.append("  #", style="bold #87D7FF")
         text.append(item.name)
+        # Append input arg signatures
+        _append_input_args(text, item.workflow.inputs)
         return text
 
     def on_mount(self) -> None:
