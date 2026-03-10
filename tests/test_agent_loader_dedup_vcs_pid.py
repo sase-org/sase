@@ -79,6 +79,87 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
     # Only the axe agent should remain — the VCS workspace is removed entirely
     assert len(result) == 1
     assert result[0].workflow == "axe(crs)-critique-260310_140240"
+    # workspace_num should be merged from the VCS agent (axe had 100, VCS had 101)
+    # But axe already had workspace_num=100, so it stays 100 (only None fields merge)
+    assert result[0].workspace_num == 100
+
+
+def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
+    """Test that fields from VCS workspace agent are merged into the surviving axe agent.
+
+    When an axe agent has no workspace_num/model but the VCS workspace does,
+    those fields should be preserved on the axe agent after VCS removal.
+    """
+    # axe(crs) agent WITHOUT workspace_num or model
+    axe_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="axe(crs)-critique-260310_140240",
+        raw_suffix="20260310140240",
+        workspace_num=None,
+        pid=781497,
+    )
+
+    # Embedded #hg workspace claim WITH workspace_num and model
+    hg_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="hg-my_feature",
+        raw_suffix=None,
+        workspace_num=101,
+        pid=781497,
+        model="gemini-2.5-pro",
+        vcs_provider="Mercurial",
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[axe_agent, hg_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    assert len(result) == 1
+    assert result[0].workflow == "axe(crs)-critique-260310_140240"
+    # Fields merged from VCS workspace agent
+    assert result[0].workspace_num == 101
+    assert result[0].model == "gemini-2.5-pro"
+    assert result[0].vcs_provider == "Mercurial"
 
 
 def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
@@ -299,6 +380,8 @@ def test_pid_dedup_safety_net() -> None:
     # Only the WORKFLOW agent should remain (preferred over RUNNING)
     assert len(result) == 1
     assert result[0].agent_type == AgentType.WORKFLOW
+    # workspace_num should be merged from the removed RUNNING agent
+    assert result[0].workspace_num == 100
 
 
 def test_embedded_vcs_removed_when_changespec_fix_hook_hidden() -> None:

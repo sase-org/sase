@@ -25,6 +25,39 @@ from .fold_state import FoldLevel, FoldStateManager
 from .workflow import WorkflowEntry
 
 
+def _merge_agent_fields(target: Agent, source: Agent) -> None:
+    """Merge non-None fields from source agent into target agent.
+
+    Only copies fields that are None/empty on the target but set on the source.
+    This preserves metadata (workspace_num, model, etc.) from VCS workspace
+    agents that are being removed as duplicates.
+    """
+    if target.workspace_num is None and source.workspace_num is not None:
+        target.workspace_num = source.workspace_num
+    if target.model is None and source.model is not None:
+        target.model = source.model
+    if target.llm_provider is None and source.llm_provider is not None:
+        target.llm_provider = source.llm_provider
+    if target.vcs_provider is None and source.vcs_provider is not None:
+        target.vcs_provider = source.vcs_provider
+    if target.agent_name is None and source.agent_name is not None:
+        target.agent_name = source.agent_name
+    if target.bug is None and source.bug is not None:
+        target.bug = source.bug
+    if target.cl_num is None and source.cl_num is not None:
+        target.cl_num = source.cl_num
+    if target.diff_path is None and source.diff_path is not None:
+        target.diff_path = source.diff_path
+    if not target.extra_files and source.extra_files:
+        target.extra_files = source.extra_files
+    if target.artifacts_dir is None and source.artifacts_dir is not None:
+        target.artifacts_dir = source.artifacts_dir
+    if not target.waiting_for and source.waiting_for:
+        target.waiting_for = source.waiting_for
+    if target.approve is False and source.approve is True:
+        target.approve = source.approve
+
+
 def _get_status_priority(status: str) -> int:
     """Return sort priority for agent status (lower = appears first).
 
@@ -282,11 +315,13 @@ def load_all_agents() -> list[Agent]:
     # These share the same PID as the parent axe agent via os.getppid().
     # We remove these entirely (not just hide) so they never appear as
     # duplicate PID entries, even when hidden agents are toggled visible.
+    # Before removal, merge VCS agent fields (workspace_num, model, etc.)
+    # into the surviving axe agent so no metadata is lost.
     _vcs_workflow_prefixes = ("hg-", "gh-", "git-")
     # Plain workflow names from workflow_state.json / done.json for axe-spawned agents
     _plain_axe_workflows = {"fix-hook", "crs", "mentor", "summarize-hook"}
     _plain_axe_prefixes = ("mentor-",)
-    axe_pids: set[int] = set()
+    axe_agents_by_pid: dict[int, Agent] = {}
     for agent in agents:
         if agent.pid is not None and agent.workflow:
             is_axe = (
@@ -295,20 +330,24 @@ def load_all_agents() -> list[Agent]:
                 or agent.workflow.startswith(_plain_axe_prefixes)
             )
             if is_axe:
-                axe_pids.add(agent.pid)
+                axe_agents_by_pid[agent.pid] = agent
 
-    if axe_pids:
-        agents = [
-            agent
-            for agent in agents
-            if not (
+    if axe_agents_by_pid:
+        vcs_remove_ids: set[int] = set()
+        for agent in agents:
+            if (
                 agent.agent_type == AgentType.RUNNING
                 and agent.pid is not None
-                and agent.pid in axe_pids
+                and agent.pid in axe_agents_by_pid
                 and agent.workflow
                 and agent.workflow.startswith(_vcs_workflow_prefixes)
-            )
-        ]
+            ):
+                # Merge fields from VCS workspace into surviving axe agent
+                axe_agent = axe_agents_by_pid[agent.pid]
+                _merge_agent_fields(axe_agent, agent)
+                vcs_remove_ids.add(id(agent))
+        if vcs_remove_ids:
+            agents = [a for a in agents if id(a) not in vcs_remove_ids]
 
     # Deduplicate workflow entries: match by raw_suffix (timestamp)
     # Prefer workflow_state.json entries (accurate status), but copy
@@ -427,9 +466,11 @@ def load_all_agents() -> list[Agent]:
             )
             if agent_is_vcs and not existing_is_vcs:
                 # New agent is VCS, existing is not — remove new
+                _merge_agent_fields(existing, agent)
                 pid_remove_ids.add(id(agent))
             elif existing_is_vcs and not agent_is_vcs:
                 # Existing is VCS, new is not — remove existing, keep new
+                _merge_agent_fields(agent, existing)
                 pid_remove_ids.add(id(existing))
                 seen_pids[agent.pid] = agent
             elif (
@@ -437,15 +478,18 @@ def load_all_agents() -> list[Agent]:
                 and existing.agent_type == AgentType.WORKFLOW
             ):
                 # Both non-VCS: prefer WORKFLOW over RUNNING
+                _merge_agent_fields(existing, agent)
                 pid_remove_ids.add(id(agent))
             elif (
                 existing.agent_type == AgentType.RUNNING
                 and agent.agent_type == AgentType.WORKFLOW
             ):
+                _merge_agent_fields(agent, existing)
                 pid_remove_ids.add(id(existing))
                 seen_pids[agent.pid] = agent
             else:
                 # Same type — remove the newer one (current agent)
+                _merge_agent_fields(existing, agent)
                 pid_remove_ids.add(id(agent))
         else:
             seen_pids[agent.pid] = agent
