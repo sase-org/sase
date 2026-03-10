@@ -281,14 +281,19 @@ def load_all_agents() -> list[Agent]:
     # workspace (appearing as a separate RUNNING entry like "hg-<cl_name>").
     # These share the same PID as the parent axe agent via os.getppid().
     _vcs_workflow_prefixes = ("hg-", "gh-", "git-")
+    # Plain workflow names from workflow_state.json / done.json for axe-spawned agents
+    _plain_axe_workflows = {"fix-hook", "crs", "mentor", "summarize-hook"}
+    _plain_axe_prefixes = ("mentor-",)
     axe_pids: set[int] = set()
     for agent in agents:
-        if (
-            agent.pid is not None
-            and agent.workflow
-            and any(agent.workflow.startswith(p) for p in _axe_workflow_prefixes)
-        ):
-            axe_pids.add(agent.pid)
+        if agent.pid is not None and agent.workflow:
+            is_axe = (
+                any(agent.workflow.startswith(p) for p in _axe_workflow_prefixes)
+                or agent.workflow in _plain_axe_workflows
+                or agent.workflow.startswith(_plain_axe_prefixes)
+            )
+            if is_axe:
+                axe_pids.add(agent.pid)
 
     if axe_pids:
         for agent in agents:
@@ -395,6 +400,48 @@ def load_all_agents() -> list[Agent]:
         deduped_agents.append(agent)
 
     agents = deduped_agents
+
+    # Final safety net: enforce no duplicate PIDs among visible agents.
+    # When multiple agents share a PID, keep the one with the most specific
+    # workflow type (WORKFLOW > RUNNING) and hide the rest. This catches any
+    # VCS workspace duplicates that slipped through earlier dedup passes.
+    seen_pids: dict[int, Agent] = {}
+    for agent in agents:
+        if agent.hidden or agent.pid is None:
+            continue
+        if agent.pid in seen_pids:
+            existing = seen_pids[agent.pid]
+            # Prefer WORKFLOW over RUNNING, and non-VCS over VCS workflows
+            existing_is_vcs = existing.workflow and existing.workflow.startswith(
+                _vcs_workflow_prefixes
+            )
+            agent_is_vcs = agent.workflow and agent.workflow.startswith(
+                _vcs_workflow_prefixes
+            )
+            if agent_is_vcs and not existing_is_vcs:
+                # New agent is VCS, existing is not — hide new
+                agent.hidden = True
+            elif existing_is_vcs and not agent_is_vcs:
+                # Existing is VCS, new is not — hide existing, keep new
+                existing.hidden = True
+                seen_pids[agent.pid] = agent
+            elif (
+                agent.agent_type == AgentType.RUNNING
+                and existing.agent_type == AgentType.WORKFLOW
+            ):
+                # Both non-VCS: prefer WORKFLOW over RUNNING
+                agent.hidden = True
+            elif (
+                existing.agent_type == AgentType.RUNNING
+                and agent.agent_type == AgentType.WORKFLOW
+            ):
+                existing.hidden = True
+                seen_pids[agent.pid] = agent
+            else:
+                # Same type — hide the newer one (current agent)
+                agent.hidden = True
+        else:
+            seen_pids[agent.pid] = agent
 
     # Sort by start time (most recent first), with None times at end
     def sort_key(a: Agent) -> tuple[bool, datetime]:

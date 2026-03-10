@@ -398,6 +398,157 @@ def test_embedded_vcs_hidden_by_workflow_axe_pid() -> None:
     assert hg_result[0].hidden is True
 
 
+def test_embedded_vcs_hidden_by_plain_workflow_name() -> None:
+    """Test VCS hiding when axe agent has plain workflow name (from workflow_state.json).
+
+    When a fix-hook agent is loaded as WORKFLOW type with workflow="fix-hook"
+    (plain name, not "axe(fix-hook)-..."), its PID should still be collected
+    for VCS hiding so the embedded #hg workspace claim gets hidden.
+    """
+    # fix-hook agent loaded as WORKFLOW type (plain workflow name)
+    fix_hook_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix-hook",
+        raw_suffix="20260310173745",
+        workspace_num=None,
+        pid=2970578,
+    )
+
+    # Embedded #hg workspace claim on workspace #100 (same PID)
+    hg_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="hg-my_feature",
+        raw_suffix=None,
+        workspace_num=100,
+        pid=2970578,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[hg_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[fix_hook_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    # Both agents should be present
+    assert len(result) == 2
+    hg_result = [a for a in result if a.workflow == "hg-my_feature"]
+    assert len(hg_result) == 1
+    # The embedded VCS agent should be marked hidden
+    assert hg_result[0].hidden is True
+
+
+def test_pid_dedup_safety_net() -> None:
+    """Test that the PID-based safety net catches duplicate PIDs.
+
+    Even if earlier dedup passes miss a duplicate, the final PID-based
+    dedup should ensure no two visible agents share the same PID.
+    """
+    # WORKFLOW agent (should be preferred)
+    workflow_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="some-workflow",
+        raw_suffix="20260310173745",
+        pid=12345,
+    )
+
+    # RUNNING agent with same PID (should be hidden by safety net)
+    running_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="some-other-workflow",
+        raw_suffix=None,
+        workspace_num=100,
+        pid=12345,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[running_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[workflow_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    # Both agents should be present but one should be hidden
+    visible = [a for a in result if not a.hidden]
+    assert len(visible) == 1
+    # The WORKFLOW agent should be the visible one (preferred over RUNNING)
+    assert visible[0].agent_type == AgentType.WORKFLOW
+
+
 def test_done_json_dedup_with_changespec() -> None:
     """Test that done.json RUNNING agents are preferred over ChangeSpec entries.
 
