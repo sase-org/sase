@@ -475,7 +475,11 @@ class AceApp(
         from ..last_selection import save_last_selection
 
         if self.changespecs:
-            changespec = self.changespecs[self.current_idx]
+            if self.current_tab == "changespecs":
+                idx = min(self.current_idx, len(self.changespecs) - 1)
+            else:
+                idx = min(self._changespecs_last_idx, len(self.changespecs) - 1)
+            changespec = self.changespecs[idx]
             save_last_selection(changespec.name)
             self._save_selection_for_current_query()
 
