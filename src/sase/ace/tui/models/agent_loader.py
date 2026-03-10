@@ -276,10 +276,12 @@ def load_all_agents() -> list[Agent]:
 
     agents = final_agents
 
-    # Hide embedded VCS workspace claims from axe-spawned agents.
+    # Remove embedded VCS workspace claims from axe-spawned agents.
     # When an axe agent embeds #hg or #gh, the VCS workflow claims its own
     # workspace (appearing as a separate RUNNING entry like "hg-<cl_name>").
     # These share the same PID as the parent axe agent via os.getppid().
+    # We remove these entirely (not just hide) so they never appear as
+    # duplicate PID entries, even when hidden agents are toggled visible.
     _vcs_workflow_prefixes = ("hg-", "gh-", "git-")
     # Plain workflow names from workflow_state.json / done.json for axe-spawned agents
     _plain_axe_workflows = {"fix-hook", "crs", "mentor", "summarize-hook"}
@@ -296,15 +298,17 @@ def load_all_agents() -> list[Agent]:
                 axe_pids.add(agent.pid)
 
     if axe_pids:
-        for agent in agents:
-            if (
+        agents = [
+            agent
+            for agent in agents
+            if not (
                 agent.agent_type == AgentType.RUNNING
                 and agent.pid is not None
                 and agent.pid in axe_pids
                 and agent.workflow
                 and agent.workflow.startswith(_vcs_workflow_prefixes)
-            ):
-                agent.hidden = True
+            )
+        ]
 
     # Deduplicate workflow entries: match by raw_suffix (timestamp)
     # Prefer workflow_state.json entries (accurate status), but copy
@@ -401,13 +405,16 @@ def load_all_agents() -> list[Agent]:
 
     agents = deduped_agents
 
-    # Final safety net: enforce no duplicate PIDs among visible agents.
+    # Final safety net: enforce no duplicate PIDs among all agents.
     # When multiple agents share a PID, keep the one with the most specific
-    # workflow type (WORKFLOW > RUNNING) and hide the rest. This catches any
+    # workflow type (WORKFLOW > RUNNING) and remove the rest. This catches any
     # VCS workspace duplicates that slipped through earlier dedup passes.
+    # Operates on ALL agents (including hidden) to prevent duplicate PIDs
+    # from appearing when hidden agents are toggled visible.
     seen_pids: dict[int, Agent] = {}
+    pid_remove_ids: set[int] = set()
     for agent in agents:
-        if agent.hidden or agent.pid is None:
+        if agent.pid is None:
             continue
         if agent.pid in seen_pids:
             existing = seen_pids[agent.pid]
@@ -419,29 +426,32 @@ def load_all_agents() -> list[Agent]:
                 _vcs_workflow_prefixes
             )
             if agent_is_vcs and not existing_is_vcs:
-                # New agent is VCS, existing is not — hide new
-                agent.hidden = True
+                # New agent is VCS, existing is not — remove new
+                pid_remove_ids.add(id(agent))
             elif existing_is_vcs and not agent_is_vcs:
-                # Existing is VCS, new is not — hide existing, keep new
-                existing.hidden = True
+                # Existing is VCS, new is not — remove existing, keep new
+                pid_remove_ids.add(id(existing))
                 seen_pids[agent.pid] = agent
             elif (
                 agent.agent_type == AgentType.RUNNING
                 and existing.agent_type == AgentType.WORKFLOW
             ):
                 # Both non-VCS: prefer WORKFLOW over RUNNING
-                agent.hidden = True
+                pid_remove_ids.add(id(agent))
             elif (
                 existing.agent_type == AgentType.RUNNING
                 and agent.agent_type == AgentType.WORKFLOW
             ):
-                existing.hidden = True
+                pid_remove_ids.add(id(existing))
                 seen_pids[agent.pid] = agent
             else:
-                # Same type — hide the newer one (current agent)
-                agent.hidden = True
+                # Same type — remove the newer one (current agent)
+                pid_remove_ids.add(id(agent))
         else:
             seen_pids[agent.pid] = agent
+
+    if pid_remove_ids:
+        agents = [a for a in agents if id(a) not in pid_remove_ids]
 
     # Sort by start time (most recent first), with None times at end
     def sort_key(a: Agent) -> tuple[bool, datetime]:
