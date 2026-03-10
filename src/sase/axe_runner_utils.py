@@ -105,6 +105,79 @@ def all_steps_hidden(artifacts_dir: str) -> bool:
     return all(step.get("hidden", False) for step in steps)
 
 
+def _write_agent_meta(
+    artifacts_dir: str,
+    *,
+    model: str | None = None,
+    llm_provider: str | None = None,
+    vcs_provider: str | None = None,
+) -> None:
+    """Write agent_meta.json to an axe runner's artifacts directory.
+
+    This provides model/VCS metadata so the Agents tab can display it
+    for axe-spawned agents (mentor, fix-hook, crs, summarize-hook).
+
+    Args:
+        artifacts_dir: Path to the artifacts directory.
+        model: Model name (e.g., "gemini-3.1-pro-preview").
+        llm_provider: LLM provider name (e.g., "gemini").
+        vcs_provider: VCS provider display name (e.g., "Mercurial").
+    """
+    meta: dict[str, object] = {"pid": os.getpid()}
+    if model:
+        meta["model"] = model
+    if llm_provider:
+        meta["llm_provider"] = llm_provider
+    if vcs_provider:
+        meta["vcs_provider"] = vcs_provider
+
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except Exception as e:
+        print(f"Warning: Failed to write agent_meta.json: {e}")
+
+
+def detect_and_write_agent_meta(
+    artifacts_dir: str,
+    project_file: str,
+) -> None:
+    """Detect model/VCS metadata and write agent_meta.json.
+
+    Convenience wrapper that detects the current LLM provider, model, and
+    VCS provider from the project file, then writes agent_meta.json.
+
+    Args:
+        artifacts_dir: Path to the artifacts directory.
+        project_file: Path to the project file (used for VCS detection).
+    """
+    from sase.llm_provider.registry import get_default_provider_name, get_provider
+    from sase.workspace_provider import detect_workflow_type, get_display_name
+
+    # Detect model and LLM provider
+    llm_provider = get_default_provider_name()
+    try:
+        provider = get_provider()
+        model = provider.resolve_model_name()
+    except Exception:
+        model = None
+
+    # Detect VCS provider
+    try:
+        vcs_type = detect_workflow_type(project_file)
+        vcs_provider = get_display_name(vcs_type)
+    except (ValueError, Exception):
+        vcs_provider = None
+
+    _write_agent_meta(
+        artifacts_dir,
+        model=model,
+        llm_provider=llm_provider,
+        vcs_provider=vcs_provider,
+    )
+
+
 def write_done_marker(
     artifacts_dir: str,
     cl_name: str,

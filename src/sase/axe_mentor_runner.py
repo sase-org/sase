@@ -12,7 +12,12 @@ from pathlib import Path
 
 from sase.ace.hooks import format_duration
 from sase.ace.mentors import set_mentor_status
-from sase.axe_runner_utils import install_sigterm_handler, was_killed, write_done_marker
+from sase.axe_runner_utils import (
+    detect_and_write_agent_meta,
+    install_sigterm_handler,
+    was_killed,
+    write_done_marker,
+)
 from sase.mentor_workflow import MentorWorkflow
 from sase.shared_utils import create_artifacts_directory
 
@@ -41,6 +46,7 @@ def main() -> None:
     success = False
     final_status = "FAILED"
     duration = "0s"
+    response_path: str | None = None
 
     # Create artifacts directory early so done.json can be written even on error
     # Note: MentorWorkflow also creates this same directory internally
@@ -49,6 +55,9 @@ def main() -> None:
         project_name=Path(project_file).parent.name,
         timestamp=timestamp,
     )
+
+    # Write agent_meta.json early so Agents tab shows model/VCS while running
+    detect_and_write_agent_meta(artifacts_dir, project_file)
 
     print(f"Starting mentor workflow: {mentor_name}")
     print(f"CL: {cl_name}")
@@ -70,6 +79,7 @@ def main() -> None:
                 who=who,
             )
             success = workflow.run()
+            response_path = workflow.response_path
 
             # Get proposal_id from workflow
             proposal_id: str | None = workflow.proposal_id
@@ -147,6 +157,7 @@ def main() -> None:
             project_file=project_file,
             timestamp=timestamp,
             exit_code=exit_code,
+            response_path=response_path,
         )
 
         # Write completion marker

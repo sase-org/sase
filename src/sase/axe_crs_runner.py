@@ -18,7 +18,11 @@ import sys
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
-from sase.axe_runner_utils import finalize_axe_runner, write_done_marker
+from sase.axe_runner_utils import (
+    detect_and_write_agent_meta,
+    finalize_axe_runner,
+    write_done_marker,
+)
 from sase.chat_history import find_chat_by_timestamp
 from sase.crs_workflow import CrsWorkflow
 from sase.sase_utils import shorten_path
@@ -81,6 +85,9 @@ def main() -> int:
         timestamp=timestamp,
     )
 
+    # Write agent_meta.json early so Agents tab shows model/VCS while running
+    detect_and_write_agent_meta(artifacts_dir, project_file)
+
     try:
         print(f"Running CRS workflow for {changespec_name}")
         print(f"Comments file: {comments_file}")
@@ -118,6 +125,9 @@ def main() -> int:
         exit_code = 1
 
     finally:
+        # Find chat file for response_path (written by invoke_agent during execution)
+        chat_path = find_chat_by_timestamp(timestamp)
+
         # Write done.json marker for Agents tab visibility
         write_done_marker(
             artifacts_dir,
@@ -125,6 +135,7 @@ def main() -> int:
             project_file=project_file,
             timestamp=timestamp,
             exit_code=exit_code,
+            response_path=chat_path,
         )
 
         # Finalize: update suffix, write completion marker
@@ -141,7 +152,6 @@ def main() -> int:
 
         from sase.notifications.senders import notify_workflow_complete
 
-        chat_path = find_chat_by_timestamp(timestamp)
         extra_files = [chat_path] if chat_path else []
         notify_workflow_complete(
             sender="crs",

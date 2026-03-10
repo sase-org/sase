@@ -260,34 +260,40 @@ def load_done_agents(
                     plan_path = data.get("plan_path")
                     extra_files = [plan_path] if plan_path else []
 
-                    agents.append(
-                        Agent(
-                            agent_type=AgentType.RUNNING,
-                            cl_name=cl_name,
-                            project_file=data.get("project_file", ""),
-                            status=status,
-                            start_time=start_time,
-                            workflow=workflow_dir.name,
-                            raw_suffix=timestamp_str,
-                            response_path=data.get("response_path"),
-                            diff_path=data.get("diff_path"),
-                            extra_files=extra_files,
-                            step_output=data.get("step_output"),
-                            workspace_num=data.get("workspace_num"),
-                            bug=bug_by_cl_name.get(cl_name),
-                            cl_num=cl_by_cl_name.get(cl_name),
-                            error_message=error_message,
-                            error_traceback=error_traceback,
-                            output_path=data.get("output_path"),
-                            model=data.get("model"),
-                            llm_provider=data.get("llm_provider"),
-                            vcs_provider=data.get("vcs_provider"),
-                            agent_name=data.get("name"),
-                            hidden=bool(data.get("hidden")),
-                            approve=bool(data.get("approve")),
-                            retry_attempt=data.get("retry_attempt", 0),
-                        )
+                    agent = Agent(
+                        agent_type=AgentType.RUNNING,
+                        cl_name=cl_name,
+                        project_file=data.get("project_file", ""),
+                        status=status,
+                        start_time=start_time,
+                        workflow=workflow_dir.name,
+                        raw_suffix=timestamp_str,
+                        response_path=data.get("response_path"),
+                        diff_path=data.get("diff_path"),
+                        extra_files=extra_files,
+                        step_output=data.get("step_output"),
+                        workspace_num=data.get("workspace_num"),
+                        bug=bug_by_cl_name.get(cl_name),
+                        cl_num=cl_by_cl_name.get(cl_name),
+                        error_message=error_message,
+                        error_traceback=error_traceback,
+                        output_path=data.get("output_path"),
+                        model=data.get("model"),
+                        llm_provider=data.get("llm_provider"),
+                        vcs_provider=data.get("vcs_provider"),
+                        agent_name=data.get("name"),
+                        hidden=bool(data.get("hidden")),
+                        approve=bool(data.get("approve")),
+                        retry_attempt=data.get("retry_attempt", 0),
                     )
+
+                    # Enrich from agent_meta.json when model/VCS not in done.json
+                    # (axe runners write agent_meta.json but older done.json may
+                    # lack these fields)
+                    if not agent.model or not agent.vcs_provider:
+                        enrich_agent_from_meta(agent, str(artifact_dir))
+
+                    agents.append(agent)
                 except Exception:
                     continue
 

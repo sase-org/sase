@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from sase.ace.hooks import set_hook_suffix
-from sase.axe_runner_utils import write_done_marker
+from sase.axe_runner_utils import detect_and_write_agent_meta, write_done_marker
 from sase.metahook_config import MetahookConfig, find_matching_metahook
 from sase.shared_utils import create_artifacts_directory
 from sase.summarize_utils import get_file_summary
@@ -54,6 +54,9 @@ def main() -> int:
         project_name=Path(project_file).parent.name,
         timestamp=timestamp,
     )
+
+    # Write agent_meta.json early so Agents tab shows model/VCS while running
+    detect_and_write_agent_meta(artifacts_dir, project_file)
 
     try:
         print(f"Running summarize-hook workflow for {changespec_name}")

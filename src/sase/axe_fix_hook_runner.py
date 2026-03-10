@@ -18,7 +18,11 @@ from pathlib import Path
 
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.ace.hooks import contract_test_target_command, set_hook_suffix
-from sase.axe_runner_utils import finalize_axe_runner, write_done_marker
+from sase.axe_runner_utils import (
+    detect_and_write_agent_meta,
+    finalize_axe_runner,
+    write_done_marker,
+)
 from sase.chat_history import find_chat_by_timestamp
 from sase.sase_utils import shorten_path, strip_hook_prefix
 from sase.llm_provider import invoke_agent
@@ -119,6 +123,9 @@ def main() -> int:
         project_name=Path(project_file).parent.name,
         timestamp=timestamp,
     )
+
+    # Write agent_meta.json early so Agents tab shows model/VCS while running
+    detect_and_write_agent_meta(artifacts_dir, project_file)
 
     try:
         print(f"Running fix-hook workflow for {changespec_name}")
@@ -225,6 +232,9 @@ def main() -> int:
         exit_code = 1
 
     finally:
+        # Find chat file for response_path (written by invoke_agent during execution)
+        chat_path = find_chat_by_timestamp(timestamp)
+
         # Write done.json marker for Agents tab visibility
         write_done_marker(
             artifacts_dir,
@@ -232,6 +242,7 @@ def main() -> int:
             project_file=project_file,
             timestamp=timestamp,
             exit_code=exit_code,
+            response_path=chat_path,
         )
 
         # Finalize: update suffix, release workspace, write completion marker
@@ -247,7 +258,6 @@ def main() -> int:
 
         from sase.notifications.senders import notify_workflow_complete
 
-        chat_path = find_chat_by_timestamp(timestamp)
         extra_files = [chat_path] if chat_path else []
         notify_workflow_complete(
             sender="fix-hook",
