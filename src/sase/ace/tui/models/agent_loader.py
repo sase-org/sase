@@ -284,8 +284,7 @@ def load_all_agents() -> list[Agent]:
     axe_pids: set[int] = set()
     for agent in agents:
         if (
-            agent.agent_type == AgentType.RUNNING
-            and agent.pid is not None
+            agent.pid is not None
             and agent.workflow
             and any(agent.workflow.startswith(p) for p in _axe_workflow_prefixes)
         ):
