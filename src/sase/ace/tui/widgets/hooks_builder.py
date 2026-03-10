@@ -237,7 +237,7 @@ def build_hooks_section(
                 if with_hints:
                     if hints_for == "hooks_latest_only":
                         show_hint = sl.commit_entry_num in non_historical_ids
-                    else:
+                    elif hints_for not in ("mentors_running",):
                         show_hint = True
 
                 if show_hint:
