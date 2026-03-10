@@ -64,6 +64,17 @@ class PromptDirectives:
     wait: list[str] = field(default_factory=list)
 
 
+def has_wait_directive(prompt: str) -> bool:
+    """Quick check whether a prompt contains ``%wait`` or ``%w`` directives.
+
+    This avoids the overhead of full xprompt expansion and is suitable for
+    early detection in the agent launcher.
+    """
+    if "%" not in prompt:
+        return False
+    return bool(re.search(r"(?:^|\s)%(?:wait|w)[:+(]", prompt, re.MULTILINE))
+
+
 def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
     """Extract ``%name`` directives from a prompt.
 

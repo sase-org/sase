@@ -316,6 +316,64 @@ def main() -> None:
 
                 print("All dependencies satisfied, proceeding with workflow")
 
+                # Allocate real workspace now that dependencies are resolved
+                if os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE") and not is_home_mode:
+                    from sase.running_field import (
+                        claim_workspace as claim_ws,
+                        get_workspace_directory_for_num,
+                        get_first_available_axe_workspace,
+                        release_workspace,
+                    )
+
+                    # Release the placeholder workspace_num=0 claim
+                    release_workspace(project_file, 0, workflow_name, cl_name)
+
+                    # Allocate a real workspace
+                    vcs_wf_type = os.environ.get("SASE_AGENT_VCS_WORKFLOW_TYPE")
+                    if vcs_wf_type:
+                        from sase.workspace_provider import (
+                            get_workspace_directory as ws_get_dir,
+                            get_pre_allocated_env_prefix,
+                        )
+
+                        workspace_num = get_first_available_axe_workspace(project_file)
+                        workspace_dir = ws_get_dir(
+                            vcs_wf_type,
+                            workspace_num,
+                            project_name,
+                            os.getcwd(),
+                        )
+
+                        # Set pre-allocation env vars for embedded workflows
+                        prefix = get_pre_allocated_env_prefix(vcs_wf_type)
+                        if prefix:
+                            os.environ[f"{prefix}_PRE_ALLOCATED"] = "1"
+                            os.environ[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
+                            os.environ[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
+                    else:
+                        workspace_num = get_first_available_axe_workspace(project_file)
+                        workspace_dir, _ = get_workspace_directory_for_num(
+                            workspace_num, project_name
+                        )
+
+                    # Claim the real workspace
+                    if not claim_ws(
+                        project_file,
+                        workspace_num,
+                        workflow_name,
+                        os.getpid(),
+                        cl_name,
+                        artifacts_timestamp=artifacts_timestamp,
+                    ):
+                        print(
+                            f"Failed to claim workspace #{workspace_num}",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+
+                    os.chdir(workspace_dir)
+                    print(f"Claimed workspace #{workspace_num}: {workspace_dir}")
+
             # Create anonymous workflow and execute through WorkflowExecutor
             from sase.xprompt.models import create_anonymous_workflow
             from sase.xprompt.workflow_runner import execute_workflow

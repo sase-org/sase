@@ -5,7 +5,11 @@ from unittest.mock import patch
 import pytest
 
 from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
+from sase.xprompt.directives import (
+    PromptDirectives,
+    extract_prompt_directives,
+    has_wait_directive,
+)
 
 
 # --- Pattern matching tests ---
@@ -291,3 +295,42 @@ def test_directive_outside_fenced_block_still_extracted() -> None:
     assert directives.model == "opus"
     assert "```\nsome code\n```" in cleaned
     assert "%model" not in cleaned
+
+
+# --- has_wait_directive tests ---
+
+
+def test_has_wait_directive_colon() -> None:
+    """Detects %wait:name syntax."""
+    assert has_wait_directive("Do something %wait:faster") is True
+
+
+def test_has_wait_directive_alias() -> None:
+    """Detects %w:name shorthand."""
+    assert has_wait_directive("Do something %w:faster") is True
+
+
+def test_has_wait_directive_paren() -> None:
+    """Detects %wait(name) syntax."""
+    assert has_wait_directive("Do something %wait(faster)") is True
+
+
+def test_has_wait_directive_plus() -> None:
+    """Detects %wait+ and %w+ syntax."""
+    assert has_wait_directive("Do something %wait+") is True
+    assert has_wait_directive("Do something %w+") is True
+
+
+def test_has_wait_directive_start_of_line() -> None:
+    """Detects %wait at start of line."""
+    assert has_wait_directive("%wait:faster\nDo something") is True
+
+
+def test_has_wait_directive_absent() -> None:
+    """Returns False when no %wait directive present."""
+    assert has_wait_directive("Do something %model:opus") is False
+
+
+def test_has_wait_directive_no_percent() -> None:
+    """Returns False quickly when no % in prompt."""
+    assert has_wait_directive("Just a plain prompt") is False

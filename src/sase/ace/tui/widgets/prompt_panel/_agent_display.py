@@ -80,8 +80,10 @@ class AgentDisplayMixin:
             header_text.append("\n")
 
         # Workspace (if available) - check meta_workspace first, then agent field
+        # Hide workspace for deferred-workspace agents (workspace_num=0 means
+        # no workspace allocated yet, used by WAITING agents)
         workspace_num = meta_workspace or agent.workspace_num
-        if workspace_num is not None:
+        if workspace_num is not None and int(workspace_num) > 0:
             header_text.append("Workspace: ", style="bold #87D7FF")
             header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 

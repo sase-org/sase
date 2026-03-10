@@ -66,7 +66,7 @@ def _get_workspace_cwd(agent: Agent) -> str | None:
                 workspace_num = int(meta_ws)
             except (ValueError, TypeError):
                 pass
-    if workspace_num is None:
+    if not workspace_num:
         workspace_num = 1
 
     try:

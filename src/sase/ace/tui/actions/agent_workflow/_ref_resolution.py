@@ -7,24 +7,38 @@ class RefResolutionMixin:
     """Mixin providing dynamic VCS reference resolution."""
 
     def _resolve_vcs_from_prompt(
-        self, prompt: str, workflow_type: str
+        self,
+        prompt: str,
+        workflow_type: str,
+        *,
+        skip_workspace: bool = False,
     ) -> tuple[str, str, str, int, str] | None:
         """Extract and resolve a VCS reference for *workflow_type* from *prompt*.
 
         Returns (project_file, project_name, workspace_dir, workspace_num,
         ref) or None if not found or resolution fails.
         """
-        return resolve_ref_from_prompt(prompt, workflow_type)
+        return resolve_ref_from_prompt(
+            prompt, workflow_type, skip_workspace=skip_workspace
+        )
 
 
 def resolve_ref_from_prompt(
-    prompt: str, workflow_type: str
+    prompt: str,
+    workflow_type: str,
+    *,
+    skip_workspace: bool = False,
 ) -> tuple[str, str, str, int, str] | None:
     """Resolve a VCS reference from a prompt using the plugin system.
 
     Matches the regex pattern for the given *workflow_type*, resolves the
     reference via ``resolve_ref()``, and obtains the workspace directory
     appropriate for the workflow type.
+
+    When *skip_workspace* is True, workspace allocation is skipped and
+    the primary workspace directory is returned with workspace_num=0.
+    This is used for agents with ``%wait`` directives that should defer
+    workspace claiming until their dependencies are resolved.
     """
     from sase.running_field import get_first_available_axe_workspace
     from sase.workspace_provider import (
@@ -48,13 +62,17 @@ def resolve_ref_from_prompt(
 
     try:
         resolved = resolve_ref(ref, workflow_type)
-        workspace_num = get_first_available_axe_workspace(resolved.project_file)
-        workspace_dir = get_workspace_directory(
-            workflow_type,
-            workspace_num,
-            resolved.project_name,
-            resolved.primary_workspace_dir,
-        )
+        if skip_workspace:
+            workspace_num = 0
+            workspace_dir = resolved.primary_workspace_dir
+        else:
+            workspace_num = get_first_available_axe_workspace(resolved.project_file)
+            workspace_dir = get_workspace_directory(
+                workflow_type,
+                workspace_num,
+                resolved.project_name,
+                resolved.primary_workspace_dir,
+            )
     except (ValueError, RuntimeError):
         return None
 

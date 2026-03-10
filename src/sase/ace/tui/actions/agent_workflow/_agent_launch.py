@@ -59,12 +59,17 @@ class AgentLaunchMixin:
             return
 
         from sase.workspace_provider import get_ref_patterns, get_workflow_names
+        from sase.xprompt.directives import has_wait_directive
+
+        has_wait = has_wait_directive(prompt)
 
         # Detect workspace-managing embedded workflows in home mode
         vcs_ref: tuple[str, str] | None = None  # (workflow_type, ref)
         if ctx.is_home_mode:
             for wf_name in get_workflow_names():
-                resolved = self._resolve_vcs_from_prompt(prompt, wf_name)  # type: ignore[attr-defined]
+                resolved = self._resolve_vcs_from_prompt(  # type: ignore[attr-defined]
+                    prompt, wf_name, skip_workspace=has_wait
+                )
                 if resolved is not None:
                     (
                         ctx.project_file,
@@ -140,6 +145,15 @@ class AgentLaunchMixin:
 
         self._prompt_context = None
 
+        # For agents with %wait directives, override workspace to deferred
+        # (workspace_num=0) so no real workspace is claimed until dependencies
+        # resolve.
+        if has_wait and not ctx.is_home_mode and ctx.workspace_num != 0:
+            from sase.running_field import get_workspace_directory
+
+            ctx.workspace_num = 0
+            ctx.workspace_dir = get_workspace_directory(ctx.project_name, 1)
+
         # Launch single background agent
         self._launch_background_agent(
             cl_name=ctx.display_name,
@@ -154,6 +168,7 @@ class AgentLaunchMixin:
             history_sort_key=ctx.history_sort_key,
             is_home_mode=ctx.is_home_mode,
             vcs_ref=vcs_ref,
+            deferred_workspace=has_wait,
         )
 
         # Refresh agents list (deferred to avoid lag)
@@ -260,6 +275,7 @@ class AgentLaunchMixin:
         history_sort_key: str = "",
         is_home_mode: bool = False,
         vcs_ref: tuple[str, str] | None = None,
+        deferred_workspace: bool = False,
     ) -> None:
         """Launch agent as background process.
 
@@ -294,6 +310,7 @@ class AgentLaunchMixin:
                 history_sort_key=history_sort_key,
                 is_home_mode=is_home_mode,
                 vcs_ref=vcs_ref,
+                deferred_workspace=deferred_workspace,
             )
         except (RuntimeError, OSError) as e:
             self.notify(f"Failed to start agent: {e}", severity="error")  # type: ignore[attr-defined]

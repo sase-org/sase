@@ -35,6 +35,7 @@ def spawn_agent_subprocess(
     history_sort_key: str = "",
     is_home_mode: bool = False,
     vcs_ref: tuple[str, str] | None = None,
+    deferred_workspace: bool = False,
 ) -> _AgentLaunchResult:
     """Spawn a detached background agent process.
 
@@ -70,7 +71,11 @@ def spawn_agent_subprocess(
     subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
     subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
     subprocess_env["SASE_AGENT_TIMESTAMP"] = timestamp
-    if vcs_ref is not None:
+    if deferred_workspace:
+        subprocess_env["SASE_AGENT_DEFERRED_WORKSPACE"] = "1"
+        if vcs_ref is not None:
+            subprocess_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] = vcs_ref[0]
+    elif vcs_ref is not None:
         from sase.workspace_provider import get_pre_allocated_env_prefix
 
         prefix = get_pre_allocated_env_prefix(vcs_ref[0])
@@ -105,12 +110,15 @@ def spawn_agent_subprocess(
             env=subprocess_env,
         )
 
-    # Claim workspace so agent appears in Agents tab while running
+    # Claim workspace so agent appears in Agents tab while running.
+    # For deferred-workspace agents (%wait), claim with workspace_num=0
+    # so the agent appears in the TUI but doesn't reserve a real workspace.
     if not is_home_mode:
         artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
+        claim_num = 0 if deferred_workspace else workspace_num
         if not claim_workspace(
             project_file,
-            workspace_num,
+            claim_num,
             workflow_name,
             process.pid,
             cl_name,
@@ -121,7 +129,7 @@ def spawn_agent_subprocess(
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 process.kill()
-            raise RuntimeError(f"Failed to claim workspace #{workspace_num}")
+            raise RuntimeError(f"Failed to claim workspace #{claim_num}")
     else:
         # Ensure home project directory and file exist
         home_project_dir = os.path.expanduser("~/.sase/projects/home")
@@ -161,6 +169,7 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     from sase.prompt_history import add_or_update_prompt
     from sase.running_field import (
         get_first_available_axe_workspace,
+        get_workspace_directory,
         get_workspace_directory_for_num,
     )
     from sase.sase_utils import generate_timestamp
@@ -180,6 +189,9 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     assert project_name is not None
 
     # --- Detect VCS refs in prompt ---
+    from sase.xprompt.directives import has_wait_directive
+
+    has_wait = has_wait_directive(query)
     vcs_ref: tuple[str, str] | None = None
     workspace_dir: str | None = None
 
@@ -187,8 +199,10 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     # etc. when the prompt contains an explicit ref like #gh:sase.  Must run
     # in both home and non-home mode so xprompt chops launched from CWDs that
     # resolve to a different project still target the correct one.
+    # When %wait is detected, skip workspace allocation (deferred until
+    # dependencies resolve).
     for wf_name in get_workflow_names():
-        resolved = resolve_ref_from_prompt(query, wf_name)
+        resolved = resolve_ref_from_prompt(query, wf_name, skip_workspace=has_wait)
         if resolved is not None:
             project_file, project_name, workspace_dir, ws_num, ref_value = resolved
             workspace_num = ws_num
@@ -223,6 +237,10 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
         if is_home_mode:
             workspace_dir = os.path.expanduser("~")
             workspace_num = 0
+        elif has_wait:
+            # Deferred workspace: use main workspace dir as CWD during wait
+            workspace_num = 0
+            workspace_dir = get_workspace_directory(project_name, 1)
         else:
             workspace_num = get_first_available_axe_workspace(project_file)
             workspace_dir, _ = get_workspace_directory_for_num(
@@ -247,6 +265,7 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     )
 
     assert workspace_num is not None
+    assert workspace_dir is not None
     return spawn_agent_subprocess(
         cl_name=cl_name,
         project_file=project_file,
@@ -260,4 +279,5 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
         history_sort_key=history_sort_key,
         is_home_mode=is_home_mode,
         vcs_ref=vcs_ref,
+        deferred_workspace=has_wait,
     )
