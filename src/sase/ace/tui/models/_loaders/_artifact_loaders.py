@@ -158,7 +158,7 @@ def load_agents_from_running_field(
             # Axe-spawned agents are always hidden
             if claim.workflow and any(
                 claim.workflow.startswith(p)
-                for p in ["axe(mentor)", "axe(fix-hook)", "axe(crs)"]
+                for p in ["axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor("]
             ):
                 agent.hidden = True
             agents.append(agent)

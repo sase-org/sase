@@ -213,7 +213,7 @@ def load_all_agents() -> list[Agent]:
 
     # Build index of RUNNING agents with axe(...) workflows by (cl_name, timestamp)
     running_axe_agents_by_key: dict[tuple[str, str], Agent] = {}
-    _axe_workflow_prefixes = ["axe(mentor)", "axe(fix-hook)", "axe(crs)"]
+    _axe_workflow_prefixes = ["axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor("]
     for agent in agents:
         if agent.agent_type == AgentType.RUNNING:
             workflow = agent.workflow or ""
