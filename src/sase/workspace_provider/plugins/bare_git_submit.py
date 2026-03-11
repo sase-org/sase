@@ -170,9 +170,11 @@ def submit_bare_git(
             changespec_name, project_basename, ws_dir
         )
 
-        # Fetch from remote so the feature branch is available in this workspace
+        # Fetch from remote and create a local branch so checkout can find it.
+        # Using the refspec "src:dst" form ensures a local ref is created,
+        # rather than just updating FETCH_HEAD.
         subprocess.run(
-            ["git", "fetch", "origin", branch_name],
+            ["git", "fetch", "origin", f"+{branch_name}:{branch_name}"],
             cwd=ws_dir,
             capture_output=True,
             text=True,
