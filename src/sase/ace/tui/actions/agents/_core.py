@@ -207,8 +207,15 @@ class AgentsMixinCore(
         # Auto-dismiss hidden agents that have reached DONE or FAILED status.
         # This ensures hidden agents disappear automatically when complete
         # rather than sitting in a dismissable state behind the '.' toggle.
+        # Exception: axe-spawned agents (fix-hook, mentor, crs, summarize-hook)
+        # are NOT auto-dismissed — they may need user attention (e.g., fix-hook
+        # proposals awaiting review) and should remain visible via '.' toggle.
         auto_dismissed = [
-            a for a in all_agents if a.hidden and a.status in DISMISSABLE_STATUSES
+            a
+            for a in all_agents
+            if a.hidden
+            and a.status in DISMISSABLE_STATUSES
+            and not _is_axe_spawned_agent(a)
         ]
         for agent in auto_dismissed:
             self._persist_dismissed_agent(agent.identity)
