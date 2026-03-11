@@ -438,10 +438,13 @@ class AceApp(
         from sase.ace.tui_activity import (
             write_activity_timestamp,
             write_idle_state,
+            write_last_keypress,
             write_tui_pid,
         )
 
-        write_activity_timestamp(time.time())
+        now = time.time()
+        write_activity_timestamp(now)
+        write_last_keypress(now)
         write_idle_state(False)
         write_tui_pid()
 
@@ -500,12 +503,14 @@ class AceApp(
         self._save_current_selection()
         from sase.ace.tui_activity import (
             remove_idle_state,
+            remove_last_keypress,
             remove_tui_pid,
             write_activity_timestamp,
         )
 
         write_activity_timestamp(time.time())
         remove_idle_state()
+        remove_last_keypress()
         remove_tui_pid()
         self.exit()
 

@@ -96,17 +96,23 @@ class EventHandlersMixin:
         now_mono = time.monotonic()
         if now_mono - self._last_activity_flush >= 10:
             if hasattr(self, "_last_activity_time"):
-                # Only write activity timestamp while the user is active.
-                # When idle, _check_idle_state already wrote the idle
-                # transition time and we must not overwrite it with the
-                # stale last-keypress time — that would let the Telegram
-                # outbound chop's high-water mark fall behind notifications
-                # that the user already saw in the TUI.
+                activity_wall = time.time() - (now_mono - self._last_activity_time)
+                # Always write the keypress file — this is the true
+                # last-interaction timestamp that is_idle() uses as a
+                # safety net.  It is never overwritten on idle transitions.
+                from sase.ace.tui_activity import write_last_keypress
+
+                write_last_keypress(activity_wall)
+                # Only write the activity/HWM timestamp while the user
+                # is active.  When idle, _check_idle_state already wrote
+                # the idle transition time and we must not overwrite it
+                # with the stale last-keypress time — that would let the
+                # Telegram outbound chop's high-water mark fall behind
+                # notifications that the user already saw in the TUI.
                 indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
                 if not indicator._idle:
                     from sase.ace.tui_activity import write_activity_timestamp
 
-                    activity_wall = time.time() - (now_mono - self._last_activity_time)
                     write_activity_timestamp(activity_wall)
                 self._last_activity_flush = now_mono
         self._check_idle_state(now_mono)

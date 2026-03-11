@@ -7,11 +7,19 @@ user inactivity and send notifications (e.g. via Telegram).
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 ACTIVITY_FILE: Path = Path.home() / ".sase" / "tui_last_activity"
 PID_FILE: Path = Path.home() / ".sase" / "tui_pid"
 IDLE_STATE_FILE: Path = Path.home() / ".sase" / "tui_idle_state"
+LAST_KEYPRESS_FILE: Path = Path.home() / ".sase" / "tui_last_keypress"
+
+# If the TUI is running and reports idle, but the last keypress was
+# less than this many seconds ago, something is wrong — override
+# the idle state and return False.  120s is well below any reasonable
+# inactive_seconds threshold (default 600s).
+_IDLE_GUARD_SECONDS = 120
 
 
 def write_activity_timestamp(epoch: float) -> None:
@@ -24,6 +32,28 @@ def write_activity_timestamp(epoch: float) -> None:
     tmp = ACTIVITY_FILE.with_suffix(".tmp")
     tmp.write_text(str(epoch))
     os.replace(tmp, ACTIVITY_FILE)
+
+
+def write_last_keypress(epoch: float) -> None:
+    """Atomically write the last keypress wall-clock time.
+
+    Unlike ``write_activity_timestamp``, this is NEVER overwritten on
+    idle transitions.  It always reflects the actual wall-clock time of
+    the most recent user keypress, allowing ``is_idle()`` to
+    independently verify that enough time has elapsed.
+    """
+    LAST_KEYPRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = LAST_KEYPRESS_FILE.with_suffix(".tmp")
+    tmp.write_text(str(epoch))
+    os.replace(tmp, LAST_KEYPRESS_FILE)
+
+
+def _get_last_keypress() -> float | None:
+    """Return the epoch stored in the last-keypress file, or ``None``."""
+    try:
+        return float(LAST_KEYPRESS_FILE.read_text().strip())
+    except (FileNotFoundError, ValueError):
+        return None
 
 
 # pyvision: public_api_methods.txt
@@ -75,6 +105,14 @@ def remove_idle_state() -> None:
         pass
 
 
+def remove_last_keypress() -> None:
+    """Delete the last-keypress file, ignoring if it doesn't exist."""
+    try:
+        LAST_KEYPRESS_FILE.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def _is_tui_running() -> bool:
     """Return whether the TUI process is currently alive.
 
@@ -107,12 +145,30 @@ def is_idle() -> bool:
     whenever its idle indicator changes, so external consumers never
     need to independently recompute idle from raw timestamps.
 
+    As a safety net, when the idle state file says "1" but the last
+    keypress was less than ``_IDLE_GUARD_SECONDS`` ago, the function
+    returns False.  This catches race conditions and state file
+    inconsistencies that have caused spurious Telegram notifications.
+
     Falls back to True (idle) when the TUI is not running or the
     state file is missing/unreadable.
     """
     if not _is_tui_running():
         return True
     try:
-        return IDLE_STATE_FILE.read_text().strip() == "1"
+        idle_flag = IDLE_STATE_FILE.read_text().strip() == "1"
     except (FileNotFoundError, ValueError):
         return True
+    if not idle_flag:
+        return False
+    # Secondary guard: verify that the last keypress is old enough.
+    # The TUI writes this file every ~10 seconds and NEVER overwrites
+    # it on idle transitions, so it always reflects the actual last
+    # user interaction.  If the keypress was recent, the idle state
+    # file is stale or incorrect.
+    last_kp = _get_last_keypress()
+    if last_kp is not None and last_kp > 0:
+        elapsed = time.time() - last_kp
+        if elapsed < _IDLE_GUARD_SECONDS:
+            return False
+    return True

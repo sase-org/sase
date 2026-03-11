@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui_activity import (
+    _IDLE_GUARD_SECONDS,
     _is_tui_running,
     get_tui_last_activity,
     is_idle,
     remove_idle_state,
+    remove_last_keypress,
     remove_tui_pid,
     write_activity_timestamp,
     write_idle_state,
+    write_last_keypress,
     write_tui_pid,
 )
 
@@ -31,6 +35,13 @@ def _patch_pid_file(tmp_path: Path):
 def _patch_idle_state_file(tmp_path: Path):
     """Return a mock.patch targeting IDLE_STATE_FILE to use *tmp_path*."""
     return patch("sase.ace.tui_activity.IDLE_STATE_FILE", tmp_path / "tui_idle_state")
+
+
+def _patch_last_keypress_file(tmp_path: Path):
+    """Return a mock.patch targeting LAST_KEYPRESS_FILE to use *tmp_path*."""
+    return patch(
+        "sase.ace.tui_activity.LAST_KEYPRESS_FILE", tmp_path / "tui_last_keypress"
+    )
 
 
 # ── write_activity_timestamp ──────────────────────────────────────────
@@ -204,6 +215,7 @@ def test_is_idle_true_when_tui_not_running(_mock_running: object) -> None:
 def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         assert is_idle() is True
@@ -212,6 +224,7 @@ def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
 def test_is_idle_true_when_state_says_idle(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(True)
@@ -221,6 +234,7 @@ def test_is_idle_true_when_state_says_idle(tmp_path: Path) -> None:
 def test_is_idle_false_when_state_says_active(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
@@ -230,6 +244,7 @@ def test_is_idle_false_when_state_says_active(tmp_path: Path) -> None:
 def test_is_idle_true_after_state_transitions_to_idle(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
@@ -241,9 +256,83 @@ def test_is_idle_true_after_state_transitions_to_idle(tmp_path: Path) -> None:
 def test_is_idle_true_after_state_file_removed(tmp_path: Path) -> None:
     with (
         _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
     ):
         write_idle_state(False)
         assert is_idle() is False
         remove_idle_state()
         assert is_idle() is True
+
+
+# ── keypress guard ────────────────────────────────────────────────
+
+
+def test_is_idle_false_when_keypress_recent(tmp_path: Path) -> None:
+    """Even if idle_state says '1', a recent keypress overrides to not-idle."""
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
+    ):
+        write_idle_state(True)
+        # Keypress just happened
+        write_last_keypress(time.time())
+        assert is_idle() is False
+
+
+def test_is_idle_true_when_keypress_old_enough(tmp_path: Path) -> None:
+    """Idle state is respected when the keypress is old enough."""
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
+    ):
+        write_idle_state(True)
+        # Keypress was a long time ago (> _IDLE_GUARD_SECONDS)
+        write_last_keypress(time.time() - _IDLE_GUARD_SECONDS - 10)
+        assert is_idle() is True
+
+
+def test_is_idle_true_when_no_keypress_file(tmp_path: Path) -> None:
+    """Missing keypress file does not block idle detection."""
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
+    ):
+        write_idle_state(True)
+        # No keypress file — guard does not apply
+        assert is_idle() is True
+
+
+def test_is_idle_true_when_keypress_is_zero(tmp_path: Path) -> None:
+    """Manual idle (epoch=0) is not blocked by the guard."""
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=True),
+    ):
+        write_idle_state(True)
+        write_last_keypress(0)
+        assert is_idle() is True
+
+
+def test_write_last_keypress_creates_file(tmp_path: Path) -> None:
+    with _patch_last_keypress_file(tmp_path):
+        write_last_keypress(1700000000.5)
+        f = tmp_path / "tui_last_keypress"
+        assert f.exists()
+        assert float(f.read_text().strip()) == 1700000000.5
+
+
+def test_remove_last_keypress_deletes_file(tmp_path: Path) -> None:
+    with _patch_last_keypress_file(tmp_path):
+        write_last_keypress(1.0)
+        remove_last_keypress()
+        assert not (tmp_path / "tui_last_keypress").exists()
+
+
+def test_remove_last_keypress_no_error_when_missing(tmp_path: Path) -> None:
+    with _patch_last_keypress_file(tmp_path):
+        remove_last_keypress()  # should not raise
