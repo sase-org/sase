@@ -66,6 +66,10 @@ def sase_bug() -> NoReturn:
     _exec_script("sase_bug")
 
 
+def sase_xcmd() -> NoReturn:
+    _exec_script("sase_xcmd")
+
+
 def sase_chop_hook_checks() -> None:
     from sase.scripts.sase_chop_hook_checks import main
 
