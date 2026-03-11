@@ -169,6 +169,16 @@ def submit_bare_git(
         branch_name = provider.resolve_revision(
             changespec_name, project_basename, ws_dir
         )
+
+        # Fetch from remote so the feature branch is available in this workspace
+        subprocess.run(
+            ["git", "fetch", "origin", branch_name],
+            cwd=ws_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
         success, error = provider.checkout(branch_name, ws_dir)
         if not success:
             return (False, f"Failed to checkout branch: {error}")

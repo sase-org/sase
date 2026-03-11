@@ -74,8 +74,19 @@ steps:
         --data-file "{{ save_response.data_file }}"
     output: { success: bool, entry_id: word, cl_name: word, diff_path: path, error: text }
 
-  - name: create_changespec
+  - name: push_branch
     if: "{{ check_changes.has_changes and commit.success | default(false) }}"
+    bash: |
+      if git push -u origin "{{ create_branch.branch }}" 2>&1; then
+        echo "success=true"
+      else
+        echo "success=false"
+        echo "error=Failed to push branch {{ create_branch.branch }} to remote"
+      fi
+    output: { success: bool, error: text }
+
+  - name: create_changespec
+    if: "{{ check_changes.has_changes and push_branch.success | default(false) }}"
     python: |
       import json
       import os
