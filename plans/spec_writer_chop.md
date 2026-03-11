@@ -1,5 +1,6 @@
 ---
 bead_id: sase-savq
+status: done
 ---
 
 # Plan: Centralize All Project Spec Writes into a Single `spec_writer` Chop
