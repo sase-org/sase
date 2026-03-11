@@ -17,6 +17,7 @@ Where:
 
 import os
 import re
+import time
 from dataclasses import dataclass
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
@@ -228,70 +229,80 @@ def claim_workspace(
     Returns:
         True if claim was successful, False otherwise
     """
-    if not os.path.exists(project_file):
-        return False
+    max_retries = 2
+    for attempt in range(1 + max_retries):
+        if not os.path.exists(project_file):
+            if attempt < max_retries:
+                time.sleep(0.5)
+                continue
+            return False
 
-    try:
-        with changespec_lock(project_file):
-            with open(project_file, encoding="utf-8") as f:
-                content = f.read()
-                lines = content.split("\n")
+        try:
+            with changespec_lock(project_file):
+                with open(project_file, encoding="utf-8") as f:
+                    content = f.read()
+                    lines = content.split("\n")
 
-            new_claim = _WorkspaceClaim(
-                workspace_num=workspace_num,
-                workflow=workflow,
-                cl_name=cl_name,
-                pid=pid,
-                artifacts_timestamp=artifacts_timestamp,
-                pinned=pinned,
-            )
+                new_claim = _WorkspaceClaim(
+                    workspace_num=workspace_num,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    pid=pid,
+                    artifacts_timestamp=artifacts_timestamp,
+                    pinned=pinned,
+                )
 
-            # Find RUNNING field
-            running_field_idx = -1
-            running_end_idx = -1
+                # Find RUNNING field
+                running_field_idx = -1
+                running_end_idx = -1
 
-            for i, line in enumerate(lines):
-                if line.startswith("RUNNING:"):
-                    running_field_idx = i
-                    # Find end of RUNNING field
-                    for j in range(i + 1, len(lines)):
-                        if lines[j].startswith("  ") and (
-                            lines[j].strip().startswith("#")
-                            or lines[j].strip().startswith("|")
-                        ):
-                            running_end_idx = j
+                for i, line in enumerate(lines):
+                    if line.startswith("RUNNING:"):
+                        running_field_idx = i
+                        # Find end of RUNNING field
+                        for j in range(i + 1, len(lines)):
+                            if lines[j].startswith("  ") and (
+                                lines[j].strip().startswith("#")
+                                or lines[j].strip().startswith("|")
+                            ):
+                                running_end_idx = j
+                            else:
+                                if running_end_idx == -1:
+                                    running_end_idx = i
+                                break
                         else:
                             if running_end_idx == -1:
                                 running_end_idx = i
-                            break
-                    else:
-                        if running_end_idx == -1:
-                            running_end_idx = i
-                    break
+                        break
 
-            if running_field_idx >= 0:
-                # RUNNING field exists - add new claim
-                # Insert after the last continuation line
-                insert_idx = running_end_idx + 1
-                lines.insert(insert_idx, new_claim.to_line())
-            else:
-                # RUNNING field doesn't exist - create it at the beginning
-                lines.insert(0, f"RUNNING:\n{new_claim.to_line()}\n")
+                if running_field_idx >= 0:
+                    # RUNNING field exists - add new claim
+                    # Insert after the last continuation line
+                    insert_idx = running_end_idx + 1
+                    lines.insert(insert_idx, new_claim.to_line())
+                else:
+                    # RUNNING field doesn't exist - create it at the beginning
+                    lines.insert(0, f"RUNNING:\n{new_claim.to_line()}\n")
 
-            # Normalize blank lines around RUNNING field
-            result_content = "\n".join(lines)
-            result_content = _normalize_running_field_spacing(result_content)
+                # Normalize blank lines around RUNNING field
+                result_content = "\n".join(lines)
+                result_content = _normalize_running_field_spacing(result_content)
 
-            # Write atomically
-            cl_part = f" for {cl_name}" if cl_name else ""
-            write_changespec_atomic(
-                project_file,
-                result_content,
-                f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
-            )
-            return True
-    except Exception:
-        return False
+                # Write atomically
+                cl_part = f" for {cl_name}" if cl_name else ""
+                write_changespec_atomic(
+                    project_file,
+                    result_content,
+                    f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
+                )
+                return True
+        except Exception:
+            if attempt < max_retries:
+                time.sleep(0.5)
+                continue
+            return False
+
+    return False
 
 
 def release_workspace(
