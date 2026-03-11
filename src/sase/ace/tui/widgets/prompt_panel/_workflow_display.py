@@ -108,7 +108,7 @@ class WorkflowDisplayMixin:
         header_text.append(f"{agent.status}\n", style=status_style)
 
         # Timestamp(s)
-        header_text.append("Timestamp: ", style="bold #87D7FF")
+        header_text.append("Timestamps: ", style="bold #87D7FF")
         header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")
 
         # PID (if available)

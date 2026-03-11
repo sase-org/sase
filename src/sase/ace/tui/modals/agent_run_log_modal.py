@@ -351,7 +351,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append("VCS: ", style="bold #87D7FF")
             text.append(f"{agent.vcs_provider}\n")
 
-        text.append("Timestamp: ", style="bold #87D7FF")
+        text.append("Timestamps: ", style="bold #87D7FF")
         text.append(f"{agent.timestamps_display}\n")
 
         text.append("Duration: ", style="bold #87D7FF")

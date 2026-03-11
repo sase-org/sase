@@ -199,7 +199,8 @@ class Agent:
     def timestamps_display(self) -> str:
         """Multi-timestamp display for the metadata panel.
 
-        Format: ``(TYPE) TIMESTAMP [(TYPE) TIMESTAMP [...]]``
+        Each timestamp on its own line, with subsequent lines indented
+        to align with the first (matching the width of ``Timestamps: ``).
 
         - SPAWN shown only when agent waited before starting (run_start_time exists)
         - START always shown
@@ -207,20 +208,27 @@ class Agent:
         """
         parts: list[str] = []
         fmt = "%Y-%m-%d %H:%M:%S"
+        # Pad "(TAG)" to 7 chars so timestamps align (longest tag is 5: SPAWN/START)
+        tag_width = 7
+
+        def _fmt(tag: str, ts: str) -> str:
+            return f"({tag})".ljust(tag_width) + f" {ts}"
 
         # If the agent waited, show SPAWN (original start_time) then START (run_start_time)
         if self.run_start_time is not None and self.start_time is not None:
-            parts.append(f"(SPAWN) {self.start_time.strftime(fmt)}")
-            parts.append(f"(START) {self.run_start_time.strftime(fmt)}")
+            parts.append(_fmt("SPAWN", self.start_time.strftime(fmt)))
+            parts.append(_fmt("START", self.run_start_time.strftime(fmt)))
         elif self.start_time is not None:
-            parts.append(f"(START) {self.start_time.strftime(fmt)}")
+            parts.append(_fmt("START", self.start_time.strftime(fmt)))
         else:
-            parts.append("(START) Unknown")
+            parts.append(_fmt("START", "Unknown"))
 
         if self.stop_time is not None:
-            parts.append(f"(END) {self.stop_time.strftime(fmt)}")
+            parts.append(_fmt("END", self.stop_time.strftime(fmt)))
 
-        return " | ".join(parts)
+        # Indent subsequent lines by width of "Timestamps: " (12 chars)
+        indent = " " * 12
+        return ("\n" + indent).join(parts)
 
     @property
     def start_time_short(self) -> str:
