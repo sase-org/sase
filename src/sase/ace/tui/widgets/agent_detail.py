@@ -314,11 +314,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         file_panel.expand_by_page()
 
-    def collapse_file_trim(self) -> None:
-        """Collapse file content by one page."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.collapse_by_page()
-
     def reset_file_trim(self) -> None:
         """Reset file trim to default page size."""
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
