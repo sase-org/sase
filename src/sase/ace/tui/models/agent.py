@@ -295,6 +295,10 @@ class Agent:
                 # ChangeSpec-sourced mentor: workflow="mentor", profile="complete"
                 # -> artifacts dir "mentor-complete"
                 workflow_name = f"mentor-{self.mentor_profile}"
+            elif workflow == "fix_hook":
+                # VCS workspace claim uses "fix_hook" (from xprompt
+                # workflow_label) but artifacts dir is "fix-hook"
+                workflow_name = "fix-hook"
             else:
                 workflow_name = workflow
         elif self.agent_type == AgentType.WORKFLOW:
