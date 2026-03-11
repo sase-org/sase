@@ -203,7 +203,7 @@ class Agent:
 
         - SPAWN shown only when agent waited before starting (run_start_time exists)
         - START always shown
-        - STOP shown for DONE/FAILED agents
+        - END shown for DONE/FAILED agents
         """
         parts: list[str] = []
         fmt = "%Y-%m-%d %H:%M:%S"
@@ -218,9 +218,9 @@ class Agent:
             parts.append("(START) Unknown")
 
         if self.stop_time is not None:
-            parts.append(f"(STOP) {self.stop_time.strftime(fmt)}")
+            parts.append(f"(END) {self.stop_time.strftime(fmt)}")
 
-        return "  ".join(parts)
+        return " | ".join(parts)
 
     @property
     def start_time_short(self) -> str:
