@@ -9,6 +9,7 @@ from sase.ace.operations import update_to_changespec
 from sase.commit_utils import (
     apply_diff_to_workspace,
     clean_workspace,
+    mark_proposal_broken,
     run_sase_hg_clean,
 )
 from sase.rich_utils import print_status
@@ -317,6 +318,7 @@ class AcceptWorkflow(BaseWorkflow):
                         f"Failed to apply proposal ({base_num}{letter}): {error_msg}",
                         "error",
                     )
+                    mark_proposal_broken(project_file, cl_name, f"{base_num}{letter}")
                     clean_workspace(workspace_dir)
                     return None, None
 
