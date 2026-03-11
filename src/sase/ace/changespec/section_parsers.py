@@ -233,7 +233,8 @@ def parse_mentors_line(
         # Pattern: [timestamp] <profile>:<mentor> - STATUS - (suffix)
         status_content = stripped[2:]  # Skip "| " prefix
         mentor_status_match = re.match(
-            r"^(?:\[(\d{6}_\d{6})\]\s+)?([^:]+):(\S+)\s+-\s+(RUNNING|PASSED|FAILED)"
+            r"^(?:\[(\d{6}_\d{6})\]\s+)?([^:]+):(\S+)\s+-\s+"
+            r"(STARTING|RUNNING|PASSED|FAILED|DEAD|KILLED)"
             r"(?:\s+-\s+\(([^)]+)\))?$",
             status_content,
         )
