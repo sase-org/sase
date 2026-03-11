@@ -74,53 +74,86 @@ steps:
         --data-file "{{ save_response.data_file }}"
     output: { success: bool, entry_id: word, cl_name: word, diff_path: path, error: text }
 
-  - name: create_pr
+  - name: create_changespec
     if: "{{ check_changes.has_changes and commit.success | default(false) }}"
-    bash: |
-      # Detect default branch
-      DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-      if [ -z "$DEFAULT_BRANCH" ]; then
-        DEFAULT_BRANCH="main"
-      fi
+    python: |
+      import json
+      import os
+      import subprocess
+      import sys
+      sys.path.insert(0, os.path.join(os.path.expanduser('~'), 'lib', 'sase', 'src'))
 
-      BRANCH_NAME="{{ create_branch.branch }}"
+      from sase.vcs_provider import get_vcs_provider
+      from sase.workspace_changespec import create_changespec_for_workflow
+      from sase.workflow_utils import get_project_file_path
 
-      # Don't create PR if on default branch
-      if [ "$BRANCH_NAME" = "$DEFAULT_BRANCH" ]; then
-        echo "success=false"
-        echo "error=Cannot create PR from default branch ($DEFAULT_BRANCH)"
-        exit 0
-      fi
+      # Get project name
+      provider = get_vcs_provider(os.getcwd())
+      ok, project_name = provider.get_workspace_name(os.getcwd())
+      if not ok or not project_name:
+          print("success=false")
+          print("error=Could not determine project name")
+          sys.exit(0)
 
-      # Build PR title
+      project_file = get_project_file_path(project_name)
+
+      # Load prompt/response from saved data file
+      data_file = {{ save_response.data_file | tojson }}
+      with open(data_file, 'r') as f:
+          data = json.load(f)
+
+      branch_name = {{ create_branch.branch | tojson }}
+
+      # Get the default branch as checkout target
+      default_branch = "master"
+      try:
+          result = subprocess.run(
+              ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+              capture_output=True, text=True, check=False,
+          )
+          if result.returncode == 0:
+              default_branch = result.stdout.strip().rsplit("/", 1)[-1]
+      except Exception:
+          pass
+
+      checkout_target = f"origin/{default_branch}"
+
+      # Derive cl_name from project + branch
+      cl_name = f"{project_name}_{branch_name.replace('-', '_')}"
+
       {% if wip %}
-      PR_TITLE="[WIP] {{ name }}"
+      status = "WIP"
       {% else %}
-      PR_TITLE="{{ name }}"
+      status = "Draft"
       {% endif %}
 
-      PR_URL=$(gh pr create \
-        --base "$DEFAULT_BRANCH" \
-        --head "$BRANCH_NAME" \
-        --title "$PR_TITLE" \
-        --body "Automated PR from sase." 2>&1) || true
+      cs_name = create_changespec_for_workflow(
+          project_name=project_name,
+          project_file=project_file,
+          checkout_target=checkout_target,
+          branch_name=branch_name,
+          prompt=data["prompt"],
+          response=data["response"],
+          workflow_name="gchange",
+          cl_url=None,
+          cl_name=cl_name,
+          status=status,
+      )
 
-      if echo "$PR_URL" | grep -q "^http"; then
-        echo "pr_url=$PR_URL"
-        echo "success=true"
-      else
-        echo "pr_url="
-        echo "success=false"
-        echo "error=$PR_URL"
-      fi
-    output: { pr_url: line, success: bool, error: text }
+      if cs_name:
+          print(f"success=true")
+          print(f"changespec_name={cs_name}")
+      else:
+          print("success=false")
+          print("error=Failed to create ChangeSpec")
+    output: { success: bool, changespec_name: word, error: text }
 
   - name: report
     if: "{{ check_changes.has_changes }}"
     hidden: true
     bash: |
       echo "status=created"
-      echo "message=Created change {{ create_branch.branch | default('') }}{{ ' — PR: ' ~ create_pr.pr_url if create_pr.pr_url else '' }}"
-      echo "meta_new_change={{ create_branch.branch | default('') }} ({{ create_pr.pr_url | default('') }})"
+      echo "message=Created change on branch {{ create_branch.branch | default('') }}{{ ' — ChangeSpec: ' ~ create_changespec.changespec_name if create_changespec.changespec_name else '' }}"
+      echo "meta_new_change={{ create_branch.branch | default('') }}"
       echo "diff_path={{ commit.diff_path | default('') }}"
     output: { status: word, message: text, meta_new_change: line, diff_path: path }

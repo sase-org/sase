@@ -160,4 +160,5 @@ def test_create_changespec_for_workflow_success() -> None:
                 (1, "[run] Initial Commit", "~/chats/f.md", "~/diffs/f.diff")
             ],
             cl_label="PR",
+            status="Draft",
         )
