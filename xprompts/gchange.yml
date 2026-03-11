@@ -1,0 +1,126 @@
+input:
+  - name: name
+    type: word
+  - name: who
+    type: line
+    default: "man"
+  - name: note
+    type: line
+    default: ""
+  - name: wip
+    type: bool
+    default: true
+
+steps:
+  - name: inject
+    prompt_part: |
+      ---
+      IMPORTANT: You should make the necessary file changes, but should NOT create a git branch, commit, or pull request.
+
+  - name: check_changes
+    hidden: true
+    python: |
+      import os
+      import sys
+      sys.path.insert(0, os.path.join(os.path.expanduser('~'), 'lib', 'sase', 'src'))
+      from sase.vcs_provider import get_vcs_provider
+      provider = get_vcs_provider(os.getcwd())
+      ok, changes = provider.has_local_changes(os.getcwd())
+      has_changes = ok and changes is not None and len(changes) > 0
+      print(f"has_changes={'true' if has_changes else 'false'}")
+    output: { has_changes: bool }
+
+  - name: save_response
+    hidden: true
+    if: "{{ check_changes.has_changes }}"
+    python: |
+      import tempfile
+      import json
+      prompt = {{ _prompt | tojson }}
+      response = {{ _response | tojson }}
+      with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='sase_change_', delete=False) as f:
+          json.dump({"prompt": prompt, "response": response}, f)
+          print(f"data_file={f.name}")
+    output: { data_file: path }
+
+  - name: create_branch
+    if: "{{ check_changes.has_changes }}"
+    bash: |
+      BRANCH_NAME="{{ name }}"
+
+      CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+      if [ "$CURRENT_BRANCH" = "$BRANCH_NAME" ]; then
+        echo "success=true"
+        echo "branch=$BRANCH_NAME"
+        exit 0
+      fi
+
+      # Create and switch to new branch
+      if git checkout -b "$BRANCH_NAME" 2>&1; then
+        echo "success=true"
+        echo "branch=$BRANCH_NAME"
+      else
+        echo "success=false"
+        echo "error=Failed to create branch $BRANCH_NAME"
+      fi
+    output: { success: bool, branch: word, error: text }
+
+  - name: commit
+    if: "{{ check_changes.has_changes and create_branch.success | default(false) }}"
+    bash: |
+      sase_commit_workflow \
+        --who "{{ who }}" \
+        --note "{{ note }}" \
+        --data-file "{{ save_response.data_file }}"
+    output: { success: bool, entry_id: word, cl_name: word, diff_path: path, error: text }
+
+  - name: create_pr
+    if: "{{ check_changes.has_changes and commit.success | default(false) }}"
+    bash: |
+      # Detect default branch
+      DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+      if [ -z "$DEFAULT_BRANCH" ]; then
+        DEFAULT_BRANCH="main"
+      fi
+
+      BRANCH_NAME="{{ create_branch.branch }}"
+
+      # Don't create PR if on default branch
+      if [ "$BRANCH_NAME" = "$DEFAULT_BRANCH" ]; then
+        echo "success=false"
+        echo "error=Cannot create PR from default branch ($DEFAULT_BRANCH)"
+        exit 0
+      fi
+
+      # Build PR title
+      {% if wip %}
+      PR_TITLE="[WIP] {{ name }}"
+      {% else %}
+      PR_TITLE="{{ name }}"
+      {% endif %}
+
+      PR_URL=$(gh pr create \
+        --base "$DEFAULT_BRANCH" \
+        --head "$BRANCH_NAME" \
+        --title "$PR_TITLE" \
+        --body "Automated PR from sase." 2>&1) || true
+
+      if echo "$PR_URL" | grep -q "^http"; then
+        echo "pr_url=$PR_URL"
+        echo "success=true"
+      else
+        echo "pr_url="
+        echo "success=false"
+        echo "error=$PR_URL"
+      fi
+    output: { pr_url: line, success: bool, error: text }
+
+  - name: report
+    if: "{{ check_changes.has_changes }}"
+    hidden: true
+    bash: |
+      echo "status=created"
+      echo "message=Created change {{ create_branch.branch | default('') }}{{ ' — PR: ' ~ create_pr.pr_url if create_pr.pr_url else '' }}"
+      echo "meta_new_change={{ create_branch.branch | default('') }} ({{ create_pr.pr_url | default('') }})"
+      echo "diff_path={{ commit.diff_path | default('') }}"
+    output: { status: word, message: text, meta_new_change: line, diff_path: path }
