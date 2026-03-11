@@ -84,11 +84,12 @@ class EventHandlersMixin:
         if getattr(self, "_accept_mode_active", False):
             return
 
+        # Always refresh agents to keep the tab bar count up to date
+        self._load_agents()  # type: ignore[attr-defined]
+
         # Tab-specific refreshes
         if self.current_tab == "changespecs":
             self._reload_and_reposition()  # type: ignore[attr-defined]
-        elif self.current_tab == "agents":
-            self._load_agents()  # type: ignore[attr-defined]
         # No else needed - axe display already refreshed by _load_axe_status()
 
     def _on_countdown_tick(self) -> None:

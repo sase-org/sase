@@ -311,6 +311,15 @@ class AgentsMixinCore(
         else:
             self._agents_last_idx = new_idx
 
+        # Update the running agent count on the tab bar
+        running_count = sum(
+            1 for a in self._agents if a.status not in DISMISSABLE_STATUSES
+        )
+        from ...widgets import TabBar
+
+        tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
+        tab_bar.update_agents_count(running_count)
+
         # Only refresh display if on agents tab
         if on_agents_tab:
             self._refresh_agents_display(list_changed=True)

@@ -22,6 +22,7 @@ class TabBar(Static):
 
     def __init__(self, **kwargs: Any) -> None:
         self._current_tab: TabName = "changespecs"
+        self._agents_count: int = 0
         # Store positions for click detection
         self._cl_tab_range: tuple[int, int] = (0, 0)
         self._agents_tab_range: tuple[int, int] = (0, 0)
@@ -37,6 +38,16 @@ class TabBar(Static):
         """
         self._current_tab = tab
         self._refresh_content()
+
+    def update_agents_count(self, count: int) -> None:
+        """Update the running agent count shown on the Agents tab label.
+
+        Args:
+            count: Number of running agents to display.
+        """
+        if self._agents_count != count:
+            self._agents_count = count
+            self._refresh_content()
 
     def _build_content(self) -> Text:
         """Build the tab bar content."""
@@ -55,10 +66,13 @@ class TabBar(Static):
 
         # Agents tab
         agents_start = len(text.plain)
+        agents_label = (
+            f" Agents ({self._agents_count}) " if self._agents_count > 0 else " Agents "
+        )
         if self._current_tab == "agents":
-            text.append(" Agents ", style="bold reverse #87D7FF")
+            text.append(agents_label, style="bold reverse #87D7FF")
         else:
-            text.append(" Agents ", style="dim")
+            text.append(agents_label, style="dim")
         agents_end = len(text.plain)
         self._agents_tab_range = (agents_start, agents_end)
 
