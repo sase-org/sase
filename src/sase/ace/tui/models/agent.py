@@ -219,7 +219,9 @@ class Agent:
             parts.append(_fmt("SPAWN", self.start_time.strftime(fmt)))
             parts.append(_fmt("START", self.run_start_time.strftime(fmt)))
         elif self.start_time is not None:
-            parts.append(_fmt("START", self.start_time.strftime(fmt)))
+            # WAITING agents haven't started yet — start_time is their spawn time
+            tag = "SPAWN" if self.status == "WAITING" else "START"
+            parts.append(_fmt(tag, self.start_time.strftime(fmt)))
         else:
             parts.append(_fmt("START", "Unknown"))
 
