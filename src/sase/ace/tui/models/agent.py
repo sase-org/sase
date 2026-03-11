@@ -28,6 +28,7 @@ class Agent:
     run_start_time: datetime | None = (
         None  # When agent actually started running (after waiting)
     )
+    stop_time: datetime | None = None  # When agent completed (DONE/FAILED)
 
     # Type-specific fields
     workspace_num: int | None = None  # For RUNNING type
@@ -195,6 +196,33 @@ class Agent:
         return self.start_time.strftime("%Y-%m-%d %H:%M:%S")
 
     @property
+    def timestamps_display(self) -> str:
+        """Multi-timestamp display for the metadata panel.
+
+        Format: ``(TYPE) TIMESTAMP [(TYPE) TIMESTAMP [...]]``
+
+        - SPAWN shown only when agent waited before starting (run_start_time exists)
+        - START always shown
+        - STOP shown for DONE/FAILED agents
+        """
+        parts: list[str] = []
+        fmt = "%Y-%m-%d %H:%M:%S"
+
+        # If the agent waited, show SPAWN (original start_time) then START (run_start_time)
+        if self.run_start_time is not None and self.start_time is not None:
+            parts.append(f"(SPAWN) {self.start_time.strftime(fmt)}")
+            parts.append(f"(START) {self.run_start_time.strftime(fmt)}")
+        elif self.start_time is not None:
+            parts.append(f"(START) {self.start_time.strftime(fmt)}")
+        else:
+            parts.append("(START) Unknown")
+
+        if self.stop_time is not None:
+            parts.append(f"(STOP) {self.stop_time.strftime(fmt)}")
+
+        return "  ".join(parts)
+
+    @property
     def start_time_short(self) -> str:
         """Short formatted start time (HH:MM) for list display."""
         if self.start_time is None:
@@ -206,7 +234,8 @@ class Agent:
         """Display how long the agent has been running."""
         if self.start_time is None:
             return "?"
-        delta = datetime.now() - self.start_time
+        end = self.stop_time or datetime.now()
+        delta = end - self.start_time
         total_seconds = int(delta.total_seconds())
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
@@ -424,7 +453,7 @@ class Agent:
         }
 
         # Populate all optional fields from the bundle
-        _DATETIME_FIELDS = {"run_start_time"}
+        _DATETIME_FIELDS = {"run_start_time", "stop_time"}
         for f in dataclasses.fields(Agent):
             if f.name in kwargs:
                 continue

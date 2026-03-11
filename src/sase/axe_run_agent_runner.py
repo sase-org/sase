@@ -600,6 +600,17 @@ def main() -> None:
         elapsed_seconds = int(end_time - start_time)
         duration = format_duration(elapsed_seconds)
 
+        # Record stop time in agent_meta.json for TUI timestamp display
+        from datetime import UTC, datetime as dt_cls
+
+        agent_meta["stopped_at"] = dt_cls.now(UTC).isoformat()
+        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+        try:
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(agent_meta, f, indent=2)
+        except Exception:
+            pass  # Best effort
+
         print()
         print(f"Agent completed with status: {'SUCCESS' if success else 'FAILED'}")
         print(f"Duration: {duration}")

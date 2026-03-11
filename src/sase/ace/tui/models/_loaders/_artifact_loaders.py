@@ -62,6 +62,14 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         except ValueError:
             pass
 
+    # Parse stopped_at (completion time for DONE/FAILED agents)
+    stopped_at = data.get("stopped_at")
+    if isinstance(stopped_at, str):
+        try:
+            agent.stop_time = datetime.fromisoformat(stopped_at.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+
     # Check for waiting.json to set WAITING status (takes precedence over PLANNING
     # since the agent can't plan until its dependencies are resolved)
     waiting_path = Path(artifacts_dir) / "waiting.json"

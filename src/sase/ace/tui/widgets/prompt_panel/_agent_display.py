@@ -128,9 +128,9 @@ class AgentDisplayMixin:
             header_text.append("Waiting for: ", style="bold #87D7FF")
             header_text.append(f"{', '.join(agent.waiting_for)}\n", style="#FF87D7")
 
-        # Timestamp (when agent started)
+        # Timestamp(s)
         header_text.append("Timestamp: ", style="bold #87D7FF")
-        header_text.append(f"{agent.start_time_display}\n", style="#D7D7FF")
+        header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")
 
         # Meta fields from step output
         if agent.step_output and isinstance(agent.step_output, dict):
