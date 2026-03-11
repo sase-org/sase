@@ -381,7 +381,8 @@ class AgentThinkingPanel(Static):
             List of ThinkingBlock, None if no session, [] if no blocks.
         """
         source = "claude"
-        session_paths = resolve_agent_sessions(agent, since=agent.start_time)
+        since = agent.run_start_time or agent.start_time
+        session_paths = resolve_agent_sessions(agent, since=since)
         if not session_paths:
             # No Claude session — try Gemini log if default provider is gemini
             try:
@@ -389,7 +390,7 @@ class AgentThinkingPanel(Static):
             except Exception:
                 provider_name = ""
             if provider_name == "gemini":
-                blocks = read_gemini_log(since=agent.start_time)
+                blocks = read_gemini_log(since=since)
                 source = "gemini"
             else:
                 blocks = None

@@ -25,6 +25,9 @@ class Agent:
     project_file: str  # Path to .gp file
     status: str  # "RUNNING", etc.
     start_time: datetime | None  # Parsed from timestamp suffix
+    run_start_time: datetime | None = (
+        None  # When agent actually started running (after waiting)
+    )
 
     # Type-specific fields
     workspace_num: int | None = None  # For RUNNING type
@@ -421,6 +424,7 @@ class Agent:
         }
 
         # Populate all optional fields from the bundle
+        _DATETIME_FIELDS = {"run_start_time"}
         for f in dataclasses.fields(Agent):
             if f.name in kwargs:
                 continue
@@ -430,6 +434,9 @@ class Agent:
             # Skip None values for fields with non-None defaults (list fields)
             if value is None and f.default_factory is not dataclasses.MISSING:  # type: ignore[comparison-overlap]
                 continue
+            # Deserialize ISO datetime strings for datetime fields
+            if f.name in _DATETIME_FIELDS and isinstance(value, str):
+                value = datetime.fromisoformat(value)
             kwargs[f.name] = value
 
         return Agent(**kwargs)

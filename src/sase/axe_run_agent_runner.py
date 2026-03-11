@@ -316,6 +316,15 @@ def main() -> None:
 
                 print("All dependencies satisfied, proceeding with workflow")
 
+                # Record actual run start time in agent_meta.json so the
+                # thinking panel can filter out JSONL files from the wait period.
+                from datetime import UTC, datetime
+
+                agent_meta["run_started_at"] = datetime.now(UTC).isoformat()
+                meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(agent_meta, f, indent=2)
+
                 # Allocate real workspace now that dependencies are resolved
                 if os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE") and not is_home_mode:
                     from sase.running_field import (

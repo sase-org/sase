@@ -1,6 +1,7 @@
 """Filesystem artifact loaders (project files, done/running markers)."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from sase.running_field import get_claimed_workspaces
@@ -50,6 +51,16 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.hidden = True
     if data.get("retry_attempt"):
         agent.retry_attempt = data["retry_attempt"]
+
+    # Parse run_started_at (actual start time after waiting period)
+    run_started_at = data.get("run_started_at")
+    if isinstance(run_started_at, str):
+        try:
+            agent.run_start_time = datetime.fromisoformat(
+                run_started_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            pass
 
     # Check for waiting.json to set WAITING status (takes precedence over PLANNING
     # since the agent can't plan until its dependencies are resolved)
