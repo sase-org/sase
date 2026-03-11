@@ -23,22 +23,31 @@ fi
 # Create output directory
 mkdir -p .sase/xcmds
 
-# Generate a unique filename by incrementing the timestamp if needed
+# Generate a unique filename by atomically claiming it (noclobber prevents races)
 epoch=$(date +%s)
 for (( i=0; i<100; i++ )); do
   timestamp=$(date -d "@$((epoch + i))" +"%y%m%d_%H%M%S")
   filename="${base}-${timestamp}.${ext}"
   output_file=".sase/xcmds/${filename}"
-  [[ ! -e "$output_file" ]] && break
+  # set -C (noclobber) makes > fail atomically if file exists (uses O_EXCL)
+  if (set -C; : > "$output_file") 2>/dev/null; then
+    break
+  fi
   if (( i == 99 )); then
     echo "ERROR: Could not find unique filename after 100 attempts" >&2
     exit 1
   fi
 done
 
-# Execute command and capture output
-output=$(eval "$cmd" 2>&1) || exit 0
-[[ -z "${output// /}" ]] && exit 0
+# Execute command and capture output; clean up claimed file on failure/empty
+if ! output=$(eval "$cmd" 2>&1); then
+  rm -f "$output_file"
+  exit 0
+fi
+if [[ -z "${output// /}" ]]; then
+  rm -f "$output_file"
+  exit 0
+fi
 
 # Write output file with metadata header
 {
