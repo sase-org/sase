@@ -97,7 +97,6 @@ def build_hooks_section(
     with_hints: bool,
     hints_for: str | None,
     hooks_fold: FoldLevel,
-    non_historical_ids: set[str],
     hint_tracker: HintTracker,
 ) -> HintTracker:
     """Build the HOOKS section of the display.
@@ -114,7 +113,6 @@ def build_hooks_section(
         with_hints: Whether hints are enabled.
         hints_for: Controls which entries get hints.
         hooks_fold: Fold level for the hooks section.
-        non_historical_ids: Set of current/proposal entry IDs.
         hint_tracker: Current hint tracking state.
 
     Returns:
@@ -234,11 +232,8 @@ def build_hooks_section(
                 text.append("| ", style="#808080")
                 # Determine if we should show a hint for this status line
                 show_hint = False
-                if with_hints:
-                    if hints_for == "hooks_latest_only":
-                        show_hint = sl.commit_entry_num in non_historical_ids
-                    elif hints_for not in ("mentors_running",):
-                        show_hint = True
+                if with_hints and hints_for not in ("mentors_running",):
+                    show_hint = True
 
                 if show_hint:
                     hook_output_path = get_hook_output_path(

@@ -10,7 +10,7 @@ from sase.workspace_provider import get_change_label
 from sase.running_field import get_claimed_workspaces
 from textual.widgets import Static
 
-from ...changespec import ChangeSpec, get_current_and_proposal_entry_ids
+from ...changespec import ChangeSpec
 from ...display_helpers import (
     format_running_claims_aligned,
     get_status_color,
@@ -225,13 +225,6 @@ class ChangeSpecDetail(Static):
         show_history_hints = with_hints and hints_for in (None, "all")
         show_comment_hints = with_hints and hints_for in (None, "all")
 
-        # Get non-historical entry IDs for hooks_latest_only mode
-        non_historical_ids: set[str] = (
-            set(get_current_and_proposal_entry_ids(changespec))
-            if with_hints and hints_for == "hooks_latest_only"
-            else set()
-        )
-
         # Build RUNNING field (displayed at top of panel)
         self._build_running_field(text, changespec)
 
@@ -257,7 +250,6 @@ class ChangeSpecDetail(Static):
             with_hints,
             hints_for,
             hooks_collapsed,
-            non_historical_ids,
             hint_tracker,
         )
 
