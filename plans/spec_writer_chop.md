@@ -11,7 +11,10 @@ The goal is to funnel ALL writes through a single `spec_writer` lumberjack chop 
 
 1. Handles common spec updates directly (knows the write patterns)
 2. Accepts write requests from external processes via a filesystem queue API
-3. Notifies callers when writes complete
+3. Supports both **synchronous** writes (caller waits for response) and **asynchronous** writes (fire-and-forget; caller
+   may continue or terminate without waiting)
+4. Provides **idempotency keys** so that other chops can safely avoid submitting duplicate requests across ticks
+5. Is completely independent of all other chops -- no shared state or coupling beyond the filesystem queue API
 
 ## Architecture
 
@@ -23,12 +26,41 @@ Requests and responses are JSON files in `~/.sase/spec_writer/`:
 ~/.sase/spec_writer/
   requests/          # Callers write request JSON files here
     <uuid>.json
-  responses/         # Chop writes response JSON files here
+  responses/         # Chop writes response JSON files here (sync requests only)
     <uuid>.json
+  completed_keys/    # Short-lived markers for recently processed idempotency keys
+    <key_hash>.json  # Contains request_id + timestamp, reaped after TTL
 ```
 
 This fits the existing chop model (run-to-completion each tick, file-based state) and survives process restarts (pending
 requests persist on disk).
+
+### Sync vs Async Writes
+
+Requests include a `mode` field (`"sync"` or `"async"`):
+
+- **Sync**: The chop writes a response file to `responses/<uuid>.json` after processing. The caller polls for the
+  response via `submit_spec_write_and_wait()`.
+- **Async**: The chop processes the request but does NOT write a response file. The caller submits via
+  `submit_spec_write()` and immediately continues. The caller may terminate before the chop processes the request --
+  this is fine since the request file persists on disk.
+
+### Idempotency and Deduplication
+
+Since other chops run on a periodic tick (e.g., every 1s) and the spec_writer may not have processed a request before
+the next tick fires, callers need a way to avoid resubmitting the same write. This is handled via **idempotency keys**:
+
+- Requests include an optional `idempotency_key` field. Callers generate deterministic keys from the semantic content of
+  the write (e.g., `f"{project_file}:{operation}:{relevant_param_hash}"`).
+- Before processing a request, the chop checks if a `completed_keys/<key_hash>.json` marker exists. If so, the request
+  is a duplicate and is skipped (with a success response for sync requests).
+- Before enqueuing a request, the client checks if a pending request with the same idempotency key already exists in
+  `requests/`. If so, it returns the existing request_id instead of creating a new request file.
+- After processing a request with an idempotency key, the chop writes a marker to `completed_keys/<key_hash>.json`
+  containing the request_id and timestamp.
+- Completed key markers are reaped after a configurable TTL (default: 120s) to prevent unbounded growth.
+- Callers can also query `has_pending_or_completed(idempotency_key)` to check if a write is already in-flight or
+  recently completed before deciding whether to submit.
 
 ### Data Models
 
@@ -66,6 +98,10 @@ class OperationType(StrEnum):
     TRANSITION_STATUS = "transition_status"  # composite
     RAW_WRITE = "raw_write"  # escape hatch
 
+class WriteMode(StrEnum):
+    SYNC = "sync"    # Caller waits for response
+    ASYNC = "async"  # Fire-and-forget, caller may terminate
+
 @dataclass
 class SpecWriteRequest:
     request_id: str           # UUID
@@ -73,12 +109,15 @@ class SpecWriteRequest:
     project_file: str         # absolute path to .gp file
     operation: OperationType
     params: dict[str, Any]    # operation-specific
+    mode: WriteMode = WriteMode.SYNC
+    idempotency_key: str | None = None  # deterministic key for dedup
     caller_pid: int = 0       # for debugging
 
 @dataclass
 class SpecWriteResponse:
     request_id: str
     success: bool
+    duplicate: bool = False   # True if skipped due to idempotency key match
     error: str | None = None
     result: dict[str, Any] | None = None  # return values (e.g., entry_id, summary)
 ```
@@ -88,24 +127,40 @@ class SpecWriteResponse:
 ```python
 # client.py
 def submit_spec_write(request: SpecWriteRequest) -> str:
-    """Fire-and-forget: write request JSON, return request_id."""
+    """Async (fire-and-forget): write request JSON, return request_id.
+    Sets request.mode = ASYNC. If an idempotency_key is set and a pending
+    request with the same key exists, returns the existing request_id
+    without creating a new request file."""
 
 def submit_spec_write_and_wait(
     request: SpecWriteRequest, timeout: float = 10.0
 ) -> SpecWriteResponse:
-    """Submit and poll for response with exponential backoff (10ms -> 100ms)."""
+    """Sync: submit and poll for response with exponential backoff (10ms -> 100ms).
+    Sets request.mode = SYNC. If an idempotency_key is set and a pending/completed
+    request with the same key exists, returns immediately with duplicate=True."""
+
+def has_pending_or_completed(idempotency_key: str) -> bool:
+    """Check if a request with this idempotency key is pending in the request
+    queue or has been recently completed (within the completed_keys TTL).
+    Useful for callers that want to check before constructing a full request."""
 ```
 
 ### Chop Processing Loop
 
 Each tick, the `spec_writer` chop:
 
-1. Scans `~/.sase/spec_writer/requests/` for pending `.json` files
-2. Groups requests by `project_file`
-3. For each project file: acquires lock once, sorts by timestamp, applies sequentially
-4. Writes response files for each processed request
-5. Removes processed request files
-6. Reaps stale requests (>60s old) with error responses
+1. Reaps stale completed key markers past TTL from `completed_keys/`
+2. Scans `~/.sase/spec_writer/requests/` for pending `.json` files
+3. Deduplicates: for requests with an `idempotency_key`, checks `completed_keys/` -- if already processed, skips the
+   request (writes a duplicate success response for sync requests, removes the request file)
+4. Groups remaining requests by `project_file`
+5. For each project file: acquires lock once, sorts by timestamp, applies sequentially
+6. For each processed request:
+   - If `mode == SYNC`: writes response file to `responses/<uuid>.json`
+   - If `mode == ASYNC`: no response file written
+   - If `idempotency_key` is set: writes marker to `completed_keys/<key_hash>.json`
+   - Removes processed request file
+7. Reaps stale requests (>60s old) with error responses (sync only)
 
 ### Latency
 
@@ -141,15 +196,18 @@ All existing write paths remain untouched -- the new code is purely additive.
 **New files:**
 
 - `src/sase/spec_writer/__init__.py` - Package init, re-exports
-- `src/sase/spec_writer/models.py` - `SpecWriteRequest`, `SpecWriteResponse`, `OperationType` enum
+- `src/sase/spec_writer/models.py` - `SpecWriteRequest`, `SpecWriteResponse`, `OperationType`, `WriteMode` enums
 - `src/sase/spec_writer/queue.py` - `enqueue_request()`, `dequeue_pending()`, `write_response()`, `read_response()`,
-  `cleanup_stale()`
-- `src/sase/spec_writer/client.py` - `submit_spec_write()`, `submit_spec_write_and_wait()`
+  `cleanup_stale()`, `write_completed_key()`, `has_completed_key()`, `find_pending_by_idempotency_key()`,
+  `reap_completed_keys()`
+- `src/sase/spec_writer/client.py` - `submit_spec_write()` (async), `submit_spec_write_and_wait()` (sync),
+  `has_pending_or_completed()`
 - `src/sase/spec_writer/handlers/__init__.py`
 - `src/sase/spec_writer/handlers/fields.py` - Handlers for: set_status, set_cl, set_parent, set_description, set_name,
   update_parent_references
 - `src/sase/scripts/sase_chop_spec_writer.py` - Chop script: read context, drain queue, dispatch, write responses
-- `tests/spec_writer/` - Unit tests for queue, client, field handlers
+- `tests/spec_writer/` - Unit tests for queue (including idempotency key dedup and completed key reaping), client
+  (sync/async modes, `has_pending_or_completed`), field handlers
 
 **Modified files:**
 
@@ -187,6 +245,12 @@ workflow_checks) to use the client API as a proof-of-concept migration.
 
 Reuses existing pure-transform functions (`_apply_hook_suffix_update`, `_apply_clear_hook_suffix`, `apply_hooks_update`,
 `format_hooks_field`).
+
+Migrated axe chop callers use **async mode with idempotency keys** since they are background operations that run on a
+periodic tick. The idempotency key prevents a chop from resubmitting the same write if the spec_writer hasn't processed
+it yet by the next tick. For example, a hook_checks chop that wants to set a hook suffix would use an idempotency key
+like `f"{project_file}:set_hook_suffix:{entry_name}:{suffix}"` and call `submit_spec_write()` (async) so it doesn't
+block the chop's tick.
 
 During this phase, both old and new write paths coexist. The fcntl lock ensures mutual exclusion.
 
@@ -238,8 +302,11 @@ Remove legacy direct-write paths. The spec_writer chop is now the single writer.
 - Update `src/sase/ace/changespec/__init__.py` exports
 - Clean up old retry/dedup logic that was compensating for multi-writer races (e.g., `merge_hook_updates` dedup,
   `claim_workspace` retry loop) since the single-writer model eliminates those races
+- Verify all migrated chop callers use idempotency keys to prevent duplicate submissions across ticks
 - Add integration test: submit multiple concurrent write requests for the same project file and verify they're applied
   correctly and in order
+- Add integration test: submit duplicate requests with the same idempotency key and verify only one write occurs
+- Add integration test: async writes where the caller process terminates before processing, verify writes complete
 - Run `just check` (fmt-check + lint + test)
 - Verify `sase ace --agent` end-to-end tests pass
 
