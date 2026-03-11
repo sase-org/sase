@@ -112,6 +112,12 @@ def sase_chop_orphan_cleanup() -> None:
     main()
 
 
+def sase_chop_spec_writer() -> None:
+    from sase.scripts.sase_chop_spec_writer import main
+
+    main()
+
+
 def sase_chop_stale_running_cleanup() -> None:
     from sase.scripts.sase_chop_stale_running_cleanup import main
 

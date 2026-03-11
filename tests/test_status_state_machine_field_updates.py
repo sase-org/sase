@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 from sase.status_state_machine import transition_changespec_status
 from sase.status_state_machine.field_updates import (
-    _apply_cl_update,
-    _apply_description_update,
+    apply_cl_update,
+    apply_description_update,
 )
 
 
@@ -33,8 +33,8 @@ TEST TARGETS: None
         return f.name
 
 
-def test__apply_cl_update_sets_cl() -> None:
-    """Test _apply_cl_update sets CL field."""
+def test_apply_cl_update_sets_cl() -> None:
+    """Test apply_cl_update sets CL field."""
     lines = [
         "NAME: Test Feature\n",
         "DESCRIPTION:\n",
@@ -42,24 +42,24 @@ def test__apply_cl_update_sets_cl() -> None:
         "CL: old_cl\n",
         "STATUS: Draft\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", "new_cl_value", "/nonexistent")
+    result = apply_cl_update(lines, "Test Feature", "new_cl_value", "/nonexistent")
     assert "CL: new_cl_value\n" in result
     assert "CL: old_cl\n" not in result
 
 
-def test__apply_cl_update_removes_cl() -> None:
-    """Test _apply_cl_update removes CL when None."""
+def test_apply_cl_update_removes_cl() -> None:
+    """Test apply_cl_update removes CL when None."""
     lines = [
         "NAME: Test Feature\n",
         "CL: old_cl\n",
         "STATUS: Draft\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", None, "/nonexistent")
+    result = apply_cl_update(lines, "Test Feature", None, "/nonexistent")
     assert "CL:" not in result
 
 
-def test__apply_cl_update_adds_cl_before_status() -> None:
-    """Test _apply_cl_update adds CL before STATUS when missing."""
+def test_apply_cl_update_adds_cl_before_status() -> None:
+    """Test apply_cl_update adds CL before STATUS when missing."""
     lines = [
         "NAME: Test Feature\n",
         "DESCRIPTION:\n",
@@ -70,7 +70,7 @@ def test__apply_cl_update_adds_cl_before_status() -> None:
         "sase.status_state_machine.field_updates.get_change_label",
         return_value="CL",
     ):
-        result = _apply_cl_update(lines, "Test Feature", "new_cl", "/nonexistent")
+        result = apply_cl_update(lines, "Test Feature", "new_cl", "/nonexistent")
     assert "CL: new_cl\n" in result
     # CL should appear before STATUS
     lines_list = result.split("\n")
@@ -311,8 +311,8 @@ TEST TARGETS: None
 # === DESCRIPTION update tests ===
 
 
-def test__apply_description_update_multi_line() -> None:
-    """Test _apply_description_update replaces a multi-line description with blank lines."""
+def test_apply_description_update_multi_line() -> None:
+    """Test apply_description_update replaces a multi-line description with blank lines."""
     lines = [
         "NAME: Test Feature\n",
         "DESCRIPTION:\n",
@@ -322,7 +322,7 @@ def test__apply_description_update_multi_line() -> None:
         "PARENT: None\n",
         "STATUS: Draft\n",
     ]
-    result = _apply_description_update(
+    result = apply_description_update(
         lines, "Test Feature", "New line one\n\nNew line two"
     )
     assert "  New line one\n" in result
