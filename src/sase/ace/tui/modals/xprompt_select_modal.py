@@ -25,10 +25,8 @@ def _append_input_args(text: Text, inputs: list[InputArg]) -> None:
     user_inputs = [inp for inp in inputs if not inp.is_step_input]
     if not user_inputs:
         return
-    text.append("\n     ")  # new line + 5-space indent
-    for i, inp in enumerate(user_inputs):
-        if i > 0:
-            text.append(" · ", style="dim #555555")
+    for inp in user_inputs:
+        text.append("\n     ")  # new line + 5-space indent
         required = inp.default is UNSET
         if required:
             text.append(inp.name, style="#D7AF87")
