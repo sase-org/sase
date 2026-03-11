@@ -47,7 +47,7 @@ bd/review:
   input:
     file_base: word
   content: |
-    Can you review the requirements in the @prompts/{{ file_base }}.md file against the plan in the plans/{{ file_base }}.md file and ensure that:
+    Can you review the requirements in the @prompts/{{ file_base }}.md file against the plan in the @plans/{{ file_base }}.md file and ensure that:
 
       1. ALL requirements in the prompt file have been satisified.
       2. Each phase of the plan is sufficiently detailed.
