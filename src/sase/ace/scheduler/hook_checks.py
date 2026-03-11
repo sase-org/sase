@@ -286,6 +286,12 @@ def check_hooks(
                             break
 
         if found_pending_dead:
+            # A pending_dead process on an older entry should not prevent
+            # this hook from being scheduled for the current entry.
+            if not is_terminal_status:
+                hook_entries_needing_run = get_entries_needing_hook_run(hook, entry_ids)
+                if hook_entries_needing_run:
+                    entries_needing_hooks.update(hook_entries_needing_run)
             continue
 
         # Check if RUNNING process is no longer alive (died on its own)
