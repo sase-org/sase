@@ -409,10 +409,6 @@ class KeybindingFooter(Horizontal):
         if file_visible or thinking_visible:
             bindings.append(("E", "edit panel"))
 
-        # Trim controls (when file panel is visible)
-        if file_visible:
-            bindings.append(("-", "trim"))
-
         # Layout toggle (when file or thinking panel is visible, not in info mode)
         if (file_visible or thinking_visible) and not info_mode:
             bindings.append(("p", "layout"))
