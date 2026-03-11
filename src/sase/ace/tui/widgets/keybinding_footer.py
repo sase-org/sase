@@ -411,7 +411,7 @@ class KeybindingFooter(Horizontal):
 
         # Trim controls (when file panel is visible)
         if file_visible:
-            bindings.append(("+/-", "trim"))
+            bindings.append(("-", "trim"))
 
         # Layout toggle (when file or thinking panel is visible, not in info mode)
         if (file_visible or thinking_visible) and not info_mode:
