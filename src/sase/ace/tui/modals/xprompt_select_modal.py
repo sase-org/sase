@@ -19,23 +19,26 @@ from .base import OptionListNavigationMixin
 def _append_input_args(text: Text, inputs: list[InputArg]) -> None:
     """Append styled input arg signatures to a Rich Text label.
 
-    Renders each user-facing input as ``name:type`` (or ``name:type=default``
-    for optional args) in a subdued style after the xprompt name.
+    Renders user-facing inputs on a new indented line below the xprompt name.
+    Required args appear bright; optional args are dimmed with defaults or ``?``.
     """
     user_inputs = [inp for inp in inputs if not inp.is_step_input]
     if not user_inputs:
         return
-    text.append("  ")
+    text.append("\n     ")  # new line + 5-space indent
     for i, inp in enumerate(user_inputs):
         if i > 0:
-            text.append("  ")
+            text.append(" · ", style="dim #555555")
         required = inp.default is UNSET
-        name_style = "#D7AF87" if required else "dim #D7AF87"
-        text.append(inp.name, style=name_style)
-        text.append(":", style="dim")
-        text.append(inp.type.value, style="dim italic #87D7FF")
-        if not required and inp.default is not None:
-            text.append(f"={inp.default}", style="dim italic #888888")
+        if required:
+            text.append(inp.name, style="#D7AF87")
+        else:
+            text.append(inp.name, style="dim #D7AF87")
+            has_default = inp.default is not None and str(inp.default) != ""
+            if has_default:
+                text.append(f"={inp.default}", style="dim #888888")
+            else:
+                text.append("?", style="dim #888888")
 
 
 class _XPromptFilterInput(Input):
