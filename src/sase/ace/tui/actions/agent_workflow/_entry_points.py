@@ -48,14 +48,18 @@ class EntryPointsMixin:
     _last_custom_agent_selection: SelectionItem | None = None
 
     def action_start_agent_from_changespec(self) -> None:
-        """Start agent from current ChangeSpec (CLs tab only, bound to space)."""
-        if self.current_tab != "changespecs":
-            return
+        """Repeat last @/<space> agent selection (bound to space)."""
+        last = self._last_custom_agent_selection
+        if last is None:
+            from sase.ace.last_agent_selection import load_last_agent_selection
 
-        if self.marked_indices:
-            self._start_agents_from_marked()
-        else:
-            self._start_agent_from_changespec_quick()
+            last = load_last_agent_selection()
+            if last is not None:
+                self._last_custom_agent_selection = last
+        if last is None:
+            self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
+            return
+        self._start_custom_agent_from_selection(last)
 
     def action_start_leader_mode(self) -> None:
         """Enter leader mode for quick shortcuts (bound to ,)."""
@@ -98,25 +102,18 @@ class EntryPointsMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "at":
+        if key == "h":
             # Shortcut for @ → ~ (home): skip the ProjectSelectModal
             self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
         if key == "space":
-            last = self._last_custom_agent_selection
-            if last is None:
-                from sase.ace.last_agent_selection import load_last_agent_selection
-
-                last = load_last_agent_selection()
-                if last is not None:
-                    self._last_custom_agent_selection = last
-            if last is None:
-                self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
-                self._refresh_current_tab()  # type: ignore[attr-defined]
-                return True
-            self._start_custom_agent_from_selection(last)
+            if self.current_tab == "changespecs":
+                if self.marked_indices:
+                    self._start_agents_from_marked()
+                else:
+                    self._start_agent_from_changespec_quick()
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -140,7 +137,7 @@ class EntryPointsMixin:
         cl_name = changespec.name
         prefix = _vcs_prompt_prefix(changespec.file_path, cl_name)
 
-        # Save for ,<space> repeat (so <space> selections are also available)
+        # Save for <space> repeat (so ,<space> selections are also available)
         self._last_custom_agent_selection = SelectionItem(
             display_name=cl_name,
             item_type="cl",

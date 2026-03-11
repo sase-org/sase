@@ -59,7 +59,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         [
             ("r", "Run workflow"),
             ("@", "Run an agent"),
-            ("<space>", "Run agent from current CL"),
+            ("<space>", "Repeat last @/<space> selection"),
         ],
     ),
     (
@@ -73,10 +73,10 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Leader Mode (,)",
         [
             (",!", "Run command (use current CL)"),
-            (",@", "Run agent (home)"),
+            (",h", "Run agent (home)"),
             (",m", "Kill running mentors"),
             (",r", "Show runners info"),
-            (",<space>", "Repeat last @/<space> selection"),
+            (",<space>", "Run agent from current CL"),
         ],
     ),
     (
@@ -153,9 +153,8 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
-            (",@", "Run agent (home)"),
+            (",h", "Run agent (home)"),
             (",r", "Show runners info"),
-            (",<space>", "Repeat last @/<space> selection"),
         ],
     ),
     (
@@ -182,6 +181,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "General",
         [
             ("Tab / Shift+Tab", "Switch tabs"),
+            ("<space>", "Repeat last @/<space> selection"),
             (".", "Show/hide non-run agents"),
             ("#", "Browse xprompts"),
             ("N", "Show notifications"),
@@ -213,9 +213,8 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
-            (",@", "Run agent (home)"),
+            (",h", "Run agent (home)"),
             (",r", "Show runners info"),
-            (",<space>", "Repeat last @/<space> selection"),
         ],
     ),
     (
@@ -245,6 +244,7 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "General",
         [
             ("Tab / Shift+Tab", "Switch tabs"),
+            ("<space>", "Repeat last @/<space> selection"),
             ("#", "Browse xprompts"),
             ("N", "Show notifications"),
             ("y", "Refresh"),

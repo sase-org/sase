@@ -260,8 +260,9 @@ class KeybindingFooter(Horizontal):
             bindings.append(("m", "kill mentors"))
         if self._runner_count > 0:
             bindings.append(("r", f"runners ({self._runner_count})"))
-        bindings.append(("@", "agent (home)"))
-        bindings.append(("Space", "repeat last @/<space>"))
+        bindings.append(("h", "agent (home)"))
+        if current_tab == "changespecs":
+            bindings.append(("Space", "run agent (CL)"))
         bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix
@@ -513,7 +514,7 @@ class KeybindingFooter(Horizontal):
             bindings.append(("r", f"run ({len(workflows)} workflows)"))
 
         # Run agent from ChangeSpec (space key)
-        bindings.append(("<space>", "run agent (CL)"))
+        bindings.append(("<space>", "repeat last"))
 
         # Status change
         bindings.append(("s", "status"))
