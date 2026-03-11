@@ -74,13 +74,13 @@ class EditorMixin:
 
         import yaml  # type: ignore[import-untyped]
         from sase.sase_utils import generate_timestamp
+        from sase.xprompt.loader import get_sase_package_xprompts_dir
 
         timestamp = generate_timestamp()
         default_name = f"adhoc_{timestamp}"
+        schema_path = get_sase_package_xprompts_dir() / "workflow.schema.json"
         template = (
-            "# yaml-language-server: $schema="
-            + os.path.expanduser("~/lib/sase/xprompts/workflow.schema.json")
-            + "\n"
+            "# yaml-language-server: $schema=" + str(schema_path) + "\n"
             "\n"
             "steps:\n"
             "  - name: main\n"
