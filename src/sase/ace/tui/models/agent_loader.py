@@ -242,14 +242,7 @@ def load_all_agents() -> list[Agent]:
         elif agent.pid is not None:
             if is_process_running(agent.pid):
                 verified_agents.append(agent)
-            elif agent._from_changespec:
-                # ChangeSpec-loaded agents with dead PIDs: the agent process
-                # exited but the @: suffix persists in the changespec. Transition
-                # to DONE so the agent remains visible (e.g., fix-hook agents
-                # that produced proposals).
-                agent.status = "DONE"
-                verified_agents.append(agent)
-            # Skip non-changespec agents with dead PIDs
+            # Skip agents with dead PIDs
         else:
             # Agents without PIDs (legacy entries) - still include them
             verified_agents.append(agent)
