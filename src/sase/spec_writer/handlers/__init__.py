@@ -73,6 +73,7 @@ def _register_handlers() -> None:
         handle_renumber_commit_entries,
         handle_rewind_commit_entries,
     )
+    from sase.spec_writer.handlers.transitions import handle_transition_status
 
     HANDLER_REGISTRY.update(
         {
@@ -113,6 +114,7 @@ def _register_handlers() -> None:
             OperationType.MARK_PROPOSAL_BROKEN: handle_mark_proposal_broken,
             OperationType.RENUMBER_COMMIT_ENTRIES: handle_renumber_commit_entries,
             OperationType.REWIND_COMMIT_ENTRIES: handle_rewind_commit_entries,
+            OperationType.TRANSITION_STATUS: handle_transition_status,
         }
     )
 

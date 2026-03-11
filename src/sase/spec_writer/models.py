@@ -63,6 +63,9 @@ class OperationType(StrEnum):
     RENUMBER_COMMIT_ENTRIES = "RENUMBER_COMMIT_ENTRIES"
     REWIND_COMMIT_ENTRIES = "REWIND_COMMIT_ENTRIES"
 
+    # Category 9: Composite operations
+    TRANSITION_STATUS = "TRANSITION_STATUS"
+
 
 class WriteMode(StrEnum):
     """How the caller wants the write processed."""
