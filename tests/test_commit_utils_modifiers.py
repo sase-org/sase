@@ -88,7 +88,7 @@ MENTORS:
 
 
 def test_mark_proposal_broken_already_rejected() -> None:
-    """Test when the entry is already rejected (not a NEW PROPOSAL)."""
+    """Test when the entry is already rejected (~!: NEW PROPOSAL)."""
     content = """NAME: test-cl
 STATUS: Ready
 COMMITS:
@@ -98,8 +98,32 @@ COMMITS:
     project_file = _create_test_project_file(content)
     try:
         result = mark_proposal_broken(str(project_file), "test-cl", "2a")
-        # Should fail because it's already rejected, not (!: NEW PROPOSAL)
-        assert result is False
+        assert result is True
+        with open(project_file) as f:
+            new_content = f.read()
+        assert "(2a) Proposal A - (~!: BROKEN PROPOSAL)" in new_content
+    finally:
+        project_file.unlink()
+
+
+def test_mark_proposal_broken_no_suffix() -> None:
+    """Test marking a proposal broken when it has no suffix."""
+    content = """NAME: test-cl
+STATUS: Ready
+COMMITS:
+  (1) First commit
+  (2e) Proposed removal of timeSeriesStats from the model
+"""
+    project_file = _create_test_project_file(content)
+    try:
+        result = mark_proposal_broken(str(project_file), "test-cl", "2e")
+        assert result is True
+        with open(project_file) as f:
+            new_content = f.read()
+        assert (
+            "(2e) Proposed removal of timeSeriesStats from the model - (~!: BROKEN PROPOSAL)"
+            in new_content
+        )
     finally:
         project_file.unlink()
 

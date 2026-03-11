@@ -297,10 +297,11 @@ def mark_proposal_broken(
     cl_name: str,
     entry_id: str,
 ) -> bool:
-    """Mark a proposal as broken by changing (!: NEW PROPOSAL) to (~!: BROKEN PROPOSAL).
+    """Mark a proposal as broken by setting its suffix to (~!: BROKEN PROPOSAL).
 
     This is called when a proposal's diff fails to apply to a workspace.
     Broken proposals are skipped in future hook runs.
+    Works regardless of the current suffix (NEW PROPOSAL, no suffix, etc.).
 
     Args:
         project_file: Path to the project file.
@@ -346,16 +347,19 @@ def mark_proposal_broken(
                             in_target_changespec = False
                     elif in_commits:
                         stripped = line.strip()
-                        # Match: (Na) Note text - (!: NEW PROPOSAL)
+                        # Match proposal entry with any suffix or no suffix:
+                        #   (Na) Note text - (!: NEW PROPOSAL)
+                        #   (Na) Note text - (~!: BROKEN PROPOSAL)
+                        #   (Na) Note text
                         entry_match = re.match(
-                            rf"^\(({re.escape(entry_id)})\)\s+(.+?)\s+-\s+\(!:\s*NEW PROPOSAL\)$",
+                            rf"^\(({re.escape(entry_id)})\)\s+(.+?)(?:\s+-\s+\([^)]+\))?$",
                             stripped,
                         )
                         if entry_match:
                             matched_id = entry_match.group(1)
                             note_text = entry_match.group(2)
                             leading_ws = line[: len(line) - len(line.lstrip())]
-                            # Change to (~!: BROKEN PROPOSAL)
+                            # Set to (~!: BROKEN PROPOSAL)
                             new_line = (
                                 f"{leading_ws}({matched_id}) {note_text} - "
                                 f"(~!: BROKEN PROPOSAL)\n"
