@@ -137,17 +137,6 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
 
         text.append("\n")
 
-        # Running Processes section (yellow) - axe hook processes
-        self._add_section_header(text, "Running Processes", "#FFD700")
-        if processes:
-            for runner in processes:
-                self._add_runner_entry(text, runner, "#FFD700")
-        else:
-            self._add_empty_row(text, "No running processes", "#FFD700")
-        self._add_section_footer(text, "#FFD700")
-
-        text.append("\n")
-
         # Running Agents section (orange) - axe-spawned agents
         self._add_section_header(text, "Axe Agents", "#FF8C00")
         if axe_agents:
@@ -156,6 +145,17 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         else:
             self._add_empty_row(text, "No axe agents", "#FF8C00")
         self._add_section_footer(text, "#FF8C00")
+
+        text.append("\n")
+
+        # Running Processes section (yellow) - axe hook processes
+        self._add_section_header(text, "Running Processes", "#FFD700")
+        if processes:
+            for runner in processes:
+                self._add_runner_entry(text, runner, "#FFD700")
+        else:
+            self._add_empty_row(text, "No running processes", "#FFD700")
+        self._add_section_footer(text, "#FFD700")
 
         return text
 
