@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -13,6 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.dismissed_agents import load_dismissed_agents, load_dismissed_bundles
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_all_agents
@@ -20,11 +22,50 @@ from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
 
 from .base import OptionListNavigationMixin
 
+if TYPE_CHECKING:
+    from sase.ace.tui.models.agent import AgentType
 
-def _load_agents_for_cl(cl_name: str) -> list[Agent]:
-    """Load agents for a specific CL, excluding workflow children."""
+
+def _load_agents_for_cl(
+    cl_name: str,
+) -> tuple[list[Agent], set[tuple[AgentType, str, str | None]]]:
+    """Load agents for a specific CL, including dismissed ones.
+
+    Returns:
+        Tuple of (agents, dismissed_identities) where agents includes both
+        active and dismissed agents (excluding workflow children), and
+        dismissed_identities is the set of all dismissed agent identity tuples.
+    """
     all_agents = load_all_agents()
-    return [a for a in all_agents if a.cl_name == cl_name and not a.is_workflow_child]
+    active = [a for a in all_agents if a.cl_name == cl_name and not a.is_workflow_child]
+
+    dismissed_ids = load_dismissed_agents()
+
+    # Build secondary index for robust matching (same as _load_agents in _core.py)
+    dismissed_suffixes: set[str] = {
+        raw_suffix for _, _, raw_suffix in dismissed_ids if raw_suffix is not None
+    }
+
+    # Load dismissed bundles for this CL, deduplicating against active agents
+    active_identities = {a.identity for a in active}
+    active_suffixes = {a.raw_suffix for a in active if a.raw_suffix is not None}
+
+    dismissed_for_cl: list[Agent] = []
+    for agent in load_dismissed_bundles():
+        if agent.cl_name != cl_name or agent.is_workflow_child:
+            continue
+        # Skip if already present as an active agent
+        if agent.identity in active_identities:
+            continue
+        if agent.raw_suffix is not None and agent.raw_suffix in active_suffixes:
+            continue
+        # Only include if actually in the dismissed set
+        if agent.identity in dismissed_ids or (
+            agent.raw_suffix is not None and agent.raw_suffix in dismissed_suffixes
+        ):
+            dismissed_for_cl.append(agent)
+
+    return active + dismissed_for_cl, dismissed_ids
 
 
 def _group_agents_by_date(
@@ -71,8 +112,10 @@ def _group_agents_by_date(
     return groups
 
 
-def _status_icon(status: str) -> tuple[str, str]:
+def _status_icon(status: str, *, dismissed: bool = False) -> tuple[str, str]:
     """Return (icon, style) for an agent status."""
+    if dismissed:
+        return "\u25cb", "dim"  # ○ empty circle for dismissed
     if status == "RUNNING":
         return "\u26a1", "bold #FFD700"
     if status == "DONE":
@@ -90,6 +133,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("enter", "open_chat", "Open Chat"),
         ("e", "open_chat", "Open Chat"),
+        ("upper_r", "revive_agent", "Revive"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
         ("ctrl+u", "scroll_detail_up", "Scroll Up"),
     ]
@@ -97,7 +141,12 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
     def __init__(self, cl_name: str) -> None:
         super().__init__()
         self._cl_name = cl_name
-        self._agents: list[Agent] = _load_agents_for_cl(cl_name)
+        agents, dismissed_ids = _load_agents_for_cl(cl_name)
+        self._agents: list[Agent] = agents
+        self._dismissed_identities = dismissed_ids
+        self._dismissed_suffixes: set[str] = {
+            raw_suffix for _, _, raw_suffix in dismissed_ids if raw_suffix is not None
+        }
         self._grouped: list[tuple[str, list[Agent]]] = _group_agents_by_date(
             self._agents
         )
@@ -119,7 +168,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="agent-log-detail-scroll"):
                         yield Static("", id="agent-log-detail")
             yield Static(
-                "j/k: navigate  enter/e: open chat  Ctrl+D/U: scroll  Esc: close",
+                "j/k: navigate  enter/e: open chat  R: revive  Ctrl+D/U: scroll  Esc: close",
                 id="agent-log-hints",
             )
 
@@ -142,25 +191,37 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
                 )
         return options
 
+    def _is_dismissed(self, agent: Agent) -> bool:
+        """Check if an agent is dismissed."""
+        return agent.identity in self._dismissed_identities or (
+            agent.raw_suffix is not None
+            and agent.raw_suffix in self._dismissed_suffixes
+        )
+
     def _create_agent_label(self, agent: Agent) -> Text:
         """Create styled label for an agent entry."""
+        dismissed = self._is_dismissed(agent)
         text = Text()
-        icon, icon_style = _status_icon(agent.status)
+        icon, icon_style = _status_icon(agent.status, dismissed=dismissed)
         text.append(f"  {icon}", style=icon_style)
-        text.append(f"[{agent.display_type}] ", style="bold #87D7FF")
-        text.append(f"{agent.start_time_short} ", style="dim")
 
-        # Status with color
-        status_style = {
-            "RUNNING": "bold #FFD700",
-            "DONE": "green",
-            "FAILED": "bold red",
-        }.get(agent.status, "dim")
-        text.append(agent.status, style=status_style)
-
-        # Agent name if available
-        if agent.agent_name:
-            text.append(f" {agent.agent_name}", style="#AF87D7")
+        if dismissed:
+            text.append(f"[{agent.display_type}] ", style="dim")
+            text.append(f"{agent.start_time_short} ", style="dim")
+            text.append("DISMISSED", style="dim italic")
+            if agent.agent_name:
+                text.append(f" {agent.agent_name}", style="dim")
+        else:
+            text.append(f"[{agent.display_type}] ", style="bold #87D7FF")
+            text.append(f"{agent.start_time_short} ", style="dim")
+            status_style = {
+                "RUNNING": "bold #FFD700",
+                "DONE": "green",
+                "FAILED": "bold red",
+            }.get(agent.status, "dim")
+            text.append(agent.status, style=status_style)
+            if agent.agent_name:
+                text.append(f" {agent.agent_name}", style="#AF87D7")
 
         return text
 
@@ -269,15 +330,20 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
 
         text = Text()
 
+        dismissed = self._is_dismissed(agent)
+
         # AGENT DETAILS section
         text.append("AGENT DETAILS\n", style="bold underline #87D7FF")
         text.append("Status: ", style="bold #87D7FF")
-        status_style = {
-            "RUNNING": "bold #FFD700",
-            "DONE": "green",
-            "FAILED": "bold red",
-        }.get(agent.status, "")
-        text.append(f"{agent.status}\n", style=status_style)
+        if dismissed:
+            text.append(f"DISMISSED ({agent.status})\n", style="dim italic")
+        else:
+            status_style = {
+                "RUNNING": "bold #FFD700",
+                "DONE": "green",
+                "FAILED": "bold red",
+            }.get(agent.status, "")
+            text.append(f"{agent.status}\n", style=status_style)
 
         append_model_field(text, agent.model, agent.llm_provider)
 
@@ -356,6 +422,77 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
 
         with self.app.suspend():  # type: ignore[attr-defined]
             subprocess.run(editor_args, check=False)
+
+    def action_revive_agent(self) -> None:
+        """Revive the highlighted dismissed agent."""
+        agent = self._get_highlighted_agent()
+        if agent is None:
+            return
+
+        if not self._is_dismissed(agent):
+            self.notify("Agent is not dismissed", severity="warning")
+            return
+
+        # Delegate to the app's revive logic (AgentRevivalMixin)
+        self.app._do_revive_agent(agent)  # type: ignore[attr-defined]
+
+        # Refresh modal data to reflect the revive
+        self._refresh_agents()
+
+    def _refresh_agents(self) -> None:
+        """Reload agents and refresh the option list."""
+        # Capture currently highlighted agent suffix for re-selection
+        current_agent = self._get_highlighted_agent()
+        current_suffix = (
+            str(current_agent.raw_suffix or id(current_agent))
+            if current_agent
+            else None
+        )
+
+        # Reload data
+        agents, dismissed_ids = _load_agents_for_cl(self._cl_name)
+        self._agents = agents
+        self._dismissed_identities = dismissed_ids
+        self._dismissed_suffixes = {
+            raw_suffix for _, _, raw_suffix in dismissed_ids if raw_suffix is not None
+        }
+        self._grouped = _group_agents_by_date(self._agents)
+
+        # Update title
+        try:
+            title = self.query_one("#agent-log-title", Label)
+            title.update(
+                f"Agent Run Log for: {self._cl_name}  [{len(self._agents)} runs]"
+            )
+        except Exception:
+            pass
+
+        # Rebuild option list
+        option_list = self.query_one("#agent-log-list", OptionList)
+        option_list.clear_options()
+        for opt in self._create_options():
+            option_list.add_option(opt)
+
+        # Try to re-select the same agent
+        if current_suffix:
+            target_id = f"agent__{current_suffix}"
+            for i in range(option_list.option_count):
+                try:
+                    opt = option_list.get_option_at_index(i)
+                    if opt.id and str(opt.id) == target_id:
+                        option_list.highlighted = i
+                        agent = self._get_agent_for_option(target_id)
+                        if agent:
+                            self._update_detail(agent)
+                        return
+                except Exception:
+                    continue
+
+        # Fallback: select first non-header item
+        self._skip_to_first_item(option_list)
+        flat = self._get_flat_agents()
+        if flat:
+            self._update_detail(flat[0])
 
     def action_scroll_detail_down(self) -> None:
         """Scroll the detail panel down by half a page."""
