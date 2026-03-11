@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.running_field import get_claimed_workspaces
+from sase.sase_utils import EASTERN_TZ
 
 from ....hooks.processes import is_process_running
 from .._timestamps import (
@@ -13,6 +14,12 @@ from .._timestamps import (
     parse_timestamp_from_workflow_name,
 )
 from ..agent import Agent, AgentType
+
+
+def _parse_utc_to_eastern(iso_str: str) -> datetime:
+    """Parse a UTC ISO 8601 timestamp and convert to Eastern time (naive)."""
+    dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+    return dt.astimezone(EASTERN_TZ).replace(tzinfo=None)
 
 
 def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
@@ -56,9 +63,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     run_started_at = data.get("run_started_at")
     if isinstance(run_started_at, str):
         try:
-            agent.run_start_time = datetime.fromisoformat(
-                run_started_at.replace("Z", "+00:00")
-            )
+            agent.run_start_time = _parse_utc_to_eastern(run_started_at)
         except ValueError:
             pass
 
@@ -66,7 +71,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     stopped_at = data.get("stopped_at")
     if isinstance(stopped_at, str):
         try:
-            agent.stop_time = datetime.fromisoformat(stopped_at.replace("Z", "+00:00"))
+            agent.stop_time = _parse_utc_to_eastern(stopped_at)
         except ValueError:
             pass
 
