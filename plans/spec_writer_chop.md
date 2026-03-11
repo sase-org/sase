@@ -62,6 +62,25 @@ the next tick fires, callers need a way to avoid resubmitting the same write. Th
 - Callers can also query `has_pending_or_completed(idempotency_key)` to check if a write is already in-flight or
   recently completed before deciding whether to submit.
 
+### Implementation Details
+
+**Atomic queue file writes**: All queue file operations (requests, responses, completed_keys) use the same
+write-to-tempfile + `os.replace()` pattern as `write_changespec_atomic()`. This prevents readers from seeing partially
+written JSON files.
+
+**Response file lifecycle**: The sync client (`submit_spec_write_and_wait()`) deletes the response file after reading
+it. The chop reaps stale response files older than 120s (from callers that crashed before reading) during its tick
+cleanup pass (step 8 of the processing loop).
+
+**Client-side dedup race**: There is a TOCTOU window between a client checking for a pending request with a given
+idempotency key and creating a new one. This is acceptable because the server-side `completed_keys/` check is the
+authoritative dedup mechanism -- if two request files with the same idempotency key end up in the queue, only the first
+is processed and the second is treated as a duplicate.
+
+**Queue directory initialization**: The queue directories (`requests/`, `responses/`, `completed_keys/`) are created
+lazily by both the client (on first `submit_spec_write()` call) and the chop (on first tick), using
+`os.makedirs(..., exist_ok=True)`.
+
 ### Data Models
 
 New package: `src/sase/spec_writer/`
@@ -137,7 +156,8 @@ def submit_spec_write_and_wait(
 ) -> SpecWriteResponse:
     """Sync: submit and poll for response with exponential backoff (10ms -> 100ms).
     Sets request.mode = SYNC. If an idempotency_key is set and a pending/completed
-    request with the same key exists, returns immediately with duplicate=True."""
+    request with the same key exists, returns immediately with duplicate=True.
+    Deletes the response file after successfully reading it."""
 
 def has_pending_or_completed(idempotency_key: str) -> bool:
     """Check if a request with this idempotency key is pending in the request
@@ -161,6 +181,7 @@ Each tick, the `spec_writer` chop:
    - If `idempotency_key` is set: writes marker to `completed_keys/<key_hash>.json`
    - Removes processed request file
 7. Reaps stale requests (>60s old) with error responses (sync only)
+8. Reaps stale response files (>120s old) from callers that never read them
 
 ### Latency
 
@@ -252,13 +273,16 @@ it yet by the next tick. For example, a hook_checks chop that wants to set a hoo
 like `f"{project_file}:set_hook_suffix:{entry_name}:{suffix}"` and call `submit_spec_write()` (async) so it doesn't
 block the chop's tick.
 
-During this phase, both old and new write paths coexist. The fcntl lock ensures mutual exclusion.
+During this phase, both old and new write paths coexist. Migrated callers switch entirely to the client API while
+non-migrated callers continue using direct writes. Both paths acquire the same fcntl lock via `changespec_lock()`,
+ensuring mutual exclusion between spec_writer-mediated writes and legacy direct writes.
 
 ---
 
-### Phase 3: Remaining Handlers (Comments, Mentors, RUNNING, File-Level, Composite)
+### Phase 3: Remaining Handlers (Comments, Mentors, RUNNING, File-Level)
 
-Complete all remaining write handlers and migrate their callers.
+Implement the remaining simple write handlers and migrate their callers. The composite `transition_status` handler is
+deferred to Phase 4 due to its complexity.
 
 **New files:**
 
@@ -266,9 +290,6 @@ Complete all remaining write handlers and migrate their callers.
 - `src/sase/spec_writer/handlers/mentors.py`
 - `src/sase/spec_writer/handlers/running.py`
 - `src/sase/spec_writer/handlers/file_ops.py` - add_changespec, create_project_file, raw_write, set_workspace_dir
-- `src/sase/spec_writer/handlers/transitions.py` - Composite `transition_status` handler (performs all sub-writes:
-  status change, suffix strip/append, parent reference updates, running field updates, mentor flags, sibling reverts
-  within single lock acquisition)
 - `src/sase/spec_writer/handlers/renumber.py`
 
 **Modified files (caller migration):**
@@ -276,7 +297,6 @@ Complete all remaining write handlers and migrate their callers.
 - `src/sase/ace/comments/operations.py` - Use client API
 - `src/sase/ace/mentors.py` - Use client API
 - `src/sase/running_field.py` - Use client API
-- `src/sase/status_state_machine/transitions.py` - Use client API
 - `src/sase/commit_workflow/changespec_operations.py` - Use client API
 - `src/sase/commit_utils/modifiers.py` - Use client API
 - `src/sase/ace/revert.py` - Use client API
@@ -287,7 +307,48 @@ Complete all remaining write handlers and migrate their callers.
 
 ---
 
-### Phase 4: Cleanup and Hardening
+### Phase 4: Composite Transition Handler
+
+Implement the `transition_status` composite handler. This is the most complex operation because it has cascading side
+effects across multiple project files and requires VCS operations that cannot be held under lock.
+
+**Design:**
+
+The current `transition_changespec_status()` follows a two-phase pattern:
+
+1. **Lock-held**: Read state, validate transition rules, apply status update via `apply_status_update()`, write via
+   `write_changespec_atomic()`, return structured info about needed post-lock operations (suffix strip/append info)
+2. **Post-lock**: Execute VCS rename (suffix strip/append via `hg rename`/`git mv`), update PARENT references in other
+   project files, update RUNNING field, set mentor flags, revert sibling changespecs
+
+The spec_writer handler preserves this two-phase pattern:
+
+1. The `transition_status` handler applies the status update to the primary file (within lock) and returns a
+   `SpecWriteResponse` with:
+   - `result["cascading_requests"]`: List of serialized `SpecWriteRequest` dicts for writes to other project files
+     (PARENT reference updates, RUNNING field changes, sibling reverts, mentor flag updates)
+   - `result["vcs_operations"]`: List of VCS commands to execute (suffix rename via `hg rename`/`git mv`)
+2. The chop's main processing loop, after handling the transition response:
+   - Executes VCS operations directly (these are filesystem/VCS ops, not spec writes)
+   - Injects cascading requests into the current tick's work queue so they are processed by the appropriate per-file
+     handler group within the same tick
+
+This keeps the handler pure (returns data, no side effects beyond the primary file write) while ensuring all cascading
+writes complete atomically within a single tick.
+
+**New files:**
+
+- `src/sase/spec_writer/handlers/transitions.py` - Composite handler with cascading request generation
+
+**Modified files:**
+
+- `src/sase/scripts/sase_chop_spec_writer.py` - Add cascading request injection and VCS operation execution to the main
+  processing loop
+- `src/sase/status_state_machine/transitions.py` - Migrate `transition_changespec_status` to use client API
+
+---
+
+### Phase 5: Cleanup and Hardening
 
 Remove legacy direct-write paths. The spec_writer chop is now the single writer.
 
@@ -317,4 +378,4 @@ After each phase:
 1. `just install && just check` passes
 2. `sase ace --agent` produces expected output
 3. Manual smoke test: `sase axe` runs and chops execute without errors
-4. After Phase 4: verify no direct `changespec_lock`/`write_changespec_atomic` calls remain outside `spec_writer/`
+4. After Phase 5: verify no direct `changespec_lock`/`write_changespec_atomic` calls remain outside `spec_writer/`
