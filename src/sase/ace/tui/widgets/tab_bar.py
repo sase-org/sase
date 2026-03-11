@@ -7,7 +7,23 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
+from sase.ace.tui.models.fold_state import FoldLevel
+
 TabName = Literal["changespecs", "agents", "axe"]
+
+# Fold indicator characters per level
+_FOLD_CHARS: dict[FoldLevel, str] = {
+    FoldLevel.COLLAPSED: "▸",
+    FoldLevel.EXPANDED: "▾",
+    FoldLevel.FULLY_EXPANDED: "▼",
+}
+
+# Fold indicator styles: (active_tab_style, inactive_tab_style)
+_FOLD_STYLES: dict[FoldLevel, tuple[str, str]] = {
+    FoldLevel.COLLAPSED: ("#007f66 on #00D7AF", "#4a4a4a"),
+    FoldLevel.EXPANDED: ("#000000 on #00D7AF", "#aaaaaa"),
+    FoldLevel.FULLY_EXPANDED: ("bold #000000 on #00D7AF", "bold #00D7AF"),
+}
 
 
 class TabBar(Static):
@@ -23,6 +39,9 @@ class TabBar(Static):
     def __init__(self, **kwargs: Any) -> None:
         self._current_tab: TabName = "changespecs"
         self._agents_count: int = 0
+        self._fold_commits: FoldLevel = FoldLevel.COLLAPSED
+        self._fold_hooks: FoldLevel = FoldLevel.COLLAPSED
+        self._fold_mentors: FoldLevel = FoldLevel.COLLAPSED
         # Store positions for click detection
         self._cl_tab_range: tuple[int, int] = (0, 0)
         self._agents_tab_range: tuple[int, int] = (0, 0)
@@ -49,16 +68,53 @@ class TabBar(Static):
             self._agents_count = count
             self._refresh_content()
 
+    def update_fold_states(
+        self,
+        commits: FoldLevel,
+        hooks: FoldLevel,
+        mentors: FoldLevel,
+    ) -> None:
+        """Update the fold state indicators on the CLs tab label.
+
+        Args:
+            commits: Fold level for the commits section.
+            hooks: Fold level for the hooks section.
+            mentors: Fold level for the mentors section.
+        """
+        if (
+            self._fold_commits != commits
+            or self._fold_hooks != hooks
+            or self._fold_mentors != mentors
+        ):
+            self._fold_commits = commits
+            self._fold_hooks = hooks
+            self._fold_mentors = mentors
+            self._refresh_content()
+
     def _build_content(self) -> Text:
         """Build the tab bar content."""
         text = Text()
 
         # CLs tab
         cl_start = 0
-        if self._current_tab == "changespecs":
-            text.append(" CLs ", style="bold reverse #00D7AF")
+        is_cl_active = self._current_tab == "changespecs"
+        cl_base = "bold reverse #00D7AF" if is_cl_active else "dim"
+        has_fold = not (
+            self._fold_commits == FoldLevel.COLLAPSED
+            and self._fold_hooks == FoldLevel.COLLAPSED
+            and self._fold_mentors == FoldLevel.COLLAPSED
+        )
+        if has_fold:
+            text.append(" CLs ", style=cl_base)
+            for level in (self._fold_commits, self._fold_hooks, self._fold_mentors):
+                active_style, inactive_style = _FOLD_STYLES[level]
+                text.append(
+                    _FOLD_CHARS[level],
+                    style=active_style if is_cl_active else inactive_style,
+                )
+            text.append(" ", style=cl_base)
         else:
-            text.append(" CLs ", style="dim")
+            text.append(" CLs ", style=cl_base)
         cl_end = len(text.plain)
         self._cl_tab_range = (cl_start, cl_end)
 

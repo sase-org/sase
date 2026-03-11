@@ -25,16 +25,10 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
         if key == "c":
             self.commits_collapsed = cycle_forward(self.commits_collapsed)
-            self._refresh_display()  # type: ignore[attr-defined]
-            return True
         elif key == "h":
             self.hooks_collapsed = cycle_forward(self.hooks_collapsed)
-            self._refresh_display()  # type: ignore[attr-defined]
-            return True
         elif key == "m":
             self.mentors_collapsed = cycle_forward(self.mentors_collapsed)
-            self._refresh_display()  # type: ignore[attr-defined]
-            return True
         elif key == "z":
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
             if self.commits_collapsed == self.hooks_collapsed == self.mentors_collapsed:
@@ -44,11 +38,27 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.commits_collapsed = new_state
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
-            self._refresh_display()  # type: ignore[attr-defined]
-            return True
         else:
             # Invalid key - cancel fold mode
             return True
+
+        self._refresh_display()  # type: ignore[attr-defined]
+        self._update_fold_tab_indicator()
+        return True
+
+    def _update_fold_tab_indicator(self) -> None:
+        """Push current fold states to the CLs tab indicator."""
+        from ...widgets.tab_bar import TabBar
+
+        try:
+            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
+            tab_bar.update_fold_states(
+                self.commits_collapsed,
+                self.hooks_collapsed,
+                self.mentors_collapsed,
+            )
+        except Exception:
+            pass
 
     # --- Help Action ---
 

@@ -119,6 +119,45 @@ def test_tab_bar_update_tab_to_agents() -> None:
     assert tab_bar._current_tab == "agents"
 
 
+def test_tab_bar_fold_indicator_hidden_when_all_collapsed() -> None:
+    """No fold indicator when all sections are collapsed (default)."""
+    tab_bar = TabBar()
+    content = tab_bar._build_content()
+    assert "▸" not in content.plain
+    assert "▾" not in content.plain
+    assert "▼" not in content.plain
+
+
+def test_tab_bar_fold_indicator_shown_when_any_expanded() -> None:
+    """Fold indicator appears when any section is non-collapsed."""
+    tab_bar = TabBar()
+    tab_bar.update_fold_states(
+        FoldLevel.EXPANDED, FoldLevel.COLLAPSED, FoldLevel.COLLAPSED
+    )
+    content = tab_bar._build_content()
+    assert "▾▸▸" in content.plain
+
+
+def test_tab_bar_fold_indicator_all_fully_expanded() -> None:
+    """All sections fully expanded shows three heavy down arrows."""
+    tab_bar = TabBar()
+    tab_bar.update_fold_states(
+        FoldLevel.FULLY_EXPANDED, FoldLevel.FULLY_EXPANDED, FoldLevel.FULLY_EXPANDED
+    )
+    content = tab_bar._build_content()
+    assert "▼▼▼" in content.plain
+
+
+def test_tab_bar_fold_indicator_mixed_states() -> None:
+    """Mixed fold states show correct character per section."""
+    tab_bar = TabBar()
+    tab_bar.update_fold_states(
+        FoldLevel.FULLY_EXPANDED, FoldLevel.COLLAPSED, FoldLevel.EXPANDED
+    )
+    content = tab_bar._build_content()
+    assert "▼▸▾" in content.plain
+
+
 # --- _get_prompt_content Tests ---
 
 
