@@ -80,6 +80,8 @@ class FilePanelDisplayMixin:
                     style="dim italic #87D7FF",
                 )
                 self.update(Group(syntax, indicator))  # type: ignore[attr-defined]
+                # Word-wrapped lines may overflow — schedule post-layout fix
+                self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
             else:
                 self._visible_line_count = total
                 self._is_trimmed = False
@@ -165,6 +167,8 @@ class FilePanelDisplayMixin:
                 style="dim italic #87D7FF",
             )
             self.update(Group(header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
+            # Word-wrapped lines may overflow — schedule post-layout fix
+            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
         else:
             self._visible_line_count = total
             self._is_trimmed = False
@@ -243,6 +247,8 @@ class FilePanelDisplayMixin:
                 style="dim italic #87D7FF",
             )
             self.update(Group(header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
+            # Word-wrapped lines may overflow — schedule post-layout fix
+            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
         else:
             self._visible_line_count = total
             self._is_trimmed = False

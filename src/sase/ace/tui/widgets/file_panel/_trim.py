@@ -94,6 +94,7 @@ class FilePanelTrimMixin:
             self._visible_line_count = trim_size
             self._is_trimmed = True
             self._render_trimmed_content()
+            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
 
     def _render_trimmed_content(self) -> None:
         """Re-render full_content with current trim state."""
@@ -129,6 +130,35 @@ class FilePanelTrimMixin:
 
         self._is_trimmed = True
         self._post_trim_changed()
+
+    def _check_trim_overflow(self) -> None:
+        """Reduce visible lines if trimmed content overflows the scroll container.
+
+        Word-wrapped lines can cause the rendered content to exceed the
+        available viewport height even after trimming.  This detects
+        overflow post-layout and reduces the visible line count to
+        eliminate the scrollbar.
+        """
+        if not self._is_trimmed or self._full_content is None:
+            return
+        container = self._get_scroll_container()
+        if container is None:
+            return
+        try:
+            viewport_h = container.scrollable_content_region.height
+            content_h = container.virtual_size.height
+        except Exception:
+            return
+        if content_h <= viewport_h:
+            return
+        overflow = content_h - viewport_h
+        new_visible = max(1, self._visible_line_count - overflow)
+        if new_visible >= self._visible_line_count:
+            return
+        self._visible_line_count = new_visible
+        self._render_trimmed_content()
+        # Re-check in case the reduction wasn't sufficient.
+        self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
 
     @property
     def is_trimmed(self) -> bool:
@@ -186,6 +216,7 @@ class FilePanelTrimMixin:
         if self._visible_line_count < self._total_line_count:
             self._is_trimmed = True
             self._render_trimmed_content()
+            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
         else:
             self._is_trimmed = False
             self._render_full_content()
