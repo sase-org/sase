@@ -146,8 +146,6 @@ def _handle_suffix_strip(
     from sase.ace.revert import update_changespec_name_atomic
     from sase.running_field import get_workspace_directory, update_running_field_cl_name
 
-    from .field_updates import update_parent_references_atomic
-
     # Update NAME field
     update_changespec_name_atomic(project_file, suffixed_name, base_name)
 
@@ -174,7 +172,12 @@ def _handle_suffix_strip(
         logger.warning(f"Could not get workspace directory: {e}")
 
     # Update PARENT references in other ChangeSpecs
-    update_parent_references_atomic(project_file, suffixed_name, base_name)
+    request = make_request(
+        project_file,
+        OperationType.UPDATE_PARENT_REFERENCES,
+        {"old_name": suffixed_name, "new_name": base_name},
+    )
+    submit_spec_write_and_wait(request, timeout=10.0)
 
     # Update RUNNING field entries
     update_running_field_cl_name(project_file, suffixed_name, base_name)
@@ -200,8 +203,6 @@ def _handle_suffix_append(
     from sase.ace.revert import update_changespec_name_atomic
     from sase.running_field import get_workspace_directory, update_running_field_cl_name
 
-    from .field_updates import update_parent_references_atomic
-
     # Update NAME field
     update_changespec_name_atomic(project_file, base_name, suffixed_name)
 
@@ -226,7 +227,12 @@ def _handle_suffix_append(
         logger.warning(f"Could not get workspace directory: {e}")
 
     # Update PARENT references in other ChangeSpecs
-    update_parent_references_atomic(project_file, base_name, suffixed_name)
+    request = make_request(
+        project_file,
+        OperationType.UPDATE_PARENT_REFERENCES,
+        {"old_name": base_name, "new_name": suffixed_name},
+    )
+    submit_spec_write_and_wait(request, timeout=10.0)
 
     # Update RUNNING field entries
     update_running_field_cl_name(project_file, base_name, suffixed_name)

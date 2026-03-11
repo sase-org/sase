@@ -11,13 +11,6 @@ from .constants import (
     is_valid_transition,
     remove_workspace_suffix,
 )
-from .field_updates import (
-    reset_changespec_cl,
-    update_changespec_cl_atomic,
-    update_changespec_description_atomic,
-    update_changespec_parent_atomic,
-    update_parent_references_atomic,
-)
 from .transitions import (
     SiblingRevertResult,
     transition_changespec_status,
@@ -30,12 +23,6 @@ __all__ = [
     # Validation
     "is_valid_transition",
     "remove_workspace_suffix",
-    # Field updates
-    "reset_changespec_cl",
-    "update_changespec_cl_atomic",
-    "update_changespec_description_atomic",
-    "update_changespec_parent_atomic",
-    "update_parent_references_atomic",
     # Transitions
     "SiblingRevertResult",
     "transition_changespec_status",

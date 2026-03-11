@@ -12,8 +12,9 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from sase.sase_utils import (
     get_workspace_directory_for_changespec,
 )
+from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+from sase.spec_writer.models import OperationType
 from sase.status_state_machine import (
-    reset_changespec_cl,
     transition_changespec_status,
 )
 from sase.vcs_provider import get_vcs_provider
@@ -176,7 +177,15 @@ def revert_changespec(
 
     # Reset CL to None (only if there was a CL to reset)
     if changespec.cl is not None:
-        reset_changespec_cl(changespec.file_path, new_name)
+        try:
+            request = make_request(
+                changespec.file_path,
+                OperationType.SET_CL,
+                {"changespec_name": new_name, "new_cl": None},
+            )
+            submit_spec_write_and_wait(request, timeout=10.0)
+        except Exception:
+            pass  # Non-fatal: revert itself already succeeded
 
     if console:
         console.print("[green]Status updated to Reverted, CL removed[/green]")

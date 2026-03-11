@@ -142,9 +142,6 @@ def test_transition_to_draft_allowed_when_children_are_draft_or_reverted() -> No
             patch("sase.ace.mentors.set_mentor_draft_flags"),
             patch("sase.ace.revert.update_changespec_name_atomic"),
             patch("sase.running_field.get_workspace_directory") as mock_ws_dir,
-            patch(
-                "sase.status_state_machine.field_updates.update_parent_references_atomic"
-            ),
             patch("sase.running_field.update_running_field_cl_name"),
         ):
             mock_find.return_value = [

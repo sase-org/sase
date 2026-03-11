@@ -1,7 +1,7 @@
 """Test target hook utilities - helpers, queries, and mutations."""
 
-from ..changespec import HookEntry, changespec_lock
-from .persistence import update_changespec_hooks_field, write_hooks_unlocked
+from ..changespec import HookEntry
+from .persistence import update_changespec_hooks_field
 
 # Test target hook helpers
 TEST_TARGET_HOOK_PREFIX = "bb_rabbit_test "
@@ -114,26 +114,26 @@ def add_test_target_hooks_to_changespec(
                 hooks.append(new_hook)
         return update_changespec_hooks_field(project_file, changespec_name, hooks)
 
-    # Otherwise, acquire lock and read fresh state
+    # Otherwise, read fresh state and submit through spec_writer
     from ..changespec import parse_project_file
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_hooks = list(cs.hooks) if cs.hooks else []
-                    break
+        changespecs = parse_project_file(project_file)
+        current_hooks: list[HookEntry] = []
+        for cs in changespecs:
+            if cs.name == changespec_name:
+                current_hooks = list(cs.hooks) if cs.hooks else []
+                break
 
-            existing_commands = {hook.command for hook in current_hooks}
-            for target in test_targets:
-                new_hook = _create_test_target_hook(target)
-                if new_hook.command not in existing_commands:
-                    current_hooks.append(new_hook)
+        existing_commands = {hook.command for hook in current_hooks}
+        for target in test_targets:
+            new_hook = _create_test_target_hook(target)
+            if new_hook.command not in existing_commands:
+                current_hooks.append(new_hook)
 
-            write_hooks_unlocked(project_file, changespec_name, current_hooks)
-            return True
+        return update_changespec_hooks_field(
+            project_file, changespec_name, current_hooks
+        )
     except Exception:
         return False
 
