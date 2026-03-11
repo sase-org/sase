@@ -9,11 +9,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.ace.changespec import (
-    changespec_lock,
-    find_all_changespecs,
-    write_changespec_atomic,
-)
+from sase.ace.changespec import find_all_changespecs
+from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+from sase.spec_writer.models import OperationType
 from sase.workspace_utils import (
     get_default_branch,
     parse_bare_repo_dir,
@@ -31,47 +29,13 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
         ``True`` on success, ``False`` on failure.
     """
     try:
-        parent_dir = os.path.dirname(project_file)
-        if parent_dir and not os.path.exists(parent_dir):
-            os.makedirs(parent_dir, exist_ok=True)
-
-        if not os.path.exists(project_file):
-            with open(project_file, "w", encoding="utf-8") as f:
-                f.write(f"BARE_REPO_DIR: {bare_repo_dir}\n")
-            return True
-
-        with changespec_lock(project_file):
-            with open(project_file, encoding="utf-8") as f:
-                content = f.read()
-
-            lines = content.splitlines(keepends=True)
-            new_line = f"BARE_REPO_DIR: {bare_repo_dir}\n"
-
-            # Check if BARE_REPO_DIR already exists — update in place
-            for i, line in enumerate(lines):
-                if line.startswith("BARE_REPO_DIR:"):
-                    lines[i] = new_line
-                    write_changespec_atomic(
-                        project_file,
-                        "".join(lines),
-                        f"Update BARE_REPO_DIR to {bare_repo_dir}",
-                    )
-                    return True
-
-            # Insert before first RUNNING: or NAME: line
-            insert_idx = len(lines)
-            for i, line in enumerate(lines):
-                if line.startswith("RUNNING:") or line.startswith("NAME:"):
-                    insert_idx = i
-                    break
-
-            lines.insert(insert_idx, new_line)
-            write_changespec_atomic(
-                project_file,
-                "".join(lines),
-                f"Set BARE_REPO_DIR to {bare_repo_dir}",
-            )
-            return True
+        request = make_request(
+            project_file,
+            OperationType.SET_BARE_REPO_DIR,
+            {"bare_repo_dir": bare_repo_dir},
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.commit_workflow.changespec_operations import (
-    _find_changespec_end_line,
+    find_changespec_end_line,
 )
 from sase.commit_workflow.changespec_queries import (
     changespec_exists,
@@ -90,7 +90,7 @@ def test_get_editor_falls_back_to_vim() -> None:
             assert result == "vim"
 
 
-def test_find_changespec_end_line_multiple_changespecs() -> None:
+def testfind_changespec_end_line_multiple_changespecs() -> None:
     """Test finding end of ChangeSpec when multiple exist."""
     lines = [
         "# Project file\n",
@@ -111,12 +111,12 @@ def test_find_changespec_end_line_multiple_changespecs() -> None:
         "STATUS: Mailed\n",
     ]
     # feature_a ends at line 7 (STATUS: Unstarted)
-    assert _find_changespec_end_line(lines, "feature_a") == 7
+    assert find_changespec_end_line(lines, "feature_a") == 7
     # feature_b ends at line 15 (STATUS: Mailed)
-    assert _find_changespec_end_line(lines, "feature_b") == 15
+    assert find_changespec_end_line(lines, "feature_b") == 15
 
 
-def test_find_changespec_end_line_not_found() -> None:
+def testfind_changespec_end_line_not_found() -> None:
     """Test when ChangeSpec is not found."""
     lines = [
         "# Project file\n",
@@ -124,7 +124,7 @@ def test_find_changespec_end_line_not_found() -> None:
         "NAME: feature_a\n",
         "STATUS: Unstarted\n",
     ]
-    assert _find_changespec_end_line(lines, "nonexistent") is None
+    assert find_changespec_end_line(lines, "nonexistent") is None
 
 
 # --- Tests for _get_cl_description from sase_cl_workflow ---

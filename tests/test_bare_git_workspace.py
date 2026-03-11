@@ -28,36 +28,25 @@ class TestSetBareRepoDir:
             assert set_bare_repo_dir(gp, "/repos/proj.git")
             assert os.path.exists(gp)
 
-    @patch(f"{_REF_MOD}.write_changespec_atomic")
-    @patch(f"{_REF_MOD}.changespec_lock")
-    def test_updates_existing(
-        self, mock_lock: MagicMock, mock_write: MagicMock
-    ) -> None:
-        mock_lock.return_value.__enter__ = MagicMock()
-        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+    def test_updates_existing(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("BARE_REPO_DIR: /old/repo.git\nNAME: cl\n")
             f.flush()
             assert set_bare_repo_dir(f.name, "/new/repo.git")
-            mock_write.assert_called_once()
-            written = mock_write.call_args[0][1]
-            assert "BARE_REPO_DIR: /new/repo.git" in written
-            assert "/old/repo.git" not in written
+            with open(f.name) as rf:
+                content = rf.read()
+            assert "BARE_REPO_DIR: /new/repo.git" in content
+            assert "/old/repo.git" not in content
             os.unlink(f.name)
 
-    @patch(f"{_REF_MOD}.write_changespec_atomic")
-    @patch(f"{_REF_MOD}.changespec_lock")
-    def test_inserts_before_running(
-        self, mock_lock: MagicMock, mock_write: MagicMock
-    ) -> None:
-        mock_lock.return_value.__enter__ = MagicMock()
-        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+    def test_inserts_before_running(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("RUNNING:\n  #hg 1 1234\nNAME: cl\n")
             f.flush()
             assert set_bare_repo_dir(f.name, "/repos/proj.git")
-            written = mock_write.call_args[0][1]
-            lines = written.splitlines()
+            with open(f.name) as rf:
+                content = rf.read()
+            lines = content.splitlines()
             bare_idx = next(
                 i for i, ln in enumerate(lines) if ln.startswith("BARE_REPO_DIR:")
             )

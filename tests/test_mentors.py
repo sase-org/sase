@@ -212,14 +212,14 @@ STATUS: Ready
 
 
 def test_merge_preserves_terminal_status_from_disk() -> None:
-    """Test that _merge_mentor_status_lines preserves terminal disk status.
+    """Test that merge_mentor_status_lines preserves terminal disk status.
 
     When the caller has a stale RUNNING status but the disk has been updated
     to PASSED by set_mentor_status(), the merge should prefer the disk version.
     This prevents the race condition where update_changespec_mentors_field()
     overwrites a newer terminal status with a stale RUNNING status.
     """
-    from sase.ace.mentors import _merge_mentor_status_lines
+    from sase.ace.mentors import merge_mentor_status_lines
 
     # Disk has PASSED (updated by set_mentor_status after caller's read)
     disk_mentors = [
@@ -256,7 +256,7 @@ def test_merge_preserves_terminal_status_from_disk() -> None:
         )
     ]
 
-    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+    result = merge_mentor_status_lines(disk_mentors, caller_mentors)
 
     # The disk's PASSED status should win over the caller's stale RUNNING
     assert result[0].status_lines is not None
@@ -273,7 +273,7 @@ def test_merge_preserves_caller_killed_agent() -> None:
     mark_mentor_agents_as_killed), the caller's version should win over
     the disk's RUNNING status.
     """
-    from sase.ace.mentors import _merge_mentor_status_lines
+    from sase.ace.mentors import merge_mentor_status_lines
 
     # Disk still has RUNNING (process was just killed, hasn't updated yet)
     disk_mentors = [
@@ -311,7 +311,7 @@ def test_merge_preserves_caller_killed_agent() -> None:
         )
     ]
 
-    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+    result = merge_mentor_status_lines(disk_mentors, caller_mentors)
 
     # Caller's killed_agent should be preserved (disk is non-terminal)
     assert result[0].status_lines is not None
@@ -321,7 +321,7 @@ def test_merge_preserves_caller_killed_agent() -> None:
 
 def test_merge_adds_missing_status_lines() -> None:
     """Test that merge still adds status lines the caller doesn't have."""
-    from sase.ace.mentors import _merge_mentor_status_lines
+    from sase.ace.mentors import merge_mentor_status_lines
 
     # Disk has two status lines
     disk_mentors = [
@@ -362,7 +362,7 @@ def test_merge_adds_missing_status_lines() -> None:
         )
     ]
 
-    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+    result = merge_mentor_status_lines(disk_mentors, caller_mentors)
 
     # Should now have both status lines
     assert result[0].status_lines is not None

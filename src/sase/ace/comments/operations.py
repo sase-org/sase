@@ -2,7 +2,6 @@
 
 from ..changespec import (
     CommentEntry,
-    changespec_lock,
     is_error_suffix,
     is_running_agent_suffix,
     write_changespec_atomic,
@@ -133,7 +132,7 @@ def _apply_comments_to_lines(
     return "".join(updated_lines)
 
 
-def _write_comments_unlocked(
+def write_comments_unlocked(
     project_file: str,
     changespec_name: str,
     comments: list[CommentEntry] | None,
@@ -168,7 +167,7 @@ def update_changespec_comments_field(
 ) -> bool:
     """Update the COMMENTS field in the project file.
 
-    Acquires a lock for the entire read-modify-write cycle.
+    Submits a SET_COMMENTS request through the spec_writer queue.
 
     Args:
         project_file: Path to the ProjectSpec file.
@@ -178,10 +177,22 @@ def update_changespec_comments_field(
     Returns:
         True if update succeeded, False otherwise.
     """
+    from dataclasses import asdict
+
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
+
     try:
-        with changespec_lock(project_file):
-            _write_comments_unlocked(project_file, changespec_name, comments)
-        return True
+        request = make_request(
+            project_file,
+            OperationType.SET_COMMENTS,
+            {
+                "changespec_name": changespec_name,
+                "comments": [asdict(c) for c in comments] if comments else None,
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 
@@ -216,30 +227,23 @@ def add_comment_entry(
         comments.append(entry)
         return update_changespec_comments_field(project_file, changespec_name, comments)
 
-    # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    # Otherwise, submit request through the spec_writer queue
+    from dataclasses import asdict
+
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            current_comments: list[CommentEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_comments = list(cs.comments) if cs.comments else []
-                    break
-
-            # Check if entry with same reviewer already exists
-            for i, c in enumerate(current_comments):
-                if c.reviewer == entry.reviewer:
-                    current_comments[i] = entry
-                    _write_comments_unlocked(
-                        project_file, changespec_name, current_comments
-                    )
-                    return True
-
-            current_comments.append(entry)
-            _write_comments_unlocked(project_file, changespec_name, current_comments)
-            return True
+        request = make_request(
+            project_file,
+            OperationType.ADD_COMMENT,
+            {
+                "changespec_name": changespec_name,
+                "comment": asdict(entry),
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 
@@ -270,27 +274,21 @@ def remove_comment_entry(
             return update_changespec_comments_field(project_file, changespec_name, None)
         return update_changespec_comments_field(project_file, changespec_name, comments)
 
-    # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    # Otherwise, submit request through the spec_writer queue
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            current_comments: list[CommentEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_comments = list(cs.comments) if cs.comments else []
-                    break
-
-            if not current_comments:
-                return True  # Nothing to remove
-
-            comments = [c for c in current_comments if c.reviewer != reviewer]
-            if not comments:
-                _write_comments_unlocked(project_file, changespec_name, None)
-            else:
-                _write_comments_unlocked(project_file, changespec_name, comments)
-            return True
+        request = make_request(
+            project_file,
+            OperationType.REMOVE_COMMENT,
+            {
+                "changespec_name": changespec_name,
+                "reviewer": reviewer,
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 

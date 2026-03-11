@@ -116,7 +116,6 @@ def test_save_diff_no_changes(mock_get_provider: MagicMock, tmp_path: Path) -> N
     assert result is None
 
 
-# Tests for _get_last_regular_commit_number
 # Tests for get_next_proposal_letter
 def test_get_next_proposal_letter_fills_gap() -> None:
     """Test that next letter fills gaps."""

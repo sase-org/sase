@@ -20,11 +20,12 @@ import re
 import time
 from dataclasses import dataclass
 
-from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+from sase.spec_writer.models import OperationType
 
 
 @dataclass
-class _WorkspaceClaim:
+class WorkspaceClaim:
     """Represents a single workspace claim in the RUNNING field."""
 
     workspace_num: int
@@ -49,8 +50,8 @@ class _WorkspaceClaim:
         return f"  #{self.workspace_num} | {self.pid} | {self.workflow} | {cl_part}{ts_part}{pin_part}"
 
     @staticmethod
-    def from_line(line: str) -> "_WorkspaceClaim | None":
-        """Parse a RUNNING field line into a _WorkspaceClaim.
+    def from_line(line: str) -> "WorkspaceClaim | None":
+        """Parse a RUNNING field line into a WorkspaceClaim.
 
         Format (PID second, required):
         - #<N> | <PID> | <WORKFLOW> | <CL_NAME>
@@ -70,7 +71,7 @@ class _WorkspaceClaim:
             cl_name = match.group(4).strip() or None
             artifacts_timestamp = match.group(5) if match.group(5) else None
             pinned = match.group(6) is not None and match.group(6).strip() == "PINNED"
-            return _WorkspaceClaim(
+            return WorkspaceClaim(
                 workspace_num=workspace_num,
                 workflow=workflow,
                 cl_name=cl_name,
@@ -82,7 +83,7 @@ class _WorkspaceClaim:
         return None
 
 
-def _normalize_running_field_spacing(content: str) -> str:
+def normalize_running_field_spacing(content: str) -> str:
     """Normalize blank lines around the RUNNING field.
 
     Ensures exactly two blank lines between:
@@ -131,7 +132,7 @@ def _normalize_running_field_spacing(content: str) -> str:
     return "\n".join(result_lines)
 
 
-def _clean_orphaned_blank_lines(content: str) -> str:
+def clean_orphaned_blank_lines(content: str) -> str:
     """Clean up orphaned consecutive blank lines in the file.
 
     This is used after removing the RUNNING field entirely to clean up
@@ -165,14 +166,14 @@ def _clean_orphaned_blank_lines(content: str) -> str:
     return "\n".join(result_lines)
 
 
-def get_claimed_workspaces(project_file: str) -> list[_WorkspaceClaim]:
+def get_claimed_workspaces(project_file: str) -> list[WorkspaceClaim]:
     """Get all workspace claims from a ProjectSpec file.
 
     Args:
         project_file: Path to the ProjectSpec file
 
     Returns:
-        List of _WorkspaceClaim objects representing active claims
+        List of WorkspaceClaim objects representing active claims
     """
     if not os.path.exists(project_file):
         return []
@@ -183,7 +184,7 @@ def get_claimed_workspaces(project_file: str) -> list[_WorkspaceClaim]:
     except Exception:
         return []
 
-    claims: list[_WorkspaceClaim] = []
+    claims: list[WorkspaceClaim] = []
     in_running_field = False
 
     for line in lines:
@@ -194,7 +195,7 @@ def get_claimed_workspaces(project_file: str) -> list[_WorkspaceClaim]:
         if in_running_field:
             # Check if this is a continuation line (starts with 2 spaces)
             if line.startswith("  ") and line.strip().startswith("#") is not False:
-                claim = _WorkspaceClaim.from_line(line)
+                claim = WorkspaceClaim.from_line(line)
                 if claim:
                     claims.append(claim)
             else:
@@ -229,6 +230,18 @@ def claim_workspace(
     Returns:
         True if claim was successful, False otherwise
     """
+    params: dict = {
+        "workspace_num": workspace_num,
+        "workflow": workflow,
+        "pid": pid,
+    }
+    if cl_name is not None:
+        params["cl_name"] = cl_name
+    if artifacts_timestamp is not None:
+        params["artifacts_timestamp"] = artifacts_timestamp
+    if pinned:
+        params["pinned"] = pinned
+
     max_retries = 2
     for attempt in range(1 + max_retries):
         if not os.path.exists(project_file):
@@ -238,64 +251,9 @@ def claim_workspace(
             return False
 
         try:
-            with changespec_lock(project_file):
-                with open(project_file, encoding="utf-8") as f:
-                    content = f.read()
-                    lines = content.split("\n")
-
-                new_claim = _WorkspaceClaim(
-                    workspace_num=workspace_num,
-                    workflow=workflow,
-                    cl_name=cl_name,
-                    pid=pid,
-                    artifacts_timestamp=artifacts_timestamp,
-                    pinned=pinned,
-                )
-
-                # Find RUNNING field
-                running_field_idx = -1
-                running_end_idx = -1
-
-                for i, line in enumerate(lines):
-                    if line.startswith("RUNNING:"):
-                        running_field_idx = i
-                        # Find end of RUNNING field
-                        for j in range(i + 1, len(lines)):
-                            if lines[j].startswith("  ") and (
-                                lines[j].strip().startswith("#")
-                                or lines[j].strip().startswith("|")
-                            ):
-                                running_end_idx = j
-                            else:
-                                if running_end_idx == -1:
-                                    running_end_idx = i
-                                break
-                        else:
-                            if running_end_idx == -1:
-                                running_end_idx = i
-                        break
-
-                if running_field_idx >= 0:
-                    # RUNNING field exists - add new claim
-                    # Insert after the last continuation line
-                    insert_idx = running_end_idx + 1
-                    lines.insert(insert_idx, new_claim.to_line())
-                else:
-                    # RUNNING field doesn't exist - create it at the beginning
-                    lines.insert(0, f"RUNNING:\n{new_claim.to_line()}\n")
-
-                # Normalize blank lines around RUNNING field
-                result_content = "\n".join(lines)
-                result_content = _normalize_running_field_spacing(result_content)
-
-                # Write atomically
-                cl_part = f" for {cl_name}" if cl_name else ""
-                write_changespec_atomic(
-                    project_file,
-                    result_content,
-                    f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
-                )
-                return True
+            request = make_request(project_file, OperationType.CLAIM_WORKSPACE, params)
+            response = submit_spec_write_and_wait(request, timeout=10.0)
+            return response.success
         except Exception:
             if attempt < max_retries:
                 time.sleep(0.5)
@@ -327,65 +285,16 @@ def release_workspace(
     if not os.path.exists(project_file):
         return False
 
+    params: dict = {"workspace_num": workspace_num}
+    if workflow is not None:
+        params["workflow"] = workflow
+    if cl_name is not None:
+        params["cl_name"] = cl_name
+
     try:
-        with changespec_lock(project_file):
-            with open(project_file, encoding="utf-8") as f:
-                content = f.read()
-                lines = content.split("\n")
-
-            new_lines: list[str] = []
-            in_running_field = False
-            running_field_idx = -1
-            has_remaining_claims = False
-
-            for line in lines:
-                if line.startswith("RUNNING:"):
-                    in_running_field = True
-                    running_field_idx = len(new_lines)
-                    new_lines.append(line)
-                    continue
-
-                if in_running_field and line.startswith("  "):
-                    claim = _WorkspaceClaim.from_line(line)
-                    if claim:
-                        # Check if this is the claim to remove
-                        should_remove = claim.workspace_num == workspace_num
-                        if workflow and claim.workflow != workflow:
-                            should_remove = False
-                        if cl_name and claim.cl_name != cl_name:
-                            should_remove = False
-
-                        if should_remove:
-                            # Skip this line (remove the claim)
-                            continue
-                        else:
-                            has_remaining_claims = True
-                else:
-                    in_running_field = False
-
-                new_lines.append(line)
-
-            # If RUNNING field is now empty, remove it entirely
-            if running_field_idx >= 0 and not has_remaining_claims:
-                # Remove the RUNNING: line
-                del new_lines[running_field_idx]
-
-            # Normalize blank lines (clean up extra blanks after RUNNING field or where it was)
-            result_content = "\n".join(new_lines)
-            if has_remaining_claims:
-                # Normalize spacing around remaining RUNNING field
-                result_content = _normalize_running_field_spacing(result_content)
-            else:
-                # Clean up orphaned blank lines where RUNNING field was removed
-                result_content = _clean_orphaned_blank_lines(result_content)
-
-            # Write atomically
-            write_changespec_atomic(
-                project_file,
-                result_content,
-                f"Release workspace #{workspace_num}",
-            )
-            return True
+        request = make_request(project_file, OperationType.RELEASE_WORKSPACE, params)
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 
@@ -413,52 +322,13 @@ def update_running_field_cl_name(
         return False
 
     try:
-        with changespec_lock(project_file):
-            with open(project_file, encoding="utf-8") as f:
-                content = f.read()
-                lines = content.split("\n")
-
-            new_lines: list[str] = []
-            in_running_field = False
-            updated = False
-
-            for line in lines:
-                if line.startswith("RUNNING:"):
-                    in_running_field = True
-                    new_lines.append(line)
-                    continue
-
-                if in_running_field and line.startswith("  "):
-                    claim = _WorkspaceClaim.from_line(line)
-                    if claim and claim.cl_name == old_cl_name:
-                        # Update the cl_name, preserving other fields
-                        updated_claim = _WorkspaceClaim(
-                            workspace_num=claim.workspace_num,
-                            workflow=claim.workflow,
-                            cl_name=new_cl_name,
-                            pid=claim.pid,
-                            artifacts_timestamp=claim.artifacts_timestamp,
-                            pinned=claim.pinned,
-                        )
-                        new_lines.append(updated_claim.to_line())
-                        updated = True
-                        continue
-                else:
-                    in_running_field = False
-
-                new_lines.append(line)
-
-            if not updated:
-                # No changes needed
-                return True
-
-            # Write atomically
-            write_changespec_atomic(
-                project_file,
-                "\n".join(new_lines),
-                f"Rename {old_cl_name} to {new_cl_name} in RUNNING field",
-            )
-            return True
+        request = make_request(
+            project_file,
+            OperationType.UPDATE_RUNNING_CL_NAME,
+            {"old_cl_name": old_cl_name, "new_cl_name": new_cl_name},
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 

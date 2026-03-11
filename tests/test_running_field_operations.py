@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.running_field import (
-    _WorkspaceClaim,
+    WorkspaceClaim,
     claim_workspace,
     get_claimed_workspaces,
     get_first_available_workspace,
@@ -18,7 +18,7 @@ from sase.running_field import (
 
 
 def _create_project_file_with_running(
-    running_claims: list[_WorkspaceClaim] | None = None,
+    running_claims: list[WorkspaceClaim] | None = None,
 ) -> str:
     """Create a temporary project file with optional RUNNING field."""
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
@@ -38,7 +38,7 @@ def _create_project_file_with_running(
 
 def test_workspace_claim_from_line_legacy_format_no_pid_no_cl_returns_none() -> None:
     """Test parsing legacy format without PID or cl_name returns None."""
-    claim = _WorkspaceClaim.from_line("  #1 | run | ")
+    claim = WorkspaceClaim.from_line("  #1 | run | ")
     # Legacy format without PID is now invalid
     assert claim is None
 
@@ -69,7 +69,7 @@ def test_claim_workspace_new_running_field() -> None:
 def test_claim_workspace_existing_running_field() -> None:
     """Test claiming a workspace when RUNNING field already exists."""
     project_file = _create_project_file_with_running(
-        running_claims=[_WorkspaceClaim(1, "crs", "existing", pid=11111)]
+        running_claims=[WorkspaceClaim(1, "crs", "existing", pid=11111)]
     )
     try:
         success = claim_workspace(project_file, 2, "run", 22222, "new_feature")
@@ -86,7 +86,7 @@ def test_claim_workspace_existing_running_field() -> None:
 def test_release_workspace_single() -> None:
     """Test releasing the only workspace claim."""
     project_file = _create_project_file_with_running(
-        running_claims=[_WorkspaceClaim(1, "crs", "feature", pid=12345)]
+        running_claims=[WorkspaceClaim(1, "crs", "feature", pid=12345)]
     )
     try:
         success = release_workspace(project_file, 1)
@@ -105,8 +105,8 @@ def test_release_workspace_with_workflow_filter() -> None:
     """Test releasing workspace with workflow filter."""
     project_file = _create_project_file_with_running(
         running_claims=[
-            _WorkspaceClaim(1, "crs", "feature1", pid=11111),
-            _WorkspaceClaim(1, "run", "feature2", pid=22222),
+            WorkspaceClaim(1, "crs", "feature1", pid=11111),
+            WorkspaceClaim(1, "run", "feature2", pid=22222),
         ]
     )
     try:
@@ -124,7 +124,7 @@ def test_release_workspace_with_workflow_filter() -> None:
 def test_get_first_available_workspace_main_claimed() -> None:
     """Test that next workspace share is returned when main is claimed."""
     project_file = _create_project_file_with_running(
-        running_claims=[_WorkspaceClaim(1, "crs", "feature", pid=12345)]
+        running_claims=[WorkspaceClaim(1, "crs", "feature", pid=12345)]
     )
     try:
         workspace_num = get_first_available_workspace(project_file)

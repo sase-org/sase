@@ -8,18 +8,14 @@ from sase.ace.scheduler.stale_running_cleanup import (
     _get_all_project_files,
     cleanup_stale_running_entries,
 )
-from sase.running_field import _WorkspaceClaim
+from sase.running_field import WorkspaceClaim
 
 
 def test_cleanup_keeps_running_process_entries() -> None:
     """Test that entries with running PIDs are kept."""
     claims = [
-        _WorkspaceClaim(
-            workspace_num=1, workflow="crs", cl_name="feature_a", pid=12345
-        ),
-        _WorkspaceClaim(
-            workspace_num=2, workflow="run", cl_name="feature_b", pid=67890
-        ),
+        WorkspaceClaim(workspace_num=1, workflow="crs", cl_name="feature_a", pid=12345),
+        WorkspaceClaim(workspace_num=2, workflow="run", cl_name="feature_b", pid=67890),
     ]
 
     with (
@@ -52,7 +48,7 @@ def test_cleanup_keeps_running_process_entries() -> None:
 def test_cleanup_logs_entry_without_cl_name() -> None:
     """Test log message for entry without CL name."""
     claims = [
-        _WorkspaceClaim(workspace_num=2, workflow="run", cl_name=None, pid=54321),
+        WorkspaceClaim(workspace_num=2, workflow="run", cl_name=None, pid=54321),
     ]
 
     log_fn = MagicMock()
@@ -127,14 +123,14 @@ def test_get_all_project_files_finds_gp_files() -> None:
 def test_cleanup_skips_pinned_entries() -> None:
     """Test that pinned entries are not released even if their PID is dead."""
     claims = [
-        _WorkspaceClaim(
+        WorkspaceClaim(
             workspace_num=1,
             workflow="crs",
             cl_name="pinned_feature",
             pid=11111,
             pinned=True,
         ),
-        _WorkspaceClaim(
+        WorkspaceClaim(
             workspace_num=2,
             workflow="run",
             cl_name="unpinned_feature",

@@ -74,36 +74,25 @@ class TestSetWorkspaceDir:
             assert set_workspace_dir(gp, "/repo/")
             assert os.path.exists(gp)
 
-    @patch("sase.workspace_utils.write_changespec_atomic")
-    @patch("sase.workspace_utils.changespec_lock")
-    def test_updates_existing(
-        self, mock_lock: MagicMock, mock_write: MagicMock
-    ) -> None:
-        mock_lock.return_value.__enter__ = MagicMock()
-        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+    def test_updates_existing(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("WORKSPACE_DIR: /old/\nNAME: cl\n")
             f.flush()
             assert set_workspace_dir(f.name, "/new/")
-            mock_write.assert_called_once()
-            written = mock_write.call_args[0][1]
-            assert "WORKSPACE_DIR: /new/" in written
-            assert "/old/" not in written
+            with open(f.name) as rf:
+                content = rf.read()
+            assert "WORKSPACE_DIR: /new/" in content
+            assert "/old/" not in content
             os.unlink(f.name)
 
-    @patch("sase.workspace_utils.write_changespec_atomic")
-    @patch("sase.workspace_utils.changespec_lock")
-    def test_inserts_before_running(
-        self, mock_lock: MagicMock, mock_write: MagicMock
-    ) -> None:
-        mock_lock.return_value.__enter__ = MagicMock()
-        mock_lock.return_value.__exit__ = MagicMock(return_value=False)
+    def test_inserts_before_running(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
             f.write("RUNNING:\n  #hg 1 1234\nNAME: cl\n")
             f.flush()
             assert set_workspace_dir(f.name, "/repo/")
-            written = mock_write.call_args[0][1]
-            lines = written.splitlines()
+            with open(f.name) as rf:
+                content = rf.read()
+            lines = content.splitlines()
             ws_idx = next(
                 i for i, ln in enumerate(lines) if ln.startswith("WORKSPACE_DIR:")
             )
