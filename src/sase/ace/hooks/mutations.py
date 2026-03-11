@@ -4,8 +4,8 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from ..changespec import HookEntry, HookStatusLine, changespec_lock
-from .persistence import update_changespec_hooks_field, write_hooks_unlocked
+from ..changespec import HookEntry, HookStatusLine
+from .persistence import update_changespec_hooks_field
 
 if TYPE_CHECKING:
     from ..changespec import ChangeSpec
@@ -33,30 +33,26 @@ def add_hook_to_changespec(
         hooks.append(HookEntry(command=hook_command))
         return update_changespec_hooks_field(project_file, changespec_name, hooks)
 
-    # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    # Otherwise, submit request through the spec_writer queue
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_hooks = list(cs.hooks) if cs.hooks else []
-                    break
-
-            existing_commands = {hook.command for hook in current_hooks}
-            if hook_command in existing_commands:
-                return True
-
-            current_hooks.append(HookEntry(command=hook_command))
-            write_hooks_unlocked(project_file, changespec_name, current_hooks)
-            return True
+        request = make_request(
+            project_file,
+            OperationType.ADD_HOOK,
+            {
+                "changespec_name": changespec_name,
+                "hook_command": hook_command,
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 
 
-def _apply_hook_suffix_update(
+def apply_hook_suffix_update(
     hooks: list[HookEntry],
     hook_command: str,
     suffix: str,
@@ -134,7 +130,7 @@ def set_hook_suffix(
     """
     # If hooks provided, use them directly (caller responsible for freshness)
     if hooks is not None:
-        updated_hooks, was_updated = _apply_hook_suffix_update(
+        updated_hooks, was_updated = apply_hook_suffix_update(
             hooks, hook_command, suffix, entry_id, suffix_type, summary
         )
         if not was_updated:
@@ -143,27 +139,26 @@ def set_hook_suffix(
             project_file, changespec_name, updated_hooks
         )
 
-    # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    # Otherwise, submit request through the spec_writer queue
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_hooks = list(cs.hooks) if cs.hooks else []
-                    break
-            if not current_hooks:
-                return False
+        params: dict = {
+            "changespec_name": changespec_name,
+            "hook_command": hook_command,
+            "suffix": suffix,
+        }
+        if entry_id is not None:
+            params["entry_id"] = entry_id
+        if suffix_type is not None:
+            params["suffix_type"] = suffix_type
+        if summary is not None:
+            params["summary"] = summary
 
-            updated_hooks, was_updated = _apply_hook_suffix_update(
-                current_hooks, hook_command, suffix, entry_id, suffix_type, summary
-            )
-            if not was_updated:
-                return False
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
-            return True
+        request = make_request(project_file, OperationType.SET_HOOK_SUFFIX, params)
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 
@@ -177,8 +172,7 @@ def try_claim_hook_for_fix(
 ) -> str | None:
     """Atomically check eligibility and claim a hook for fix-hook workflow.
 
-    This function prevents race conditions by performing the eligibility check
-    and claim in a single atomic operation under the changespec lock.
+    Submits a TRY_CLAIM_HOOK_FOR_FIX request through the spec_writer queue.
 
     Args:
         project_file: Path to the project file.
@@ -190,74 +184,29 @@ def try_claim_hook_for_fix(
     Returns:
         The existing summary if successfully claimed, None if not eligible or already claimed.
     """
-    from ..changespec import parse_project_file
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            # Re-read fresh state under lock
-            changespecs = parse_project_file(project_file)
-            cs = next((c for c in changespecs if c.name == changespec_name), None)
-            if not cs or not cs.hooks:
-                return None
-
-            # Find the hook
-            current_hook = next(
-                (h for h in cs.hooks if h.command == hook_command), None
-            )
-            if not current_hook or not current_hook.status_lines:
-                return None
-
-            # Check eligibility under lock
-            sl = current_hook.get_status_line_for_commit_entry(entry_id)
-            if sl is None:
-                return None
-            if sl.status != "FAILED":
-                return None
-            if sl.suffix_type != "summarize_complete":
-                return None  # Already claimed or not ready
-            if not sl.suffix:
-                return None
-
-            existing_summary = sl.suffix
-
-            # Claim by updating suffix - build new hooks list
-            updated_hooks = []
-            for hook in cs.hooks:
-                if hook.command == hook_command and hook.status_lines:
-                    updated_status_lines = []
-                    for status_line in hook.status_lines:
-                        if status_line.commit_entry_num == entry_id:
-                            # Claim with "claiming_fix" suffix_type
-                            updated_status_lines.append(
-                                HookStatusLine(
-                                    commit_entry_num=status_line.commit_entry_num,
-                                    timestamp=status_line.timestamp,
-                                    status=status_line.status,
-                                    duration=status_line.duration,
-                                    suffix=claiming_suffix,
-                                    suffix_type="claiming_fix",
-                                    summary=existing_summary,
-                                )
-                            )
-                        else:
-                            updated_status_lines.append(status_line)
-                    updated_hooks.append(
-                        HookEntry(
-                            command=hook.command,
-                            status_lines=updated_status_lines,
-                        )
-                    )
-                else:
-                    updated_hooks.append(hook)
-
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
-            return existing_summary
-
+        request = make_request(
+            project_file,
+            OperationType.TRY_CLAIM_HOOK_FOR_FIX,
+            {
+                "changespec_name": changespec_name,
+                "hook_command": hook_command,
+                "entry_id": entry_id,
+                "claiming_suffix": claiming_suffix,
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        if response.success and response.result:
+            return response.result.get("summary")
+        return None
     except Exception:
         return None
 
 
-def _apply_clear_hook_suffix(
+def apply_clear_hook_suffix(
     hooks: list[HookEntry], hook_command: str
 ) -> tuple[list[HookEntry], bool]:
     """Apply clear suffix update to hooks list and return (updated_hooks, was_cleared)."""
@@ -307,39 +256,33 @@ def clear_hook_suffix(
         project_file: Path to the project file.
         changespec_name: Name of the ChangeSpec.
         hook_command: The hook command to update.
-        hooks: List of current hook entries. If None, re-reads from disk to avoid
-               overwriting hooks added by concurrent processes.
+        hooks: List of current hook entries. If None, submits a request through
+               the spec_writer queue to read fresh state and apply the update.
     """
-    # If hooks provided, use them directly (caller responsible for freshness)
+    # If hooks provided, apply transform locally and write via update_changespec_hooks_field
     if hooks is not None:
-        updated_hooks, was_cleared = _apply_clear_hook_suffix(hooks, hook_command)
+        updated_hooks, was_cleared = apply_clear_hook_suffix(hooks, hook_command)
         if not was_cleared:
             return False
         return update_changespec_hooks_field(
             project_file, changespec_name, updated_hooks
         )
 
-    # Otherwise, acquire lock and read fresh state
-    from ..changespec import parse_project_file
+    # Otherwise, submit request through the spec_writer queue
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_hooks = list(cs.hooks) if cs.hooks else []
-                    break
-            if not current_hooks:
-                return False
-
-            updated_hooks, was_cleared = _apply_clear_hook_suffix(
-                current_hooks, hook_command
-            )
-            if not was_cleared:
-                return False
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
-            return True
+        request = make_request(
+            project_file,
+            OperationType.CLEAR_HOOK_SUFFIX,
+            {
+                "changespec_name": changespec_name,
+                "hook_command": hook_command,
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 
@@ -351,10 +294,9 @@ def rerun_delete_hooks_by_command(
     commands_to_delete: set[str],
     entry_ids_to_clear: set[str],
 ) -> bool:
-    """Rerun/delete hooks by command string, reading fresh state from disk.
+    """Rerun/delete hooks by command string.
 
-    This function reads fresh hooks from disk to avoid overwriting concurrent
-    changes made by other processes (e.g., sase axe updating hook statuses).
+    Submits a RERUN_DELETE_HOOKS request through the spec_writer queue.
 
     Args:
         project_file: Path to the project file.
@@ -366,45 +308,22 @@ def rerun_delete_hooks_by_command(
     Returns:
         True if update succeeded, False otherwise.
     """
-    from ..changespec import parse_project_file
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            changespecs = parse_project_file(project_file)
-            current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_hooks = list(cs.hooks) if cs.hooks else []
-                    break
-
-            updated_hooks: list[HookEntry] = []
-            for hook in current_hooks:
-                if hook.command in commands_to_delete:
-                    continue  # Skip (delete)
-                elif hook.command in commands_to_rerun:
-                    if hook.status_lines:
-                        remaining_status_lines = [
-                            sl
-                            for sl in hook.status_lines
-                            if sl.commit_entry_num not in entry_ids_to_clear
-                        ]
-                        updated_hooks.append(
-                            HookEntry(
-                                command=hook.command,
-                                status_lines=(
-                                    remaining_status_lines
-                                    if remaining_status_lines
-                                    else None
-                                ),
-                            )
-                        )
-                    else:
-                        updated_hooks.append(hook)
-                else:
-                    updated_hooks.append(hook)
-
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
-            return True
+        request = make_request(
+            project_file,
+            OperationType.RERUN_DELETE_HOOKS,
+            {
+                "changespec_name": changespec_name,
+                "commands_to_rerun": list(commands_to_rerun),
+                "commands_to_delete": list(commands_to_delete),
+                "entry_ids_to_clear": list(entry_ids_to_clear),
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 

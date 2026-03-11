@@ -12,7 +12,7 @@ from sase.commit_utils import (
     save_diff,
 )
 from sase.commit_utils.entries import (
-    _get_next_proposal_letter,
+    get_next_proposal_letter,
 )
 
 
@@ -117,7 +117,7 @@ def test_save_diff_no_changes(mock_get_provider: MagicMock, tmp_path: Path) -> N
 
 
 # Tests for _get_last_regular_commit_number
-# Tests for _get_next_proposal_letter
+# Tests for get_next_proposal_letter
 def test_get_next_proposal_letter_fills_gap() -> None:
     """Test that next letter fills gaps."""
     lines = [
@@ -128,7 +128,7 @@ def test_get_next_proposal_letter_fills_gap() -> None:
         "  (2a) First proposal\n",
         "  (2c) Third proposal\n",  # 'b' is missing
     ]
-    letter = _get_next_proposal_letter(lines, "test_cl", 2)
+    letter = get_next_proposal_letter(lines, "test_cl", 2)
     assert letter == "b"
 
 

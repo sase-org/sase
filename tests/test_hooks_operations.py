@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from unittest.mock import patch
 
 from sase.ace.changespec import (
     HookEntry,
@@ -253,7 +254,16 @@ def testapply_hooks_update_stops_at_field_header() -> None:
 
 
 # Tests for update_changespec_hooks_field
-def test_update_changespec_hooks_field_clear_status() -> None:
+@patch("sase.ace.changespec.locking._git_commit_changespec")
+@patch(
+    "sase.spec_writer.client.submit_spec_write_and_wait",
+    side_effect=lambda request, timeout=10.0: __import__(
+        "sase.spec_writer.handlers", fromlist=["dispatch"]
+    ).dispatch(request),
+)
+def test_update_changespec_hooks_field_clear_status(
+    _mock_submit: object, _mock_commit: object
+) -> None:
     """Test clearing hook status (for rerun)."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write("""## ChangeSpec

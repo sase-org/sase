@@ -1,6 +1,5 @@
 """Hook persistence - reading and writing hooks to ChangeSpec project files."""
 
-import logging
 import os
 
 from sase.sase_utils import (
@@ -11,9 +10,6 @@ from sase.sase_utils import (
 
 from ..changespec import (
     HookEntry,
-    HookStatusLine,
-    LockTimeoutError,
-    changespec_lock,
     write_changespec_atomic,
 )
 from .formatting import apply_hooks_update, format_hooks_field
@@ -66,7 +62,7 @@ def update_changespec_hooks_field(
 ) -> bool:
     """Update the HOOKS field in the project file.
 
-    Acquires a lock on the file for the entire read-modify-write cycle.
+    Submits a SET_HOOKS request through the spec_writer queue.
 
     Args:
         project_file: Path to the ProjectSpec file.
@@ -76,11 +72,22 @@ def update_changespec_hooks_field(
     Returns:
         True if update succeeded, False otherwise.
     """
-    try:
-        with changespec_lock(project_file):
-            write_hooks_unlocked(project_file, changespec_name, hooks)
-            return True
+    from dataclasses import asdict
 
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
+
+    try:
+        request = make_request(
+            project_file,
+            OperationType.SET_HOOKS,
+            {
+                "changespec_name": changespec_name,
+                "hooks": [asdict(h) for h in hooks],
+            },
+        )
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
     except Exception:
         return False
 
@@ -92,9 +99,7 @@ def merge_hook_updates(
 ) -> bool:
     """Merge hook status updates with current disk state.
 
-    Acquires a lock and re-reads hooks from disk before writing to avoid
-    overwriting hooks added by concurrent processes (e.g., sase commit adding
-    test hooks while sase axe is updating hook statuses).
+    Submits a MERGE_HOOKS request through the spec_writer queue.
 
     Args:
         project_file: Path to the ProjectSpec file.
@@ -106,48 +111,23 @@ def merge_hook_updates(
     Returns:
         True if update succeeded, False otherwise.
     """
-    from ..changespec import parse_project_file
+    from dataclasses import asdict
+
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            # Re-read current hooks from disk while holding lock
-            changespecs = parse_project_file(project_file)
-            current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_hooks = list(cs.hooks) if cs.hooks else []
-                    break
-
-            # Deduplicate by command name (keep first occurrence) to self-heal
-            # corrupted files where multi-line suffixes caused duplicate hooks
-            seen_commands: set[str] = set()
-            deduped_hooks: list[HookEntry] = []
-            for hook in current_hooks:
-                if hook.command not in seen_commands:
-                    seen_commands.add(hook.command)
-                    deduped_hooks.append(hook)
-            current_hooks = deduped_hooks
-
-            # Merge: use updated version if available, otherwise keep disk version
-            merged_hooks: list[HookEntry] = []
-            for hook in current_hooks:
-                if hook.command in hook_updates:
-                    merged_hooks.append(hook_updates[hook.command])
-                else:
-                    merged_hooks.append(hook)
-
-            write_hooks_unlocked(project_file, changespec_name, merged_hooks)
-            return True
-
-    except LockTimeoutError:
-        # Log lock timeout specifically - this is likely due to contention
-        logging.warning(
-            f"Lock timeout updating hooks for {changespec_name} in {project_file}"
+        request = make_request(
+            project_file,
+            OperationType.MERGE_HOOKS,
+            {
+                "changespec_name": changespec_name,
+                "hook_updates": {k: asdict(v) for k, v in hook_updates.items()},
+            },
         )
-        return False
-    except Exception as e:
-        # Log unexpected errors
-        logging.error(f"Failed to update hooks for {changespec_name}: {e}")
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
+    except Exception:
         return False
 
 
@@ -160,9 +140,7 @@ def update_hook_status_line_suffix_type(
 ) -> bool:
     """Update the suffix_type of a specific hook status line.
 
-    Re-reads hooks from disk under lock to avoid clobbering concurrent
-    changes (e.g., hook_checks writing PASSED while suffix_transforms
-    strips error markers in the same tick).
+    Submits an UPDATE_HOOK_SUFFIX_TYPE request through the spec_writer queue.
 
     Args:
         project_file: Path to the project file.
@@ -174,68 +152,21 @@ def update_hook_status_line_suffix_type(
     Returns:
         True if update succeeded, False otherwise.
     """
-    from ..changespec import parse_project_file
+    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
+    from sase.spec_writer.models import OperationType
 
     try:
-        with changespec_lock(project_file):
-            # Re-read current hooks from disk while holding lock
-            changespecs = parse_project_file(project_file)
-            current_hooks: list[HookEntry] = []
-            for cs in changespecs:
-                if cs.name == changespec_name:
-                    current_hooks = list(cs.hooks) if cs.hooks else []
-                    break
-
-            if not current_hooks:
-                return False
-
-            updated_hooks: list[HookEntry] = []
-            found = False
-
-            for hook in current_hooks:
-                if hook.command == hook_command and hook.status_lines:
-                    updated_status_lines: list[HookStatusLine] = []
-                    for sl in hook.status_lines:
-                        # Allow transitioning from "error" to other types, or to "plain" from any type
-                        if (
-                            sl.commit_entry_num == commit_entry_num
-                            and sl.suffix
-                            and (
-                                sl.suffix_type == "error" or new_suffix_type == "plain"
-                            )
-                        ):
-                            found = True
-                            updated_status_lines.append(
-                                HookStatusLine(
-                                    commit_entry_num=sl.commit_entry_num,
-                                    timestamp=sl.timestamp,
-                                    status=sl.status,
-                                    duration=sl.duration,
-                                    suffix=sl.suffix,
-                                    suffix_type=new_suffix_type,
-                                )
-                            )
-                        else:
-                            updated_status_lines.append(sl)
-                    updated_hooks.append(
-                        HookEntry(
-                            command=hook.command, status_lines=updated_status_lines
-                        )
-                    )
-                else:
-                    updated_hooks.append(hook)
-
-            if not found:
-                return False
-
-            write_hooks_unlocked(project_file, changespec_name, updated_hooks)
-            return True
-
-    except LockTimeoutError:
-        logging.warning(
-            f"Lock timeout updating hook suffix_type for {changespec_name} in {project_file}"
+        request = make_request(
+            project_file,
+            OperationType.UPDATE_HOOK_SUFFIX_TYPE,
+            {
+                "changespec_name": changespec_name,
+                "hook_command": hook_command,
+                "commit_entry_num": commit_entry_num,
+                "new_suffix_type": new_suffix_type,
+            },
         )
-        return False
-    except Exception as e:
-        logging.error(f"Failed to update hook suffix_type for {changespec_name}: {e}")
+        response = submit_spec_write_and_wait(request, timeout=10.0)
+        return response.success
+    except Exception:
         return False
