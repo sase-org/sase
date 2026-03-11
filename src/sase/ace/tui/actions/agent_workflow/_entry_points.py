@@ -98,6 +98,12 @@ class EntryPointsMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == "at":
+            # Shortcut for @ → ~ (home): skip the ProjectSelectModal
+            self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == "space":
             last = self._last_custom_agent_selection
             if last is None:

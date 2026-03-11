@@ -73,6 +73,7 @@ CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Leader Mode (,)",
         [
             (",!", "Run command (use current CL)"),
+            (",@", "Run agent (home)"),
             (",m", "Kill running mentors"),
             (",r", "Show runners info"),
             (",<space>", "Repeat last @/<space> selection"),
@@ -152,6 +153,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
+            (",@", "Run agent (home)"),
             (",r", "Show runners info"),
             (",<space>", "Repeat last @/<space> selection"),
         ],
@@ -211,6 +213,7 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Leader Mode (,)",
         [
+            (",@", "Run agent (home)"),
             (",r", "Show runners info"),
             (",<space>", "Repeat last @/<space> selection"),
         ],

@@ -260,6 +260,7 @@ class KeybindingFooter(Horizontal):
             bindings.append(("m", "kill mentors"))
         if self._runner_count > 0:
             bindings.append(("r", f"runners ({self._runner_count})"))
+        bindings.append(("@", "agent (home)"))
         bindings.append(("Space", "repeat last @/<space>"))
         bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)
