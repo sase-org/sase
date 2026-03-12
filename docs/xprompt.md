@@ -361,11 +361,12 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive | Alias | Description                                   |
-| --------- | ----- | --------------------------------------------- |
-| `%model`  | `%m`  | Override the LLM model for this prompt        |
-| `%name`   | `%n`  | Assign a name to the agent                    |
-| `%wait`   | `%w`  | Wait for another agent to finish (can repeat) |
+| Directive | Alias | Description                                        |
+| --------- | ----- | -------------------------------------------------- |
+| `%model`  | `%m`  | Override the LLM model for this prompt             |
+| `%name`   | `%n`  | Assign a name to the agent                         |
+| `%wait`   | `%w`  | Wait for another agent to finish (can repeat)      |
+| `%hide`   | `%h`  | Hide the agent from the default Agents tab display |
 
 ### Syntax
 
@@ -392,6 +393,18 @@ Review the code changes and provide feedback.
 
 The directives are stripped from the prompt text. The agent will use the specified model, be named "code-reviewer", and
 will wait for the "planner" agent to complete before running.
+
+### Hide Directive
+
+The `%hide` directive marks an agent as hidden. Hidden agents are not shown in the Agents tab by default — press `.` to
+toggle their visibility. This is useful for background agents spawned by axe or workflows that don't need active
+monitoring:
+
+```
+%hide
+%name:background-checker
+Run periodic health checks.
+```
 
 ### Multi-Value Directives
 

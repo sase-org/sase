@@ -104,6 +104,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 | Key     | Action                                          |
 | ------- | ----------------------------------------------- |
+| `L`     | Open agent run log modal                        |
 | `r`     | Run workflow on current CL                      |
 | `@`     | Run a custom agent (opens project/CL selection) |
 | `Space` | Run agent from current CL                       |
@@ -131,11 +132,13 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                               |
-| ---------- | ------------------------------------ |
-| `,!`       | Run command using current CL context |
-| `,r`       | Show runners info                    |
-| `,<space>` | Repeat last @/Space selection        |
+| Key        | Action                                              |
+| ---------- | --------------------------------------------------- |
+| `,!`       | Run command using current CL context                |
+| `,h`       | Run agent (home directory)                          |
+| `,m`       | Kill running mentors                                |
+| `,r`       | Show runners info                                   |
+| `,<space>` | Run agent from current CL (skips project selection) |
 
 ### Copy Mode (`%` prefix)
 
@@ -174,9 +177,8 @@ The modal supports live filtering as you type in the search box and displays las
 | `i`                 | Cycle panels: file → thinking → metadata |
 | `p`                 | Toggle file / prompt layout              |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel            |
-| `+` / `-`           | Expand / collapse file content           |
-| `=`                 | Reset file trim to default               |
-| `*`                 | Show all file lines                      |
+| `-`                 | Reset file trim to default               |
+| `=`                 | Show all file lines                      |
 
 ### Workflow Folding
 
@@ -187,10 +189,10 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                        |
-| ---------- | ----------------------------- |
-| `,r`       | Show runners info             |
-| `,<space>` | Repeat last @/Space selection |
+| Key        | Action                                              |
+| ---------- | --------------------------------------------------- |
+| `,r`       | Show runners info                                   |
+| `,<space>` | Run agent from current agent's CL (skips selection) |
 
 ### Bang Mode (`!` prefix)
 
@@ -226,10 +228,10 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                        |
-| ---------- | ----------------------------- |
-| `,r`       | Show runners info             |
-| `,<space>` | Repeat last @/Space selection |
+| Key        | Action                                           |
+| ---------- | ------------------------------------------------ |
+| `,r`       | Show runners info                                |
+| `,<space>` | Run agent from current context (skips selection) |
 
 ### Bang Mode (`!` prefix)
 
@@ -327,10 +329,29 @@ presses `I` to manually mark themselves as inactive.
 Any keypress re-activates the user and hides the badge. External tools (e.g., chop scripts) can call `is_idle()` from
 `sase.ace.tui_activity` to check idle status programmatically.
 
+## Agent Run Log Modal
+
+Press `L` on the CLs tab to open the agent run log modal. It shows all agents (running, completed, and dismissed) that
+have been associated with the current CL.
+
+| Key         | Action                      |
+| ----------- | --------------------------- |
+| `j` / `k`   | Navigate through agent list |
+| `Enter`     | Jump to agent in Agents tab |
+| `Esc` / `q` | Close modal                 |
+
+## Tab Bar Display
+
+The tab bar shows contextual information alongside each tab label:
+
+- **CLs tab**: Shows a fold state indicator (`▸` collapsed, `▾` expanded, `▼` fully expanded) when sections are folded
+- **Agents tab**: Shows running agent counts — e.g., `Agents (2)` for 2 running agents, or `Agents (2+1)` for 2 manual
+  - 1 hidden agent when hidden agents are visible (toggled with `.`)
+
 ## File Panel Trimming
 
 When viewing agent files on the Agents tab, large files are automatically trimmed to fit the visible viewport. A blue
-indicator shows "N more lines below" when content is trimmed. Trim controls (`+`, `-`, `=`, `*`) are listed in the
+indicator shows "N more lines below" when content is trimmed. Trim controls (`-`, `=`) are listed in the
 [Agent Actions](#agent-actions) keybindings above. Trim state is preserved when switching between agents or refreshing
 data.
 

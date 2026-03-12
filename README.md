@@ -223,6 +223,7 @@ just build         # Build wheel + sdist
 ## Documentation
 
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
+- [`docs/axe.md`](docs/axe.md) — Axe background automation daemon
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
 - [`docs/configuration.md`](docs/configuration.md) — Configuration reference
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
