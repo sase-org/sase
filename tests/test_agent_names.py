@@ -113,9 +113,23 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "c"
 
-    def test_reuses_done_agent_name(self, tmp_path: Path) -> None:
+    def test_done_agent_holds_name(self, tmp_path: Path) -> None:
+        """Done but not-dismissed agent keeps its name reserved."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True)
         _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "c"
+
+    def test_reuses_dismissed_agent_name(self, tmp_path: Path) -> None:
+        """Name is freed once artifacts are deleted (dismissed)."""
+        agent_dir = _make_agent(tmp_path, "proj", "run1", "a", done=True)
+        _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
+
+        # Simulate dismissal by removing the artifact directory
+        import shutil
+
+        shutil.rmtree(agent_dir)
+
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
 

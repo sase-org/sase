@@ -270,7 +270,13 @@ def get_next_auto_name() -> str:
 
 
 def _get_active_agent_names() -> set[str]:
-    """Return the set of names used by currently running agents."""
+    """Return the set of names used by non-dismissed agents.
+
+    An agent's name is considered in use as long as its artifact
+    directory exists (dismissal deletes it).  For agents without a
+    ``done.json``, we additionally verify the process is alive to
+    handle orphaned agents.
+    """
     projects_dir = Path.home() / ".sase" / "projects"
     if not projects_dir.exists():
         return set()
@@ -292,11 +298,6 @@ def _get_active_agent_names() -> set[str]:
             if not meta_path.exists():
                 continue
 
-            # Skip agents that are done
-            done_path = artifact_dir / "done.json"
-            if done_path.exists():
-                continue
-
             try:
                 with open(meta_path, encoding="utf-8") as f:
                     data = json.load(f)
@@ -310,13 +311,18 @@ def _get_active_agent_names() -> set[str]:
             if not name:
                 continue
 
+            # Done agents still hold their name until dismissed
+            # (dismissal deletes the artifact directory).
+            done_path = artifact_dir / "done.json"
+            if done_path.exists():
+                names.add(name)
+                continue
+
             # Verify the agent process is actually alive — orphaned agents
             # (killed via SIGKILL, system crash, etc.) may lack done.json
             # but their process is long dead.
-            if not _is_process_alive(data, artifact_dir):
-                continue
-
-            names.add(name)
+            if _is_process_alive(data, artifact_dir):
+                names.add(name)
 
     return names
 
