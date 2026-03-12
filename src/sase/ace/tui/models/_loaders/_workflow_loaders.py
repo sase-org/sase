@@ -147,7 +147,13 @@ def load_workflow_states(
                 and pid is not None
                 and not is_process_running(pid)
             ):
-                display_status = "FAILED"
+                # Don't mark as FAILED if any step is still in_progress.
+                # The stored PID is the workflow runner process, which may have
+                # died while a child subprocess (e.g., claude CLI) continues
+                # executing the step.
+                has_in_progress = any(s.status == StepStatus.IN_PROGRESS for s in steps)
+                if not has_in_progress:
+                    display_status = "FAILED"
 
             # Read appears_as_agent and is_anonymous flags
             appears_as_agent = data.get("appears_as_agent", False)
