@@ -1,11 +1,16 @@
 """
 Field update functions for ChangeSpec files.
 
-Pure-transform functions for STATUS, CL, PARENT, and DESCRIPTION fields.
-These are used by the spec_writer handlers to apply updates to file content.
+This module provides atomic update operations for STATUS, CL, PARENT, and
+DESCRIPTION fields.
 """
 
+import logging
+
+from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.workspace_provider import get_change_label
+
+logger = logging.getLogger(__name__)
 
 
 def apply_status_update(lines: list[str], changespec_name: str, new_status: str) -> str:
@@ -83,6 +88,55 @@ def apply_cl_update(
             updated_lines.append(line)
 
     return "".join(updated_lines)
+
+
+def update_changespec_cl_atomic(
+    project_file: str, changespec_name: str, new_cl: str | None
+) -> None:
+    """Update the CL field of a specific ChangeSpec in the project file.
+
+    Acquires a lock for the entire read-modify-write cycle.
+    If the CL field doesn't exist and new_cl is not None, it will be
+    added before the STATUS field.
+
+    Args:
+        project_file: Path to the ProjectSpec file
+        changespec_name: NAME of the ChangeSpec to update
+        new_cl: New CL value (None to reset/remove)
+    """
+    commit_msg = (
+        f"Update CL to {new_cl} for {changespec_name}"
+        if new_cl
+        else f"Remove CL for {changespec_name}"
+    )
+
+    with changespec_lock(project_file):
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        updated_content = apply_cl_update(lines, changespec_name, new_cl, project_file)
+
+        write_changespec_atomic(project_file, updated_content, commit_msg)
+
+
+def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
+    """
+    Remove the CL field from a ChangeSpec.
+
+    Args:
+        project_file: Path to the ProjectSpec file
+        changespec_name: NAME of the ChangeSpec to update
+
+    Returns:
+        True if reset succeeded, False otherwise
+    """
+    try:
+        update_changespec_cl_atomic(project_file, changespec_name, None)
+        logger.info(f"Removed CL field for {changespec_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Error resetting CL for {changespec_name}: {e}")
+        return False
 
 
 def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None:
@@ -167,6 +221,67 @@ def apply_parent_update(
             updated_lines.append(line)
 
     return "".join(updated_lines)
+
+
+def update_changespec_parent_atomic(
+    project_file: str, changespec_name: str, new_parent: str | None
+) -> None:
+    """Update the PARENT field of a specific ChangeSpec in the project file.
+
+    Acquires a lock for the entire read-modify-write cycle.
+    If the PARENT field doesn't exist and new_parent is not None, it will be
+    added before the CL or STATUS field.
+
+    Args:
+        project_file: Path to the ProjectSpec file
+        changespec_name: NAME of the ChangeSpec to update
+        new_parent: New PARENT value (None to remove)
+    """
+    commit_msg = (
+        f"Update PARENT to {new_parent} for {changespec_name}"
+        if new_parent
+        else f"Remove PARENT for {changespec_name}"
+    )
+
+    with changespec_lock(project_file):
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        updated_content = apply_parent_update(lines, changespec_name, new_parent)
+
+        write_changespec_atomic(project_file, updated_content, commit_msg)
+
+
+def update_parent_references_atomic(
+    project_file: str, old_name: str, new_name: str
+) -> None:
+    """Update all PARENT field references from old_name to new_name.
+
+    Acquires a lock for the entire read-modify-write cycle.
+
+    Args:
+        project_file: Path to the ProjectSpec file
+        old_name: The old name to replace in PARENT fields
+        new_name: The new name to use in PARENT fields
+    """
+    with changespec_lock(project_file):
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        updated_lines = []
+        for line in lines:
+            if line.startswith("PARENT: "):
+                current_parent = line[8:].strip()
+                if current_parent == old_name:
+                    updated_lines.append(f"PARENT: {new_name}\n")
+                    continue
+            updated_lines.append(line)
+
+        write_changespec_atomic(
+            project_file,
+            "".join(updated_lines),
+            f"Update PARENT references from {old_name} to {new_name}",
+        )
 
 
 _FIELD_HEADERS = (
@@ -257,3 +372,38 @@ def apply_description_update(
         updated_lines.append(line)
 
     return "".join(updated_lines)
+
+
+def update_changespec_description_atomic(
+    project_file: str, changespec_name: str, new_description: str
+) -> bool:
+    """Update the DESCRIPTION field of a specific ChangeSpec atomically.
+
+    Acquires a lock for the entire read-modify-write cycle.
+
+    Args:
+        project_file: Path to the ProjectSpec file.
+        changespec_name: NAME of the ChangeSpec to update.
+        new_description: New plain-text description.
+
+    Returns:
+        True if update succeeded, False otherwise.
+    """
+    try:
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            updated_content = apply_description_update(
+                lines, changespec_name, new_description
+            )
+
+            write_changespec_atomic(
+                project_file,
+                updated_content,
+                f"Update DESCRIPTION for {changespec_name}",
+            )
+            return True
+    except Exception:
+        logger.exception("Error updating DESCRIPTION for %s", changespec_name)
+        return False

@@ -37,8 +37,7 @@ def _sync_description_after_reword(
         changespec: The ChangeSpec whose description should be updated.
         console: Rich console for output.
     """
-    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-    from sase.spec_writer.models import OperationType
+    from sase.status_state_machine import update_changespec_description_atomic
 
     provider = get_vcs_provider(workspace_dir)
     success, desc_output = provider.get_description("", workspace_dir, short=True)
@@ -56,16 +55,9 @@ def _sync_description_after_reword(
         )
         return
 
-    try:
-        request = make_request(
-            changespec.file_path,
-            OperationType.SET_DESCRIPTION,
-            {"changespec_name": changespec.name, "new_description": new_description},
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        success = response.success
-    except Exception:
-        success = False
+    success = update_changespec_description_atomic(
+        changespec.file_path, changespec.name, new_description
+    )
     if success:
         console.print("[green]Synced DESCRIPTION to project file[/green]")
     else:

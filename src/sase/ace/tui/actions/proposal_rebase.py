@@ -363,8 +363,7 @@ class ProposalRebaseMixin:
             get_workspace_directory_for_num,
             release_workspace,
         )
-        from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-        from sase.spec_writer.models import OperationType
+        from sase.status_state_machine import update_changespec_parent_atomic
 
         project_basename = os.path.basename(changespec.file_path).replace(".gp", "")
         workspace_num: int | None = None
@@ -440,15 +439,9 @@ class ProposalRebaseMixin:
                         if new_parent_name == _ROOT_PARENT_SENTINEL
                         else new_parent_name
                     )
-                    request = make_request(
-                        changespec.file_path,
-                        OperationType.SET_PARENT,
-                        {
-                            "changespec_name": changespec.name,
-                            "new_parent": parent_value,
-                        },
+                    update_changespec_parent_atomic(
+                        changespec.file_path, changespec.name, parent_value
                     )
-                    submit_spec_write_and_wait(request, timeout=10.0)
                 except Exception as e:
                     return (False, f"Failed to update PARENT field: {e}")
 

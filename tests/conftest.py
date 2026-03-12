@@ -27,8 +27,6 @@ _SPEC_WRITER_CALLER_MODULES = [
     "sase.spec_writer.client",
     # Modules with top-level imports (cached references need patching)
     "sase.accept_workflow.renumber",
-    "sase.ace.operations",
-    "sase.ace.revert",
     "sase.commit_utils.entries",
     "sase.commit_utils.modifiers",
     "sase.commit_workflow.changespec_operations",

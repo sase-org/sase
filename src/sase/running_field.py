@@ -17,6 +17,7 @@ Where:
 
 import os
 import re
+import time
 from dataclasses import dataclass
 
 from sase.spec_writer.client import make_request, submit_spec_write_and_wait
@@ -241,15 +242,25 @@ def claim_workspace(
     if pinned:
         params["pinned"] = pinned
 
-    if not os.path.exists(project_file):
-        return False
+    max_retries = 2
+    for attempt in range(1 + max_retries):
+        if not os.path.exists(project_file):
+            if attempt < max_retries:
+                time.sleep(0.5)
+                continue
+            return False
 
-    try:
-        request = make_request(project_file, OperationType.CLAIM_WORKSPACE, params)
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
-    except Exception:
-        return False
+        try:
+            request = make_request(project_file, OperationType.CLAIM_WORKSPACE, params)
+            response = submit_spec_write_and_wait(request, timeout=10.0)
+            return response.success
+        except Exception:
+            if attempt < max_retries:
+                time.sleep(0.5)
+                continue
+            return False
+
+    return False
 
 
 def release_workspace(

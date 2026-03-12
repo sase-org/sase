@@ -82,8 +82,7 @@ class RenameMixin:
             release_workspace,
             update_running_field_cl_name,
         )
-        from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-        from sase.spec_writer.models import OperationType
+        from sase.status_state_machine import update_parent_references_atomic
 
         from sase.ace.revert import update_changespec_name_atomic
 
@@ -110,12 +109,9 @@ class RenameMixin:
                     update_changespec_name_atomic(
                         changespec.file_path, old_name, new_name
                     )
-                    req = make_request(
-                        changespec.file_path,
-                        OperationType.UPDATE_PARENT_REFERENCES,
-                        {"old_name": old_name, "new_name": new_name},
+                    update_parent_references_atomic(
+                        changespec.file_path, old_name, new_name
                     )
-                    submit_spec_write_and_wait(req, timeout=10.0)
                     update_running_field_cl_name(
                         changespec.file_path, old_name, new_name
                     )
@@ -177,12 +173,9 @@ class RenameMixin:
                     update_changespec_name_atomic(
                         changespec.file_path, old_name, new_name
                     )
-                    req = make_request(
-                        changespec.file_path,
-                        OperationType.UPDATE_PARENT_REFERENCES,
-                        {"old_name": old_name, "new_name": new_name},
+                    update_parent_references_atomic(
+                        changespec.file_path, old_name, new_name
                     )
-                    submit_spec_write_and_wait(req, timeout=10.0)
                     update_running_field_cl_name(
                         changespec.file_path, old_name, new_name
                     )

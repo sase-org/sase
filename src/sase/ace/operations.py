@@ -20,8 +20,7 @@ from sase.running_field import (
 from sase.running_field import (
     get_workspace_directory as get_workspace_dir_from_project,
 )
-from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-from sase.spec_writer.models import OperationType
+from sase.status_state_machine import update_parent_references_atomic
 
 from .changespec import ChangeSpec
 from .hooks import has_failing_hooks_for_fix
@@ -217,12 +216,7 @@ def rename_changespec_with_references(
 
     update_changespec_name_atomic(project_file, old_name, new_name)
     update_running_field_cl_name(project_file, old_name, new_name)
-    request = make_request(
-        project_file,
-        OperationType.UPDATE_PARENT_REFERENCES,
-        {"old_name": old_name, "new_name": new_name},
-    )
-    submit_spec_write_and_wait(request, timeout=10.0)
+    update_parent_references_atomic(project_file, old_name, new_name)
 
 
 def save_diff_to_file(

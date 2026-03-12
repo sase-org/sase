@@ -55,6 +55,8 @@ __all__ = [
     "ERROR_SUFFIX_MESSAGES",
     # Locking
     "LockTimeoutError",
+    "changespec_lock",
+    "write_changespec_atomic",
     # Functions
     "extract_pid_from_agent_suffix",
     "is_error_suffix",

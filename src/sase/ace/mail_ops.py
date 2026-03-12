@@ -114,15 +114,11 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
     if changespec.cl is None:
         url_ok, change_url = provider.get_change_url(target_dir)
         if url_ok and change_url:
-            from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-            from sase.spec_writer.models import OperationType
+            from sase.status_state_machine import update_changespec_cl_atomic
 
-            request = make_request(
-                changespec.file_path,
-                OperationType.SET_CL,
-                {"changespec_name": changespec.name, "new_cl": change_url},
+            update_changespec_cl_atomic(
+                changespec.file_path, changespec.name, change_url
             )
-            submit_spec_write_and_wait(request, timeout=10.0)
             console.print(f"[green]PR created: {change_url}[/green]")
 
     console.print("[green]Change sent for review successfully![/green]")
