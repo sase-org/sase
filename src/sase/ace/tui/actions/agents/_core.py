@@ -341,11 +341,6 @@ class AgentsMixinCore(
                 for a in hideable
                 if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
-            done_visible = sum(
-                1
-                for a in always_visible
-                if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
-            )
         else:
             manual_running = sum(
                 1
@@ -353,11 +348,15 @@ class AgentsMixinCore(
                 if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
             hidden_running = 0
-            done_visible = sum(
-                1
-                for a in all_agents
-                if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
-            )
+        # Count done agents from the final displayed list (self._agents),
+        # not the pre-filter always_visible/all_agents — fold-state filtering
+        # removes workflow parents whose children are all hidden steps, so
+        # the pre-filter lists can contain many more done agents than shown.
+        done_visible = sum(
+            1
+            for a in self._agents
+            if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
+        )
         from ...widgets import TabBar
 
         tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
