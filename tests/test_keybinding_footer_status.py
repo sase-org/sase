@@ -66,14 +66,31 @@ def test_keybinding_footer_axe_bindings() -> None:
     assert bindings[1] == ("X", "kill")
 
 
-def test_keybinding_footer_status_no_bgcmd_badges() -> None:
-    """Test status indicator does not show bgcmd badges (removed feature)."""
+def test_keybinding_footer_status_with_bgcmd_running() -> None:
+    """Test status indicator shows running badge when bgcmds running."""
     footer = KeybindingFooter()
     footer._axe_running = True
+    footer._bgcmd_running_count = 2
+    footer._bgcmd_done_count = 0
+
+    text = footer._get_status_text()
+    text_str = str(text)
+
+    assert "RUNNING" in text_str
+    assert "[*2]" in text_str
+    assert "[✓" not in text_str
+
+
+def test_keybinding_footer_status_with_bgcmd_done() -> None:
+    """Test status indicator shows done badge when bgcmds done."""
+    footer = KeybindingFooter()
+    footer._axe_running = True
+    footer._bgcmd_running_count = 0
+    footer._bgcmd_done_count = 3
 
     text = footer._get_status_text()
     text_str = str(text)
 
     assert "RUNNING" in text_str
     assert "[*" not in text_str
-    assert "[✓" not in text_str
+    assert "[✓3]" in text_str
