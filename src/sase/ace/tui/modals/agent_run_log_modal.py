@@ -268,7 +268,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
                 continue
 
     def action_next_option(self) -> None:
-        """Move to next non-header option."""
+        """Move to next non-header option, wrapping to top at end."""
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
         current = option_list.highlighted
         if current is None:
@@ -282,14 +282,25 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
                     return
             except Exception:
                 continue
+        # Wrap to first non-header item
+        self._skip_to_first_item(option_list)
 
     def action_prev_option(self) -> None:
-        """Move to previous non-header option."""
+        """Move to previous non-header option, wrapping to bottom at start."""
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
         current = option_list.highlighted
         if current is None:
             return
         for i in range(current - 1, -1, -1):
+            try:
+                opt = option_list.get_option_at_index(i)
+                if opt.id and not str(opt.id).startswith("__header__"):
+                    option_list.highlighted = i
+                    return
+            except Exception:
+                continue
+        # Wrap to last non-header item
+        for i in range(option_list.option_count - 1, -1, -1):
             try:
                 opt = option_list.get_option_at_index(i)
                 if opt.id and not str(opt.id).startswith("__header__"):
