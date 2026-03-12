@@ -158,7 +158,7 @@ def load_all_agents() -> list[Agent]:
 
     Sources:
     1. RUNNING field in project files (workspace claims)
-    2. HOOKS field with suffix_type="running_agent" (fix-hook, summarize-hook)
+    2. HOOKS field with suffix_type="running_agent" (fix_hook, summarize_hook)
     3. MENTORS field with suffix_type="running_agent"
     4. COMMENTS field with suffix_type="running_agent" (CRS)
     5. done.json marker files (DONE agents)
@@ -256,10 +256,10 @@ def load_all_agents() -> list[Agent]:
 
     # Build index of RUNNING agents with axe(...) workflows by (cl_name, timestamp)
     running_axe_agents_by_key: dict[tuple[str, str], Agent] = {}
-    _axe_workflow_prefixes = ["axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor("]
+    _axe_workflow_prefixes = ["axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor("]
     for agent in agents:
         if agent.agent_type == AgentType.RUNNING:
-            workflow = agent.workflow or ""
+            workflow = (agent.workflow or "").replace("-", "_")
             if any(workflow.startswith(p) for p in _axe_workflow_prefixes):
                 ts = extract_timestamp_from_workflow(workflow)
                 # Fallback: mentor( workflows don't embed timestamps in
@@ -273,18 +273,19 @@ def load_all_agents() -> list[Agent]:
                     running_axe_agents_by_key[key] = agent
 
     # Also index done.json RUNNING agents by (cl_name, timestamp)
-    # These have workflow like "fix-hook", "crs", "mentor-*" and raw_suffix as
+    # These have workflow like "fix_hook", "crs", "mentor-*" and raw_suffix as
     # 14-digit timestamp that needs converting to 13-char format for matching
-    _done_axe_workflows = {"fix-hook", "crs", "summarize-hook"}
-    _done_axe_prefixes = ["mentor-"]
+    _done_axe_workflows = {"fix_hook", "crs", "summarize_hook"}
+    _done_axe_prefixes = ["mentor_"]
     for agent in agents:
         if (
             agent.agent_type == AgentType.RUNNING
             and agent.status in ("DONE", "FAILED")
             and agent.workflow
         ):
-            is_done_axe = agent.workflow in _done_axe_workflows or any(
-                agent.workflow.startswith(p) for p in _done_axe_prefixes
+            norm_wf = agent.workflow.replace("-", "_")
+            is_done_axe = norm_wf in _done_axe_workflows or any(
+                norm_wf.startswith(p) for p in _done_axe_prefixes
             )
             if is_done_axe and agent.raw_suffix:
                 ts_14 = agent.raw_suffix
@@ -338,15 +339,16 @@ def load_all_agents() -> list[Agent]:
     # into the surviving axe agent so no metadata is lost.
     _vcs_workflow_prefixes = ("hg-", "gh-", "git-")
     # Plain workflow names from workflow_state.json / done.json for axe-spawned agents
-    _plain_axe_workflows = {"fix-hook", "crs", "mentor", "summarize-hook"}
-    _plain_axe_prefixes = ("mentor-",)
+    _plain_axe_workflows = {"fix_hook", "crs", "mentor", "summarize_hook"}
+    _plain_axe_prefixes = ("mentor_",)
     axe_agents_by_pid: dict[int, Agent] = {}
     for agent in agents:
         if agent.pid is not None and agent.workflow:
+            norm_wf = agent.workflow.replace("-", "_")
             is_axe = (
-                any(agent.workflow.startswith(p) for p in _axe_workflow_prefixes)
-                or agent.workflow in _plain_axe_workflows
-                or agent.workflow.startswith(_plain_axe_prefixes)
+                any(norm_wf.startswith(p) for p in _axe_workflow_prefixes)
+                or norm_wf in _plain_axe_workflows
+                or norm_wf.startswith(_plain_axe_prefixes)
             )
             if is_axe:
                 axe_agents_by_pid[agent.pid] = agent

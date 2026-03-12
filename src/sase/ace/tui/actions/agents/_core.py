@@ -46,13 +46,9 @@ def _is_always_visible(agent: Agent) -> bool:
     if agent.is_workflow_child:
         return True
 
-    # Agents marked hidden (via %hide directive or ChangeSpec-loaded agents)
+    # Agents marked hidden (via %hide directive, axe-spawned detection, etc.)
     # are hideable (hidden by default, shown with '.' toggle)
     if agent.hidden:
-        return False
-
-    # Axe-spawned agents are hideable (hidden by default, shown with '.' toggle)
-    if _is_axe_spawned_agent(agent):
         return False
 
     return True
@@ -71,14 +67,14 @@ def _is_axe_spawned_agent(agent: Agent) -> bool:
         True if agent was spawned by axe, False if user-initiated.
     """
     if agent.workflow:
-        # Normalize underscores to hyphens for consistent matching
-        # (xprompt workflow_label uses underscores, e.g. "fix_hook")
-        workflow = agent.workflow.replace("_", "-")
+        # Normalize hyphens to underscores (canonical form uses underscores,
+        # e.g. xprompt workflow_label "fix_hook")
+        workflow = agent.workflow.replace("-", "_")
         # axe-spawned workflows start with axe(...)
-        if workflow.startswith(("axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor(")):
+        if workflow.startswith(("axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor(")):
             return True
         # Plain workflow names for axe-spawned types (from workflow_state.json or ChangeSpec)
-        if workflow in ("fix-hook", "crs", "mentor", "summarize-hook"):
+        if workflow in ("fix_hook", "crs", "mentor", "summarize_hook"):
             return True
 
     return False
@@ -227,6 +223,11 @@ class AgentsMixinCore(
         if auto_dismissed:
             auto_dismissed_ids = {a.identity for a in auto_dismissed}
             all_agents = [a for a in all_agents if a.identity not in auto_dismissed_ids]
+
+        # Mark axe-spawned agents as hidden so the ◌ icon renders correctly
+        for agent in all_agents:
+            if not agent.hidden and _is_axe_spawned_agent(agent):
+                agent.hidden = True
 
         # Categorize agents: always-visible (dismissable OR running) vs hideable
         always_visible = [a for a in all_agents if _is_always_visible(a)]

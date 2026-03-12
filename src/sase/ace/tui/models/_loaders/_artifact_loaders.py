@@ -180,11 +180,11 @@ def load_agents_from_running_field(
             )
             enrich_agent_from_meta(agent, agent.get_artifacts_dir())
             # Axe-spawned agents are always hidden
-            # Normalize underscores to hyphens for consistent matching
-            # (xprompt workflow_label uses underscores, e.g. "fix_hook")
+            # Normalize hyphens to underscores (canonical form uses underscores,
+            # e.g. xprompt workflow_label "fix_hook")
             if claim.workflow and any(
-                claim.workflow.replace("_", "-").startswith(p)
-                for p in ["axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor("]
+                claim.workflow.replace("-", "_").startswith(p)
+                for p in ["axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor("]
             ):
                 agent.hidden = True
             agents.append(agent)
