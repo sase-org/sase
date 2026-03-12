@@ -1,6 +1,7 @@
 """File locking for ChangeSpec files to prevent race conditions."""
 
 import fcntl
+import logging
 import os
 import subprocess
 import tempfile
@@ -8,6 +9,8 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 SASE_DIR = Path.home() / ".sase"
 
@@ -53,13 +56,27 @@ def _git_commit_changespec(project_file: str, commit_message: str) -> None:
         return
 
     _ensure_sase_git_repo()
-    # Stage the specific file
-    subprocess.run(
-        ["git", "add", project_file],
-        cwd=str(SASE_DIR),
-        capture_output=True,
-        check=True,
-    )
+    # Stage the specific file, retrying once on failure (e.g. index.lock contention)
+    for attempt in range(2):
+        result = subprocess.run(
+            ["git", "add", project_file],
+            cwd=str(SASE_DIR),
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            break
+        if attempt == 0:
+            logger.warning(
+                "git add failed (attempt 1), retrying in 1s: %s",
+                result.stderr.decode(errors="replace").strip(),
+            )
+            time.sleep(1)
+        else:
+            logger.error(
+                "git add failed after retry, skipping git commit: %s",
+                result.stderr.decode(errors="replace").strip(),
+            )
+            return
     # Commit (don't fail if nothing to commit)
     subprocess.run(
         ["git", "commit", "-m", commit_message, "--", project_file],
