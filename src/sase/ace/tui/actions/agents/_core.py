@@ -322,17 +322,25 @@ class AgentsMixinCore(
         else:
             self._agents_last_idx = new_idx
 
-        # Update the running agent counts on the tab bar
+        # Update the running agent counts on the tab bar.
+        # Exclude workflow children — they are sub-steps of a parent agent
+        # and should not inflate the top-level running count.
         if self._has_always_visible:
             manual_running = sum(
-                1 for a in always_visible if a.status not in DISMISSABLE_STATUSES
+                1
+                for a in always_visible
+                if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
             hidden_running = sum(
-                1 for a in hideable if a.status not in DISMISSABLE_STATUSES
+                1
+                for a in hideable
+                if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
         else:
             manual_running = sum(
-                1 for a in all_agents if a.status not in DISMISSABLE_STATUSES
+                1
+                for a in all_agents
+                if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
             hidden_running = 0
         from ...widgets import TabBar
