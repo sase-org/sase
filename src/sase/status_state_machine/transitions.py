@@ -6,12 +6,15 @@ This module contains the core transition_changespec_status function and related 
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-from sase.spec_writer.models import OperationType
+from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.vcs_provider import get_vcs_provider
+
+from .constants import VALID_TRANSITIONS, is_valid_transition
+from .field_updates import apply_status_update, read_status_from_lines
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -28,7 +31,7 @@ class SiblingRevertResult:
     error: str | None = None
 
 
-def check_siblings_for_unreverted_children(
+def _check_siblings_for_unreverted_children(
     project_file: str,
     base_name: str,
     excluded_name: str,
@@ -232,6 +235,314 @@ def _handle_suffix_append(
     update_running_field_cl_name(project_file, base_name, suffixed_name)
 
 
+def _handle_draft_transition(
+    project_file: str,
+    changespec_name: str,
+    old_status: str,
+    new_status: str,
+    lines: list[str],
+    validate: bool,
+) -> tuple[bool, str | None, str | None, tuple[str, str] | None]:
+    """Handle transition to Draft status (from Ready).
+
+    Returns:
+        Tuple of (success, old_status, error_msg, suffix_append_info)
+    """
+    from sase.ace.changespec import find_all_changespecs
+    from sase.ace.mentors import set_mentor_draft_flags
+    from sase.sase_utils import get_next_suffix_number
+
+    all_changespecs = find_all_changespecs()
+    invalid_children = [
+        cs
+        for cs in all_changespecs
+        if cs.parent == changespec_name
+        and cs.status not in ("WIP", "Draft", "Reverted")
+    ]
+    if invalid_children:
+        child_info = ", ".join(f"{cs.name} ({cs.status})" for cs in invalid_children)
+        error_msg = (
+            f"Cannot transition '{changespec_name}' to Draft: "
+            f"children must be WIP, Draft, or Reverted. "
+            f"Invalid children: {child_info}"
+        )
+        logger.error(error_msg)
+        return (False, old_status, error_msg, None)
+
+    if validate and not is_valid_transition(old_status, new_status):
+        error_msg = (
+            f"Invalid status transition for '{changespec_name}': "
+            f"'{old_status}' -> '{new_status}'. "
+            f"Allowed transitions from '{old_status}': "
+            f"{VALID_TRANSITIONS.get(old_status, [])}"
+        )
+        logger.error(error_msg)
+        return (False, old_status, error_msg, None)
+
+    # Valid transition to Draft
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_msg = (
+        f"[{timestamp}] Transitioning {changespec_name}: "
+        f"'{old_status}' -> '{new_status}'"
+    )
+    if not validate:
+        log_msg += " (validation skipped)"
+    logger.info(log_msg)
+
+    updated_content = apply_status_update(lines, changespec_name, new_status)
+    write_changespec_atomic(
+        project_file,
+        updated_content,
+        f"Update STATUS to {new_status} for {changespec_name}",
+    )
+
+    # Add _<N> suffix when transitioning to Draft
+    existing_names = {cs.name for cs in all_changespecs}
+    suffix_num = get_next_suffix_number(changespec_name, existing_names)
+    suffix_append_info = (
+        changespec_name,
+        f"{changespec_name}_{suffix_num}",
+    )
+
+    # Set #Draft flag on mentors
+    set_mentor_draft_flags(project_file, changespec_name)
+
+    return (True, old_status, None, suffix_append_info)
+
+
+def _handle_ready_transition(
+    project_file: str,
+    changespec_name: str,
+    old_status: str,
+    new_status: str,
+    lines: list[str],
+    validate: bool,
+) -> tuple[bool, str | None, str | None, tuple[str, str] | None]:
+    """Handle transition to Ready status (from WIP or Draft), or other non-Draft statuses.
+
+    Returns:
+        Tuple of (success, old_status, error_msg, suffix_strip_info)
+    """
+    from sase.ace.changespec import parse_project_file
+
+    # Check parent constraint
+    changespecs = parse_project_file(project_file)
+    current_cs = next((cs for cs in changespecs if cs.name == changespec_name), None)
+    if current_cs and current_cs.parent:
+        parent_cs = next(
+            (cs for cs in changespecs if cs.name == current_cs.parent), None
+        )
+        if (
+            parent_cs
+            and parent_cs.status in ("WIP", "Draft")
+            and new_status not in ("WIP", "Draft", "Reverted")
+        ):
+            error_msg = (
+                f"Cannot transition '{changespec_name}' to {new_status}: "
+                f"parent '{current_cs.parent}' is {parent_cs.status}. "
+                f"Children of WIP/Draft ChangeSpecs must be WIP, Draft, or Reverted."
+            )
+            logger.error(error_msg)
+            return (False, old_status, error_msg, None)
+
+    # Validate transition if requested
+    if validate and not is_valid_transition(old_status, new_status):
+        error_msg = (
+            f"Invalid status transition for '{changespec_name}': "
+            f"'{old_status}' -> '{new_status}'. "
+            f"Allowed transitions from '{old_status}': "
+            f"{VALID_TRANSITIONS.get(old_status, [])}"
+        )
+        logger.error(error_msg)
+        return (False, old_status, error_msg, None)
+
+    # Validate siblings don't have unreverted children when transitioning to Ready
+    if new_status == "Ready" and old_status in ("WIP", "Draft"):
+        from sase.sase_utils import has_suffix, strip_reverted_suffix
+
+        if has_suffix(changespec_name):
+            base_name = strip_reverted_suffix(changespec_name)
+            sibling_error = _check_siblings_for_unreverted_children(
+                project_file, base_name, changespec_name
+            )
+            if sibling_error:
+                logger.error(sibling_error)
+                return (False, old_status, sibling_error, None)
+
+    # Perform transition
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_msg = (
+        f"[{timestamp}] Transitioning {changespec_name}: "
+        f"'{old_status}' -> '{new_status}'"
+    )
+    if not validate:
+        log_msg += " (validation skipped)"
+    logger.info(log_msg)
+
+    updated_content = apply_status_update(lines, changespec_name, new_status)
+    write_changespec_atomic(
+        project_file,
+        updated_content,
+        f"Update STATUS to {new_status} for {changespec_name}",
+    )
+
+    suffix_strip_info = None
+
+    # Clear #Draft from mentors when transitioning from Draft to Ready
+    # (WIP has no mentors to clear)
+    if old_status == "Draft" and new_status == "Ready":
+        from sase.ace.mentors import clear_mentor_draft_flags
+        from sase.sase_utils import has_suffix, strip_reverted_suffix
+
+        clear_mentor_draft_flags(project_file, changespec_name)
+
+        # Check if we need to strip suffix (done outside lock)
+        if has_suffix(changespec_name):
+            suffix_strip_info = (
+                changespec_name,
+                strip_reverted_suffix(changespec_name),
+            )
+
+    # Strip suffix when transitioning from WIP to Ready
+    if old_status == "WIP" and new_status == "Ready":
+        from sase.sase_utils import has_suffix, strip_reverted_suffix
+
+        if has_suffix(changespec_name):
+            suffix_strip_info = (
+                changespec_name,
+                strip_reverted_suffix(changespec_name),
+            )
+
+    return (True, old_status, None, suffix_strip_info)
+
+
+def _handle_wip_to_draft_transition(
+    project_file: str,
+    changespec_name: str,
+    old_status: str,
+    new_status: str,
+    lines: list[str],
+    validate: bool,
+) -> tuple[bool, str | None, str | None]:
+    """Handle transition from WIP to Draft status.
+
+    This is a simple status change — no suffix manipulation, no mentor flags.
+
+    Returns:
+        Tuple of (success, old_status, error_msg)
+    """
+    if validate and not is_valid_transition(old_status, new_status):
+        error_msg = (
+            f"Invalid status transition for '{changespec_name}': "
+            f"'{old_status}' -> '{new_status}'. "
+            f"Allowed transitions from '{old_status}': "
+            f"{VALID_TRANSITIONS.get(old_status, [])}"
+        )
+        logger.error(error_msg)
+        return (False, old_status, error_msg)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_msg = (
+        f"[{timestamp}] Transitioning {changespec_name}: "
+        f"'{old_status}' -> '{new_status}'"
+    )
+    if not validate:
+        log_msg += " (validation skipped)"
+    logger.info(log_msg)
+
+    updated_content = apply_status_update(lines, changespec_name, new_status)
+    write_changespec_atomic(
+        project_file,
+        updated_content,
+        f"Update STATUS to {new_status} for {changespec_name}",
+    )
+    return (True, old_status, None)
+
+
+def _handle_reverted_transition(
+    project_file: str,
+    changespec_name: str,
+    old_status: str,
+    new_status: str,
+    lines: list[str],
+    validate: bool,
+) -> tuple[bool, str | None, str | None]:
+    """Handle transition to Reverted status.
+
+    Returns:
+        Tuple of (success, old_status, error_msg)
+    """
+    if validate and not is_valid_transition(old_status, new_status):
+        error_msg = (
+            f"Invalid status transition for '{changespec_name}': "
+            f"'{old_status}' -> '{new_status}'. "
+            f"Allowed transitions from '{old_status}': "
+            f"{VALID_TRANSITIONS.get(old_status, [])}"
+        )
+        logger.error(error_msg)
+        return (False, old_status, error_msg)
+
+    # Perform transition to Reverted
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_msg = (
+        f"[{timestamp}] Transitioning {changespec_name}: "
+        f"'{old_status}' -> '{new_status}'"
+    )
+    if not validate:
+        log_msg += " (validation skipped)"
+    logger.info(log_msg)
+
+    updated_content = apply_status_update(lines, changespec_name, new_status)
+    write_changespec_atomic(
+        project_file,
+        updated_content,
+        f"Update STATUS to {new_status} for {changespec_name}",
+    )
+    return (True, old_status, None)
+
+
+def _handle_archived_transition(
+    project_file: str,
+    changespec_name: str,
+    old_status: str,
+    new_status: str,
+    lines: list[str],
+    validate: bool,
+) -> tuple[bool, str | None, str | None]:
+    """Handle transition to Archived status.
+
+    Returns:
+        Tuple of (success, old_status, error_msg)
+    """
+    if validate and not is_valid_transition(old_status, new_status):
+        error_msg = (
+            f"Invalid status transition for '{changespec_name}': "
+            f"'{old_status}' -> '{new_status}'. "
+            f"Allowed transitions from '{old_status}': "
+            f"{VALID_TRANSITIONS.get(old_status, [])}"
+        )
+        logger.error(error_msg)
+        return (False, old_status, error_msg)
+
+    # Perform transition to Archived
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_msg = (
+        f"[{timestamp}] Transitioning {changespec_name}: "
+        f"'{old_status}' -> '{new_status}'"
+    )
+    if not validate:
+        log_msg += " (validation skipped)"
+    logger.info(log_msg)
+
+    updated_content = apply_status_update(lines, changespec_name, new_status)
+    write_changespec_atomic(
+        project_file,
+        updated_content,
+        f"Update STATUS to {new_status} for {changespec_name}",
+    )
+    return (True, old_status, None)
+
+
 def transition_changespec_status(
     project_file: str,
     changespec_name: str,
@@ -242,8 +553,7 @@ def transition_changespec_status(
     """
     Transition a ChangeSpec to a new STATUS with optional validation.
 
-    Submits a TRANSITION_STATUS request to the spec_writer, then orchestrates
-    post-lock operations (mentor flags, suffix strip/append, sibling reverts).
+    Acquires a lock for the entire read-validate-write cycle.
 
     Args:
         project_file: Path to the ProjectSpec file
@@ -259,39 +569,60 @@ def transition_changespec_status(
         - error_msg: Error message if failed (None if succeeded)
         - sibling_revert_results: List of SiblingRevertResult for reverted siblings
     """
-    request = make_request(
-        project_file,
-        OperationType.TRANSITION_STATUS,
-        {
-            "changespec_name": changespec_name,
-            "new_status": new_status,
-            "validate": validate,
-        },
-    )
-    response = submit_spec_write_and_wait(request, timeout=10.0)
-
-    if not response.success:
-        old_status = response.result.get("old_status") if response.result else None
-        return (False, old_status, response.error, [])
-
-    result = response.result
-    assert result is not None
-    old_status = result["old_status"]
-    suffix_strip_info = result.get("suffix_strip_info")
-    suffix_append_info = result.get("suffix_append_info")
-    mentor_op = result.get("mentor_op")
-
-    # Execute mentor ops post-lock (no deadlock risk)
-    if mentor_op == "set_draft":
-        from sase.ace.mentors import set_mentor_draft_flags
-
-        set_mentor_draft_flags(project_file, changespec_name)
-    elif mentor_op == "clear_draft":
-        from sase.ace.mentors import clear_mentor_draft_flags
-
-        clear_mentor_draft_flags(project_file, changespec_name)
-
+    # Track if we need to strip/append suffix after lock releases
+    suffix_strip_info: tuple[str, str] | None = None
+    suffix_append_info: tuple[str, str] | None = None
+    result: tuple[bool, str | None, str | None] | None = None
     sibling_results: list[SiblingRevertResult] = []
+
+    with changespec_lock(project_file):
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        # Read current status
+        old_status = read_status_from_lines(lines, changespec_name)
+
+        if old_status is None:
+            error_msg = f"ChangeSpec '{changespec_name}' not found in {project_file}"
+            logger.error(error_msg)
+            result = (False, None, error_msg)
+
+        elif new_status == "Draft" and old_status == "WIP":
+            # WIP→Draft: simple status change, no suffix/mentor manipulation
+            result = _handle_wip_to_draft_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+
+        elif new_status == "Draft" and old_status == "Ready":
+            # Ready→Draft: append suffix, set mentor draft flags
+            success, old_st, err, suffix_append_info = _handle_draft_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+            result = (success, old_st, err)
+
+        elif new_status == "Ready":
+            # WIP→Ready or Draft→Ready: strip suffix, revert siblings
+            success, old_st, err, suffix_strip_info = _handle_ready_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+            result = (success, old_st, err)
+
+        elif new_status == "Reverted":
+            result = _handle_reverted_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+
+        elif new_status == "Archived":
+            result = _handle_archived_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+
+        else:
+            # Mailed, Submitted, etc. - use ready transition handler
+            success, old_st, err, _ = _handle_ready_transition(
+                project_file, changespec_name, old_status, new_status, lines, validate
+            )
+            result = (success, old_st, err)
 
     # Strip __<N> suffix when transitioning to Ready (outside lock)
     if suffix_strip_info is not None:
@@ -305,4 +636,5 @@ def transition_changespec_status(
         base_name, suffixed_name = suffix_append_info
         _handle_suffix_append(project_file, base_name, suffixed_name)
 
-    return (True, old_status, None, sibling_results)
+    assert result is not None
+    return (result[0], result[1], result[2], sibling_results)

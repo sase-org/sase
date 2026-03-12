@@ -35,7 +35,6 @@ _SPEC_WRITER_CALLER_MODULES = [
     "sase.running_field",
     "sase.workspace_provider.plugins.bare_git_ref",
     "sase.workspace_utils",
-    "sase.status_state_machine.transitions",
 ]
 
 
