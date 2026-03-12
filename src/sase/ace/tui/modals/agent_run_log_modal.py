@@ -131,7 +131,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
     _option_list_id = "agent-log-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        ("enter", "open_chat", "Open Chat"),
+        ("enter", "jump_to_agent_tab", "Jump to Agents tab"),
         ("e", "open_chat", "Open Chat"),
         ("upper_r", "revive_agent", "Revive"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
@@ -168,7 +168,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="agent-log-detail-scroll"):
                         yield Static("", id="agent-log-detail")
             yield Static(
-                "j/k: navigate  enter/e: open chat  R: revive  Ctrl+D/U: scroll  Esc: close",
+                "j/k: navigate  enter: jump to Agents  e: open chat  R: revive  Ctrl+D/U: scroll  Esc: close",
                 id="agent-log-hints",
             )
 
@@ -401,6 +401,40 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append(f"{preview}\n")
 
         detail.update(text)
+
+    def action_jump_to_agent_tab(self) -> None:
+        """Jump to the Agents tab with the highlighted agent selected."""
+        agent = self._get_highlighted_agent()
+        if agent is None:
+            return
+
+        # If dismissed, revive it first so it appears on the Agents tab
+        if self._is_dismissed(agent):
+            self.app._do_revive_agent(agent)  # type: ignore[attr-defined]
+
+        # Capture identifying info before dismissing
+        target_identity = agent.identity
+        target_raw_suffix = agent.raw_suffix
+
+        # Dismiss the modal and switch to Agents tab
+        self.dismiss()
+        app = self.app
+        app._save_current_tab_position()  # type: ignore[attr-defined]
+        app.current_tab = "agents"  # type: ignore[attr-defined]
+
+        # Find and select the matching agent
+        for idx, a in enumerate(app._agents):  # type: ignore[attr-defined]
+            if a.identity == target_identity:
+                app.current_idx = idx  # type: ignore[attr-defined]
+                return
+        # Fallback: match by raw_suffix (identity may differ after revive)
+        if target_raw_suffix:
+            for idx, a in enumerate(app._agents):  # type: ignore[attr-defined]
+                if a.raw_suffix == target_raw_suffix:
+                    app.current_idx = idx  # type: ignore[attr-defined]
+                    return
+
+        app.notify("Agent not found on Agents tab", severity="warning")  # type: ignore[attr-defined]
 
     def action_open_chat(self) -> None:
         """Open the highlighted agent's chat in $EDITOR."""
