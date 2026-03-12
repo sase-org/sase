@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     pass
 
-# Import ChangeSpec unconditionally since it's used as a type annotation
-# in attribute declarations (not just in function signatures)
+# Import ChangeSpec and Agent unconditionally since they are used as type
+# annotations in attribute declarations (not just in function signatures)
 from ....changespec import ChangeSpec
+from ...models.agent import Agent
 
 
 class HintMixinBase:
@@ -22,6 +23,10 @@ class HintMixinBase:
     # ChangeSpec state
     changespecs: list[ChangeSpec]
     current_idx: int
+
+    # Tab and agents state
+    current_tab: str
+    _agents: list[Agent]
 
     # Hint mode state
     _hint_mode_active: bool

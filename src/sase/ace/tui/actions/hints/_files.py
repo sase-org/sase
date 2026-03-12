@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ....hint_types import ViewFilesResult
 from ....hints import build_editor_args
-from ...widgets import ChangeSpecDetail, HintInputBar
+from ...widgets import AgentDetail, ChangeSpecDetail, HintInputBar
 from ._types import HintMixinBase
 
 
@@ -15,7 +15,11 @@ class FileViewingMixin(HintMixinBase):
     """Mixin providing file viewing actions."""
 
     def action_view_files(self) -> None:
-        """View files for the current ChangeSpec."""
+        """View files for the current ChangeSpec or Agent."""
+        if self.current_tab == "agents":
+            self._view_agent_files()
+            return
+
         if not self.changespecs:
             return
 
@@ -46,6 +50,33 @@ class FileViewingMixin(HintMixinBase):
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
+        hint_bar = HintInputBar(mode="view", id="hint-input-bar")
+        detail_container.mount(hint_bar)
+
+    def _view_agent_files(self) -> None:
+        """View files for the current agent (Agents tab)."""
+        if not self._agents:
+            return
+
+        agent = self._agents[self.current_idx]
+
+        # Re-render prompt panel with file path hints
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        hint_mappings = agent_detail.update_display_with_hints(agent)
+
+        if not hint_mappings:
+            self.notify("No files found in agent details", severity="warning")  # type: ignore[attr-defined]
+            self._refresh_agents_display()  # type: ignore[attr-defined]
+            return
+
+        # Store state for later processing
+        self._hint_mode_active = True
+        self._hint_mode_hints_for = None  # "all" hints
+        self._hint_mappings = hint_mappings
+        self._hint_changespec_name = agent.cl_name
+
+        # Mount the hint input bar in the agent detail container
+        detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]
         hint_bar = HintInputBar(mode="view", id="hint-input-bar")
         detail_container.mount(hint_bar)
 

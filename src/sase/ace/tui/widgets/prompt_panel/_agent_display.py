@@ -36,6 +36,224 @@ class AgentDisplayMixin:
             self._update_workflow_display(agent)  # type: ignore[attr-defined]
             return
 
+        header_text, error_tb_syntax = self._build_header_text(agent)
+
+        # Check if this is a bash/python workflow step - display differently
+        if agent.is_workflow_child and agent.step_type in ("bash", "python"):
+            self._update_bash_python_display(agent, header_text, error_tb_syntax)
+            return
+
+        # Check if this is a parallel workflow step - show output only, no prompt
+        if agent.is_workflow_child and agent.step_type == "parallel":
+            self._update_parallel_display(agent, header_text, error_tb_syntax)
+            return
+
+        # AGENT XPROMPT section (only shown while agent is running/waiting)
+        if agent.status not in ("DONE", "FAILED"):
+            raw_xprompt = agent.get_raw_xprompt_content()
+            if raw_xprompt:
+                header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
+                header_text.append("\n")
+                header_text.append(f"{raw_xprompt}\n")
+                header_text.append("\n")
+                header_text.append("─" * 50 + "\n", style="dim")
+                header_text.append("\n")
+
+        # AGENT PROMPT section
+        header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
+        header_text.append("\n")
+
+        # Get and display prompt content
+        prompt_content = self._get_prompt_content(agent)
+        if prompt_content:
+            # Render markdown with syntax highlighting
+            prompt_syntax = Syntax(
+                prompt_content,
+                "markdown",
+                theme="monokai",
+                word_wrap=True,
+            )
+
+            # For completed or failed agents/steps, also show the response
+            if agent.status in ("DONE", "FAILED"):
+                reply_header = Text()
+                reply_header.append("\n")
+                reply_header.append("─" * 50 + "\n", style="dim")
+                reply_header.append("\n")
+                reply_header.append("AGENT CHAT\n", style="bold #D7AF5F underline")
+                reply_header.append("\n")
+
+                response_content = agent.get_response_content()
+
+                # Fallback: for workflow step agents, try step_output if no response file
+                if (
+                    response_content is None
+                    and agent.is_workflow_child
+                    and agent.step_output
+                ):
+                    response_content = format_output(agent.step_output)
+
+                renderables: list[Text | Syntax] = [header_text]
+                if error_tb_syntax:
+                    renderables.append(error_tb_syntax)
+                renderables.append(prompt_syntax)
+
+                if response_content:
+                    response_syntax = Syntax(
+                        response_content,
+                        "markdown",
+                        theme="monokai",
+                        word_wrap=True,
+                    )
+                    renderables.extend([reply_header, response_syntax])
+                else:
+                    reply_header.append("No response file found.\n", style="dim italic")
+                    renderables.append(reply_header)
+
+                self.update(Group(*renderables))  # type: ignore[attr-defined]
+            else:
+                renderables_other: list[Text | Syntax] = [header_text]
+                if error_tb_syntax:
+                    renderables_other.append(error_tb_syntax)
+                renderables_other.append(prompt_syntax)
+                self.update(Group(*renderables_other))  # type: ignore[attr-defined]
+        else:
+            header_text.append("No prompt file found.\n", style="dim italic")
+            if error_tb_syntax:
+                self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
+            else:
+                self.update(header_text)  # type: ignore[attr-defined]
+
+    def update_display_with_hints(self, agent: Agent) -> dict[int, str]:
+        """Render agent display with ``[N]`` file path hints.
+
+        Same visual structure as :meth:`update_display` but scans xprompt,
+        prompt, and chat sections for file paths and inserts numbered hint
+        markers.  Syntax highlighting is temporarily replaced with plain
+        text so that hint markers can be inserted inline.
+
+        Args:
+            agent: The Agent to display.
+
+        Returns:
+            Dict mapping hint numbers to resolved absolute file paths.
+        """
+        from ._file_path_hints import (
+            append_text_with_file_hints,
+            resolve_agent_workspace_dir,
+        )
+
+        # Workflow top-level or bash/python/parallel: no hint support
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and not agent.is_workflow_child
+            and not agent.appears_as_agent
+        ):
+            self.update_display(agent)
+            return {}
+
+        if agent.is_workflow_child and agent.step_type in (
+            "bash",
+            "python",
+            "parallel",
+        ):
+            self.update_display(agent)
+            return {}
+
+        workspace_dir = resolve_agent_workspace_dir(
+            agent.workspace_num, agent.project_file
+        )
+        hint_counter = 1
+        hint_mappings: dict[int, str] = {}
+
+        # Build header (same structured fields as normal display)
+        header_text, _ = self._build_header_text(agent)
+
+        # Error traceback as text with hints (not Syntax)
+        if agent.error_traceback:
+            hint_counter = append_text_with_file_hints(
+                header_text,
+                agent.error_traceback + "\n",
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
+
+        # AGENT XPROMPT section (with file path hints)
+        if agent.status not in ("DONE", "FAILED"):
+            raw_xprompt = agent.get_raw_xprompt_content()
+            if raw_xprompt:
+                header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
+                header_text.append("\n")
+                hint_counter = append_text_with_file_hints(
+                    header_text,
+                    raw_xprompt + "\n",
+                    hint_counter,
+                    hint_mappings,
+                    workspace_dir,
+                )
+                header_text.append("\n")
+                header_text.append("─" * 50 + "\n", style="dim")
+                header_text.append("\n")
+
+        # AGENT PROMPT section (with file path hints, Text instead of Syntax)
+        header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
+        header_text.append("\n")
+
+        prompt_content = self._get_prompt_content(agent)
+        if prompt_content:
+            hint_counter = append_text_with_file_hints(
+                header_text,
+                prompt_content + "\n",
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
+
+            # AGENT CHAT section for completed agents (with hints)
+            if agent.status in ("DONE", "FAILED"):
+                response_content = agent.get_response_content()
+                if (
+                    response_content is None
+                    and agent.is_workflow_child
+                    and agent.step_output
+                ):
+                    response_content = format_output(agent.step_output)
+
+                header_text.append("\n")
+                header_text.append("─" * 50 + "\n", style="dim")
+                header_text.append("\n")
+                header_text.append("AGENT CHAT\n", style="bold #D7AF5F underline")
+                header_text.append("\n")
+
+                if response_content:
+                    hint_counter = append_text_with_file_hints(
+                        header_text,
+                        response_content + "\n",
+                        hint_counter,
+                        hint_mappings,
+                        workspace_dir,
+                    )
+                else:
+                    header_text.append("No response file found.\n", style="dim italic")
+        else:
+            header_text.append("No prompt file found.\n", style="dim italic")
+
+        self.update(header_text)  # type: ignore[attr-defined]
+        return hint_mappings
+
+    def _build_header_text(self, agent: Agent) -> tuple[Text, "Syntax | None"]:
+        """Build the AGENT DETAILS header section with trailing separator.
+
+        Contains agent metadata (name, workspace, model, timestamps, etc.),
+        error information, and a trailing separator line.
+
+        Args:
+            agent: The Agent to build the header for.
+
+        Returns:
+            Tuple of (header_text, error_traceback_syntax).
+        """
         header_text = Text()
 
         # Header - AGENT DETAILS
@@ -165,91 +383,7 @@ class AgentDisplayMixin:
         header_text.append("─" * 50 + "\n", style="dim")
         header_text.append("\n")
 
-        # Check if this is a bash/python workflow step - display differently
-        if agent.is_workflow_child and agent.step_type in ("bash", "python"):
-            self._update_bash_python_display(agent, header_text, error_tb_syntax)
-            return
-
-        # Check if this is a parallel workflow step - show output only, no prompt
-        if agent.is_workflow_child and agent.step_type == "parallel":
-            self._update_parallel_display(agent, header_text, error_tb_syntax)
-            return
-
-        # AGENT XPROMPT section (only shown while agent is running/waiting)
-        if agent.status not in ("DONE", "FAILED"):
-            raw_xprompt = agent.get_raw_xprompt_content()
-            if raw_xprompt:
-                header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
-                header_text.append("\n")
-                header_text.append(f"{raw_xprompt}\n")
-                header_text.append("\n")
-                header_text.append("─" * 50 + "\n", style="dim")
-                header_text.append("\n")
-
-        # AGENT PROMPT section
-        header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
-        header_text.append("\n")
-
-        # Get and display prompt content
-        prompt_content = self._get_prompt_content(agent)
-        if prompt_content:
-            # Render markdown with syntax highlighting
-            prompt_syntax = Syntax(
-                prompt_content,
-                "markdown",
-                theme="monokai",
-                word_wrap=True,
-            )
-
-            # For completed or failed agents/steps, also show the response
-            if agent.status in ("DONE", "FAILED"):
-                reply_header = Text()
-                reply_header.append("\n")
-                reply_header.append("─" * 50 + "\n", style="dim")
-                reply_header.append("\n")
-                reply_header.append("AGENT CHAT\n", style="bold #D7AF5F underline")
-                reply_header.append("\n")
-
-                response_content = agent.get_response_content()
-
-                # Fallback: for workflow step agents, try step_output if no response file
-                if (
-                    response_content is None
-                    and agent.is_workflow_child
-                    and agent.step_output
-                ):
-                    response_content = format_output(agent.step_output)
-
-                renderables: list[Text | Syntax] = [header_text]
-                if error_tb_syntax:
-                    renderables.append(error_tb_syntax)
-                renderables.append(prompt_syntax)
-
-                if response_content:
-                    response_syntax = Syntax(
-                        response_content,
-                        "markdown",
-                        theme="monokai",
-                        word_wrap=True,
-                    )
-                    renderables.extend([reply_header, response_syntax])
-                else:
-                    reply_header.append("No response file found.\n", style="dim italic")
-                    renderables.append(reply_header)
-
-                self.update(Group(*renderables))  # type: ignore[attr-defined]
-            else:
-                renderables_other: list[Text | Syntax] = [header_text]
-                if error_tb_syntax:
-                    renderables_other.append(error_tb_syntax)
-                renderables_other.append(prompt_syntax)
-                self.update(Group(*renderables_other))  # type: ignore[attr-defined]
-        else:
-            header_text.append("No prompt file found.\n", style="dim italic")
-            if error_tb_syntax:
-                self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
-            else:
-                self.update(header_text)  # type: ignore[attr-defined]
+        return header_text, error_tb_syntax
 
     def _get_prompt_content(self, agent: Agent) -> str | None:
         """Get the prompt content for the agent.

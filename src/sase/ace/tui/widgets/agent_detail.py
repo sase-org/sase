@@ -191,6 +191,22 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             else:
                 self._auto_show_thinking(agent)
 
+    def update_display_with_hints(self, agent: Agent) -> dict[int, str]:
+        """Re-render the prompt panel with file path hints.
+
+        Scans xprompt, prompt, and chat sections for file paths and
+        inserts numbered ``[N]`` markers.  Returns the hint mappings so
+        the caller can process user selections.
+
+        Args:
+            agent: The Agent to display with hints.
+
+        Returns:
+            Dict mapping hint numbers to resolved absolute file paths.
+        """
+        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        return prompt_panel.update_display_with_hints(agent)
+
     def show_empty(self) -> None:
         """Show empty state for all panels."""
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)

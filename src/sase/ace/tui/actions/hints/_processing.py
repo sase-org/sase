@@ -55,7 +55,12 @@ class InputProcessingMixin(HintMixinBase):
             hint_bar.remove()
         except Exception:
             pass
-        self._refresh_display()  # type: ignore[attr-defined]
+
+        # Restore the correct tab's display
+        if self.current_tab == "agents":
+            self._refresh_agents_display()  # type: ignore[attr-defined]
+        else:
+            self._refresh_display()  # type: ignore[attr-defined]
 
     def _process_view_input(self, user_input: str) -> None:
         """Process view files input."""
