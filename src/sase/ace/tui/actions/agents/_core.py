@@ -341,6 +341,11 @@ class AgentsMixinCore(
                 for a in hideable
                 if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
+            done_visible = sum(
+                1
+                for a in always_visible
+                if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
+            )
         else:
             manual_running = sum(
                 1
@@ -348,6 +353,11 @@ class AgentsMixinCore(
                 if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
             hidden_running = 0
+            done_visible = sum(
+                1
+                for a in all_agents
+                if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
+            )
         from ...widgets import TabBar
 
         tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
@@ -355,6 +365,7 @@ class AgentsMixinCore(
             manual_running,
             hidden_running,
             show_hidden=not self.hide_non_run_agents,
+            done_count=done_visible,
         )
 
         # Only refresh display if on agents tab

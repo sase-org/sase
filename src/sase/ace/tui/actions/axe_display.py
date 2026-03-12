@@ -186,6 +186,7 @@ class AxeDisplayMixin:
                     running_lj += 1
 
         bgcmd_count = len(self._bgcmd_slots)
+        _, done_bgcmds = self._get_bgcmd_counts()
 
         try:
             tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
@@ -193,6 +194,7 @@ class AxeDisplayMixin:
                 running_lj,
                 bgcmd_count,
                 show_hidden=not self._axe_cmds_hidden,
+                done_count=done_bgcmds,
             )
         except Exception:
             pass

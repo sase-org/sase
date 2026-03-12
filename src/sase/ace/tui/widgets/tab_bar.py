@@ -27,9 +27,11 @@ class TabBar(Static):
         self._cls_show_hidden: bool = False
         self._agents_manual_count: int = 0
         self._agents_hidden_count: int = 0
+        self._agents_done_count: int = 0
         self._agents_show_hidden: bool = False
         self._axe_main_count: int = 0
         self._axe_hidden_count: int = 0
+        self._axe_done_count: int = 0
         self._axe_show_hidden: bool = False
         # Store positions for click detection
         self._cl_tab_range: tuple[int, int] = (0, 0)
@@ -77,6 +79,7 @@ class TabBar(Static):
         hidden_count: int,
         *,
         show_hidden: bool,
+        done_count: int = 0,
     ) -> None:
         """Update the running agent counts shown on the Agents tab label.
 
@@ -84,14 +87,17 @@ class TabBar(Static):
             manual_count: Number of running manual (always-visible) agents.
             hidden_count: Number of running hidden agents.
             show_hidden: Whether hidden agents are currently visible.
+            done_count: Number of done agents not yet dismissed.
         """
         if (
             self._agents_manual_count != manual_count
             or self._agents_hidden_count != hidden_count
+            or self._agents_done_count != done_count
             or self._agents_show_hidden != show_hidden
         ):
             self._agents_manual_count = manual_count
             self._agents_hidden_count = hidden_count
+            self._agents_done_count = done_count
             self._agents_show_hidden = show_hidden
             self._refresh_content()
 
@@ -101,6 +107,7 @@ class TabBar(Static):
         hidden_count: int,
         *,
         show_hidden: bool,
+        done_count: int = 0,
     ) -> None:
         """Update the counts shown on the AXE tab label.
 
@@ -108,14 +115,17 @@ class TabBar(Static):
             main_count: Number of running axe lumberjacks.
             hidden_count: Number of active background commands.
             show_hidden: Whether background commands are currently visible.
+            done_count: Number of completed background commands.
         """
         if (
             self._axe_main_count != main_count
             or self._axe_hidden_count != hidden_count
+            or self._axe_done_count != done_count
             or self._axe_show_hidden != show_hidden
         ):
             self._axe_main_count = main_count
             self._axe_hidden_count = hidden_count
+            self._axe_done_count = done_count
             self._axe_show_hidden = show_hidden
             self._refresh_content()
 
@@ -145,11 +155,14 @@ class TabBar(Static):
         # Agents tab
         agents_start = len(text.plain)
         m = str(self._agents_manual_count) if self._agents_manual_count > 0 else ""
+        suffix = m
         if self._agents_show_hidden:
             h = str(self._agents_hidden_count) if self._agents_hidden_count > 0 else ""
-            agents_label = f" Agents ({m}+{h}) "
-        elif self._agents_manual_count > 0:
-            agents_label = f" Agents ({m}) "
+            suffix += f"+{h}"
+        if self._agents_done_count > 0:
+            suffix += f"-{self._agents_done_count}"
+        if suffix or self._agents_show_hidden:
+            agents_label = f" Agents ({suffix}) "
         else:
             agents_label = " Agents "
         if self._current_tab == "agents":
@@ -164,11 +177,14 @@ class TabBar(Static):
         # Axe tab
         axe_start = len(text.plain)
         m = str(self._axe_main_count) if self._axe_main_count > 0 else ""
+        suffix = m
         if self._axe_show_hidden:
             h = str(self._axe_hidden_count) if self._axe_hidden_count > 0 else ""
-            axe_label = f" AXE ({m}+{h}) "
-        elif self._axe_main_count > 0:
-            axe_label = f" AXE ({m}) "
+            suffix += f"+{h}"
+        if self._axe_done_count > 0:
+            suffix += f"-{self._axe_done_count}"
+        if suffix or self._axe_show_hidden:
+            axe_label = f" AXE ({suffix}) "
         else:
             axe_label = " AXE "
         if self._current_tab == "axe":
