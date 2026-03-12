@@ -101,9 +101,12 @@ class EventHandlersMixin:
                 # Always write the keypress file — this is the true
                 # last-interaction timestamp that is_idle() uses as a
                 # safety net.  It is never overwritten on idle transitions.
-                from sase.ace.tui_activity import write_last_keypress
+                from sase.ace.tui_activity import write_last_keypress, write_tui_pid
 
                 write_last_keypress(activity_wall)
+                # Re-write PID file periodically so it recovers if
+                # deleted externally (e.g. stale cleanup race).
+                write_tui_pid()
                 # Only write the activity/HWM timestamp while the user
                 # is active.  When idle, _check_idle_state already wrote
                 # the idle transition time and we must not overwrite it

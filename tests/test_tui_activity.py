@@ -207,9 +207,14 @@ def test_is_tui_running_true_on_permission_error(tmp_path: Path) -> None:
 # ── is_idle ────────────────────────────────────────────────────────
 
 
-@patch("sase.ace.tui_activity._is_tui_running", return_value=False)
-def test_is_idle_true_when_tui_not_running(_mock_running: object) -> None:
-    assert is_idle() is True
+def test_is_idle_true_when_tui_not_running_no_state_file(tmp_path: Path) -> None:
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=False),
+    ):
+        # No idle_state file → idle
+        assert is_idle() is True
 
 
 def test_is_idle_true_when_state_file_missing(tmp_path: Path) -> None:
@@ -262,6 +267,50 @@ def test_is_idle_true_after_state_file_removed(tmp_path: Path) -> None:
         write_idle_state(False)
         assert is_idle() is False
         remove_idle_state()
+        assert is_idle() is True
+
+
+# ── missing PID file with active state ───────────────────────────
+
+
+def test_is_idle_false_when_pid_missing_but_state_active_and_recent_keypress(
+    tmp_path: Path,
+) -> None:
+    """PID file missing but idle_state=0 + recent keypress → not idle."""
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=False),
+    ):
+        write_idle_state(False)
+        write_last_keypress(time.time())
+        assert is_idle() is False
+
+
+def test_is_idle_true_when_pid_missing_state_active_but_old_keypress(
+    tmp_path: Path,
+) -> None:
+    """PID file missing + idle_state=0 but old keypress → idle (stale crash state)."""
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=False),
+    ):
+        write_idle_state(False)
+        write_last_keypress(time.time() - _IDLE_GUARD_SECONDS - 10)
+        assert is_idle() is True
+
+
+def test_is_idle_true_when_pid_missing_state_active_no_keypress(
+    tmp_path: Path,
+) -> None:
+    """PID file missing + idle_state=0 but no keypress file → idle."""
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=False),
+    ):
+        write_idle_state(False)
         assert is_idle() is True
 
 

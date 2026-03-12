@@ -145,30 +145,48 @@ def is_idle() -> bool:
     whenever its idle indicator changes, so external consumers never
     need to independently recompute idle from raw timestamps.
 
-    As a safety net, when the idle state file says "1" but the last
-    keypress was less than ``_IDLE_GUARD_SECONDS`` ago, the function
-    returns False.  This catches race conditions and state file
-    inconsistencies that have caused spurious Telegram notifications.
+    The idle state file is the primary signal.  The PID file and
+    last-keypress file serve as secondary checks:
 
-    Falls back to True (idle) when the TUI is not running or the
-    state file is missing/unreadable.
+    - When idle_state says "not idle" but the PID file is missing,
+      a recent keypress corroborates that the TUI is still alive
+      (guards against a missing PID file, which can happen due to
+      races during TUI restarts or external cleanup).
+    - When idle_state says "idle", a recent keypress overrides the
+      state file (catches races and stale state).
+
+    Falls back to True (idle) when the state file is missing or
+    unreadable, or when the TUI appears to have crashed (state says
+    active but no PID and no recent keypress).
     """
-    if not _is_tui_running():
-        return True
     try:
         idle_flag = IDLE_STATE_FILE.read_text().strip() == "1"
     except (FileNotFoundError, ValueError):
         return True
+
+    tui_running = _is_tui_running()
+
     if not idle_flag:
+        # TUI says user is active.  Trust it if the TUI process is
+        # confirmed alive, or if a recent keypress corroborates it
+        # (handles missing/stale PID file).
+        if tui_running or _has_recent_keypress():
+            return False
+        # No PID and no recent keypress — stale state from a crashed TUI.
+        return True
+
+    # idle_state says idle.
+    if not tui_running:
+        return True
+    # Safety guard: recent keypress overrides the idle state file.
+    if _has_recent_keypress():
         return False
-    # Secondary guard: verify that the last keypress is old enough.
-    # The TUI writes this file every ~10 seconds and NEVER overwrites
-    # it on idle transitions, so it always reflects the actual last
-    # user interaction.  If the keypress was recent, the idle state
-    # file is stale or incorrect.
+    return True
+
+
+def _has_recent_keypress() -> bool:
+    """Return True if a keypress occurred within ``_IDLE_GUARD_SECONDS``."""
     last_kp = _get_last_keypress()
     if last_kp is not None and last_kp > 0:
-        elapsed = time.time() - last_kp
-        if elapsed < _IDLE_GUARD_SECONDS:
-            return False
-    return True
+        return time.time() - last_kp < _IDLE_GUARD_SECONDS
+    return False
