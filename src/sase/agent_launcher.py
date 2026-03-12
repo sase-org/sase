@@ -67,6 +67,9 @@ def spawn_agent_subprocess(
 
     # Build subprocess environment (copy to avoid mutating os.environ)
     subprocess_env = dict(os.environ)
+    # Remove CLAUDE_CODE_ENTRYPOINT so the spawned agent can launch its own
+    # Claude Code session without triggering the nested-session check.
+    subprocess_env.pop("CLAUDE_CODE_ENTRYPOINT", None)
     subprocess_env["SASE_AGENT"] = "1"
     subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
     subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
