@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from sase.ace.tui_activity import (
     _IDLE_GUARD_SECONDS,
+    _PID_MISSING_GUARD_SECONDS,
     _is_tui_running,
     get_tui_last_activity,
     is_idle,
@@ -297,7 +298,26 @@ def test_is_idle_true_when_pid_missing_state_active_but_old_keypress(
         patch("sase.ace.tui_activity._is_tui_running", return_value=False),
     ):
         write_idle_state(False)
-        write_last_keypress(time.time() - _IDLE_GUARD_SECONDS - 10)
+        write_last_keypress(time.time() - _PID_MISSING_GUARD_SECONDS - 10)
+        assert is_idle() is True
+
+
+def test_is_idle_true_when_pid_missing_state_active_keypress_past_short_guard(
+    tmp_path: Path,
+) -> None:
+    """PID missing + idle_state=0 + keypress beyond short guard → idle.
+
+    This is the key scenario: the user went idle ~60s ago.  The keypress
+    is past the short PID-missing guard (30s) but would have been within
+    the old 120s window that was blocking legitimate notifications.
+    """
+    with (
+        _patch_idle_state_file(tmp_path),
+        _patch_last_keypress_file(tmp_path),
+        patch("sase.ace.tui_activity._is_tui_running", return_value=False),
+    ):
+        write_idle_state(False)
+        write_last_keypress(time.time() - 60)
         assert is_idle() is True
 
 

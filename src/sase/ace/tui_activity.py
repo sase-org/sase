@@ -21,6 +21,13 @@ LAST_KEYPRESS_FILE: Path = Path.home() / ".sase" / "tui_last_keypress"
 # inactive_seconds threshold (default 600s).
 _IDLE_GUARD_SECONDS = 120
 
+# Shorter guard for the "idle_state=0 but PID file missing" case.
+# Here we're only trying to cover brief PID file gaps during TUI
+# restarts (typically < 5s), not the full idle transition window.
+# 30s is generous enough for restarts but short enough to avoid
+# blocking legitimate notifications after the user goes idle.
+_PID_MISSING_GUARD_SECONDS = 30
+
 
 def write_activity_timestamp(epoch: float) -> None:
     """Atomically write *epoch* to the activity file.
@@ -168,9 +175,15 @@ def is_idle() -> bool:
 
     if not idle_flag:
         # TUI says user is active.  Trust it if the TUI process is
-        # confirmed alive, or if a recent keypress corroborates it
-        # (handles missing/stale PID file).
-        if tui_running or _has_recent_keypress():
+        # confirmed alive.
+        if tui_running:
+            return False
+        # PID file is missing.  Use a SHORT keypress guard to cover
+        # brief PID file gaps during TUI restarts, but don't block
+        # notifications for an extended period — the PID file is
+        # chronically missing in practice, so a long guard window
+        # (like _IDLE_GUARD_SECONDS) would suppress legitimate sends.
+        if _has_recent_keypress(_PID_MISSING_GUARD_SECONDS):
             return False
         # No PID and no recent keypress — stale state from a crashed TUI.
         return True
@@ -184,9 +197,9 @@ def is_idle() -> bool:
     return True
 
 
-def _has_recent_keypress() -> bool:
-    """Return True if a keypress occurred within ``_IDLE_GUARD_SECONDS``."""
+def _has_recent_keypress(threshold: float = _IDLE_GUARD_SECONDS) -> bool:
+    """Return True if a keypress occurred within *threshold* seconds."""
     last_kp = _get_last_keypress()
     if last_kp is not None and last_kp > 0:
-        return time.time() - last_kp < _IDLE_GUARD_SECONDS
+        return time.time() - last_kp < threshold
     return False
