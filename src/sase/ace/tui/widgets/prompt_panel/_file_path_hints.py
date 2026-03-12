@@ -31,10 +31,10 @@ _FILE_PATH_RE = re.compile(
 def resolve_agent_workspace_dir(
     workspace_num: int | None, project_file: str
 ) -> str | None:
-    """Get workspace directory for an agent without side effects.
+    """Get workspace directory for an agent.
 
-    Computes the path from the project file's WORKSPACE_DIR field
-    without creating or modifying any directories.
+    Delegates to workspace provider plugins to correctly resolve the
+    workspace path for any VCS type (Git, Mercurial, etc.).
 
     Args:
         workspace_num: Agent's workspace number (None or 0 = no workspace).
@@ -46,20 +46,27 @@ def resolve_agent_workspace_dir(
     if workspace_num is None or workspace_num <= 0:
         return None
 
+    from pathlib import Path
+
+    from sase.workspace_provider import (
+        detect_workflow_type,
+        get_workspace_directory,
+    )
     from sase.workspace_utils import parse_workspace_dir
 
-    primary_dir = parse_workspace_dir(project_file)
-    if primary_dir is None:
-        return None
+    try:
+        workflow_type = detect_workflow_type(project_file)
+        primary_dir = parse_workspace_dir(project_file) or ""
+        project_name = Path(project_file).parent.name
+        ws_dir = get_workspace_directory(
+            workflow_type, workspace_num, project_name, primary_dir
+        )
+        ws_dir = ws_dir.rstrip("/")
+        if os.path.isdir(ws_dir):
+            return ws_dir
+    except Exception:
+        pass
 
-    if workspace_num == 1:
-        ws_dir = primary_dir.rstrip("/")
-    else:
-        base = primary_dir.rstrip("/")
-        ws_dir = f"{base}_{workspace_num}"
-
-    if os.path.isdir(ws_dir):
-        return ws_dir
     return None
 
 
