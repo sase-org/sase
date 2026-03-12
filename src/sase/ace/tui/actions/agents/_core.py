@@ -189,16 +189,19 @@ class AgentsMixinCore(
 
         self._dismissed_agent_objects = dismissed_from_loader
 
-        # Filter out dismissed agents.  Never filter RUNNING agents — they
-        # represent live processes and should remain visible even when a
-        # completed (done.json) copy sharing the same identity was auto-dismissed.
+        # Filter out dismissed agents.  RUNNING agents bypass the secondary
+        # dismissed_suffixes index (to avoid cross-contamination when an
+        # auto-dismissed done.json copy happens to share a suffix with a
+        # live process), but they DO respect direct identity matches in
+        # _dismissed_agents so that explicitly killed agents disappear
+        # immediately.
         all_agents = [
             a
             for a in all_agents
-            if a.status == "RUNNING"
-            or (
-                a.identity not in self._dismissed_agents
-                and (a.raw_suffix is None or a.raw_suffix not in dismissed_suffixes)
+            if a.identity not in self._dismissed_agents
+            and (
+                a.status == "RUNNING"
+                or (a.raw_suffix is None or a.raw_suffix not in dismissed_suffixes)
             )
         ]
 

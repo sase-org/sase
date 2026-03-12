@@ -180,6 +180,12 @@ class AgentKillingMixin:
         self._agent_pre_question_status.pop(agent.identity, None)
         self._refresh_notification_count()  # type: ignore[attr-defined]
 
+        # Ensure the killed agent is tracked as dismissed so it's filtered
+        # out immediately even if the loader still finds it (e.g. process
+        # hasn't fully exited yet).  Some kill methods already call this
+        # internally; the duplicate set-add is harmless.
+        self._persist_dismissed_agent(agent.identity)
+
         # Refresh agents list
         self._load_agents()  # type: ignore[attr-defined]
 
