@@ -300,7 +300,7 @@ class _AxeOutputSection(Static):
         """
         if not output:
             text = Text("No output yet. Start axe with ", style="dim italic")
-            text.append("X", style="bold #FFD700")
+            text.append("x", style="bold #FFD700")
             text.append(" to see live output.", style="dim italic")
             self.update(text)
             return

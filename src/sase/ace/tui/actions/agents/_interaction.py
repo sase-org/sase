@@ -24,9 +24,9 @@ class AgentInteractionMixin:
     hide_non_run_agents: bool
 
     def action_kill_agent(self) -> None:
-        """Kill or dismiss agent, or clear AXE output depending on tab."""
+        """Kill or dismiss agent, or toggle/kill axe on AXE tab."""
         if self.current_tab == "axe":
-            self.action_clear_axe_output()  # type: ignore[attr-defined]
+            self._toggle_or_kill_axe_view()  # type: ignore[attr-defined]
             return
         if self.current_tab != "agents":
             return

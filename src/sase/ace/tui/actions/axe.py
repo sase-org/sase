@@ -52,26 +52,27 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     _axe_lumberjack_idx: int | None
 
     def action_toggle_axe(self) -> None:
-        """Toggle the axe daemon on or off (AXE tab only).
+        """Clear AXE output (X key on AXE tab).
 
-        On AXE tab:
-          - View 0 (axe): Toggle axe daemon
-          - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
-
-        On other tabs: no-op (use !x bang mode instead).
+        On other tabs: no-op.
         """
         if self.current_tab != "axe":
             return
 
-        # On AXE tab, behavior depends on current view
+        self.action_clear_axe_output()
+
+    def _toggle_or_kill_axe_view(self) -> None:
+        """Toggle axe daemon or kill bgcmd based on current AXE view.
+
+        - View "axe": Toggle axe daemon on/off
+        - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
+        """
         if self._axe_current_view == "axe":
-            # Toggle axe daemon
             if self.axe_running:
                 self._stop_axe()
             else:
                 self._start_axe()
         else:
-            # Current view is a bgcmd slot - kill or clear
             slot = self._axe_current_view
             self._confirm_kill_bgcmd(slot)
 
@@ -89,17 +90,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
           - If both running: Show selector
         """
         if self.current_tab == "axe":
-            # On AXE tab, behavior depends on current view
-            if self._axe_current_view == "axe":
-                # Toggle axe daemon
-                if self.axe_running:
-                    self._stop_axe()
-                else:
-                    self._start_axe()
-            else:
-                # Current view is a bgcmd slot - kill or clear
-                slot = self._axe_current_view
-                self._confirm_kill_bgcmd(slot)
+            self._toggle_or_kill_axe_view()
         else:
             # On other tabs - handle based on what's running
             bgcmd_active = len(self._bgcmd_slots) > 0

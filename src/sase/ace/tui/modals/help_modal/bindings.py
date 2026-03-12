@@ -206,7 +206,7 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
         "Background Commands",
         [
             ("@", "Run agent"),
-            ("X", "Kill current command (or toggle axe)"),
+            ("X", "Clear output"),
         ],
     ),
     (
@@ -234,8 +234,8 @@ AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Axe Control",
         [
-            ("x", "Clear output"),
-            ("X", "Start / stop axe daemon"),
+            ("x", "Start / stop axe (or kill command)"),
+            ("X", "Clear output"),
             ("Q", "Stop axe and quit"),
         ],
     ),

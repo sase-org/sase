@@ -53,17 +53,17 @@ def test_keybinding_footer_axe_bindings() -> None:
     # Default: axe not running, on axe view
     bindings = footer._compute_axe_bindings("axe")
     assert len(bindings) == 2
-    assert bindings[0] == ("x", "clear")
-    assert bindings[1] == ("X", "start axe")
+    assert bindings[0] == ("x", "start axe")
+    assert bindings[1] == ("X", "clear")
 
     # Axe running, on axe view
     footer._axe_running = True
     bindings = footer._compute_axe_bindings("axe")
-    assert bindings[1] == ("X", "stop axe")
+    assert bindings[0] == ("x", "stop axe")
 
     # On bgcmd view
     bindings = footer._compute_axe_bindings(1)
-    assert bindings[1] == ("X", "kill")
+    assert bindings[0] == ("x", "kill")
 
 
 def test_keybinding_footer_status_with_bgcmd_running() -> None:

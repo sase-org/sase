@@ -240,12 +240,12 @@ class KeybindingFooter(Horizontal):
             List of (key, label) tuples.
         """
         bindings: list[tuple[str, str]] = []
-        bindings.append(("x", "clear"))
         if axe_current_view == "axe":
             label = "stop axe" if self._axe_running else "start axe"
         else:
             label = "kill"
-        bindings.append(("X", label))
+        bindings.append(("x", label))
+        bindings.append(("X", "clear"))
         # Show lumberjack cycling hint when lumberjacks are available
         if lumberjack_total > 0 and axe_current_view == "axe":
             if lumberjack_name is not None and lumberjack_idx is not None:
