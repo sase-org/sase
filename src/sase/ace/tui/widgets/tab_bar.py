@@ -138,7 +138,7 @@ class TabBar(Static):
         m = str(self._cls_main_count) if self._cls_main_count > 0 else ""
         if self._cls_show_hidden:
             h = str(self._cls_hidden_count) if self._cls_hidden_count > 0 else ""
-            cl_label = f" CLs ({m}+{h}) "
+            cl_label = f" CLs ({m}.{h}) "
         elif self._cls_main_count > 0:
             cl_label = f" CLs ({m}) "
         else:
@@ -156,11 +156,11 @@ class TabBar(Static):
         agents_start = len(text.plain)
         m = str(self._agents_manual_count) if self._agents_manual_count > 0 else ""
         suffix = m
+        if self._agents_done_count > 0:
+            suffix += f"x{self._agents_done_count}"
         if self._agents_show_hidden:
             h = str(self._agents_hidden_count) if self._agents_hidden_count > 0 else ""
-            suffix += f"+{h}"
-        if self._agents_done_count > 0:
-            suffix += f"-{self._agents_done_count}"
+            suffix += f".{h}"
         if suffix or self._agents_show_hidden:
             agents_label = f" Agents ({suffix}) "
         else:
@@ -178,11 +178,11 @@ class TabBar(Static):
         axe_start = len(text.plain)
         m = str(self._axe_main_count) if self._axe_main_count > 0 else ""
         suffix = m
+        if self._axe_done_count > 0:
+            suffix += f"x{self._axe_done_count}"
         if self._axe_show_hidden:
             h = str(self._axe_hidden_count) if self._axe_hidden_count > 0 else ""
-            suffix += f"+{h}"
-        if self._axe_done_count > 0:
-            suffix += f"-{self._axe_done_count}"
+            suffix += f".{h}"
         if suffix or self._axe_show_hidden:
             axe_label = f" AXE ({suffix}) "
         else:
