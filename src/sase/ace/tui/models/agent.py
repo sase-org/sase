@@ -202,25 +202,25 @@ class Agent:
         Each timestamp on its own line, with subsequent lines indented
         to align with the first (matching the width of ``Timestamps: ``).
 
-        - SPAWN shown only when agent waited before starting (run_start_time exists)
+        - WAIT shown only when agent waited before starting (run_start_time exists)
         - BEGIN always shown
         - END shown for DONE/FAILED agents
         """
         parts: list[str] = []
         fmt = "%Y-%m-%d %H:%M:%S"
-        # Pad tag to 5 chars so timestamps align (longest tag is 5: SPAWN/BEGIN)
+        # Pad tag to 5 chars so timestamps align (longest tag is 5: BEGIN)
         tag_width = 5
 
         def _fmt(tag: str, ts: str) -> str:
             return f"{tag.ljust(tag_width)} | {ts}"
 
-        # If the agent waited, show SPAWN (original start_time) then BEGIN (run_start_time)
+        # If the agent waited, show WAIT (original start_time) then BEGIN (run_start_time)
         if self.run_start_time is not None and self.start_time is not None:
-            parts.append(_fmt("SPAWN", self.start_time.strftime(fmt)))
+            parts.append(_fmt("WAIT", self.start_time.strftime(fmt)))
             parts.append(_fmt("BEGIN", self.run_start_time.strftime(fmt)))
         elif self.start_time is not None:
             # WAITING agents haven't started yet — start_time is their spawn time
-            tag = "SPAWN" if self.status == "WAITING" else "BEGIN"
+            tag = "WAIT" if self.status == "WAITING" else "BEGIN"
             parts.append(_fmt(tag, self.start_time.strftime(fmt)))
         else:
             parts.append(_fmt("BEGIN", "Unknown"))
