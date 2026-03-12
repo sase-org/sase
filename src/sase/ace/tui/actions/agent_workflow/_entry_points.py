@@ -114,6 +114,8 @@ class EntryPointsMixin:
                     self._start_agents_from_marked()
                 else:
                     self._start_agent_from_changespec_quick()
+            elif self.current_tab == "agents":
+                self._start_agent_from_agent_quick()
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -143,6 +145,42 @@ class EntryPointsMixin:
             item_type="cl",
             project_name=changespec.project_basename,
             cl_name=cl_name,
+        )
+        from sase.ace.last_agent_selection import save_last_agent_selection
+
+        save_last_agent_selection(self._last_custom_agent_selection)
+
+        self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+            initial_text=prefix,
+            display_name=cl_name,
+            history_sort_key=cl_name,
+        )
+
+    def _start_agent_from_agent_quick(self) -> None:
+        """Start agent using the selected agent's project/CL name.
+
+        Uses the currently selected agent on the agents tab to derive
+        the VCS prefix, similar to how ,<space> works on the CLs tab.
+        """
+        from pathlib import Path
+
+        from ...modals import SelectionItem
+
+        if not self._agents:
+            self.notify("No agents available", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+        cl_name = agent.cl_name
+        project_name = Path(agent.project_file).parent.name
+        prefix = _vcs_prompt_prefix(agent.project_file, cl_name)
+
+        # Save for <space> repeat
+        self._last_custom_agent_selection = SelectionItem(
+            display_name=cl_name,
+            item_type="project" if agent.is_project_agent else "cl",
+            project_name=project_name,
+            cl_name=cl_name if not agent.is_project_agent else None,
         )
         from sase.ace.last_agent_selection import save_last_agent_selection
 

@@ -263,6 +263,8 @@ class KeybindingFooter(Horizontal):
         bindings.append(("h", "agent (home)"))
         if current_tab == "changespecs":
             bindings.append(("Space", "run agent (CL)"))
+        elif current_tab == "agents":
+            bindings.append(("Space", "run agent (CL)"))
         bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix
