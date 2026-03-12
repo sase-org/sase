@@ -1,5 +1,6 @@
 """Trim state management mixin for the file panel."""
 
+import math
 from datetime import datetime
 
 from rich.console import Group
@@ -152,7 +153,15 @@ class FilePanelTrimMixin:
         if content_h <= viewport_h:
             return
         overflow = content_h - viewport_h
-        new_visible = max(1, self._visible_line_count - overflow)
+        # Word-wrapping means each logical line may span multiple visual
+        # lines.  Convert the visual-line overflow to an estimated number
+        # of logical lines so we don't over-correct.
+        if self._visible_line_count > 0:
+            avg_visual_per_logical = content_h / self._visible_line_count
+            logical_reduction = max(1, math.ceil(overflow / avg_visual_per_logical))
+        else:
+            logical_reduction = overflow
+        new_visible = max(1, self._visible_line_count - logical_reduction)
         if new_visible >= self._visible_line_count:
             return
         self._visible_line_count = new_visible
