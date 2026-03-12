@@ -28,9 +28,6 @@ axe:
           description: "Release workspace claims orphaned by reverted CLs with dead PIDs"
         - name: wait_checks
           description: "Resolve agent wait dependencies and write ready.json when satisfied"
-    spec_writer:
-      interval: 1
-      chops:
         - name: spec_writer
           description: "Process queued project spec file write requests"
     checks:
