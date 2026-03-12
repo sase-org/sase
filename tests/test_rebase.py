@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from sase.status_state_machine import update_changespec_parent_atomic
-from sase.status_state_machine.field_updates import apply_parent_update
+from sase.status_state_machine.field_updates import _apply_parent_update
 
 
 def _create_test_project_file_with_parent(
@@ -78,10 +78,10 @@ STATUS: Reverted
         return f.name
 
 
-# === Tests for apply_parent_update ===
+# === Tests for _apply_parent_update ===
 
 
-def testapply_parent_update_existing_field() -> None:
+def test_apply_parent_update_existing_field() -> None:
     """Test updating an existing PARENT field."""
     lines = [
         "NAME: Test Feature\n",
@@ -92,7 +92,7 @@ def testapply_parent_update_existing_field() -> None:
         "STATUS: Ready\n",
     ]
 
-    result = apply_parent_update(lines, "Test Feature", "NewParent")
+    result = _apply_parent_update(lines, "Test Feature", "NewParent")
     assert "PARENT: NewParent\n" in result
     assert "PARENT: OldParent" not in result
 

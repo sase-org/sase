@@ -44,7 +44,7 @@ def apply_status_update(lines: list[str], changespec_name: str, new_status: str)
     return "".join(updated_lines)
 
 
-def apply_cl_update(
+def _apply_cl_update(
     lines: list[str], changespec_name: str, new_cl: str | None, project_file: str
 ) -> str:
     """Apply CL field update to file lines.
@@ -114,7 +114,7 @@ def update_changespec_cl_atomic(
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
-        updated_content = apply_cl_update(lines, changespec_name, new_cl, project_file)
+        updated_content = _apply_cl_update(lines, changespec_name, new_cl, project_file)
 
         write_changespec_atomic(project_file, updated_content, commit_msg)
 
@@ -159,7 +159,7 @@ def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None
     return None
 
 
-def apply_parent_update(
+def _apply_parent_update(
     lines: list[str], changespec_name: str, new_parent: str | None
 ) -> str:
     """Apply PARENT field update to file lines.
@@ -247,7 +247,7 @@ def update_changespec_parent_atomic(
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
-        updated_content = apply_parent_update(lines, changespec_name, new_parent)
+        updated_content = _apply_parent_update(lines, changespec_name, new_parent)
 
         write_changespec_atomic(project_file, updated_content, commit_msg)
 
@@ -326,7 +326,7 @@ def _format_description_field(description: str) -> list[str]:
     return result
 
 
-def apply_description_update(
+def _apply_description_update(
     lines: list[str], changespec_name: str, new_description: str
 ) -> str:
     """Apply DESCRIPTION field update to file lines.
@@ -394,7 +394,7 @@ def update_changespec_description_atomic(
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            updated_content = apply_description_update(
+            updated_content = _apply_description_update(
                 lines, changespec_name, new_description
             )
 
