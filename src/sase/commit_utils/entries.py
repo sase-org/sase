@@ -144,7 +144,7 @@ def _get_last_regular_commit_number(lines: list[str], cl_name: str) -> int:
     return get_next_commit_number(lines, cl_name) - 1
 
 
-def get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) -> str:
+def _get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) -> str:
     """Get the next available proposal letter for a base number.
 
     Args:
@@ -231,7 +231,7 @@ def add_proposed_commit_entry(
                 # No regular commit entries yet - use 0 as base
                 # This handles the edge case where propose is used before any commits
                 base_number = 0
-            proposal_letter = get_next_proposal_letter(lines, cl_name, base_number)
+            proposal_letter = _get_next_proposal_letter(lines, cl_name, base_number)
             entry_id = f"{base_number}{proposal_letter}"
 
             # Find the ChangeSpec and determine where to add the commit entry

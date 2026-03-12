@@ -6,10 +6,10 @@ from sase.ace.changespec import (
 )
 
 
-# Tests for apply_hook_suffix_update
-def testapply_hook_suffix_update_with_entry_id() -> None:
+# Tests for _apply_hook_suffix_update
+def test_apply_hook_suffix_update_with_entry_id() -> None:
     """Test applying suffix update to a specific entry ID."""
-    from sase.ace.hooks.mutations import apply_hook_suffix_update
+    from sase.ace.hooks.mutations import _apply_hook_suffix_update
 
     hooks = [
         HookEntry(
@@ -28,7 +28,7 @@ def testapply_hook_suffix_update_with_entry_id() -> None:
             ],
         ),
     ]
-    updated, was_updated = apply_hook_suffix_update(
+    updated, was_updated = _apply_hook_suffix_update(
         hooks, "flake8 src", "suffix_for_entry1", entry_id="1"
     )
     assert was_updated is True
@@ -39,9 +39,9 @@ def testapply_hook_suffix_update_with_entry_id() -> None:
     assert sl2.suffix is None
 
 
-def testapply_hook_suffix_update_with_summary() -> None:
+def test_apply_hook_suffix_update_with_summary() -> None:
     """Test applying suffix update with summary."""
-    from sase.ace.hooks.mutations import apply_hook_suffix_update
+    from sase.ace.hooks.mutations import _apply_hook_suffix_update
 
     hooks = [
         HookEntry(
@@ -55,7 +55,7 @@ def testapply_hook_suffix_update_with_summary() -> None:
             ],
         ),
     ]
-    updated, was_updated = apply_hook_suffix_update(
+    updated, was_updated = _apply_hook_suffix_update(
         hooks,
         "flake8 src",
         "fix_attempt",
@@ -70,9 +70,9 @@ def testapply_hook_suffix_update_with_summary() -> None:
     assert sl.summary == "Brief summary of the issue"
 
 
-def testapply_hook_suffix_update_no_match() -> None:
+def test_apply_hook_suffix_update_no_match() -> None:
     """Test that non-matching hooks are unchanged."""
-    from sase.ace.hooks.mutations import apply_hook_suffix_update
+    from sase.ace.hooks.mutations import _apply_hook_suffix_update
 
     hooks = [
         HookEntry(
@@ -86,27 +86,27 @@ def testapply_hook_suffix_update_no_match() -> None:
             ],
         ),
     ]
-    updated, was_updated = apply_hook_suffix_update(hooks, "pytest tests", "suffix")
+    updated, was_updated = _apply_hook_suffix_update(hooks, "pytest tests", "suffix")
     assert was_updated is False
     assert updated[0].status_lines is not None
     assert updated[0].status_lines[0].suffix is None
 
 
-def testapply_hook_suffix_update_no_status_lines() -> None:
+def test_apply_hook_suffix_update_no_status_lines() -> None:
     """Test applying suffix to hook with no status lines."""
-    from sase.ace.hooks.mutations import apply_hook_suffix_update
+    from sase.ace.hooks.mutations import _apply_hook_suffix_update
 
     hooks = [HookEntry(command="flake8 src")]
-    updated, was_updated = apply_hook_suffix_update(hooks, "flake8 src", "suffix")
+    updated, was_updated = _apply_hook_suffix_update(hooks, "flake8 src", "suffix")
     assert was_updated is False
     assert updated[0].command == "flake8 src"
     assert updated[0].status_lines is None
 
 
-# Tests for apply_clear_hook_suffix
-def testapply_clear_hook_suffix_no_suffix() -> None:
+# Tests for _apply_clear_hook_suffix
+def test_apply_clear_hook_suffix_no_suffix() -> None:
     """Test clearing when there's no suffix to clear."""
-    from sase.ace.hooks.mutations import apply_clear_hook_suffix
+    from sase.ace.hooks.mutations import _apply_clear_hook_suffix
 
     hooks = [
         HookEntry(
@@ -121,26 +121,26 @@ def testapply_clear_hook_suffix_no_suffix() -> None:
             ],
         ),
     ]
-    updated, was_cleared = apply_clear_hook_suffix(hooks, "flake8 src")
+    updated, was_cleared = _apply_clear_hook_suffix(hooks, "flake8 src")
     assert was_cleared is False
     assert updated[0].status_lines is not None
     assert updated[0].status_lines[0].suffix is None
 
 
-def testapply_clear_hook_suffix_no_status_lines() -> None:
+def test_apply_clear_hook_suffix_no_status_lines() -> None:
     """Test clearing suffix on hook with no status lines."""
-    from sase.ace.hooks.mutations import apply_clear_hook_suffix
+    from sase.ace.hooks.mutations import _apply_clear_hook_suffix
 
     hooks = [HookEntry(command="flake8 src")]
-    updated, was_cleared = apply_clear_hook_suffix(hooks, "flake8 src")
+    updated, was_cleared = _apply_clear_hook_suffix(hooks, "flake8 src")
     assert was_cleared is False
     assert updated[0].command == "flake8 src"
     assert updated[0].status_lines is None
 
 
-def testapply_clear_hook_suffix_multiple_hooks() -> None:
+def test_apply_clear_hook_suffix_multiple_hooks() -> None:
     """Test clearing suffix when there are multiple hooks."""
-    from sase.ace.hooks.mutations import apply_clear_hook_suffix
+    from sase.ace.hooks.mutations import _apply_clear_hook_suffix
 
     hooks = [
         HookEntry(
@@ -166,7 +166,7 @@ def testapply_clear_hook_suffix_multiple_hooks() -> None:
             ],
         ),
     ]
-    updated, was_cleared = apply_clear_hook_suffix(hooks, "pytest tests")
+    updated, was_cleared = _apply_clear_hook_suffix(hooks, "pytest tests")
     assert was_cleared is True
     assert updated[0].status_lines is not None
     assert updated[0].status_lines[0].suffix == "suffix_to_keep"

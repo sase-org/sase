@@ -18,7 +18,7 @@ class TestOperationType:
         assert OperationType.UPDATE_PARENT_REFERENCES == "UPDATE_PARENT_REFERENCES"
 
     def test_all_members(self) -> None:
-        assert len(OperationType) == 19
+        assert len(OperationType) == 6
 
 
 class TestWriteMode:
