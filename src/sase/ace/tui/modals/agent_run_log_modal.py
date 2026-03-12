@@ -131,7 +131,6 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
     _option_list_id = "agent-log-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        ("enter", "jump_to_agent_tab", "Jump to Agents tab"),
         ("e", "open_chat", "Open Chat"),
         ("upper_r", "revive_agent", "Revive"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
@@ -401,6 +400,11 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append(f"{preview}\n")
 
         detail.update(text)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Handle enter/click on an option — jump to Agents tab."""
+        event.stop()
+        self.action_jump_to_agent_tab()
 
     def action_jump_to_agent_tab(self) -> None:
         """Jump to the Agents tab with the highlighted agent selected."""
