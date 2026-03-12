@@ -330,6 +330,13 @@ class AceApp(
         self._axe_lumberjack_names: list[str] = []
         self._axe_lumberjack_idx: int | None = None
 
+        # AXE side-panel item list and saved position
+        from .widgets.bgcmd_list import AxeItem
+
+        self._axe_items: list[AxeItem] = []
+        self._axe_last_idx: int = 0
+        self._axe_fold_manager = FoldStateManager()
+
         # Query history stacks for prev/next navigation
         from ..query_history import load_query_history
 
@@ -397,8 +404,8 @@ class AceApp(
                         yield AgentDetail(id="agent-detail-panel")
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
-                # Left panel (bgcmd list) - hidden by default, shown when bgcmds exist
-                with Vertical(id="bgcmd-list-container", classes="hidden"):
+                # Left panel (bgcmd list) - always visible on AXE tab
+                with Vertical(id="bgcmd-list-container"):
                     yield BgCmdList(id="bgcmd-list-panel")
                 # Right panel (dashboard)
                 with Vertical(id="axe-container"):
@@ -550,6 +557,8 @@ class AceApp(
                 self._refresh_display()
             elif self.current_tab == "agents":
                 self._refresh_agents_display_debounced()
+            elif self.current_tab == "axe":
+                self._refresh_axe_display()
 
     def watch_current_tab(self, old_tab: TabName, new_tab: TabName) -> None:
         """React to tab changes by showing/hiding views."""

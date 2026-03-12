@@ -206,20 +206,16 @@ class KeybindingFooter(Horizontal):
         self,
         *,
         axe_current_view: str | int = "axe",
-        lumberjack_name: str | None = None,
-        lumberjack_idx: int | None = None,
         lumberjack_total: int = 0,
         cmds_hidden: bool = False,
-        has_running_cmds: bool = False,
+        bgcmd_count: int = 0,
     ) -> None:
         """Update bindings for Axe tab context."""
         bindings = self._compute_axe_bindings(
             axe_current_view,
-            lumberjack_name,
-            lumberjack_idx,
-            lumberjack_total,
+            lumberjack_total=lumberjack_total,
             cmds_hidden=cmds_hidden,
-            has_running_cmds=has_running_cmds,
+            bgcmd_count=bgcmd_count,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -227,12 +223,10 @@ class KeybindingFooter(Horizontal):
     def _compute_axe_bindings(
         self,
         axe_current_view: str | int,
-        lumberjack_name: str | None = None,
-        lumberjack_idx: int | None = None,
-        lumberjack_total: int = 0,
         *,
+        lumberjack_total: int = 0,
         cmds_hidden: bool = False,
-        has_running_cmds: bool = False,
+        bgcmd_count: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute available bindings for Axe tab.
 
@@ -246,21 +240,15 @@ class KeybindingFooter(Horizontal):
             label = "kill"
         bindings.append(("x", label))
         bindings.append(("X", "clear"))
-        # Show lumberjack cycling hint when lumberjacks are available
-        if lumberjack_total > 0 and axe_current_view == "axe":
-            if lumberjack_name is not None and lumberjack_idx is not None:
-                lj_label = (
-                    f"{lumberjack_name} ({lumberjack_idx + 1}/{lumberjack_total})"
-                )
-                bindings.append(("^N/P", lj_label))
-            else:
-                # On main axe page - show total lumberjack count
-                bindings.append(("^N/P", f"lumberjacks ({lumberjack_total})"))
-        # Hide/show commands toggle
+        # Show h/l fold hint when lumberjacks exist
+        if lumberjack_total > 0:
+            bindings.append(("h/l", "fold"))
+        # Hide/show commands toggle with bgcmd count
         if cmds_hidden:
-            bindings.append((".", "show"))
-        elif has_running_cmds:
-            bindings.append((".", "hide"))
+            count_label = f" ({bgcmd_count})" if bgcmd_count > 0 else ""
+            bindings.append((".", f"show{count_label}"))
+        elif bgcmd_count > 0:
+            bindings.append((".", f"hide ({bgcmd_count})"))
         return bindings
 
     def update_leader_bindings(self, *, current_tab: str = "changespecs") -> None:

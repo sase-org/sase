@@ -5,22 +5,26 @@ from sase.ace.tui.widgets import BgCmdList
 
 
 def test_bgcmd_list_selection_changed_slot() -> None:
-    """Test SelectionChanged message with slot number."""
+    """Test SelectionChanged message with index."""
     msg = BgCmdList.SelectionChanged(3)
-    assert msg.item == 3
+    assert msg.index == 3
 
 
-def test_bgcmd_list_format_axe_option_stopped() -> None:
-    """Test formatting axe option when stopped."""
+def test_bgcmd_list_format_axe_parent_option_stopped() -> None:
+    """Test formatting axe parent option when stopped."""
     widget = BgCmdList()
-    option = widget._format_axe_option(is_running=False, is_selected=False)
+    option = widget._format_axe_parent_option(
+        is_running=False, is_selected=False, child_count=0, is_expanded=False
+    )
     assert option.id == "axe"
 
 
-def test_bgcmd_list_format_axe_option_selected() -> None:
-    """Test formatting axe option when selected."""
+def test_bgcmd_list_format_axe_parent_option_selected() -> None:
+    """Test formatting axe parent option when selected."""
     widget = BgCmdList()
-    option = widget._format_axe_option(is_running=True, is_selected=True)
+    option = widget._format_axe_parent_option(
+        is_running=True, is_selected=True, child_count=0, is_expanded=False
+    )
     assert option.id == "axe"
 
 
@@ -59,4 +63,4 @@ def test_bgcmd_list_format_bgcmd_option_done() -> None:
     assert option.id == "2"
     text_str = str(option.prompt)
     # Done commands should show a checkmark
-    assert "✓" in text_str
+    assert "\u2713" in text_str

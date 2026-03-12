@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import types
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from sase.axe.state import (
     AxeMetrics,
@@ -25,6 +25,10 @@ from ..bgcmd import (
     mark_slot_finished,
     read_slot_output_tail,
 )
+from ..widgets.bgcmd_list import AxeItem, AxeParentItem, BgCmdItem, LumberjackItem
+
+if TYPE_CHECKING:
+    from ..models.fold_state import FoldStateManager
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -45,6 +49,7 @@ class AxeDisplayMixin:
 
     # Type hints for attributes accessed from AceApp
     current_tab: TabName
+    current_idx: int
     refresh_interval: int
     axe_running: bool
     _countdown_remaining: int
@@ -57,6 +62,8 @@ class AxeDisplayMixin:
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
     _axe_lumberjack_names: list[str]
     _axe_lumberjack_idx: int | None
+    _axe_items: list[AxeItem]
+    _axe_fold_manager: FoldStateManager
     _bang_mode_active: bool
 
     def _load_axe_status(self) -> None:
@@ -143,9 +150,8 @@ class AxeDisplayMixin:
         # Update footer with bgcmd count
         self._update_bgcmd_count()
 
-        # Update AXE tab layout if needed
-        if self.current_tab == "axe":
-            self._update_axe_layout()
+        # Rebuild axe items list
+        self._build_axe_items()
 
     def _update_bgcmd_count(self) -> None:
         """Update the keybinding footer with bgcmd running/done counts."""
@@ -199,21 +205,49 @@ class AxeDisplayMixin:
         except Exception:
             pass
 
-    def _update_axe_layout(self) -> None:
-        """Update AXE tab layout based on whether bgcmds are running."""
-        try:
-            bgcmd_list_container = self.query_one("#bgcmd-list-container")  # type: ignore[attr-defined]
-            has_bgcmds = len(self._bgcmd_slots) > 0
+    def _build_axe_items(self) -> None:
+        """Build the flat list of AXE side-panel items based on fold and hidden state."""
+        from ..models.fold_state import FoldLevel
 
-            if has_bgcmds and not self._axe_cmds_hidden:
-                bgcmd_list_container.remove_class("hidden")
-            else:
-                bgcmd_list_container.add_class("hidden")
-                # If current view is a bgcmd that's no longer running, switch to axe
-                if not has_bgcmds and self._axe_current_view != "axe":
-                    self._axe_current_view = "axe"
-        except Exception:
-            pass
+        items: list[AxeItem] = [AxeParentItem()]
+
+        # Add lumberjack children when expanded
+        if self._axe_fold_manager.get("axe") != FoldLevel.COLLAPSED:
+            for lj_name in self._axe_lumberjack_names:
+                items.append(LumberjackItem(name=lj_name))
+
+        # Add bgcmd entries when not hidden
+        if not self._axe_cmds_hidden:
+            for slot, _ in sorted(self._bgcmd_slots, key=lambda x: x[0]):
+                items.append(BgCmdItem(slot=slot))
+
+        self._axe_items = items
+
+        # Clamp current_idx if it's out of bounds for the new items list
+        if self.current_tab == "axe" and self.current_idx >= len(items):
+            self.current_idx = 0
+
+    def _derive_axe_view_from_selection(self) -> None:
+        """Derive _axe_current_view and _axe_lumberjack_idx from selected item."""
+        if not self._axe_items or self.current_idx >= len(self._axe_items):
+            self._axe_current_view = "axe"
+            self._axe_lumberjack_idx = None
+            return
+
+        item = self._axe_items[self.current_idx]
+        match item:
+            case AxeParentItem():
+                self._axe_current_view = "axe"
+                self._axe_lumberjack_idx = None
+            case LumberjackItem(name=name):
+                self._axe_current_view = "axe"
+                try:
+                    self._axe_lumberjack_idx = self._axe_lumberjack_names.index(name)
+                except ValueError:
+                    self._axe_lumberjack_idx = None
+            case BgCmdItem(slot=slot):
+                self._axe_current_view = slot
+                self._axe_lumberjack_idx = None
 
     def _refresh_axe_display(self) -> None:
         """Refresh the axe dashboard display."""
@@ -221,8 +255,8 @@ class AxeDisplayMixin:
 
         from ..widgets import AxeDashboard, AxeInfoPanel, BgCmdList, KeybindingFooter
 
-        # Ensure layout (sidebar visibility) is up-to-date
-        self._update_axe_layout()
+        # Derive current view from selected item
+        self._derive_axe_view_from_selection()
 
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]
@@ -305,35 +339,25 @@ class AxeDisplayMixin:
             elif getattr(self, "_copy_mode_active", False):
                 footer.update_copy_bindings(self.current_tab)
             else:
-                # Compute lumberjack info for footer
-                footer_lj_name: str | None = None
-                footer_lj_idx: int | None = None
-                footer_lj_total = len(self._axe_lumberjack_names)
-                if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
-                    footer_lj_name = self._axe_lumberjack_names[
-                        self._axe_lumberjack_idx
-                    ]
-                    footer_lj_idx = self._axe_lumberjack_idx
                 footer.update_axe_bindings(
                     axe_current_view=self._axe_current_view,
-                    lumberjack_name=footer_lj_name,
-                    lumberjack_idx=footer_lj_idx,
-                    lumberjack_total=footer_lj_total,
+                    lumberjack_total=len(self._axe_lumberjack_names),
                     cmds_hidden=self._axe_cmds_hidden,
-                    has_running_cmds=self.axe_running or len(self._bgcmd_slots) > 0,
+                    bgcmd_count=len(self._bgcmd_slots),
                 )
 
-            # Update bgcmd list if visible
-            if len(self._bgcmd_slots) > 0:
-                try:
-                    bgcmd_list = self.query_one("#bgcmd-list-panel", BgCmdList)  # type: ignore[attr-defined]
-                    bgcmd_list.update_list(
-                        axe_running=self.axe_running,
-                        bgcmd_slots=self._bgcmd_slots,
-                        current_item=self._axe_current_view,
-                    )
-                except Exception:
-                    pass
+            # Always update the side-panel list
+            try:
+                bgcmd_list = self.query_one("#bgcmd-list-panel", BgCmdList)  # type: ignore[attr-defined]
+                bgcmd_list.update_list(
+                    items=self._axe_items,
+                    current_idx=self.current_idx,
+                    axe_running=self.axe_running,
+                    lumberjack_names=self._axe_lumberjack_names,
+                    bgcmd_infos=dict(self._bgcmd_slots),
+                )
+            except Exception:
+                pass
 
             # Auto-scroll to bottom if pinned and on axe view
             if self._axe_pinned_to_bottom and self._axe_current_view == "axe":

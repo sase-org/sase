@@ -249,7 +249,7 @@ class EventHandlersMixin:
             elif event.tab == "agents":
                 self.current_idx = self._get_clamped_agents_idx()  # type: ignore[attr-defined]
             else:  # axe
-                self.current_idx = 0  # Axe has no list
+                self.current_idx = self._get_clamped_axe_idx()  # type: ignore[attr-defined]
             self.current_tab = event.tab  # type: ignore[assignment]
 
     def on_change_spec_list_width_changed(
@@ -275,4 +275,4 @@ class EventHandlersMixin:
     ) -> None:
         """Handle selection change in the BgCmdList widget."""
         if self.current_tab == "axe":
-            self._switch_to_axe_view(event.item)  # type: ignore[attr-defined]
+            self.current_idx = event.index

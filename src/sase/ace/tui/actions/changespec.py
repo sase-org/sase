@@ -347,7 +347,12 @@ class ChangeSpecMixin:
             "#ancestors-children-panel", AncestorsChildrenPanel
         )
 
-        list_widget.update_list(self.changespecs, self.current_idx, self.marked_indices)
+        list_widget.update_list(
+            self.changespecs,
+            self.current_idx,
+            self.marked_indices,
+            hide_reverted=self.hide_reverted,
+        )
         search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
 
         # Calculate effective hide_reverted (disabled if query targets reverted)
@@ -505,9 +510,18 @@ class ChangeSpecMixin:
             return
         if self.current_tab == "axe":
             self._axe_cmds_hidden = not self._axe_cmds_hidden  # type: ignore[attr-defined]
-            # Switch back to main axe view when hiding commands
-            if self._axe_cmds_hidden and self._axe_current_view != "axe":  # type: ignore[attr-defined, has-type]
-                self._axe_current_view = "axe"  # type: ignore[attr-defined]
+            # If hiding and current selection is a bgcmd, navigate to axe parent
+            from ..widgets.bgcmd_list import BgCmdItem
+
+            axe_items: list[object] = self._axe_items  # type: ignore[attr-defined]
+            if (
+                self._axe_cmds_hidden
+                and axe_items
+                and 0 <= self.current_idx < len(axe_items)
+                and isinstance(axe_items[self.current_idx], BgCmdItem)
+            ):
+                self.current_idx = 0
+            self._build_axe_items()  # type: ignore[attr-defined]
             self._update_axe_tab_count()  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
             return

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual.containers import VerticalScroll
 
-from ._types import AxeViewType, NavigationMixinBase
+from ._types import NavigationMixinBase
 
 
 class BasicNavigationMixin(NavigationMixinBase):
@@ -29,24 +29,12 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = 0
         else:  # axe tab
-            # Get list of items: "axe" first, then bgcmd slots
-            items: list[AxeViewType] = ["axe"]
-            items.extend(slot for slot, _ in self._bgcmd_slots)
-
-            if len(items) <= 1:
-                return  # Nothing to navigate
-
-            # Find current index
-            try:
-                current_idx = items.index(self._axe_current_view)
-            except ValueError:
-                current_idx = 0
-
-            # Calculate next index (with wrapping)
-            next_idx = (current_idx + 1) % len(items)
-
-            # Update view
-            self._switch_to_axe_view(items[next_idx])  # type: ignore[attr-defined]
+            if len(self._axe_items) == 0:  # type: ignore[attr-defined]
+                return
+            if self.current_idx < len(self._axe_items) - 1:  # type: ignore[attr-defined]
+                self.current_idx += 1
+            else:
+                self.current_idx = 0
 
     def action_prev_changespec(self) -> None:
         """Navigate to the previous item, cycling to end if at start."""
@@ -65,24 +53,12 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = len(self._agents) - 1
         else:  # axe tab
-            # Get list of items: "axe" first, then bgcmd slots
-            items: list[AxeViewType] = ["axe"]
-            items.extend(slot for slot, _ in self._bgcmd_slots)
-
-            if len(items) <= 1:
-                return  # Nothing to navigate
-
-            # Find current index
-            try:
-                current_idx = items.index(self._axe_current_view)
-            except ValueError:
-                current_idx = 0
-
-            # Calculate previous index (with wrapping)
-            prev_idx = (current_idx - 1) % len(items)
-
-            # Update view
-            self._switch_to_axe_view(items[prev_idx])  # type: ignore[attr-defined]
+            if len(self._axe_items) == 0:  # type: ignore[attr-defined]
+                return
+            if self.current_idx > 0:
+                self.current_idx -= 1
+            else:
+                self.current_idx = len(self._axe_items) - 1  # type: ignore[attr-defined]
 
     def _get_agent_detail_scroll_id(self) -> str:
         """Get the scroll container ID for the active agent detail panel.
@@ -209,6 +185,12 @@ class BasicNavigationMixin(NavigationMixinBase):
             return 0
         return min(self._agents_last_idx, len(self._agents) - 1)
 
+    def _get_clamped_axe_idx(self) -> int:
+        """Get axe index clamped to valid range."""
+        if not self._axe_items:  # type: ignore[attr-defined]
+            return 0
+        return min(self._axe_last_idx, len(self._axe_items) - 1)  # type: ignore[attr-defined]
+
     def action_next_tab(self) -> None:
         """Switch to the next tab (cycling: CLs -> Agents -> Axe -> CLs)."""
         self._record_user_activity()  # type: ignore[attr-defined]
@@ -218,7 +200,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             self.current_idx = self._get_clamped_agents_idx()
         elif self.current_tab == "agents":
             self.current_tab = "axe"  # type: ignore[assignment]
-            self.current_idx = 0  # Axe has no list
+            self.current_idx = self._get_clamped_axe_idx()
         else:  # axe
             self.current_tab = "changespecs"  # type: ignore[assignment]
             self.current_idx = self._get_clamped_changespecs_idx()
@@ -229,7 +211,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         self._save_current_tab_position()
         if self.current_tab == "changespecs":
             self.current_tab = "axe"  # type: ignore[assignment]
-            self.current_idx = 0  # Axe has no list
+            self.current_idx = self._get_clamped_axe_idx()
         elif self.current_tab == "agents":
             self.current_tab = "changespecs"  # type: ignore[assignment]
             self.current_idx = self._get_clamped_changespecs_idx()
@@ -243,4 +225,5 @@ class BasicNavigationMixin(NavigationMixinBase):
             self._changespecs_last_idx = self.current_idx
         elif self.current_tab == "agents":
             self._agents_last_idx = self.current_idx
-        # Axe tab has no position to save
+        elif self.current_tab == "axe":
+            self._axe_last_idx = self.current_idx  # type: ignore[attr-defined]

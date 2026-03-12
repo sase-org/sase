@@ -9,6 +9,7 @@ from textual.widgets.option_list import Option
 
 from ...changespec import (
     ChangeSpec,
+    get_base_status,
     has_any_error_suffix,
     has_any_running_agent,
     has_any_running_process,
@@ -21,19 +22,27 @@ _PREFIX_CHAR_COLORS: dict[str, str] = {
 }
 
 
-def _calculate_entry_display_width(changespec: ChangeSpec, is_marked: bool) -> int:
+def _calculate_entry_display_width(
+    changespec: ChangeSpec, is_marked: bool, show_hideable: bool = False
+) -> int:
     """Calculate display width of a ChangeSpec entry in terminal cells.
 
     Args:
         changespec: The ChangeSpec to measure
         is_marked: Whether this ChangeSpec is marked
+        show_hideable: Whether hideable indicator is shown
 
     Returns:
         Width in terminal cells
     """
     indicator, _ = _get_status_indicator(changespec)
-    # Format: "[✓] [{indicator}] {name} ({cl})" (with mark prefix if marked)
+    # Format: "◌ [✓] [{indicator}] {name} ({cl})" (with prefixes as applicable)
     parts = []
+    if show_hideable and get_base_status(changespec.status) in (
+        "Reverted",
+        "Archived",
+    ):
+        parts.append("\u25cc ")
     if is_marked:
         parts.append("[✓] ")
     parts.append(f"[{indicator}] ")
@@ -120,6 +129,7 @@ class ChangeSpecList(OptionList):
         changespecs: list[ChangeSpec],
         current_idx: int,
         marked_indices: set[int] | None = None,
+        hide_reverted: bool = True,
     ) -> None:
         """Update the list with new changespecs.
 
@@ -127,20 +137,28 @@ class ChangeSpecList(OptionList):
             changespecs: List of ChangeSpecs to display
             current_idx: Index of currently selected ChangeSpec
             marked_indices: Set of indices that are marked
+            hide_reverted: Whether reverted CLs are currently hidden
         """
         self._programmatic_update = True
         self._marked_indices = marked_indices or set()
         self._changespecs = changespecs
+        # When not hiding reverted, show ◌ prefix on reverted/archived CLs
+        show_hideable = not hide_reverted
         self.clear_options()
 
         max_width = 0
         for i, cs in enumerate(changespecs):
             is_marked = i in self._marked_indices
             option = self._format_changespec_option(
-                cs, is_selected=(i == current_idx), is_marked=is_marked
+                cs,
+                is_selected=(i == current_idx),
+                is_marked=is_marked,
+                show_hideable=show_hideable,
             )
             self.add_option(option)
-            width = _calculate_entry_display_width(cs, is_marked=is_marked)
+            width = _calculate_entry_display_width(
+                cs, is_marked=is_marked, show_hideable=show_hideable
+            )
             max_width = max(max_width, width)
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)
@@ -160,7 +178,11 @@ class ChangeSpecList(OptionList):
         self._programmatic_update = False
 
     def _format_changespec_option(
-        self, changespec: ChangeSpec, is_selected: bool, is_marked: bool
+        self,
+        changespec: ChangeSpec,
+        is_selected: bool,
+        is_marked: bool,
+        show_hideable: bool = False,
     ) -> Option:
         """Format a ChangeSpec as an option for display.
 
@@ -168,11 +190,19 @@ class ChangeSpecList(OptionList):
             changespec: The ChangeSpec to format
             is_selected: Whether this is the currently selected item
             is_marked: Whether this item is marked
+            show_hideable: Whether to show ◌ prefix for reverted/archived CLs
 
         Returns:
             An Option for the OptionList
         """
         text = Text()
+
+        # Hideable indicator for reverted/archived CLs when visible
+        if show_hideable and get_base_status(changespec.status) in (
+            "Reverted",
+            "Archived",
+        ):
+            text.append("\u25cc ", style="dim #808080")
 
         # Mark indicator (green checkmark)
         if is_marked:

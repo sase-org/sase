@@ -35,6 +35,7 @@ class NavigationMixinBase:
     _changespecs_last_idx: int
     _agents_last_idx: int
     _axe_pinned_to_bottom: bool
+    _axe_last_idx: int
     _ancestor_mode_active: bool
     _child_mode_active: bool
     _sibling_mode_active: bool

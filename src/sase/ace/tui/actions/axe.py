@@ -173,22 +173,25 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
 
     def action_clear_axe_output(self) -> None:
         """Clear the output log for the current view."""
+        from ..widgets.bgcmd_list import AxeParentItem, BgCmdItem, LumberjackItem
+
         if self.current_tab != "axe":
             return
 
-        if self._axe_current_view == "axe":
-            if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
-                # Clear lumberjack-specific output
-                lj_name = self._axe_lumberjack_names[self._axe_lumberjack_idx]
-                clear_lumberjack_output_log(lj_name)
-            else:
-                # Clear main axe output
+        # Derive what to clear from the selected item
+        axe_items = self._axe_items  # type: ignore[attr-defined]
+        if not axe_items or self.current_idx >= len(axe_items):
+            return
+
+        item = axe_items[self.current_idx]
+        match item:
+            case AxeParentItem():
                 clear_output_log()
                 self._axe_output = ""
-        else:
-            # Clear bgcmd output
-            slot = self._axe_current_view
-            clear_slot_output(slot)
+            case LumberjackItem(name=name):
+                clear_lumberjack_output_log(name)
+            case BgCmdItem(slot=slot):
+                clear_slot_output(slot)
 
         self._refresh_axe_display()
         self.notify("Output cleared")  # type: ignore[attr-defined]
@@ -200,42 +203,6 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             view: The view to switch to ("axe" or slot number).
         """
         self._axe_current_view = view
-        self._refresh_axe_display()
-
-    def _next_lumberjack(self) -> None:
-        """Cycle to the next lumberjack output view.
-
-        Cycles: main → lj1 → lj2 → ... → ljN → main.
-        Does nothing if no lumberjacks are configured.
-        """
-        if not self._axe_lumberjack_names:
-            return
-        if self._axe_lumberjack_idx is None:
-            self._axe_lumberjack_idx = 0
-        else:
-            next_idx = self._axe_lumberjack_idx + 1
-            if next_idx >= len(self._axe_lumberjack_names):
-                self._axe_lumberjack_idx = None
-            else:
-                self._axe_lumberjack_idx = next_idx
-        self._refresh_axe_display()
-
-    def _prev_lumberjack(self) -> None:
-        """Cycle to the previous lumberjack output view.
-
-        Cycles: main ← lj1 ← lj2 ← ... ← ljN ← main.
-        Does nothing if no lumberjacks are configured.
-        """
-        if not self._axe_lumberjack_names:
-            return
-        if self._axe_lumberjack_idx is None:
-            self._axe_lumberjack_idx = len(self._axe_lumberjack_names) - 1
-        else:
-            prev_idx = self._axe_lumberjack_idx - 1
-            if prev_idx < 0:
-                self._axe_lumberjack_idx = None
-            else:
-                self._axe_lumberjack_idx = prev_idx
         self._refresh_axe_display()
 
     def _start_axe(self) -> None:
