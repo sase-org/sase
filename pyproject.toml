@@ -128,8 +128,6 @@ addopts = [
     "--import-mode=importlib",
     "--strict-markers",
     "--strict-config",
-    "-n", "0",
-    "--dist", "worksteal",
     "--cov=sase",
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html",
@@ -144,6 +142,7 @@ asyncio_mode = "auto"
 [tool.coverage.run]
 source_pkgs = ["sase"]
 branch = true
+parallel = true
 omit = [
     "*/test/*",
     "*/tests/*",
