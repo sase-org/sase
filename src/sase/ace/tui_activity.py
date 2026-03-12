@@ -191,6 +191,11 @@ def is_idle() -> bool:
     # idle_state says idle.
     if not tui_running:
         return True
+    # When the user manually marked idle (activity epoch == 0), trust
+    # their explicit intent — skip the keypress safety guard.
+    activity_ts = get_tui_last_activity()
+    if activity_ts is not None and activity_ts == 0:
+        return True
     # Safety guard: recent keypress overrides the idle state file.
     if _has_recent_keypress():
         return False

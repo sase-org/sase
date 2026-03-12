@@ -513,17 +513,30 @@ class AceApp(
         self.exit()
 
     def action_mark_inactive(self) -> None:
-        """Mark user as inactive by writing epoch 0."""
+        """Toggle manual idle mode.
+
+        First press enters idle (epoch 0, idle_state=True).
+        Second press exits idle and resumes normal activity tracking.
+        """
+        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+        if not hasattr(self, "_last_activity_time"):
+            # Currently in manual idle — exit it.
+            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
+
+            self._last_activity_time = time.monotonic()
+            write_activity_timestamp(time.time())
+            write_idle_state(False)
+            indicator.set_idle(False)
+            return
+
+        # Enter manual idle.
         from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
 
         write_activity_timestamp(0)
         write_idle_state(True)
         # Clear activity tracking so _on_countdown_tick() doesn't overwrite
-        # the inactive marker (epoch 0) with the current time.  The next
-        # real key press will re-enable tracking via on_key().
-        if hasattr(self, "_last_activity_time"):
-            del self._last_activity_time
-        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+        # the inactive marker (epoch 0) with the current time.
+        del self._last_activity_time
         indicator.set_idle(True)
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:

@@ -159,6 +159,10 @@ class EventHandlersMixin:
         Called from on_key() for normal bindings and directly from
         priority-binding actions (e.g. tab switching) that bypass on_key().
         """
+        # When manually idle (I key), _last_activity_time is absent.
+        # Don't re-enable tracking — the user explicitly chose idle mode.
+        if not hasattr(self, "_last_activity_time"):
+            return
         self._last_activity_time = time.monotonic()
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
         was_idle = indicator._idle
