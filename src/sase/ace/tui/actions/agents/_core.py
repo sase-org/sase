@@ -71,13 +71,14 @@ def _is_axe_spawned_agent(agent: Agent) -> bool:
         True if agent was spawned by axe, False if user-initiated.
     """
     if agent.workflow:
+        # Normalize underscores to hyphens for consistent matching
+        # (xprompt workflow_label uses underscores, e.g. "fix_hook")
+        workflow = agent.workflow.replace("_", "-")
         # axe-spawned workflows start with axe(...)
-        if agent.workflow.startswith(
-            ("axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor(")
-        ):
+        if workflow.startswith(("axe(mentor)", "axe(fix-hook)", "axe(crs)", "mentor(")):
             return True
         # Plain workflow names for axe-spawned types (from workflow_state.json or ChangeSpec)
-        if agent.workflow in ("fix-hook", "crs", "mentor", "summarize-hook"):
+        if workflow in ("fix-hook", "crs", "mentor", "summarize-hook"):
             return True
 
     return False
