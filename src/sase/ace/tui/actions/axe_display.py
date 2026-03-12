@@ -52,6 +52,7 @@ class AxeDisplayMixin:
     _axe_metrics: AxeMetrics | None
     _axe_output: str
     _axe_pinned_to_bottom: bool
+    _axe_cmds_hidden: bool
     _axe_current_view: AxeViewType
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
     _axe_lumberjack_names: list[str]
@@ -175,12 +176,12 @@ class AxeDisplayMixin:
             bgcmd_list_container = self.query_one("#bgcmd-list-container")  # type: ignore[attr-defined]
             has_bgcmds = len(self._bgcmd_slots) > 0
 
-            if has_bgcmds:
+            if has_bgcmds and not self._axe_cmds_hidden:
                 bgcmd_list_container.remove_class("hidden")
             else:
                 bgcmd_list_container.add_class("hidden")
                 # If current view is a bgcmd that's no longer running, switch to axe
-                if self._axe_current_view != "axe":
+                if not has_bgcmds and self._axe_current_view != "axe":
                     self._axe_current_view = "axe"
         except Exception:
             pass
@@ -198,6 +199,30 @@ class AxeDisplayMixin:
 
             # Update countdown
             axe_info.update_countdown(self._countdown_remaining, self.refresh_interval)
+
+            # When commands are hidden, show the empty/stopped state
+            if self._axe_cmds_hidden:
+                axe_info.update_status(False)
+                axe_dashboard.show_empty()
+                # Hide bgcmd sidebar
+                try:
+                    bgcmd_list_container = self.query_one("#bgcmd-list-container")  # type: ignore[attr-defined]
+                    bgcmd_list_container.add_class("hidden")
+                except Exception:
+                    pass
+                # Update footer with hide/show binding
+                from ..modals import get_runner_count
+
+                footer.set_axe_running(self.axe_running)
+                running_count, done_count = self._get_bgcmd_counts()
+                footer.set_bgcmd_count(running_count, done_count)
+                footer.set_runner_count(get_runner_count())
+                footer.update_axe_bindings(
+                    axe_current_view=self._axe_current_view,
+                    cmds_hidden=True,
+                    has_running_cmds=self.axe_running or len(self._bgcmd_slots) > 0,
+                )
+                return
 
             # Update info panel based on current view
             if self._axe_current_view == "axe":
@@ -286,6 +311,8 @@ class AxeDisplayMixin:
                     lumberjack_name=footer_lj_name,
                     lumberjack_idx=footer_lj_idx,
                     lumberjack_total=footer_lj_total,
+                    cmds_hidden=False,
+                    has_running_cmds=self.axe_running or len(self._bgcmd_slots) > 0,
                 )
 
             # Update bgcmd list if visible
@@ -314,7 +341,9 @@ class AxeDisplayMixin:
 
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]
-            if self._axe_current_view == "axe":
+            if self._axe_cmds_hidden:
+                axe_info.update_status(False)
+            elif self._axe_current_view == "axe":
                 axe_info.update_status(self.axe_running)
             else:
                 slot = self._axe_current_view

@@ -209,10 +209,17 @@ class KeybindingFooter(Horizontal):
         lumberjack_name: str | None = None,
         lumberjack_idx: int | None = None,
         lumberjack_total: int = 0,
+        cmds_hidden: bool = False,
+        has_running_cmds: bool = False,
     ) -> None:
         """Update bindings for Axe tab context."""
         bindings = self._compute_axe_bindings(
-            axe_current_view, lumberjack_name, lumberjack_idx, lumberjack_total
+            axe_current_view,
+            lumberjack_name,
+            lumberjack_idx,
+            lumberjack_total,
+            cmds_hidden=cmds_hidden,
+            has_running_cmds=has_running_cmds,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -223,6 +230,9 @@ class KeybindingFooter(Horizontal):
         lumberjack_name: str | None = None,
         lumberjack_idx: int | None = None,
         lumberjack_total: int = 0,
+        *,
+        cmds_hidden: bool = False,
+        has_running_cmds: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute available bindings for Axe tab.
 
@@ -246,6 +256,11 @@ class KeybindingFooter(Horizontal):
             else:
                 # On main axe page - show total lumberjack count
                 bindings.append(("^N/P", f"lumberjacks ({lumberjack_total})"))
+        # Hide/show commands toggle
+        if cmds_hidden:
+            bindings.append((".", "show"))
+        elif has_running_cmds:
+            bindings.append((".", "hide"))
         return bindings
 
     def update_leader_bindings(self, *, current_tab: str = "changespecs") -> None:

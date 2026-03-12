@@ -42,6 +42,7 @@ class ChangeSpecMixin:
     _children_keys: dict[str, str]
     _sibling_keys: dict[str, str]
     _hidden_reverted_count: int
+    _axe_cmds_hidden: bool
 
     def _load_changespecs(self) -> None:
         """Load and filter changespecs from disk."""
@@ -472,9 +473,13 @@ class ChangeSpecMixin:
                 return
 
     def action_toggle_hide_reverted(self) -> None:
-        """Toggle visibility of reverted CLs or non-run agents."""
+        """Toggle visibility of reverted CLs, non-run agents, or axe commands."""
         if self.current_tab == "agents":
             self._toggle_hide_non_run_agents()  # type: ignore[attr-defined]
+            return
+        if self.current_tab == "axe":
+            self._axe_cmds_hidden = not self._axe_cmds_hidden  # type: ignore[attr-defined]
+            self._refresh_axe_display()  # type: ignore[attr-defined]
             return
         if self.current_tab != "changespecs":
             return

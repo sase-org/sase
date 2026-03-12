@@ -39,6 +39,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     _axe_metrics: AxeMetrics | None
     _axe_output: str
     _axe_pinned_to_bottom: bool
+    _axe_cmds_hidden: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
 

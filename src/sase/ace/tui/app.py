@@ -318,6 +318,7 @@ class AceApp(
         self._axe_metrics: AxeMetrics | None = None
         self._axe_output: str = ""
         self._axe_pinned_to_bottom: bool = True
+        self._axe_cmds_hidden: bool = False
 
         # Background command state
         from .bgcmd import BackgroundCommandInfo
