@@ -64,6 +64,41 @@ class PromptDirectives:
     wait: list[str] = field(default_factory=list)
 
 
+# Pattern to match %model(...) or %m(...) with parenthesized arguments.
+_MULTI_MODEL_RE = re.compile(
+    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
+    r"(%(?:model|m))\(([^)]+)\)",
+    re.MULTILINE,
+)
+
+
+def split_prompt_for_models(prompt: str) -> list[str] | None:
+    """Split a prompt with a multi-model directive into per-model prompts.
+
+    If the prompt contains ``%model(a,b,...)`` or ``%m(a,b,...)`` with
+    multiple comma-separated model names, returns a list of prompts where
+    each has the multi-model directive replaced with a single ``%model:X``
+    directive.
+
+    Returns ``None`` if there is no multi-model directive (single model
+    or no model directive at all).
+    """
+    match = _MULTI_MODEL_RE.search(prompt)
+    if match is None:
+        return None
+
+    inner = match.group(2)
+    positional_args, _ = parse_args(inner)
+    if len(positional_args) <= 1:
+        return None
+
+    result: list[str] = []
+    for model in positional_args:
+        replaced = prompt[: match.start(1)] + f"%model:{model}" + prompt[match.end() :]
+        result.append(replaced)
+    return result
+
+
 def has_wait_directive(prompt: str) -> bool:
     """Quick check whether a prompt contains ``%wait`` or ``%w`` directives.
 

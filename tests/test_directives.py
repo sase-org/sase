@@ -9,6 +9,7 @@ from sase.xprompt.directives import (
     PromptDirectives,
     extract_prompt_directives,
     has_wait_directive,
+    split_prompt_for_models,
 )
 
 
@@ -334,3 +335,62 @@ def test_has_wait_directive_absent() -> None:
 def test_has_wait_directive_no_percent() -> None:
     """Returns False quickly when no % in prompt."""
     assert has_wait_directive("Just a plain prompt") is False
+
+
+# --- split_prompt_for_models tests ---
+
+
+def test_split_prompt_for_models_two_models() -> None:
+    """Two models produce two prompts, each with a single %model directive."""
+    prompt = "%m(opus,sonnet)\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%model:opus\nReview this code"
+    assert result[1] == "%model:sonnet\nReview this code"
+
+
+def test_split_prompt_for_models_three_models() -> None:
+    """Three models produce three prompts."""
+    prompt = "%model(opus,sonnet,haiku)\nDo work"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 3
+    assert result[0] == "%model:opus\nDo work"
+    assert result[1] == "%model:sonnet\nDo work"
+    assert result[2] == "%model:haiku\nDo work"
+
+
+def test_split_prompt_for_models_single_model_returns_none() -> None:
+    """Single model in parens returns None (not multi-model)."""
+    assert split_prompt_for_models("%m(opus)\nDo work") is None
+
+
+def test_split_prompt_for_models_no_directive_returns_none() -> None:
+    """No model directive returns None."""
+    assert split_prompt_for_models("Just a prompt") is None
+
+
+def test_split_prompt_for_models_colon_syntax_returns_none() -> None:
+    """Colon syntax is single model, returns None."""
+    assert split_prompt_for_models("%m:opus\nDo work") is None
+
+
+def test_split_prompt_for_models_preserves_other_directives() -> None:
+    """Other directives in the prompt are preserved."""
+    prompt = "%approve\n%m(opus,sonnet)\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%approve\n%model:opus\nReview this code"
+    assert result[1] == "%approve\n%model:sonnet\nReview this code"
+
+
+def test_split_prompt_for_models_spaces_in_args() -> None:
+    """Spaces around model names in args are handled."""
+    prompt = "%m(opus, sonnet)\nDo work"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%model:opus\nDo work"
+    assert result[1] == "%model:sonnet\nDo work"
