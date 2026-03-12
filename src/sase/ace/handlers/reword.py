@@ -152,7 +152,11 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
     Returns:
         The edited content string, or None if the editor failed.
     """
-    fd, temp_path = tempfile.mkstemp(suffix=".md", prefix="sase_reword_")
+    from sase.sase_utils import get_sase_tmpdir
+
+    fd, temp_path = tempfile.mkstemp(
+        suffix=".md", prefix="sase_reword_", dir=get_sase_tmpdir()
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)

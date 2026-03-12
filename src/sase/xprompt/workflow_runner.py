@@ -314,7 +314,11 @@ def execute_workflow(
 
     # Create artifacts_dir early so we can write state on validation failure
     if artifacts_dir is None:
-        artifacts_dir = tempfile.mkdtemp(prefix=f"workflow-{name}-")
+        from sase.sase_utils import get_sase_tmpdir
+
+        artifacts_dir = tempfile.mkdtemp(
+            prefix=f"workflow-{name}-", dir=get_sase_tmpdir()
+        )
     else:
         os.makedirs(artifacts_dir, exist_ok=True)
 

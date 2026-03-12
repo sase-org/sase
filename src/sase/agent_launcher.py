@@ -51,7 +51,11 @@ def spawn_agent_subprocess(
     from sase.shared_utils import convert_timestamp_to_artifacts_format
 
     # Write prompt to temp file (runner will read and delete)
-    fd, prompt_file = tempfile.mkstemp(suffix=".md", prefix="sase_ace_prompt_")
+    from sase.sase_utils import get_sase_tmpdir
+
+    fd, prompt_file = tempfile.mkstemp(
+        suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
+    )
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(prompt)
 

@@ -117,8 +117,10 @@ sync
 exit $exit_code
 """
     # Write wrapper script to temp file (don't delete - background process needs it)
+    from sase.sase_utils import get_sase_tmpdir
+
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sh", delete=False
+        mode="w", suffix=".sh", delete=False, dir=get_sase_tmpdir()
     ) as wrapper_file:
         wrapper_file.write(wrapper_script)
         wrapper_path = wrapper_file.name

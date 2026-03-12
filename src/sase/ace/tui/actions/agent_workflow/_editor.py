@@ -24,7 +24,11 @@ class EditorMixin:
         import tempfile
 
         def run_editor() -> str | None:
-            fd, temp_path = tempfile.mkstemp(suffix=".md", prefix="sase_ace_prompt_")
+            from sase.sase_utils import get_sase_tmpdir
+
+            fd, temp_path = tempfile.mkstemp(
+                suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
+            )
             # Write initial content if provided
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(initial_content)
@@ -89,7 +93,11 @@ class EditorMixin:
         )
 
         def run_editor() -> tuple[str, str] | None:
-            fd, temp_path = tempfile.mkstemp(suffix=".yml", prefix="sase_ace_workflow_")
+            from sase.sase_utils import get_sase_tmpdir
+
+            fd, temp_path = tempfile.mkstemp(
+                suffix=".yml", prefix="sase_ace_workflow_", dir=get_sase_tmpdir()
+            )
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(template)
 

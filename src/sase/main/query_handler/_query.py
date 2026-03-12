@@ -342,8 +342,11 @@ def execute_standalone_steps(
             # Create temp artifacts dir if not provided
             step_artifacts_dir = artifacts_dir
             if step_artifacts_dir is None:
+                from sase.sase_utils import get_sase_tmpdir
+
                 step_artifacts_dir = tempfile.mkdtemp(
-                    prefix=f"embedded-{workflow_name}-"
+                    prefix=f"embedded-{workflow_name}-",
+                    dir=get_sase_tmpdir(),
                 )
 
             response = invoke_agent(

@@ -15,6 +15,19 @@ if TYPE_CHECKING:
 EASTERN_TZ = ZoneInfo("America/New_York")
 
 
+def get_sase_tmpdir() -> str | None:
+    """Return the SASE temp directory if $SASE_TMPDIR is set, else None.
+
+    When $SASE_TMPDIR is set, the directory is created if it doesn't exist.
+    Returning None lets tempfile functions fall back to the system default.
+    """
+    sase_tmpdir = os.environ.get("SASE_TMPDIR")
+    if sase_tmpdir:
+        os.makedirs(sase_tmpdir, exist_ok=True)
+        return sase_tmpdir
+    return None
+
+
 def get_vendored_tool(name: str) -> str:
     """Get the path to a vendored tool script in tools/{name}-YYMMDD.
 

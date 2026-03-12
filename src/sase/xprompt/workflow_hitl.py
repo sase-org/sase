@@ -287,7 +287,11 @@ class CLIHITLHandler:
         yaml_content = dump_yaml(data, sort_keys=False)
 
         # Create temp file
-        fd, temp_path = tempfile.mkstemp(suffix=".yml", prefix="workflow_edit_")
+        from sase.sase_utils import get_sase_tmpdir
+
+        fd, temp_path = tempfile.mkstemp(
+            suffix=".yml", prefix="workflow_edit_", dir=get_sase_tmpdir()
+        )
         os.close(fd)
 
         with open(temp_path, "w", encoding="utf-8") as f:

@@ -187,7 +187,11 @@ class AgentInteractionMixin:
                 subprocess.run([editor, expanded], check=False)
         elif content is not None:
             editor = os.environ.get("EDITOR") or "nvim"
-            fd, tmp_path = tempfile.mkstemp(suffix=suffix, prefix="sase_ace_panel_")
+            from sase.sase_utils import get_sase_tmpdir
+
+            fd, tmp_path = tempfile.mkstemp(
+                suffix=suffix, prefix="sase_ace_panel_", dir=get_sase_tmpdir()
+            )
             try:
                 with os.fdopen(fd, "w") as f:
                     f.write(content)

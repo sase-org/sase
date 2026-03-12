@@ -131,8 +131,10 @@ echo "{CHECK_COMPLETE_MARKER}EXIT_CODE: $exit_code"
 exit $exit_code
 """
 
+    from sase.sase_utils import get_sase_tmpdir
+
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sh", delete=False
+        mode="w", suffix=".sh", delete=False, dir=get_sase_tmpdir()
     ) as wrapper_file:
         wrapper_file.write(wrapper_script)
         wrapper_path = wrapper_file.name

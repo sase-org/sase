@@ -41,7 +41,11 @@ def open_editor_for_commit_message() -> str | None:
         the user didn't write anything or the editor failed.
     """
     # Create a temporary file that won't be automatically deleted
-    fd, temp_path = tempfile.mkstemp(suffix=".txt", prefix="sase_commit_")
+    from sase.sase_utils import get_sase_tmpdir
+
+    fd, temp_path = tempfile.mkstemp(
+        suffix=".txt", prefix="sase_commit_", dir=get_sase_tmpdir()
+    )
     os.close(fd)
 
     editor = get_editor()

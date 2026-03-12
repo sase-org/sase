@@ -240,7 +240,9 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
             # _load_workflow_from_file derives the correct workflow name.
             import tempfile
 
-            tmpdir = Path(tempfile.mkdtemp())
+            from sase.sase_utils import get_sase_tmpdir
+
+            tmpdir = Path(tempfile.mkdtemp(dir=get_sase_tmpdir()))
             tmp_path = tmpdir / entry_name
             try:
                 tmp_path.write_text(text, encoding="utf-8")

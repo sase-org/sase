@@ -36,7 +36,11 @@ def open_editor_for_prompt() -> str | None:
         The prompt content, or None if the user didn't write anything
         or the editor failed.
     """
-    fd, temp_path = tempfile.mkstemp(suffix=".md", prefix="sase_prompt_")
+    from sase.sase_utils import get_sase_tmpdir
+
+    fd, temp_path = tempfile.mkstemp(
+        suffix=".md", prefix="sase_prompt_", dir=get_sase_tmpdir()
+    )
     os.close(fd)
 
     editor = _get_editor()
@@ -74,7 +78,11 @@ def _open_editor_with_content(initial_content: str) -> str | None:
     Returns:
         The edited content, or None if the user left it empty or the editor failed.
     """
-    fd, temp_path = tempfile.mkstemp(suffix=".md", prefix="sase_prompt_")
+    from sase.sase_utils import get_sase_tmpdir
+
+    fd, temp_path = tempfile.mkstemp(
+        suffix=".md", prefix="sase_prompt_", dir=get_sase_tmpdir()
+    )
 
     # Write initial content to temp file
     with os.fdopen(fd, "w", encoding="utf-8") as f:
