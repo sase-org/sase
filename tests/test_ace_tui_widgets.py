@@ -9,7 +9,7 @@ from unittest.mock import patch
 from sase.ace.changespec import ChangeSpec, CommentEntry, CommitEntry, HookEntry
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets import TabBar
+from sase.ace.tui.widgets import ChangeSpecInfoPanel, TabBar
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.commits_builder import _should_show_commits_drawers
 from sase.ace.tui.widgets.prompt_panel import (
@@ -119,43 +119,48 @@ def test_tab_bar_update_tab_to_agents() -> None:
     assert tab_bar._current_tab == "agents"
 
 
-def test_tab_bar_fold_indicator_hidden_when_all_collapsed() -> None:
+def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:
     """No fold indicator when all sections are collapsed (default)."""
-    tab_bar = TabBar()
-    content = tab_bar._build_content()
+    panel = ChangeSpecInfoPanel()
+    content = panel._build_content()
     assert "▸" not in content.plain
     assert "▾" not in content.plain
     assert "▼" not in content.plain
 
 
-def test_tab_bar_fold_indicator_shown_when_any_expanded() -> None:
+def test_info_panel_fold_indicator_shown_when_any_expanded() -> None:
     """Fold indicator appears when any section is non-collapsed."""
-    tab_bar = TabBar()
-    tab_bar.update_fold_states(
-        FoldLevel.EXPANDED, FoldLevel.COLLAPSED, FoldLevel.COLLAPSED
-    )
-    content = tab_bar._build_content()
-    assert "▾▸▸" in content.plain
+    panel = ChangeSpecInfoPanel()
+    panel._fold_commits = FoldLevel.EXPANDED
+    content = panel._build_content()
+    # c▾h▸m▸ (labels interleaved with indicators)
+    assert "c▾" in content.plain
+    assert "h▸" in content.plain
+    assert "m▸" in content.plain
 
 
-def test_tab_bar_fold_indicator_all_fully_expanded() -> None:
+def test_info_panel_fold_indicator_all_fully_expanded() -> None:
     """All sections fully expanded shows three heavy down arrows."""
-    tab_bar = TabBar()
-    tab_bar.update_fold_states(
-        FoldLevel.FULLY_EXPANDED, FoldLevel.FULLY_EXPANDED, FoldLevel.FULLY_EXPANDED
-    )
-    content = tab_bar._build_content()
-    assert "▼▼▼" in content.plain
+    panel = ChangeSpecInfoPanel()
+    panel._fold_commits = FoldLevel.FULLY_EXPANDED
+    panel._fold_hooks = FoldLevel.FULLY_EXPANDED
+    panel._fold_mentors = FoldLevel.FULLY_EXPANDED
+    content = panel._build_content()
+    assert "c▼" in content.plain
+    assert "h▼" in content.plain
+    assert "m▼" in content.plain
 
 
-def test_tab_bar_fold_indicator_mixed_states() -> None:
+def test_info_panel_fold_indicator_mixed_states() -> None:
     """Mixed fold states show correct character per section."""
-    tab_bar = TabBar()
-    tab_bar.update_fold_states(
-        FoldLevel.FULLY_EXPANDED, FoldLevel.COLLAPSED, FoldLevel.EXPANDED
-    )
-    content = tab_bar._build_content()
-    assert "▼▸▾" in content.plain
+    panel = ChangeSpecInfoPanel()
+    panel._fold_commits = FoldLevel.FULLY_EXPANDED
+    panel._fold_hooks = FoldLevel.COLLAPSED
+    panel._fold_mentors = FoldLevel.EXPANDED
+    content = panel._build_content()
+    assert "c▼" in content.plain
+    assert "h▸" in content.plain
+    assert "m▾" in content.plain
 
 
 # --- _get_prompt_content Tests ---

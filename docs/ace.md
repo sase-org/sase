@@ -344,7 +344,8 @@ have been associated with the current CL.
 
 The tab bar shows contextual information alongside each tab label:
 
-- **CLs tab**: Shows a fold state indicator (`▸` collapsed, `▾` expanded, `▼` fully expanded) when sections are folded
+- **CLs tab**: The info panel shows fold state indicators (`c▸` `h▾` `m▼`) for commits/hooks/mentors when any section is
+  non-collapsed
 - **Agents tab**: Shows running agent counts — e.g., `Agents (2)` for 2 running agents, or `Agents (2+1)` for 2 manual
   - 1 hidden agent when hidden agents are visible (toggled with `.`)
 

@@ -47,12 +47,12 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         return True
 
     def _update_fold_tab_indicator(self) -> None:
-        """Push current fold states to the CLs tab indicator."""
-        from ...widgets.tab_bar import TabBar
+        """Push current fold states to the info panel indicator."""
+        from ...widgets import ChangeSpecInfoPanel
 
         try:
-            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-            tab_bar.update_fold_states(
+            info_panel = self.query_one("#info-panel", ChangeSpecInfoPanel)  # type: ignore[attr-defined]
+            info_panel.update_fold_states(
                 self.commits_collapsed,
                 self.hooks_collapsed,
                 self.mentors_collapsed,
