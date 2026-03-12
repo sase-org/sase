@@ -38,7 +38,9 @@ class TabBar(Static):
 
     def __init__(self, **kwargs: Any) -> None:
         self._current_tab: TabName = "changespecs"
-        self._agents_count: int = 0
+        self._agents_manual_count: int = 0
+        self._agents_hidden_count: int = 0
+        self._agents_show_hidden: bool = False
         self._fold_commits: FoldLevel = FoldLevel.COLLAPSED
         self._fold_hooks: FoldLevel = FoldLevel.COLLAPSED
         self._fold_mentors: FoldLevel = FoldLevel.COLLAPSED
@@ -58,14 +60,28 @@ class TabBar(Static):
         self._current_tab = tab
         self._refresh_content()
 
-    def update_agents_count(self, count: int) -> None:
-        """Update the running agent count shown on the Agents tab label.
+    def update_agents_count(
+        self,
+        manual_count: int,
+        hidden_count: int,
+        *,
+        show_hidden: bool,
+    ) -> None:
+        """Update the running agent counts shown on the Agents tab label.
 
         Args:
-            count: Number of running agents to display.
+            manual_count: Number of running manual (always-visible) agents.
+            hidden_count: Number of running hidden agents.
+            show_hidden: Whether hidden agents are currently visible.
         """
-        if self._agents_count != count:
-            self._agents_count = count
+        if (
+            self._agents_manual_count != manual_count
+            or self._agents_hidden_count != hidden_count
+            or self._agents_show_hidden != show_hidden
+        ):
+            self._agents_manual_count = manual_count
+            self._agents_hidden_count = hidden_count
+            self._agents_show_hidden = show_hidden
             self._refresh_content()
 
     def update_fold_states(
@@ -122,9 +138,14 @@ class TabBar(Static):
 
         # Agents tab
         agents_start = len(text.plain)
-        agents_label = (
-            f" Agents ({self._agents_count}) " if self._agents_count > 0 else " Agents "
-        )
+        m = str(self._agents_manual_count) if self._agents_manual_count > 0 else ""
+        if self._agents_show_hidden:
+            h = str(self._agents_hidden_count) if self._agents_hidden_count > 0 else ""
+            agents_label = f" Agents ({m}+{h}) "
+        elif self._agents_manual_count > 0:
+            agents_label = f" Agents ({m}) "
+        else:
+            agents_label = " Agents "
         if self._current_tab == "agents":
             text.append(agents_label, style="bold reverse #87D7FF")
         else:
