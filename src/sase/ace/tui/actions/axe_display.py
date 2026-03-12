@@ -140,23 +140,9 @@ class AxeDisplayMixin:
                 if info is not None:
                     self._bgcmd_slots.append((slot, info))
 
-        # Update footer with bgcmd count
-        self._update_bgcmd_count()
-
         # Update AXE tab layout if needed
         if self.current_tab == "axe":
             self._update_axe_layout()
-
-    def _update_bgcmd_count(self) -> None:
-        """Update the keybinding footer with bgcmd running/done counts."""
-        from ..widgets import KeybindingFooter
-
-        running_count, done_count = self._get_bgcmd_counts()
-        try:
-            footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            footer.set_bgcmd_count(running_count, done_count)
-        except Exception:
-            pass
 
     def _get_bgcmd_counts(self) -> tuple[int, int]:
         """Get running and done counts for background commands.
@@ -297,8 +283,6 @@ class AxeDisplayMixin:
             from ..modals import get_runner_count
 
             footer.set_axe_running(self.axe_running)
-            running_count, done_count = self._get_bgcmd_counts()
-            footer.set_bgcmd_count(running_count, done_count)
             footer.set_runner_count(get_runner_count())
             if getattr(self, "_bang_mode_active", False):
                 footer.update_bang_bindings()
@@ -368,11 +352,9 @@ class AxeDisplayMixin:
         """Update the keybinding footer with current axe state."""
         from ..widgets import KeybindingFooter
 
-        running_count, done_count = self._get_bgcmd_counts()
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             footer.set_axe_running(self.axe_running)
-            footer.set_bgcmd_count(running_count, done_count)
         except Exception:
             pass
 
