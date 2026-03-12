@@ -45,34 +45,6 @@ def _register_handlers() -> None:
         handle_try_claim_hook_for_fix,
         handle_update_hook_suffix_type,
     )
-    from sase.spec_writer.handlers.comments import (
-        handle_add_comment,
-        handle_remove_comment,
-        handle_set_comments,
-    )
-    from sase.spec_writer.handlers.mentors import (
-        handle_add_mentor_entry,
-        handle_clear_mentor_status_lines,
-        handle_set_mentor_status,
-        handle_set_mentors,
-    )
-    from sase.spec_writer.handlers.running import (
-        handle_claim_workspace,
-        handle_release_workspace,
-        handle_update_running_cl_name,
-    )
-    from sase.spec_writer.handlers.file_ops import (
-        handle_add_changespec,
-        handle_create_project_file,
-        handle_mark_proposal_broken,
-        handle_rename_changespec,
-        handle_set_bare_repo_dir,
-        handle_set_workspace_dir,
-    )
-    from sase.spec_writer.handlers.renumber import (
-        handle_renumber_commit_entries,
-        handle_rewind_commit_entries,
-    )
 
     HANDLER_REGISTRY.update(
         {
@@ -95,24 +67,6 @@ def _register_handlers() -> None:
             OperationType.REJECT_PROPOSALS_AND_SET_STATUS: handle_reject_proposals_and_set_status,
             OperationType.REJECT_ALL_NEW_PROPOSALS: handle_reject_all_new_proposals,
             OperationType.UPDATE_COMMIT_ENTRY_SUFFIX: handle_update_commit_entry_suffix,
-            OperationType.SET_COMMENTS: handle_set_comments,
-            OperationType.ADD_COMMENT: handle_add_comment,
-            OperationType.REMOVE_COMMENT: handle_remove_comment,
-            OperationType.SET_MENTORS: handle_set_mentors,
-            OperationType.ADD_MENTOR_ENTRY: handle_add_mentor_entry,
-            OperationType.SET_MENTOR_STATUS: handle_set_mentor_status,
-            OperationType.CLEAR_MENTOR_STATUS_LINES: handle_clear_mentor_status_lines,
-            OperationType.CLAIM_WORKSPACE: handle_claim_workspace,
-            OperationType.RELEASE_WORKSPACE: handle_release_workspace,
-            OperationType.UPDATE_RUNNING_CL_NAME: handle_update_running_cl_name,
-            OperationType.ADD_CHANGESPEC: handle_add_changespec,
-            OperationType.CREATE_PROJECT_FILE: handle_create_project_file,
-            OperationType.SET_WORKSPACE_DIR: handle_set_workspace_dir,
-            OperationType.SET_BARE_REPO_DIR: handle_set_bare_repo_dir,
-            OperationType.RENAME_CHANGESPEC: handle_rename_changespec,
-            OperationType.MARK_PROPOSAL_BROKEN: handle_mark_proposal_broken,
-            OperationType.RENUMBER_COMMIT_ENTRIES: handle_renumber_commit_entries,
-            OperationType.REWIND_COMMIT_ENTRIES: handle_rewind_commit_entries,
         }
     )
 

@@ -20,7 +20,9 @@ from sase.vcs_provider import get_vcs_provider
 
 from .changespec import (
     ChangeSpec,
+    changespec_lock,
     find_all_changespecs,
+    write_changespec_atomic,
 )
 from .hooks.processes import kill_and_persist_all_running_processes
 from .operations import (
@@ -49,22 +51,31 @@ def update_changespec_name_atomic(
 ) -> None:
     """Update the NAME field of a specific ChangeSpec in the project file.
 
-    Delegates to the spec_writer queue for consistency.
+    Acquires a lock for the entire read-modify-write cycle.
 
     Args:
         project_file: Path to the ProjectSpec file
         old_name: Current NAME value of the ChangeSpec
         new_name: New NAME value
     """
-    from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-    from sase.spec_writer.models import OperationType
+    with changespec_lock(project_file):
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
 
-    request = make_request(
-        project_file,
-        OperationType.RENAME_CHANGESPEC,
-        {"old_name": old_name, "new_name": new_name},
-    )
-    submit_spec_write_and_wait(request, timeout=10.0)
+        updated_lines = []
+        for line in lines:
+            if line.startswith("NAME:"):
+                current_name = line.split(":", 1)[1].strip()
+                if current_name == old_name:
+                    updated_lines.append(f"NAME: {new_name}\n")
+                    continue
+            updated_lines.append(line)
+
+        write_changespec_atomic(
+            project_file,
+            "".join(updated_lines),
+            f"Rename ChangeSpec {old_name} to {new_name}",
+        )
 
 
 def revert_changespec(

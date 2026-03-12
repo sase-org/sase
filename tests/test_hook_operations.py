@@ -3,8 +3,8 @@
 from typing import Any
 
 from sase.accept_workflow.renumber import (
-    build_entry_id_mapping,
-    update_hooks_with_id_mapping,
+    _build_entry_id_mapping,
+    _update_hooks_with_id_mapping,
 )
 from sase.ace.changespec import get_entry_id
 
@@ -22,8 +22,8 @@ def test_get_entry_id_proposal() -> None:
     assert get_entry_id(entry) == "2a"
 
 
-# Tests for build_entry_id_mapping
-def testbuild_entry_id_mapping_multi_accept_first_promoted_others_archived() -> None:
+# Tests for _build_entry_id_mapping
+def test_build_entry_id_mapping_multi_accept_first_promoted_others_archived() -> None:
     """Test that first accepted proposal is promoted, others are archived."""
     entries: list[dict[str, Any]] = [
         {"number": 1, "letter": None, "note": "First"},
@@ -39,7 +39,7 @@ def testbuild_entry_id_mapping_multi_accept_first_promoted_others_archived() -> 
         {"number": 1, "letter": "b", "note": "Proposal B"}
     ]
 
-    promote_mapping, archive_mapping = build_entry_id_mapping(
+    promote_mapping, archive_mapping = _build_entry_id_mapping(
         entries, new_entries, accepted_proposals, next_regular, remaining_proposals
     )
 
@@ -52,8 +52,8 @@ def testbuild_entry_id_mapping_multi_accept_first_promoted_others_archived() -> 
     assert archive_mapping == {"1a": "1a-3"}
 
 
-# Tests for update_hooks_with_id_mapping
-def testupdate_hooks_with_id_mapping_suffix_updated_for_archived() -> None:
+# Tests for _update_hooks_with_id_mapping
+def test_update_hooks_with_id_mapping_suffix_updated_for_archived() -> None:
     """Test that suffixes are updated to new ID even for archived proposals."""
     lines = [
         "NAME: test_cl\n",
@@ -65,7 +65,7 @@ def testupdate_hooks_with_id_mapping_suffix_updated_for_archived() -> None:
     promote_mapping = {"1a": "3"}
     archive_mapping = {"1a": "1a-3"}
 
-    result = update_hooks_with_id_mapping(
+    result = _update_hooks_with_id_mapping(
         lines, "test_cl", promote_mapping, archive_mapping
     )
 
@@ -86,7 +86,7 @@ def test_update_hooks_single_proposal_no_archive() -> None:
     promote_mapping = {"1a": "2"}
     archive_mapping: dict[str, str] = {}  # Empty - no archiving for single proposal
 
-    result = update_hooks_with_id_mapping(
+    result = _update_hooks_with_id_mapping(
         lines, "test_cl", promote_mapping, archive_mapping
     )
 

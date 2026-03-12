@@ -9,8 +9,10 @@ import os
 import subprocess
 from pathlib import Path
 
-from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-from sase.spec_writer.models import OperationType
+from sase.ace.changespec import (
+    changespec_lock,
+    write_changespec_atomic,
+)
 
 
 def get_default_branch(workspace_dir: str) -> str:
@@ -104,13 +106,47 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
         ``True`` on success, ``False`` on failure.
     """
     try:
-        request = make_request(
-            project_file,
-            OperationType.SET_WORKSPACE_DIR,
-            {"workspace_dir": workspace_dir},
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
+        parent_dir = os.path.dirname(project_file)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+
+        if not os.path.exists(project_file):
+            with open(project_file, "w", encoding="utf-8") as f:
+                f.write(f"WORKSPACE_DIR: {workspace_dir}\n")
+            return True
+
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                content = f.read()
+
+            lines = content.splitlines(keepends=True)
+            new_line = f"WORKSPACE_DIR: {workspace_dir}\n"
+
+            # Check if WORKSPACE_DIR already exists — update in place
+            for i, line in enumerate(lines):
+                if line.startswith("WORKSPACE_DIR:"):
+                    lines[i] = new_line
+                    write_changespec_atomic(
+                        project_file,
+                        "".join(lines),
+                        f"Update WORKSPACE_DIR to {workspace_dir}",
+                    )
+                    return True
+
+            # Insert before first RUNNING: or NAME: line
+            insert_idx = len(lines)
+            for i, line in enumerate(lines):
+                if line.startswith("RUNNING:") or line.startswith("NAME:"):
+                    insert_idx = i
+                    break
+
+            lines.insert(insert_idx, new_line)
+            write_changespec_atomic(
+                project_file,
+                "".join(lines),
+                f"Set WORKSPACE_DIR to {workspace_dir}",
+            )
+            return True
     except Exception:
         return False
 

@@ -3,12 +3,17 @@
 import re
 from typing import Any
 
-from sase.ace.changespec import get_entry_id
-from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-from sase.spec_writer.models import OperationType
+from sase.ace.changespec import changespec_lock, get_entry_id, write_changespec_atomic
+from sase.renumber_utils import (
+    build_commits_section,
+    find_commits_section,
+    parse_commit_entries,
+    sort_entries_by_id,
+    sort_hook_status_lines,
+)
 
 
-def build_entry_id_mapping(
+def _build_entry_id_mapping(
     entries: list[dict[str, Any]],
     new_entries: list[dict[str, Any]],
     accepted_proposals: list[tuple[int, str]],
@@ -65,7 +70,7 @@ def build_entry_id_mapping(
     return promote_mapping, archive_mapping
 
 
-def update_hooks_with_id_mapping(
+def _update_hooks_with_id_mapping(
     lines: list[str],
     cl_name: str,
     promote_mapping: dict[str, str],
@@ -152,7 +157,7 @@ def update_hooks_with_id_mapping(
     return updated_lines
 
 
-def update_mentors_with_id_mapping(
+def _update_mentors_with_id_mapping(
     lines: list[str],
     cl_name: str,
     promote_mapping: dict[str, str],
@@ -219,7 +224,7 @@ def update_mentors_with_id_mapping(
     return updated_lines
 
 
-def update_comments_with_id_mapping(
+def _update_comments_with_id_mapping(
     lines: list[str],
     cl_name: str,
     promote_mapping: dict[str, str],
@@ -279,7 +284,7 @@ def update_comments_with_id_mapping(
     return updated_lines
 
 
-def reject_remaining_proposals_unlocked(
+def _reject_remaining_proposals_unlocked(
     lines: list[str],
     cl_name: str,
 ) -> list[str]:
@@ -382,17 +387,120 @@ def renumber_commit_entries(
         True if successful, False otherwise.
     """
     try:
-        request = make_request(
-            project_file,
-            OperationType.RENUMBER_COMMIT_ENTRIES,
-            {
-                "cl_name": cl_name,
-                "accepted_proposals": accepted_proposals,  # list of (int, str) tuples - JSON serializable as list of lists
-                "extra_msgs": extra_msgs,
-                "mark_ready_to_mail": mark_ready_to_mail,
-            },
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Find the ChangeSpec and its commits section
+            commits_start, commits_end = find_commits_section(lines, cl_name)
+
+            if commits_start < 0:
+                return False  # No COMMITS section found
+
+            # Parse current commit entries
+            commit_lines = lines[commits_start + 1 : commits_end]
+            entries = parse_commit_entries(commit_lines, include_raw_lines=True)
+
+            # Find max regular (non-proposal) number
+            max_regular = 0
+            for entry in entries:
+                if entry["letter"] is None:
+                    max_regular = max(max_regular, int(entry["number"]))  # type: ignore[arg-type]
+
+            # Determine new numbers for accepted proposals
+            # They become next regular numbers in the order they were accepted
+            next_regular = max_regular + 1
+            accepted_set = set(accepted_proposals)
+
+            # Group remaining proposals by base number
+            remaining_proposals: list[dict[str, Any]] = []
+            for entry in entries:
+                if entry["letter"] is not None:
+                    key = (int(entry["number"]), str(entry["letter"]))
+                    if key not in accepted_set:
+                        remaining_proposals.append(entry)
+
+            # Build new entries list
+            new_entries: list[dict[str, Any]] = []
+
+            # First, add all regular (non-proposal) entries unchanged
+            for entry in entries:
+                if entry["letter"] is None:
+                    new_entries.append(entry)
+
+            # Add accepted proposals as new regular entries in acceptance order
+            for idx, (base_num, letter) in enumerate(accepted_proposals):
+                for entry in entries:
+                    if entry["number"] == base_num and entry["letter"] == letter:
+                        new_entry = entry.copy()
+                        new_entry["number"] = next_regular
+                        new_entry["letter"] = None
+                        # Strip any proposal suffix (e.g., "- (!: NEW PROPOSAL)")
+                        new_entry["note"] = re.sub(
+                            r" - \([!~]: [^)]+\)$", "", entry["note"]
+                        )
+                        # Append per-proposal message to the note if provided
+                        if extra_msgs and idx < len(extra_msgs) and extra_msgs[idx]:
+                            new_entry["note"] = (
+                                f"{new_entry['note']} - {extra_msgs[idx]}"
+                            )
+                        new_entries.append(new_entry)
+                        next_regular += 1
+                        break
+
+            # Add remaining proposals unchanged (keep original ID)
+            for entry in remaining_proposals:
+                new_entries.append(entry.copy())
+
+            # Build ID mappings for hook status line updates
+            promote_mapping, archive_mapping = _build_entry_id_mapping(
+                entries,
+                new_entries,
+                accepted_proposals,
+                next_regular,
+                remaining_proposals,
+            )
+
+            # Sort entries: regular entries by number, then proposals by base+letter
+            new_entries = sort_entries_by_id(new_entries)
+
+            # Rebuild commits section
+            new_commit_lines = build_commits_section(new_entries)
+
+            # Replace old commits section with new one
+            new_lines = lines[:commits_start] + new_commit_lines + lines[commits_end:]
+
+            # Update hook status lines with new entry IDs
+            new_lines = _update_hooks_with_id_mapping(
+                new_lines, cl_name, promote_mapping, archive_mapping
+            )
+
+            # Update mentor entry_ref suffixes with new entry IDs
+            new_lines = _update_mentors_with_id_mapping(
+                new_lines, cl_name, promote_mapping
+            )
+
+            # Update comment entry_ref suffixes with new entry IDs
+            new_lines = _update_comments_with_id_mapping(
+                new_lines, cl_name, promote_mapping
+            )
+
+            # Sort hook status lines by entry ID
+            new_lines = sort_hook_status_lines(new_lines, cl_name)
+
+            # If mark_ready_to_mail is True, also reject remaining proposals
+            if mark_ready_to_mail:
+                new_lines = _reject_remaining_proposals_unlocked(new_lines, cl_name)
+
+            # Write atomically
+            commit_msg = f"Renumber commit entries for {cl_name}"
+            if mark_ready_to_mail:
+                commit_msg += " and mark ready to mail"
+            write_changespec_atomic(
+                project_file,
+                "".join(new_lines),
+                commit_msg,
+            )
+            return True
     except Exception:
         return False

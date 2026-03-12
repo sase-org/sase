@@ -1,12 +1,19 @@
 """Commit entry renumbering for rewind workflow."""
 
 import re
+from typing import Any
 
-from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-from sase.spec_writer.models import OperationType
+from sase.ace.changespec import changespec_lock, get_entry_id, write_changespec_atomic
+from sase.renumber_utils import (
+    build_commits_section,
+    find_commits_section,
+    parse_commit_entries,
+    sort_entries_by_id,
+    sort_hook_status_lines,
+)
 
 
-def get_lowest_available_letter(
+def _get_lowest_available_letter(
     base_num: int,
     existing_letters: set[str],
 ) -> str:
@@ -25,7 +32,7 @@ def get_lowest_available_letter(
     raise ValueError("No available proposal letters (a-z all used)")
 
 
-def update_hooks_with_id_mapping(
+def _update_hooks_with_id_mapping(
     lines: list[str],
     cl_name: str,
     id_mapping: dict[str, str | None],
@@ -110,7 +117,7 @@ def update_hooks_with_id_mapping(
     return updated_lines
 
 
-def update_mentors_with_id_mapping(
+def _update_mentors_with_id_mapping(
     lines: list[str],
     cl_name: str,
     id_mapping: dict[str, str | None],
@@ -217,7 +224,7 @@ def update_mentors_with_id_mapping(
     return updated_lines
 
 
-def update_comments_with_id_mapping(
+def _update_comments_with_id_mapping(
     lines: list[str],
     cl_name: str,
     id_mapping: dict[str, str | None],
@@ -310,15 +317,145 @@ def rewind_commit_entries(
         True if successful, False otherwise.
     """
     try:
-        request = make_request(
-            project_file,
-            OperationType.REWIND_COMMIT_ENTRIES,
-            {
-                "cl_name": cl_name,
-                "selected_entry_num": selected_entry_num,
-            },
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Find the ChangeSpec and its commits section
+            commits_start, commits_end = find_commits_section(lines, cl_name)
+
+            if commits_start < 0:
+                return False
+
+            # Parse current commit entries
+            commit_lines = lines[commits_start + 1 : commits_end]
+            entries = parse_commit_entries(commit_lines)
+
+            # Calculate base number for new proposals
+            base_num = selected_entry_num
+
+            # Separate entries into categories
+            numeric_entries = [e for e in entries if e["letter"] is None]
+            proposal_entries = [e for e in entries if e["letter"] is not None]
+
+            # Find entries to keep, convert, and delete
+            entries_to_keep = [
+                e for e in numeric_entries if e["number"] < selected_entry_num
+            ]
+            entry_after = next(
+                (e for e in numeric_entries if e["number"] == selected_entry_num + 1),
+                None,
+            )
+            selected_entry = next(
+                (e for e in numeric_entries if e["number"] == selected_entry_num),
+                None,
+            )
+            entries_to_delete = [
+                e for e in numeric_entries if e["number"] > selected_entry_num + 1
+            ]
+            existing_proposals = [
+                e for e in proposal_entries if e["number"] == selected_entry_num
+            ]
+
+            if not entry_after or not selected_entry:
+                return False
+
+            # Build ID mapping
+            id_mapping: dict[str, str | None] = {}
+
+            # Entries to keep - no change
+            for e in entries_to_keep:
+                old_id = get_entry_id(e)
+                id_mapping[old_id] = old_id
+
+            # Entries to delete - map to None
+            for e in entries_to_delete:
+                old_id = get_entry_id(e)
+                id_mapping[old_id] = None
+
+            # Selected entry stays as (N) - same ID
+            old_id = get_entry_id(selected_entry)
+            id_mapping[old_id] = old_id
+
+            # Track used letters for the base number (existing proposals)
+            used_letters: set[str] = set()
+            for e in existing_proposals:
+                if e["letter"]:
+                    used_letters.add(e["letter"])
+
+            # Entry after -> lowest available letter proposal (Na)
+            entry_after_new_letter = _get_lowest_available_letter(
+                base_num, used_letters
+            )
+            old_id = get_entry_id(entry_after)
+            new_id = f"{base_num}{entry_after_new_letter}"
+            id_mapping[old_id] = new_id
+
+            # Existing proposals stay unchanged
+            for e in existing_proposals:
+                old_id = get_entry_id(e)
+                id_mapping[old_id] = old_id
+
+            # Build new entries list
+            new_entries: list[dict[str, Any]] = []
+
+            # Keep entries before selected
+            for e in entries_to_keep:
+                new_entries.append(e.copy())
+
+            # Selected entry stays as (N) but with NEW PROPOSAL suffix
+            new_entry = selected_entry.copy()
+            # Strip any existing suffix
+            new_entry["note"] = re.sub(
+                r" - \([!~@$%?]: [^)]+\)$", "", new_entry["note"]
+            )
+            # Add NEW PROPOSAL suffix
+            new_entry["note"] = f"{new_entry['note']} - (!: NEW PROPOSAL)"
+            new_entries.append(new_entry)
+
+            # Entry after -> proposal (Na)
+            new_entry = entry_after.copy()
+            new_entry["number"] = base_num
+            new_entry["letter"] = entry_after_new_letter
+            # Strip any existing suffix
+            new_entry["note"] = re.sub(
+                r" - \([!~@$%?]: [^)]+\)$", "", new_entry["note"]
+            )
+            # Add NEW PROPOSAL suffix
+            new_entry["note"] = f"{new_entry['note']} - (!: NEW PROPOSAL)"
+            new_entries.append(new_entry)
+
+            # Existing proposals stay unchanged
+            for e in sorted(existing_proposals, key=lambda x: x["letter"] or ""):
+                new_entries.append(e.copy())
+
+            # Sort entries
+            new_entries = sort_entries_by_id(new_entries)
+
+            # Rebuild commits section
+            new_commit_lines = build_commits_section(new_entries)
+
+            # Replace old commits section with new one
+            new_lines = lines[:commits_start] + new_commit_lines + lines[commits_end:]
+
+            # Update hooks, mentors, comments with ID mapping
+            new_lines = _update_hooks_with_id_mapping(new_lines, cl_name, id_mapping)
+            new_lines = _update_mentors_with_id_mapping(
+                new_lines, cl_name, id_mapping, selected_entry_num
+            )
+            new_lines = _update_comments_with_id_mapping(new_lines, cl_name, id_mapping)
+
+            # Sort hook status lines
+            new_lines = sort_hook_status_lines(new_lines, cl_name)
+
+            # Write atomically
+            commit_msg = f"Rewind {cl_name} to entry ({selected_entry_num})"
+            write_changespec_atomic(
+                project_file,
+                "".join(new_lines),
+                commit_msg,
+            )
+            return True
+
     except Exception:
         return False

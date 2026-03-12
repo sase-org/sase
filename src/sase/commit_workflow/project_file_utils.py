@@ -1,14 +1,16 @@
 """Functions for managing project files."""
 
-from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-from sase.spec_writer.models import OperationType
+import os
+
+from sase.ace.changespec import write_changespec_atomic
+from sase.rich_utils import print_status
 from sase.workflow_utils import get_project_file_path
 
 
 def create_project_file(project: str) -> bool:
     """Create a new project file if it doesn't exist.
 
-    Delegates to the spec_writer queue for consistency.
+    Uses locking and atomic writes for consistency.
 
     Args:
         project: Project name.
@@ -16,13 +18,28 @@ def create_project_file(project: str) -> bool:
     Returns:
         True if the file was created or already exists, False on error.
     """
+    project_file = get_project_file_path(project)
+    project_dir = os.path.dirname(project_file)
+
+    # Create directory if it doesn't exist
     try:
-        request = make_request(
-            get_project_file_path(project),
-            OperationType.CREATE_PROJECT_FILE,
-            {"project": project},
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
-    except Exception:
+        os.makedirs(project_dir, exist_ok=True)
+    except Exception as e:
+        print_status(f"Failed to create project directory: {e}", "warning")
         return False
+
+    # Create file if it doesn't exist
+    if not os.path.isfile(project_file):
+        try:
+            # Use atomic write for new file creation
+            write_changespec_atomic(
+                project_file,
+                "",
+                f"Create project file for {project}",
+            )
+            print_status(f"Created project file: {project_file}", "info")
+        except Exception as e:
+            print_status(f"Failed to create project file: {e}", "warning")
+            return False
+
+    return True

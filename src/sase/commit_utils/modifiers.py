@@ -1,7 +1,8 @@
 """Functions for modifying existing COMMITS entries in ChangeSpecs."""
 
-from sase.spec_writer.client import make_request, submit_spec_write_and_wait
-from sase.spec_writer.models import OperationType
+import re
+
+from sase.ace.changespec import changespec_lock, write_changespec_atomic
 
 
 def reject_proposals_and_set_status_atomic(
@@ -22,16 +23,85 @@ def reject_proposals_and_set_status_atomic(
         True if successful, False otherwise.
     """
     try:
-        request = make_request(
-            project_file,
-            OperationType.REJECT_PROPOSALS_AND_SET_STATUS,
-            {
-                "cl_name": cl_name,
-                "final_status": final_status,
-            },
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Track state while parsing
+            in_target_changespec = False
+            in_commits = False
+            rejected_count = 0
+            status_line_idx: int | None = None
+            current_status: str | None = None
+
+            for i, line in enumerate(lines):
+                if line.startswith("NAME: "):
+                    current_name = line[6:].strip()
+                    in_target_changespec = current_name == cl_name
+                    in_commits = False
+                elif in_target_changespec:
+                    if line.startswith("STATUS:"):
+                        # Capture the status line index and current value
+                        status_line_idx = i
+                        current_status = line[7:].strip()
+                        in_commits = False
+                    elif line.startswith("COMMITS:"):
+                        in_commits = True
+                    elif line.startswith(
+                        (
+                            "NAME:",
+                            "DESCRIPTION:",
+                            "PARENT:",
+                            "CL:",
+                            "TEST TARGETS:",
+                            "KICKSTART:",
+                            "HOOKS:",
+                            "COMMENTS:",
+                            "MENTORS:",
+                        )
+                    ):
+                        in_commits = False
+                        if line.startswith("NAME:"):
+                            in_target_changespec = False
+                    elif in_commits:
+                        stripped = line.strip()
+                        # Match: (Na) Note text - (!: NEW PROPOSAL)
+                        entry_match = re.match(
+                            r"^\((\d+[a-z])\)\s+(.+?)\s+-\s+\(!:\s*NEW PROPOSAL\)$",
+                            stripped,
+                        )
+                        if entry_match:
+                            matched_id = entry_match.group(1)
+                            note_text = entry_match.group(2)
+                            # Preserve leading whitespace
+                            leading_ws = line[: len(line) - len(line.lstrip())]
+                            # Change (!: NEW PROPOSAL) to (~!: NEW PROPOSAL)
+                            new_line = (
+                                f"{leading_ws}({matched_id}) {note_text} - "
+                                f"(~!: NEW PROPOSAL)\n"
+                            )
+                            lines[i] = new_line
+                            rejected_count += 1
+
+            # Must have found the status line
+            if status_line_idx is None or current_status is None:
+                return False
+
+            # Update the status line based on final_status
+            if final_status:
+                new_status = final_status
+                lines[status_line_idx] = f"STATUS: {new_status}\n"
+            else:
+                new_status = current_status
+
+            # Write atomically
+            write_changespec_atomic(
+                project_file,
+                "".join(lines),
+                f"Reject {rejected_count} proposal(s) and set status to "
+                f"'{new_status}' for {cl_name}",
+            )
+            return True
     except Exception:
         return False
 
@@ -52,17 +122,69 @@ def reject_all_new_proposals(
         Number of proposals rejected, or -1 on error.
     """
     try:
-        request = make_request(
-            project_file,
-            OperationType.REJECT_ALL_NEW_PROPOSALS,
-            {
-                "cl_name": cl_name,
-            },
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        if response.success and response.result:
-            return response.result.get("rejected_count", 0)
-        return -1
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Find and update all new proposals
+            in_target_changespec = False
+            in_commits = False
+            rejected_count = 0
+
+            for i, line in enumerate(lines):
+                if line.startswith("NAME: "):
+                    current_name = line[6:].strip()
+                    in_target_changespec = current_name == cl_name
+                    in_commits = False
+                elif in_target_changespec:
+                    if line.startswith("COMMITS:"):
+                        in_commits = True
+                    elif line.startswith(
+                        (
+                            "NAME:",
+                            "DESCRIPTION:",
+                            "PARENT:",
+                            "CL:",
+                            "STATUS:",
+                            "TEST TARGETS:",
+                            "KICKSTART:",
+                            "HOOKS:",
+                            "COMMENTS:",
+                        )
+                    ):
+                        in_commits = False
+                        if line.startswith("NAME:"):
+                            in_target_changespec = False
+                    elif in_commits:
+                        stripped = line.strip()
+                        # Match: (Na) Note text - (!: NEW PROPOSAL)
+                        entry_match = re.match(
+                            r"^\((\d+[a-z])\)\s+(.+?)\s+-\s+\(!:\s*NEW PROPOSAL\)$",
+                            stripped,
+                        )
+                        if entry_match:
+                            matched_id = entry_match.group(1)
+                            note_text = entry_match.group(2)
+                            # Preserve leading whitespace
+                            leading_ws = line[: len(line) - len(line.lstrip())]
+                            # Change (!: NEW PROPOSAL) to (~!: NEW PROPOSAL)
+                            new_line = (
+                                f"{leading_ws}({matched_id}) {note_text} - "
+                                f"(~!: NEW PROPOSAL)\n"
+                            )
+                            lines[i] = new_line
+                            rejected_count += 1
+
+            if rejected_count == 0:
+                return 0
+
+            # Write atomically
+            write_changespec_atomic(
+                project_file,
+                "".join(lines),
+                f"Reject {rejected_count} new proposal(s) for {cl_name}",
+            )
+            return rejected_count
     except Exception:
         return -1
 
@@ -91,17 +213,81 @@ def update_commit_entry_suffix(
         return False
 
     try:
-        request = make_request(
-            project_file,
-            OperationType.UPDATE_COMMIT_ENTRY_SUFFIX,
-            {
-                "cl_name": cl_name,
-                "entry_id": entry_id,
-                "new_suffix_type": new_suffix_type,
-            },
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Find the target entry and update its suffix
+            in_target_changespec = False
+            in_commits = False
+            updated = False
+
+            for i, line in enumerate(lines):
+                if line.startswith("NAME: "):
+                    current_name = line[6:].strip()
+                    in_target_changespec = current_name == cl_name
+                    in_commits = False
+                elif in_target_changespec:
+                    if line.startswith("COMMITS:"):
+                        in_commits = True
+                    elif line.startswith(
+                        (
+                            "NAME:",
+                            "DESCRIPTION:",
+                            "PARENT:",
+                            "CL:",
+                            "STATUS:",
+                            "TEST TARGETS:",
+                            "KICKSTART:",
+                            "HOOKS:",
+                            "COMMENTS:",
+                        )
+                    ):
+                        in_commits = False
+                        if line.startswith("NAME:"):
+                            in_target_changespec = False
+                    elif in_commits:
+                        stripped = line.strip()
+                        # Match entry with this ID: (Na) Note text - (!: MSG) or - (~: MSG)
+                        entry_match = re.match(
+                            rf"^\(({re.escape(entry_id)})\)\s+(.+?)\s+-\s+\((!:|~:)\s*([^)]+)\)$",
+                            stripped,
+                        )
+                        if entry_match:
+                            matched_id = entry_match.group(1)
+                            note_text = entry_match.group(2)
+                            suffix_prefix = entry_match.group(3)
+                            suffix_msg = entry_match.group(4)
+                            # Preserve leading whitespace
+                            leading_ws = line[: len(line) - len(line.lstrip())]
+                            if new_suffix_type == "remove":
+                                # Remove the suffix entirely
+                                new_line = f"{leading_ws}({matched_id}) {note_text}\n"
+                            else:  # reject
+                                # Change (!: MSG) to (~!: MSG)
+                                if suffix_prefix == "!:":
+                                    new_line = (
+                                        f"{leading_ws}({matched_id}) {note_text} - "
+                                        f"(~!: {suffix_msg})\n"
+                                    )
+                                else:
+                                    # Not an error suffix, don't change
+                                    continue
+                            lines[i] = new_line
+                            updated = True
+                            break
+
+            if not updated:
+                return False
+
+            # Write atomically
+            action = "Remove" if new_suffix_type == "remove" else "Reject"
+            write_changespec_atomic(
+                project_file,
+                "".join(lines),
+                f"{action} suffix from commit entry {entry_id} for {cl_name}",
+            )
+            return True
     except Exception:
         return False
 
@@ -126,15 +312,70 @@ def mark_proposal_broken(
         True if successful, False otherwise.
     """
     try:
-        request = make_request(
-            project_file,
-            OperationType.MARK_PROPOSAL_BROKEN,
-            {
-                "cl_name": cl_name,
-                "entry_id": entry_id,
-            },
-        )
-        response = submit_spec_write_and_wait(request, timeout=10.0)
-        return response.success
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            in_target_changespec = False
+            in_commits = False
+            updated = False
+
+            for i, line in enumerate(lines):
+                if line.startswith("NAME: "):
+                    current_name = line[6:].strip()
+                    in_target_changespec = current_name == cl_name
+                    in_commits = False
+                elif in_target_changespec:
+                    if line.startswith("COMMITS:"):
+                        in_commits = True
+                    elif line.startswith(
+                        (
+                            "NAME:",
+                            "DESCRIPTION:",
+                            "PARENT:",
+                            "CL:",
+                            "STATUS:",
+                            "TEST TARGETS:",
+                            "KICKSTART:",
+                            "HOOKS:",
+                            "COMMENTS:",
+                            "MENTORS:",
+                        )
+                    ):
+                        in_commits = False
+                        if line.startswith("NAME:"):
+                            in_target_changespec = False
+                    elif in_commits:
+                        stripped = line.strip()
+                        # Match proposal entry with any suffix or no suffix:
+                        #   (Na) Note text - (!: NEW PROPOSAL)
+                        #   (Na) Note text - (~!: BROKEN PROPOSAL)
+                        #   (Na) Note text
+                        entry_match = re.match(
+                            rf"^\(({re.escape(entry_id)})\)\s+(.+?)(?:\s+-\s+\([^)]+\))?$",
+                            stripped,
+                        )
+                        if entry_match:
+                            matched_id = entry_match.group(1)
+                            note_text = entry_match.group(2)
+                            leading_ws = line[: len(line) - len(line.lstrip())]
+                            # Set to (~!: BROKEN PROPOSAL)
+                            new_line = (
+                                f"{leading_ws}({matched_id}) {note_text} - "
+                                f"(~!: BROKEN PROPOSAL)\n"
+                            )
+                            lines[i] = new_line
+                            updated = True
+                            break
+
+            if not updated:
+                return False
+
+            write_changespec_atomic(
+                project_file,
+                "".join(lines),
+                f"Mark proposal {entry_id} as broken for {cl_name}",
+            )
+            return True
     except Exception:
         return False
