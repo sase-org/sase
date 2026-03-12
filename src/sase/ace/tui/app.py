@@ -424,6 +424,9 @@ class AceApp(
         self._restore_last_selection()
         self._save_current_query()
 
+        # Load agents so the tab bar count is populated on startup
+        self._load_agents()
+
         # Initialize axe status
         self._load_axe_status()
 
