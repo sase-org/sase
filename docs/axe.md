@@ -10,17 +10,17 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 
 ```
 ┌──────────────────────────────────────────────┐
-│              Orchestrator                     │
+│              Orchestrator                    │
 │  (spawns & monitors all lumberjacks)         │
 ├──────────┬──────────┬────────────┬───────────┤
 │  hooks   │  checks  │  comments  │ housekeep │
 │  (1s)    │  (5min)  │  (1min)    │ (1hr)     │
 │          │          │            │           │
 │ hook_    │ cl_sub-  │ comment_   │ error_    │
-│ checks   │ mitted_  │ checks    │ digest    │
+│ checks   │ mitted_  │ checks     │ digest    │
 │ mentor_  │ checks   │            │           │
 │ checks   │ stale_   │            │           │
-│ workflow_ │ running_ │            │           │
+│ workflow_│ running_ │            │           │
 │ checks   │ cleanup  │            │           │
 │ ...      │          │            │           │
 └──────────┴──────────┴────────────┴───────────┘
