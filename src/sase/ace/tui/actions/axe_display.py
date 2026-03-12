@@ -192,6 +192,9 @@ class AxeDisplayMixin:
 
         from ..widgets import AxeDashboard, AxeInfoPanel, BgCmdList, KeybindingFooter
 
+        # Ensure layout (sidebar visibility) is up-to-date
+        self._update_axe_layout()
+
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]
             axe_dashboard = self.query_one("#axe-dashboard", AxeDashboard)  # type: ignore[attr-defined]
