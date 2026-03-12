@@ -42,6 +42,7 @@ class ChangeSpecMixin:
     _children_keys: dict[str, str]
     _sibling_keys: dict[str, str]
     _hidden_reverted_count: int
+    _query_reverted_count: int
     _axe_cmds_hidden: bool
 
     def _load_changespecs(self) -> None:
@@ -62,6 +63,7 @@ class ChangeSpecMixin:
         else:
             self.current_idx = 0
 
+        self._update_cls_tab_count()
         self._refresh_display()
 
     def _filter_changespecs(self, changespecs: list[ChangeSpec]) -> list[ChangeSpec]:
@@ -75,6 +77,11 @@ class ChangeSpecMixin:
             for cs in changespecs
             if evaluate_query(self.parsed_query, cs, changespecs)
         ]
+
+        # Count reverted/archived in query results (for tab bar suffix)
+        self._query_reverted_count = sum(
+            1 for cs in result if get_base_status(cs.status) in ("Reverted", "Archived")
+        )
 
         # Check if we should filter out terminal statuses (Reverted/Archived)
         # (only if hide_reverted is True AND query doesn't explicitly target them)
@@ -115,6 +122,7 @@ class ChangeSpecMixin:
 
         self.changespecs = new_changespecs  # type: ignore[assignment]
         self.current_idx = new_idx
+        self._update_cls_tab_count()
         self._refresh_display()
 
     def _save_current_query(self) -> None:
@@ -302,6 +310,24 @@ class ChangeSpecMixin:
         except Exception as e:
             self.notify(f"Error loading query: {e}", severity="error")  # type: ignore[attr-defined]
 
+    def _update_cls_tab_count(self) -> None:
+        """Update the CLs tab bar label with current ChangeSpec counts."""
+        from ..widgets import TabBar
+
+        show_hidden = not self.hide_reverted
+        if show_hidden:
+            main = len(self.changespecs) - self._query_reverted_count
+            hidden = self._query_reverted_count
+        else:
+            main = len(self.changespecs)
+            hidden = self._query_reverted_count
+
+        try:
+            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
+            tab_bar.update_cls_count(main, hidden, show_hidden=show_hidden)
+        except Exception:
+            pass
+
     def _refresh_display(self) -> None:
         """Refresh the display with current state."""
         from ...query import query_explicitly_targets_terminal
@@ -482,6 +508,7 @@ class ChangeSpecMixin:
             # Switch back to main axe view when hiding commands
             if self._axe_cmds_hidden and self._axe_current_view != "axe":  # type: ignore[attr-defined, has-type]
                 self._axe_current_view = "axe"  # type: ignore[attr-defined]
+            self._update_axe_tab_count()  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
             return
         if self.current_tab != "changespecs":

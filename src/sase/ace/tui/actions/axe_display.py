@@ -102,6 +102,9 @@ class AxeDisplayMixin:
         # Also load bgcmd state
         self._load_bgcmd_state()
 
+        # Update AXE tab bar count
+        self._update_axe_tab_count()
+
         # Update display if on axe tab
         if self.current_tab == "axe":
             self._refresh_axe_display()
@@ -169,6 +172,30 @@ class AxeDisplayMixin:
             else:
                 done_count += 1
         return running_count, done_count
+
+    def _update_axe_tab_count(self) -> None:
+        """Update the AXE tab bar label with lumberjack and bgcmd counts."""
+        from ..widgets import TabBar
+
+        # Count running lumberjacks
+        running_lj = 0
+        if self.axe_running:
+            for lj_name in self._axe_lumberjack_names:
+                lj_status = read_lumberjack_status(lj_name)
+                if lj_status and lj_status.status == "running":
+                    running_lj += 1
+
+        bgcmd_count = len(self._bgcmd_slots)
+
+        try:
+            tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
+            tab_bar.update_axe_count(
+                running_lj,
+                bgcmd_count,
+                show_hidden=not self._axe_cmds_hidden,
+            )
+        except Exception:
+            pass
 
     def _update_axe_layout(self) -> None:
         """Update AXE tab layout based on whether bgcmds are running."""

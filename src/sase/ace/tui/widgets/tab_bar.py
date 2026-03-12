@@ -22,9 +22,15 @@ class TabBar(Static):
 
     def __init__(self, **kwargs: Any) -> None:
         self._current_tab: TabName = "changespecs"
+        self._cls_main_count: int = 0
+        self._cls_hidden_count: int = 0
+        self._cls_show_hidden: bool = False
         self._agents_manual_count: int = 0
         self._agents_hidden_count: int = 0
         self._agents_show_hidden: bool = False
+        self._axe_main_count: int = 0
+        self._axe_hidden_count: int = 0
+        self._axe_show_hidden: bool = False
         # Store positions for click detection
         self._cl_tab_range: tuple[int, int] = (0, 0)
         self._agents_tab_range: tuple[int, int] = (0, 0)
@@ -40,6 +46,30 @@ class TabBar(Static):
         """
         self._current_tab = tab
         self._refresh_content()
+
+    def update_cls_count(
+        self,
+        main_count: int,
+        hidden_count: int,
+        *,
+        show_hidden: bool,
+    ) -> None:
+        """Update the ChangeSpec counts shown on the CLs tab label.
+
+        Args:
+            main_count: Number of non-reverted ChangeSpecs matching query.
+            hidden_count: Number of reverted/archived ChangeSpecs matching query.
+            show_hidden: Whether reverted/archived are currently visible.
+        """
+        if (
+            self._cls_main_count != main_count
+            or self._cls_hidden_count != hidden_count
+            or self._cls_show_hidden != show_hidden
+        ):
+            self._cls_main_count = main_count
+            self._cls_hidden_count = hidden_count
+            self._cls_show_hidden = show_hidden
+            self._refresh_content()
 
     def update_agents_count(
         self,
@@ -65,16 +95,48 @@ class TabBar(Static):
             self._agents_show_hidden = show_hidden
             self._refresh_content()
 
+    def update_axe_count(
+        self,
+        main_count: int,
+        hidden_count: int,
+        *,
+        show_hidden: bool,
+    ) -> None:
+        """Update the counts shown on the AXE tab label.
+
+        Args:
+            main_count: Number of running axe lumberjacks.
+            hidden_count: Number of active background commands.
+            show_hidden: Whether background commands are currently visible.
+        """
+        if (
+            self._axe_main_count != main_count
+            or self._axe_hidden_count != hidden_count
+            or self._axe_show_hidden != show_hidden
+        ):
+            self._axe_main_count = main_count
+            self._axe_hidden_count = hidden_count
+            self._axe_show_hidden = show_hidden
+            self._refresh_content()
+
     def _build_content(self) -> Text:
         """Build the tab bar content."""
         text = Text()
 
         # CLs tab
         cl_start = 0
+        m = str(self._cls_main_count) if self._cls_main_count > 0 else ""
+        if self._cls_show_hidden:
+            h = str(self._cls_hidden_count) if self._cls_hidden_count > 0 else ""
+            cl_label = f" CLs ({m}+{h}) "
+        elif self._cls_main_count > 0:
+            cl_label = f" CLs ({m}) "
+        else:
+            cl_label = " CLs "
         cl_base = (
             "bold reverse #00D7AF" if self._current_tab == "changespecs" else "dim"
         )
-        text.append(" CLs ", style=cl_base)
+        text.append(cl_label, style=cl_base)
         cl_end = len(text.plain)
         self._cl_tab_range = (cl_start, cl_end)
 
@@ -101,10 +163,18 @@ class TabBar(Static):
 
         # Axe tab
         axe_start = len(text.plain)
-        if self._current_tab == "axe":
-            text.append(" AXE ", style="bold reverse #FF5F5F")
+        m = str(self._axe_main_count) if self._axe_main_count > 0 else ""
+        if self._axe_show_hidden:
+            h = str(self._axe_hidden_count) if self._axe_hidden_count > 0 else ""
+            axe_label = f" AXE ({m}+{h}) "
+        elif self._axe_main_count > 0:
+            axe_label = f" AXE ({m}) "
         else:
-            text.append(" AXE ", style="dim")
+            axe_label = " AXE "
+        if self._current_tab == "axe":
+            text.append(axe_label, style="bold reverse #FF5F5F")
+        else:
+            text.append(axe_label, style="dim")
         axe_end = len(text.plain)
         self._axe_tab_range = (axe_start, axe_end)
 
