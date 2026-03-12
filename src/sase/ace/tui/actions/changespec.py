@@ -479,6 +479,9 @@ class ChangeSpecMixin:
             return
         if self.current_tab == "axe":
             self._axe_cmds_hidden = not self._axe_cmds_hidden  # type: ignore[attr-defined]
+            # Switch back to main axe view when hiding commands
+            if self._axe_cmds_hidden and self._axe_current_view != "axe":  # type: ignore[attr-defined, has-type]
+                self._axe_current_view = "axe"  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
             return
         if self.current_tab != "changespecs":

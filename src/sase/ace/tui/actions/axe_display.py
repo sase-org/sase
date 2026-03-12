@@ -200,30 +200,6 @@ class AxeDisplayMixin:
             # Update countdown
             axe_info.update_countdown(self._countdown_remaining, self.refresh_interval)
 
-            # When commands are hidden, show the empty/stopped state
-            if self._axe_cmds_hidden:
-                axe_info.update_status(False)
-                axe_dashboard.show_empty()
-                # Hide bgcmd sidebar
-                try:
-                    bgcmd_list_container = self.query_one("#bgcmd-list-container")  # type: ignore[attr-defined]
-                    bgcmd_list_container.add_class("hidden")
-                except Exception:
-                    pass
-                # Update footer with hide/show binding
-                from ..modals import get_runner_count
-
-                footer.set_axe_running(self.axe_running)
-                running_count, done_count = self._get_bgcmd_counts()
-                footer.set_bgcmd_count(running_count, done_count)
-                footer.set_runner_count(get_runner_count())
-                footer.update_axe_bindings(
-                    axe_current_view=self._axe_current_view,
-                    cmds_hidden=True,
-                    has_running_cmds=self.axe_running or len(self._bgcmd_slots) > 0,
-                )
-                return
-
             # Update info panel based on current view
             if self._axe_current_view == "axe":
                 if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
@@ -311,7 +287,7 @@ class AxeDisplayMixin:
                     lumberjack_name=footer_lj_name,
                     lumberjack_idx=footer_lj_idx,
                     lumberjack_total=footer_lj_total,
-                    cmds_hidden=False,
+                    cmds_hidden=self._axe_cmds_hidden,
                     has_running_cmds=self.axe_running or len(self._bgcmd_slots) > 0,
                 )
 
@@ -341,9 +317,7 @@ class AxeDisplayMixin:
 
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]
-            if self._axe_cmds_hidden:
-                axe_info.update_status(False)
-            elif self._axe_current_view == "axe":
+            if self._axe_current_view == "axe":
                 axe_info.update_status(self.axe_running)
             else:
                 slot = self._axe_current_view
