@@ -105,8 +105,10 @@ class AgentKillingMixin:
     # ChangeSpec state
     changespecs: list[ChangeSpec]
     current_idx: int
+    current_tab: str
 
     # Agent state (needed for _dismiss_done_agent)
+    _agents: list[Agent]
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
@@ -186,8 +188,50 @@ class AgentKillingMixin:
         # internally; the duplicate set-add is harmless.
         self._persist_dismissed_agent(agent.identity)
 
-        # Refresh agents list
-        self._load_agents()  # type: ignore[attr-defined]
+        # Immediately remove the killed agent (and its workflow children)
+        # from the in-memory list and refresh the display.  This guarantees
+        # the agent disappears from the UI without depending on the full
+        # disk-scan in _load_agents(), which can race with process exit or
+        # run during an in-flight screen transition (modal dismiss).
+        killed_identity = agent.identity
+        self._agents = [a for a in self._agents if a.identity != killed_identity]  # type: ignore[attr-defined]
+        self._agents_with_children = [
+            a for a in self._agents_with_children if a.identity != killed_identity
+        ]
+        if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+            self._agents = [  # type: ignore[attr-defined]
+                a
+                for a in self._agents  # type: ignore[attr-defined]
+                if not (
+                    a.is_workflow_child
+                    and a.parent_timestamp == agent.raw_suffix
+                    and a.parent_workflow == agent.workflow
+                )
+            ]
+            self._agents_with_children = [
+                a
+                for a in self._agents_with_children
+                if not (
+                    a.is_workflow_child
+                    and a.parent_timestamp == agent.raw_suffix
+                    and a.parent_workflow == agent.workflow
+                )
+            ]
+
+        on_agents_tab = self.current_tab == "agents"  # type: ignore[attr-defined]
+        if on_agents_tab:
+            if self._agents:  # type: ignore[attr-defined]
+                self.current_idx = min(  # type: ignore[attr-defined]
+                    self.current_idx,
+                    len(self._agents) - 1,  # type: ignore[attr-defined]
+                )
+            else:
+                self.current_idx = 0  # type: ignore[attr-defined]
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+
+        # Schedule a full disk-scan refresh for the next event-loop
+        # iteration so it runs after the screen transition is complete.
+        self.call_later(self._load_agents)  # type: ignore[attr-defined]
 
     def _kill_process_group(self, pid: int) -> bool:
         """Kill a process group by PID.
