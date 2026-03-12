@@ -29,6 +29,7 @@ dev = [
     "pytest-mock",
     "pytest-xdist",
     "hypothesis",
+    "inline-snapshot",
     "tox",
     "build",
     "twine",
