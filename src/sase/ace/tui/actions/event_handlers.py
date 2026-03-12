@@ -158,7 +158,15 @@ class EventHandlersMixin:
 
         Called from on_key() for normal bindings and directly from
         priority-binding actions (e.g. tab switching) that bypass on_key().
+
+        When the user has manually marked idle via the ``I`` keybinding,
+        ``_last_activity_time`` is deleted.  In that case we skip all
+        activity-tracking so subsequent keypresses (e.g. launching agents)
+        don't reset the idle state.  The ``I`` key toggles back to active.
         """
+        if not hasattr(self, "_last_activity_time"):
+            # Manual idle mode — don't reset idle state.
+            return
         self._last_activity_time = time.monotonic()
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
         was_idle = indicator._idle

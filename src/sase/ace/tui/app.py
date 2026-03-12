@@ -158,7 +158,7 @@ class AceApp(
         Binding("L", "expand_all_folds", "Expand All", show=False),
         Binding("p", "toggle_layout", "Layout", show=False),
         Binding("i", "toggle_thinking", "Thinking", show=False),
-        Binding("I", "mark_inactive", "Mark Inactive", show=False),
+        Binding("I", "mark_inactive", "Toggle Idle", show=False),
         # Copy to clipboard (changespecs tab - % followed by key)
         Binding("percent_sign", "copy_tab_content", "Copy", show=False),
         # Scroll to top/bottom (Axe tab)
@@ -513,17 +513,28 @@ class AceApp(
         self.exit()
 
     def action_mark_inactive(self) -> None:
-        """Mark user as inactive by writing epoch 0."""
+        """Toggle manual idle mode.
+
+        First press: mark user as idle.  Subsequent keypresses do NOT
+        reset this state (``_record_user_activity`` is a no-op while
+        ``_last_activity_time`` is absent).
+
+        Second press: exit manual idle and resume normal activity tracking.
+        """
         from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
 
+        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+        if not hasattr(self, "_last_activity_time"):
+            # Already in manual idle — toggle back to active.
+            self._last_activity_time = time.monotonic()
+            indicator.set_idle(False)
+            write_idle_state(False)
+            write_activity_timestamp(time.time())
+            return
+        # Enter manual idle.
         write_activity_timestamp(0)
         write_idle_state(True)
-        # Clear activity tracking so _on_countdown_tick() doesn't overwrite
-        # the inactive marker (epoch 0) with the current time.  The next
-        # real key press will re-enable tracking via on_key().
-        if hasattr(self, "_last_activity_time"):
-            del self._last_activity_time
-        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+        del self._last_activity_time
         indicator.set_idle(True)
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
