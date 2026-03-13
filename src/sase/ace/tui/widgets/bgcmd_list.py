@@ -204,7 +204,7 @@ class BgCmdList(OptionList):
         text = Text()
 
         # Hideable indicator
-        text.append("\u25cc ", style="dim #808080")
+        text.append("\u25cc ", style="bold #FF5F87")
 
         # Status indicator: running (*) vs done (✓)
         text.append("[", style="dim")
