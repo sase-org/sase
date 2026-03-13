@@ -406,6 +406,20 @@ monitoring:
 Run periodic health checks.
 ```
 
+### Multi-Model Directive
+
+The `%model` directive supports launching multiple agents in parallel — one per model — when given comma-separated model
+names in parentheses:
+
+```
+%m(opus,sonnet)
+Review this code for edge cases.
+```
+
+This launches two agents with identical prompts, each using a different model. Each agent appears as a separate entry in
+the Agents tab. Only the parenthesized syntax triggers multi-model behavior; colon syntax (`%m:opus`) and single-model
+parentheses (`%m(opus)`) always launch a single agent.
+
 ### Multi-Value Directives
 
 The `%wait` directive supports multiple occurrences — each adds to the wait list:

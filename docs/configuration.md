@@ -129,6 +129,7 @@ running a set of chops on a fixed interval. Defaults are provided by `src/sase/d
 axe:
   max_hook_runners: 3 # concurrent hook runners (default: 3)
   max_agent_runners: 3 # concurrent agent runners (default: 3)
+  max_agent_retries: 3 # retry attempts for failed agent launches (default: 3)
   zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
   query: "" # query filter for ChangeSpecs (default: all)
   chop_script_dirs: [] # additional directories to search for chop scripts
@@ -177,6 +178,7 @@ axe:
 | ------------------------ | ------------ | ------- | ----------------------------------------------------------------------------- |
 | `max_hook_runners`       | int          | `3`     | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
 | `max_agent_runners`      | int          | `3`     | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
+| `max_agent_retries`      | int          | `3`     | Retry attempts for failed agent launches before giving up.                    |
 | `zombie_timeout_seconds` | int          | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.        |
 | `query`                  | string       | `""`    | Query string for filtering ChangeSpecs (empty = all).                         |
 | `chop_script_dirs`       | list[string] | `[]`    | Additional directories to search for external chop scripts.                   |
@@ -359,6 +361,12 @@ variable is used as a fallback. Values are split on whitespace and appended to t
 | `SASE_DISABLE_PLUGIN_WORKSPACE` | Disable workspace plugins only.                           |
 | `SASE_DISABLE_PLUGIN_XPROMPTS`  | Disable xprompt plugins only.                             |
 | `SASE_DISABLE_PLUGIN_CONFIG`    | Disable config plugins only.                              |
+
+### General
+
+| Variable      | Description                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| `SASE_TMPDIR` | Override the temp directory for all sase operations. Falls back to system default when unset. |
 
 ### Workspace Management (Internal)
 

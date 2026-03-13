@@ -171,6 +171,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `a`                 | Toggle auto-approve / answer HITL        |
 | `n`                 | Name agent                               |
 | `r`                 | Revive chat as agent                     |
+| `v`                 | View files (hint mode)                   |
 | `x`                 | Kill / dismiss agent                     |
 | `e`                 | Edit chat in editor                      |
 | `E`                 | Edit panel content in editor             |
@@ -219,12 +220,13 @@ The modal supports live filtering as you type in the search box and displays las
 | `g`                 | Scroll to top                       |
 | `G`                 | Scroll to bottom (pins auto-scroll) |
 
-### Background Commands
+### Commands
 
-| Key | Action                               |
-| --- | ------------------------------------ |
-| `@` | Run agent                            |
-| `X` | Kill current command (or toggle axe) |
+| Key | Action                           |
+| --- | -------------------------------- |
+| `@` | Run agent                        |
+| `x` | Start / stop axe (or kill bgcmd) |
+| `X` | Clear output                     |
 
 ### Leader Mode (`,` prefix)
 
@@ -250,11 +252,9 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Axe Control
 
-| Key | Action                  |
-| --- | ----------------------- |
-| `x` | Clear output            |
-| `X` | Start / stop axe daemon |
-| `Q` | Stop axe and quit       |
+| Key | Action            |
+| --- | ----------------- |
+| `Q` | Stop axe and quit |
 
 ## Query System
 
@@ -285,17 +285,17 @@ Query history is available on the CLs tab and tracks queries as you switch betwe
 
 These work on all tabs:
 
-| Key                 | Action                                                                     |
-| ------------------- | -------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                   |
-| `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)       |
-| `.`                 | Toggle visibility of reverted CLs (CLs tab) or non-run agents (Agents tab) |
-| `I`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)    |
-| `N`                 | Show notifications                                                         |
-| `Q`                 | Stop axe daemon and quit                                                   |
-| `y`                 | Refresh current tab                                                        |
-| `q`                 | Quit                                                                       |
-| `?`                 | Show help modal                                                            |
+| Key                 | Action                                                                            |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                          |
+| `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
+| `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
+| `I`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)           |
+| `N`                 | Show notifications                                                                |
+| `Q`                 | Stop axe daemon and quit                                                          |
+| `y`                 | Refresh current tab                                                               |
+| `q`                 | Quit                                                                              |
+| `?`                 | Show help modal                                                                   |
 
 ## XPrompt Browser
 
@@ -342,12 +342,18 @@ have been associated with the current CL.
 
 ## Tab Bar Display
 
-The tab bar shows contextual information alongside each tab label:
+The tab bar shows contextual counts alongside each tab label using the format `(MxD.H)`:
 
-- **CLs tab**: The info panel shows fold state indicators (`c▸` `h▾` `m▼`) for commits/hooks/mentors when any section is
-  non-collapsed
-- **Agents tab**: Shows running agent counts — e.g., `Agents (2)` for 2 running agents, or `Agents (2+1)` for 2 manual
-  - 1 hidden agent when hidden agents are visible (toggled with `.`)
+- **M** — main count (CLs, running agents, or running jacks)
+- **x*D*** — done/completed count (separated by `x`)
+- **._H_** — hidden count, shown when hidden items are visible (separated by `.`)
+
+Examples:
+
+- **CLs tab**: `CLs (5)` for 5 CLs, or `CLs (5.2)` when 2 hidden (reverted) CLs are visible
+- **Agents tab**: `Agents (2)` for 2 running agents, `Agents (2x1)` for 2 running + 1 done, `Agents (2x1.3)` with 3
+  hidden also visible
+- **AXE tab**: `AXE (3)` for 3 running jacks, `AXE (3x2.1)` for 3 jacks + 2 done bgcmds + 1 hidden command visible
 
 ## File Panel Trimming
 
