@@ -148,6 +148,16 @@ class AgentRevivalMixin:
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._load_agents()  # type: ignore[attr-defined]
 
+        # Auto-select the revived agent in the list
+        if self.current_tab == "agents":
+            for idx, a in enumerate(self._agents):  # type: ignore[attr-defined]
+                if a.identity == agent.identity or (
+                    agent.raw_suffix and a.raw_suffix == agent.raw_suffix
+                ):
+                    self.current_idx = idx  # type: ignore[attr-defined]
+                    self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+                    break
+
     def _restore_agent_artifacts(
         self,
         agent: Agent,
