@@ -27,6 +27,11 @@ from .types import ModelTier
 _DEFAULT_MODEL = "gemini-3-flash-preview"
 
 
+def _gemini_bin() -> str:
+    """Return the path to the Gemini CLI binary."""
+    return os.environ.get("SASE_GEMINI_PATH", "gemini")
+
+
 # ---------------------------------------------------------------------------
 # Plan file helpers
 # ---------------------------------------------------------------------------
@@ -100,7 +105,7 @@ class GeminiProvider(LLMProvider):
 
         # Normal (non-plan) mode
         base_args = [
-            "/google/bin/releases/gemini-cli/tools/gemini",
+            _gemini_bin(),
             "--yolo",
             "--model",
             model,
@@ -152,7 +157,7 @@ class GeminiProvider(LLMProvider):
         prompt, instructing the model to implement.
         """
         plan_args = [
-            "/google/bin/releases/gemini-cli/tools/gemini",
+            _gemini_bin(),
             "--approval-mode=plan",
             "--model",
             model,
@@ -212,7 +217,7 @@ class GeminiProvider(LLMProvider):
 
             # Phase 2: implement the approved plan
             impl_args = [
-                "/google/bin/releases/gemini-cli/tools/gemini",
+                _gemini_bin(),
                 "--yolo",
                 "--model",
                 model,

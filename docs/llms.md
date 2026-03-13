@@ -145,7 +145,7 @@ The `GeminiProvider` invokes Google's internal Gemini CLI tool.
 ### Command Construction
 
 ```
-/google/bin/releases/gemini-cli/tools/gemini --yolo [extra_args...]
+gemini --yolo [extra_args...]
 ```
 
 The prompt is written to stdin, and output is streamed from stdout in real-time.
