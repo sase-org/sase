@@ -376,6 +376,8 @@ Directives use the same argument syntax as xprompt references:
 %model:claude-sonnet         # Colon syntax
 %model(claude-sonnet)        # Parenthesis syntax
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
+%model:codex/o3              # Provider/model syntax — switches both provider and model
+%model:gemini/gemini-2.5-pro # Provider/model syntax for Gemini
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
 %name                        # Bare — auto-generates a unique name
@@ -383,6 +385,10 @@ Directives use the same argument syntax as xprompt references:
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
 ```
+
+The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
+`gemini-2.5-pro`) are automatically mapped to their provider. See
+[Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full model-to-provider mapping.
 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a unique name for the
 agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).

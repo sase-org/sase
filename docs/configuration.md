@@ -64,16 +64,64 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 ```yaml
 ace:
   inactive_seconds: 600 # seconds before showing IDLE indicator (default: 600)
+  keymaps:
+    app:
+      next_changespec: "j"
+      prev_changespec: "k"
+      # ... all app-level keybindings are configurable
+    modes:
+      # Built-in modes (fold, copy, leader, bang) are configurable
+      fold_mode:
+        prefix: "z"
+        keys:
+          cycle_commits: "c"
+          cycle_hooks: "h"
+      # Custom modes can be added here
+      my_mode:
+        prefix: ";"
+        keys:
+          run_tests:
+            key: "t"
+            shell: "just test"
 ```
 
 | Field              | Type | Default | Description                                                             |
 | ------------------ | ---- | ------- | ----------------------------------------------------------------------- |
 | `inactive_seconds` | int  | `600`   | Seconds of inactivity before the IDLE badge appears in the TUI top bar. |
+| `keymaps`          | dict | -       | Configurable keybindings (see below).                                   |
 
-The IDLE indicator can also be triggered manually via the `I` keybinding. External tools can query idle status via
+The IDLE indicator can also be triggered manually via the `i` keybinding. External tools can query idle status via
 `sase.ace.tui_activity.is_idle()`.
 
-Source: `src/sase/default_config.yml`, `src/sase/ace/tui_activity.py`
+#### `ace.keymaps`
+
+All TUI keybindings are configurable. The `keymaps` section has two sub-sections:
+
+**`app`** — App-level keybindings. Each key is an action name mapped to a key string. See `src/sase/default_config.yml`
+for the full list of configurable actions and their defaults.
+
+**`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`, `leader_mode`, `bang_mode`) can be
+reconfigured, and custom modes can be added. Each mode has:
+
+| Field    | Type | Description                                                                                           |
+| -------- | ---- | ----------------------------------------------------------------------------------------------------- |
+| `prefix` | str  | The activation key for the mode.                                                                      |
+| `keys`   | dict | Sub-key definitions. For custom modes, each entry needs a `key` field and either `shell` or `action`. |
+
+Custom mode key fields:
+
+| Field    | Type | Required | Description                            |
+| -------- | ---- | -------- | -------------------------------------- |
+| `key`    | str  | yes      | The sub-key to press after the prefix. |
+| `shell`  | str  | no\*     | Shell command to execute.              |
+| `action` | str  | no\*     | Built-in action name to invoke.        |
+
+\*Exactly one of `shell` or `action` must be provided.
+
+The keymap loader validates configuration: invalid keys are reverted to defaults, duplicate bindings are warned, and
+prefix conflicts between custom modes and app bindings are detected.
+
+Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps.py`
 
 ### llm_provider
 
@@ -344,6 +392,7 @@ Source: `src/sase/xprompt/loader.py`
 | `SASE_CODEX_LARGE_ARGS`    | Codex-specific extra args for `large` tier (fallback if generic unset).  |
 | `SASE_CODEX_SMALL_ARGS`    | Codex-specific extra args for `small` tier (fallback if generic unset).  |
 | `SASE_AGENT_PLAN_MODE`     | Enable Codex two-phase plan/implement flow.                              |
+| `SASE_GEMINI_PATH`         | Path to the Gemini CLI binary (default: `gemini`).                       |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
 variable is used as a fallback. Values are split on whitespace and appended to the CLI command.

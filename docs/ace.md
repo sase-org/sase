@@ -156,31 +156,31 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Navigation
 
-| Key                 | Action                            |
-| ------------------- | --------------------------------- |
-| `j` / `k`           | Move to next / previous agent     |
-| `g` / `G`           | Scroll file panel to top / bottom |
-| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up       |
-| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up     |
+| Key                 | Action                                                     |
+| ------------------- | ---------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous agent                              |
+| `g` / `G`           | Scroll to top / bottom (file, thinking, or metadata panel) |
+| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                |
+| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                              |
 
 ### Agent Actions
 
-| Key                 | Action                                   |
-| ------------------- | ---------------------------------------- |
-| `@`                 | Run custom agent                         |
-| `a`                 | Toggle auto-approve / answer HITL        |
-| `n`                 | Name agent                               |
-| `r`                 | Revive chat as agent                     |
-| `v`                 | View files (hint mode)                   |
-| `w`                 | Unwait a WAITING agent (run immediately) |
-| `x`                 | Kill / dismiss agent                     |
-| `e`                 | Edit chat in editor                      |
-| `E`                 | Edit panel content in editor             |
-| `i`                 | Cycle panels: file → thinking → metadata |
-| `p`                 | Toggle file / prompt layout              |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel            |
-| `-`                 | Reset file trim to default               |
-| `=`                 | Show all file lines                      |
+| Key                 | Action                                                       |
+| ------------------- | ------------------------------------------------------------ |
+| `@`                 | Run custom agent                                             |
+| `a`                 | Toggle auto-approve / answer HITL                            |
+| `n`                 | Name agent                                                   |
+| `r`                 | Revive chat as agent                                         |
+| `v`                 | View files (hint mode)                                       |
+| `w`                 | Unwait a WAITING agent (run immediately)                     |
+| `x`                 | Kill / dismiss agent                                         |
+| `e`                 | Edit chat in editor                                          |
+| `E`                 | Edit panel content in editor                                 |
+| `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse) |
+| `p`                 | Toggle file / prompt layout                                  |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                |
+| `-`                 | Reset file trim to default                                   |
+| `=`                 | Show all file lines                                          |
 
 ### Workflow Folding
 
@@ -208,6 +208,7 @@ The modal supports live filtering as you type in the search box and displays las
 | Key  | Action                 |
 | ---- | ---------------------- |
 | `%c` | Copy chat file path    |
+| `%E` | Copy file path         |
 | `%s` | Copy sase ace snapshot |
 
 ## Keybindings: Axe Tab
@@ -291,7 +292,7 @@ These work on all tabs:
 | `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                          |
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
 | `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
-| `I`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)           |
+| `i`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)           |
 | `N`                 | Show notifications                                                                |
 | `Q`                 | Stop axe daemon and quit                                                          |
 | `y`                 | Refresh current tab                                                               |
@@ -325,7 +326,7 @@ Type in the filter input to narrow the list in real time.
 
 ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
 than the configured threshold (`ace.inactive_seconds`, default: 600 seconds). The badge is also shown when the user
-presses `I` to manually mark themselves as inactive.
+presses `i` to manually mark themselves as inactive.
 
 Any keypress re-activates the user and hides the badge. External tools (e.g., chop scripts) can call `is_idle()` from
 `sase.ace.tui_activity` to check idle status programmatically.
@@ -362,6 +363,69 @@ When viewing agent files on the Agents tab, large files are automatically trimme
 indicator shows "N more lines below" when content is trimmed. Trim controls (`-`, `=`) are listed in the
 [Agent Actions](#agent-actions) keybindings above. Trim state is preserved when switching between agents or refreshing
 data.
+
+## Agents Tab Metadata Panel
+
+The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
+
+- **Agent details**: Name, status, model, provider, CL association, timestamps
+- **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
+  from the artifacts directory after completion
+
+When the file or thinking panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
+
+## Custom Keymaps
+
+All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You can remap any built-in key and
+define entirely new prefix-key modes.
+
+### Remapping Built-in Keys
+
+Override any app-level keybinding under `ace.keymaps.app`:
+
+```yaml
+ace:
+  keymaps:
+    app:
+      next_changespec: "n" # Remap j → n
+      prev_changespec: "p" # Remap k → p
+      mark_inactive: "I" # Remap i → I
+```
+
+### Custom Modes
+
+Define user-defined prefix-key modes under `ace.keymaps.modes`. Each custom mode has a `prefix` key and a `keys` dict
+where each sub-key specifies either a `shell` command or a built-in `action`:
+
+```yaml
+ace:
+  keymaps:
+    modes:
+      my_mode:
+        prefix: ";"
+        keys:
+          run_tests:
+            key: "t"
+            shell: "just test"
+          show_log:
+            key: "l"
+            shell: "git log --oneline -20"
+          refresh:
+            key: "r"
+            action: "refresh"
+```
+
+Pressing `;` activates the mode, then pressing `t` runs `just test`, `l` shows the git log, etc.
+
+### Validation
+
+The keymap loader validates all configuration:
+
+- **Invalid keys** are reverted to their defaults with a warning
+- **Duplicate keys** (two actions bound to the same key) are detected and the conflicting override is reverted
+- **Prefix conflicts** between custom mode prefixes and existing app bindings are warned
+
+See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` configuration reference.
 
 ## Auto-Refresh
 

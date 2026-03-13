@@ -96,7 +96,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 │    └────────────┘  └────────────┘  └────────────┘    │
 ├──────────────────┬─────────────────┬─────────────────┤
 │   LLM Provider   │  VCS Provider   │ Workspace Prov. │
-│  (Claude, Gemini)│ (pluggy plugins)│ (pluggy plugins)│
+│(Claude,Codex,Gem)│ (pluggy plugins)│ (pluggy plugins)│
 ├──────────────────┴─────────────────┴─────────────────┤
 │                   Plugin Packages                    │
 │    sase-github (GitHub PRs)  sase-hg (Mercurial)     │

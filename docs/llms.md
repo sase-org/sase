@@ -155,6 +155,12 @@ The prompt is written to stdin, and output is streamed from stdout in real-time.
 The Gemini provider uses `gemini-3-flash-preview` as its default model. This can be overridden per-prompt using the
 `%model` directive (e.g., `%model:gemini-2.5-flash`).
 
+### Environment Variables
+
+| Variable           | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
+
 ### Timer Display
 
 While waiting for a response, a `gemini_timer("Waiting for Gemini")` spinner is shown (unless `suppress_output` is
@@ -179,7 +185,7 @@ events.
 
 | Tier    | Codex Model |
 | ------- | ----------- |
-| `large` | `o3`        |
+| `large` | `gpt-5.4`   |
 | `small` | `o4-mini`   |
 
 ### Plan Mode
@@ -226,11 +232,40 @@ llm_provider:
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                     |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, else gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                           |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                           |
+| Field                               | Type   | Default     | Description                                                                                 |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, then codex, then gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                       |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                       |
+
+## Per-Prompt Provider Switching
+
+The `%model` directive (see [xprompt directives](xprompt.md#directives)) can switch both the model and the LLM provider
+for a single prompt. Provider resolution uses two strategies:
+
+### Explicit Provider/Model Syntax
+
+Use `provider/model` to specify both explicitly:
+
+```
+%model:codex/o3
+%model:claude/opus
+%model:gemini/gemini-2.5-pro
+```
+
+### Automatic Provider Resolution
+
+Known model names are automatically mapped to their provider:
+
+| Model Name                                                                                                   | Provider |
+| ------------------------------------------------------------------------------------------------------------ | -------- |
+| `opus`, `sonnet`, `haiku`                                                                                    | claude   |
+| `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                               | codex    |
+| `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.0-flash` | gemini   |
+
+For unrecognized model names, the default provider is used.
+
+Source: `src/sase/llm_provider/registry.py`
 
 ## Model Tier System
 
@@ -293,6 +328,12 @@ Complete reference of environment variables used by the LLM provider layer.
 | `SASE_CODEX_LARGE_ARGS` | Codex-specific extra args for `large` tier |
 | `SASE_CODEX_SMALL_ARGS` | Codex-specific extra args for `small` tier |
 | `SASE_AGENT_PLAN_MODE`  | Enable Codex two-phase plan/implement flow |
+
+### Gemini-Specific
+
+| Variable           | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `SASE_GEMINI_PATH` | Path to the Gemini CLI binary (default: `"gemini"`). |
 
 ### VCS Provider
 
@@ -366,6 +407,12 @@ real-time.
 5. Lines are read and optionally printed to the console in real-time.
 6. After the process exits (`process.poll() is not None`), any remaining buffered output is drained.
 7. The function returns `(stdout_content, stderr_content, return_code)`.
+
+### Live Reply File
+
+When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
+`<SASE_ARTIFACTS_DIR>/live_reply.md`. This file is used by the ACE TUI Agents tab to display the agent's reply as it
+streams in, and remains available after execution completes for the metadata panel's AGENT REPLY section.
 
 ### Output Suppression
 
