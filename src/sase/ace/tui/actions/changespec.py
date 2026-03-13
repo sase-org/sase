@@ -397,11 +397,6 @@ class ChangeSpecMixin:
                     hide_reverted=effective_hide_reverted,
                 )
             )
-            # Calculate total hidden count for footer
-            total_hidden = (
-                self._hidden_reverted_count
-                + ancestors_panel.get_hidden_reverted_count()
-            )
             # Preserve modal mode footers during auto-refresh
             if getattr(self, "_leader_mode_active", False):
                 footer_widget.update_leader_bindings()
@@ -410,12 +405,7 @@ class ChangeSpecMixin:
             elif getattr(self, "_copy_mode_active", False):
                 footer_widget.update_copy_bindings(self.current_tab)
             else:
-                footer_widget.update_bindings(
-                    changespec,
-                    hidden_reverted_count=total_hidden,
-                    hide_reverted=self.hide_reverted,
-                    marked_count=len(self.marked_indices),
-                )
+                footer_widget.update_bindings(changespec)
         else:
             detail_widget.show_empty(self.canonical_query_string)  # type: ignore[attr-defined]
             if getattr(self, "_leader_mode_active", False):

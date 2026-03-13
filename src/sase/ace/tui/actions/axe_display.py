@@ -343,9 +343,6 @@ class AxeDisplayMixin:
             else:
                 footer.update_axe_bindings(
                     axe_current_view=self._axe_current_view,
-                    jack_total=len(self._axe_jack_names),
-                    cmds_hidden=self._axe_cmds_hidden,
-                    bgcmd_count=len(self._bgcmd_slots),
                 )
 
             # Always update the side-panel list

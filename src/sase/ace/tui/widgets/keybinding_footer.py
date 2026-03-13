@@ -1,4 +1,25 @@
-"""Keybinding footer widget for the ace TUI."""
+"""Keybinding footer widget for the ace TUI.
+
+Footer Convention
+-----------------
+The footer displays only **entry-dependent** keymaps — bindings whose
+availability is determined by a property of the currently selected entry
+(ChangeSpec on CLs, Agent on Agents, Jack/BgCmd on AXE).
+
+Rules:
+  1. A keymap appears in the footer **if and only if** it has an associated
+     condition based on the selected entry.
+  2. There MUST exist an entry for which the keymap IS available and an entry
+     for which it is NOT available (i.e. the condition is non-trivial).
+  3. Global actions (quit, refresh, tab switch, fold, edit query, etc.) are
+     NOT shown — they belong in the help modal only.
+
+Formatting:
+  - Keymaps are sorted alphabetically; symbol keys (``<enter>``, ``<space>``,
+    ``.``, ``/``, …) come first.
+  - Named keys are rendered in angle brackets and lowercased:
+    ``<enter>``, ``<space>``.
+"""
 
 from typing import TYPE_CHECKING, Any
 
@@ -133,24 +154,9 @@ class KeybindingFooter(Horizontal):
         except Exception:
             pass
 
-    def update_bindings(
-        self,
-        changespec: ChangeSpec,
-        hidden_reverted_count: int = 0,
-        hide_reverted: bool = True,
-        marked_count: int = 0,
-    ) -> None:
-        """Update bindings based on current context.
-
-        Args:
-            changespec: Current ChangeSpec
-            hidden_reverted_count: Number of hidden reverted ChangeSpecs
-            hide_reverted: Whether reverted CLs are currently hidden
-            marked_count: Number of marked ChangeSpecs
-        """
-        bindings = self._compute_available_bindings(
-            changespec, hidden_reverted_count, hide_reverted, marked_count
-        )
+    def update_bindings(self, changespec: ChangeSpec) -> None:
+        """Update bindings based on current ChangeSpec (entry-dependent only)."""
+        bindings = self._compute_available_bindings(changespec)
         text = self._format_bindings(bindings)
         self._update_display(text)
 
@@ -161,77 +167,26 @@ class KeybindingFooter(Horizontal):
         text.append(" edit query", style="dim")
         self._update_display(text)
 
-    def update_agent_bindings(
-        self,
-        agent: "Agent | None",
-        *,
-        file_visible: bool = False,
-        thinking_visible: bool = False,
-        info_mode: bool = False,
-        next_panel_label: str | None = None,
-        has_always_visible: bool = False,
-        hidden_count: int = 0,
-        hide_non_run: bool = True,
-        has_foldable: bool = False,
-    ) -> None:
-        """Update bindings for Agents tab context.
-
-        Args:
-            agent: Current Agent or None if no agents
-            file_visible: Whether the file panel is currently visible
-            thinking_visible: Whether the thinking panel is currently visible
-            info_mode: Whether the panel is in info-only mode
-            next_panel_label: Label for the next panel mode via ']' key,
-                or None if cycling is not available
-            has_always_visible: Whether any always-visible agents exist
-            hidden_count: Number of hidden hideable agents
-            hide_non_run: Whether hideable agents are currently hidden
-            has_foldable: Whether any foldable workflow parents exist
-        """
-        bindings = self._compute_agent_bindings(
-            agent,
-            file_visible=file_visible,
-            thinking_visible=thinking_visible,
-            info_mode=info_mode,
-            next_panel_label=next_panel_label,
-            has_always_visible=has_always_visible,
-            hidden_count=hidden_count,
-            hide_non_run=hide_non_run,
-            has_foldable=has_foldable,
-        )
+    def update_agent_bindings(self, agent: "Agent | None") -> None:
+        """Update bindings for Agents tab (entry-dependent only)."""
+        bindings = self._compute_agent_bindings(agent)
         text = self._format_bindings(bindings)
         self._update_display(text)
 
-    def update_axe_bindings(
-        self,
-        *,
-        axe_current_view: str | int = "axe",
-        jack_total: int = 0,
-        cmds_hidden: bool = False,
-        bgcmd_count: int = 0,
-    ) -> None:
-        """Update bindings for Axe tab context."""
-        bindings = self._compute_axe_bindings(
-            axe_current_view,
-            jack_total=jack_total,
-            cmds_hidden=cmds_hidden,
-            bgcmd_count=bgcmd_count,
-        )
+    def update_axe_bindings(self, *, axe_current_view: str | int = "axe") -> None:
+        """Update bindings for Axe tab (entry-dependent only)."""
+        bindings = self._compute_axe_bindings(axe_current_view)
         text = self._format_bindings(bindings)
         self._update_display(text)
 
     def _compute_axe_bindings(
         self,
         axe_current_view: str | int,
-        *,
-        jack_total: int = 0,
-        cmds_hidden: bool = False,
-        bgcmd_count: int = 0,
     ) -> list[tuple[str, str]]:
-        """Compute available bindings for Axe tab.
+        """Compute entry-dependent bindings for Axe tab.
 
-        Returns:
-            List of (key, label) tuples.
+        Only ``x`` is entry-dependent: its label changes between
+        "start/stop axe" (AxeParentItem) and "kill" (JackItem / BgCmdItem).
         """
         bindings: list[tuple[str, str]] = []
         if axe_current_view == "axe":
@@ -239,16 +194,6 @@ class KeybindingFooter(Horizontal):
         else:
             label = "kill"
         bindings.append(("x", label))
-        bindings.append(("X", "clear"))
-        # Show h/l fold hint when jacks exist
-        if jack_total > 0:
-            bindings.append(("h/l", "fold"))
-        # Hide/show commands toggle with bgcmd count
-        if cmds_hidden:
-            count_label = f" ({bgcmd_count})" if bgcmd_count > 0 else ""
-            bindings.append((".", f"show{count_label}"))
-        elif bgcmd_count > 0:
-            bindings.append((".", f"hide ({bgcmd_count})"))
         return bindings
 
     def update_leader_bindings(self, *, current_tab: str = "changespecs") -> None:
@@ -332,127 +277,69 @@ class KeybindingFooter(Horizontal):
     def _compute_agent_bindings(
         self,
         agent: "Agent | None",
-        *,
-        file_visible: bool = False,
-        thinking_visible: bool = False,
-        info_mode: bool = False,
-        next_panel_label: str | None = None,
-        has_always_visible: bool = False,
-        hidden_count: int = 0,
-        hide_non_run: bool = True,
-        has_foldable: bool = False,
     ) -> list[tuple[str, str]]:
-        """Compute available bindings for Agents tab.
+        """Compute entry-dependent bindings for Agents tab.
 
-        Args:
-            agent: Current Agent or None
-            file_visible: Whether the file panel is currently visible
-            thinking_visible: Whether the thinking panel is currently visible
-            info_mode: Whether the panel is in info-only mode
-            next_panel_label: Label for the next panel mode via ']' key,
-                or None if cycling is not available
-            has_always_visible: Whether any always-visible agents exist
-            hidden_count: Number of hidden hideable agents
-            hide_non_run: Whether hideable agents are currently hidden
-            has_foldable: Whether any foldable workflow parents exist
-
-        Returns:
-            List of (key, label) tuples
+        Only bindings whose availability depends on the selected agent's
+        state are included (see module docstring for the full convention).
         """
         bindings: list[tuple[str, str]] = []
 
-        # Kill/dismiss (only when agent selected)
-        if agent is not None:
-            if agent.status in (
-                "DONE",
-                "FAILED",
-            ):
-                bindings.append(("x", "dismiss"))
-                if agent.status not in ("FAILED",):
-                    bindings.append(("e", "edit chat"))
-                    if agent.response_path:
-                        bindings.append(("r", "resume"))
-            elif agent.status == "WAITING INPUT":
-                bindings.append(("a", "answer"))
-                if agent.pid is None:
-                    bindings.append(("x", "dismiss"))
-                else:
-                    bindings.append(("x", "kill"))
-            else:
-                # RUNNING or other active statuses
-                if agent.pid is None:
-                    bindings.append(("x", "dismiss"))
-                else:
-                    bindings.append(("x", "kill"))
-                if agent.status == "WAITING":
-                    bindings.append(("w", "unwait"))
-                _APPROVE_ELIGIBLE = {
-                    "RUNNING",
-                    "PLANNING",
-                    "PLAN APPROVED",
-                    "WAITING",
-                    "QUESTION",
-                }
-                if agent.status in _APPROVE_ELIGIBLE:
-                    if not agent.approve:
-                        bindings.append(("a", "approve"))
-                    else:
-                        bindings.append(("a", "unapprove"))
+        if agent is None:
+            return bindings
 
-        # Name agent
-        if agent is not None:
+        # --- Status-dependent actions ---
+        if agent.status in ("DONE", "FAILED"):
+            bindings.append(("x", "dismiss"))
+            if agent.status != "FAILED":
+                bindings.append(("e", "edit chat"))
+                if agent.response_path:
+                    bindings.append(("r", "resume"))
+        elif agent.status == "WAITING INPUT":
+            bindings.append(("a", "answer"))
+            if agent.pid is None:
+                bindings.append(("x", "dismiss"))
+            else:
+                bindings.append(("x", "kill"))
+        else:
+            # RUNNING or other active statuses
+            if agent.pid is None:
+                bindings.append(("x", "dismiss"))
+            else:
+                bindings.append(("x", "kill"))
+            if agent.status == "WAITING":
+                bindings.append(("w", "unwait"))
+            _APPROVE_ELIGIBLE = {
+                "RUNNING",
+                "PLANNING",
+                "PLAN APPROVED",
+                "WAITING",
+                "QUESTION",
+            }
+            if agent.status in _APPROVE_ELIGIBLE:
+                if not agent.approve:
+                    bindings.append(("a", "approve"))
+                else:
+                    bindings.append(("a", "unapprove"))
+
+        # Name agent (not available for done/failed agents)
+        if agent.status not in ("DONE", "FAILED"):
             bindings.append(("n", "name"))
 
-        # Workflow fold controls (only when foldable workflows exist)
-        if has_foldable:
-            bindings.append(("h/l", "fold"))
-            bindings.append(("H/L", "fold all"))
-
-        # Panel cycle: [/] keys cycle through panel modes
-        if agent is not None and next_panel_label is not None:
-            bindings.append(("[/]", next_panel_label))
-
-        # Edit panel content in editor (when file or thinking panel is visible)
-        if file_visible or thinking_visible:
-            bindings.append(("E", "edit panel"))
-
-        # Layout toggle (when file or thinking panel is visible, not in info mode)
-        if (file_visible or thinking_visible) and not info_mode:
-            bindings.append(("p", "layout"))
-
-        # Revive dismissed agents
-        bindings.append(("R", "revive"))
-
         # Jump to CL (only for ChangeSpec-level agents, not project-level)
-        if agent is not None and not agent.is_project_agent:
-            bindings.append(("Enter", "go to CL"))
-
-        # Show/hide hideable agents (only when both always-visible and hideable exist)
-        if has_always_visible and (hidden_count > 0 or not hide_non_run):
-            if hide_non_run:
-                bindings.append((".", f"show ({hidden_count})"))
-            else:
-                bindings.append((".", "hide"))
+        if not agent.is_project_agent:
+            bindings.append(("<enter>", "go to CL"))
 
         return bindings
 
     def _compute_available_bindings(
         self,
         changespec: ChangeSpec,
-        hidden_reverted_count: int = 0,
-        hide_reverted: bool = True,
-        marked_count: int = 0,
     ) -> list[tuple[str, str]]:
-        """Compute available bindings based on current context.
+        """Compute entry-dependent bindings for CLs tab.
 
-        Args:
-            changespec: Current ChangeSpec
-            hidden_reverted_count: Number of hidden reverted ChangeSpecs
-            hide_reverted: Whether reverted CLs are currently hidden
-            marked_count: Number of marked ChangeSpecs
-
-        Returns:
-            List of (key, label) tuples
+        Only bindings whose availability depends on the selected ChangeSpec's
+        state are included (see module docstring for the full convention).
         """
         bindings: list[tuple[str, str]] = []
 
@@ -496,73 +383,37 @@ class KeybindingFooter(Horizontal):
         if base_status not in ("Submitted", "Reverted"):
             bindings.append(("n", "rename"))
 
-        # Edit hooks
-        bindings.append(("h", "hooks"))
-
         # Hooks from failed targets (only if failed hooks file exists)
         if get_failed_hooks_file_path(changespec):
             bindings.append(("H", "hooks (failed)"))
 
-        # Agent run log
-        bindings.append(("L", "agent log"))
-
-        # Fold toggle
-        bindings.append(("z", "fold (c,h,m,z)"))
-
-        # Run workflows
+        # Run workflows (only if workflows available for this ChangeSpec)
         workflows = get_available_workflows(changespec)
         if len(workflows) == 1:
             bindings.append(("r", f"run {workflows[0]}"))
         elif len(workflows) > 1:
             bindings.append(("r", f"run ({len(workflows)} workflows)"))
 
-        # Run agent from ChangeSpec (space key)
-        bindings.append(("<space>", "repeat last"))
-
-        # Status change
-        bindings.append(("s", "status"))
-
-        # Bulk status change (only show when marks exist)
-        if marked_count > 0:
-            bindings.append(("S", f"bulk status ({marked_count})"))
-
-        # View files
-        bindings.append(("v", "view"))
-
-        # Edit query
-        bindings.append(("/", "edit query"))
-
-        # Edit spec
-        bindings.append(("e", "edit spec"))
-
-        # Show/hide reverted toggle (only show if there are reverted to hide/show)
-        if hidden_reverted_count > 0 or not hide_reverted:
-            if hide_reverted:
-                bindings.append((".", f"show ({hidden_reverted_count})"))
-            else:
-                bindings.append((".", "hide reverted"))
-
         return bindings
 
     def _format_bindings(self, bindings: list[tuple[str, str]]) -> Text:
         """Format bindings for display.
 
-        Args:
-            bindings: List of (key, label) tuples
-
-        Returns:
-            Formatted Text object
+        Sorting: symbols first (angle-bracket keys like ``<enter>`` and
+        non-alpha chars like ``.``), then alphabetical (case-insensitive,
+        lowercase before uppercase for the same letter).
         """
         text = Text()
 
-        # Sort bindings alphabetically (case-insensitive, lowercase before uppercase)
-        # Put <space> first
+        def _is_symbol(key: str) -> bool:
+            return key.startswith("<") or (len(key) == 1 and not key[0].isalpha())
+
         sorted_bindings = sorted(
             bindings,
             key=lambda x: (
-                0 if x[0] == "<space>" else 1,
-                x[0].lower(),
-                x[0].isupper(),
+                0 if _is_symbol(x[0]) else 1,
+                x[0].strip("<>").lower(),
+                0 if x[0][0].islower() or x[0].startswith("<") else 1,
                 x[0],
             ),
         )

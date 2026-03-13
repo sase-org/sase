@@ -453,36 +453,15 @@ class AgentsMixinCore(
         else:
             agent_detail.show_empty()
 
-        # Query file visibility for footer (must be done after update_display)
-        file_visible = agent_detail.is_file_visible()
-
-        # Determine if any foldable workflows exist (for fold keybindings)
-        has_foldable = any(
-            key for key, (non_hidden, _) in self._fold_counts.items() if non_hidden > 0
-        )
-
-        thinking_visible = agent_detail.is_thinking_visible()
-        info_mode = agent_detail.is_info_mode()
-        next_panel_label = agent_detail.next_panel_label()
-
         if getattr(self, "_bang_mode_active", False):
             footer_widget.update_bang_bindings()
         elif getattr(self, "_copy_mode_active", False):
+            file_visible = agent_detail.is_file_visible()
             footer_widget.update_copy_bindings(
                 self.current_tab, file_visible=file_visible
             )
         else:
-            footer_widget.update_agent_bindings(
-                current_agent,
-                file_visible=file_visible,
-                thinking_visible=thinking_visible,
-                info_mode=info_mode,
-                next_panel_label=next_panel_label,
-                has_always_visible=self._has_always_visible,
-                hidden_count=self._hidden_count,
-                hide_non_run=self.hide_non_run_agents,
-                has_foldable=has_foldable,
-            )
+            footer_widget.update_agent_bindings(current_agent)
 
     def _toggle_hide_non_run_agents(self) -> None:
         """Toggle visibility of non-run agents and refresh the display."""
