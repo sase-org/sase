@@ -257,6 +257,60 @@ def _strip_name_from_json(path: Path, name: str) -> None:
         pass
 
 
+def get_most_recent_agent_name() -> str | None:
+    """Return the name of the most recently created named agent.
+
+    Scans ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
+    for agents with a name, ordered by artifact directory timestamp
+    (directory names are timestamps).
+
+    Returns the name of the most recently created one, or ``None`` if
+    no named agents exist.
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return None
+
+    candidates: list[tuple[str, str]] = []  # (dir_name, agent_name)
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        for artifact_dir in ace_run_dir.iterdir():
+            if not artifact_dir.is_dir():
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            name = data.get("name")
+            if not name:
+                continue
+
+            candidates.append((artifact_dir.name, name))
+
+    if not candidates:
+        return None
+
+    # Sort by directory name descending — most recent first
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return candidates[0][1]
+
+
 def get_next_auto_name() -> str:
     """Return the lowest available alphabetic agent name.
 

@@ -199,18 +199,22 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
         seen["name"] = get_next_auto_name()
 
-    # Resolve bare %wait directives to use the %name value
+    # Resolve bare %wait directives to the most recently named agent
     if "wait" in seen_multi:
         resolved_wait: list[str] = []
+        prev_name: str | None = None  # lazily fetched
         for raw_arg in seen_multi["wait"]:
             if not raw_arg:
-                name_val = seen.get("name", "")
-                if not name_val:
+                if prev_name is None:
+                    from sase.agent_names import get_most_recent_agent_name
+
+                    prev_name = get_most_recent_agent_name() or ""
+                if not prev_name:
                     raise DirectiveError(
-                        "Bare '%wait' directive requires a '%name' directive"
-                        " in the same prompt"
+                        "Bare '%wait' directive found but no previously"
+                        " named agent exists"
                     )
-                resolved_wait.append(name_val)
+                resolved_wait.append(prev_name)
             else:
                 resolved_wait.append(raw_arg)
         seen_multi["wait"] = resolved_wait

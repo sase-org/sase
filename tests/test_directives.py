@@ -194,41 +194,59 @@ def test_name_bare_alias_auto_generates() -> None:
     assert directives.name == "b"
 
 
-def test_wait_bare_uses_name_directive() -> None:
-    """Bare %wait uses the %name value from the same prompt."""
+def test_wait_bare_resolves_to_previous_agent() -> None:
+    """Bare %wait resolves to the most recently named previous agent."""
     prompt = "%name:foo\n%wait\nDo work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do work"
-    assert directives.name == "foo"
-    assert directives.wait == ["foo"]
-
-
-def test_wait_bare_uses_auto_generated_name() -> None:
-    """Bare %wait + bare %name uses the auto-generated name."""
-    prompt = "%name\n%wait\nDo work"
     with patch(
-        "sase.agent_names.get_next_auto_name",
-        return_value="c",
+        "sase.agent_names.get_most_recent_agent_name",
+        return_value="prev",
     ):
         cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
-    assert directives.name == "c"
-    assert directives.wait == ["c"]
+    assert directives.name == "foo"
+    assert directives.wait == ["prev"]
 
 
-def test_wait_bare_without_name_raises() -> None:
-    """Bare %wait without a %name directive raises DirectiveError."""
+def test_wait_bare_with_bare_name_does_not_self_wait() -> None:
+    """Bare %wait + bare %name does NOT wait for itself."""
+    prompt = "%name\n%wait\nDo work"
+    with (
+        patch(
+            "sase.agent_names.get_next_auto_name",
+            return_value="b",
+        ),
+        patch(
+            "sase.agent_names.get_most_recent_agent_name",
+            return_value="a",
+        ),
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.name == "b"
+    assert directives.wait == ["a"]
+
+
+def test_wait_bare_no_previous_agent_raises() -> None:
+    """Bare %wait with no previously named agent raises DirectiveError."""
     prompt = "%wait\nDo work"
-    with pytest.raises(DirectiveError, match="Bare '%wait'.*'%name'"):
-        extract_prompt_directives(prompt)
+    with patch(
+        "sase.agent_names.get_most_recent_agent_name",
+        return_value=None,
+    ):
+        with pytest.raises(DirectiveError, match="no previously.*named agent"):
+            extract_prompt_directives(prompt)
 
 
 def test_wait_mixed_bare_and_explicit() -> None:
     """Mix of bare and explicit %wait works."""
     prompt = "%name:foo\n%wait:bar\n%wait\nDo work"
-    cleaned, directives = extract_prompt_directives(prompt)
+    with patch(
+        "sase.agent_names.get_most_recent_agent_name",
+        return_value="prev",
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
-    assert directives.wait == ["bar", "foo"]
+    assert directives.wait == ["bar", "prev"]
 
 
 # --- %plan directive tests ---
