@@ -181,7 +181,7 @@ class KeybindingFooter(Horizontal):
             file_visible: Whether the file panel is currently visible
             thinking_visible: Whether the thinking panel is currently visible
             info_mode: Whether the panel is in info-only mode
-            next_panel_label: Label for the next panel mode via 'i' key,
+            next_panel_label: Label for the next panel mode via ']' key,
                 or None if cycling is not available
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
@@ -349,7 +349,7 @@ class KeybindingFooter(Horizontal):
             file_visible: Whether the file panel is currently visible
             thinking_visible: Whether the thinking panel is currently visible
             info_mode: Whether the panel is in info-only mode
-            next_panel_label: Label for the next panel mode via 'i' key,
+            next_panel_label: Label for the next panel mode via ']' key,
                 or None if cycling is not available
             has_always_visible: Whether any always-visible agents exist
             hidden_count: Number of hidden hideable agents
@@ -408,9 +408,9 @@ class KeybindingFooter(Horizontal):
             bindings.append(("h/l", "fold"))
             bindings.append(("H/L", "fold all"))
 
-        # Panel cycle: i key label shows next mode (skips unavailable modes)
+        # Panel cycle: [/] keys cycle through panel modes
         if agent is not None and next_panel_label is not None:
-            bindings.append(("i", next_panel_label))
+            bindings.append(("[/]", next_panel_label))
 
         # Edit panel content in editor (when file or thinking panel is visible)
         if file_visible or thinking_visible:

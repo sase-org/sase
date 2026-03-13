@@ -103,7 +103,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
 
         # Detect agent change and reset per-agent state, but preserve the
-        # user's explicit panel mode choice so that e.g. pressing 'i' to show
+        # user's explicit panel mode choice so that e.g. pressing ']' to show
         # thinking persists across j/k navigation.
         prev_agent = self._current_agent
         self._current_agent = agent

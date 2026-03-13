@@ -69,23 +69,28 @@ class AgentDetailPanelMixin(Static):
     # Panel mode cycling
     # ------------------------------------------------------------------
 
-    def toggle_thinking(self, agent: Agent) -> None:
-        """Cycle to the next panel mode.
+    def toggle_thinking(self, agent: Agent, *, reverse: bool = False) -> None:
+        """Cycle to the next (or previous) panel mode.
 
         Always cycles through file -> thinking -> none -> file so the
-        ``i`` key behaves consistently regardless of content availability.
+        ``]`` key behaves consistently regardless of content availability.
+        The ``[`` key cycles in the opposite direction.
 
         Args:
             agent: The currently selected agent.
+            reverse: If True, cycle in the reverse direction.
         """
-        self._apply_panel_mode(self._next_panel_mode(), agent)
+        self._apply_panel_mode(self._next_panel_mode(reverse=reverse), agent)
         self._update_panel_indicators()
 
-    def _next_panel_mode(self) -> DetailPanelMode:
+    def _next_panel_mode(self, *, reverse: bool = False) -> DetailPanelMode:
         """Compute the next panel mode in the fixed cycle.
 
         For agent entries: AUTO -> THINKING -> INFO -> AUTO.
         For non-agent entries: AUTO -> INFO -> AUTO (no thinking).
+
+        Args:
+            reverse: If True, cycle in the reverse direction.
 
         Returns:
             The next mode to transition to.
@@ -104,15 +109,19 @@ class AgentDetailPanelMixin(Static):
         if self._panel_mode not in cycle:
             return cycle[0]
         idx = cycle.index(self._panel_mode)
-        return cycle[(idx + 1) % len(cycle)]
+        step = -1 if reverse else 1
+        return cycle[(idx + step) % len(cycle)]
 
-    def next_panel_label(self) -> str:
-        """Get the footer label for what pressing 'i' will do next.
+    def next_panel_label(self, *, reverse: bool = False) -> str:
+        """Get the footer label for what pressing ``]`` / ``[`` will do next.
+
+        Args:
+            reverse: If True, return the label for the reverse direction.
 
         Returns:
             Label string like "file", "thinking", or "collapsed".
         """
-        return _MODE_LABELS[self._next_panel_mode()]
+        return _MODE_LABELS[self._next_panel_mode(reverse=reverse)]
 
     @property
     def panel_mode_label(self) -> str:

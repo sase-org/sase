@@ -308,6 +308,14 @@ class AgentInteractionMixin:
 
     def action_toggle_thinking(self) -> None:
         """Toggle the thinking panel for the selected agent."""
+        self._cycle_panel_mode()
+
+    def action_toggle_thinking_reverse(self) -> None:
+        """Toggle the thinking panel in reverse direction."""
+        self._cycle_panel_mode(reverse=True)
+
+    def _cycle_panel_mode(self, *, reverse: bool = False) -> None:
+        """Cycle the panel mode forward or backward."""
         if self.current_tab != "agents":
             return
 
@@ -320,7 +328,7 @@ class AgentInteractionMixin:
         from ...widgets import AgentDetail
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        agent_detail.toggle_thinking(agent)
+        agent_detail.toggle_thinking(agent, reverse=reverse)
 
         # Refresh footer to reflect new state
         self._refresh_agents_display()  # type: ignore[attr-defined]
