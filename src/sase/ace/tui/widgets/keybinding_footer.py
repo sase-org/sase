@@ -31,6 +31,7 @@ from textual.widgets import Static
 from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
+from ..keymaps import KeymapRegistry, footer_key_display
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -42,12 +43,21 @@ class KeybindingFooter(Horizontal):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the footer widget."""
         super().__init__(**kwargs)
+        self._registry = KeymapRegistry()
         self._axe_running: bool = False
         self._axe_starting: bool = False
         self._axe_stopping: bool = False
         self._bgcmd_running_count: int = 0
         self._bgcmd_done_count: int = 0
         self._runner_count: int = 0
+
+    def set_keymap_registry(self, registry: KeymapRegistry) -> None:
+        """Override the keymap registry with user config."""
+        self._registry = registry
+
+    def _kd(self, action_name: str) -> str:
+        """Get footer display key for an app-level action."""
+        return footer_key_display(getattr(self._registry.app, action_name))
 
     def compose(self) -> ComposeResult:
         """Compose the footer with bindings on left and status on right."""
@@ -163,7 +173,7 @@ class KeybindingFooter(Horizontal):
     def show_empty(self) -> None:
         """Show empty state bindings."""
         text = Text()
-        text.append("/", style="bold #00D7AF")
+        text.append(self._kd("edit_query"), style="bold #00D7AF")
         text.append(" edit query", style="dim")
         self._update_display(text)
 
@@ -193,7 +203,7 @@ class KeybindingFooter(Horizontal):
             label = "stop axe" if self._axe_running else "start axe"
         else:
             label = "kill"
-        bindings.append(("x", label))
+        bindings.append((self._kd("kill_agent"), label))
         return bindings
 
     def update_leader_bindings(self, *, current_tab: str = "changespecs") -> None:
@@ -202,17 +212,23 @@ class KeybindingFooter(Horizontal):
         Args:
             current_tab: The currently active tab name.
         """
+        d = footer_key_display
+        keys = self._registry.leader_mode.keys
+
+        def k(name: str) -> str:
+            v = keys[name]
+            assert isinstance(v, str)
+            return d(v)
+
         bindings: list[tuple[str, str]] = []
         if current_tab == "changespecs":
-            bindings.append(("!", "run cmd (CL)"))
-            bindings.append(("m", "kill mentors"))
+            bindings.append((k("run_cmd"), "run cmd (CL)"))
+            bindings.append((k("kill_mentors"), "kill mentors"))
         if self._runner_count > 0:
-            bindings.append(("r", f"runners ({self._runner_count})"))
-        bindings.append(("h", "agent (home)"))
-        if current_tab == "changespecs":
-            bindings.append(("Space", "run agent (CL)"))
-        elif current_tab == "agents":
-            bindings.append(("Space", "run agent (CL)"))
+            bindings.append((k("runners"), f"runners ({self._runner_count})"))
+        bindings.append((k("agent_home"), "agent (home)"))
+        if current_tab in ("changespecs", "agents"):
+            bindings.append((k("agent_from_cl"), "run agent (CL)"))
         bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix
@@ -223,9 +239,17 @@ class KeybindingFooter(Horizontal):
 
     def update_bang_bindings(self) -> None:
         """Update bindings to show bang mode options."""
+        d = footer_key_display
+        keys = self._registry.bang_mode.keys
+
+        def k(name: str) -> str:
+            v = keys[name]
+            assert isinstance(v, str)
+            return d(v)
+
         bindings = [
-            ("!", "run cmd"),
-            ("x", "start/stop axe"),
+            (k("run_cmd"), "run cmd"),
+            (k("toggle_axe"), "start/stop axe"),
             ("Esc", "cancel"),
         ]
         text = self._format_bindings(bindings)
@@ -242,30 +266,39 @@ class KeybindingFooter(Horizontal):
             tab: Current tab name ("changespecs", "agents", or "axe").
             file_visible: Whether the file panel is visible (agents tab only).
         """
+        d = footer_key_display
+        tab_keys = self._registry.copy_mode.keys.get(tab, {})
+        assert isinstance(tab_keys, dict)
+
+        def k(name: str) -> str:
+            v = tab_keys[name]
+            assert isinstance(v, str)
+            return d(v)
+
         if tab == "changespecs":
             bindings = [
-                ("%", "raw"),
-                ("!", "+snap"),
-                ("b", "bug"),
-                ("c", "CL#"),
-                ("n", "name"),
-                ("p", "spec"),
-                ("s", "snap"),
+                (k("raw"), "raw"),
+                (k("with_snapshot"), "+snap"),
+                (k("bug"), "bug"),
+                (k("cl_number"), "CL#"),
+                (k("name"), "name"),
+                (k("spec"), "spec"),
+                (k("snapshot"), "snap"),
                 ("Esc", "cancel"),
             ]
         elif tab == "agents":
             bindings = [
-                ("c", "chat"),
-                ("s", "snap"),
+                (k("chat"), "chat"),
+                (k("snapshot"), "snap"),
                 ("Esc", "cancel"),
             ]
             if file_visible:
-                bindings.insert(-1, ("E", "file path"))
+                bindings.insert(-1, (k("file_path"), "file path"))
         else:  # axe
             bindings = [
-                ("o", "visible"),
-                ("O", "full"),
-                ("s", "snap"),
+                (k("visible"), "visible"),
+                (k("full"), "full"),
+                (k("snapshot"), "snap"),
                 ("Esc", "cancel"),
             ]
         text = self._format_bindings(bindings)
@@ -288,27 +321,29 @@ class KeybindingFooter(Horizontal):
         if agent is None:
             return bindings
 
+        x = self._kd("kill_agent")
+
         # --- Status-dependent actions ---
         if agent.status in ("DONE", "FAILED"):
-            bindings.append(("x", "dismiss"))
+            bindings.append((x, "dismiss"))
             if agent.status != "FAILED":
-                bindings.append(("e", "edit chat"))
+                bindings.append((self._kd("edit_spec"), "edit chat"))
                 if agent.response_path:
-                    bindings.append(("r", "resume"))
+                    bindings.append((self._kd("run_workflow"), "resume"))
         elif agent.status == "WAITING INPUT":
-            bindings.append(("a", "answer"))
+            bindings.append((self._kd("accept_proposal"), "answer"))
             if agent.pid is None:
-                bindings.append(("x", "dismiss"))
+                bindings.append((x, "dismiss"))
             else:
-                bindings.append(("x", "kill"))
+                bindings.append((x, "kill"))
         else:
             # RUNNING or other active statuses
             if agent.pid is None:
-                bindings.append(("x", "dismiss"))
+                bindings.append((x, "dismiss"))
             else:
-                bindings.append(("x", "kill"))
+                bindings.append((x, "kill"))
             if agent.status == "WAITING":
-                bindings.append(("w", "unwait"))
+                bindings.append((self._kd("reword"), "unwait"))
             _APPROVE_ELIGIBLE = {
                 "RUNNING",
                 "PLANNING",
@@ -318,17 +353,17 @@ class KeybindingFooter(Horizontal):
             }
             if agent.status in _APPROVE_ELIGIBLE:
                 if not agent.approve:
-                    bindings.append(("a", "approve"))
+                    bindings.append((self._kd("accept_proposal"), "approve"))
                 else:
-                    bindings.append(("a", "unapprove"))
+                    bindings.append((self._kd("accept_proposal"), "unapprove"))
 
         # Name agent (not available for done/failed agents)
         if agent.status not in ("DONE", "FAILED"):
-            bindings.append(("n", "name"))
+            bindings.append((self._kd("rename_cl"), "name"))
 
         # Jump to CL (only for ChangeSpec-level agents, not project-level)
         if not agent.is_project_agent:
-            bindings.append(("<enter>", "go to CL"))
+            bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
         return bindings
 
@@ -345,11 +380,11 @@ class KeybindingFooter(Horizontal):
 
         # Accept proposal (only if proposed entries exist)
         if changespec.commits and any(e.is_proposed for e in changespec.commits):
-            bindings.append(("a", "accept"))
+            bindings.append((self._kd("accept_proposal"), "accept"))
 
         # Diff (only if CL exists)
         if changespec.cl is not None:
-            bindings.append(("d", "diff"))
+            bindings.append((self._kd("show_diff"), "diff"))
 
         # Get base status for visibility checks
         from ...changespec import get_base_status
@@ -359,40 +394,42 @@ class KeybindingFooter(Horizontal):
         # Reword (only if CL exists AND status is WIP, Draft, Ready, or Mailed)
         if changespec.cl is not None:
             if base_status in ("WIP", "Draft", "Ready", "Mailed"):
-                bindings.append(("w", "reword"))
+                bindings.append((self._kd("reword"), "reword"))
 
         # Mail (only if status is Ready)
         if base_status == "Ready":
-            bindings.append(("M", "mail"))
+            bindings.append((self._kd("mail"), "mail"))
 
         # Rebase (only if status is WIP, Draft, Ready, or Mailed)
         if base_status in ("WIP", "Draft", "Ready", "Mailed"):
-            bindings.append(("b", "rebase"))
+            bindings.append((self._kd("rebase"), "rebase"))
 
         # Rewind (only if status is not Submitted/Reverted and >=2 accepted entries)
         if base_status not in ("Submitted", "Reverted") and changespec.commits:
             numeric_entries = [e for e in changespec.commits if not e.is_proposed]
             if len(numeric_entries) >= 2:
-                bindings.append(("R", "rewind"))
+                bindings.append((self._kd("start_rewind"), "rewind"))
 
         # Sync (only if status is WIP, Draft, Ready, or Mailed)
         if base_status in ("WIP", "Draft", "Ready", "Mailed"):
-            bindings.append(("Y", "sync"))
+            bindings.append((self._kd("sync"), "sync"))
 
         # Rename (only if status is not Submitted or Reverted)
         if base_status not in ("Submitted", "Reverted"):
-            bindings.append(("n", "rename"))
+            bindings.append((self._kd("rename_cl"), "rename"))
 
         # Hooks from failed targets (only if failed hooks file exists)
         if get_failed_hooks_file_path(changespec):
-            bindings.append(("H", "hooks (failed)"))
+            bindings.append((self._kd("hooks_or_collapse_all"), "hooks (failed)"))
 
         # Run workflows (only if workflows available for this ChangeSpec)
         workflows = get_available_workflows(changespec)
         if len(workflows) == 1:
-            bindings.append(("r", f"run {workflows[0]}"))
+            bindings.append((self._kd("run_workflow"), f"run {workflows[0]}"))
         elif len(workflows) > 1:
-            bindings.append(("r", f"run ({len(workflows)} workflows)"))
+            bindings.append(
+                (self._kd("run_workflow"), f"run ({len(workflows)} workflows)")
+            )
 
         return bindings
 

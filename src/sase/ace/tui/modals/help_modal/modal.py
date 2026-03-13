@@ -15,14 +15,15 @@ from ..base import CopyModeForwardingMixin
 if TYPE_CHECKING:
     from ...app import AceApp
 
+from ...keymaps import KeymapRegistry, key_display_name
 from .bindings import (
-    AGENTS_BINDINGS,
-    AXE_BINDINGS,
-    CLS_BINDINGS,
     COLUMN_SPLITS,
     CONTENT_WIDTH,
     TAB_DISPLAY_NAMES,
     TabName,
+    agents_bindings,
+    axe_bindings,
+    cls_bindings,
 )
 from .query_sections import add_query_history_section, add_saved_queries_section
 
@@ -118,7 +119,13 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         add_saved_queries_section(text, self._active_query)
         # Query history is CLs-tab only
         if self._current_tab == "changespecs":
-            add_query_history_section(text)
+            km = self._get_km()
+            d = key_display_name
+            add_query_history_section(
+                text,
+                prev_key=d(km.app.prev_query),
+                next_key=d(km.app.next_query),
+            )
 
         # Get left-side bindings for current tab
         bindings = self._get_bindings_for_tab()
@@ -144,16 +151,24 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
 
         return text
 
+    def _get_km(self) -> KeymapRegistry:
+        """Get the keymap registry from the app, falling back to defaults."""
+        try:
+            return cast("AceApp", self.app)._keymap_registry
+        except Exception:
+            return KeymapRegistry()
+
     def _get_bindings_for_tab(
         self,
     ) -> list[tuple[str, list[tuple[str, str]]]]:
         """Get the keybinding sections for the current tab."""
+        km = self._get_km()
         if self._current_tab == "changespecs":
-            return CLS_BINDINGS
+            return cls_bindings(km)
         elif self._current_tab == "agents":
-            return AGENTS_BINDINGS
+            return agents_bindings(km)
         else:  # axe
-            return AXE_BINDINGS
+            return axe_bindings(km)
 
     def _add_section(
         self,
@@ -203,6 +218,30 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         text.append("\u2500" * 53, style="dim #87D7FF")
         text.append("\u2518", style="dim #87D7FF")
         text.append("\n")
+
+    def on_mount(self) -> None:
+        """Rebuild instance bindings with configured query nav keys."""
+        from textual.binding import BindingsMap
+
+        km = self._get_km()
+        new_bindings = (
+            [
+                ("escape", "close", "Close"),
+                ("q", "close", "Close"),
+                ("question_mark", "close", "Close"),
+                ("ctrl+d", "scroll_down", "Scroll down"),
+                ("ctrl+u", "scroll_up", "Scroll up"),
+            ]
+            + [
+                Binding(str(d), f"load_query_{d}", f"Load Q{d}", show=False)
+                for d in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+            ]
+            + [
+                Binding(km.app.prev_query, "go_prev_query", "Prev Query", show=False),
+                Binding(km.app.next_query, "go_next_query", "Next Query", show=False),
+            ]
+        )
+        self._bindings = BindingsMap(new_bindings)
 
     def action_close(self) -> None:
         """Close the modal."""

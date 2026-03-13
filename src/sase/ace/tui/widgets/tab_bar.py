@@ -7,6 +7,8 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
+from ..keymaps import KeymapRegistry, key_display_name
+
 TabName = Literal["changespecs", "agents", "axe"]
 
 
@@ -21,6 +23,7 @@ class TabBar(Static):
             self.tab = tab
 
     def __init__(self, **kwargs: Any) -> None:
+        self._registry = KeymapRegistry()
         self._current_tab: TabName = "changespecs"
         self._cls_main_count: int = 0
         self._cls_hidden_count: int = 0
@@ -39,6 +42,11 @@ class TabBar(Static):
         self._axe_tab_range: tuple[int, int] = (0, 0)
         # Initialize with content so tabline shows immediately
         super().__init__(self._build_content(), **kwargs)
+
+    def set_keymap_registry(self, registry: KeymapRegistry) -> None:
+        """Override the keymap registry and refresh display."""
+        self._registry = registry
+        self._refresh_content()
 
     def update_tab(self, tab: TabName) -> None:
         """Update the displayed active tab.
@@ -132,13 +140,15 @@ class TabBar(Static):
     def _build_content(self) -> Text:
         """Build the tab bar content."""
         text = Text()
+        dismiss_key = key_display_name(self._registry.app.kill_agent)
+        hide_key = key_display_name(self._registry.app.toggle_hide_reverted)
 
         # CLs tab
         cl_start = 0
         m = str(self._cls_main_count) if self._cls_main_count > 0 else ""
         if self._cls_show_hidden:
             h = str(self._cls_hidden_count) if self._cls_hidden_count > 0 else ""
-            cl_label = f" CLs ({m}.{h}) "
+            cl_label = f" CLs ({m}{hide_key}{h}) "
         elif self._cls_main_count > 0:
             cl_label = f" CLs ({m}) "
         else:
@@ -157,10 +167,10 @@ class TabBar(Static):
         m = str(self._agents_manual_count) if self._agents_manual_count > 0 else ""
         suffix = m
         if self._agents_done_count > 0:
-            suffix += f"x{self._agents_done_count}"
+            suffix += f"{dismiss_key}{self._agents_done_count}"
         if self._agents_show_hidden:
             h = str(self._agents_hidden_count) if self._agents_hidden_count > 0 else ""
-            suffix += f".{h}"
+            suffix += f"{hide_key}{h}"
         if suffix or self._agents_show_hidden:
             agents_label = f" Agents ({suffix}) "
         else:
@@ -179,10 +189,10 @@ class TabBar(Static):
         m = str(self._axe_main_count) if self._axe_main_count > 0 else ""
         suffix = m
         if self._axe_done_count > 0:
-            suffix += f"x{self._axe_done_count}"
+            suffix += f"{dismiss_key}{self._axe_done_count}"
         if self._axe_show_hidden:
             h = str(self._axe_hidden_count) if self._axe_hidden_count > 0 else ""
-            suffix += f".{h}"
+            suffix += f"{hide_key}{h}"
         if suffix or self._axe_show_hidden:
             axe_label = f" AXE ({suffix}) "
         else:

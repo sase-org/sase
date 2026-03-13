@@ -2,257 +2,395 @@
 
 from typing import Literal
 
+from ...keymaps import KeymapRegistry, key_display_name
+
 TabName = Literal["changespecs", "agents", "axe"]
 
 # Box dimensions for consistent formatting
 BOX_WIDTH = 57  # Total box width in characters
 CONTENT_WIDTH = 50  # Inner content width (BOX_WIDTH - borders)
 
-# Keybinding definitions for each tab
-# Each section is (section_name, list of (key, description) tuples)
-CLS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
-    (
-        "Navigation",
-        [
-            ("j / k", "Move to next / previous CL"),
-            ("< / > / ~", "Navigate to ancestor / child / sibling"),
-            ("Ctrl+O / K", "Jump back / forward in history"),
-            ("Ctrl+D / U", "Scroll detail panel down / up"),
-        ],
-    ),
-    (
-        "CL Actions",
-        [
-            ("a", "Accept (! = spec only, @ = mail)"),
-            ("b", "Rebase CL onto parent"),
-            ("C / c1-c9", "Checkout CL (workspace 1-9)"),
-            ("d", "Show diff"),
-            ("h", "Edit hooks"),
-            ("H", "Add hooks from failed targets"),
-            ("L", "Agent run log"),
-            ("M", "Mail CL"),
-            ("m", "Mark/unmark current CL"),
-            ("n", "Rename CL (non-Sub/Rev)"),
-            ("R", "Rewind to prev commit (non-Sub/Rev)"),
-            ("s", "Change status"),
-            ("S", "Bulk status change (marked CLs)"),
-            ("T / t1-t9", "Checkout + tmux (workspace 1-9)"),
-            ("u", "Clear all marks"),
-            ("v", "View files"),
-            ("w", "Reword CL description"),
-            ("W", "Add tag to CL description"),
-            ("Y", "Sync workspace"),
-            ("e", "Edit spec file"),
-        ],
-    ),
-    (
-        "Fold Mode",
-        [
-            ("z c", "Cycle commits folding"),
-            ("z h", "Cycle hooks folding"),
-            ("z m", "Cycle mentors folding"),
-            ("z z", "Cycle all sections"),
-        ],
-    ),
-    (
-        "Workflows & Agents",
-        [
-            ("r", "Run workflow"),
-            ("@", "Run an agent"),
-            ("<space>", "Repeat last @/<space> selection"),
-        ],
-    ),
-    (
-        "Bang Mode (!)",
-        [
-            ("!!", "Run background command"),
-            ("!x", "Start / stop axe (or select process)"),
-        ],
-    ),
-    (
-        "Leader Mode (,)",
-        [
-            (",!", "Run command (use current CL)"),
-            (",h", "Run agent (home)"),
-            (",m", "Kill running mentors"),
-            (",r", "Show runners info"),
-            (",<space>", "Run agent from current CL"),
-        ],
-    ),
-    (
-        "Queries",
-        [
-            ("/", "Edit search query"),
-            ("0-9", "Load saved query"),
-            ("^", "Previous query"),
-            ("_", "Next query"),
-        ],
-    ),
-    (
-        "Copy Mode (%)",
-        [
-            ("%%", "Copy ChangeSpec"),
-            ("%!", "Copy ChangeSpec + snapshot"),
-            ("%b", "Copy bug number"),
-            ("%c", "Copy CL number"),
-            ("%n", "Copy CL name"),
-            ("%p", "Copy project spec file"),
-            ("%s", "Copy sase ace snapshot"),
-        ],
-    ),
-    (
-        "General",
-        [
-            ("Tab / Shift+Tab", "Switch tabs"),
-            (".", "Show/hide reverted CLs"),
-            ("#", "Browse xprompts"),
-            ("N", "Show notifications"),
-            ("Q", "Stop axe and quit"),
-            ("y", "Refresh"),
-            ("q", "Quit"),
-            ("?", "Show this help"),
-        ],
-    ),
-]
+# Type alias for binding sections
+_Sections = list[tuple[str, list[tuple[str, str]]]]
 
-AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
-    (
-        "Navigation",
-        [
-            ("j / k", "Move to next / previous agent"),
-            ("g / G", "Scroll file panel to top / bottom"),
-            ("Ctrl+D / U", "Scroll file panel down / up"),
-            ("Ctrl+F / B", "Scroll prompt panel down / up"),
-        ],
-    ),
-    (
-        "Agent Actions",
-        [
-            ("@", "Run custom agent"),
-            ("a", "Toggle auto-approve / answer HITL"),
-            ("n", "Name agent"),
-            ("r", "Revive chat as agent"),
-            ("w", "Unwait (remove %wait, start now)"),
-            ("x", "Kill / dismiss agent"),
-            ("e", "Edit chat in editor"),
-            ("E", "Edit panel content in editor"),
-            ("] / [", "Cycle panels: file → thinking → metadata"),
-            ("p", "Toggle file/prompt layout"),
-            ("Ctrl+N / P", "Next / prev file in panel"),
-            ("-", "Reset file trim to default"),
-            ("=", "Show all file lines"),
-        ],
-    ),
-    (
-        "Workflow Folding",
-        [
-            ("l / h", "Expand / collapse workflow steps"),
-            ("L / H", "Expand / collapse all workflows"),
-        ],
-    ),
-    (
-        "Leader Mode (,)",
-        [
-            (",h", "Run agent (home)"),
-            (",r", "Show runners info"),
-        ],
-    ),
-    (
-        "Bang Mode (!)",
-        [
-            ("!!", "Run background command"),
-            ("!x", "Start / stop axe (or select process)"),
-        ],
-    ),
-    (
-        "Copy Mode (%)",
-        [
-            ("%c", "Copy chat file path"),
-            ("%s", "Copy sase ace snapshot"),
-        ],
-    ),
-    (
-        "Search",
-        [
-            ("/", "Filter agents by name"),
-        ],
-    ),
-    (
-        "General",
-        [
-            ("Tab / Shift+Tab", "Switch tabs"),
-            ("<space>", "Repeat last @/<space> selection"),
-            (".", "Show/hide non-run agents"),
-            ("#", "Browse xprompts"),
-            ("N", "Show notifications"),
-            ("Q", "Stop axe and quit"),
-            ("y", "Refresh"),
-            ("q", "Quit"),
-            ("?", "Show this help"),
-        ],
-    ),
-]
 
-AXE_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
-    (
-        "Navigation",
-        [
-            ("j / k", "Move to next / previous command"),
-            ("Ctrl+N / P", "Next / prev jack output"),
-            ("g", "Scroll to top"),
-            ("G", "Scroll to bottom"),
-        ],
-    ),
-    (
-        "Background Commands",
-        [
-            ("@", "Run agent"),
-            ("X", "Clear output"),
-        ],
-    ),
-    (
-        "Leader Mode (,)",
-        [
-            (",h", "Run agent (home)"),
-            (",r", "Show runners info"),
-        ],
-    ),
-    (
-        "Bang Mode (!)",
-        [
-            ("!!", "Run background command"),
-            ("!x", "Start / stop axe (or select process)"),
-        ],
-    ),
-    (
-        "Copy Mode (%)",
-        [
-            ("%o", "Copy visible output"),
-            ("%O", "Copy full output"),
-            ("%s", "Copy sase ace snapshot"),
-        ],
-    ),
-    (
-        "Axe Control",
-        [
-            ("x", "Start / stop axe (or kill command)"),
-            ("X", "Clear output"),
-            ("Q", "Stop axe and quit"),
-        ],
-    ),
-    (
-        "General",
-        [
-            ("Tab / Shift+Tab", "Switch tabs"),
-            ("<space>", "Repeat last @/<space> selection"),
-            ("#", "Browse xprompts"),
-            ("N", "Show notifications"),
-            ("y", "Refresh"),
-            ("q", "Quit"),
-            ("?", "Show this help"),
-        ],
-    ),
-]
+def _sk(keys: dict[str, str | dict[str, str]], name: str) -> str:
+    """Extract a string value from a mode keys dict."""
+    v = keys[name]
+    assert isinstance(v, str)
+    return v
+
+
+def cls_bindings(km: KeymapRegistry) -> _Sections:
+    """Build keybinding sections for the CLs tab."""
+    d = key_display_name
+    a = km.app
+    fm = km.fold_mode
+    lm = km.leader_mode
+    bm = km.bang_mode
+    cm = km.copy_mode
+
+    cs_copy = cm.keys["changespecs"]
+    assert isinstance(cs_copy, dict)
+
+    return [
+        (
+            "Navigation",
+            [
+                (
+                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    "Move to next / previous CL",
+                ),
+                (
+                    f"{d(a.start_ancestor_mode)} / {d(a.start_child_mode)} / {d(a.start_sibling_mode)}",
+                    "Navigate to ancestor / child / sibling",
+                ),
+                (
+                    f"{d(a.prev_changespec_history)} / {d(a.next_changespec_history)}",
+                    "Jump back / forward in history",
+                ),
+                (
+                    f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
+                    "Scroll detail panel down / up",
+                ),
+            ],
+        ),
+        (
+            "CL Actions",
+            [
+                (d(a.accept_proposal), "Accept (! = spec only, @ = mail)"),
+                (d(a.rebase), "Rebase CL onto parent"),
+                (
+                    f"{d(a.checkout)} / {d(a.start_checkout_mode)}1-{d(a.start_checkout_mode)}9",
+                    "Checkout CL (workspace 1-9)",
+                ),
+                (d(a.show_diff), "Show diff"),
+                (d(a.hooks_or_collapse), "Edit hooks"),
+                (d(a.hooks_or_collapse_all), "Add hooks from failed targets"),
+                (d(a.expand_all_folds), "Agent run log"),
+                (d(a.mail), "Mail CL"),
+                (d(a.toggle_mark), "Mark/unmark current CL"),
+                (d(a.rename_cl), "Rename CL (non-Sub/Rev)"),
+                (d(a.start_rewind), "Rewind to prev commit (non-Sub/Rev)"),
+                (d(a.change_status), "Change status"),
+                (d(a.bulk_change_status), "Bulk status change (marked CLs)"),
+                (
+                    f"{d(a.open_tmux)} / {d(a.start_tmux_mode)}1-{d(a.start_tmux_mode)}9",
+                    "Checkout + tmux (workspace 1-9)",
+                ),
+                (d(a.clear_marks), "Clear all marks"),
+                (d(a.view_files), "View files"),
+                (d(a.reword), "Reword CL description"),
+                (d(a.add_tag), "Add tag to CL description"),
+                (d(a.sync), "Sync workspace"),
+                (d(a.edit_spec), "Edit spec file"),
+            ],
+        ),
+        (
+            f"Fold Mode ({d(fm.prefix)})",
+            [
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_commits'))}",
+                    "Cycle commits folding",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_hooks'))}",
+                    "Cycle hooks folding",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_mentors'))}",
+                    "Cycle mentors folding",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_all'))}",
+                    "Cycle all sections",
+                ),
+            ],
+        ),
+        (
+            "Workflows & Agents",
+            [
+                (d(a.run_workflow), "Run workflow"),
+                (d(a.start_custom_agent), "Run an agent"),
+                (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+            ],
+        ),
+        (
+            f"Bang Mode ({d(bm.prefix)})",
+            [
+                (
+                    f"{d(bm.prefix)}{d(_sk(bm.keys, 'run_cmd'))}",
+                    "Run background command",
+                ),
+                (
+                    f"{d(bm.prefix)}{d(_sk(bm.keys, 'toggle_axe'))}",
+                    "Start / stop axe (or select process)",
+                ),
+            ],
+        ),
+        (
+            f"Leader Mode ({d(lm.prefix)})",
+            [
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'run_cmd'))}",
+                    "Run command (use current CL)",
+                ),
+                (f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_mentors'))}",
+                    "Kill running mentors",
+                ),
+                (f"{d(lm.prefix)}{d(_sk(lm.keys, 'runners'))}", "Show runners info"),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_from_cl'))}",
+                    "Run agent from current CL",
+                ),
+            ],
+        ),
+        (
+            "Queries",
+            [
+                (d(a.edit_query), "Edit search query"),
+                ("0-9", "Load saved query"),
+                (d(a.prev_query), "Previous query"),
+                (d(a.next_query), "Next query"),
+            ],
+        ),
+        (
+            f"Copy Mode ({d(cm.prefix)})",
+            [
+                (f"{d(cm.prefix)}{d(cs_copy['raw'])}", "Copy ChangeSpec"),
+                (
+                    f"{d(cm.prefix)}{d(cs_copy['with_snapshot'])}",
+                    "Copy ChangeSpec + snapshot",
+                ),
+                (f"{d(cm.prefix)}{d(cs_copy['bug'])}", "Copy bug number"),
+                (f"{d(cm.prefix)}{d(cs_copy['cl_number'])}", "Copy CL number"),
+                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy CL name"),
+                (f"{d(cm.prefix)}{d(cs_copy['spec'])}", "Copy project spec file"),
+                (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
+            ],
+        ),
+        (
+            "General",
+            [
+                (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.toggle_hide_reverted), "Show/hide reverted CLs"),
+                (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.show_notifications), "Show notifications"),
+                (d(a.stop_axe_and_quit), "Stop axe and quit"),
+                (d(a.refresh), "Refresh"),
+                (d(a.quit), "Quit"),
+                (d(a.show_help), "Show this help"),
+            ],
+        ),
+    ]
+
+
+def agents_bindings(km: KeymapRegistry) -> _Sections:
+    """Build keybinding sections for the Agents tab."""
+    d = key_display_name
+    a = km.app
+    lm = km.leader_mode
+    bm = km.bang_mode
+    cm = km.copy_mode
+
+    ag_copy = cm.keys["agents"]
+    assert isinstance(ag_copy, dict)
+
+    return [
+        (
+            "Navigation",
+            [
+                (
+                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    "Move to next / previous agent",
+                ),
+                (
+                    f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
+                    "Scroll file panel to top / bottom",
+                ),
+                (
+                    f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
+                    "Scroll file panel down / up",
+                ),
+                (
+                    f"{d(a.scroll_prompt_down)} / {d(a.scroll_prompt_up)}",
+                    "Scroll prompt panel down / up",
+                ),
+            ],
+        ),
+        (
+            "Agent Actions",
+            [
+                (d(a.start_custom_agent), "Run custom agent"),
+                (d(a.accept_proposal), "Toggle auto-approve / answer HITL"),
+                (d(a.rename_cl), "Name agent"),
+                (d(a.run_workflow), "Revive chat as agent"),
+                (d(a.reword), "Unwait (remove %wait, start now)"),
+                (d(a.kill_agent), "Kill / dismiss agent"),
+                (d(a.edit_spec), "Edit chat in editor"),
+                (d(a.edit_panel), "Edit panel content in editor"),
+                (
+                    f"{d(a.toggle_thinking)} / {d(a.toggle_thinking_reverse)}",
+                    "Cycle panels: file → thinking → metadata",
+                ),
+                (d(a.toggle_layout), "Toggle file/prompt layout"),
+                (
+                    f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
+                    "Next / prev file in panel",
+                ),
+                (d(a.reset_file_trim), "Reset file trim to default"),
+                (d(a.show_all_file_lines), "Show all file lines"),
+            ],
+        ),
+        (
+            "Workflow Folding",
+            [
+                (
+                    f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
+                    "Expand / collapse workflow steps",
+                ),
+                (
+                    f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
+                    "Expand / collapse all workflows",
+                ),
+            ],
+        ),
+        (
+            f"Leader Mode ({d(lm.prefix)})",
+            [
+                (f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (f"{d(lm.prefix)}{d(_sk(lm.keys, 'runners'))}", "Show runners info"),
+            ],
+        ),
+        (
+            f"Bang Mode ({d(bm.prefix)})",
+            [
+                (
+                    f"{d(bm.prefix)}{d(_sk(bm.keys, 'run_cmd'))}",
+                    "Run background command",
+                ),
+                (
+                    f"{d(bm.prefix)}{d(_sk(bm.keys, 'toggle_axe'))}",
+                    "Start / stop axe (or select process)",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode ({d(cm.prefix)})",
+            [
+                (f"{d(cm.prefix)}{d(ag_copy['chat'])}", "Copy chat file path"),
+                (f"{d(cm.prefix)}{d(ag_copy['snapshot'])}", "Copy sase ace snapshot"),
+            ],
+        ),
+        (
+            "Search",
+            [
+                (d(a.edit_query), "Filter agents by name"),
+            ],
+        ),
+        (
+            "General",
+            [
+                (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+                (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
+                (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.show_notifications), "Show notifications"),
+                (d(a.stop_axe_and_quit), "Stop axe and quit"),
+                (d(a.refresh), "Refresh"),
+                (d(a.quit), "Quit"),
+                (d(a.show_help), "Show this help"),
+            ],
+        ),
+    ]
+
+
+def axe_bindings(km: KeymapRegistry) -> _Sections:
+    """Build keybinding sections for the AXE tab."""
+    d = key_display_name
+    a = km.app
+    lm = km.leader_mode
+    bm = km.bang_mode
+    cm = km.copy_mode
+
+    axe_copy = cm.keys["axe"]
+    assert isinstance(axe_copy, dict)
+
+    return [
+        (
+            "Navigation",
+            [
+                (
+                    f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
+                    "Move to next / previous command",
+                ),
+                (
+                    f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
+                    "Next / prev jack output",
+                ),
+                (d(a.scroll_to_top), "Scroll to top"),
+                (d(a.scroll_to_bottom), "Scroll to bottom"),
+            ],
+        ),
+        (
+            "Background Commands",
+            [
+                (d(a.start_custom_agent), "Run agent"),
+                (d(a.toggle_axe), "Clear output"),
+            ],
+        ),
+        (
+            f"Leader Mode ({d(lm.prefix)})",
+            [
+                (f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
+                (f"{d(lm.prefix)}{d(_sk(lm.keys, 'runners'))}", "Show runners info"),
+            ],
+        ),
+        (
+            f"Bang Mode ({d(bm.prefix)})",
+            [
+                (
+                    f"{d(bm.prefix)}{d(_sk(bm.keys, 'run_cmd'))}",
+                    "Run background command",
+                ),
+                (
+                    f"{d(bm.prefix)}{d(_sk(bm.keys, 'toggle_axe'))}",
+                    "Start / stop axe (or select process)",
+                ),
+            ],
+        ),
+        (
+            f"Copy Mode ({d(cm.prefix)})",
+            [
+                (f"{d(cm.prefix)}{d(axe_copy['visible'])}", "Copy visible output"),
+                (f"{d(cm.prefix)}{d(axe_copy['full'])}", "Copy full output"),
+                (f"{d(cm.prefix)}{d(axe_copy['snapshot'])}", "Copy sase ace snapshot"),
+            ],
+        ),
+        (
+            "Axe Control",
+            [
+                (d(a.kill_agent), "Start / stop axe (or kill command)"),
+                (d(a.toggle_axe), "Clear output"),
+                (d(a.stop_axe_and_quit), "Stop axe and quit"),
+            ],
+        ),
+        (
+            "General",
+            [
+                (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
+                (d(a.browse_xprompts), "Browse xprompts"),
+                (d(a.show_notifications), "Show notifications"),
+                (d(a.refresh), "Refresh"),
+                (d(a.quit), "Quit"),
+                (d(a.show_help), "Show this help"),
+            ],
+        ),
+    ]
+
 
 TAB_DISPLAY_NAMES = {
     "changespecs": "CLs",

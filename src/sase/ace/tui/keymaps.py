@@ -503,3 +503,17 @@ def key_display_name(textual_key: str) -> str:
     if textual_key.startswith("ctrl+"):
         return f"Ctrl+{textual_key[5:].upper()}"
     return textual_key
+
+
+def footer_key_display(textual_key: str) -> str:
+    """Convert a Textual key name for footer display.
+
+    Wraps ``key_display_name`` and applies the footer's angle-bracket
+    convention for multi-char named keys (``"Space"`` → ``"<space>"``,
+    ``"Enter"`` → ``"<enter>"``).  Single chars and ``Ctrl+X`` /
+    ``Shift+X`` pass through unchanged.
+    """
+    name = key_display_name(textual_key)
+    if len(name) == 1 or name.startswith(("Ctrl+", "Shift+")):
+        return name
+    return f"<{name.lower()}>"

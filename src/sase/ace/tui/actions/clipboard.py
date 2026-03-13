@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from ..keymaps import KeymapRegistry
     from ..models import Agent
 
+from ..keymaps import key_display_name
+
 from sase.workspace_provider import get_change_label
 
 from ...changespec import get_raw_changespec_text
@@ -119,8 +121,11 @@ class ClipboardMixin:
         elif key == cs_keys["snapshot"]:
             self._copy_snapshot()
         else:
+            key_list = ", ".join(
+                key_display_name(v) for v in cs_keys.values() if isinstance(v, str)
+            )
             self.notify(  # type: ignore[attr-defined]
-                "Unknown copy key (CLs: %, !, b, c, n, p, s)", severity="warning"
+                f"Unknown copy key (CLs: {key_list})", severity="warning"
             )
             return False
         return True
@@ -144,7 +149,10 @@ class ClipboardMixin:
         elif key == ag_keys["snapshot"]:
             self._copy_snapshot()
         else:
-            self.notify("Unknown copy key (agents: c, E, s)", severity="warning")  # type: ignore[attr-defined]
+            key_list = ", ".join(
+                key_display_name(v) for v in ag_keys.values() if isinstance(v, str)
+            )
+            self.notify(f"Unknown copy key (agents: {key_list})", severity="warning")  # type: ignore[attr-defined]
             return False
         return True
 
@@ -167,7 +175,10 @@ class ClipboardMixin:
         elif key == axe_keys["snapshot"]:
             self._copy_snapshot()
         else:
-            self.notify("Unknown copy key (axe: o, O, s)", severity="warning")  # type: ignore[attr-defined]
+            key_list = ", ".join(
+                key_display_name(v) for v in axe_keys.values() if isinstance(v, str)
+            )
+            self.notify(f"Unknown copy key (axe: {key_list})", severity="warning")  # type: ignore[attr-defined]
             return False
         return True
 

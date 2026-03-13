@@ -446,6 +446,12 @@ class AceApp(
 
     def on_mount(self) -> None:
         """Set up the app on mount."""
+        # Wire keymap registry to widgets
+        footer = self.query_one("#keybinding-footer", KeybindingFooter)
+        footer.set_keymap_registry(self._keymap_registry)
+        tab_bar = self.query_one("#tab-bar", TabBar)
+        tab_bar.set_keymap_registry(self._keymap_registry)
+
         # Initialize agent tracking for completion notifications
         self._initialize_agent_tracking()
 

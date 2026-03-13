@@ -88,7 +88,13 @@ def add_saved_queries_section(
     text.append("\n")
 
 
-def add_query_history_section(text: Text, border_color: str = "#FFD700") -> None:
+def add_query_history_section(
+    text: Text,
+    *,
+    prev_key: str = "^",
+    next_key: str = "_",
+    border_color: str = "#FFD700",
+) -> None:
     """Add the query history stacks section (CLs tab only).
 
     Shows last 5 entries from each stack with visual indicators.
@@ -126,7 +132,7 @@ def add_query_history_section(text: Text, border_color: str = "#FFD700") -> None
         if prev_display:
             # Stack header with count
             count_str = f"\u27e8{len(prev_display)}/{prev_total}\u27e9"
-            header_text = "\u25c0 PREVIOUS (^)"
+            header_text = f"\u25c0 PREVIOUS ({prev_key})"
             header_padding = 50 - len(header_text) - len(count_str)
             text.append("  \u2502  ", style=f"dim {border_color}")
             text.append(header_text, style="bold #87D7FF")
@@ -144,7 +150,9 @@ def add_query_history_section(text: Text, border_color: str = "#FFD700") -> None
             for i, query in enumerate(prev_display):
                 is_first = i == 0
                 dim_level = 0 if i < 2 else (1 if i < 4 else 2)
-                _add_history_entry(text, query, is_first, "^", dim_level, border_color)
+                _add_history_entry(
+                    text, query, is_first, prev_key, dim_level, border_color
+                )
 
             # Spacing after prev section if next section follows
             if next_display:
@@ -157,7 +165,7 @@ def add_query_history_section(text: Text, border_color: str = "#FFD700") -> None
         if next_display:
             # Stack header with count
             count_str = f"\u27e8{len(next_display)}/{next_total}\u27e9"
-            header_text = "\u25b6 NEXT (_)"
+            header_text = f"\u25b6 NEXT ({next_key})"
             header_padding = 50 - len(header_text) - len(count_str)
             text.append("  \u2502  ", style=f"dim {border_color}")
             text.append(header_text, style="bold #87D7FF")
@@ -175,7 +183,9 @@ def add_query_history_section(text: Text, border_color: str = "#FFD700") -> None
             for i, query in enumerate(next_display):
                 is_first = i == 0
                 dim_level = 0 if i < 2 else (1 if i < 4 else 2)
-                _add_history_entry(text, query, is_first, "_", dim_level, border_color)
+                _add_history_entry(
+                    text, query, is_first, next_key, dim_level, border_color
+                )
 
     # Section footer
     text.append("  \u2514", style=f"dim {border_color}")
