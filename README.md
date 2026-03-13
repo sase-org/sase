@@ -28,45 +28,35 @@ infrastructure that turns individual agent runs into a managed software engineer
 
 ## Vision
 
-Coding agents are powerful — but **using them in a real engineering workflow is still painful.**
+**Coding agents are brilliant soloists. sase is the conductor.**
 
-Running a single agent on a single task works fine. The problems start when you try to do it repeatedly, across multiple
-changes, with any kind of structure. sase exists to solve the coordination problems that show up at that point:
+Running a single agent on a single file is a solved problem. The real challenge — the "Day 2" problem — is
+running **fleets of agents** across **complex codebases** with **rigorous standards**.
 
-> **Scheduling** — Agent runs are hard to schedule, monitor, and resume reliably.
->
-> **Prompt Logic** — Multi-step prompt pipelines get fragile fast when they're scattered across shell scripts and
-> scratch files.
->
-> **Tracking** — Work gets lost without a first-class unit for status, ownership, metadata, and review state.
->
-> **Portability** — Teams need one system above the agent layer, not a separate workflow for every provider.
->
-> **Supervision** — Automation still needs human checkpoints, VCS integration, and reproducible execution.
+sase exists because raw LLM power is only half the battle. The other half is **structure**.
+
+### The Core Pillars
+
+*   📦 **ChangeSpecs** — Stop thinking in "diffs" and start thinking in "Specs." Every unit of work gets a durable
+    identity, a tracked lifecycle (WIP → Mailed → Submitted), and structured metadata.
+*   📜 **XPrompt Workflows** — Stop treating prompts like magic spells. Turn them into reproducible, YAML-defined
+    pipelines with logic, branching, and human-in-the-loop checkpoints.
+*   🎮 **ACE & AXE** — Your flight deck and engine room. **ACE** provides a high-density TUI for supervising work, while
+    **AXE** handles the background automation and scheduling.
+*   🔌 **Provider Agnostic** — Don't get locked into one agent's ecosystem. sase provides a unified interface for Claude,
+    Gemini, and whatever comes next.
 
 ---
 
-<table>
-<tr><th>Before sase</th><th>After sase</th></tr>
-<tr>
-<td>
+| Before sase | After sase |
+| :--- | :--- |
+| **The "Wild West"** | **Structured Engineering** |
+| Prompts are scattered in `.bash_history` and scratch files. | **Workflows** define your logic in versioned YAML. |
+| Progress is tracked in your head (or a messy TODO list). | **ChangeSpecs** provide a first-class unit of work. |
+| "Is the agent stuck?" — You have no idea. | **ACE** gives you a real-time view of your agent fleet. |
+| Switching LLMs means rewriting your entire wrapper. | **Provider Abstraction** makes swapping models trivial. |
 
-Prompts live in shell history and scratch files. Each agent run is a one-off terminal session. Status is tracked in your
-head (or not at all). Switching agents means rewriting your wrapper scripts. There's no audit trail and no way to hand
-work off to a teammate.
-
-</td>
-<td>
-
-**ChangeSpecs** give each unit of work a tracked lifecycle. **Workflows** define reproducible multi-step pipelines.
-**ACE** provides the operational layer for navigating and supervising changes. **AXE** handles background scheduling.
-The whole system is agent-agnostic — swap providers without rewriting your workflow definitions.
-
-</td>
-</tr>
-</table>
-
-The goal isn't to make agents smarter. It's to make **agent-driven software engineering dependable.**
+**The goal isn't just to make agents faster. It's to make agentic software engineering *dependable*.**
 
 ## Key Features
 
