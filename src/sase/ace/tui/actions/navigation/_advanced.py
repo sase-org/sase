@@ -15,6 +15,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
     def action_start_fold_mode(self) -> None:
         """Enter fold mode - waiting for sub-key (c/h/z)."""
         self._fold_mode_active = True
+        self._update_fold_footer()
 
     def _handle_fold_key(self, key: str) -> bool:
         """Handle fold sub-key. Returns True if handled."""
@@ -23,6 +24,11 @@ class AdvancedNavigationMixin(NavigationMixinBase):
 
         self._fold_mode_active = False
         fold_keys = self._keymap_registry.fold_mode.keys
+
+        if key == "escape":
+            # Cancel silently and restore footer
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
 
         if key == fold_keys["cycle_commits"]:
             self.commits_collapsed = cycle_forward(self.commits_collapsed)
@@ -40,12 +46,23 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
         else:
-            # Invalid key - cancel fold mode
+            # Invalid key - cancel fold mode and restore footer
+            self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        self._refresh_display()  # type: ignore[attr-defined]
+        self._refresh_current_tab()  # type: ignore[attr-defined]
         self._update_fold_tab_indicator()
         return True
+
+    def _update_fold_footer(self) -> None:
+        """Update the footer to show fold mode bindings."""
+        from ...widgets import KeybindingFooter
+
+        try:
+            footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+            footer.update_fold_bindings()
+        except Exception:
+            pass
 
     def _update_fold_tab_indicator(self) -> None:
         """Push current fold states to the info panel indicator."""

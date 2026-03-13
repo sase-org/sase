@@ -206,6 +206,29 @@ class KeybindingFooter(Horizontal):
         bindings.append((self._kd("kill_agent"), label))
         return bindings
 
+    def update_fold_bindings(self) -> None:
+        """Update bindings to show fold mode options."""
+        d = footer_key_display
+        keys = self._registry.fold_mode.keys
+
+        def k(name: str) -> str:
+            v = keys[name]
+            assert isinstance(v, str)
+            return d(v)
+
+        bindings = [
+            (k("cycle_commits"), "commits"),
+            (k("cycle_hooks"), "hooks"),
+            (k("cycle_mentors"), "mentors"),
+            (k("cycle_all"), "all"),
+            ("Esc", "cancel"),
+        ]
+        text = self._format_bindings(bindings)
+        prefix = Text()
+        prefix.append("FOLD ", style="bold #FFD700")
+        prefix.append_text(text)
+        self._update_display(prefix)
+
     def update_leader_bindings(self, *, current_tab: str = "changespecs") -> None:
         """Update bindings to show leader mode options.
 
