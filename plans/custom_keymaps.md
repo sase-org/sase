@@ -1,5 +1,6 @@
 ---
 status: draft
+bead_id: sase-gjad
 ---
 
 # Plan: Configurable Keymaps for sase ace TUI
