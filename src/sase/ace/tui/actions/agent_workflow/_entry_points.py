@@ -9,6 +9,7 @@ from ._types import PromptContext, TabName
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
+    from ...keymaps import KeymapRegistry
     from ...models import Agent
     from ...modals import SelectionItem
 
@@ -39,6 +40,7 @@ class EntryPointsMixin:
     marked_indices: set[int]
     _agents: list[Agent]
     _leader_mode_active: bool
+    _keymap_registry: KeymapRegistry
 
     # State for prompt input
     _prompt_context: PromptContext | None = None
@@ -83,7 +85,9 @@ class EntryPointsMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "exclamation_mark":
+        leader_keys = self._keymap_registry.leader_mode.keys
+
+        if key == leader_keys["run_cmd"]:
             if self.current_tab != "changespecs":
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
@@ -91,24 +95,24 @@ class EntryPointsMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "r":
+        if key == leader_keys["runners"]:
             self.action_show_runners()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "m":
+        if key == leader_keys["kill_mentors"]:
             if self.current_tab == "changespecs":
                 self.action_kill_mentors()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "h":
+        if key == leader_keys["agent_home"]:
             # Shortcut for @ → ~ (home): skip the ProjectSelectModal
             self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "space":
+        if key == leader_keys["agent_from_cl"]:
             if self.current_tab == "changespecs":
                 if self.marked_indices:
                     self._start_agents_from_marked()

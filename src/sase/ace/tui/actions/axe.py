@@ -17,6 +17,7 @@ from .axe_display import AxeDisplayMixin, get_axe_process_module
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
+    from ..keymaps import KeymapRegistry
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -42,6 +43,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     _axe_cmds_hidden: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
+    _keymap_registry: KeymapRegistry
 
     # Background command state
     _axe_current_view: AxeViewType
@@ -127,13 +129,15 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "x":
+        bang_keys = self._keymap_registry.bang_mode.keys
+
+        if key == bang_keys["toggle_axe"]:
             # !x → toggle axe / select process (global)
             self._toggle_axe_global()
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == "exclamation_mark":
+        if key == bang_keys["run_cmd"]:
             # !! → start background command
             self.action_start_bgcmd()
             self._refresh_current_tab()  # type: ignore[attr-defined]

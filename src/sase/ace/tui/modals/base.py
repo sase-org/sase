@@ -19,8 +19,8 @@ class CopyModeForwardingMixin:
         if not isinstance(app, AceApp):
             return
 
-        # If % is pressed, start copy mode
-        if event.key == "percent_sign":
+        # If copy-mode prefix is pressed, start copy mode
+        if event.key == app._keymap_registry.copy_mode.prefix:
             app.action_start_copy_mode()
             event.prevent_default()
             event.stop()

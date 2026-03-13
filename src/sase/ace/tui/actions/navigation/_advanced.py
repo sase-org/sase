@@ -22,14 +22,15 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             return False
 
         self._fold_mode_active = False
+        fold_keys = self._keymap_registry.fold_mode.keys
 
-        if key == "c":
+        if key == fold_keys["cycle_commits"]:
             self.commits_collapsed = cycle_forward(self.commits_collapsed)
-        elif key == "h":
+        elif key == fold_keys["cycle_hooks"]:
             self.hooks_collapsed = cycle_forward(self.hooks_collapsed)
-        elif key == "m":
+        elif key == fold_keys["cycle_mentors"]:
             self.mentors_collapsed = cycle_forward(self.mentors_collapsed)
-        elif key == "z":
+        elif key == fold_keys["cycle_all"]:
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
             if self.commits_collapsed == self.hooks_collapsed == self.mentors_collapsed:
                 new_state = cycle_forward(self.commits_collapsed)

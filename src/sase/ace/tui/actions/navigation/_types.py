@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ....query_history import QueryHistoryStacks
     from ...bgcmd import BackgroundCommandInfo
     from ...changespec_history import ChangeSpecHistoryStacks
+    from ...keymaps import KeymapRegistry
     from ...models import Agent
     from ...models.fold_state import FoldLevel
 
@@ -34,6 +35,7 @@ class NavigationMixinBase:
     _fold_mode_active: bool
     _changespecs_last_idx: int
     _agents_last_idx: int
+    _keymap_registry: KeymapRegistry
     _axe_pinned_to_bottom: bool
     _axe_last_idx: int
     _ancestor_mode_active: bool

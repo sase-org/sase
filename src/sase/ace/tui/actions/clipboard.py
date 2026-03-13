@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
+    from ..keymaps import KeymapRegistry
     from ..models import Agent
 
 from sase.workspace_provider import get_change_label
@@ -30,6 +31,7 @@ class ClipboardMixin:
     _agents: list[Agent]
     _axe_current_view: AxeViewType
     _axe_output: str
+    _keymap_registry: KeymapRegistry
 
     def action_copy_tab_content(self) -> None:
         """Copy tab-specific content to clipboard based on current tab."""
@@ -99,19 +101,22 @@ class ClipboardMixin:
         if not self.changespecs:
             return False
 
-        if key == "percent_sign":  # %%
+        cs_keys = self._keymap_registry.copy_mode.keys["changespecs"]
+        assert isinstance(cs_keys, dict)
+
+        if key == cs_keys["raw"]:
             self._copy_changespec()
-        elif key == "exclamation_mark":  # %!
+        elif key == cs_keys["with_snapshot"]:
             self._copy_changespec_and_snapshot()
-        elif key == "b":  # %b
+        elif key == cs_keys["bug"]:
             self._copy_bug_number()
-        elif key == "c":  # %c
+        elif key == cs_keys["cl_number"]:
             self._copy_cl_number()
-        elif key == "n":  # %n
+        elif key == cs_keys["name"]:
             self._copy_cl_name()
-        elif key == "p":  # %p
+        elif key == cs_keys["spec"]:
             self._copy_project_spec()
-        elif key == "s":  # %s
+        elif key == cs_keys["snapshot"]:
             self._copy_snapshot()
         else:
             self.notify(  # type: ignore[attr-defined]
@@ -129,11 +134,14 @@ class ClipboardMixin:
         Returns:
             True if key was handled, False otherwise.
         """
-        if key == "c":  # %c
+        ag_keys = self._keymap_registry.copy_mode.keys["agents"]
+        assert isinstance(ag_keys, dict)
+
+        if key == ag_keys["chat"]:
             self._copy_chat_path()
-        elif key == "E":  # %E
+        elif key == ag_keys["file_path"]:
             self._copy_file_path()
-        elif key == "s":  # %s
+        elif key == ag_keys["snapshot"]:
             self._copy_snapshot()
         else:
             self.notify("Unknown copy key (agents: c, E, s)", severity="warning")  # type: ignore[attr-defined]
@@ -149,11 +157,14 @@ class ClipboardMixin:
         Returns:
             True if key was handled, False otherwise.
         """
-        if key == "o":  # %o - visible output
+        axe_keys = self._keymap_registry.copy_mode.keys["axe"]
+        assert isinstance(axe_keys, dict)
+
+        if key == axe_keys["visible"]:
             self._copy_axe_output()
-        elif key == "O":  # %O - full output
+        elif key == axe_keys["full"]:
             self._copy_axe_full_output()
-        elif key == "s":  # %s
+        elif key == axe_keys["snapshot"]:
             self._copy_snapshot()
         else:
             self.notify("Unknown copy key (axe: o, O, s)", severity="warning")  # type: ignore[attr-defined]

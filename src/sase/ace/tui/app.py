@@ -380,12 +380,14 @@ class AceApp(
             ace_cfg if isinstance(ace_cfg, dict) else {}
         )
 
-        # Verify registry produces correct binding count (Phase 2 will
-        # replace BINDINGS with build_app_bindings output).
-        _bindings = build_app_bindings(self._keymap_registry.app)
+        # Replace instance bindings with registry-driven bindings.
+        from textual.binding import BindingsMap
+
+        _app_bindings = build_app_bindings(self._keymap_registry.app)
+        self._bindings = BindingsMap(_app_bindings)
         log.debug(
             "Keymap registry loaded: %d bindings, display=%s",
-            len(_bindings),
+            len(_app_bindings),
             key_display_name(self._keymap_registry.app.next_changespec),
         )
 
