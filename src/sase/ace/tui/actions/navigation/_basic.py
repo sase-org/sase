@@ -72,8 +72,12 @@ class BasicNavigationMixin(NavigationMixinBase):
         if agent_detail.is_info_mode():
             return "#agent-prompt-scroll"
         if agent_detail.is_thinking_visible():
-            return "#agent-thinking-scroll"
-        return "#agent-file-scroll"
+            if agent_detail._has_thinking_content:
+                return "#agent-thinking-scroll"
+            return "#agent-prompt-scroll"
+        if agent_detail._has_file_content:
+            return "#agent-file-scroll"
+        return "#agent-prompt-scroll"
 
     def action_scroll_detail_down(self) -> None:
         """Scroll the detail panel down by half a page (vim Ctrl+D style).
