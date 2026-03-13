@@ -10,8 +10,12 @@ All keymaps in the `sase ace` TUI are currently hardcoded across multiple files 
 sub-keys). Users cannot customize them. This plan makes ALL keymaps configurable via `ace.keymaps` in the deep-merge
 config system (`default_config.yml` → plugins → `sase.yml` → overlays).
 
-Key requirement: The `x` and `.` characters in tab titles like `Agents (3x2.5)` correspond to the `kill_agent` and
-`toggle_hide_reverted` keymaps respectively, and must update when those keymaps are reconfigured.
+Key requirements:
+
+- The `x` and `.` characters in tab titles like `Agents (3x2.5)` correspond to the `kill_agent` and
+  `toggle_hide_reverted` keymaps respectively, and must update when those keymaps are reconfigured.
+- Groups like leader, copy mode, fold mode, and bang should be configurable. The user should not only be able to
+  configure the prefix key that triggers the mode but should also be able to add new custom modes.
 
 ## Config Structure
 
@@ -23,40 +27,55 @@ ace:
       prev: "k"
       quit: "q"
       # ... all ~89 bindings
-    fold_mode: # z-prefix sub-keys
-      cycle_commits: "c"
-      cycle_hooks: "h"
-      cycle_mentors: "m"
-      cycle_all: "z"
-    copy_mode: # %-prefix sub-keys (per-tab)
-      changespecs:
-        raw: "percent_sign"
-        with_snapshot: "exclamation_mark"
-        bug: "b"
-        cl_number: "c"
-        name: "n"
-        spec: "p"
-        snapshot: "s"
-      agents:
-        chat: "c"
-        file_path: "E"
-        snapshot: "s"
-      axe:
-        visible: "o"
-        full: "O"
-        snapshot: "s"
-    leader_mode: # comma-prefix sub-keys
-      run_cmd: "exclamation_mark"
-      runners: "r"
-      kill_mentors: "m"
-      agent_home: "h"
-      agent_from_cl: "space"
-    bang_mode: # !-prefix sub-keys
-      run_cmd: "exclamation_mark"
-      toggle_axe: "x"
+    modes: # Prefix-key modes — built-in modes can be reconfigured, new ones can be added
+      fold_mode:
+        prefix: "z" # The key that activates this mode
+        keys: # Sub-keys within the mode
+          cycle_commits: "c"
+          cycle_hooks: "h"
+          cycle_mentors: "m"
+          cycle_all: "z"
+      copy_mode:
+        prefix: "percent_sign"
+        keys: # Per-tab sub-keys
+          changespecs:
+            raw: "percent_sign"
+            with_snapshot: "exclamation_mark"
+            bug: "b"
+            cl_number: "c"
+            name: "n"
+            spec: "p"
+            snapshot: "s"
+          agents:
+            chat: "c"
+            file_path: "E"
+            snapshot: "s"
+          axe:
+            visible: "o"
+            full: "O"
+            snapshot: "s"
+      leader_mode:
+        prefix: "comma"
+        keys:
+          run_cmd: "exclamation_mark"
+          runners: "r"
+          kill_mentors: "m"
+          agent_home: "h"
+          agent_from_cl: "space"
+      bang_mode:
+        prefix: "exclamation_mark"
+        keys:
+          run_cmd: "exclamation_mark"
+          toggle_axe: "x"
+      # Users can add custom modes:
+      # my_mode:
+      #   prefix: "semicolon"
+      #   keys:
+      #     do_thing: "t"
+      #     do_other: "o"
 ```
 
-Users override individual keys via deep-merge:
+Users override individual keys or add custom modes via deep-merge:
 
 ```yaml
 # ~/.config/sase/sase.yml
@@ -64,6 +83,14 @@ ace:
   keymaps:
     app:
       next: "n" # remap j→n, everything else stays default
+    modes:
+      leader_mode:
+        prefix: "space" # change leader prefix from comma to space
+      my_custom_mode: # define an entirely new mode
+        prefix: "semicolon"
+        keys:
+          open_dashboard: "d"
+          run_sync: "s"
 ```
 
 **Excluded from config** (inherently non-configurable):
@@ -84,14 +111,15 @@ populated but not consumed.
 
 1. **Dataclasses** (one per section):
    - `AppKeymaps` — one field per app-level action, default = current hardcoded key
-   - `FoldModeKeymaps` — `cycle_commits`, `cycle_hooks`, `cycle_mentors`, `cycle_all`
-   - `CopyModeChangespecs`, `CopyModeAgents`, `CopyModeAxe` → `CopyModeKeymaps` container
-   - `LeaderModeKeymaps` — `run_cmd`, `runners`, `kill_mentors`, `agent_home`, `agent_from_cl`
-   - `BangModeKeymaps` — `run_cmd`, `toggle_axe`
-   - `KeymapRegistry` — top-level container holding all the above
+   - `ModeKeymaps` — generic container for any prefix-key mode, holding `prefix: str` and `keys: dict[str, str | dict]`
+   - `FoldModeKeymaps`, `CopyModeKeymaps`, `LeaderModeKeymaps`, `BangModeKeymaps` — typed subclasses of `ModeKeymaps`
+     with known fields for built-in modes (for type-safe access in built-in handlers)
+   - `KeymapRegistry` — top-level container holding `app: AppKeymaps` and `modes: dict[str, ModeKeymaps]`
 
-2. **`load_keymap_registry(ace_cfg: dict) -> KeymapRegistry`** — reads `ace_cfg["keymaps"]`, instantiates each dataclass
-   with overrides falling back to field defaults.
+2. **`load_keymap_registry(ace_cfg: dict) -> KeymapRegistry`** — reads `ace_cfg["keymaps"]`, instantiates `AppKeymaps`
+   and iterates over `ace_cfg["keymaps"]["modes"]` to build the modes dict. Known built-in modes are instantiated as
+   their typed subclasses; unknown mode names produce generic `ModeKeymaps` instances. Each mode's `prefix` key is
+   registered as an app-level binding that activates the mode.
 
 3. **`build_app_bindings(app_km: AppKeymaps) -> list[Binding]`** — generates the Textual Binding list from the dataclass
    fields (same action names/descriptions as current, keys from config).
@@ -154,18 +182,28 @@ Ensure `priority=True` is preserved for tab/shift+tab bindings.
 Add `_keymap_registry: KeymapRegistry` type hint to each mixin.
 
 1. **`src/sase/ace/tui/actions/navigation/_advanced.py`** (`_handle_fold_key`):
-   - `key == "c"` → `key == self._keymap_registry.fold_mode.cycle_commits`
+   - `key == "c"` → `key == self._keymap_registry.modes["fold_mode"].keys["cycle_commits"]`
    - Same for `"h"`, `"m"`, `"z"`
 
 2. **`src/sase/ace/tui/actions/clipboard.py`** (`_handle_copy_key` and sub-functions):
-   - All `key == "percent_sign"` etc. → `self._keymap_registry.copy_mode.changespecs.*`
+   - All `key == "percent_sign"` etc. → `self._keymap_registry.modes["copy_mode"].keys["changespecs"]["raw"]`
    - Same for agents and axe sub-handlers
 
 3. **`src/sase/ace/tui/actions/agent_workflow/_entry_points.py`** (`_handle_leader_key`):
-   - All key checks → `self._keymap_registry.leader_mode.*`
+   - All key checks → `self._keymap_registry.modes["leader_mode"].keys[...]`
 
 4. **`src/sase/ace/tui/actions/axe.py`** (`_handle_bang_key`):
-   - All key checks → `self._keymap_registry.bang_mode.*`
+   - All key checks → `self._keymap_registry.modes["bang_mode"].keys[...]`
+
+### Modify mode activation (prefix keys from config):
+
+Replace hardcoded prefix key checks with registry-driven dispatch:
+
+1. **`src/sase/ace/tui/app.py`** (or wherever mode activation lives):
+   - Instead of checking `key == "z"` to enter fold mode, iterate `self._keymap_registry.modes` and match `key` against
+     each mode's `prefix` to determine which mode to activate.
+   - Built-in modes dispatch to their existing handler functions.
+   - Custom (user-defined) modes dispatch to a generic handler (see Phase 5).
 
 ### Verification
 
@@ -288,21 +326,90 @@ just check  # full fmt-check + lint + test
 
 ---
 
+## Phase 5: Custom Mode Support
+
+**Goal**: Allow users to define entirely new prefix-key modes via config, with sub-keys that trigger configurable shell
+commands or built-in actions.
+
+### Modify: `src/sase/ace/tui/keymaps.py`
+
+1. **`CustomModeKeymaps`** — subclass of `ModeKeymaps` for user-defined modes. Each sub-key maps to an action spec:
+   - `shell: "command"` — run a shell command (with `{entry}` placeholder for current entry context)
+   - `action: "action_name"` — trigger an existing Textual action by name
+   - `notify: "message"` — show a notification
+
+2. In `load_keymap_registry`, any mode name not in the built-in set (`fold_mode`, `copy_mode`, `leader_mode`,
+   `bang_mode`) is instantiated as `CustomModeKeymaps`.
+
+### Modify: `src/sase/ace/tui/app.py`
+
+1. **`_handle_custom_mode_key(mode_name: str, key: str)`** — generic handler for custom mode sub-keys:
+   - Look up the action spec from `self._keymap_registry.modes[mode_name].keys[key]`
+   - Dispatch based on action type (shell/action/notify)
+
+2. **Mode activation dispatch** — when a pressed key matches a custom mode's prefix, enter a generic "custom mode" state
+   that routes sub-keys to `_handle_custom_mode_key`.
+
+### Config example:
+
+```yaml
+ace:
+  keymaps:
+    modes:
+      git_mode:
+        prefix: "g"
+        keys:
+          status:
+            action: "shell"
+            command: "git status"
+          diff:
+            action: "shell"
+            command: "git diff {entry}"
+          log:
+            action: "shell"
+            command: "git log --oneline -20"
+```
+
+### Modify: `src/sase/ace/tui/widgets/keybinding_footer.py`
+
+- When a custom mode is activated, display its sub-keys in the footer (same pattern as built-in modes).
+
+### Modify: `src/sase/ace/tui/modals/help_modal/bindings.py`
+
+- Generate help sections for custom modes dynamically from the registry.
+
+### Tests: `tests/test_custom_modes.py`
+
+- Test that custom modes are loaded from config
+- Test prefix key activates custom mode
+- Test sub-key dispatch for shell/action/notify types
+- Test footer displays custom mode keys
+- Test help modal includes custom mode section
+
+### Verification
+
+```bash
+just check
+.venv/bin/sase ace --agent --keys semicolon  # verify custom mode activates (if configured)
+```
+
+---
+
 ## Critical Files Summary
 
-| File                                                       | Phase | Change                                            |
-| ---------------------------------------------------------- | ----- | ------------------------------------------------- |
-| `src/sase/ace/tui/keymaps.py` (new)                        | 1, 4  | Registry dataclasses, loader, helpers, validation |
-| `src/sase/default_config.yml`                              | 1     | Add `ace.keymaps` section                         |
-| `src/sase/ace/tui/app.py`                                  | 1, 2  | Store registry, replace BINDINGS                  |
-| `src/sase/ace/tui/actions/navigation/_advanced.py`         | 2     | Fold mode sub-keys                                |
-| `src/sase/ace/tui/actions/clipboard.py`                    | 2, 3  | Copy mode sub-keys + error msgs                   |
-| `src/sase/ace/tui/actions/agent_workflow/_entry_points.py` | 2     | Leader mode sub-keys                              |
-| `src/sase/ace/tui/actions/axe.py`                          | 2     | Bang mode sub-keys                                |
-| `src/sase/ace/tui/widgets/keybinding_footer.py`            | 3     | Display configured keys                           |
-| `src/sase/ace/tui/modals/help_modal/bindings.py`           | 3     | Convert to functions                              |
-| `src/sase/ace/tui/modals/help_modal/modal.py`              | 3     | Pass registry                                     |
-| `src/sase/ace/tui/widgets/tab_bar.py`                      | 3     | `x` and `.` from config                           |
+| File                                                       | Phase   | Change                                            |
+| ---------------------------------------------------------- | ------- | ------------------------------------------------- |
+| `src/sase/ace/tui/keymaps.py` (new)                        | 1, 4, 5 | Registry dataclasses, loader, helpers, validation |
+| `src/sase/default_config.yml`                              | 1       | Add `ace.keymaps` section                         |
+| `src/sase/ace/tui/app.py`                                  | 1, 2, 5 | Store registry, replace BINDINGS, custom modes    |
+| `src/sase/ace/tui/actions/navigation/_advanced.py`         | 2       | Fold mode sub-keys                                |
+| `src/sase/ace/tui/actions/clipboard.py`                    | 2, 3    | Copy mode sub-keys + error msgs                   |
+| `src/sase/ace/tui/actions/agent_workflow/_entry_points.py` | 2       | Leader mode sub-keys                              |
+| `src/sase/ace/tui/actions/axe.py`                          | 2       | Bang mode sub-keys                                |
+| `src/sase/ace/tui/widgets/keybinding_footer.py`            | 3, 5    | Display configured keys + custom modes            |
+| `src/sase/ace/tui/modals/help_modal/bindings.py`           | 3, 5    | Convert to functions + custom mode sections       |
+| `src/sase/ace/tui/modals/help_modal/modal.py`              | 3       | Pass registry                                     |
+| `src/sase/ace/tui/widgets/tab_bar.py`                      | 3       | `x` and `.` from config                           |
 
 ## Reusable Existing Code
 
