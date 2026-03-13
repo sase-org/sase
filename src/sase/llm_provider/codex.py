@@ -28,7 +28,7 @@ from .types import ModelTier
 
 # Map model tiers to Codex model names
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "o3",
+    "large": "gpt-5.4",
     "small": "o4-mini",
 }
 
