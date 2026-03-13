@@ -287,11 +287,19 @@ class AgentThinkingPanel(Static):
             return
 
         # Source-dependent styling
-        is_gemini = source == "gemini"
-        header_text = "GEMINI THINKING" if is_gemini else "CLAUDE THINKING"
-        header_color = "#4285F4" if is_gemini else "#AF87D7"
+        if source == "gemini":
+            header_text = "GEMINI THINKING"
+            header_color = "#4285F4"
+            content_color = "#B4C7E7"
+        elif source == "codex":
+            header_text = "CODEX THINKING"
+            header_color = "#00D787"
+            content_color = "#AFFFD7"
+        else:
+            header_text = "CLAUDE THINKING"
+            header_color = "#AF87D7"
+            content_color = "#D7D7FF"
         border_color = f"dim {header_color}"
-        content_color = "#B4C7E7" if is_gemini else "#D7D7FF"
 
         # Build refresh indicator if stale and background refreshing
         refresh_indicator = ""

@@ -200,6 +200,7 @@ def main() -> None:
             from sase.llm_provider.registry import (
                 get_default_provider_name,
                 get_provider,
+                resolve_model_provider,
             )
             from sase.vcs_provider._registry import detect_vcs
             from sase.xprompt import process_xprompt_references
@@ -213,8 +214,12 @@ def main() -> None:
             agent_name = directives.name
             agent_wait_names = directives.wait
             agent_model = directives.model
-            agent_llm_provider = get_default_provider_name()
-            if not agent_model:
+            if agent_model:
+                # Resolve provider from the explicit model override
+                resolved_provider, agent_model = resolve_model_provider(agent_model)
+                agent_llm_provider = resolved_provider or get_default_provider_name()
+            else:
+                agent_llm_provider = get_default_provider_name()
                 provider = get_provider()
                 agent_model = provider.resolve_model_name()
 

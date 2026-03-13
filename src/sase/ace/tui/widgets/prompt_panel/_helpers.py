@@ -158,6 +158,8 @@ def append_model_field(
             provider = "claude"
         elif "gemini" in model.lower():
             provider = "gemini"
+        elif model.startswith(("gpt-", "o3", "o4")):
+            provider = "codex"
 
     header_text.append("Model: ", style="bold #87D7FF")
 
@@ -167,6 +169,12 @@ def append_model_field(
         header_text.append("(", style="#D75F00")
         header_text.append(model, style="#FFAF00")
         header_text.append(")\n", style="#D75F00")
+    elif provider == "codex":
+        # OpenAI theme: teal-green for name, lighter green for model
+        header_text.append("CODEX", style="bold #00D787")
+        header_text.append("(", style="#00AF87")
+        header_text.append(model, style="#5FD7AF")
+        header_text.append(")\n", style="#00AF87")
     elif provider == "gemini":
         # Google theme: Google blue for name, lighter blue for model
         header_text.append("GEMINI", style="bold #4285F4")
