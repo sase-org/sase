@@ -29,7 +29,7 @@ infrastructure that turns individual agent runs into a managed software engineer
 ## Key Features
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
-- **AXE** — Lumberjack-based daemon for continuous automation via configurable chop scripts
+- **AXE** — Jack-based daemon for continuous automation via configurable chop scripts
 - **XPrompt** — Typed prompt templates with reference expansion and YAML front matter
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
@@ -83,25 +83,25 @@ sase
 
 ## CLI Commands
 
-| Command               | Description                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| `sase ace`            | Interactive TUI for navigating and managing ChangeSpecs      |
-| `sase axe start`      | Start the lumberjack-based daemon (orchestrator mode)        |
-| `sase axe stop`       | Stop the running axe orchestrator                            |
-| `sase axe chop`       | List or run individual chop scripts                          |
-| `sase axe lumberjack` | List, run, or check status of lumberjacks                    |
-| `sase search`         | Search and filter ChangeSpecs with query expressions         |
-| `sase run`            | Execute workflows or run a query directly                    |
-| `sase xprompt`        | Expand prompt templates with sase references                 |
-| `sase commit`         | Create a commit with formatted CL description and metadata   |
-| `sase amend`          | Amend a commit with COMMITS tracking                         |
-| `sase revert`         | Revert a ChangeSpec by pruning its CL and archiving its diff |
-| `sase restore`        | Restore a reverted ChangeSpec by re-applying its diff        |
-| `sase init-git`       | Initialize a new bare-repo-backed git project                |
-| `sase path`           | Print well-known sase paths (for editor integration)         |
-| `sase notify`         | Create a notification (reads JSON from stdin or uses flags)  |
-| `sase user-question`  | Handle user question from Claude Code hook                   |
-| `sase plan-approve`   | Handle plan approval from Claude Code hook                   |
+| Command              | Description                                                  |
+| -------------------- | ------------------------------------------------------------ |
+| `sase ace`           | Interactive TUI for navigating and managing ChangeSpecs      |
+| `sase axe start`     | Start the jack-based daemon (orchestrator mode)              |
+| `sase axe stop`      | Stop the running axe orchestrator                            |
+| `sase axe chop`      | List or run individual chop scripts                          |
+| `sase axe jack`      | List, run, or check status of jacks                          |
+| `sase search`        | Search and filter ChangeSpecs with query expressions         |
+| `sase run`           | Execute workflows or run a query directly                    |
+| `sase xprompt`       | Expand prompt templates with sase references                 |
+| `sase commit`        | Create a commit with formatted CL description and metadata   |
+| `sase amend`         | Amend a commit with COMMITS tracking                         |
+| `sase revert`        | Revert a ChangeSpec by pruning its CL and archiving its diff |
+| `sase restore`       | Restore a reverted ChangeSpec by re-applying its diff        |
+| `sase init-git`      | Initialize a new bare-repo-backed git project                |
+| `sase path`          | Print well-known sase paths (for editor integration)         |
+| `sase notify`        | Create a notification (reads JSON from stdin or uses flags)  |
+| `sase user-question` | Handle user question from Claude Code hook                   |
+| `sase plan-approve`  | Handle plan approval from Claude Code hook                   |
 
 ## Core Concepts
 
@@ -144,15 +144,15 @@ src/sase/
 │   ├── comments/          # Comment management
 │   ├── scheduler/         # Task scheduling within ACE
 │   └── workflows/         # ACE-specific workflow integrations
-├── axe/                   # Lumberjack-based daemon (orchestrator, chops, runner pool)
-│   ├── orchestrator.py    # Multi-lumberjack supervisor
-│   ├── lumberjack.py      # Single-lumberjack scheduler loop
+├── axe/                   # Jack-based daemon (orchestrator, chops, runner pool)
+│   ├── orchestrator.py    # Multi-jack supervisor
+│   ├── jack.py      # Single-jack scheduler loop
 │   ├── chop_script_runner.py # External chop script discovery and execution
 │   ├── chops/             # Built-in chop scripts
-│   ├── config.py          # Lumberjack and chop configuration
+│   ├── config.py          # Jack and chop configuration
 │   ├── runner_pool.py     # Shared concurrent runner pool
 │   ├── hook_jobs.py       # 1-second interval hook/mentor/workflow jobs
-│   ├── state.py           # Lumberjack state persistence
+│   ├── state.py           # Jack state persistence
 │   ├── process.py         # Process management utilities
 │   └── cli.py             # Axe CLI argument parsing
 ├── xprompt/               # Prompt templates and workflow execution

@@ -4,14 +4,14 @@
 
 Axe is the background automation subsystem of sase. It monitors ChangeSpecs and automatically executes lifecycle jobs
 (hooks, mentors, workflows) on fixed intervals. Axe uses a multi-process architecture: an **Orchestrator** spawns
-multiple **Lumberjacks**, each running a subset of jobs on independent schedules.
+multiple **Jacks**, each running a subset of jobs on independent schedules.
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────┐
 │              Orchestrator                    │
-│  (spawns & monitors all lumberjacks)         │
+│  (spawns & monitors all jacks)         │
 ├──────────┬──────────┬────────────┬───────────┤
 │  hooks   │  checks  │  comments  │ housekeep │
 │  (1s)    │  (5min)  │  (1min)    │ (1hr)     │
@@ -28,27 +28,27 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 
 ### Key Concepts
 
-- **Orchestrator**: Parent process that spawns and monitors all lumberjack processes. Detects crashes and restarts
-  failed lumberjacks automatically. Forwards SIGTERM to all children on shutdown.
+- **Orchestrator**: Parent process that spawns and monitors all jack processes. Detects crashes and restarts failed
+  jacks automatically. Forwards SIGTERM to all children on shutdown.
 
-- **Lumberjack**: Individual scheduler loop that runs a subset of jobs on a fixed interval. Each lumberjack has a name
-  (e.g., "hooks", "checks"), runs one or more chops per cycle, and maintains independent state and metrics.
+- **Jack**: Individual scheduler loop that runs a subset of jobs on a fixed interval. Each jack has a name (e.g.,
+  "hooks", "checks"), runs one or more chops per cycle, and maintains independent state and metrics.
 
-- **Chop**: A single job unit executed by a lumberjack. Can be a script (external executable that reads context JSON) or
-  an agent (background process launched via agent_launcher). Chops can be configured with custom environment variables
-  and run frequency.
+- **Chop**: A single job unit executed by a jack. Can be a script (external executable that reads context JSON) or an
+  agent (background process launched via agent_launcher). Chops can be configured with custom environment variables and
+  run frequency.
 
 ## CLI Commands
 
-| Command                       | Description                                     |
-| ----------------------------- | ----------------------------------------------- |
-| `sase axe start`              | Start the orchestrator (spawns all lumberjacks) |
-| `sase axe stop`               | Stop the orchestrator gracefully                |
-| `sase axe chop list`          | List all available chops                        |
-| `sase axe chop run <name>`    | Run a single chop in foreground (one-shot)      |
-| `sase axe lumberjack list`    | List configured lumberjacks and their chops     |
-| `sase axe lumberjack run <n>` | Run a single lumberjack in foreground           |
-| `sase axe lumberjack status`  | Show status of all lumberjacks                  |
+| Command                    | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `sase axe start`           | Start the orchestrator (spawns all jacks)  |
+| `sase axe stop`            | Stop the orchestrator gracefully           |
+| `sase axe chop list`       | List all available chops                   |
+| `sase axe chop run <name>` | Run a single chop in foreground (one-shot) |
+| `sase axe jack list`       | List configured jacks and their chops      |
+| `sase axe jack run <n>`    | Run a single jack in foreground            |
+| `sase axe jack status`     | Show status of all jacks                   |
 
 ### Examples
 
@@ -57,20 +57,20 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 sase axe start
 sase axe stop
 
-# Inspect lumberjacks
-sase axe lumberjack list
-sase axe lumberjack status
+# Inspect jacks
+sase axe jack list
+sase axe jack status
 
-# Run a single lumberjack for debugging
-sase axe lumberjack run hooks
+# Run a single jack for debugging
+sase axe jack run hooks
 
 # Run a single chop once
 sase axe chop run hook_checks
 ```
 
-## Default Lumberjacks
+## Default Jacks
 
-Axe ships with four default lumberjacks:
+Axe ships with four default jacks:
 
 ### hooks (1-second interval)
 
@@ -128,12 +128,12 @@ configuration reference.
 | `query`                  | `""`    | Optional query filter for all changespecs |
 | `chop_script_dirs`       | `[]`    | Directories to search for chop scripts    |
 
-### Lumberjack Configuration
+### Jack Configuration
 
 ```yaml
 axe:
-  lumberjacks:
-    my_lumberjack:
+  jacks:
+    my_jack:
       interval: 60 # Seconds between cycles
       chops:
         - name: my_chop
@@ -147,7 +147,7 @@ axe:
 ## Concurrency Management
 
 Axe uses a cross-process runner pool to enforce global concurrency limits. The `SharedRunnerPool` uses `fcntl.flock` on
-a shared file (`~/.sase/axe/shared/runner_count`) to coordinate runner slots across all lumberjack processes atomically.
+a shared file (`~/.sase/axe/shared/runner_count`) to coordinate runner slots across all jack processes atomically.
 
 Hook runners and agent runners have separate limits (`max_hook_runners` and `max_agent_runners`), allowing fine-grained
 control over background resource usage.
@@ -159,14 +159,14 @@ control over background resource usage.
 ├── orchestrator.pid                # Orchestrator PID
 ├── logs/
 │   ├── axe.log                     # Orchestrator startup log
-│   └── lumberjack-{name}.log       # Per-lumberjack logs
-├── lumberjacks/
-│   └── {name}/                     # Per-lumberjack state
-│       ├── pid                     # Lumberjack PID
+│   └── jack-{name}.log       # Per-jack logs
+├── jacks/
+│   └── {name}/                     # Per-jack state
+│       ├── pid                     # Jack PID
 │       ├── status.json             # Current status (updated every 5s)
 │       ├── metrics.json            # Cumulative metrics (updated every 30s)
 │       └── logs/
-│           └── output.log          # Lumberjack output log
+│           └── output.log          # Jack output log
 ├── shared/
 │   └── runner_count                # Cross-process runner counter
 └── recent_errors.json              # Last 100 errors encountered
@@ -175,8 +175,8 @@ control over background resource usage.
 ## Process Lifecycle
 
 1. `sase axe start` spawns the orchestrator as a detached background process
-2. The orchestrator spawns all configured lumberjacks as child processes
-3. Each lumberjack runs its chops on its configured interval
+2. The orchestrator spawns all configured jacks as child processes
+3. Each jack runs its chops on its configured interval
 4. The orchestrator monitors children and restarts any that exit unexpectedly
 5. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children
 6. If children don't exit within 10 seconds, SIGKILL is sent
@@ -185,8 +185,8 @@ control over background resource usage.
 
 The Axe tab in the ACE TUI provides live monitoring of the daemon:
 
-- View lumberjack status, uptime, and error counts
-- Read lumberjack output logs
+- View jack status, uptime, and error counts
+- Read jack output logs
 - Start/stop the orchestrator (`X` key or `!x`)
 - See current runner counts
 

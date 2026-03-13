@@ -3,12 +3,12 @@ bead_id: sase-bta
 status: done
 ---
 
-# Axe Lumberjack/Chops v2: Executable Scripts + Default Config
+# Axe Jack/Chops v2: Executable Scripts + Default Config
 
 ## Context
 
-The `sase axe` lumberjack/chops system currently uses Python functions decorated with `@register_chop` to define chops,
-with hardcoded default lumberjack configuration in `src/sase/axe/config.py`. This refactoring:
+The `sase axe` jack/chops system currently uses Python functions decorated with `@register_chop` to define chops, with
+hardcoded default jack configuration in `src/sase/axe/config.py`. This refactoring:
 
 1. **Converts chops to executable scripts** - Each chop becomes a subprocess-invoked script that can be defined anywhere
 2. **Creates `default_config.yml`** - ALL hardcoded defaults move to a single YAML file, merged as the base layer before
@@ -31,7 +31,7 @@ axe:
   max_runners: 5
   zombie_timeout_seconds: 7200
   query: ""
-  lumberjacks:
+  jacks:
     hooks:
       interval: 1
       chops:
@@ -74,7 +74,7 @@ vcs_provider:
 
 ### Modify `src/sase/axe/config.py`
 
-- Remove `_DEFAULT_LUMBERJACKS` dict and `_default_lumberjacks()` function
+- Remove `_DEFAULT_JACKS` dict and `_default_jacks()` function
 - Simplify `load_axe_config()` — defaults are now guaranteed by the base config layer, so the fallback logic simplifies.
   Keep inline `.get("key", default)` as safety nets.
 
@@ -82,29 +82,29 @@ vcs_provider:
 
 - `tests/test_config.py` — add tests for `load_default_config()`, 3-layer merge chain, list replace vs concatenate
   semantics
-- `tests/test_axe_lumberjack_config.py` — remove refs to `_default_lumberjacks`, update fallback tests
+- `tests/test_axe_jack_config.py` — remove refs to `_default_jacks`, update fallback tests
 
 ### Verification
 
 ```bash
-just test -k "test_config or test_axe_lumberjack_config"
+just test -k "test_config or test_axe_jack_config"
 just lint
-.venv/bin/sase axe lumberjack list   # still shows 4 lumberjacks
+.venv/bin/sase axe jack list   # still shows 4 jacks
 ```
 
 ---
 
 ## Phase 2: Chop Script Execution Infrastructure
 
-**Goal**: Build the subprocess-based chop runner. Define how scripts receive context. No changes to the lumberjack
-execution path yet (that's Phase 3).
+**Goal**: Build the subprocess-based chop runner. Define how scripts receive context. No changes to the jack execution
+path yet (that's Phase 3).
 
 ### Create `src/sase/axe/chop_script_context.py`
 
 Defines the serializable context format:
 
-- `ChopScriptContext` dataclass with fields: `max_runners`, `zombie_timeout_seconds`, `query`, `lumberjack_name`,
-  `state_dir`, `all_changespecs_file`, `filtered_changespecs_file`
+- `ChopScriptContext` dataclass with fields: `max_runners`, `zombie_timeout_seconds`, `query`, `jack_name`, `state_dir`,
+  `all_changespecs_file`, `filtered_changespecs_file`
 - `write_chop_context(ctx, path)` — serialize context to JSON file
 - `read_chop_context(path)` — deserialize from JSON
 - `serialize_changespecs(changespecs, path)` — serialize `list[ChangeSpec]` to JSON via `dataclasses.asdict()`
@@ -144,10 +144,10 @@ just lint
 
 ---
 
-## Phase 3: Convert 12 Chops to Scripts + Wire Into Lumberjack
+## Phase 3: Convert 12 Chops to Scripts + Wire Into Jack
 
-**Goal**: Create 12 chop scripts, modify the lumberjack to invoke them as subprocesses, remove old chop registry and
-chops package.
+**Goal**: Create 12 chop scripts, modify the jack to invoke them as subprocesses, remove old chop registry and chops
+package.
 
 ### Create 12 Python scripts in `src/sase/scripts/`
 
@@ -185,7 +185,7 @@ Scripts to create (naming: `sase_chop_<name>`):
 - `src/sase/scripts/__init__.py` — add 12 wrapper functions (use `from sase.scripts.sase_chop_X import main; main()`
   pattern, not `_exec_script` since these are Python modules)
 
-### Modify `src/sase/axe/lumberjack.py`
+### Modify `src/sase/axe/jack.py`
 
 Rewrite `_run_tick()`:
 
@@ -208,7 +208,7 @@ Rewrite `_run_tick()`:
 
 ### Update tests
 
-- `tests/test_axe_lumberjack.py` — mock `discover_chop_script` + `run_chop_script` instead of `get_chop`
+- `tests/test_axe_jack.py` — mock `discover_chop_script` + `run_chop_script` instead of `get_chop`
 - `tests/test_axe_chop_registry.py` — delete (replaced by Phase 2's script runner tests)
 - `tests/test_axe_cli.py` — update for new script-based chop list/run
 
@@ -220,7 +220,7 @@ just test
 just lint
 .venv/bin/sase axe chop list
 .venv/bin/sase axe chop run hook_checks
-timeout 5 .venv/bin/sase axe lumberjack run hooks || true
+timeout 5 .venv/bin/sase axe jack run hooks || true
 ```
 
 ---
@@ -249,7 +249,7 @@ BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260225 src/sase \
 ### Final cleanup
 
 - Remove any remaining dead imports from deleted chop modules
-- Update `config/sase.schema.json` to document `lumberjacks` and `chop_script_dirs`
+- Update `config/sase.schema.json` to document `jacks` and `chop_script_dirs`
 - Verify no remaining references to `chop_registry` functions (grep for `register_chop`, `get_chop`, `list_chops`,
   `_CHOPS`)
 
@@ -259,7 +259,7 @@ BD_COMMAND=tools/sase_bd {{ venv_bin }}/python tools/pyvision-260225 src/sase \
 just all              # fmt + lint + pylimit + pyvision + test
 just check            # fmt-check + lint + test
 .venv/bin/sase axe chop list
-.venv/bin/sase axe lumberjack list
+.venv/bin/sase axe jack list
 ```
 
 ---
@@ -269,8 +269,8 @@ just check            # fmt-check + lint + test
 1. **List merge semantics**: `_deep_merge` gets a `list_strategy` param. Default→user merges use `"replace"` (user's
    chop lists replace defaults). Overlay merges keep `"concatenate"` (overlay metahooks append to base).
 
-2. **Context passing**: Lumberjack writes a JSON context file to `state_dir/tick/context.json` with changespecs in
-   separate files. Scripts receive `--context <path>` arg.
+2. **Context passing**: Jack writes a JSON context file to `state_dir/tick/context.json` with changespecs in separate
+   files. Scripts receive `--context <path>` arg.
 
 3. **Script discovery**: Search configured `chop_script_dirs` first, then `shutil.which("sase_chop_<name>")` for
    PATH-installed scripts.
@@ -278,8 +278,8 @@ just check            # fmt-check + lint + test
 4. **`default_config.yml` location**: Lives at `src/sase/default_config.yml` (inside the package, accessible via
    `importlib.resources`). It's inside the source tree so it's automatically included in the wheel.
 
-5. **Non-serializable context**: Scripts construct their own `RunnerPool`, `AxeMetrics`, and log callback. Lumberjack
-   tracks metrics externally via exit codes.
+5. **Non-serializable context**: Scripts construct their own `RunnerPool`, `AxeMetrics`, and log callback. Jack tracks
+   metrics externally via exit codes.
 
 ## Phase Dependencies
 

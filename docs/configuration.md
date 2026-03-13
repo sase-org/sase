@@ -122,8 +122,8 @@ Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
 ### axe
 
-Configures the `sase axe` lumberjack-based daemon. The axe architecture uses an orchestrator that spawns multiple
-lumberjacks, each running a set of chops on a fixed interval. Defaults are provided by `src/sase/default_config.yml`.
+Configures the `sase axe` jack-based daemon. The axe architecture uses an orchestrator that spawns multiple jacks, each
+running a set of chops on a fixed interval. Defaults are provided by `src/sase/default_config.yml`.
 
 ```yaml
 axe:
@@ -132,7 +132,7 @@ axe:
   zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
   query: "" # query filter for ChangeSpecs (default: all)
   chop_script_dirs: [] # additional directories to search for chop scripts
-  lumberjacks:
+  jacks:
     hooks:
       interval: 1
       chops:
@@ -180,9 +180,9 @@ axe:
 | `zombie_timeout_seconds` | int          | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.        |
 | `query`                  | string       | `""`    | Query string for filtering ChangeSpecs (empty = all).                         |
 | `chop_script_dirs`       | list[string] | `[]`    | Additional directories to search for external chop scripts.                   |
-| `lumberjacks`            | dict         | -       | Mapping of lumberjack name → config (see below).                              |
+| `jacks`                  | dict         | -       | Mapping of jack name → config (see below).                                    |
 
-**Lumberjack fields** (per entry under `lumberjacks`):
+**Jack fields** (per entry under `jacks`):
 
 | Field      | Type                 | Default | Description                                     |
 | ---------- | -------------------- | ------- | ----------------------------------------------- |
@@ -196,7 +196,7 @@ axe:
 | `name`        | string       | yes      | -       | Chop name identifying the chop script to run.                                     |
 | `description` | string       | yes      | -       | Human-readable description of what the chop does.                                 |
 | `agent`       | string       | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key). |
-| `run_every`   | int          | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 lumberjack cycles).      |
+| `run_every`   | int          | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 jack cycles).            |
 | `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.                       |
 
 Each chop entry can also be a plain string (chop name only, legacy format):

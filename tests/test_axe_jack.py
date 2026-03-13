@@ -1,4 +1,4 @@
-"""Tests for the Lumberjack class."""
+"""Tests for the Jack class."""
 
 import os
 import subprocess
@@ -8,26 +8,26 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.lumberjack import Lumberjack
+from sase.axe.config import AxeConfig, ChopConfig, JackConfig
+from sase.axe.jack import Jack
 
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
-    """Patch AXE_STATE_DIR and LUMBERJACK_STATE_DIR to use a temp directory."""
+    """Patch AXE_STATE_DIR and JACK_STATE_DIR to use a temp directory."""
     state_dir = tmp_path / ".sase" / "axe"
-    lj_dir = state_dir / "lumberjacks"
+    jack_dir = state_dir / "jacks"
     with (
         patch("sase.axe.state.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.state.LUMBERJACK_STATE_DIR", lj_dir),
+        patch("sase.axe.state.JACK_STATE_DIR", jack_dir),
     ):
         yield state_dir
 
 
 @pytest.fixture
-def lj_config() -> LumberjackConfig:
-    return LumberjackConfig(
-        name="test_lj",
+def jack_config() -> JackConfig:
+    return JackConfig(
+        name="test_jack",
         interval=10,
         chops=[ChopConfig(name="hook_checks", description="")],
     )
@@ -57,20 +57,18 @@ def _fail_result(
 # --- Instantiation Tests ---
 
 
-def test_lumberjack_with_query(
-    temp_state_dir: Path, lj_config: LumberjackConfig
-) -> None:
-    """Test that Lumberjack parses query from config."""
+def test_jack_with_query(temp_state_dir: Path, jack_config: JackConfig) -> None:
+    """Test that Jack parses query from config."""
     config = AxeConfig(query='"test"')
-    lj = Lumberjack("test_lj", lj_config, config)
-    assert lj.parsed_query is not None
+    jack = Jack("test_jack", jack_config, config)
+    assert jack.parsed_query is not None
 
 
 # --- Tick Execution Tests ---
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.jack.run_chop_script")
+@patch("sase.axe.jack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_multiple_chops(
     mock_find: MagicMock,
@@ -80,7 +78,7 @@ def test_run_tick_multiple_chops(
     axe_config: AxeConfig,
 ) -> None:
     """Test that _run_tick invokes multiple chop scripts."""
-    multi_config = LumberjackConfig(
+    multi_config = JackConfig(
         name="multi",
         interval=5,
         chops=[
@@ -91,57 +89,57 @@ def test_run_tick_multiple_chops(
     mock_discover.return_value = Path("/fake/script")
     mock_run.return_value = _ok_result()
 
-    lj = Lumberjack("multi", multi_config, axe_config)
-    lj._run_tick()
+    jack = Jack("multi", multi_config, axe_config)
+    jack._run_tick()
 
     assert mock_discover.call_count == 2
-    assert lj._metrics.chops_executed == 2
+    assert jack._metrics.chops_executed == 2
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.jack.run_chop_script")
+@patch("sase.axe.jack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_error_handling(
     mock_find: MagicMock,
     mock_discover: MagicMock,
     mock_run: MagicMock,
     temp_state_dir: Path,
-    lj_config: LumberjackConfig,
+    jack_config: JackConfig,
     axe_config: AxeConfig,
 ) -> None:
     """Test that chop script failures are caught and recorded."""
     mock_discover.return_value = Path("/fake/script")
     mock_run.return_value = _fail_result()
 
-    lj = Lumberjack("test_lj", lj_config, axe_config)
-    lj._run_tick()
+    jack = Jack("test_jack", jack_config, axe_config)
+    jack._run_tick()
 
-    assert lj._metrics.errors_encountered == 1
-    assert lj._metrics.cycles_run == 1
+    assert jack._metrics.errors_encountered == 1
+    assert jack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.jack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_tick_missing_script(
     mock_find: MagicMock,
     mock_discover: MagicMock,
     temp_state_dir: Path,
-    lj_config: LumberjackConfig,
+    jack_config: JackConfig,
     axe_config: AxeConfig,
 ) -> None:
     """Test that missing chop scripts are recorded as errors."""
     mock_discover.return_value = None
 
-    lj = Lumberjack("test_lj", lj_config, axe_config)
-    lj._run_tick()
+    jack = Jack("test_jack", jack_config, axe_config)
+    jack._run_tick()
 
-    assert lj._metrics.errors_encountered == 1
-    assert lj._metrics.chops_executed == 0
-    assert lj._metrics.cycles_run == 1
+    assert jack._metrics.errors_encountered == 1
+    assert jack._metrics.chops_executed == 0
+    assert jack._metrics.cycles_run == 1
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.jack.run_chop_script")
+@patch("sase.axe.jack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_run_every_skips_non_matching_cycles(
     mock_find: MagicMock,
@@ -151,7 +149,7 @@ def test_run_every_skips_non_matching_cycles(
     axe_config: AxeConfig,
 ) -> None:
     """Test that chops with run_every > 1 are skipped on non-matching cycles."""
-    config = LumberjackConfig(
+    config = JackConfig(
         name="throttled",
         interval=10,
         chops=[ChopConfig(name="slow_chop", description="", run_every=3)],
@@ -159,27 +157,27 @@ def test_run_every_skips_non_matching_cycles(
     mock_discover.return_value = Path("/fake/script")
     mock_run.return_value = _ok_result()
 
-    lj = Lumberjack("throttled", config, axe_config)
+    jack = Jack("throttled", config, axe_config)
 
     # Tick 0: cycles_run=0, 0%3==0 → runs
-    lj._run_tick()
+    jack._run_tick()
     assert mock_run.call_count == 1
 
     # Tick 1: cycles_run=1, 1%3!=0 → skipped
-    lj._run_tick()
+    jack._run_tick()
     assert mock_run.call_count == 1
 
     # Tick 2: cycles_run=2, 2%3!=0 → skipped
-    lj._run_tick()
+    jack._run_tick()
     assert mock_run.call_count == 1
 
     # Tick 3: cycles_run=3, 3%3==0 → runs
-    lj._run_tick()
+    jack._run_tick()
     assert mock_run.call_count == 2
 
 
-@patch("sase.axe.lumberjack.run_chop_script")
-@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.jack.run_chop_script")
+@patch("sase.axe.jack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
 def test_all_chops_run_on_first_tick(
     mock_find: MagicMock,
@@ -189,7 +187,7 @@ def test_all_chops_run_on_first_tick(
     axe_config: AxeConfig,
 ) -> None:
     """Test that all chops run on the first tick regardless of run_every."""
-    config = LumberjackConfig(
+    config = JackConfig(
         name="first_tick",
         interval=10,
         chops=[
@@ -201,8 +199,8 @@ def test_all_chops_run_on_first_tick(
     mock_discover.return_value = Path("/fake/script")
     mock_run.return_value = _ok_result()
 
-    lj = Lumberjack("first_tick", config, axe_config)
-    lj._run_tick()
+    jack = Jack("first_tick", config, axe_config)
+    jack._run_tick()
 
     assert mock_run.call_count == 3
 
@@ -211,34 +209,34 @@ def test_all_chops_run_on_first_tick(
 
 
 def test_update_status_writes_file(
-    temp_state_dir: Path, lj_config: LumberjackConfig, axe_config: AxeConfig
+    temp_state_dir: Path, jack_config: JackConfig, axe_config: AxeConfig
 ) -> None:
     """Test that _update_status writes a status file."""
-    lj = Lumberjack("test_lj", lj_config, axe_config)
-    lj._update_status()
+    jack = Jack("test_jack", jack_config, axe_config)
+    jack._update_status()
 
-    from sase.axe.state import read_lumberjack_status
+    from sase.axe.state import read_jack_status
 
-    status = read_lumberjack_status("test_lj")
+    status = read_jack_status("test_jack")
     assert status is not None
-    assert status.name == "test_lj"
+    assert status.name == "test_jack"
     assert status.pid == os.getpid()
     assert status.status == "running"
     assert status.interval == 10
 
 
 def test_update_metrics_writes_file(
-    temp_state_dir: Path, lj_config: LumberjackConfig, axe_config: AxeConfig
+    temp_state_dir: Path, jack_config: JackConfig, axe_config: AxeConfig
 ) -> None:
     """Test that _update_metrics writes a metrics file."""
-    lj = Lumberjack("test_lj", lj_config, axe_config)
-    lj._metrics.cycles_run = 5
-    lj._metrics.chops_executed = 15
-    lj._update_metrics()
+    jack = Jack("test_jack", jack_config, axe_config)
+    jack._metrics.cycles_run = 5
+    jack._metrics.chops_executed = 15
+    jack._update_metrics()
 
-    from sase.axe.state import read_lumberjack_metrics
+    from sase.axe.state import read_jack_metrics
 
-    metrics = read_lumberjack_metrics("test_lj")
+    metrics = read_jack_metrics("test_jack")
     assert metrics is not None
     assert metrics.cycles_run == 5
     assert metrics.chops_executed == 15
@@ -248,10 +246,10 @@ def test_update_metrics_writes_file(
 
 
 def test_handle_shutdown_sets_running_false(
-    temp_state_dir: Path, lj_config: LumberjackConfig, axe_config: AxeConfig
+    temp_state_dir: Path, jack_config: JackConfig, axe_config: AxeConfig
 ) -> None:
     """Test that SIGTERM handler sets _running to False."""
-    lj = Lumberjack("test_lj", lj_config, axe_config)
-    assert lj._running is True
-    lj._handle_shutdown(15, None)
-    assert lj._running is False
+    jack = Jack("test_jack", jack_config, axe_config)
+    assert jack._running is True
+    jack._handle_shutdown(15, None)
+    assert jack._running is False

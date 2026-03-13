@@ -1,15 +1,15 @@
 # SMS Integration for Sase: Twilio and Alternatives
 
 Research into adding SMS (text messaging) capabilities to sase, enabling bidirectional text communication between the
-user and sase agents via the heartbeats lumberjack.
+user and sase agents via the heartbeats jack.
 
 ## How It Would Work in Sase
 
-### The Heartbeats Lumberjack
+### The Heartbeats Jack
 
-The `sase_athena.yml` config defines a `heartbeats` lumberjack with a 60-second interval. It currently runs the
+The `sase_athena.yml` config defines a `heartbeats` jack with a 60-second interval. It currently runs the
 `pylimit_split` xprompt chop every 60 seconds. Adding SMS support would mean adding a new chop (or set of chops) to this
-lumberjack that:
+jack that:
 
 1. **Outbound (sase → phone)**: Polls the sase notification store (`~/.sase/notifications/notifications.jsonl`) for
    unread notifications and forwards them as SMS messages to the user's phone.
@@ -26,14 +26,14 @@ Sase already has the infrastructure needed:
   `--context` and run periodically.
 - **HITL (Human-in-the-Loop)** actions: The notification model already supports `action="HITL"` with `action_data` for
   response routing. SMS replies could feed back into this system.
-- **Runner pool**: Cross-process coordination already prevents resource contention between lumberjack chops.
+- **Runner pool**: Cross-process coordination already prevents resource contention between jack chops.
 
 ### Proposed Architecture
 
 ```
 ┌──────────────────────┐         ┌─────────────────┐
 │  heartbeats          │         │  SMS Provider    │
-│  lumberjack (60s)    │         │  (Twilio, etc.)  │
+│  jack (60s)    │         │  (Twilio, etc.)  │
 │                      │         │                  │
 │  ┌────────────────┐  │  send   │                  │
 │  │ sms_outbound   │──┼────────>│  ──> user phone  │
@@ -306,7 +306,7 @@ prevent runaway costs from a bug?
 - Provider abstraction: `sase/sms/provider.py` + `sase/sms/twilio_provider.py`
 - Config additions: `sms:` section in sase config schema
 - Filter logic: which notifications get texted
-- Add chop to heartbeats lumberjack config
+- Add chop to heartbeats jack config
 
 ### Phase 2: Inbound SMS polling (~2-4 hours)
 

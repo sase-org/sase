@@ -65,7 +65,7 @@ def notify_axe_error_digest(
         lines.append(f"{'=' * 60}")
         lines.append(f"Error {i}/{len(errors)}")
         lines.append(f"  Time:       {err.get('timestamp', 'unknown')}")
-        lines.append(f"  Lumberjack: {err.get('lumberjack', 'unknown')}")
+        lines.append(f"  Jack: {err.get('jack', 'unknown')}")
         lines.append(f"  Job:        {err.get('job', 'unknown')}")
         lines.append(f"  Error:      {err.get('error', 'unknown')}")
         tb = err.get("traceback", "")

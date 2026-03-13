@@ -27,8 +27,8 @@ class TestChopScriptContextRoundTrip:
             max_agent_runners=3,
             zombie_timeout_seconds=600,
             query="status:Ready",
-            lumberjack_name="hooks",
-            state_dir="/tmp/axe/lumberjacks/hooks",
+            jack_name="hooks",
+            state_dir="/tmp/axe/jacks/hooks",
             all_changespecs_file="/tmp/all.json",
             filtered_changespecs_file="/tmp/filtered.json",
         )

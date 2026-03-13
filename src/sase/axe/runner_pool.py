@@ -5,7 +5,7 @@ This module provides two runner pool implementations:
 - **RunnerPool**: Thread-safe, single-process pool used by the legacy
   monolithic scheduler (``AxeScheduler``).
 - **SharedRunnerPool**: File-based, cross-process pool using ``fcntl.flock``
-  for the new lumberjack architecture where each lumberjack runs as a
+  for the new jack architecture where each jack runs as a
   separate subprocess.
 """
 
@@ -127,7 +127,7 @@ class SharedRunnerPool:
     """Cross-process runner pool using file-based locking.
 
     Uses ``fcntl.flock`` on ``~/.sase/axe/shared/runner_count`` to
-    coordinate the max_runners limit across multiple lumberjack
+    coordinate the max_runners limit across multiple jack
     subprocesses.
 
     The counter file stores the current number of in-flight runners as
@@ -187,7 +187,7 @@ class SharedRunnerPool:
         return count_all_runners_global() + count
 
     def reserve_slot(self) -> bool:
-        """Try to reserve a runner slot across all lumberjack processes.
+        """Try to reserve a runner slot across all jack processes.
 
         Returns:
             True if a slot was reserved, False if at the limit.

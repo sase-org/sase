@@ -1,8 +1,8 @@
-"""Single-lumberjack scheduler loop.
+"""Single-jack scheduler loop.
 
-A Lumberjack runs a subset of chops on a fixed interval using the
-``schedule`` library.  The Orchestrator spawns one Lumberjack per
-configured lumberjack definition (e.g. hooks, checks, comments,
+A Jack runs a subset of chops on a fixed interval using the
+``schedule`` library.  The Orchestrator spawns one Jack per
+configured jack definition (e.g. hooks, checks, comments,
 housekeeping).
 """
 
@@ -26,28 +26,28 @@ from .chop_script_context import (
     write_chop_context,
 )
 from .chop_script_runner import discover_chop_script, run_chop_script
-from .config import AxeConfig, ChopConfig, LumberjackConfig
+from .config import AxeConfig, ChopConfig, JackConfig
 from .state import (
     AxeMetrics,
-    LumberjackMetrics,
-    LumberjackStatus,
+    JackMetrics,
+    JackStatus,
     append_error,
-    ensure_lumberjack_dirs,
+    ensure_jack_dirs,
     get_timestamp,
-    lumberjack_log_path,
-    remove_lumberjack_pid,
-    write_lumberjack_metrics,
-    write_lumberjack_pid,
-    write_lumberjack_status,
+    jack_log_path,
+    remove_jack_pid,
+    write_jack_metrics,
+    write_jack_pid,
+    write_jack_status,
 )
 
 LogCallback = Callable[[str, str | None], None]
 
 
-class Lumberjack:
-    """Single-lumberjack scheduler that runs a subset of chops.
+class Jack:
+    """Single-jack scheduler that runs a subset of chops.
 
-    Each lumberjack runs as a separate process, invoking its configured
+    Each jack runs as a separate process, invoking its configured
     chops at a fixed interval.  Cross-process runner limits are
     coordinated via ``SharedRunnerPool``.
     """
@@ -55,7 +55,7 @@ class Lumberjack:
     def __init__(
         self,
         name: str,
-        config: LumberjackConfig,
+        config: JackConfig,
         axe_config: AxeConfig,
     ) -> None:
         self.name = name
@@ -69,11 +69,11 @@ class Lumberjack:
         self.console = Console(record=True, force_terminal=True)
         self.scheduler = schedule.Scheduler()
 
-        self._state_dir = ensure_lumberjack_dirs(name)
-        self._log_file_path = lumberjack_log_path(name)
+        self._state_dir = ensure_jack_dirs(name)
+        self._log_file_path = jack_log_path(name)
         self._start_time = datetime.now(EASTERN_TZ)
         self._running = True
-        self._metrics = LumberjackMetrics()
+        self._metrics = JackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(self.parsed_query, self._log)
         # Track running agent processes per chop (multiple allowed)
@@ -116,7 +116,7 @@ class Lumberjack:
             max_agent_runners=self.axe_config.max_agent_runners,
             zombie_timeout_seconds=self.axe_config.zombie_timeout_seconds,
             query=self.axe_config.query,
-            lumberjack_name=self.name,
+            jack_name=self.name,
             state_dir=str(self._state_dir),
             all_changespecs_file=all_cs_file,
             filtered_changespecs_file=filtered_cs_file,
@@ -193,7 +193,7 @@ class Lumberjack:
         self._metrics.errors_encountered += 1
         error_info = {
             "timestamp": get_timestamp(),
-            "lumberjack": self.name,
+            "jack": self.name,
             "job": job_name,
             "error": str(error),
             "traceback": traceback.format_exc(),
@@ -203,7 +203,7 @@ class Lumberjack:
     def _update_status(self) -> None:
         now = datetime.now(EASTERN_TZ)
         uptime = int((now - self._start_time).total_seconds())
-        status = LumberjackStatus(
+        status = JackStatus(
             name=self.name,
             pid=os.getpid(),
             started_at=self._start_time.isoformat(),
@@ -215,23 +215,23 @@ class Lumberjack:
             errors_encountered=self._metrics.errors_encountered,
             uptime_seconds=uptime,
         )
-        write_lumberjack_status(status)
+        write_jack_status(status)
 
     def _update_metrics(self) -> None:
-        write_lumberjack_metrics(self.name, self._metrics)
+        write_jack_metrics(self.name, self._metrics)
 
     def _handle_shutdown(self, _signum: int, _frame: object) -> None:
         self._log("Received shutdown signal, stopping...")
         self._running = False
 
     def run(self) -> bool:
-        """Run the lumberjack main loop.
+        """Run the jack main loop.
 
         Returns:
             True if exited normally.
         """
         signal.signal(signal.SIGTERM, self._handle_shutdown)
-        write_lumberjack_pid(self.name)
+        write_jack_pid(self.name)
 
         # Schedule the tick at the configured interval
         self.scheduler.every(self.config.interval).seconds.do(self._run_tick)
@@ -241,7 +241,7 @@ class Lumberjack:
         self.scheduler.every(30).seconds.do(self._update_metrics)
 
         self._log(
-            f"Lumberjack '{self.name}' started (PID: {os.getpid()}, "
+            f"Jack '{self.name}' started (PID: {os.getpid()}, "
             f"interval: {self.config.interval}s, "
             f"chops: {', '.join(self.config.chop_names)})"
         )
@@ -259,9 +259,9 @@ class Lumberjack:
         except KeyboardInterrupt:
             self._log("Shutting down...")
         finally:
-            remove_lumberjack_pid(self.name)
+            remove_jack_pid(self.name)
             self._update_status()
             self._update_metrics()
-            self._log(f"Lumberjack '{self.name}' stopped")
+            self._log(f"Jack '{self.name}' stopped")
 
         return True

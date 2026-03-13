@@ -1,14 +1,14 @@
 # Telegram Integration for Sase: Agent-to-User Messaging
 
 Research into using the Telegram Bot API for bidirectional messaging between sase agents and the user, via the
-heartbeats lumberjack. Also covers alternatives to Telegram and trade-offs.
+heartbeats jack. Also covers alternatives to Telegram and trade-offs.
 
 ## How It Would Work in Sase
 
-### The Heartbeats Lumberjack
+### The Heartbeats Jack
 
-The `sase_athena.yml` config defines a `heartbeats` lumberjack with a 60-second interval. Adding Telegram support means
-adding new chops to this lumberjack:
+The `sase_athena.yml` config defines a `heartbeats` jack with a 60-second interval. Adding Telegram support means adding
+new chops to this jack:
 
 1. **Outbound (sase -> Telegram)**: Polls `~/.sase/notifications/notifications.jsonl` for unread notifications and
    forwards them as Telegram messages to the user.
@@ -23,7 +23,7 @@ with Telegram replacing SMS as the transport.
 ```
 +----------------------+         +-----------------+
 |  heartbeats          |         |  Telegram Bot   |
-|  lumberjack (60s)    |         |  API            |
+|  jack (60s)    |         |  API            |
 |                      |         |                 |
 |  +----------------+  |  send   |                 |
 |  | tg_outbound    |--+-------->|  --> user app   |
@@ -321,7 +321,7 @@ ntfy is excellent as a supplement (e.g., urgent alerts) but cannot replace a two
 ### 1. Telegram or something else?
 
 Telegram is the recommended choice. It is free, trivial to set up, has excellent Python libraries, supports two-way
-messaging, and the polling-based approach maps directly onto the heartbeats lumberjack architecture.
+messaging, and the polling-based approach maps directly onto the heartbeats jack architecture.
 
 The only reasons to choose something else:
 
@@ -410,7 +410,7 @@ notifications, and rate limiting prevents a bug from spamming your phone.
 - Thin Telegram wrapper: `sase/telegram.py` (~30 lines, `send_message` + `get_updates`)
 - Config additions: `telegram:` section in sase config schema
 - Filter logic: which notifications get forwarded
-- Add chop to heartbeats lumberjack config
+- Add chop to heartbeats jack config
 
 ### Phase 2: Inbound Messages + HITL (~2-3 hours)
 

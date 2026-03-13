@@ -215,7 +215,7 @@ The modal supports live filtering as you type in the search box and displays las
 | Key                 | Action                              |
 | ------------------- | ----------------------------------- |
 | `j` / `k`           | Move to next / previous command     |
-| `Ctrl+N` / `Ctrl+P` | Next / previous lumberjack output   |
+| `Ctrl+N` / `Ctrl+P` | Next / previous jack output         |
 | `g`                 | Scroll to top                       |
 | `G`                 | Scroll to bottom (pins auto-scroll) |
 

@@ -1,7 +1,7 @@
 """Context serialization for chop scripts.
 
 Provides dataclasses and helpers for passing context to external chop
-scripts via JSON files.  The lumberjack writes a context file before
+scripts via JSON files.  The jack writes a context file before
 launching a script and the script reads it to discover its environment.
 """
 
@@ -27,7 +27,7 @@ class ChopScriptContext:
     max_agent_runners: int
     zombie_timeout_seconds: int
     query: str
-    lumberjack_name: str
+    jack_name: str
     state_dir: str
     all_changespecs_file: str
     filtered_changespecs_file: str

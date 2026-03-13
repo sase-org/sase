@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
-    clear_lumberjack_output_log,
+    clear_jack_output_log,
     clear_output_log,
 )
 
@@ -47,9 +47,9 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     _axe_current_view: AxeViewType
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
 
-    # Lumberjack cycling state
-    _axe_lumberjack_names: list[str]
-    _axe_lumberjack_idx: int | None
+    # Jack cycling state
+    _axe_jack_names: list[str]
+    _axe_jack_idx: int | None
 
     def action_toggle_axe(self) -> None:
         """Clear AXE output (X key on AXE tab).
@@ -173,7 +173,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
 
     def action_clear_axe_output(self) -> None:
         """Clear the output log for the current view."""
-        from ..widgets.bgcmd_list import AxeParentItem, BgCmdItem, LumberjackItem
+        from ..widgets.bgcmd_list import AxeParentItem, BgCmdItem, JackItem
 
         if self.current_tab != "axe":
             return
@@ -188,8 +188,8 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             case AxeParentItem():
                 clear_output_log()
                 self._axe_output = ""
-            case LumberjackItem(name=name):
-                clear_lumberjack_output_log(name)
+            case JackItem(name=name):
+                clear_jack_output_log(name)
             case BgCmdItem(slot=slot):
                 clear_slot_output(slot)
 

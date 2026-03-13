@@ -2,19 +2,19 @@
 bead_id: sase-0xd
 ---
 
-# Plan: Rewrite `sase axe` with Lumberjack/Chop Architecture
+# Plan: Rewrite `sase axe` with Jack/Chop Architecture
 
 ## Context
 
 The current `sase axe` command is a monolithic `AxeScheduler` (in `src/sase/axe/core.py`) that runs 13 periodic jobs in
 a single process. This makes it hard to replicate individual checks, debug failures, or reconfigure schedules. The
-rewrite decomposes axe into **lumberjacks** (configurable routines with a schedule) and **chops** (individual checks),
+rewrite decomposes axe into **jacks** (configurable routines with a schedule) and **chops** (individual checks),
 enabling:
 
 - Each check to be run independently via `sase axe chop run <name>`
-- Lumberjacks to run as isolated subprocesses with independent logs
-- Configuration of which chops belong to which lumberjack and at what interval
-- Per-lumberjack output viewing in the TUI via `ctrl+n`/`ctrl+p`
+- Jacks to run as isolated subprocesses with independent logs
+- Configuration of which chops belong to which jack and at what interval
+- Per-jack output viewing in the TUI via `ctrl+n`/`ctrl+p`
 
 ---
 
@@ -22,14 +22,14 @@ enabling:
 
 ```yaml
 axe:
-  # Global settings shared across all lumberjacks
+  # Global settings shared across all jacks
   max_runners: 5
   zombie_timeout_seconds: 7200
   query: ""
   use_legacy_axe: true # Temporary: TUI !x starts sase ax instead of sase axe
 
-  # Lumberjack definitions
-  lumberjacks:
+  # Jack definitions
+  jacks:
     hooks:
       interval: 1 # seconds
       chops:
@@ -59,7 +59,7 @@ axe:
 ```
 
 Chops are registered in Python code via `@register_chop("name")`. Users configure only grouping and schedule in YAML.
-Status/metrics writing is built-in lumberjack infrastructure, not a chop.
+Status/metrics writing is built-in jack infrastructure, not a chop.
 
 ## Chop Inventory (11 chops)
 
@@ -82,7 +82,7 @@ Status/metrics writing is built-in lumberjack infrastructure, not a chop.
 ```
 ~/.sase/axe/
   orchestrator.pid
-  lumberjacks/
+  jacks/
     hooks/
       pid
       status.json
@@ -110,7 +110,7 @@ src/sase/
 
   axe/                       # NEW architecture
     __init__.py
-    config.py                # AxeConfig, LumberjackConfig dataclasses + loader
+    config.py                # AxeConfig, JackConfig dataclasses + loader
     chop_registry.py         # @register_chop, ChopContext, get_chop, list_chops
     chops/                   # One module per chop (11 files)
       __init__.py            # Imports all to trigger registration
@@ -119,12 +119,12 @@ src/sase/
       suffix_transforms.py, orphan_cleanup.py,
       cl_submitted_checks.py, stale_running_cleanup.py,
       comment_checks.py, error_digest.py
-    lumberjack.py            # Lumberjack class (single-lumberjack scheduler loop)
-    orchestrator.py          # Starts/monitors all lumberjack subprocesses
+    jack.py            # Jack class (single-jack scheduler loop)
+    orchestrator.py          # Starts/monitors all jack subprocesses
     process.py               # Start/stop daemon (replaces old process.py)
-    state.py                 # Per-lumberjack state management
+    state.py                 # Per-jack state management
     runner_pool.py           # SharedRunnerPool (file-based cross-process locking)
-    cli.py                   # Handlers for axe lumberjack / axe chop subcommands
+    cli.py                   # Handlers for axe jack / axe chop subcommands
 ```
 
 ---
@@ -162,7 +162,7 @@ mixin), `process.py`, chezmoi `sase.yml` **Verify**: `just check` passes. `sase 
 
 1. Create `src/sase/axe/chop_registry.py`:
    - `ChopContext` dataclass (log callback, runner_pool, metrics, parsed_query, max_runners, zombie_timeout,
-     changespecs, lumberjack_name, state_dir)
+     changespecs, jack_name, state_dir)
    - `@register_chop("name")` decorator
    - `get_chop(name)`, `list_chops()`, `get_all_chops()` functions
 2. Create `src/sase/axe/chops/__init__.py` that imports all chop modules
@@ -179,21 +179,21 @@ mixin), `process.py`, chezmoi `sase.yml` **Verify**: `just check` passes. `sase 
 
 ### Phase 3: Config + State + SharedRunnerPool (PARALLEL)
 
-**Goal**: New config loading for lumberjack YAML schema, per-lumberjack state management, cross-process runner pool.
+**Goal**: New config loading for jack YAML schema, per-jack state management, cross-process runner pool.
 
 **Tasks**:
 
 1. Create `src/sase/axe/config.py`:
-   - `LumberjackConfig` dataclass (name, interval, chops list)
-   - `AxeConfig` dataclass (max_runners, zombie_timeout, query, use_legacy_axe, lumberjacks dict)
-   - `load_axe_config()` that parses new schema with backward compat (if no `lumberjacks:` key, generate defaults from
-     old flat config)
+   - `JackConfig` dataclass (name, interval, chops list)
+   - `AxeConfig` dataclass (max_runners, zombie_timeout, query, use_legacy_axe, jacks dict)
+   - `load_axe_config()` that parses new schema with backward compat (if no `jacks:` key, generate defaults from old
+     flat config)
 2. Create `src/sase/axe/state.py`:
-   - Per-lumberjack directory creation (`~/.sase/axe/lumberjacks/{name}/`)
-   - PID file read/write per lumberjack
-   - `LumberjackStatus` / `LumberjackMetrics` dataclasses
-   - Status/metrics/log writing per lumberjack
-   - Output log tail reading per lumberjack (for TUI)
+   - Per-jack directory creation (`~/.sase/axe/jacks/{name}/`)
+   - PID file read/write per jack
+   - `JackStatus` / `JackMetrics` dataclasses
+   - Status/metrics/log writing per jack
+   - Output log tail reading per jack (for TUI)
 3. Create `src/sase/axe/runner_pool.py`:
    - `SharedRunnerPool` using `fcntl.flock` on `~/.sase/axe/shared/runner_count`
    - `reserve_slot()`, `release_slot()`, `get_current_runners()`, `is_at_limit()`
@@ -206,35 +206,35 @@ formats. State dirs created correctly.
 
 ---
 
-### Phase 4: Lumberjack + Orchestrator + CLI (depends on Phases 1, 2, 3)
+### Phase 4: Jack + Orchestrator + CLI (depends on Phases 1, 2, 3)
 
-**Goal**: Implement the Lumberjack class, orchestrator, CLI subcommands, and wire everything together.
+**Goal**: Implement the Jack class, orchestrator, CLI subcommands, and wire everything together.
 
 **Tasks**:
 
-1. Create `src/sase/axe/lumberjack.py`:
-   - `Lumberjack` class with `run()` main loop using `schedule` library
+1. Create `src/sase/axe/jack.py`:
+   - `Jack` class with `run()` main loop using `schedule` library
    - On each tick: refresh changespecs once, build `ChopContext`, iterate chops
    - PID file, SIGTERM handler, status/metrics writing (built-in infrastructure)
-   - Output logging to `~/.sase/axe/lumberjacks/{name}/logs/output.log`
+   - Output logging to `~/.sase/axe/jacks/{name}/logs/output.log`
 2. Create `src/sase/axe/orchestrator.py`:
-   - `Orchestrator` class that spawns each lumberjack as `sase axe lumberjack run <name>`
+   - `Orchestrator` class that spawns each jack as `sase axe jack run <name>`
    - Monitor child processes, handle SIGTERM by forwarding to children
    - Write orchestrator PID file, aggregate status
 3. Create `src/sase/axe/process.py` (new):
    - `start_axe_daemon()` - starts orchestrator as daemon
    - `stop_axe_daemon()` - SIGTERM to orchestrator
    - `is_axe_running()` - checks orchestrator PID
-   - `get_axe_status()` - reads orchestrator + per-lumberjack status
-   - `get_lumberjack_names()` - returns active lumberjack names
+   - `get_axe_status()` - reads orchestrator + per-jack status
+   - `get_jack_names()` - returns active jack names
 4. Create `src/sase/axe/cli.py`:
    - `sase axe chop list` - print all registered chops
    - `sase axe chop run <name>` - run single chop once, exit
-   - `sase axe lumberjack list` - print configured lumberjacks from sase.yml
-   - `sase axe lumberjack run <name>` - run single lumberjack in foreground
-   - `sase axe lumberjack status` - show status of all lumberjacks
+   - `sase axe jack list` - print configured jacks from sase.yml
+   - `sase axe jack run <name>` - run single jack in foreground
+   - `sase axe jack status` - show status of all jacks
 5. Update `src/sase/main/parser.py`:
-   - Replace flat `axe` parser with nested subparsers: `axe lumberjack {list,run,status}`, `axe chop {list,run}`
+   - Replace flat `axe` parser with nested subparsers: `axe jack {list,run,status}`, `axe chop {list,run}`
    - `sase axe` with no subcommand → orchestrator mode
 6. Update `src/sase/main/entry.py`:
    - Route `axe` subcommands to `cli.py` handlers
@@ -242,36 +242,36 @@ formats. State dirs created correctly.
 7. Update `src/sase/axe/__init__.py` with new public API
 8. Write tests
 
-**Files created**: `lumberjack.py`, `orchestrator.py`, `process.py` (new), `cli.py`, test files **Files modified**:
+**Files created**: `jack.py`, `orchestrator.py`, `process.py` (new), `cli.py`, test files **Files modified**:
 `parser.py`, `entry.py`, `__init__.py` **Verify**: `just check` passes. `sase axe chop list` prints 11 chops.
-`sase axe lumberjack list` prints 4 lumberjacks. `sase axe lumberjack run hooks` runs in foreground. `sase axe` starts
-orchestrator spawning 4 lumberjack processes.
+`sase axe jack list` prints 4 jacks. `sase axe jack run hooks` runs in foreground. `sase axe` starts orchestrator
+spawning 4 jack processes.
 
 ---
 
 ### Phase 5: TUI Integration (depends on Phase 4)
 
-**Goal**: Update AXE tab to show per-lumberjack outputs with `ctrl+n`/`ctrl+p` cycling.
+**Goal**: Update AXE tab to show per-jack outputs with `ctrl+n`/`ctrl+p` cycling.
 
 **Tasks**:
 
 1. Update `src/sase/ace/tui/actions/axe.py`:
-   - Add `_axe_lumberjack_names: list[str]` and `_axe_lumberjack_idx: int` state
-   - When on AXE tab with axe view selected, `ctrl+n`/`ctrl+p` cycle through lumberjack outputs
-   - `_refresh_axe_display()` reads from current lumberjack's `output.log`
-   - `_load_axe_status()` reads per-lumberjack status and builds name list
-   - Import new `process.py` functions (`get_lumberjack_names`)
+   - Add `_axe_jack_names: list[str]` and `_axe_jack_idx: int` state
+   - When on AXE tab with axe view selected, `ctrl+n`/`ctrl+p` cycle through jack outputs
+   - `_refresh_axe_display()` reads from current jack's `output.log`
+   - `_load_axe_status()` reads per-jack status and builds name list
+   - Import new `process.py` functions (`get_jack_names`)
    - When `use_legacy_axe` is true, maintain old single-output behavior
 2. Update `src/sase/ace/tui/widgets/axe_dashboard.py`:
-   - Add lumberjack name label at top of output section (e.g., `[hooks] (1/4)`)
-   - `update_display()` accepts lumberjack name + index + total
+   - Add jack name label at top of output section (e.g., `[hooks] (1/4)`)
+   - `update_display()` accepts jack name + index + total
 3. Update `src/sase/ace/tui/app.py`:
-   - Bind `ctrl+n`/`ctrl+p` on AXE tab to lumberjack cycling actions
+   - Bind `ctrl+n`/`ctrl+p` on AXE tab to jack cycling actions
    - Update footer to show navigation hint when on axe view
 4. Update help modal for new AXE tab keybindings
 
 **Files modified**: `actions/axe.py`, `widgets/axe_dashboard.py`, `app.py`, help modal **Verify**: `just check` passes.
-TUI AXE tab shows lumberjack name. `ctrl+n`/`ctrl+p` cycles through outputs.
+TUI AXE tab shows jack name. `ctrl+n`/`ctrl+p` cycles through outputs.
 
 ---
 
@@ -285,7 +285,7 @@ TUI AXE tab shows lumberjack name. `ctrl+n`/`ctrl+p` cycles through outputs.
 2. Remove `ax` subcommand from `parser.py` and `entry.py`
 3. Remove `use_legacy_axe` from config dataclass and all code that checks it
 4. Remove `use_legacy_axe: true` from chezmoi `sase.yml`
-5. Remove backward-compat config parsing (old flat `axe:` format without `lumberjacks:`)
+5. Remove backward-compat config parsing (old flat `axe:` format without `jacks:`)
 6. Delete any `tests/test_ax_*.py`
 7. Remove old `src/sase/axe_config.py` if fully replaced by `src/sase/axe/config.py`
 
@@ -299,7 +299,7 @@ references to `sase.ax` or `use_legacy_axe` in codebase.
 
 ```
 Phase 1 (Quarantine) ──────┐
-Phase 2 (Chop Registry) ───┼──→ Phase 4 (Lumberjack+Orchestrator+CLI)
+Phase 2 (Chop Registry) ───┼──→ Phase 4 (Jack+Orchestrator+CLI)
 Phase 3 (Config+State) ────┘              │
                                           ▼
                                     Phase 5 (TUI)

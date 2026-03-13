@@ -3,8 +3,8 @@
 This module handles all state persistence for the axe scheduler, enabling
 sase ace to monitor and control axe processes via the TUI.
 
-Includes both the flat scheduler state (legacy) and per-lumberjack state
-directories used by the new lumberjack architecture.
+Includes both the flat scheduler state (legacy) and per-jack state
+directories used by the new jack architecture.
 """
 
 import json
@@ -20,8 +20,8 @@ from sase.sase_utils import EASTERN_TZ
 # State directory location
 AXE_STATE_DIR = Path.home() / ".sase" / "axe"
 
-# Per-lumberjack state lives under this subdirectory
-LUMBERJACK_STATE_DIR = AXE_STATE_DIR / "lumberjacks"
+# Per-jack state lives under this subdirectory
+JACK_STATE_DIR = AXE_STATE_DIR / "jacks"
 
 # Shared cross-process state
 SHARED_STATE_DIR = AXE_STATE_DIR / "shared"
@@ -338,13 +338,13 @@ def get_timestamp() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Per-lumberjack state management
+# Per-jack state management
 # ---------------------------------------------------------------------------
 
 
 @dataclass
-class LumberjackStatus:
-    """Status of a single lumberjack process."""
+class JackStatus:
+    """Status of a single jack process."""
 
     name: str
     pid: int
@@ -359,8 +359,8 @@ class LumberjackStatus:
 
 
 @dataclass
-class LumberjackMetrics:
-    """Cumulative metrics for a single lumberjack process."""
+class JackMetrics:
+    """Cumulative metrics for a single jack process."""
 
     cycles_run: int = 0
     chops_executed: int = 0
@@ -368,57 +368,57 @@ class LumberjackMetrics:
     errors_encountered: int = 0
 
 
-def _lumberjack_dir(name: str) -> Path:
-    """Return the state directory for a given lumberjack.
+def _jack_dir(name: str) -> Path:
+    """Return the state directory for a given jack.
 
     Args:
-        name: Lumberjack name (e.g. "hooks", "checks").
+        name: Jack name (e.g. "hooks", "checks").
 
     Returns:
-        Path to ``~/.sase/axe/lumberjacks/{name}/``.
+        Path to ``~/.sase/axe/jacks/{name}/``.
     """
-    return LUMBERJACK_STATE_DIR / name
+    return JACK_STATE_DIR / name
 
 
-def ensure_lumberjack_dirs(name: str) -> Path:
-    """Create the per-lumberjack state directory tree.
+def ensure_jack_dirs(name: str) -> Path:
+    """Create the per-jack state directory tree.
 
     Creates::
 
-        ~/.sase/axe/lumberjacks/{name}/
-        ~/.sase/axe/lumberjacks/{name}/logs/
+        ~/.sase/axe/jacks/{name}/
+        ~/.sase/axe/jacks/{name}/logs/
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
 
     Returns:
-        Path to the lumberjack state directory.
+        Path to the jack state directory.
     """
-    lj_dir = _lumberjack_dir(name)
-    (lj_dir / "logs").mkdir(parents=True, exist_ok=True)
-    return lj_dir
+    jack_dir = _jack_dir(name)
+    (jack_dir / "logs").mkdir(parents=True, exist_ok=True)
+    return jack_dir
 
 
-def write_lumberjack_pid(name: str) -> None:
-    """Write PID file for a lumberjack process.
+def write_jack_pid(name: str) -> None:
+    """Write PID file for a jack process.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
     """
-    lj_dir = ensure_lumberjack_dirs(name)
-    (lj_dir / "pid").write_text(str(os.getpid()))
+    jack_dir = ensure_jack_dirs(name)
+    (jack_dir / "pid").write_text(str(os.getpid()))
 
 
-def read_lumberjack_pid(name: str) -> int | None:
-    """Read PID for a lumberjack process.
+def read_jack_pid(name: str) -> int | None:
+    """Read PID for a jack process.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
 
     Returns:
         PID as integer, or None if not found.
     """
-    pid_file = _lumberjack_dir(name) / "pid"
+    pid_file = _jack_dir(name) / "pid"
     if not pid_file.exists():
         return None
     try:
@@ -427,101 +427,101 @@ def read_lumberjack_pid(name: str) -> int | None:
         return None
 
 
-def remove_lumberjack_pid(name: str) -> None:
-    """Remove PID file for a lumberjack process.
+def remove_jack_pid(name: str) -> None:
+    """Remove PID file for a jack process.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
     """
-    pid_file = _lumberjack_dir(name) / "pid"
+    pid_file = _jack_dir(name) / "pid"
     try:
         pid_file.unlink()
     except OSError:
         pass
 
 
-def write_lumberjack_status(status: LumberjackStatus) -> None:
-    """Write lumberjack status to disk.
+def write_jack_status(status: JackStatus) -> None:
+    """Write jack status to disk.
 
     Args:
-        status: Current lumberjack status.
+        status: Current jack status.
     """
-    lj_dir = ensure_lumberjack_dirs(status.name)
-    _atomic_write_json(lj_dir / "status.json", asdict(status))
+    jack_dir = ensure_jack_dirs(status.name)
+    _atomic_write_json(jack_dir / "status.json", asdict(status))
 
 
-def read_lumberjack_status(name: str) -> LumberjackStatus | None:
-    """Read lumberjack status from disk.
+def read_jack_status(name: str) -> JackStatus | None:
+    """Read jack status from disk.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
 
     Returns:
-        LumberjackStatus, or None if not available.
+        JackStatus, or None if not available.
     """
-    status_file = _lumberjack_dir(name) / "status.json"
+    status_file = _jack_dir(name) / "status.json"
     data = _read_json(status_file)
     if data is None:
         return None
     try:
-        return LumberjackStatus(**data)
+        return JackStatus(**data)
     except TypeError:
         return None
 
 
-def write_lumberjack_metrics(name: str, metrics: LumberjackMetrics) -> None:
-    """Write lumberjack metrics to disk.
+def write_jack_metrics(name: str, metrics: JackMetrics) -> None:
+    """Write jack metrics to disk.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
         metrics: Current metrics.
     """
-    lj_dir = ensure_lumberjack_dirs(name)
-    _atomic_write_json(lj_dir / "metrics.json", asdict(metrics))
+    jack_dir = ensure_jack_dirs(name)
+    _atomic_write_json(jack_dir / "metrics.json", asdict(metrics))
 
 
-def read_lumberjack_metrics(name: str) -> LumberjackMetrics | None:
-    """Read lumberjack metrics from disk.
+def read_jack_metrics(name: str) -> JackMetrics | None:
+    """Read jack metrics from disk.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
 
     Returns:
-        LumberjackMetrics, or None if not available.
+        JackMetrics, or None if not available.
     """
-    metrics_file = _lumberjack_dir(name) / "metrics.json"
+    metrics_file = _jack_dir(name) / "metrics.json"
     data = _read_json(metrics_file)
     if data is None:
         return None
     try:
-        return LumberjackMetrics(**data)
+        return JackMetrics(**data)
     except TypeError:
         return None
 
 
-def lumberjack_log_path(name: str) -> Path:
-    """Return the output log path for a lumberjack.
+def jack_log_path(name: str) -> Path:
+    """Return the output log path for a jack.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
 
     Returns:
-        Path to ``~/.sase/axe/lumberjacks/{name}/logs/output.log``.
+        Path to ``~/.sase/axe/jacks/{name}/logs/output.log``.
     """
-    return _lumberjack_dir(name) / "logs" / "output.log"
+    return _jack_dir(name) / "logs" / "output.log"
 
 
-def read_lumberjack_log_tail(name: str, lines: int = 1000) -> str:
-    """Read the last N lines of a lumberjack's output log.
+def read_jack_log_tail(name: str, lines: int = 1000) -> str:
+    """Read the last N lines of a jack's output log.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
         lines: Number of lines to read from the end (default: 1000).
 
     Returns:
         String with the last N lines (ANSI codes preserved).
     """
-    log_file = lumberjack_log_path(name)
+    log_file = jack_log_path(name)
     if not log_file.exists():
         return ""
     try:
@@ -532,13 +532,13 @@ def read_lumberjack_log_tail(name: str, lines: int = 1000) -> str:
         return ""
 
 
-def clear_lumberjack_output_log(name: str) -> None:
-    """Clear a lumberjack's output log file.
+def clear_jack_output_log(name: str) -> None:
+    """Clear a jack's output log file.
 
     Args:
-        name: Lumberjack name.
+        name: Jack name.
     """
-    log_file = lumberjack_log_path(name)
+    log_file = jack_log_path(name)
     if log_file.exists():
         try:
             log_file.write_text("")
@@ -546,15 +546,15 @@ def clear_lumberjack_output_log(name: str) -> None:
             pass
 
 
-def list_lumberjack_names() -> list[str]:
-    """List all lumberjack names that have state directories.
+def list_jack_names() -> list[str]:
+    """List all jack names that have state directories.
 
     Returns:
-        Sorted list of lumberjack names.
+        Sorted list of jack names.
     """
-    if not LUMBERJACK_STATE_DIR.exists():
+    if not JACK_STATE_DIR.exists():
         return []
-    return sorted(d.name for d in LUMBERJACK_STATE_DIR.iterdir() if d.is_dir())
+    return sorted(d.name for d in JACK_STATE_DIR.iterdir() if d.is_dir())
 
 
 def ensure_shared_dir() -> Path:

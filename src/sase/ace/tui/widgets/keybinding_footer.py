@@ -206,14 +206,14 @@ class KeybindingFooter(Horizontal):
         self,
         *,
         axe_current_view: str | int = "axe",
-        lumberjack_total: int = 0,
+        jack_total: int = 0,
         cmds_hidden: bool = False,
         bgcmd_count: int = 0,
     ) -> None:
         """Update bindings for Axe tab context."""
         bindings = self._compute_axe_bindings(
             axe_current_view,
-            lumberjack_total=lumberjack_total,
+            jack_total=jack_total,
             cmds_hidden=cmds_hidden,
             bgcmd_count=bgcmd_count,
         )
@@ -224,7 +224,7 @@ class KeybindingFooter(Horizontal):
         self,
         axe_current_view: str | int,
         *,
-        lumberjack_total: int = 0,
+        jack_total: int = 0,
         cmds_hidden: bool = False,
         bgcmd_count: int = 0,
     ) -> list[tuple[str, str]]:
@@ -240,8 +240,8 @@ class KeybindingFooter(Horizontal):
             label = "kill"
         bindings.append(("x", label))
         bindings.append(("X", "clear"))
-        # Show h/l fold hint when lumberjacks exist
-        if lumberjack_total > 0:
+        # Show h/l fold hint when jacks exist
+        if jack_total > 0:
             bindings.append(("h/l", "fold"))
         # Hide/show commands toggle with bgcmd count
         if cmds_hidden:

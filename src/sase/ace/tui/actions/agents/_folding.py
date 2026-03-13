@@ -116,22 +116,22 @@ class AgentFoldingMixin:
             self._load_agents()  # type: ignore[attr-defined]
 
     def _expand_axe_fold(self) -> None:
-        """Expand the AXE lumberjack fold."""
+        """Expand the AXE jack fold."""
         axe_fold_manager: FoldStateManager = self._axe_fold_manager  # type: ignore[attr-defined]
         if axe_fold_manager.expand("axe"):
             self._build_axe_items()  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
     def _collapse_axe_fold(self) -> None:
-        """Collapse the AXE lumberjack fold.
+        """Collapse the AXE jack fold.
 
-        If on a lumberjack child, navigate to parent first.
+        If on a jack child, navigate to parent first.
         """
-        from ...widgets.bgcmd_list import LumberjackItem
+        from ...widgets.bgcmd_list import JackItem
 
         axe_items: list[object] = self._axe_items  # type: ignore[attr-defined]
         if axe_items and 0 <= self.current_idx < len(axe_items):
-            if isinstance(axe_items[self.current_idx], LumberjackItem):
+            if isinstance(axe_items[self.current_idx], JackItem):
                 self.current_idx = 0  # Navigate to axe parent
 
         axe_fold_manager: FoldStateManager = self._axe_fold_manager  # type: ignore[attr-defined]
