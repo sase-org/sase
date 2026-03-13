@@ -7,13 +7,16 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pathlib import Path
+
 from sase.llm_provider._subprocess import (
+    _process_codex_json_line,
     stream_and_parse_codex_json_output,
     stream_process_output,
 )
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
-from sase.llm_provider.codex import CodexProvider
+from sase.llm_provider.codex import CodexProvider, _find_codex_plan_file
 from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.types import ModelTier
 
@@ -225,6 +228,66 @@ def test_codex_provider_model_override(
     assert "o3" not in cmd
 
 
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_normal_mode_command_construction(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    """Test full base_args construction in normal mode."""
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    call_args = mock_popen.call_args
+    cmd = call_args[0][0]
+    assert cmd[0] == "codex"
+    assert cmd[1] == "exec"
+    assert "--model" in cmd
+    assert "o3" in cmd
+    assert "--dangerously-bypass-approvals-and-sandbox" in cmd
+    assert "--json" in cmd
+    assert "--color" in cmd
+    assert "never" in cmd
+    assert "--skip-git-repo-check" in cmd
+    assert "-" in cmd
+
+
+@patch.dict(
+    os.environ,
+    {
+        "SASE_LLM_LARGE_ARGS": "--generic-arg val1",
+        "SASE_CODEX_LARGE_ARGS": "--codex-arg val2",
+    },
+)
+@patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
+@patch("sase.llm_provider.codex.subprocess.Popen")
+@patch("sase.llm_provider.codex.gemini_timer")
+def test_codex_provider_generic_env_args_precedence(
+    mock_timer: MagicMock,
+    mock_popen: MagicMock,
+    mock_stream: MagicMock,
+) -> None:
+    """Test that SASE_LLM_LARGE_ARGS takes precedence over SASE_CODEX_LARGE_ARGS."""
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+    mock_stream.return_value = ("response", "", 0)
+
+    provider = CodexProvider()
+    provider.invoke("test", model_tier="large", suppress_output=True)
+
+    call_args = mock_popen.call_args
+    cmd = call_args[0][0]
+    assert "--generic-arg" in cmd
+    assert "val1" in cmd
+    assert "--codex-arg" not in cmd
+
+
 # --- codex NDJSON parser tests ---
 
 
@@ -301,6 +364,126 @@ def test_codex_json_parser_handles_malformed_lines() -> None:
 
     assert rc == 0
     assert "valid text" in text
+
+
+def test_codex_json_parser_captures_error_events() -> None:
+    """Test that _process_codex_json_line captures error events."""
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+
+    line = json.dumps({"type": "error", "message": "something went wrong"})
+    _process_codex_json_line(line, assistant_texts, True, error_events)
+
+    assert len(error_events) == 1
+    assert "[error] something went wrong" in error_events[0]
+    assert len(assistant_texts) == 0
+
+
+def test_codex_json_parser_captures_turn_failed_events() -> None:
+    """Test that _process_codex_json_line captures turn.failed events."""
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+
+    line = json.dumps({"type": "turn.failed", "error": {"message": "turn failed"}})
+    _process_codex_json_line(line, assistant_texts, True, error_events)
+
+    assert len(error_events) == 1
+    assert "[turn.failed] turn failed" in error_events[0]
+
+
+def test_codex_json_parser_ignores_non_assistant_messages() -> None:
+    """Test that item.completed with role != 'assistant' is ignored."""
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+
+    line = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "output_text", "text": "user message"}],
+            },
+        }
+    )
+    _process_codex_json_line(line, assistant_texts, True, error_events)
+
+    assert len(assistant_texts) == 0
+
+
+def test_codex_json_parser_error_events_appended_to_stderr_on_failure() -> None:
+    """Test that error events are appended to stderr when return_code != 0."""
+    ndjson_lines = [
+        json.dumps({"type": "error", "message": "API error occurred"}),
+    ]
+    script = (
+        "import sys; "
+        + "; ".join(f"print({line!r})" for line in ndjson_lines)
+        + "; sys.exit(1)"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    text, stderr, rc = stream_and_parse_codex_json_output(process, suppress_output=True)
+
+    assert rc == 1
+    assert "[error] API error occurred" in stderr
+
+
+# --- _find_codex_plan_file tests ---
+
+
+def test_find_codex_plan_file_returns_most_recent(tmp_path: Path) -> None:
+    """Test that _find_codex_plan_file finds the newest .md file."""
+    plans_dir = tmp_path / ".codex" / "plans"
+    plans_dir.mkdir(parents=True)
+
+    old_file = plans_dir / "old_plan.md"
+    old_file.write_text("old plan")
+    os.utime(old_file, (1000, 1000))
+
+    new_file = plans_dir / "new_plan.md"
+    new_file.write_text("new plan")
+    os.utime(new_file, (2000, 2000))
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = _find_codex_plan_file()
+
+    assert result == str(new_file)
+
+
+def test_find_codex_plan_file_filters_by_after(tmp_path: Path) -> None:
+    """Test that _find_codex_plan_file respects after timestamp filter."""
+    plans_dir = tmp_path / ".codex" / "plans"
+    plans_dir.mkdir(parents=True)
+
+    old_file = plans_dir / "old_plan.md"
+    old_file.write_text("old")
+    os.utime(old_file, (1000, 1000))
+
+    new_file = plans_dir / "new_plan.md"
+    new_file.write_text("new")
+    os.utime(new_file, (2000, 2000))
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = _find_codex_plan_file(after=1500)
+    assert result == str(new_file)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = _find_codex_plan_file(after=2500)
+    assert result is None
+
+
+def test_find_codex_plan_file_returns_none_when_empty(tmp_path: Path) -> None:
+    """Test that _find_codex_plan_file returns None with no matching files."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = _find_codex_plan_file()
+
+    assert result is None
 
 
 # --- registry auto-detect tests ---

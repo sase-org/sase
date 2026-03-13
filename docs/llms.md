@@ -1,8 +1,8 @@
 # LLM Provider Integration
 
 This document describes the LLM provider abstraction layer in sase. The system supports pluggable LLM backends
-(currently Claude Code and Gemini CLI) behind a shared orchestration layer that handles preprocessing, invocation, and
-postprocessing.
+(currently Claude Code, Codex, and Gemini CLI) behind a shared orchestration layer that handles preprocessing,
+invocation, and postprocessing.
 
 ## Table of Contents
 
@@ -10,6 +10,7 @@ postprocessing.
 - [Provider Architecture](#provider-architecture)
 - [Claude Code Integration](#claude-code-integration)
 - [Gemini CLI Integration](#gemini-cli-integration)
+- [Codex CLI Integration](#codex-cli-integration)
 - [Configuration](#configuration)
 - [Model Tier System](#model-tier-system)
 - [Environment Variables](#environment-variables)
@@ -46,6 +47,8 @@ Key design principles:
 | `src/sase/llm_provider/types.py`          | `ModelTier`, `LoggingContext` types |
 | `src/sase/llm_provider/_invoke.py`        | `invoke_agent()` orchestrator       |
 | `src/sase/llm_provider/_subprocess.py`    | `stream_process_output()`           |
+| `src/sase/llm_provider/codex.py`          | Codex CLI provider implementation   |
+| `src/sase/llm_provider/_plan_utils.py`    | Shared plan utilities               |
 | `src/sase/llm_provider/preprocessing.py`  | 6-step preprocessing pipeline       |
 | `src/sase/llm_provider/postprocessing.py` | Logging, chat history, audio        |
 
@@ -82,6 +85,7 @@ import:
 
 ```python
 register_provider("claude", ClaudeCodeProvider)
+register_provider("codex", CodexProvider)
 register_provider("gemini", GeminiProvider)
 ```
 
@@ -96,8 +100,8 @@ provider = get_provider("claude")  # Explicit provider name
 
 1. If `provider_name` is passed to `invoke_agent()`, use that.
 2. Otherwise, read the `llm_provider.provider` field from `~/.config/sase/sase.yml`.
-3. If no config exists (or provider is empty), auto-detect: prefer `claude` if available on PATH, fall back to
-   `"gemini"`.
+3. If no config exists (or provider is empty), auto-detect: prefer `claude` if available on PATH, then `codex`, fall
+   back to `"gemini"`.
 
 ## Claude Code Integration
 
@@ -155,6 +159,56 @@ The Gemini provider uses `gemini-3-flash-preview` as its default model. This can
 
 While waiting for a response, a `gemini_timer("Waiting for Gemini")` spinner is shown (unless `suppress_output` is
 `True`).
+
+## Codex CLI Integration
+
+The `CodexProvider` invokes the OpenAI `codex` CLI tool.
+
+### Command Construction
+
+Normal mode:
+
+```
+codex exec --model <model> --dangerously-bypass-approvals-and-sandbox --json --color never --skip-git-repo-check - [extra_args...]
+```
+
+The prompt is written to stdin. Output is streamed as NDJSON events, with assistant text extracted from `item.completed`
+events.
+
+### Model Mapping
+
+| Tier    | Codex Model |
+| ------- | ----------- |
+| `large` | `o3`        |
+| `small` | `o4-mini`   |
+
+### Plan Mode
+
+When `SASE_AGENT_PLAN_MODE` is set, Codex runs a two-phase plan/implement flow:
+
+1. **Phase 1 (Planning)**: Runs with `--sandbox read-only` and `--ask-for-approval on-request`. The model generates a
+   plan captured via `--output-last-message`, on-disk plan files, or streamed response text.
+2. **Approval**: The plan is presented for user approval with up to 5 feedback-retry rounds.
+3. **Phase 2 (Implementation)**: On approval, runs with full permissions (`--dangerously-bypass-approvals-and-sandbox`)
+   using the plan content as the prompt.
+
+### Environment Variables
+
+| Variable                | Description                                               |
+| ----------------------- | --------------------------------------------------------- |
+| `SASE_LLM_LARGE_ARGS`   | Extra CLI args for `large` tier (generic, preferred)      |
+| `SASE_LLM_SMALL_ARGS`   | Extra CLI args for `small` tier (generic, preferred)      |
+| `SASE_CODEX_LARGE_ARGS` | Extra CLI args for `large` tier (Codex-specific fallback) |
+| `SASE_CODEX_SMALL_ARGS` | Extra CLI args for `small` tier (Codex-specific fallback) |
+| `SASE_AGENT_PLAN_MODE`  | Enable two-phase plan/implement flow                      |
+
+The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_CODEX_*_ARGS`.
+
+### Timer Display
+
+While waiting for a response, a `gemini_timer("Waiting for Codex")` spinner is shown (unless `suppress_output` is
+`True`). In plan mode, the timer reads "Waiting for Codex (planning)" during Phase 1 and "Implementing plan" during
+Phase 2.
 
 ## Configuration
 
@@ -231,6 +285,14 @@ Complete reference of environment variables used by the LLM provider layer.
 | ------------------------ | ------------------------------------------- |
 | `SASE_CLAUDE_LARGE_ARGS` | Claude-specific extra args for `large` tier |
 | `SASE_CLAUDE_SMALL_ARGS` | Claude-specific extra args for `small` tier |
+
+### Codex-Specific
+
+| Variable                | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `SASE_CODEX_LARGE_ARGS` | Codex-specific extra args for `large` tier |
+| `SASE_CODEX_SMALL_ARGS` | Codex-specific extra args for `small` tier |
+| `SASE_AGENT_PLAN_MODE`  | Enable Codex two-phase plan/implement flow |
 
 ### VCS Provider
 
