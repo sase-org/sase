@@ -26,7 +26,7 @@ from .processor import process_xprompt_references
 _DIRECTIVE_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"%([a-zA-Z_][a-zA-Z0-9_]*)"  # Group 1: directive name
-    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_#/.-]*[a-zA-Z0-9_#/-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_#/.()-]*[a-zA-Z0-9_#/()-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
 )
 
 # Known directive names
@@ -67,7 +67,7 @@ class PromptDirectives:
 # Pattern to match %model(...) or %m(...) with parenthesized arguments.
 _MULTI_MODEL_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"(%(?:model|m))\(([^)]+)\)",
+    r"(%(?:model|m))\(([^()]*(?:\([^)]*\)[^()]*)*)\)",
     re.MULTILINE,
 )
 

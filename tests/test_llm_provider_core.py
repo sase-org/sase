@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.gemini import GeminiProvider
-from sase.llm_provider.registry import _REGISTRY, get_provider, register_provider
+from sase.llm_provider.registry import (
+    _REGISTRY,
+    get_provider,
+    register_provider,
+    resolve_model_provider,
+)
 from sase.llm_provider.types import _MODEL_SIZE_TO_TIER, LoggingContext, ModelTier
 
 
@@ -144,3 +149,37 @@ def test_config_provider_overrides_auto_detection(
     provider = get_provider()
     assert isinstance(provider, GeminiProvider)
     mock_which.assert_not_called()
+
+
+# --- resolve_model_provider tests ---
+
+
+def test_resolve_model_provider_explicit_syntax() -> None:
+    """Explicit provider(model) syntax resolves correctly."""
+    assert resolve_model_provider("codex(o3)") == ("codex", "o3")
+    assert resolve_model_provider("claude(opus)") == ("claude", "opus")
+    assert resolve_model_provider("gemini(gemini-2.5-pro)") == (
+        "gemini",
+        "gemini-2.5-pro",
+    )
+
+
+def test_resolve_model_provider_implicit_mapping() -> None:
+    """Known model names resolve to the correct provider."""
+    assert resolve_model_provider("o3") == ("codex", "o3")
+    assert resolve_model_provider("opus") == ("claude", "opus")
+    assert resolve_model_provider("sonnet") == ("claude", "sonnet")
+    assert resolve_model_provider("gpt-5.4") == ("codex", "gpt-5.4")
+    assert resolve_model_provider("gemini-2.5-pro") == ("gemini", "gemini-2.5-pro")
+
+
+def test_resolve_model_provider_unknown_model() -> None:
+    """Unknown model names return None provider (falls back to default)."""
+    assert resolve_model_provider("custom-model") == (None, "custom-model")
+    assert resolve_model_provider("my-fine-tune") == (None, "my-fine-tune")
+
+
+def test_resolve_model_provider_explicit_with_unknown_model() -> None:
+    """Explicit syntax works with any model name, even unknown ones."""
+    assert resolve_model_provider("codex(my-fine-tune)") == ("codex", "my-fine-tune")
+    assert resolve_model_provider("claude(custom-v2)") == ("claude", "custom-v2")

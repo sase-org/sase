@@ -20,7 +20,7 @@ from .postprocessing import (
 )
 from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
-from .registry import get_provider
+from .registry import get_provider, resolve_model_provider
 from .types import (
     _MODEL_SIZE_TO_TIER,
     _MODEL_TIER_TO_LABEL,
@@ -124,6 +124,12 @@ def invoke_agent(
         query = result.prompt
         result_directives = result.directives
     model_override = result_directives.model
+
+    # Resolve provider from model override (e.g. "o3" → codex, "codex(o3)" → codex)
+    if model_override and not provider_name:
+        resolved_provider, model_override = resolve_model_provider(model_override)
+        if resolved_provider:
+            provider_name = resolved_provider
 
     # 2. Build display label
     if model_override:
