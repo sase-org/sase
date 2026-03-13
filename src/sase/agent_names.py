@@ -257,7 +257,6 @@ def _strip_name_from_json(path: Path, name: str) -> None:
         pass
 
 
-# pyvision: public_api_methods.txt
 def get_next_auto_name() -> str:
     """Return the lowest available alphabetic agent name.
 

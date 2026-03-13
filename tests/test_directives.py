@@ -170,6 +170,67 @@ def test_wait_directive_multiple() -> None:
     assert directives.wait == ["a", "b"]
 
 
+def test_name_bare_auto_generates() -> None:
+    """Bare %name auto-generates a name via get_next_auto_name()."""
+    prompt = "%name\nDo work"
+    with patch(
+        "sase.agent_names.get_next_auto_name",
+        return_value="a",
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.name == "a"
+
+
+def test_name_bare_alias_auto_generates() -> None:
+    """Bare %n auto-generates a name."""
+    prompt = "%n\nDo work"
+    with patch(
+        "sase.agent_names.get_next_auto_name",
+        return_value="b",
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.name == "b"
+
+
+def test_wait_bare_uses_name_directive() -> None:
+    """Bare %wait uses the %name value from the same prompt."""
+    prompt = "%name:foo\n%wait\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.name == "foo"
+    assert directives.wait == ["foo"]
+
+
+def test_wait_bare_uses_auto_generated_name() -> None:
+    """Bare %wait + bare %name uses the auto-generated name."""
+    prompt = "%name\n%wait\nDo work"
+    with patch(
+        "sase.agent_names.get_next_auto_name",
+        return_value="c",
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.name == "c"
+    assert directives.wait == ["c"]
+
+
+def test_wait_bare_without_name_raises() -> None:
+    """Bare %wait without a %name directive raises DirectiveError."""
+    prompt = "%wait\nDo work"
+    with pytest.raises(DirectiveError, match="Bare '%wait'.*'%name'"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_mixed_bare_and_explicit() -> None:
+    """Mix of bare and explicit %wait works."""
+    prompt = "%name:foo\n%wait:bar\n%wait\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["bar", "foo"]
+
+
 # --- %plan directive tests ---
 
 
@@ -330,6 +391,13 @@ def test_has_wait_directive_start_of_line() -> None:
 def test_has_wait_directive_absent() -> None:
     """Returns False when no %wait directive present."""
     assert has_wait_directive("Do something %model:opus") is False
+
+
+def test_has_wait_directive_bare() -> None:
+    """Detects bare %wait (no argument)."""
+    assert has_wait_directive("%wait\nDo something") is True
+    assert has_wait_directive("Do something %wait") is True
+    assert has_wait_directive("Do something %w\nmore") is True
 
 
 def test_has_wait_directive_no_percent() -> None:

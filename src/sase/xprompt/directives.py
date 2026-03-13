@@ -107,7 +107,7 @@ def has_wait_directive(prompt: str) -> bool:
     """
     if "%" not in prompt:
         return False
-    return bool(re.search(r"(?:^|\s)%(?:wait|w)[:+(]", prompt, re.MULTILINE))
+    return bool(re.search(r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
 
 
 def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
@@ -192,6 +192,28 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     if not regions_to_remove:
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
+
+    # Auto-generate name if %name was used bare (no argument)
+    if "name" in seen and not seen["name"]:
+        from sase.agent_names import get_next_auto_name
+
+        seen["name"] = get_next_auto_name()
+
+    # Resolve bare %wait directives to use the %name value
+    if "wait" in seen_multi:
+        resolved_wait: list[str] = []
+        for raw_arg in seen_multi["wait"]:
+            if not raw_arg:
+                name_val = seen.get("name", "")
+                if not name_val:
+                    raise DirectiveError(
+                        "Bare '%wait' directive requires a '%name' directive"
+                        " in the same prompt"
+                    )
+                resolved_wait.append(name_val)
+            else:
+                resolved_wait.append(raw_arg)
+        seen_multi["wait"] = resolved_wait
 
     # Remove directive regions from prompt (last-to-first to preserve positions)
     cleaned = prompt
