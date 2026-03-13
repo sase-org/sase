@@ -293,8 +293,8 @@ class AgentThinkingPanel(Static):
             content_color = "#B4C7E7"
         elif source == "codex":
             header_text = "CODEX THINKING"
-            header_color = "#00D787"
-            content_color = "#AFFFD7"
+            header_color = "#87FF00"
+            content_color = "#D7FFAF"
         else:
             header_text = "CLAUDE THINKING"
             header_color = "#AF87D7"
