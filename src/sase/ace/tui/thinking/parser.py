@@ -263,6 +263,48 @@ def _format_gemini_function_call(func_call: dict[str, Any]) -> str:
     return clean
 
 
+def read_codex_thinking(artifacts_dir: str) -> list[ThinkingBlock] | None:
+    """Read Codex reasoning summaries from ``codex_thinking.jsonl``.
+
+    The file is written by the Codex NDJSON streaming parser during agent
+    execution.  Each line is a JSON object with ``text`` and ``timestamp``.
+
+    Returns:
+        None if the file doesn't exist, [] if empty, or a list of
+        ThinkingBlocks in newest-first order.
+    """
+    path = Path(artifacts_dir) / "codex_thinking.jsonl"
+    if not path.exists():
+        return None
+
+    blocks: list[ThinkingBlock] = []
+    index = 0
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            text = entry.get("text", "")
+            if not text.strip():
+                continue
+            index += 1
+            blocks.append(
+                ThinkingBlock(
+                    text=text,
+                    timestamp=entry.get("timestamp", ""),
+                    index=index,
+                    following_action=None,
+                )
+            )
+
+    blocks.reverse()
+    return blocks
+
+
 def parse_thinking_blocks(jsonl_path: Path) -> list[ThinkingBlock]:
     """Parse thinking blocks from a Claude Code JSONL transcript.
 

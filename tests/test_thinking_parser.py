@@ -11,6 +11,7 @@ from sase.ace.tui.thinking.parser import (
     _parse_gemini_log_timestamp,
     _read_jsonl_lines,
     parse_thinking_blocks,
+    read_codex_thinking,
     read_gemini_log,
 )
 from sase.ace.tui.widgets.thinking_panel import _format_timestamp
@@ -417,3 +418,68 @@ def test_read_gemini_log_since_no_files_returns_none(
     since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=EASTERN_TZ)
     result = read_gemini_log(since=since)
     assert result is None
+
+
+# --- read_codex_thinking tests ---
+
+
+def test_read_codex_thinking_returns_none_when_no_file(tmp_path: Path) -> None:
+    """Returns None when codex_thinking.jsonl doesn't exist."""
+    result = read_codex_thinking(str(tmp_path))
+    assert result is None
+
+
+def test_read_codex_thinking_returns_empty_for_empty_file(tmp_path: Path) -> None:
+    """Returns [] when the file exists but has no entries."""
+    (tmp_path / "codex_thinking.jsonl").write_text("")
+    result = read_codex_thinking(str(tmp_path))
+    assert result == []
+
+
+def test_read_codex_thinking_parses_entries(tmp_path: Path) -> None:
+    """Parses thinking entries and returns newest-first."""
+    entries = [
+        json.dumps({"text": "First thought", "timestamp": "2026-03-13T10:00:00+00:00"}),
+        json.dumps(
+            {"text": "Second thought", "timestamp": "2026-03-13T10:01:00+00:00"}
+        ),
+    ]
+    (tmp_path / "codex_thinking.jsonl").write_text("\n".join(entries) + "\n")
+
+    result = read_codex_thinking(str(tmp_path))
+    assert result is not None
+    assert len(result) == 2
+    # Newest-first order
+    assert result[0].text == "Second thought"
+    assert result[0].index == 2
+    assert result[1].text == "First thought"
+    assert result[1].index == 1
+
+
+def test_read_codex_thinking_skips_empty_text(tmp_path: Path) -> None:
+    """Entries with empty text are skipped."""
+    entries = [
+        json.dumps({"text": "", "timestamp": "2026-03-13T10:00:00+00:00"}),
+        json.dumps({"text": "Real thought", "timestamp": "2026-03-13T10:01:00+00:00"}),
+    ]
+    (tmp_path / "codex_thinking.jsonl").write_text("\n".join(entries) + "\n")
+
+    result = read_codex_thinking(str(tmp_path))
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].text == "Real thought"
+
+
+def test_read_codex_thinking_handles_malformed_lines(tmp_path: Path) -> None:
+    """Malformed JSON lines are silently skipped."""
+    content = (
+        "{broken json\n"
+        + json.dumps({"text": "Valid", "timestamp": "2026-03-13T10:00:00+00:00"})
+        + "\n"
+    )
+    (tmp_path / "codex_thinking.jsonl").write_text(content)
+
+    result = read_codex_thinking(str(tmp_path))
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].text == "Valid"

@@ -5,6 +5,7 @@ import os
 import select
 import subprocess
 import sys
+from datetime import UTC, datetime
 from typing import IO
 
 
@@ -196,6 +197,15 @@ def stream_and_parse_json_output(
     return combined_text, stderr_content, return_code
 
 
+def _open_codex_thinking_file() -> IO[str] | None:
+    """Open the codex thinking JSONL file for writing if SASE_ARTIFACTS_DIR is set."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return None
+    path = os.path.join(artifacts_dir, "codex_thinking.jsonl")
+    return open(path, "w", encoding="utf-8")
+
+
 def stream_and_parse_codex_json_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
@@ -205,6 +215,10 @@ def stream_and_parse_codex_json_output(
     Reads ``codex exec --json`` output, extracting text from
     ``item.completed`` events where ``item.type == "message"`` and content
     blocks have ``type == "output_text"``.
+
+    Also captures reasoning summary items (``item.type == "reasoning"``) and
+    writes them to ``codex_thinking.jsonl`` in the artifacts directory for the
+    TUI thinking panel.
 
     Args:
         process: The subprocess.Popen process to stream from.
@@ -217,6 +231,7 @@ def stream_and_parse_codex_json_output(
     error_events: list[str] = []
     stderr_lines: list[str] = []
     live_reply_file = _open_live_reply_file()
+    thinking_file = _open_codex_thinking_file()
 
     try:
         if process.stdout:
@@ -245,6 +260,7 @@ def stream_and_parse_codex_json_output(
                         suppress_output,
                         error_events,
                         live_reply_file,
+                        thinking_file,
                     )
 
             if process.stderr and process.stderr in ready:
@@ -263,6 +279,7 @@ def stream_and_parse_codex_json_output(
                             suppress_output,
                             error_events,
                             live_reply_file,
+                            thinking_file,
                         )
                 if process.stderr:
                     for line in process.stderr:
@@ -273,6 +290,8 @@ def stream_and_parse_codex_json_output(
     finally:
         if live_reply_file:
             live_reply_file.close()
+        if thinking_file:
+            thinking_file.close()
 
     return_code = process.wait()
     combined_text = "\n\n".join(assistant_texts)
@@ -294,11 +313,16 @@ def _process_codex_json_line(
     suppress_output: bool,
     error_events: list[str] | None = None,
     live_reply_file: IO[str] | None = None,
+    thinking_file: IO[str] | None = None,
 ) -> None:
     """Parse a single Codex NDJSON line and extract assistant text.
 
     Extracts text from ``item.completed`` events where
     ``item.type == "agent_message"`` with a direct ``text`` field.
+
+    Also captures reasoning summary items (``item.type == "reasoning"``)
+    and writes them as JSONL entries to *thinking_file* for the TUI
+    thinking panel.
 
     Also captures ``error`` and ``turn.failed`` events into *error_events*.
     """
@@ -315,7 +339,8 @@ def _process_codex_json_line(
 
     if event_type == "item.completed":
         item = event.get("item", {})
-        if item.get("type") == "agent_message":
+        item_type = item.get("type")
+        if item_type == "agent_message":
             text = item.get("text", "")
             if text:
                 if live_reply_file:
@@ -326,6 +351,8 @@ def _process_codex_json_line(
                 assistant_texts.append(text)
                 if not suppress_output:
                     print(text, flush=True)
+        elif item_type == "reasoning" and thinking_file is not None:
+            _write_codex_thinking(item, thinking_file)
     elif event_type == "error" and error_events is not None:
         msg = event.get("message", "")
         if msg:
@@ -335,6 +362,34 @@ def _process_codex_json_line(
         msg = err.get("message", "") if isinstance(err, dict) else str(err)
         if msg:
             error_events.append(f"[turn.failed] {msg}")
+
+
+def _write_codex_thinking(item: dict[str, object], thinking_file: IO[str]) -> None:
+    """Extract reasoning text from a Codex reasoning item and write to JSONL.
+
+    Codex reasoning items have a ``summary`` list of summary parts::
+
+        {"type": "reasoning", "summary": [{"type": "summary_text", "text": "..."}]}
+    """
+    summary = item.get("summary", [])
+    if not isinstance(summary, list):
+        return
+    texts = [
+        s.get("text", "")
+        for s in summary
+        if isinstance(s, dict) and s.get("type") == "summary_text"
+    ]
+    text = "\n".join(t for t in texts if t)
+    if not text:
+        return
+    entry = json.dumps(
+        {
+            "text": text,
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+        }
+    )
+    thinking_file.write(entry + "\n")
+    thinking_file.flush()
 
 
 def _process_json_line(

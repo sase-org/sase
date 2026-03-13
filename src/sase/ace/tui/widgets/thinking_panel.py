@@ -16,6 +16,7 @@ from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.thinking import (
     ThinkingBlock,
     parse_thinking_blocks_multi,
+    read_codex_thinking,
     read_gemini_log,
     resolve_agent_sessions,
 )
@@ -392,7 +393,7 @@ class AgentThinkingPanel(Static):
         since = agent.run_start_time or agent.start_time
         session_paths = resolve_agent_sessions(agent, since=since)
         if not session_paths:
-            # No Claude session — try Gemini log if default provider is gemini
+            # No Claude session — try provider-specific thinking sources
             try:
                 provider_name = get_default_provider_name()
             except Exception:
@@ -400,6 +401,13 @@ class AgentThinkingPanel(Static):
             if provider_name == "gemini":
                 blocks = read_gemini_log(since=since)
                 source = "gemini"
+            elif provider_name == "codex":
+                artifacts_dir = agent.get_artifacts_dir()
+                if artifacts_dir:
+                    blocks = read_codex_thinking(artifacts_dir)
+                else:
+                    blocks = None
+                source = "codex"
             else:
                 blocks = None
         else:
