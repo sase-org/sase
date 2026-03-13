@@ -6,9 +6,7 @@ Supports two modes:
   triggered by the ``%plan`` directive.
 """
 
-import json
 import os
-import shutil
 import subprocess
 import time
 import uuid
@@ -16,14 +14,17 @@ from pathlib import Path
 
 from sase.rich_utils import gemini_timer
 
+from ._plan_utils import (
+    handle_plan_approval,
+    save_plan_to_sase,
+    save_response_as_plan,
+    write_plan_path_artifact,
+)
 from ._subprocess import stream_process_output
 from .base import LLMProvider
 from .types import ModelTier
 
 _DEFAULT_MODEL = "gemini-3-flash-preview"
-
-# Poll interval for plan approval responses (seconds)
-_POLL_INTERVAL = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -51,131 +52,6 @@ def _find_gemini_plan_file(after: float | None = None) -> str | None:
     if not md_files:
         return None
     return str(max(md_files, key=lambda f: f.stat().st_mtime))
-
-
-def _save_response_as_plan(text: str) -> str:
-    """Save response text as a plan file when no ``.md`` file exists on disk.
-
-    Returns:
-        Path to the saved plan file.
-    """
-    plans_dir = Path.home() / ".gemini" / "plans"
-    plans_dir.mkdir(parents=True, exist_ok=True)
-    plan_path = plans_dir / f"gemini_plan_{uuid.uuid4().hex[:8]}.md"
-    plan_path.write_text(text, encoding="utf-8")
-    return str(plan_path)
-
-
-def _save_plan_to_sase(plan_file: str) -> Path:
-    """Copy a plan file to ``~/.sase/plans/`` for persistence."""
-    sase_plans_dir = Path.home() / ".sase" / "plans"
-    sase_plans_dir.mkdir(parents=True, exist_ok=True)
-    src = Path(plan_file)
-    dest = sase_plans_dir / src.name
-    if dest.exists():
-        stem = src.stem
-        suffix = src.suffix
-        counter = 1
-        while dest.exists():
-            dest = sase_plans_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-    shutil.copy2(src, dest)
-    return dest
-
-
-def _write_plan_path_artifact(saved_plan_path: Path) -> None:
-    """Write ``plan_path.json`` so agent runner can thread it to ``done.json``."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if artifacts_dir:
-        plan_path_file = Path(artifacts_dir) / "plan_path.json"
-        plan_path_file.write_text(json.dumps({"plan_path": str(saved_plan_path)}))
-
-
-# ---------------------------------------------------------------------------
-# Plan approval
-# ---------------------------------------------------------------------------
-
-
-def _handle_plan_approval(plan_file: str | None, session_id: str) -> str | None:
-    """Handle plan approval flow.
-
-    Creates a TUI notification via ``notify_plan_approval()``, then polls for
-    the user's response.  Sends desktop notification and tmux bell.
-
-    Returns the plan file path if approved, ``None`` if rejected or missing.
-    """
-    from sase.main.plan_approve_handler import is_auto_approve_active
-
-    if is_auto_approve_active():
-        return plan_file
-
-    if not plan_file:
-        return None
-
-    response_dir = Path.home() / ".sase" / "plan_approval" / session_id
-    response_dir.mkdir(parents=True, exist_ok=True)
-
-    request_path = response_dir / "plan_request.json"
-    response_path = response_dir / "plan_response.json"
-
-    if response_path.exists():
-        response_path.unlink()
-
-    request_data = {
-        "plan_file": plan_file,
-        "session_id": session_id,
-        "timestamp": time.time(),
-    }
-    with open(request_path, "w", encoding="utf-8") as f:
-        json.dump(request_data, f, indent=2)
-
-    from sase.notifications.senders import notify_plan_approval
-
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
-    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
-    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
-    notify_plan_approval(
-        plan_file=plan_file,
-        response_dir=str(response_dir),
-        session_id=session_id,
-        project_dir=project_dir,
-        agent_cl_name=agent_cl_name,
-        agent_project_file=agent_project_file,
-        agent_timestamp=agent_timestamp,
-    )
-
-    # Desktop notification + tmux bell
-    from sase.main.plan_approve_handler import (
-        get_tmux_prefix,
-        ring_tmux_bell,
-        send_desktop_notification,
-    )
-
-    prefix = get_tmux_prefix()
-    send_desktop_notification(
-        f"{prefix} Plan Complete", "Plan ready for review in sase ace"
-    )
-    ring_tmux_bell()
-
-    # Poll for response (blocks until the user acts)
-    while True:
-        if response_path.exists():
-            try:
-                with open(response_path, encoding="utf-8") as f:
-                    response_data = json.load(f)
-
-                if request_path.exists():
-                    request_path.unlink()
-                response_path.unlink()
-
-                if response_data.get("action") == "approve":
-                    return plan_file
-                return None
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        time.sleep(_POLL_INTERVAL)
 
 
 # ---------------------------------------------------------------------------
@@ -318,18 +194,18 @@ class GeminiProvider(LLMProvider):
             # Find the plan file (filter out stale files from before this run)
             plan_file = _find_gemini_plan_file(after=start_time)
             if not plan_file and response_content.strip():
-                plan_file = _save_response_as_plan(response_content.strip())
+                plan_file = save_response_as_plan(response_content.strip(), "gemini")
             if not plan_file:
                 raise RuntimeError(
                     "Gemini plan mode produced no plan file and no response text"
                 )
 
             # Save plan to ~/.sase/plans/
-            saved_plan_path = _save_plan_to_sase(plan_file)
-            _write_plan_path_artifact(saved_plan_path)
+            saved_plan_path = save_plan_to_sase(plan_file)
+            write_plan_path_artifact(saved_plan_path)
 
             # Handle approval (blocks until user approves/rejects)
-            approved = _handle_plan_approval(plan_file, session_id)
+            approved = handle_plan_approval(plan_file, session_id)
             if not approved:
                 # Rejected — return plan text only
                 return response_content.strip()

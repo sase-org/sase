@@ -1,16 +1,20 @@
 """Claude Code LLM provider implementation."""
 
-import json
 import os
 import re
 import shutil
 import subprocess
-import time
 import uuid
 from pathlib import Path
 
 from sase.rich_utils import gemini_timer
 
+from ._plan_utils import (
+    append_plan_feedback_log,
+    read_plan_feedback,
+    save_plan_to_sase,
+    write_plan_path_artifact,
+)
 from ._subprocess import stream_and_parse_json_output
 from .base import LLMProvider
 from .types import ModelTier
@@ -34,6 +38,7 @@ def _find_plan_file() -> str | None:
     search_dirs = [
         Path.home() / ".claude" / "plans",
         Path.home() / ".gemini" / "plans",
+        Path.home() / ".codex" / "plans",
     ]
     md_files: list[Path] = []
     for d in search_dirs:
@@ -42,43 +47,6 @@ def _find_plan_file() -> str | None:
     if not md_files:
         return None
     return str(max(md_files, key=lambda f: f.stat().st_mtime))
-
-
-def _read_plan_feedback(approval_dir: Path) -> str | None:
-    """Read plan rejection feedback from plan_response.json if present.
-
-    Returns the feedback string if the plan was rejected with feedback,
-    or None otherwise.
-    """
-    response_path = approval_dir / "plan_response.json"
-    if not response_path.exists():
-        return None
-    try:
-        with open(response_path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("action") == "reject" and data.get("feedback"):
-            return data["feedback"]
-    except (json.JSONDecodeError, OSError):
-        pass
-    return None
-
-
-def _append_plan_feedback_log(feedback: str, round_num: int) -> None:
-    """Append a plan feedback record to plan_feedback.jsonl in SASE_ARTIFACTS_DIR."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        return
-    record = {
-        "round": round_num,
-        "feedback": feedback,
-        "timestamp": time.time(),
-    }
-    try:
-        path = os.path.join(artifacts_dir, "plan_feedback.jsonl")
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
-    except OSError:
-        pass
 
 
 class ClaudeCodeProvider(LLMProvider):
@@ -201,9 +169,9 @@ class ClaudeCodeProvider(LLMProvider):
             # Claude Code in pipe mode doesn't reliably revise after a hook
             # denial, so we re-launch phase 1 with the feedback included.
             if is_plan_mode and return_code != 0:
-                feedback = _read_plan_feedback(approval_dir)
+                feedback = read_plan_feedback(approval_dir)
                 if feedback:
-                    _append_plan_feedback_log(feedback, retry_round)
+                    append_plan_feedback_log(feedback, retry_round)
                     # Find the plan file Claude wrote so we can include it
                     plan_file = _find_plan_file()
                     if plan_file:
@@ -262,29 +230,8 @@ class ClaudeCodeProvider(LLMProvider):
         shutil.rmtree(approval_dir)
 
         if plan_file_path:
-            # Copy plan to ~/.sase/plans/ for the new session
-            sase_plans_dir = Path.home() / ".sase" / "plans"
-            sase_plans_dir.mkdir(parents=True, exist_ok=True)
-            src = Path(plan_file_path)
-            dest = sase_plans_dir / src.name
-            # Handle name conflicts by appending a suffix
-            if dest.exists():
-                stem = src.stem
-                suffix = src.suffix
-                counter = 1
-                while dest.exists():
-                    dest = sase_plans_dir / f"{stem}_{counter}{suffix}"
-                    counter += 1
-            shutil.copy2(src, dest)
-            saved_plan_path = dest
-
-            # Write plan_path.json so agent runner can thread it to done.json
-            artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-            if artifacts_dir:
-                plan_path_file = Path(artifacts_dir) / "plan_path.json"
-                plan_path_file.write_text(
-                    json.dumps({"plan_path": str(saved_plan_path)})
-                )
+            saved_plan_path = save_plan_to_sase(plan_file_path)
+            write_plan_path_artifact(saved_plan_path)
         else:
             saved_plan_path = None
 

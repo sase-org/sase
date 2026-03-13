@@ -86,6 +86,8 @@ def _find_plan_file(session_id: str) -> str | None:  # noqa: ARG001
         Path.home() / ".claude" / "plans",
         Path.home() / ".gemini" / "plans",
         Path.home() / ".gemini",
+        Path.home() / ".codex" / "plans",
+        Path.home() / ".codex",
     ]
 
     md_files: list[Path] = []
