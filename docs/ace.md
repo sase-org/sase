@@ -172,6 +172,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `n`                 | Name agent                               |
 | `r`                 | Revive chat as agent                     |
 | `v`                 | View files (hint mode)                   |
+| `w`                 | Unwait a WAITING agent (run immediately) |
 | `x`                 | Kill / dismiss agent                     |
 | `e`                 | Edit chat in editor                      |
 | `E`                 | Edit panel content in editor             |

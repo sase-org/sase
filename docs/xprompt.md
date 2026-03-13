@@ -378,9 +378,14 @@ Directives use the same argument syntax as xprompt references:
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
+%name                        # Bare — auto-generates a unique name
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
+%wait                        # Bare — waits for the most recently named agent
 ```
+
+The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a unique name for the
+agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
 
 ### Example
 

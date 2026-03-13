@@ -88,11 +88,11 @@ llm_provider:
     small: sonnet
 ```
 
-| Field                               | Type   | Default     | Description                                                                     |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, else gemini. |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                          |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                          |
+| Field                               | Type   | Default     | Description                                                                                 |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects: claude if on PATH, then codex, else gemini. |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                      |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                      |
 
 Source: `src/sase/llm_provider/config.py`
 
@@ -341,6 +341,9 @@ Source: `src/sase/xprompt/loader.py`
 | `SASE_LLM_SMALL_ARGS`      | Extra CLI args appended for `small` tier invocations (any provider).     |
 | `SASE_CLAUDE_LARGE_ARGS`   | Claude-specific extra args for `large` tier (fallback if generic unset). |
 | `SASE_CLAUDE_SMALL_ARGS`   | Claude-specific extra args for `small` tier (fallback if generic unset). |
+| `SASE_CODEX_LARGE_ARGS`    | Codex-specific extra args for `large` tier (fallback if generic unset).  |
+| `SASE_CODEX_SMALL_ARGS`    | Codex-specific extra args for `small` tier (fallback if generic unset).  |
+| `SASE_AGENT_PLAN_MODE`     | Enable Codex two-phase plan/implement flow.                              |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
 variable is used as a fallback. Values are split on whitespace and appended to the CLI command.

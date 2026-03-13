@@ -21,7 +21,7 @@ sase is designed to work with the coding agents you already use:
 | ------------------------------------------------------------- | ------------- |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Supported** |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | **Supported** |
-| [Codex](https://github.com/openai/codex)                      | Coming soon   |
+| [Codex](https://github.com/openai/codex)                      | **Supported** |
 
 sase doesn't replace these agents — it **orchestrates** them. It provides the scheduling, tracking, and workflow
 infrastructure that turns individual agent runs into a managed software engineering pipeline.
@@ -34,7 +34,7 @@ infrastructure that turns individual agent runs into a managed software engineer
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
-- **LLM Providers** — Pluggable AI abstraction (Claude, Gemini) with pre/post-processing
+- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini) with pre/post-processing
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
 - **Query Language** — Boolean expression language for filtering and searching ChangeSpecs
 
