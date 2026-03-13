@@ -26,6 +26,25 @@ sase is designed to work with the coding agents you already use:
 sase doesn't replace these agents — it **orchestrates** them. It provides the scheduling, tracking, and workflow
 infrastructure that turns individual agent runs into a managed software engineering pipeline.
 
+## Vision
+
+sase exists to solve the coordination problems that appear once coding agents become part of a real software engineering
+workflow:
+
+- Agent runs are hard to schedule, monitor, and resume reliably
+- Prompt logic and multi-step execution are too fragile when spread across ad hoc scripts
+- Work gets lost without a first-class unit for tracking status, ownership, metadata, and review state
+- Teams need one system that can sit above different coding agents instead of rewriting their workflow for each one
+- Automation needs human checkpoints, VCS integration, and reproducible execution rather than one-off terminal sessions
+
+Before sase, using coding agents at scale meant juggling prompts, shell history, scratch files, and manual follow-up.
+Each run was useful in isolation, but the surrounding process was brittle: hard to audit, hard to hand off, and hard to
+repeat consistently.
+
+After sase, agent work becomes part of a structured pipeline. ChangeSpecs define the unit of work, workflows define how
+work moves, and the TUI and daemon provide the operational layer for tracking, scheduling, and supervision. The goal is
+not just to make agents more capable, but to make agent-driven software engineering dependable.
+
 ## Key Features
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
