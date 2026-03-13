@@ -313,11 +313,11 @@ def load_done_agents(
                         retry_attempt=data.get("retry_attempt", 0),
                     )
 
-                    # Enrich from agent_meta.json when model/VCS not in done.json
-                    # (axe runners write agent_meta.json but older done.json may
-                    # lack these fields)
-                    if not agent.model or not agent.vcs_provider:
-                        enrich_agent_from_meta(agent, str(artifact_dir))
+                    # Always enrich from agent_meta.json — it may contain
+                    # fields not in done.json (e.g. name set via TUI rename
+                    # after the agent started, which the runner doesn't know
+                    # about when writing done.json).
+                    enrich_agent_from_meta(agent, str(artifact_dir))
 
                     agents.append(agent)
                 except Exception:
