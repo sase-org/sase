@@ -47,24 +47,28 @@ def get_default_provider_name() -> str:
 
     Returns:
         The configured default provider name, or auto-detected provider.
-        Prefers claude if available on PATH, falls back to gemini.
+        Prefers claude if available on PATH, then codex, falls back to gemini.
     """
     config = get_llm_provider_config()
     provider = config.get("provider")
     if provider:
         return provider
-    # Auto-detect: prefer claude if available on PATH
+    # Auto-detect: prefer claude, then codex, fall back to gemini
     if shutil.which("claude"):
         return "claude"
+    if shutil.which("codex"):
+        return "codex"
     return "gemini"
 
 
 def _register_builtin_providers() -> None:
     """Register the built-in providers."""
     from .claude import ClaudeCodeProvider
+    from .codex import CodexProvider
     from .gemini import GeminiProvider
 
     register_provider("claude", ClaudeCodeProvider)
+    register_provider("codex", CodexProvider)
     register_provider("gemini", GeminiProvider)
 
 

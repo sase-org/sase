@@ -160,6 +160,130 @@ def stream_and_parse_json_output(
     return combined_text, stderr_content, return_code
 
 
+def stream_and_parse_codex_json_output(
+    process: subprocess.Popen[str],
+    suppress_output: bool = False,
+) -> tuple[str, str, int]:
+    """Stream stdout as NDJSON events and extract assistant text from Codex.
+
+    Reads ``codex exec --json`` output, extracting text from
+    ``item.completed`` events where ``item.type == "message"`` and content
+    blocks have ``type == "output_text"``.
+
+    Args:
+        process: The subprocess.Popen process to stream from.
+        suppress_output: If True, don't print output to console.
+
+    Returns:
+        Tuple of (assistant_text, stderr_content, return_code).
+    """
+    assistant_texts: list[str] = []
+    error_events: list[str] = []
+    stderr_lines: list[str] = []
+
+    if process.stdout:
+        os.set_blocking(process.stdout.fileno(), False)
+    if process.stderr:
+        os.set_blocking(process.stderr.fileno(), False)
+
+    while True:
+        readable: list[object] = []
+        if process.stdout:
+            readable.append(process.stdout)
+        if process.stderr:
+            readable.append(process.stderr)
+
+        if not readable:
+            break
+
+        ready, _, _ = select.select(readable, [], [], 0.1)
+
+        if process.stdout and process.stdout in ready:
+            line = process.stdout.readline()
+            if line:
+                _process_codex_json_line(
+                    line, assistant_texts, suppress_output, error_events
+                )
+
+        if process.stderr and process.stderr in ready:
+            line = process.stderr.readline()
+            if line:
+                stderr_lines.append(line)
+                if not suppress_output:
+                    print(line, end="", file=sys.stderr, flush=True)
+
+        if process.poll() is not None:
+            if process.stdout:
+                for line in process.stdout:
+                    _process_codex_json_line(
+                        line, assistant_texts, suppress_output, error_events
+                    )
+            if process.stderr:
+                for line in process.stderr:
+                    stderr_lines.append(line)
+                    if not suppress_output:
+                        print(line, end="", file=sys.stderr, flush=True)
+            break
+
+    return_code = process.wait()
+    combined_text = "\n\n".join(assistant_texts)
+    stderr_content = "".join(stderr_lines)
+
+    if return_code != 0 and error_events:
+        error_info = "\n".join(error_events)
+        if stderr_content:
+            stderr_content += "\n" + error_info
+        else:
+            stderr_content = error_info
+
+    return combined_text, stderr_content, return_code
+
+
+def _process_codex_json_line(
+    line: str,
+    assistant_texts: list[str],
+    suppress_output: bool,
+    error_events: list[str] | None = None,
+) -> None:
+    """Parse a single Codex NDJSON line and extract assistant text.
+
+    Extracts text from ``item.completed`` events where
+    ``item.type == "message"`` and content blocks have
+    ``type == "output_text"``.
+
+    Also captures ``error`` and ``turn.failed`` events into *error_events*.
+    """
+    line = line.strip()
+    if not line:
+        return
+
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        return
+
+    event_type = event.get("type")
+
+    if event_type == "item.completed":
+        item = event.get("item", {})
+        if item.get("type") == "message" and item.get("role") == "assistant":
+            for block in item.get("content", []):
+                if block.get("type") == "output_text":
+                    text = block["text"]
+                    assistant_texts.append(text)
+                    if not suppress_output:
+                        print(text, flush=True)
+    elif event_type == "error" and error_events is not None:
+        msg = event.get("message", "")
+        if msg:
+            error_events.append(f"[error] {msg}")
+    elif event_type == "turn.failed" and error_events is not None:
+        err = event.get("error", {})
+        msg = err.get("message", "") if isinstance(err, dict) else str(err)
+        if msg:
+            error_events.append(f"[turn.failed] {msg}")
+
+
 def _process_json_line(
     line: str,
     assistant_texts: list[str],
