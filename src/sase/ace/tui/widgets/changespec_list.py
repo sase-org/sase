@@ -202,7 +202,7 @@ class ChangeSpecList(OptionList):
             "Reverted",
             "Archived",
         ):
-            text.append("\u25cc ", style="dim #808080")
+            text.append("\u25cc ", style="#D7875F")
 
         # Mark indicator (green checkmark)
         if is_marked:

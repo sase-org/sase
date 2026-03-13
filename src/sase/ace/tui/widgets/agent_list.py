@@ -255,7 +255,7 @@ class AgentList(OptionList):
 
         # Hidden icon for agents that are normally hidden
         if agent.hidden:
-            text.append(f"{_HIDDEN_ICON} ", style="dim #808080")
+            text.append(f"{_HIDDEN_ICON} ", style="#D7875F")
 
         # Done icon for dismissible agents
         if agent.status in _DISMISSIBLE_STATUSES:
