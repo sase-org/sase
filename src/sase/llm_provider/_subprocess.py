@@ -248,8 +248,7 @@ def _process_codex_json_line(
     """Parse a single Codex NDJSON line and extract assistant text.
 
     Extracts text from ``item.completed`` events where
-    ``item.type == "message"`` and content blocks have
-    ``type == "output_text"``.
+    ``item.type == "agent_message"`` with a direct ``text`` field.
 
     Also captures ``error`` and ``turn.failed`` events into *error_events*.
     """
@@ -266,13 +265,12 @@ def _process_codex_json_line(
 
     if event_type == "item.completed":
         item = event.get("item", {})
-        if item.get("type") == "message" and item.get("role") == "assistant":
-            for block in item.get("content", []):
-                if block.get("type") == "output_text":
-                    text = block["text"]
-                    assistant_texts.append(text)
-                    if not suppress_output:
-                        print(text, flush=True)
+        if item.get("type") == "agent_message":
+            text = item.get("text", "")
+            if text:
+                assistant_texts.append(text)
+                if not suppress_output:
+                    print(text, flush=True)
     elif event_type == "error" and error_events is not None:
         msg = event.get("message", "")
         if msg:

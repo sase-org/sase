@@ -300,10 +300,9 @@ def test_codex_json_parser_extracts_text() -> None:
             {
                 "type": "item.completed",
                 "item": {
-                    "id": "msg1",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [{"type": "output_text", "text": "Hello world"}],
+                    "id": "item_0",
+                    "type": "agent_message",
+                    "text": "Hello world",
                 },
             }
         ),
@@ -311,10 +310,9 @@ def test_codex_json_parser_extracts_text() -> None:
             {
                 "type": "item.completed",
                 "item": {
-                    "id": "msg2",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [{"type": "output_text", "text": "Second response"}],
+                    "id": "item_1",
+                    "type": "agent_message",
+                    "text": "Second response",
                 },
             }
         ),
@@ -343,10 +341,9 @@ def test_codex_json_parser_handles_malformed_lines() -> None:
             {
                 "type": "item.completed",
                 "item": {
-                    "id": "msg1",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [{"type": "output_text", "text": "valid text"}],
+                    "id": "item_0",
+                    "type": "agent_message",
+                    "text": "valid text",
                 },
             }
         ),
@@ -391,8 +388,8 @@ def test_codex_json_parser_captures_turn_failed_events() -> None:
     assert "[turn.failed] turn failed" in error_events[0]
 
 
-def test_codex_json_parser_ignores_non_assistant_messages() -> None:
-    """Test that item.completed with role != 'assistant' is ignored."""
+def test_codex_json_parser_ignores_non_agent_message_items() -> None:
+    """Test that item.completed with type != 'agent_message' is ignored."""
     assistant_texts: list[str] = []
     error_events: list[str] = []
 
@@ -400,9 +397,9 @@ def test_codex_json_parser_ignores_non_assistant_messages() -> None:
         {
             "type": "item.completed",
             "item": {
-                "type": "message",
-                "role": "user",
-                "content": [{"type": "output_text", "text": "user message"}],
+                "id": "item_0",
+                "type": "error",
+                "message": "some error",
             },
         }
     )
