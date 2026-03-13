@@ -259,6 +259,33 @@ class KeybindingFooter(Horizontal):
         prefix.append_text(text)
         self._update_display(prefix)
 
+    def update_custom_mode_bindings(self, mode_name: str) -> None:
+        """Update bindings to show custom mode options.
+
+        Args:
+            mode_name: Name of the active custom mode.
+        """
+        d = footer_key_display
+        mode = self._registry.modes.get(mode_name)
+        if mode is None:
+            return
+
+        bindings: list[tuple[str, str]] = []
+        for action_name, spec in mode.keys.items():
+            if not isinstance(spec, dict):
+                continue
+            key = spec.get("key", "")
+            desc = spec.get("description", action_name)
+            bindings.append((d(key), desc))
+        bindings.append(("Esc", "cancel"))
+
+        text = self._format_bindings(bindings)
+        prefix = Text()
+        display_name = mode_name.upper().replace("_", " ")
+        prefix.append(f"{display_name} ", style="bold #FFD700")
+        prefix.append_text(text)
+        self._update_display(prefix)
+
     def update_copy_bindings(self, tab: str, *, file_visible: bool = False) -> None:
         """Update bindings to show copy mode options for the current tab.
 

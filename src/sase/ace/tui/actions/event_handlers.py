@@ -48,6 +48,8 @@ class EventHandlersMixin:
     _accept_mode_active: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
+    _custom_mode_active: str | None
+    _custom_mode_prefixes: dict[str, str]
     _inactive_seconds: int
     _last_activity_time: float
     _last_activity_flush: float
@@ -208,6 +210,15 @@ class EventHandlersMixin:
             if self._handle_bang_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
+        elif self._custom_mode_active is not None:
+            if self._handle_custom_mode_key(event.key):  # type: ignore[attr-defined]
+                event.prevent_default()
+                event.stop()
+        elif event.key in self._custom_mode_prefixes:
+            self._custom_mode_active = self._custom_mode_prefixes[event.key]
+            self._update_custom_mode_footer(self._custom_mode_active)  # type: ignore[attr-defined]
+            event.prevent_default()
+            event.stop()
 
     def on_input_changed(self, _event: Input.Changed) -> None:
         """Record activity when user types in a focused Input widget.

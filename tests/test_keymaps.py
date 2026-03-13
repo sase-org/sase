@@ -127,7 +127,18 @@ def test_unknown_mode_becomes_generic() -> None:
                 "modes": {
                     "my_mode": {
                         "prefix": "semicolon",
-                        "keys": {"do_thing": "t", "do_other": "o"},
+                        "keys": {
+                            "do_thing": {
+                                "key": "t",
+                                "shell": "echo hi",
+                                "description": "Do thing",
+                            },
+                            "do_other": {
+                                "key": "o",
+                                "action": "refresh",
+                                "description": "Do other",
+                            },
+                        },
                     },
                 },
             },
@@ -137,7 +148,8 @@ def test_unknown_mode_becomes_generic() -> None:
     assert isinstance(m, _ModeKeymaps)
     assert not isinstance(m, _FoldModeKeymaps)
     assert m.prefix == "semicolon"
-    assert m.keys["do_thing"] == "t"
+    assert isinstance(m.keys["do_thing"], dict)
+    assert m.keys["do_thing"]["key"] == "t"
 
 
 def test_non_dict_keymaps_config() -> None:

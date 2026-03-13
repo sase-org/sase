@@ -6,6 +6,7 @@ from .axe import AxeMixin
 from .base import BaseActionsMixin
 from .changespec import ChangeSpecMixin
 from .clipboard import ClipboardMixin
+from .custom_modes import CustomModeMixin
 from .event_handlers import EventHandlersMixin
 from .hints import HintActionsMixin
 from .marking import MarkingMixin
@@ -23,6 +24,7 @@ __all__ = [
     "BaseActionsMixin",
     "ChangeSpecMixin",
     "ClipboardMixin",
+    "CustomModeMixin",
     "EventHandlersMixin",
     "HintActionsMixin",
     "MarkingMixin",

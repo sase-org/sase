@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from ...keymaps import KeymapRegistry, key_display_name
+from ...keymaps import BUILTIN_MODE_NAMES, KeymapRegistry, key_display_name
 
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -33,7 +33,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
     cs_copy = cm.keys["changespecs"]
     assert isinstance(cs_copy, dict)
 
-    return [
+    sections: _Sections = [
         (
             "Navigation",
             [
@@ -171,6 +171,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
             ],
         ),
+    ]
+    # Insert custom mode sections before "General".
+    sections.extend(_custom_mode_sections(km))
+    sections.append(
         (
             "General",
             [
@@ -184,7 +188,8 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.show_help), "Show this help"),
             ],
         ),
-    ]
+    )
+    return sections
 
 
 def agents_bindings(km: KeymapRegistry) -> _Sections:
@@ -198,7 +203,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
     ag_copy = cm.keys["agents"]
     assert isinstance(ag_copy, dict)
 
-    return [
+    sections: _Sections = [
         (
             "Navigation",
             [
@@ -290,6 +295,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.edit_query), "Filter agents by name"),
             ],
         ),
+    ]
+    # Insert custom mode sections before "General".
+    sections.extend(_custom_mode_sections(km))
+    sections.append(
         (
             "General",
             [
@@ -304,7 +313,8 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.show_help), "Show this help"),
             ],
         ),
-    ]
+    )
+    return sections
 
 
 def axe_bindings(km: KeymapRegistry) -> _Sections:
@@ -318,7 +328,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
     axe_copy = cm.keys["axe"]
     assert isinstance(axe_copy, dict)
 
-    return [
+    sections: _Sections = [
         (
             "Navigation",
             [
@@ -377,6 +387,10 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.stop_axe_and_quit), "Stop axe and quit"),
             ],
         ),
+    ]
+    # Insert custom mode sections before "General".
+    sections.extend(_custom_mode_sections(km))
+    sections.append(
         (
             "General",
             [
@@ -389,7 +403,28 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.show_help), "Show this help"),
             ],
         ),
-    ]
+    )
+    return sections
+
+
+def _custom_mode_sections(km: KeymapRegistry) -> _Sections:
+    """Build help sections for user-defined (non-builtin) custom modes."""
+    d = key_display_name
+    sections: _Sections = []
+    for mode_name, mode in km.modes.items():
+        if mode_name in BUILTIN_MODE_NAMES:
+            continue
+        display_name = mode_name.replace("_", " ").title()
+        bindings: list[tuple[str, str]] = []
+        for action_name, spec in mode.keys.items():
+            if not isinstance(spec, dict):
+                continue
+            key = spec.get("key", "")
+            desc = spec.get("description", action_name)
+            bindings.append((f"{d(mode.prefix)}{d(key)}", desc))
+        if bindings:
+            sections.append((f"{display_name} ({d(mode.prefix)})", bindings))
+    return sections
 
 
 TAB_DISPLAY_NAMES = {

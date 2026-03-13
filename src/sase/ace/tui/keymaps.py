@@ -137,6 +137,7 @@ _KEY_DISPLAY: dict[str, str] = {
     "shift+tab": "Shift+Tab",
     "enter": "Enter",
     "tilde": "~",
+    "semicolon": ";",
 }
 
 
@@ -343,6 +344,8 @@ _BUILTIN_MODE_CLASSES: dict[str, type[_ModeKeymaps]] = {
     "bang_mode": _BangModeKeymaps,
 }
 
+BUILTIN_MODE_NAMES: frozenset[str] = frozenset(_BUILTIN_MODE_CLASSES)
+
 
 @dataclass
 class KeymapRegistry:
@@ -514,10 +517,31 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         keys: dict[str, str | dict[str, str]] = {}
         if isinstance(raw_keys, dict):
             for k, v in raw_keys.items():
-                if isinstance(v, str):
-                    keys[k] = v
-                elif isinstance(v, dict):
-                    keys[k] = {sk: sv for sk, sv in v.items() if isinstance(sv, str)}
+                if not isinstance(v, dict):
+                    # Custom mode sub-keys must be dicts with key/shell/action.
+                    log.warning(
+                        "Custom mode %r sub-key %r: expected dict, got %s; skipping",
+                        mode_name,
+                        k,
+                        type(v).__name__,
+                    )
+                    continue
+                if "key" not in v:
+                    log.warning(
+                        "Custom mode %r sub-key %r: missing 'key' field; skipping",
+                        mode_name,
+                        k,
+                    )
+                    continue
+                if "shell" not in v and "action" not in v:
+                    log.warning(
+                        "Custom mode %r sub-key %r: missing 'shell' or 'action'; "
+                        "skipping",
+                        mode_name,
+                        k,
+                    )
+                    continue
+                keys[k] = {sk: sv for sk, sv in v.items() if isinstance(sv, str)}
         modes[mode_name] = _ModeKeymaps(prefix=prefix, keys=keys)
 
     registry = KeymapRegistry(app=app_km, modes=modes)
@@ -537,6 +561,20 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
                 app_key,
             )
             setattr(registry.app, action_name, mode.prefix)
+
+    # --- Prefix conflict detection for custom modes ---
+    # Warn if a custom mode's prefix collides with an app binding.
+    app_keys: set[str] = {getattr(registry.app, f.name) for f in fields(_AppKeymaps)}
+    for mode_name, mode in registry.modes.items():
+        if mode_name in _BUILTIN_MODE_CLASSES:
+            continue
+        if mode.prefix and mode.prefix in app_keys:
+            log.warning(
+                "Custom mode %r prefix %r conflicts with an existing app binding; "
+                "the prefix key will activate the custom mode instead",
+                mode_name,
+                mode.prefix,
+            )
 
     return registry
 

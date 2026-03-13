@@ -28,6 +28,7 @@ from .actions import (
     BaseActionsMixin,
     ChangeSpecMixin,
     ClipboardMixin,
+    CustomModeMixin,
     EventHandlersMixin,
     HintActionsMixin,
     MarkingMixin,
@@ -79,6 +80,7 @@ class AceApp(
     AxeMixin,
     ChangeSpecMixin,
     ClipboardMixin,
+    CustomModeMixin,
     EventHandlersMixin,
     MarkingMixin,
     NavigationMixin,
@@ -278,6 +280,9 @@ class AceApp(
         # Bang mode state (for ! key sub-commands)
         self._bang_mode_active: bool = False
 
+        # Custom mode state (for user-defined prefix-key modes)
+        self._custom_mode_active: str | None = None
+
         # Ancestor/child/sibling navigation state
         self._ancestor_mode_active: bool = False
         self._child_mode_active: bool = False
@@ -370,6 +375,7 @@ class AceApp(
 
         # Build keymap registry from config
         from .keymaps import (
+            BUILTIN_MODE_NAMES,
             KeymapRegistry,
             build_app_bindings,
             key_display_name,
@@ -379,6 +385,13 @@ class AceApp(
         self._keymap_registry: KeymapRegistry = load_keymap_registry(
             ace_cfg if isinstance(ace_cfg, dict) else {}
         )
+
+        # Build prefix→mode_name lookup for custom (non-builtin) modes.
+        self._custom_mode_prefixes: dict[str, str] = {
+            mode.prefix: name
+            for name, mode in self._keymap_registry.modes.items()
+            if name not in BUILTIN_MODE_NAMES and mode.prefix
+        }
 
         # Replace instance bindings with registry-driven bindings.
         from textual.binding import BindingsMap
