@@ -155,7 +155,7 @@ class BgCmdList(OptionList):
             config = load_axe_config()
             total_jacks = len(config.jacks)
             if total_jacks > 0:
-                fold_label = f" ({total_jacks} Jacks)" if not is_expanded else ""
+                fold_label = f" ({total_jacks} jacks)" if not is_expanded else ""
                 if fold_label:
                     text.append(fold_label, style="dim")
 
