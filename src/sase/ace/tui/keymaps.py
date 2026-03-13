@@ -13,6 +13,25 @@ from textual.binding import Binding
 
 log = logging.getLogger(__name__)
 
+# Known Textual named keys (beyond what's in _KEY_DISPLAY).
+_NAMED_KEYS: set[str] = {
+    "escape",
+    "enter",
+    "tab",
+    "backspace",
+    "delete",
+    "up",
+    "down",
+    "left",
+    "right",
+    "home",
+    "end",
+    "pageup",
+    "pagedown",
+    "insert",
+    *(f"f{n}" for n in range(1, 25)),
+}
+
 # ---------------------------------------------------------------------------
 # Binding metadata: (action_name, description, priority)
 # Order matches the original hardcoded BINDINGS in app.py.
@@ -119,6 +138,26 @@ _KEY_DISPLAY: dict[str, str] = {
     "enter": "Enter",
     "tilde": "~",
 }
+
+
+def _is_valid_key(key: str) -> bool:
+    """Check whether *key* is a recognised Textual key name."""
+    if not key:
+        return False
+    # Single alphanumeric character.
+    if len(key) == 1 and key.isalnum():
+        return True
+    # Entry in _KEY_DISPLAY (known Textual special names).
+    if key in _KEY_DISPLAY:
+        return True
+    # Known named keys.
+    if key in _NAMED_KEYS:
+        return True
+    # ctrl+ or shift+ prefix with a valid suffix.
+    if key.startswith(("ctrl+", "shift+")):
+        suffix = key.split("+", 1)[1]
+        return _is_valid_key(suffix)
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +429,51 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             app_kwargs[fname] = app_overrides[fname]
         else:
             app_kwargs[fname] = getattr(app_defaults, fname)
+
+    # --- Validate user-overridden keys ---
+    user_overridden = {
+        fname
+        for fname in app_field_names
+        if fname in app_overrides
+        and isinstance(app_overrides[fname], str)
+        and app_overrides[fname] != getattr(app_defaults, fname)
+    }
+
+    # Invalid key validation: revert unrecognised keys to defaults.
+    for fname in sorted(user_overridden):
+        if not _is_valid_key(app_kwargs[fname]):
+            log.warning(
+                "Invalid key %r for action %r; reverting to default %r",
+                app_kwargs[fname],
+                fname,
+                getattr(app_defaults, fname),
+            )
+            app_kwargs[fname] = getattr(app_defaults, fname)
+            user_overridden.discard(fname)
+
+    # Duplicate key detection: revert user overrides that conflict.
+    key_to_actions: dict[str, list[str]] = {}
+    for fname, key_val in app_kwargs.items():
+        key_to_actions.setdefault(key_val, []).append(fname)
+
+    for key_val, actions in key_to_actions.items():
+        if len(actions) <= 1:
+            continue
+        overridden = [a for a in actions if a in user_overridden]
+        if not overridden:
+            continue
+        for fname in overridden:
+            default_val = getattr(app_defaults, fname)
+            log.warning(
+                "Duplicate key %r: action %r conflicts with %s; "
+                "reverting to default %r",
+                key_val,
+                fname,
+                [a for a in actions if a != fname],
+                default_val,
+            )
+            app_kwargs[fname] = default_val
+
     app_km = _AppKeymaps(**app_kwargs)
 
     # --- Mode keymaps ---

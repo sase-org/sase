@@ -31,8 +31,8 @@ def test_empty_config_returns_defaults() -> None:
 
 def test_partial_app_override() -> None:
     """Overriding one app key preserves all other defaults."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "n"}}})
-    assert reg.app.next_changespec == "n"
+    reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "f"}}})
+    assert reg.app.next_changespec == "f"
     assert reg.app.prev_changespec == "k"  # unchanged
     assert reg.app.quit == "q"  # unchanged
 
