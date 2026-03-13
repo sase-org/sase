@@ -275,6 +275,15 @@ def handle_plan_approve_command() -> NoReturn:
 
     # Poll for response file (no timeout — wait until the user acts)
     while True:
+        # Re-check auto-approve each iteration so that toggling 'a' in the
+        # TUI while the handler is already polling takes effect immediately.
+        if is_auto_approve_active():
+            marker_path.write_text(plan_file or "")
+            if request_path.exists():
+                request_path.unlink()
+            emit_hook_decision("allow", "Plan auto-approved via %approve directive")
+            sys.exit(0)
+
         if response_path.exists():
             try:
                 with open(response_path, encoding="utf-8") as f:

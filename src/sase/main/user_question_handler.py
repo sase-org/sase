@@ -183,6 +183,23 @@ def handle_user_question_command() -> NoReturn:
 
     # Poll for response file (no timeout — wait until the user acts)
     while True:
+        # Re-check auto-approve each iteration so that toggling 'a' in the
+        # TUI while the handler is already polling takes effect immediately.
+        if is_auto_approve_active():
+            answers = []
+            for q in questions:
+                question_text = q.get("question", "")
+                options = q.get("options", [])
+                selected = [options[0].get("label", "")] if options else []
+                answers.append({"question": question_text, "selected": selected})
+            response_data = {"answers": answers}
+            if request_path.exists():
+                request_path.unlink()
+            _append_qa_log(questions, response_data)
+            formatted = _format_answers(response_data)
+            emit_hook_decision("deny", formatted)
+            sys.exit(0)
+
         if response_path.exists():
             try:
                 with open(response_path, encoding="utf-8") as f:
