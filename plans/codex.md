@@ -1,5 +1,6 @@
 ---
 status: draft
+bead_id: sase-511j
 ---
 
 # Plan: Add Codex (OpenAI CLI Agent) Provider to sase
