@@ -90,6 +90,53 @@ class AgentInteractionMixin:
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         agent_detail.refresh_current_file(agent)
 
+    def action_reword(self) -> None:
+        """Reword or unwait - behavior depends on current tab."""
+        if self.current_tab == "agents":
+            self._unwait_agent()
+        else:
+            # Call parent implementation for ChangeSpecs
+            super().action_reword()  # type: ignore[misc]
+
+    def _unwait_agent(self) -> None:
+        """Remove the wait directive from a WAITING agent, letting it run immediately."""
+        import json
+        from pathlib import Path
+
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+
+        if agent.status != "WAITING":
+            self.notify("Agent is not waiting", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
+        if not artifacts_dir:
+            self.notify("No artifacts directory for agent", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        ready_path = Path(artifacts_dir) / "ready.json"
+        if ready_path.exists():
+            self.notify("Agent already has ready.json", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Write ready.json so the polling agent runner proceeds immediately
+        try:
+            with open(ready_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {"resolved_deps": agent.waiting_for, "unwait": True},
+                    f,
+                    indent=2,
+                )
+        except OSError:
+            self.notify("Failed to write ready.json", severity="error")  # type: ignore[attr-defined]
+            return
+
+        self.notify(f"Unwait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
+
     def action_edit_spec(self) -> None:
         """Edit spec/chat - behavior depends on current tab."""
         if self.current_tab == "agents":

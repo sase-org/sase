@@ -132,6 +132,7 @@ AGENTS_BINDINGS: list[tuple[str, list[tuple[str, str]]]] = [
             ("a", "Toggle auto-approve / answer HITL"),
             ("n", "Name agent"),
             ("r", "Revive chat as agent"),
+            ("w", "Unwait (remove %wait, start now)"),
             ("x", "Kill / dismiss agent"),
             ("e", "Edit chat in editor"),
             ("E", "Edit panel content in editor"),

@@ -384,6 +384,8 @@ class KeybindingFooter(Horizontal):
                     bindings.append(("x", "dismiss"))
                 else:
                     bindings.append(("x", "kill"))
+                if agent.status == "WAITING":
+                    bindings.append(("w", "unwait"))
                 _APPROVE_ELIGIBLE = {
                     "RUNNING",
                     "PLANNING",
