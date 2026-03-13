@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$GEMINI_PROJECT_DIR\"/tools/sase_stop_hook",
+            "timeout": 300000
+          }
+        ]
+      }
+    ]
+  }
+}
