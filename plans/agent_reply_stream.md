@@ -1,5 +1,6 @@
 ---
 status: draft
+bead_id: sase-0oou
 ---
 
 # Plan: Live AGENT REPLY Section in Agents Tab
