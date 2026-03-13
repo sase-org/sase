@@ -318,10 +318,12 @@ def _process_codex_json_line(
         if item.get("type") == "agent_message":
             text = item.get("text", "")
             if text:
-                assistant_texts.append(text)
                 if live_reply_file:
+                    if assistant_texts:
+                        live_reply_file.write("\n\n")
                     live_reply_file.write(text)
                     live_reply_file.flush()
+                assistant_texts.append(text)
                 if not suppress_output:
                     print(text, flush=True)
     elif event_type == "error" and error_events is not None:
@@ -364,10 +366,12 @@ def _process_json_line(
         for block in content_blocks:
             if block.get("type") == "text":
                 text = block["text"]
-                assistant_texts.append(text)
                 if live_reply_file:
+                    if assistant_texts:
+                        live_reply_file.write("\n\n")
                     live_reply_file.write(text)
                     live_reply_file.flush()
+                assistant_texts.append(text)
                 if not suppress_output:
                     print(text, flush=True)
     elif event_type in ("error", "result") and error_events is not None:
