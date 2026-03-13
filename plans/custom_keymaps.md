@@ -6,7 +6,7 @@ status: draft
 
 ## Context
 
-All keymaps in the `sase ace` TUI are currently hardcoded across multiple files (~89 app-level bindings + ~30 mode
+All keymaps in the `sase ace` TUI are currently hardcoded across multiple files (67 app-level bindings + ~25 mode
 sub-keys). Users cannot customize them. This plan makes ALL keymaps configurable via `ace.keymaps` in the deep-merge
 config system (`default_config.yml` → plugins → `sase.yml` → overlays).
 
@@ -22,11 +22,88 @@ Key requirements:
 ```yaml
 ace:
   keymaps:
-    app: # Textual BINDINGS (action_name → key)
-      next: "j"
-      prev: "k"
+    app: # Textual BINDINGS (action_name → key) — 67 total
+      # Navigation
+      next_changespec: "j"
+      prev_changespec: "k"
+      scroll_to_top: "g"
+      scroll_to_bottom: "G"
+      scroll_detail_down: "ctrl+d"
+      scroll_detail_up: "ctrl+u"
+      scroll_prompt_down: "ctrl+f"
+      scroll_prompt_up: "ctrl+b"
+      prev_changespec_history: "ctrl+o"
+      next_changespec_history: "ctrl+k"
+      next_agent_file: "ctrl+n"
+      prev_agent_file: "ctrl+p"
+      # Tab switching
+      next_tab: "tab" # priority=True
+      prev_tab: "shift+tab" # priority=True
+      # CL actions
       quit: "q"
-      # ... all ~89 bindings
+      change_status: "s"
+      run_workflow: "r"
+      mail: "M"
+      show_diff: "d"
+      reword: "w"
+      add_tag: "W"
+      view_files: "v"
+      edit_spec: "e"
+      rename_cl: "n"
+      # Proposals & sync
+      accept_proposal: "a"
+      rebase: "b"
+      start_rewind: "R"
+      sync: "Y"
+      # Fold / collapse
+      hooks_or_collapse: "h"
+      hooks_or_collapse_all: "H"
+      expand_or_layout: "l"
+      expand_all_folds: "L"
+      toggle_layout: "p"
+      # Marking
+      toggle_mark: "m"
+      clear_marks: "u"
+      bulk_change_status: "S"
+      mark_inactive: "i"
+      # Agent / axe
+      kill_agent: "x"
+      toggle_axe: "X"
+      stop_axe_and_quit: "Q"
+      start_custom_agent: "at"
+      start_agent_from_changespec: "space"
+      jump_to_agent_changespec: "enter"
+      edit_panel: "E"
+      # Thinking panel
+      toggle_thinking: "right_square_bracket"
+      toggle_thinking_reverse: "left_square_bracket"
+      # File trim
+      reset_file_trim: "minus"
+      show_all_file_lines: "equals_sign"
+      # Queries
+      edit_query: "slash"
+      prev_query: "circumflex_accent"
+      next_query: "underscore"
+      # Display / misc
+      toggle_hide_reverted: "full_stop"
+      show_notifications: "N"
+      show_help: "question_mark"
+      browse_xprompts: "number_sign"
+      refresh: "y"
+      # Workspace mode prefixes (sub-keys are positional digits, not configurable)
+      checkout: "C"
+      start_checkout_mode: "c"
+      open_tmux: "T"
+      start_tmux_mode: "t"
+      # Tree navigation prefixes (sub-keys depend on tree structure, not configurable)
+      start_ancestor_mode: "less_than_sign"
+      start_child_mode: "greater_than_sign"
+      start_sibling_mode: "tilde"
+      # Mode activation prefixes (must stay in sync with modes.*.prefix below)
+      start_fold_mode: "z"
+      start_leader_mode: "comma"
+      start_bang_mode: "exclamation_mark"
+      copy_tab_content: "percent_sign"
     modes: # Prefix-key modes — built-in modes can be reconfigured, new ones can be added
       fold_mode:
         prefix: "z" # The key that activates this mode
@@ -82,7 +159,7 @@ Users override individual keys or add custom modes via deep-merge:
 ace:
   keymaps:
     app:
-      next: "n" # remap j→n, everything else stays default
+      next_changespec: "n" # remap j→n, everything else stays default
     modes:
       leader_mode:
         prefix: "space" # change leader prefix from comma to space
@@ -96,9 +173,21 @@ ace:
 **Excluded from config** (inherently non-configurable):
 
 - Saved query digit keys (0-9) — positional by definition
-- Checkout/tmux workspace digits (1-9) — positional by definition
-- Ancestry mode sub-keys — dynamically assigned from tree structure
-- Modal chrome keys (escape/enter/ctrl+d in modals) — standard UI, not "keymaps"
+- Checkout/tmux workspace digits (1-9) — positional by definition (prefix keys `c`/`t`/`C`/`T` ARE configurable via
+  `app`)
+- Ancestry mode sub-keys (`<`, `>`, `~` sub-keys) — dynamically assigned from tree structure (prefix keys ARE
+  configurable via `app`)
+- Modal chrome keys (escape/enter in modals, q/escape/? to close help modal) — standard UI, not "keymaps"
+- Widget input bindings (ctrl+f, ctrl+b, ctrl+g, ctrl+y, ctrl+u, ctrl+e inside `_PromptInput` / `_HintInput`) — editor
+  keybindings within focused input widgets, not app-level keymaps
+
+**Dual-registered keys** (must stay in sync):
+
+- Each mode's `prefix` key appears in both `app` (for Textual binding dispatch) and `modes.<name>.prefix` (for
+  mode-handler lookups). `load_keymap_registry` enforces sync — changing `modes.fold_mode.prefix` automatically updates
+  the corresponding `app.start_fold_mode` binding and vice versa.
+- Help modal passthrough bindings (saved query digits 0-9, `prev_query`, `next_query`) duplicate the app-level bindings
+  with identical keys so they work when the modal is focused. Phase 3 must update these to read from the registry.
 
 ---
 
@@ -167,15 +256,13 @@ changes TUI behavior.
 
 ### Modify: `src/sase/ace/tui/app.py`
 
-Replace the hardcoded `BINDINGS = [...]` class variable. Two approaches (implementer decides):
+Replace the hardcoded `BINDINGS = [...]` class variable:
 
-- **Option A**: Generate at class level via `BINDINGS = _build_default_bindings()` (function that calls
-  `build_app_bindings` with default `AppKeymaps()`), then override in `__init__` after `super().__init__()` by
-  rebuilding `self._bindings` from `build_app_bindings(self._keymap_registry.app)`.
-- **Option B**: Keep current BINDINGS as-is for the class definition, but in `__init__`, replace `self._bindings` with a
-  `BindingsMap` built from the registry.
-
-Ensure `priority=True` is preserved for tab/shift+tab bindings.
+1. Keep `BINDINGS` with hardcoded defaults at class level (Textual needs it at class definition time).
+2. In `__init__`, after loading the registry, rebuild `self._bindings` from
+   `build_app_bindings(self._keymap_registry.app)` to pick up any user overrides. Use Textual's `_Bindings` /
+   `BindingsMap` API to replace the instance-level binding map.
+3. `build_app_bindings` must preserve `priority=True` for `next_tab` / `prev_tab`.
 
 ### Modify mode handlers (replace hardcoded key comparisons with registry lookups):
 
@@ -194,6 +281,12 @@ Add `_keymap_registry: KeymapRegistry` type hint to each mixin.
 
 4. **`src/sase/ace/tui/actions/axe.py`** (`_handle_bang_key`):
    - All key checks → `self._keymap_registry.modes["bang_mode"].keys[...]`
+
+### Modify: `src/sase/ace/tui/modals/base.py` (`CopyModeForwardingMixin`)
+
+The `CopyModeForwardingMixin` hardcodes `percent_sign` in both its `BINDINGS` and `on_key()` check. Update it to read
+the copy mode prefix from the registry (`self.app._keymap_registry.modes["copy_mode"].prefix`) so that changing the copy
+mode prefix also works when a modal is open.
 
 ### Modify mode activation (prefix keys from config):
 
@@ -244,7 +337,7 @@ def cls_bindings(km: KeymapRegistry) -> list[tuple[str, list[tuple[str, str]]]]:
     d = key_display_name
     return [
         ("Navigation", [
-            (f"{d(km.app.next)} / {d(km.app.prev)}", "Move to next / previous CL"),
+            (f"{d(km.app.next_changespec)} / {d(km.app.prev_changespec)}", "Move to next / previous CL"),
             # ...
         ]),
         # ...
@@ -252,6 +345,13 @@ def cls_bindings(km: KeymapRegistry) -> list[tuple[str, list[tuple[str, str]]]]:
 ```
 
 Update `help_modal/modal.py` to get registry from `self.app._keymap_registry` and call the function forms.
+
+### Modify: `src/sase/ace/tui/modals/help_modal/modal.py` (own BINDINGS)
+
+The `HelpModal` class has its own `BINDINGS` that duplicate app-level keys for passthrough while the modal is focused:
+`circumflex_accent` → `prev_query`, `underscore` → `next_query`, `1-9/0` → saved queries. These must be rebuilt from the
+registry in `__init__` so they track the user's configured keys. Chrome keys (`escape`, `q`, `?`, `ctrl+d/u`) stay
+hardcoded.
 
 ### Modify: `src/sase/ace/tui/widgets/tab_bar.py`
 
@@ -350,14 +450,17 @@ commands or built-in actions.
 2. **Mode activation dispatch** — when a pressed key matches a custom mode's prefix, enter a generic "custom mode" state
    that routes sub-keys to `_handle_custom_mode_key`.
 
-### Config example:
+**Design note**: Built-in modes use simple `key_name: "key"` mappings in `keys` because their handler logic is fixed in
+code. Custom modes use action spec objects because their behavior must be defined entirely in config.
+
+### Config example (custom mode with action specs):
 
 ```yaml
 ace:
   keymaps:
     modes:
       git_mode:
-        prefix: "g"
+        prefix: "semicolon"
         keys:
           status:
             action: "shell"
@@ -369,6 +472,9 @@ ace:
             action: "shell"
             command: "git log --oneline -20"
 ```
+
+`load_keymap_registry` distinguishes the two by mode name: names in the built-in set (`fold_mode`, `copy_mode`,
+`leader_mode`, `bang_mode`) parse `keys` as `str` values; all others parse `keys` as action spec dicts.
 
 ### Modify: `src/sase/ace/tui/widgets/keybinding_footer.py`
 
@@ -406,6 +512,7 @@ just check
 | `src/sase/ace/tui/actions/clipboard.py`                    | 2, 3    | Copy mode sub-keys + error msgs                   |
 | `src/sase/ace/tui/actions/agent_workflow/_entry_points.py` | 2       | Leader mode sub-keys                              |
 | `src/sase/ace/tui/actions/axe.py`                          | 2       | Bang mode sub-keys                                |
+| `src/sase/ace/tui/modals/base.py`                          | 2       | CopyModeForwardingMixin prefix from registry      |
 | `src/sase/ace/tui/widgets/keybinding_footer.py`            | 3, 5    | Display configured keys + custom modes            |
 | `src/sase/ace/tui/modals/help_modal/bindings.py`           | 3, 5    | Convert to functions + custom mode sections       |
 | `src/sase/ace/tui/modals/help_modal/modal.py`              | 3       | Pass registry                                     |
