@@ -28,22 +28,44 @@ infrastructure that turns individual agent runs into a managed software engineer
 
 ## Vision
 
-sase exists to solve the coordination problems that appear once coding agents become part of a real software engineering
-workflow:
+Coding agents are powerful — but **using them in a real engineering workflow is still painful.**
 
-- Agent runs are hard to schedule, monitor, and resume reliably
-- Prompt logic and multi-step execution are too fragile when spread across ad hoc scripts
-- Work gets lost without a first-class unit for tracking status, ownership, metadata, and review state
-- Teams need one system that can sit above different coding agents instead of rewriting their workflow for each one
-- Automation needs human checkpoints, VCS integration, and reproducible execution rather than one-off terminal sessions
+Running a single agent on a single task works fine. The problems start when you try to do it repeatedly, across multiple
+changes, with any kind of structure:
 
-Before sase, using coding agents at scale meant juggling prompts, shell history, scratch files, and manual follow-up.
-Each run was useful in isolation, but the surrounding process was brittle: hard to audit, hard to hand off, and hard to
-repeat consistently.
+> **Scheduling** — Who kicks off the next run? When? What if it fails halfway through?
+>
+> **Tracking** — Which changes are in progress? Which are blocked? Who owns what?
+>
+> **Reproducibility** — Can you re-run last week's prompt pipeline and get the same behavior?
+>
+> **Portability** — Switched from Claude to Gemini? Time to rewrite all your glue scripts.
+>
+> **Supervision** — The agent finished… but did anyone review the result before it shipped?
 
-After sase, agent work becomes part of a structured pipeline. ChangeSpecs define the unit of work, workflows define how
-work moves, and the TUI and daemon provide the operational layer for tracking, scheduling, and supervision. The goal is
-not just to make agents more capable, but to make agent-driven software engineering dependable.
+---
+
+<table>
+<tr><th>Before sase</th><th>After sase</th></tr>
+<tr>
+<td>
+
+Prompts live in shell history and scratch files. Each agent run is a one-off terminal session. Status is tracked in your
+head (or not at all). Switching agents means rewriting your wrapper scripts. There's no audit trail and no way to hand
+work off to a teammate.
+
+</td>
+<td>
+
+**ChangeSpecs** give every unit of work a tracked lifecycle. **Workflows** define reproducible multi-step pipelines.
+**ACE** provides a TUI for navigating and supervising changes. **AXE** handles background scheduling. The whole system
+is agent-agnostic — swap providers without touching your workflow definitions.
+
+</td>
+</tr>
+</table>
+
+The goal isn't to make agents smarter. It's to make **agent-driven software engineering dependable.**
 
 ## Key Features
 
