@@ -483,3 +483,30 @@ def test_read_codex_thinking_handles_malformed_lines(tmp_path: Path) -> None:
     assert result is not None
     assert len(result) == 1
     assert result[0].text == "Valid"
+
+
+def test_read_codex_thinking_parses_following_action(tmp_path: Path) -> None:
+    """following_action is read from JSONL entries when present."""
+    entries = [
+        json.dumps(
+            {
+                "text": "Thought A",
+                "timestamp": "2026-03-13T10:00:00+00:00",
+                "following_action": "Read config.py",
+            }
+        ),
+        json.dumps(
+            {
+                "text": "Thought B",
+                "timestamp": "2026-03-13T10:01:00+00:00",
+            }
+        ),
+    ]
+    (tmp_path / "codex_thinking.jsonl").write_text("\n".join(entries) + "\n")
+
+    result = read_codex_thinking(str(tmp_path))
+    assert result is not None
+    assert len(result) == 2
+    # Blocks are reversed (newest first)
+    assert result[0].following_action is None  # Thought B (no action)
+    assert result[1].following_action == "Read config.py"  # Thought A

@@ -297,7 +297,7 @@ def read_codex_thinking(artifacts_dir: str) -> list[ThinkingBlock] | None:
                     text=text,
                     timestamp=entry.get("timestamp", ""),
                     index=index,
-                    following_action=None,
+                    following_action=entry.get("following_action"),
                 )
             )
 

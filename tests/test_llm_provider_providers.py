@@ -10,6 +10,8 @@ import pytest
 from pathlib import Path
 
 from sase.llm_provider._subprocess import (
+    _flush_codex_reasoning,
+    _format_codex_action,
     _process_codex_json_line,
     _write_codex_thinking,
     stream_and_parse_codex_json_output,
@@ -549,6 +551,205 @@ def test_process_codex_json_line_writes_reasoning_to_thinking_file() -> None:
     entries = [json.loads(ln) for ln in thinking_file.getvalue().strip().splitlines()]
     assert len(entries) == 1
     assert entries[0]["text"] == "deep thoughts"
+
+
+def test_codex_reasoning_following_action_from_function_call() -> None:
+    """Test that reasoning gets following_action when a function_call follows."""
+    from io import StringIO
+
+    assistant_texts: list[str] = []
+    thinking_file = StringIO()
+    pending: list[dict[str, object]] = []
+
+    # Send reasoning
+    reasoning_line = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "thinking..."}],
+            },
+        }
+    )
+    _process_codex_json_line(
+        reasoning_line, assistant_texts, True, None, None, thinking_file, pending
+    )
+    # Reasoning should be buffered, not written yet
+    assert thinking_file.getvalue() == ""
+    assert len(pending) == 1
+
+    # Send function_call
+    func_line = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "function_call",
+                "name": "read_file",
+                "arguments": '{"path": "/home/user/config.py"}',
+            },
+        }
+    )
+    _process_codex_json_line(
+        func_line, assistant_texts, True, None, None, thinking_file, pending
+    )
+
+    # Reasoning should now be written with following_action
+    entries = [json.loads(ln) for ln in thinking_file.getvalue().strip().splitlines()]
+    assert len(entries) == 1
+    assert entries[0]["text"] == "thinking..."
+    assert entries[0]["following_action"] == "Read config.py"
+    assert len(pending) == 0
+
+
+def test_codex_reasoning_following_action_from_agent_message() -> None:
+    """Test that reasoning gets text following_action when agent_message follows."""
+    from io import StringIO
+
+    assistant_texts: list[str] = []
+    thinking_file = StringIO()
+    pending: list[dict[str, object]] = []
+
+    # Send reasoning
+    reasoning_line = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "deep thought"}],
+            },
+        }
+    )
+    _process_codex_json_line(
+        reasoning_line, assistant_texts, True, None, None, thinking_file, pending
+    )
+
+    # Send agent_message
+    msg_line = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {"type": "agent_message", "text": "Here is the answer"},
+        }
+    )
+    _process_codex_json_line(
+        msg_line, assistant_texts, True, None, None, thinking_file, pending
+    )
+
+    entries = [json.loads(ln) for ln in thinking_file.getvalue().strip().splitlines()]
+    assert len(entries) == 1
+    assert entries[0]["following_action"] == "Here is the answer"
+
+
+def test_codex_consecutive_reasoning_flushes_previous() -> None:
+    """Test that consecutive reasoning items flush the previous without action."""
+    from io import StringIO
+
+    assistant_texts: list[str] = []
+    thinking_file = StringIO()
+    pending: list[dict[str, object]] = []
+
+    # Send first reasoning
+    r1 = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "thought 1"}],
+            },
+        }
+    )
+    _process_codex_json_line(
+        r1, assistant_texts, True, None, None, thinking_file, pending
+    )
+    assert thinking_file.getvalue() == ""
+
+    # Send second reasoning (should flush first without action)
+    r2 = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "thought 2"}],
+            },
+        }
+    )
+    _process_codex_json_line(
+        r2, assistant_texts, True, None, None, thinking_file, pending
+    )
+
+    entries = [json.loads(ln) for ln in thinking_file.getvalue().strip().splitlines()]
+    assert len(entries) == 1
+    assert entries[0]["text"] == "thought 1"
+    assert "following_action" not in entries[0]
+
+    # Flush remaining
+    _flush_codex_reasoning(pending, thinking_file, None)
+    entries = [json.loads(ln) for ln in thinking_file.getvalue().strip().splitlines()]
+    assert len(entries) == 2
+    assert entries[1]["text"] == "thought 2"
+
+
+def test_format_codex_action_shell() -> None:
+    """Test formatting of Codex shell/container.exec function calls."""
+    item = {"name": "shell", "arguments": '{"command": "ls -la /tmp"}'}
+    assert _format_codex_action(item) == "Bash `ls`"
+
+    item2 = {"name": "container.exec", "arguments": '{"command": ["git", "status"]}'}
+    assert _format_codex_action(item2) == "Bash `git`"
+
+
+def test_format_codex_action_read_write() -> None:
+    """Test formatting of Codex read/write function calls."""
+    item = {"name": "read_file", "arguments": '{"path": "/home/user/src/main.py"}'}
+    assert _format_codex_action(item) == "Read main.py"
+
+    item2 = {
+        "name": "write_file",
+        "arguments": '{"path": "/home/user/config.yml"}',
+    }
+    assert _format_codex_action(item2) == "Edit config.yml"
+
+
+def test_format_codex_action_unknown() -> None:
+    """Test that unknown Codex tool names are returned as-is."""
+    item = {"name": "web_search", "arguments": "{}"}
+    assert _format_codex_action(item) == "web_search"
+
+
+def test_format_codex_action_empty_name() -> None:
+    """Test that empty/missing name returns None."""
+    assert _format_codex_action({}) is None
+    assert _format_codex_action({"name": ""}) is None
+
+
+def test_write_codex_thinking_with_following_action() -> None:
+    """Test that _write_codex_thinking includes following_action in JSONL."""
+    from io import StringIO
+
+    f = StringIO()
+    item = {
+        "type": "reasoning",
+        "summary": [{"type": "summary_text", "text": "reasoning text"}],
+    }
+    _write_codex_thinking(item, f, following_action="Read config.py")
+
+    entries = [json.loads(ln) for ln in f.getvalue().strip().splitlines()]
+    assert len(entries) == 1
+    assert entries[0]["following_action"] == "Read config.py"
+
+
+def test_write_codex_thinking_omits_following_action_when_none() -> None:
+    """Test that following_action key is absent when None."""
+    from io import StringIO
+
+    f = StringIO()
+    item = {
+        "type": "reasoning",
+        "summary": [{"type": "summary_text", "text": "text"}],
+    }
+    _write_codex_thinking(item, f)
+
+    entries = [json.loads(ln) for ln in f.getvalue().strip().splitlines()]
+    assert "following_action" not in entries[0]
 
 
 # --- _find_codex_plan_file tests ---
