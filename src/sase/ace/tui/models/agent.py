@@ -496,6 +496,22 @@ class Agent:
         except (FileNotFoundError, OSError):
             return None
 
+    def get_live_reply_content(self) -> str | None:
+        """Get the live reply content for running agents.
+
+        Returns:
+            Live reply content string, or None if not available.
+        """
+        artifacts_dir = self.get_artifacts_dir()
+        if artifacts_dir is None:
+            return None
+        path = os.path.join(artifacts_dir, "live_reply.md")
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+        except (FileNotFoundError, OSError):
+            return None
+
     def get_response_content(self) -> str | None:
         """Get the response content for DONE agents.
 

@@ -116,6 +116,31 @@ class AgentDisplayMixin:
                 if error_tb_syntax:
                     renderables_other.append(error_tb_syntax)
                 renderables_other.append(prompt_syntax)
+
+                # AGENT REPLY section for running agents
+                reply_header = Text()
+                reply_header.append("\n")
+                reply_header.append("─" * 50 + "\n", style="dim")
+                reply_header.append("\n")
+                reply_header.append("AGENT REPLY\n", style="bold #D7AF5F underline")
+                reply_header.append("\n")
+
+                live_reply = agent.get_live_reply_content()
+                if live_reply:
+                    reply_syntax = Syntax(
+                        live_reply,
+                        "markdown",
+                        theme="monokai",
+                        word_wrap=True,
+                    )
+                    renderables_other.extend([reply_header, reply_syntax])
+                else:
+                    reply_header.append(
+                        "Waiting for agent response...\n",
+                        style="dim italic",
+                    )
+                    renderables_other.append(reply_header)
+
                 self.update(Group(*renderables_other))  # type: ignore[attr-defined]
         else:
             header_text.append("No prompt file found.\n", style="dim italic")
@@ -236,6 +261,28 @@ class AgentDisplayMixin:
                     )
                 else:
                     header_text.append("No response file found.\n", style="dim italic")
+            else:
+                # AGENT REPLY section for running agents (with hints)
+                header_text.append("\n")
+                header_text.append("─" * 50 + "\n", style="dim")
+                header_text.append("\n")
+                header_text.append("AGENT REPLY\n", style="bold #D7AF5F underline")
+                header_text.append("\n")
+
+                live_reply = agent.get_live_reply_content()
+                if live_reply:
+                    hint_counter = append_text_with_file_hints(
+                        header_text,
+                        live_reply + "\n",
+                        hint_counter,
+                        hint_mappings,
+                        workspace_dir,
+                    )
+                else:
+                    header_text.append(
+                        "Waiting for agent response...\n",
+                        style="dim italic",
+                    )
         else:
             header_text.append("No prompt file found.\n", style="dim italic")
 
