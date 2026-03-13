@@ -1,5 +1,6 @@
 """Main Textual App for the ace TUI."""
 
+import logging
 import os
 import sys
 import time
@@ -56,6 +57,8 @@ from .widgets import (
     SearchQueryPanel,
     TabBar,
 )
+
+log = logging.getLogger(__name__)
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -363,6 +366,27 @@ class AceApp(
         ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
         self._inactive_seconds: int = int(
             ace_cfg.get("inactive_seconds", 600) if isinstance(ace_cfg, dict) else 600
+        )
+
+        # Build keymap registry from config
+        from .keymaps import (
+            KeymapRegistry,
+            build_app_bindings,
+            key_display_name,
+            load_keymap_registry,
+        )
+
+        self._keymap_registry: KeymapRegistry = load_keymap_registry(
+            ace_cfg if isinstance(ace_cfg, dict) else {}
+        )
+
+        # Verify registry produces correct binding count (Phase 2 will
+        # replace BINDINGS with build_app_bindings output).
+        _bindings = build_app_bindings(self._keymap_registry.app)
+        log.debug(
+            "Keymap registry loaded: %d bindings, display=%s",
+            len(_bindings),
+            key_display_name(self._keymap_registry.app.next_changespec),
         )
 
         # Set global model tier override in environment if specified

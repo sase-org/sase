@@ -1,5 +1,128 @@
 ace:
   inactive_seconds: 600
+  keymaps:
+    app:
+      # Navigation
+      next_changespec: "j"
+      prev_changespec: "k"
+      scroll_to_top: "g"
+      scroll_to_bottom: "G"
+      scroll_detail_down: "ctrl+d"
+      scroll_detail_up: "ctrl+u"
+      scroll_prompt_down: "ctrl+f"
+      scroll_prompt_up: "ctrl+b"
+      prev_changespec_history: "ctrl+o"
+      next_changespec_history: "ctrl+k"
+      next_agent_file: "ctrl+n"
+      prev_agent_file: "ctrl+p"
+      # Tab switching
+      next_tab: "tab"
+      prev_tab: "shift+tab"
+      # CL actions
+      quit: "q"
+      change_status: "s"
+      run_workflow: "r"
+      mail: "M"
+      show_diff: "d"
+      reword: "w"
+      add_tag: "W"
+      view_files: "v"
+      edit_spec: "e"
+      rename_cl: "n"
+      # Proposals & sync
+      accept_proposal: "a"
+      rebase: "b"
+      start_rewind: "R"
+      sync: "Y"
+      refresh: "y"
+      # Fold / collapse
+      hooks_or_collapse: "h"
+      hooks_or_collapse_all: "H"
+      expand_or_layout: "l"
+      expand_all_folds: "L"
+      toggle_layout: "p"
+      # Marking
+      toggle_mark: "m"
+      clear_marks: "u"
+      bulk_change_status: "S"
+      mark_inactive: "i"
+      # Agent / axe
+      kill_agent: "x"
+      toggle_axe: "X"
+      stop_axe_and_quit: "Q"
+      start_custom_agent: "at"
+      start_agent_from_changespec: "space"
+      jump_to_agent_changespec: "enter"
+      edit_panel: "E"
+      # Thinking panel
+      toggle_thinking: "right_square_bracket"
+      toggle_thinking_reverse: "left_square_bracket"
+      # File trim
+      reset_file_trim: "minus"
+      show_all_file_lines: "equals_sign"
+      # Queries
+      edit_query: "slash"
+      prev_query: "circumflex_accent"
+      next_query: "underscore"
+      # Display / misc
+      toggle_hide_reverted: "full_stop"
+      show_notifications: "N"
+      show_help: "question_mark"
+      browse_xprompts: "number_sign"
+      # Workspace mode prefixes
+      checkout: "C"
+      start_checkout_mode: "c"
+      open_tmux: "T"
+      start_tmux_mode: "t"
+      # Tree navigation prefixes
+      start_ancestor_mode: "<"
+      start_child_mode: ">"
+      start_sibling_mode: "~"
+      # Mode activation prefixes
+      start_fold_mode: "z"
+      start_leader_mode: "comma"
+      start_bang_mode: "exclamation_mark"
+      copy_tab_content: "percent_sign"
+    modes:
+      fold_mode:
+        prefix: "z"
+        keys:
+          cycle_commits: "c"
+          cycle_hooks: "h"
+          cycle_mentors: "m"
+          cycle_all: "z"
+      copy_mode:
+        prefix: "percent_sign"
+        keys:
+          changespecs:
+            raw: "percent_sign"
+            with_snapshot: "exclamation_mark"
+            bug: "b"
+            cl_number: "c"
+            name: "n"
+            spec: "p"
+            snapshot: "s"
+          agents:
+            chat: "c"
+            file_path: "E"
+            snapshot: "s"
+          axe:
+            visible: "o"
+            full: "O"
+            snapshot: "s"
+      leader_mode:
+        prefix: "comma"
+        keys:
+          run_cmd: "exclamation_mark"
+          runners: "r"
+          kill_mentors: "m"
+          agent_home: "h"
+          agent_from_cl: "space"
+      bang_mode:
+        prefix: "exclamation_mark"
+        keys:
+          run_cmd: "exclamation_mark"
+          toggle_axe: "x"
 
 axe:
   max_hook_runners: 3
