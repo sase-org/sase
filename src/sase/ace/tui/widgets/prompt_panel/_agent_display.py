@@ -341,6 +341,11 @@ class AgentDisplayMixin:
             header_text.append("BUG: ", style="bold #87D7FF")
             header_text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
+        # Agent name (when assigned via %name directive or manual TUI naming)
+        if agent.agent_name:
+            header_text.append("Name: ", style="bold #87D7FF")
+            header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
+
         # Waiting info (when agent is waiting for dependencies)
         if agent.waiting_for:
             header_text.append("Waiting for: ", style="bold #87D7FF")
