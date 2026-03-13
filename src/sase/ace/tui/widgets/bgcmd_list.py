@@ -155,7 +155,7 @@ class BgCmdList(OptionList):
             config = load_axe_config()
             total_lj = len(config.lumberjacks)
             if total_lj > 0:
-                fold_label = f" ({total_lj} steps)" if not is_expanded else ""
+                fold_label = f" ({total_lj} lumberjacks)" if not is_expanded else ""
                 if fold_label:
                     text.append(fold_label, style="dim")
 
