@@ -31,17 +31,18 @@ infrastructure that turns individual agent runs into a managed software engineer
 Coding agents are powerful — but **using them in a real engineering workflow is still painful.**
 
 Running a single agent on a single task works fine. The problems start when you try to do it repeatedly, across multiple
-changes, with any kind of structure:
+changes, with any kind of structure. sase exists to solve the coordination problems that show up at that point:
 
-> **Scheduling** — Who kicks off the next run? When? What if it fails halfway through?
+> **Scheduling** — Agent runs are hard to schedule, monitor, and resume reliably.
 >
-> **Tracking** — Which changes are in progress? Which are blocked? Who owns what?
+> **Prompt Logic** — Multi-step prompt pipelines get fragile fast when they're scattered across shell scripts and
+> scratch files.
 >
-> **Reproducibility** — Can you re-run last week's prompt pipeline and get the same behavior?
+> **Tracking** — Work gets lost without a first-class unit for status, ownership, metadata, and review state.
 >
-> **Portability** — Switched from Claude to Gemini? Time to rewrite all your glue scripts.
+> **Portability** — Teams need one system above the agent layer, not a separate workflow for every provider.
 >
-> **Supervision** — The agent finished… but did anyone review the result before it shipped?
+> **Supervision** — Automation still needs human checkpoints, VCS integration, and reproducible execution.
 
 ---
 
@@ -57,9 +58,9 @@ work off to a teammate.
 </td>
 <td>
 
-**ChangeSpecs** give every unit of work a tracked lifecycle. **Workflows** define reproducible multi-step pipelines.
-**ACE** provides a TUI for navigating and supervising changes. **AXE** handles background scheduling. The whole system
-is agent-agnostic — swap providers without touching your workflow definitions.
+**ChangeSpecs** give each unit of work a tracked lifecycle. **Workflows** define reproducible multi-step pipelines.
+**ACE** provides the operational layer for navigating and supervising changes. **AXE** handles background scheduling.
+The whole system is agent-agnostic — swap providers without rewriting your workflow definitions.
 
 </td>
 </tr>
