@@ -5,6 +5,16 @@ import os
 import select
 import subprocess
 import sys
+from typing import IO
+
+
+def _open_live_reply_file() -> IO[str] | None:
+    """Open the live reply file for writing if SASE_ARTIFACTS_DIR is set."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return None
+    path = os.path.join(artifacts_dir, "live_reply.md")
+    return open(path, "w", encoding="utf-8")
 
 
 def stream_process_output(
@@ -22,56 +32,67 @@ def stream_process_output(
     """
     stdout_lines: list[str] = []
     stderr_lines: list[str] = []
+    live_reply_file = _open_live_reply_file()
 
-    # Set stdout and stderr to non-blocking mode
-    if process.stdout:
-        os.set_blocking(process.stdout.fileno(), False)
-    if process.stderr:
-        os.set_blocking(process.stderr.fileno(), False)
-
-    while True:
-        # Use select to wait for data on stdout or stderr
-        readable: list[object] = []
+    try:
+        # Set stdout and stderr to non-blocking mode
         if process.stdout:
-            readable.append(process.stdout)
+            os.set_blocking(process.stdout.fileno(), False)
         if process.stderr:
-            readable.append(process.stderr)
+            os.set_blocking(process.stderr.fileno(), False)
 
-        if not readable:
-            break
-
-        ready, _, _ = select.select(readable, [], [], 0.1)
-
-        # Read from stdout
-        if process.stdout and process.stdout in ready:
-            line = process.stdout.readline()
-            if line:
-                stdout_lines.append(line)
-                if not suppress_output:
-                    print(line, end="", flush=True)
-
-        # Read from stderr
-        if process.stderr and process.stderr in ready:
-            line = process.stderr.readline()
-            if line:
-                stderr_lines.append(line)
-                if not suppress_output:
-                    print(line, end="", file=sys.stderr, flush=True)
-
-        # Check if process has finished
-        if process.poll() is not None:
-            # Read any remaining output
+        while True:
+            # Use select to wait for data on stdout or stderr
+            readable: list[object] = []
             if process.stdout:
-                for line in process.stdout:
+                readable.append(process.stdout)
+            if process.stderr:
+                readable.append(process.stderr)
+
+            if not readable:
+                break
+
+            ready, _, _ = select.select(readable, [], [], 0.1)
+
+            # Read from stdout
+            if process.stdout and process.stdout in ready:
+                line = process.stdout.readline()
+                if line:
                     stdout_lines.append(line)
+                    if live_reply_file:
+                        live_reply_file.write(line)
+                        live_reply_file.flush()
                     if not suppress_output:
                         print(line, end="", flush=True)
-            if process.stderr:
-                for line in process.stderr:
+
+            # Read from stderr
+            if process.stderr and process.stderr in ready:
+                line = process.stderr.readline()
+                if line:
                     stderr_lines.append(line)
                     if not suppress_output:
                         print(line, end="", file=sys.stderr, flush=True)
-            break
+
+            # Check if process has finished
+            if process.poll() is not None:
+                # Read any remaining output
+                if process.stdout:
+                    for line in process.stdout:
+                        stdout_lines.append(line)
+                        if live_reply_file:
+                            live_reply_file.write(line)
+                            live_reply_file.flush()
+                        if not suppress_output:
+                            print(line, end="", flush=True)
+                if process.stderr:
+                    for line in process.stderr:
+                        stderr_lines.append(line)
+                        if not suppress_output:
+                            print(line, end="", file=sys.stderr, flush=True)
+                break
+    finally:
+        if live_reply_file:
+            live_reply_file.close()
 
     return_code = process.wait()
     stdout_content = "".join(stdout_lines)
@@ -100,49 +121,64 @@ def stream_and_parse_json_output(
     assistant_texts: list[str] = []
     error_events: list[str] = []
     stderr_lines: list[str] = []
+    live_reply_file = _open_live_reply_file()
 
-    # Set stdout and stderr to non-blocking mode
-    if process.stdout:
-        os.set_blocking(process.stdout.fileno(), False)
-    if process.stderr:
-        os.set_blocking(process.stderr.fileno(), False)
-
-    while True:
-        readable: list[object] = []
+    try:
+        # Set stdout and stderr to non-blocking mode
         if process.stdout:
-            readable.append(process.stdout)
+            os.set_blocking(process.stdout.fileno(), False)
         if process.stderr:
-            readable.append(process.stderr)
+            os.set_blocking(process.stderr.fileno(), False)
 
-        if not readable:
-            break
-
-        ready, _, _ = select.select(readable, [], [], 0.1)
-
-        if process.stdout and process.stdout in ready:
-            line = process.stdout.readline()
-            if line:
-                _process_json_line(line, assistant_texts, suppress_output, error_events)
-
-        if process.stderr and process.stderr in ready:
-            line = process.stderr.readline()
-            if line:
-                stderr_lines.append(line)
-                if not suppress_output:
-                    print(line, end="", file=sys.stderr, flush=True)
-
-        if process.poll() is not None:
+        while True:
+            readable: list[object] = []
             if process.stdout:
-                for line in process.stdout:
-                    _process_json_line(
-                        line, assistant_texts, suppress_output, error_events
-                    )
+                readable.append(process.stdout)
             if process.stderr:
-                for line in process.stderr:
+                readable.append(process.stderr)
+
+            if not readable:
+                break
+
+            ready, _, _ = select.select(readable, [], [], 0.1)
+
+            if process.stdout and process.stdout in ready:
+                line = process.stdout.readline()
+                if line:
+                    _process_json_line(
+                        line,
+                        assistant_texts,
+                        suppress_output,
+                        error_events,
+                        live_reply_file,
+                    )
+
+            if process.stderr and process.stderr in ready:
+                line = process.stderr.readline()
+                if line:
                     stderr_lines.append(line)
                     if not suppress_output:
                         print(line, end="", file=sys.stderr, flush=True)
-            break
+
+            if process.poll() is not None:
+                if process.stdout:
+                    for line in process.stdout:
+                        _process_json_line(
+                            line,
+                            assistant_texts,
+                            suppress_output,
+                            error_events,
+                            live_reply_file,
+                        )
+                if process.stderr:
+                    for line in process.stderr:
+                        stderr_lines.append(line)
+                        if not suppress_output:
+                            print(line, end="", file=sys.stderr, flush=True)
+                break
+    finally:
+        if live_reply_file:
+            live_reply_file.close()
 
     return_code = process.wait()
     combined_text = "\n\n".join(assistant_texts)
@@ -180,50 +216,63 @@ def stream_and_parse_codex_json_output(
     assistant_texts: list[str] = []
     error_events: list[str] = []
     stderr_lines: list[str] = []
+    live_reply_file = _open_live_reply_file()
 
-    if process.stdout:
-        os.set_blocking(process.stdout.fileno(), False)
-    if process.stderr:
-        os.set_blocking(process.stderr.fileno(), False)
-
-    while True:
-        readable: list[object] = []
+    try:
         if process.stdout:
-            readable.append(process.stdout)
+            os.set_blocking(process.stdout.fileno(), False)
         if process.stderr:
-            readable.append(process.stderr)
+            os.set_blocking(process.stderr.fileno(), False)
 
-        if not readable:
-            break
-
-        ready, _, _ = select.select(readable, [], [], 0.1)
-
-        if process.stdout and process.stdout in ready:
-            line = process.stdout.readline()
-            if line:
-                _process_codex_json_line(
-                    line, assistant_texts, suppress_output, error_events
-                )
-
-        if process.stderr and process.stderr in ready:
-            line = process.stderr.readline()
-            if line:
-                stderr_lines.append(line)
-                if not suppress_output:
-                    print(line, end="", file=sys.stderr, flush=True)
-
-        if process.poll() is not None:
+        while True:
+            readable: list[object] = []
             if process.stdout:
-                for line in process.stdout:
-                    _process_codex_json_line(
-                        line, assistant_texts, suppress_output, error_events
-                    )
+                readable.append(process.stdout)
             if process.stderr:
-                for line in process.stderr:
+                readable.append(process.stderr)
+
+            if not readable:
+                break
+
+            ready, _, _ = select.select(readable, [], [], 0.1)
+
+            if process.stdout and process.stdout in ready:
+                line = process.stdout.readline()
+                if line:
+                    _process_codex_json_line(
+                        line,
+                        assistant_texts,
+                        suppress_output,
+                        error_events,
+                        live_reply_file,
+                    )
+
+            if process.stderr and process.stderr in ready:
+                line = process.stderr.readline()
+                if line:
                     stderr_lines.append(line)
                     if not suppress_output:
                         print(line, end="", file=sys.stderr, flush=True)
-            break
+
+            if process.poll() is not None:
+                if process.stdout:
+                    for line in process.stdout:
+                        _process_codex_json_line(
+                            line,
+                            assistant_texts,
+                            suppress_output,
+                            error_events,
+                            live_reply_file,
+                        )
+                if process.stderr:
+                    for line in process.stderr:
+                        stderr_lines.append(line)
+                        if not suppress_output:
+                            print(line, end="", file=sys.stderr, flush=True)
+                break
+    finally:
+        if live_reply_file:
+            live_reply_file.close()
 
     return_code = process.wait()
     combined_text = "\n\n".join(assistant_texts)
@@ -244,6 +293,7 @@ def _process_codex_json_line(
     assistant_texts: list[str],
     suppress_output: bool,
     error_events: list[str] | None = None,
+    live_reply_file: IO[str] | None = None,
 ) -> None:
     """Parse a single Codex NDJSON line and extract assistant text.
 
@@ -269,6 +319,9 @@ def _process_codex_json_line(
             text = item.get("text", "")
             if text:
                 assistant_texts.append(text)
+                if live_reply_file:
+                    live_reply_file.write(text)
+                    live_reply_file.flush()
                 if not suppress_output:
                     print(text, flush=True)
     elif event_type == "error" and error_events is not None:
@@ -287,6 +340,7 @@ def _process_json_line(
     assistant_texts: list[str],
     suppress_output: bool,
     error_events: list[str] | None = None,
+    live_reply_file: IO[str] | None = None,
 ) -> None:
     """Parse a single JSON line and extract assistant text if present.
 
@@ -311,6 +365,9 @@ def _process_json_line(
             if block.get("type") == "text":
                 text = block["text"]
                 assistant_texts.append(text)
+                if live_reply_file:
+                    live_reply_file.write(text)
+                    live_reply_file.flush()
                 if not suppress_output:
                     print(text, flush=True)
     elif event_type in ("error", "result") and error_events is not None:
