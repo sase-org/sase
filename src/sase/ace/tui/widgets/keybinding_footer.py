@@ -221,7 +221,6 @@ class KeybindingFooter(Horizontal):
             (k("cycle_hooks"), "hooks"),
             (k("cycle_mentors"), "mentors"),
             (k("cycle_all"), "all"),
-            ("Esc", "cancel"),
         ]
         text = self._format_bindings(bindings)
         prefix = Text()
@@ -252,7 +251,6 @@ class KeybindingFooter(Horizontal):
         bindings.append((k("agent_home"), "agent (home)"))
         if current_tab in ("changespecs", "agents"):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
-        bindings.append(("Esc", "cancel"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix
         prefix = Text()
@@ -273,7 +271,6 @@ class KeybindingFooter(Horizontal):
         bindings = [
             (k("run_cmd"), "run cmd"),
             (k("toggle_axe"), "start/stop axe"),
-            ("Esc", "cancel"),
         ]
         text = self._format_bindings(bindings)
         # Add bang mode indicator prefix
@@ -300,7 +297,6 @@ class KeybindingFooter(Horizontal):
             key = spec.get("key", "")
             desc = spec.get("description", action_name)
             bindings.append((d(key), desc))
-        bindings.append(("Esc", "cancel"))
 
         text = self._format_bindings(bindings)
         prefix = Text()
@@ -334,22 +330,19 @@ class KeybindingFooter(Horizontal):
                 (k("name"), "name"),
                 (k("spec"), "spec"),
                 (k("snapshot"), "snap"),
-                ("Esc", "cancel"),
             ]
         elif tab == "agents":
             bindings = [
                 (k("chat"), "chat"),
                 (k("snapshot"), "snap"),
-                ("Esc", "cancel"),
             ]
             if file_visible:
-                bindings.insert(-1, (k("file_path"), "file path"))
+                bindings.append((k("file_path"), "file path"))
         else:  # axe
             bindings = [
                 (k("visible"), "visible"),
                 (k("full"), "full"),
                 (k("snapshot"), "snap"),
-                ("Esc", "cancel"),
             ]
         text = self._format_bindings(bindings)
         prefix = Text()
