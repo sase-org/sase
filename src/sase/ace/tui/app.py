@@ -161,7 +161,7 @@ class AceApp(
         Binding(
             "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False
         ),
-        Binding("I", "mark_inactive", "Mark Inactive", show=False),
+        Binding("i", "mark_inactive", "Mark Inactive", show=False),
         # Copy to clipboard (changespecs tab - % followed by key)
         Binding("percent_sign", "copy_tab_content", "Copy", show=False),
         # Scroll to top/bottom (Axe tab)
