@@ -336,6 +336,7 @@ class AceApp(
         self._axe_items: list[AxeItem] = []
         self._axe_last_idx: int = 0
         self._axe_fold_manager = FoldStateManager()
+        self._axe_fold_manager.expand("axe")  # start expanded by default
 
         # Query history stacks for prev/next navigation
         from ..query_history import load_query_history
