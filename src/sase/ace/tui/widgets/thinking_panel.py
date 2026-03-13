@@ -266,7 +266,7 @@ class AgentThinkingPanel(Static):
             fetch_time: When the thinking was fetched.
             post_visibility_message: Whether to post visibility change message.
             is_stale: Whether the content is stale (showing while refreshing).
-            source: Data source — "claude" or "gemini".
+            source: Data source — "claude", "gemini", or "codex".
         """
         # Track last displayed blocks for change detection
         self._last_blocks = blocks
@@ -389,29 +389,30 @@ class AgentThinkingPanel(Static):
         Returns:
             List of ThinkingBlock, None if no session, [] if no blocks.
         """
-        source = "claude"
         since = agent.run_start_time or agent.start_time
-        session_paths = resolve_agent_sessions(agent, since=since)
-        if not session_paths:
-            # No Claude session — try provider-specific thinking sources
+
+        # Use agent-specific provider, falling back to global default
+        provider_name = agent.llm_provider
+        if not provider_name:
             try:
                 provider_name = get_default_provider_name()
             except Exception:
-                provider_name = ""
-            if provider_name == "gemini":
-                blocks = read_gemini_log(since=since)
-                source = "gemini"
-            elif provider_name == "codex":
-                artifacts_dir = agent.get_artifacts_dir()
-                if artifacts_dir:
-                    blocks = read_codex_thinking(artifacts_dir)
-                else:
-                    blocks = None
-                source = "codex"
-            else:
-                blocks = None
+                provider_name = "claude"
+
+        if provider_name == "gemini":
+            blocks = read_gemini_log(since=since)
+            source = "gemini"
+        elif provider_name == "codex":
+            artifacts_dir = agent.get_artifacts_dir()
+            blocks = read_codex_thinking(artifacts_dir) if artifacts_dir else None
+            source = "codex"
         else:
-            blocks = parse_thinking_blocks_multi(session_paths)
+            # Claude provider — resolve session transcripts
+            session_paths = resolve_agent_sessions(agent, since=since)
+            blocks = (
+                parse_thinking_blocks_multi(session_paths) if session_paths else None
+            )
+            source = "claude"
 
         # Store in cache
         cache_key = get_cache_key(agent)
