@@ -125,7 +125,7 @@ def invoke_agent(
         result_directives = result.directives
     model_override = result_directives.model
 
-    # Resolve provider from model override (e.g. "o3" → codex, "codex(o3)" → codex)
+    # Resolve provider from model override (e.g. "o3" → codex, "codex/o3" → codex)
     if model_override and not provider_name:
         resolved_provider, model_override = resolve_model_provider(model_override)
         if resolved_provider:

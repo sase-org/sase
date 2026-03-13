@@ -155,10 +155,10 @@ def test_config_provider_overrides_auto_detection(
 
 
 def test_resolve_model_provider_explicit_syntax() -> None:
-    """Explicit provider(model) syntax resolves correctly."""
-    assert resolve_model_provider("codex(o3)") == ("codex", "o3")
-    assert resolve_model_provider("claude(opus)") == ("claude", "opus")
-    assert resolve_model_provider("gemini(gemini-2.5-pro)") == (
+    """Explicit provider/model syntax resolves correctly."""
+    assert resolve_model_provider("codex/o3") == ("codex", "o3")
+    assert resolve_model_provider("claude/opus") == ("claude", "opus")
+    assert resolve_model_provider("gemini/gemini-2.5-pro") == (
         "gemini",
         "gemini-2.5-pro",
     )
@@ -181,5 +181,5 @@ def test_resolve_model_provider_unknown_model() -> None:
 
 def test_resolve_model_provider_explicit_with_unknown_model() -> None:
     """Explicit syntax works with any model name, even unknown ones."""
-    assert resolve_model_provider("codex(my-fine-tune)") == ("codex", "my-fine-tune")
-    assert resolve_model_provider("claude(custom-v2)") == ("claude", "custom-v2")
+    assert resolve_model_provider("codex/my-fine-tune") == ("codex", "my-fine-tune")
+    assert resolve_model_provider("claude/custom-v2") == ("claude", "custom-v2")

@@ -473,29 +473,29 @@ def test_split_prompt_for_models_preserves_other_directives() -> None:
 
 
 def test_model_directive_colon_provider_syntax() -> None:
-    """Test %model:codex(o3) provider(model) syntax in colon arg."""
-    prompt = "%model:codex(o3)\nReview this code"
+    """Test %model:codex/o3 provider/model syntax in colon arg."""
+    prompt = "%model:codex/o3\nReview this code"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Review this code"
-    assert directives.model == "codex(o3)"
+    assert directives.model == "codex/o3"
 
 
 def test_model_directive_colon_provider_syntax_aliases() -> None:
-    """Test %m:claude(opus) alias with provider(model) syntax."""
-    prompt = "%m:claude(opus)\nReview this code"
+    """Test %m:claude/opus alias with provider/model syntax."""
+    prompt = "%m:claude/opus\nReview this code"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Review this code"
-    assert directives.model == "claude(opus)"
+    assert directives.model == "claude/opus"
 
 
 def test_split_prompt_for_models_with_provider_syntax() -> None:
-    """Multi-model with provider(model) syntax splits correctly."""
-    prompt = "%m(codex(o3),claude(opus))\nReview this code"
+    """Multi-model with provider/model syntax splits correctly."""
+    prompt = "%m(codex/o3,claude/opus)\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%model:codex(o3)\nReview this code"
-    assert result[1] == "%model:claude(opus)\nReview this code"
+    assert result[0] == "%model:codex/o3\nReview this code"
+    assert result[1] == "%model:claude/opus\nReview this code"
 
 
 def test_split_prompt_for_models_spaces_in_args() -> None:

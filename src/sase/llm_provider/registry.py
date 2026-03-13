@@ -31,8 +31,8 @@ _MODEL_TO_PROVIDER: dict[str, str] = {
     "gemini-2.0-flash": "gemini",
 }
 
-# Pattern for explicit provider(model) syntax, e.g. "codex(o3)"
-_PROVIDER_MODEL_RE = re.compile(r"^(claude|codex|gemini)\((.+)\)$")
+# Pattern for explicit provider/model syntax, e.g. "codex/o3"
+_PROVIDER_MODEL_RE = re.compile(r"^(claude|codex|gemini)/(.+)$")
 
 
 def register_provider(name: str, provider_class: type[LLMProvider]) -> None:
@@ -74,7 +74,7 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
 
     Supports two resolution strategies:
 
-    1. Explicit provider syntax: ``"codex(o3)"`` → ``("codex", "o3")``
+    1. Explicit provider syntax: ``"codex/o3"`` → ``("codex", "o3")``
     2. Implicit via mapping: ``"o3"`` → ``("codex", "o3")``
 
     If neither matches, returns ``(None, model_override)`` so the caller
@@ -86,7 +86,7 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
     Returns:
         Tuple of (provider_name_or_none, clean_model_name).
     """
-    # 1. Check for explicit provider(model) syntax
+    # 1. Check for explicit provider/model syntax
     match = _PROVIDER_MODEL_RE.match(model_override)
     if match:
         return match.group(1), match.group(2)

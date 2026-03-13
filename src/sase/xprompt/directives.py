@@ -67,7 +67,7 @@ class PromptDirectives:
 # Pattern to match %model(...) or %m(...) with parenthesized arguments.
 _MULTI_MODEL_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"(%(?:model|m))\(([^()]*(?:\([^)]*\)[^()]*)*)\)",
+    r"(%(?:model|m))\(([^)]*)\)",
     re.MULTILINE,
 )
 
