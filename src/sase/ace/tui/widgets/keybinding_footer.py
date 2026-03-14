@@ -415,8 +415,17 @@ class KeybindingFooter(Horizontal):
         if agent.status not in ("DONE", "FAILED"):
             bindings.append((self._kd("rename_cl"), "name"))
 
-        # Jump to CL (only for ChangeSpec-level agents, not project-level)
+        # Jump to CL (for ChangeSpec-level agents, or project agents with meta CL/PR)
         if not agent.is_project_agent:
+            bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
+        elif (
+            agent.step_output
+            and isinstance(agent.step_output, dict)
+            and (
+                agent.step_output.get("meta_new_cl")
+                or agent.step_output.get("meta_new_pr")
+            )
+        ):
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
         return bindings

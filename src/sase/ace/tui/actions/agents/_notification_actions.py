@@ -107,6 +107,45 @@ def handle_jump_to_changespec(app: object, notification: Notification) -> bool:
     return navigate_to_changespec_tab(app, changespec_name, project_file)
 
 
+def get_meta_changespec_name(agent: Agent) -> str | None:
+    """Extract ChangeSpec name from meta_new_cl or meta_new_pr in step output.
+
+    For meta_new_cl: value format is ``full_cl_name (url)`` — extracts the name
+    before the parenthesized URL.
+
+    For meta_new_pr: value is a PR URL — looks for meta_changespec in the same
+    step output to get the ChangeSpec name.
+
+    Args:
+        agent: The agent to check.
+
+    Returns:
+        The ChangeSpec name if found, or None.
+    """
+    step_output = agent.step_output
+    if not step_output or not isinstance(step_output, dict):
+        return None
+
+    # Check meta_new_cl: format is "full_cl_name (url)"
+    meta_new_cl = step_output.get("meta_new_cl")
+    if meta_new_cl:
+        value = str(meta_new_cl).strip()
+        # Parse out the URL part: "name (url)" → "name"
+        paren_idx = value.rfind(" (")
+        if paren_idx > 0:
+            return value[:paren_idx].strip()
+        return value
+
+    # Check meta_new_pr: PR URL — ChangeSpec name comes from meta_changespec
+    meta_new_pr = step_output.get("meta_new_pr")
+    if meta_new_pr:
+        meta_changespec = step_output.get("meta_changespec")
+        if meta_changespec:
+            return str(meta_changespec).strip()
+
+    return None
+
+
 def navigate_to_changespec_tab(
     app: object, changespec_name: str, project_file: str
 ) -> bool:

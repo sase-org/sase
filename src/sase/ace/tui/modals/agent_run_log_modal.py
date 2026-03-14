@@ -31,13 +31,33 @@ def _load_agents_for_cl(
 ) -> tuple[list[Agent], set[tuple[AgentType, str, str | None]]]:
     """Load agents for a specific CL, including dismissed ones.
 
+    Also includes agents that created this CL/PR via meta_new_cl or
+    meta_new_pr output variables in embedded xprompt workflows.
+
     Returns:
         Tuple of (agents, dismissed_identities) where agents includes both
         active and dismissed agents (excluding workflow children), and
         dismissed_identities is the set of all dismissed agent identity tuples.
     """
+    from sase.ace.tui.actions.agents._notification_actions import (
+        get_meta_changespec_name,
+    )
+
     all_agents = load_all_agents()
-    active = [a for a in all_agents if a.cl_name == cl_name and not a.is_workflow_child]
+    active: list[Agent] = []
+    active_ids: set[int] = set()
+    for a in all_agents:
+        if a.is_workflow_child:
+            continue
+        if a.cl_name == cl_name:
+            active.append(a)
+            active_ids.add(id(a))
+            continue
+        # Include project agents that created this CL/PR
+        cs_name = get_meta_changespec_name(a)
+        if cs_name == cl_name:
+            active.append(a)
+            active_ids.add(id(a))
 
     dismissed_ids = load_dismissed_agents()
 
@@ -52,7 +72,10 @@ def _load_agents_for_cl(
 
     dismissed_for_cl: list[Agent] = []
     for agent in load_dismissed_bundles():
-        if agent.cl_name != cl_name or agent.is_workflow_child:
+        if agent.is_workflow_child:
+            continue
+        # Match by cl_name or by meta CL/PR creation
+        if agent.cl_name != cl_name and get_meta_changespec_name(agent) != cl_name:
             continue
         # Skip if already present as an active agent
         if agent.identity in active_identities:

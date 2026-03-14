@@ -475,10 +475,18 @@ class AgentsMixinCore(
         if self.current_tab != "agents" or not self._agents:
             return
         agent = self._agents[self.current_idx]
-        if agent.is_project_agent:
-            return  # Only available for ChangeSpec-level agents
 
-        from ._notification_actions import navigate_to_changespec_tab
+        from ._notification_actions import (
+            get_meta_changespec_name,
+            navigate_to_changespec_tab,
+        )
+
+        if agent.is_project_agent:
+            # Project agents can still jump if they created a CL/PR
+            cs_name = get_meta_changespec_name(agent)
+            if cs_name:
+                navigate_to_changespec_tab(self, cs_name, agent.project_file)
+            return
 
         navigate_to_changespec_tab(self, agent.cl_name, agent.project_file)
 
