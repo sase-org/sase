@@ -46,6 +46,7 @@ ace:
       clear_marks: "u"
       bulk_change_status: "S"
       mark_inactive: "i"
+      mark_inactive_pinned: "I"
       # Agent / axe
       kill_agent: "x"
       toggle_axe: "X"
