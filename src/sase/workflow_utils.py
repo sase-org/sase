@@ -94,8 +94,8 @@ def _get_changed_test_targets(verbose: bool = False) -> str | None:
 def get_initial_hooks_for_changespec(verbose: bool = True) -> list[str]:
     """Get all hooks to include in a new ChangeSpec.
 
-    Returns required hooks (configurable via sase.yml, defaults to
-    sase_hg_presubmit, sase_hg_lint) plus any test target hooks from
+    Returns required hooks (configurable via sase.yml or a VCS provider
+    plugin's default_config.yml) plus any test target hooks from
     changed_test_targets.
 
     Args:
