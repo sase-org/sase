@@ -194,7 +194,7 @@ class PromptStepMixin:
 
         # Re-expand xprompts after embedded workflow pre-steps.  The pre-steps
         # may have updated the workspace (e.g. git pull), making CWD-relative
-        # xprompts (like .xprompts/xprompts.yml entries) available that weren't
+        # xprompts (like local sase.yml entries) available that weren't
         # present during the early phase.
         if embedded_workflows:
             from sase.xprompt import process_xprompt_references

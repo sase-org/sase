@@ -4,7 +4,8 @@ Loads ``default_config.yml`` (bundled in the package) as the base layer,
 then deep-merges plugin ``default_config.yml`` files, then
 ``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
-alphabetically, with list concatenation) on top.
+alphabetically, with list concatenation) on top, then finally any local
+``sase.yml`` found in the current working directory (with list replacement).
 """
 
 import importlib.resources
@@ -93,6 +94,14 @@ def _get_overlay_paths() -> list[Path]:
     return sorted(CONFIG_DIR.glob("sase_*.yml"))
 
 
+def _get_local_config_path() -> Path | None:
+    """Return the path to a local ``sase.yml`` in the CWD, if it exists."""
+    local_path = Path.cwd() / "sase.yml"
+    if local_path.is_file():
+        return local_path
+    return None
+
+
 def _load_plugin_configs() -> list[dict[str, Any]]:
     """Load ``default_config.yml`` from each plugin in the ``sase_config`` group.
 
@@ -163,11 +172,18 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
     if user_base and isinstance(user_base.get("xprompts"), dict):
         results.append(("config", user_base["xprompts"]))
 
-    # 4. Overlay files (highest priority among config sources)
+    # 4. Overlay files
     for overlay_path in _get_overlay_paths():
         overlay = _load_yaml_file(overlay_path)
         if overlay and isinstance(overlay.get("xprompts"), dict):
             results.append((f"config_overlay:{overlay_path.name}", overlay["xprompts"]))
+
+    # 5. Local config (highest priority among config sources)
+    local_path = _get_local_config_path()
+    if local_path:
+        local_config = _load_yaml_file(local_path)
+        if local_config and isinstance(local_config.get("xprompts"), dict):
+            results.append(("local_config", local_config["xprompts"]))
 
     return results
 
@@ -180,6 +196,7 @@ def load_merged_config() -> dict[str, Any]:
     2. Plugin ``default_config.yml`` files (sorted by EP name, lists concatenate)
     3. ``sase.yml`` (user config — lists **replace** defaults)
     4. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
+    5. ``./sase.yml`` (local CWD config — lists **replace**, highest priority)
 
     Returns at least the defaults even when no user config files exist.
     """
@@ -198,5 +215,12 @@ def load_merged_config() -> dict[str, Any]:
         overlay = _load_yaml_file(overlay_path)
         if overlay:
             result = _deep_merge(result, overlay)
+
+    # 5. Local config (highest priority)
+    local_path = _get_local_config_path()
+    if local_path:
+        local_config = _load_yaml_file(local_path)
+        if local_config:
+            result = _deep_merge(result, local_config, list_strategy="replace")
 
     return result

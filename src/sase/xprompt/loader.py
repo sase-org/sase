@@ -5,8 +5,6 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import yaml  # type: ignore[import-untyped]
-
 from sase.config import load_xprompts_by_source
 from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
@@ -18,8 +16,6 @@ from .loader_parsing import (
 from .models import InputArg, XPrompt
 
 log = logging.getLogger(__name__)
-
-XPROMPTS_CONFIG_BASENAMES = ("xprompts.yml", "xprompts.yaml")
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
@@ -106,42 +102,11 @@ def get_xprompt_search_paths() -> list[Path]:
     return paths
 
 
-def _load_xprompts_from_directory_config(search_dir: Path) -> dict[str, XPrompt]:
-    """Load xprompt entries from an xprompts.yml/yaml config file in a directory.
-
-    Args:
-        search_dir: Directory to look for xprompts.yml or xprompts.yaml.
-
-    Returns:
-        Dictionary mapping xprompt name to XPrompt object.
-    """
-    for basename in XPROMPTS_CONFIG_BASENAMES:
-        config_path = search_dir / basename
-        if not config_path.is_file():
-            continue
-
-        try:
-            content = config_path.read_text(encoding="utf-8")
-            data = yaml.safe_load(content)
-        except (OSError, yaml.YAMLError):
-            log.warning("Failed to parse %s", config_path)
-            return {}
-
-        if not isinstance(data, dict):
-            log.warning("Expected dict in %s, got %s", config_path, type(data).__name__)
-            return {}
-
-        return parse_xprompt_entries(data, str(config_path))
-
-    return {}
-
-
 def _load_xprompts_from_files() -> dict[str, XPrompt]:
     """Load xprompts from file system locations.
 
-    Within each directory, xprompts.yml entries are loaded first, then .md files
-    (which override config entries within the same directory). Earlier directories
-    in the search path take precedence over later ones.
+    Scans each search directory for ``.md`` files. Earlier directories in the
+    search path take precedence over later ones.
 
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
@@ -156,11 +121,6 @@ def _load_xprompts_from_files() -> dict[str, XPrompt]:
         if not search_dir.is_dir():
             continue
 
-        # Load config-file entries first
-        config_entries = _load_xprompts_from_directory_config(search_dir)
-        xprompts.update(config_entries)
-
-        # .md files override config entries within the same directory
         for md_file in search_dir.glob("*.md"):
             if md_file.is_file():
                 xprompt = _load_xprompt_from_file(md_file)
@@ -207,9 +167,7 @@ def _load_xprompts_from_internal() -> dict[str, XPrompt]:
     if not internal_dir.is_dir():
         return {}
 
-    # Load from xprompts.yml first, then .md files override
-    xprompts = _load_xprompts_from_directory_config(internal_dir)
-
+    xprompts: dict[str, XPrompt] = {}
     for md_file in internal_dir.glob("*.md"):
         if md_file.is_file():
             xprompt = _load_xprompt_from_file(md_file)
@@ -274,9 +232,8 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
 def _load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     """Load xprompts from a project-specific directory.
 
-    Loads xprompts from ~/.config/sase/xprompts/{project}/ (both xprompts.yml
-    entries and *.md files) and namespaces them with the project name
-    (e.g., bar.md → foo/bar for project 'foo').
+    Loads xprompts from ~/.config/sase/xprompts/{project}/*.md and namespaces
+    them with the project name (e.g., bar.md → foo/bar for project 'foo').
 
     Args:
         project: The project name to load xprompts for.
@@ -300,11 +257,6 @@ def _load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
 
     xprompts: dict[str, XPrompt] = {}
 
-    # Load from xprompts.yml first
-    for name, xp in _load_xprompts_from_directory_config(project_dir).items():
-        xprompts[f"{project}/{name}"] = _namespace(name, xp)
-
-    # .md files override config entries
     for md_file in project_dir.glob("*.md"):
         if md_file.is_file():
             xprompt = _load_xprompt_from_file(md_file)

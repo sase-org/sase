@@ -41,12 +41,13 @@ higher-priority source wins (first-wins).
 | 3        | `~/.xprompts/` (home, hidden dir)     | User-wide overrides                       |
 | 4        | `~/xprompts/` (home)                  | Non-hidden variant                        |
 | 5        | `~/.config/sase/xprompts/{project}/`  | Project-specific (when project is set)    |
-| 6        | `sase.yml` `xprompts:` section        | Config-based definitions                  |
+| 6        | `sase.yml` `xprompts:` section        | Config-based definitions (local + global) |
 | 7        | Plugin packages (`sase_xprompts` EPs) | Installed plugin xprompts                 |
 | 8        | `<sase_package>/xprompts/`            | Built-in xprompts shipped with sase       |
 
-Each directory (priorities 1-5, 7-8) can contain individual `.md` files and/or an `xprompts.yml` config file. See
-[Directory Configuration Files](#directory-configuration-files) for the config file format.
+Each directory (priorities 1-5, 7-8) can contain individual `.md` files. Within priority 6, the config merge chain
+applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay files (`sase_*.yml`), and finally a local
+`./sase.yml` in the current working directory (highest config priority).
 
 For file-based xprompts (priorities 1-5, 7), the xprompt name defaults to the filename stem (e.g., `summarize.md`
 defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
@@ -327,32 +328,26 @@ xprompts:
 
 Config-based xprompts have priority 6 (below file-based, above plugin and built-in).
 
-## Directory Configuration Files
+## Local Configuration Files
 
-In addition to defining xprompts as individual `.md` files, you can define multiple xprompts in a single `xprompts.yml`
-(or `xprompts.yaml`) file placed inside any `xprompts/` directory in the search path.
-
-### Format
-
-The file uses the same format as the `xprompts:` section in `sase.yml`:
+You can define project-specific xprompts in a `sase.yml` file in the project root (current working directory). This file
+follows the same format as the global `~/.config/sase/sase.yml` and can override any sase config values, including
+xprompts:
 
 ```yaml
-# Simple format — value is the template body
-propose: "Please propose your changes before applying them."
+xprompts:
+  # Simple format — value is the template body
+  propose: "Please propose your changes before applying them."
 
-# Structured format — with typed inputs and/or output
-greet:
-  input: { name: word, count: { type: int, default: 1 } }
-  content: "Hello {{ name }}, count is {{ count }}"
-  output: { result: text }
+  # Structured format — with typed inputs and/or output
+  greet:
+    input: { name: word, count: { type: int, default: 1 } }
+    content: "Hello {{ name }}, count is {{ count }}"
 ```
 
-### Precedence Rules
-
-- Only one config file per directory — `xprompts.yml` takes precedence over `xprompts.yaml` if both exist.
-- Within a directory, config entries are loaded first, then individual `.md` files override them (so a `foo.md` file in
-  the same directory will take priority over a `foo:` entry in `xprompts.yml`).
-- Across directories, the normal [discovery order](#discovery-order) applies.
+The local `sase.yml` is the highest-priority config source, overriding global `sase.yml`, overlay files, plugin configs,
+and built-in defaults. Individual `.md` files in xprompts directories still take precedence over config-defined
+xprompts.
 
 ## Directives
 
