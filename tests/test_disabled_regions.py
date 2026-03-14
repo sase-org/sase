@@ -2,13 +2,53 @@
 
 from unittest.mock import MagicMock, patch
 
+from sase.xprompt._disabled_regions import (
+    protect_disabled_regions,
+    strip_disabled_region_markers,
+    unprotect_disabled_regions,
+)
+
 
 class TestProtectUnprotectRoundTrip:
     """Tests for protect_disabled_regions / unprotect_disabled_regions."""
 
+    def test_basic_roundtrip(self) -> None:
+        text = (
+            "before\n%xprompts_enabled:false\nsecret\n%xprompts_enabled:true\nafter\n"
+        )
+        regions: list[str] = []
+        protected = protect_disabled_regions(text, regions)
+        assert "secret" not in protected
+        assert "before" in protected
+        assert "after" in protected
+        restored = unprotect_disabled_regions(protected, regions)
+        assert restored == text
+
+    def test_leading_whitespace_before_marker(self) -> None:
+        """Markers preceded by whitespace (e.g. after embedded workflow replacement)."""
+        text = " %xprompts_enabled:false\n{{ resolve.path }}\n%xprompts_enabled:true\nquery\n"
+        regions: list[str] = []
+        protected = protect_disabled_regions(text, regions)
+        assert "resolve" not in protected
+        assert "query" in protected
+        assert len(regions) == 1
+
+    def test_tab_indented_markers(self) -> None:
+        text = "\t%xprompts_enabled:false\nhidden\n\t%xprompts_enabled:true\nvisible\n"
+        regions: list[str] = []
+        protected = protect_disabled_regions(text, regions)
+        assert "hidden" not in protected
+        assert "visible" in protected
+
 
 class TestStripDisabledRegionMarkers:
     """Tests for strip_disabled_region_markers."""
+
+    def test_strips_markers_with_leading_whitespace(self) -> None:
+        text = " %xprompts_enabled:false\ncontent\n %xprompts_enabled:true\n"
+        result = strip_disabled_region_markers(text)
+        assert "%xprompts_enabled" not in result
+        assert "content" in result
 
 
 class TestProcessXpromptReferencesDisabledRegions:
