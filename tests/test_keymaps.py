@@ -3,26 +3,26 @@
 from dataclasses import fields
 
 from sase.ace.tui.keymaps import (
+    AppKeymaps,
+    BangModeKeymaps,
+    CopyModeKeymaps,
+    FoldModeKeymaps,
     KeymapRegistry,
+    LeaderModeKeymaps,
+    ModeKeymaps,
     _BINDING_META,
-    _AppKeymaps,
-    _BangModeKeymaps,
-    _CopyModeKeymaps,
-    _FoldModeKeymaps,
-    _LeaderModeKeymaps,
-    _ModeKeymaps,
-    _load_builtin_app_defaults,
     build_app_bindings,
     key_display_name,
+    load_builtin_app_defaults,
     load_keymap_registry,
 )
 
 
-def _default_app_keymaps(**overrides: str) -> _AppKeymaps:
-    """Create an _AppKeymaps using builtin defaults, with optional overrides."""
-    kwargs = _load_builtin_app_defaults()
+def _default_app_keymaps(**overrides: str) -> AppKeymaps:
+    """Create an AppKeymaps using builtin defaults, with optional overrides."""
+    kwargs = load_builtin_app_defaults()
     kwargs.update(overrides)
-    return _AppKeymaps(**kwargs)
+    return AppKeymaps(**kwargs)
 
 
 # --- load_keymap_registry ---
@@ -34,10 +34,10 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.app.next_changespec == "j"
     assert reg.app.quit == "q"
     assert reg.app.next_tab == "tab"
-    assert isinstance(reg.fold_mode, _FoldModeKeymaps)
-    assert isinstance(reg.copy_mode, _CopyModeKeymaps)
-    assert isinstance(reg.leader_mode, _LeaderModeKeymaps)
-    assert isinstance(reg.bang_mode, _BangModeKeymaps)
+    assert isinstance(reg.fold_mode, FoldModeKeymaps)
+    assert isinstance(reg.copy_mode, CopyModeKeymaps)
+    assert isinstance(reg.leader_mode, LeaderModeKeymaps)
+    assert isinstance(reg.bang_mode, BangModeKeymaps)
 
 
 def test_partial_app_override() -> None:
@@ -131,7 +131,7 @@ def test_copy_mode_nested_override() -> None:
 
 
 def test_unknown_mode_becomes_generic() -> None:
-    """User-defined modes produce generic _ModeKeymaps instances."""
+    """User-defined modes produce generic ModeKeymaps instances."""
     reg = load_keymap_registry(
         {
             "keymaps": {
@@ -156,8 +156,8 @@ def test_unknown_mode_becomes_generic() -> None:
         }
     )
     m = reg.modes["my_mode"]
-    assert isinstance(m, _ModeKeymaps)
-    assert not isinstance(m, _FoldModeKeymaps)
+    assert isinstance(m, ModeKeymaps)
+    assert not isinstance(m, FoldModeKeymaps)
     assert m.prefix == "semicolon"
     assert isinstance(m.keys["do_thing"], dict)
     assert m.keys["do_thing"]["key"] == "t"
@@ -167,7 +167,7 @@ def test_non_dict_keymaps_config() -> None:
     """Non-dict keymaps config falls back to builtin defaults."""
     reg = load_keymap_registry({"keymaps": "invalid"})
     assert reg.app.next_changespec == "j"
-    assert isinstance(reg.fold_mode, _FoldModeKeymaps)
+    assert isinstance(reg.fold_mode, FoldModeKeymaps)
 
 
 # --- build_app_bindings ---
@@ -190,7 +190,7 @@ def test_build_app_bindings_priority() -> None:
 
 
 def test_build_app_bindings_uses_config_keys() -> None:
-    """Bindings reflect overridden keys from _AppKeymaps."""
+    """Bindings reflect overridden keys from AppKeymaps."""
     km = _default_app_keymaps(next_changespec="n", quit="Q")
     bindings = build_app_bindings(km)
     by_action = {b.action: b for b in bindings}
@@ -255,15 +255,15 @@ def test_registry_default_modes_always_present() -> None:
 
 
 def test_default_config_covers_all_app_keymaps() -> None:
-    """default_config.yml must define every _AppKeymaps field."""
-    defaults = _load_builtin_app_defaults()
-    field_names = {f.name for f in fields(_AppKeymaps)}
+    """default_config.yml must define every AppKeymaps field."""
+    defaults = load_builtin_app_defaults()
+    field_names = {f.name for f in fields(AppKeymaps)}
     missing = field_names - set(defaults.keys())
     assert not missing, f"default_config.yml missing: {sorted(missing)}"
 
 
 def test_binding_meta_matches_app_keymaps() -> None:
-    """_BINDING_META must cover exactly _AppKeymaps fields."""
+    """_BINDING_META must cover exactly AppKeymaps fields."""
     meta_actions = {a for a, _, _ in _BINDING_META}
-    field_names = {f.name for f in fields(_AppKeymaps)}
+    field_names = {f.name for f in fields(AppKeymaps)}
     assert meta_actions == field_names

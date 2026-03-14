@@ -4,27 +4,27 @@ import logging
 
 import pytest
 
-from sase.ace.tui.keymaps import _is_valid_key, load_keymap_registry
+from sase.ace.tui.keymaps import is_valid_key, load_keymap_registry
 
 
-# --- _is_valid_key ---
+# --- is_valid_key ---
 
 
 def test_single_char_keys_accepted() -> None:
     """Single alphanumeric characters are valid keys."""
-    assert _is_valid_key("j")
-    assert _is_valid_key("Q")
-    assert _is_valid_key("1")
+    assert is_valid_key("j")
+    assert is_valid_key("Q")
+    assert is_valid_key("1")
 
 
 def test_valid_named_keys_accepted() -> None:
     """Named Textual keys and modifier combos are valid."""
-    assert _is_valid_key("full_stop")
-    assert _is_valid_key("ctrl+d")
-    assert _is_valid_key("escape")
-    assert _is_valid_key("shift+tab")
-    assert _is_valid_key("enter")
-    assert _is_valid_key("f12")
+    assert is_valid_key("full_stop")
+    assert is_valid_key("ctrl+d")
+    assert is_valid_key("escape")
+    assert is_valid_key("shift+tab")
+    assert is_valid_key("enter")
+    assert is_valid_key("f12")
 
 
 def test_empty_string_key_invalid() -> None:
