@@ -102,6 +102,23 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
     return None, model_override
 
 
+def format_provider_model_label(
+    llm_provider: str | None = None,
+    model: str | None = None,
+) -> str:
+    """Format provider and model as PROVIDER(model), e.g. 'CLAUDE(opus)'.
+
+    Falls back to 'Agent' if neither is available.
+    """
+    if llm_provider and model:
+        return f"{llm_provider.upper()}({model})"
+    if llm_provider:
+        return llm_provider.upper()
+    if model:
+        return model
+    return "Agent"
+
+
 def get_default_provider_name() -> str:
     """Get the default provider name from configuration.
 

@@ -659,18 +659,27 @@ def main() -> None:
             from sase.notifications.senders import notify_workflow_complete
 
             extra_files = [p for p in [saved_path, diff_path] if p]
+            from sase.llm_provider.registry import format_provider_model_label
+
+            agent_label = format_provider_model_label(agent_llm_provider, agent_model)
             notify_workflow_complete(
                 sender="user-agent",
                 cl_name=cl_name,
                 success=success,
                 notes=[
-                    f"Agent {'completed' if success else 'failed'}: {workflow_name}"
+                    f"{agent_label} {'completed' if success else 'failed'}: {workflow_name}"
                 ],
                 action="JumpToAgent",
                 action_data={
                     "cl_name": cl_name,
                     "raw_suffix": artifacts_timestamp,
                     **({"agent_name": agent_name} if agent_name else {}),
+                    **({"model": agent_model} if agent_model else {}),
+                    **(
+                        {"llm_provider": agent_llm_provider}
+                        if agent_llm_provider
+                        else {}
+                    ),
                     "prompt": prompt,
                 },
                 extra_files=extra_files,
