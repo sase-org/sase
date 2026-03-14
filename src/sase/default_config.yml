@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=../../config/sase.schema.json
 ace:
   inactive_seconds: 600
   keymaps:
