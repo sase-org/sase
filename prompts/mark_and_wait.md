@@ -8,7 +8,7 @@ Can you help me add support two new prompt directives?: `%wait:<name>` and `%nam
 - When the `%name:<name>` directive is included in an agent's prompt, that agent will me named `<name>`.
 - When the `%wait:<name>` directive is included in an agent's prompt, that agent will not start executing until an agent
   with the name `<name>` has completed its execution (i.e. reached a "DONE" status in the `sase ace` TUI).
-- We can use a jack to coordinate this work. Either create a new jack or use an existing one, you decide.
+- We can use a lumberjack to coordinate this work. Either create a new lumberjack or use an existing one, you decide.
 - We should support multiple `%wait:<name>` directives in a single prompt.
 - We should support naming an agent with a name after it has already started executing by selecting the agent the
   "Agents" tab of the `sase ace` TUI and using a new keymap (e.g. `n`) to trigger a prompt that allows the user to input

@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Literal
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
-    JackStatus,
-    read_jack_log_tail,
-    read_jack_metrics,
-    read_jack_status,
+    LumberjackStatus,
+    read_lumberjack_log_tail,
+    read_lumberjack_metrics,
+    read_lumberjack_status,
     read_metrics,
     read_output_log_tail,
 )
@@ -25,7 +25,7 @@ from ..bgcmd import (
     mark_slot_finished,
     read_slot_output_tail,
 )
-from ..widgets.bgcmd_list import AxeItem, AxeParentItem, BgCmdItem, JackItem
+from ..widgets.bgcmd_list import AxeItem, AxeParentItem, BgCmdItem, LumberjackItem
 
 if TYPE_CHECKING:
     from ..models.fold_state import FoldStateManager
@@ -60,8 +60,8 @@ class AxeDisplayMixin:
     _axe_cmds_hidden: bool
     _axe_current_view: AxeViewType
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
-    _axe_jack_names: list[str]
-    _axe_jack_idx: int | None
+    _axe_lumberjack_names: list[str]
+    _axe_lumberjack_idx: int | None
     _axe_items: list[AxeItem]
     _axe_fold_manager: FoldStateManager
     _bang_mode_active: bool
@@ -87,7 +87,7 @@ class AxeDisplayMixin:
             if status_dict:
                 try:
                     # Filter to only AxeStatus fields (get_axe_status
-                    # may include extra keys like 'jacks')
+                    # may include extra keys like 'lumberjacks')
                     axe_fields = {f.name for f in dataclasses.fields(AxeStatus)}
                     filtered = {k: v for k, v in status_dict.items() if k in axe_fields}
                     self._axe_status = AxeStatus(**filtered)
@@ -103,8 +103,8 @@ class AxeDisplayMixin:
         # Load output log (always, for display even when stopped)
         self._axe_output = read_output_log_tail(500)
 
-        # Load jack names from config (new architecture only)
-        self._load_jack_names()
+        # Load lumberjack names from config (new architecture only)
+        self._load_lumberjack_names()
 
         # Also load bgcmd state
         self._load_bgcmd_state()
@@ -119,18 +119,18 @@ class AxeDisplayMixin:
         # Update keybinding footer for all tabs (X binding changes label)
         self._update_axe_keybinding()
 
-    def _load_jack_names(self) -> None:
-        """Load jack names from axe config."""
+    def _load_lumberjack_names(self) -> None:
+        """Load lumberjack names from axe config."""
         from sase.axe.config import load_axe_config as load_new_axe_config
 
         config = load_new_axe_config()
-        self._axe_jack_names = sorted(config.jacks.keys())
+        self._axe_lumberjack_names = sorted(config.lumberjacks.keys())
 
         # Reset index if it's now out of bounds
-        if self._axe_jack_idx is not None and self._axe_jack_idx >= len(
-            self._axe_jack_names
+        if self._axe_lumberjack_idx is not None and self._axe_lumberjack_idx >= len(
+            self._axe_lumberjack_names
         ):
-            self._axe_jack_idx = None
+            self._axe_lumberjack_idx = None
 
     def _load_bgcmd_state(self) -> None:
         """Load background command state from disk (running + done commands)."""
@@ -180,16 +180,16 @@ class AxeDisplayMixin:
         return running_count, done_count
 
     def _update_axe_tab_count(self) -> None:
-        """Update the AXE tab bar label with jack and bgcmd counts."""
+        """Update the AXE tab bar label with lumberjack and bgcmd counts."""
         from ..widgets import TabBar
 
-        # Count running jacks
-        running_jacks = 0
+        # Count running lumberjacks
+        running_lumberjacks = 0
         if self.axe_running:
-            for jack_name in self._axe_jack_names:
-                jack_status = read_jack_status(jack_name)
-                if jack_status and jack_status.status == "running":
-                    running_jacks += 1
+            for lumberjack_name in self._axe_lumberjack_names:
+                lumberjack_status = read_lumberjack_status(lumberjack_name)
+                if lumberjack_status and lumberjack_status.status == "running":
+                    running_lumberjacks += 1
 
         bgcmd_count = len(self._bgcmd_slots)
         _, done_bgcmds = self._get_bgcmd_counts()
@@ -197,7 +197,7 @@ class AxeDisplayMixin:
         try:
             tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
             tab_bar.update_axe_count(
-                running_jacks,
+                running_lumberjacks,
                 bgcmd_count,
                 show_hidden=not self._axe_cmds_hidden,
                 done_count=done_bgcmds,
@@ -211,10 +211,10 @@ class AxeDisplayMixin:
 
         items: list[AxeItem] = [AxeParentItem()]
 
-        # Add jack children when expanded
+        # Add lumberjack children when expanded
         if self._axe_fold_manager.get("axe") != FoldLevel.COLLAPSED:
-            for jack_name in self._axe_jack_names:
-                items.append(JackItem(name=jack_name))
+            for lumberjack_name in self._axe_lumberjack_names:
+                items.append(LumberjackItem(name=lumberjack_name))
 
         # Add bgcmd entries when not hidden
         if not self._axe_cmds_hidden:
@@ -228,26 +228,26 @@ class AxeDisplayMixin:
             self.current_idx = 0
 
     def _derive_axe_view_from_selection(self) -> None:
-        """Derive _axe_current_view and _axe_jack_idx from selected item."""
+        """Derive _axe_current_view and _axe_lumberjack_idx from selected item."""
         if not self._axe_items or self.current_idx >= len(self._axe_items):
             self._axe_current_view = "axe"
-            self._axe_jack_idx = None
+            self._axe_lumberjack_idx = None
             return
 
         item = self._axe_items[self.current_idx]
         match item:
             case AxeParentItem():
                 self._axe_current_view = "axe"
-                self._axe_jack_idx = None
-            case JackItem(name=name):
+                self._axe_lumberjack_idx = None
+            case LumberjackItem(name=name):
                 self._axe_current_view = "axe"
                 try:
-                    self._axe_jack_idx = self._axe_jack_names.index(name)
+                    self._axe_lumberjack_idx = self._axe_lumberjack_names.index(name)
                 except ValueError:
-                    self._axe_jack_idx = None
+                    self._axe_lumberjack_idx = None
             case BgCmdItem(slot=slot):
                 self._axe_current_view = slot
-                self._axe_jack_idx = None
+                self._axe_lumberjack_idx = None
 
     def _refresh_axe_display(self) -> None:
         """Refresh the axe dashboard display."""
@@ -268,25 +268,29 @@ class AxeDisplayMixin:
 
             # Update info panel based on current view
             if self._axe_current_view == "axe":
-                if self._axe_jack_idx is not None and self._axe_jack_names:
-                    # Show jack-specific view
-                    jack_name = self._axe_jack_names[self._axe_jack_idx]
-                    jack_output = read_jack_log_tail(jack_name, 500)
-                    jack_status = read_jack_status(jack_name)
-                    jack_idx = self._axe_jack_idx
-                    jack_total = len(self._axe_jack_names)
+                if self._axe_lumberjack_idx is not None and self._axe_lumberjack_names:
+                    # Show lumberjack-specific view
+                    lumberjack_name = self._axe_lumberjack_names[
+                        self._axe_lumberjack_idx
+                    ]
+                    lumberjack_output = read_lumberjack_log_tail(lumberjack_name, 500)
+                    lumberjack_status = read_lumberjack_status(lumberjack_name)
+                    lumberjack_idx = self._axe_lumberjack_idx
+                    lumberjack_total = len(self._axe_lumberjack_names)
 
-                    axe_info.update_jack_status(jack_name, jack_idx, jack_total)
-                    axe_dashboard.update_jack_display(
-                        name=jack_name,
-                        idx=jack_idx,
-                        total=jack_total,
-                        status=jack_status,
-                        output=jack_output,
+                    axe_info.update_lumberjack_status(
+                        lumberjack_name, lumberjack_idx, lumberjack_total
+                    )
+                    axe_dashboard.update_lumberjack_display(
+                        name=lumberjack_name,
+                        idx=lumberjack_idx,
+                        total=lumberjack_total,
+                        status=lumberjack_status,
+                        output=lumberjack_output,
                         countdown=self._countdown_remaining,
                     )
                 else:
-                    # Show main axe page with jack activity summary
+                    # Show main axe page with lumberjack activity summary
                     axe_info.update_status(self.axe_running)
 
                     # Get full cycles from metrics if available
@@ -294,15 +298,21 @@ class AxeDisplayMixin:
                     if self._axe_metrics:
                         full_cycles = self._axe_metrics.full_cycles_run
 
-                    # Gather jack summaries for display
-                    jack_summaries: list[tuple[str, JackStatus | None, int]] = []
-                    for jack_name in self._axe_jack_names:
-                        jack_status = read_jack_status(jack_name)
-                        jack_metrics = read_jack_metrics(jack_name)
+                    # Gather lumberjack summaries for display
+                    lumberjack_summaries: list[
+                        tuple[str, LumberjackStatus | None, int]
+                    ] = []
+                    for lumberjack_name in self._axe_lumberjack_names:
+                        lumberjack_status = read_lumberjack_status(lumberjack_name)
+                        lumberjack_metrics = read_lumberjack_metrics(lumberjack_name)
                         chops_executed = (
-                            jack_metrics.chops_executed if jack_metrics else 0
+                            lumberjack_metrics.chops_executed
+                            if lumberjack_metrics
+                            else 0
                         )
-                        jack_summaries.append((jack_name, jack_status, chops_executed))
+                        lumberjack_summaries.append(
+                            (lumberjack_name, lumberjack_status, chops_executed)
+                        )
 
                     axe_dashboard.update_display(
                         is_running=self.axe_running,
@@ -310,7 +320,7 @@ class AxeDisplayMixin:
                         output=self._axe_output,
                         full_cycles=full_cycles,
                         countdown=self._countdown_remaining,
-                        jack_summaries=jack_summaries,
+                        lumberjack_summaries=lumberjack_summaries,
                     )
             else:
                 # Showing a bgcmd view
@@ -352,7 +362,7 @@ class AxeDisplayMixin:
                     items=self._axe_items,
                     current_idx=self.current_idx,
                     axe_running=self.axe_running,
-                    jack_names=self._axe_jack_names,
+                    lumberjack_names=self._axe_lumberjack_names,
                     bgcmd_infos=dict(self._bgcmd_slots),
                 )
             except Exception:

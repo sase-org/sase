@@ -337,9 +337,9 @@ class AceApp(
         self._axe_current_view: Literal["axe"] | int = "axe"
         self._bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
 
-        # Jack cycling state (new axe architecture)
-        self._axe_jack_names: list[str] = []
-        self._axe_jack_idx: int | None = None
+        # Lumberjack cycling state (new axe architecture)
+        self._axe_lumberjack_names: list[str] = []
+        self._axe_lumberjack_idx: int | None = None
 
         # AXE side-panel item list and saved position
         from .widgets.bgcmd_list import AxeItem

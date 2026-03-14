@@ -338,7 +338,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                 ),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
-                    "Next / prev jack output",
+                    "Next / prev lumberjack output",
                 ),
                 (d(a.scroll_to_top), "Scroll to top"),
                 (d(a.scroll_to_bottom), "Scroll to bottom"),

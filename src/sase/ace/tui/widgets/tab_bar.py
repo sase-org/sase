@@ -120,7 +120,7 @@ class TabBar(Static):
         """Update the counts shown on the AXE tab label.
 
         Args:
-            main_count: Number of running axe jacks.
+            main_count: Number of running axe lumberjacks.
             hidden_count: Number of active background commands.
             show_hidden: Whether background commands are currently visible.
             done_count: Number of completed background commands.

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.config import AxeConfig, JackConfig
+from sase.axe.config import AxeConfig, LumberjackConfig
 from sase.axe.orchestrator import (
     Orchestrator,
 )
@@ -34,9 +34,9 @@ def axe_config() -> AxeConfig:
         max_agent_runners=3,
         zombie_timeout_seconds=7200,
         query="",
-        jacks={
-            "hooks": JackConfig(name="hooks", interval=1, chops=["hook_checks"]),
-            "checks": JackConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(name="hooks", interval=1, chops=["hook_checks"]),
+            "checks": LumberjackConfig(
                 name="checks", interval=300, chops=["cl_submitted_checks"]
             ),
         },
@@ -51,26 +51,26 @@ def axe_config() -> AxeConfig:
     return_value="/usr/bin/sase",
 )
 @patch("subprocess.Popen")
-def test_spawn_jack_calls_popen(
+def test_spawn_lumberjack_calls_popen(
     mock_popen: MagicMock,
     mock_find: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """Test that _spawn_jack calls subprocess.Popen with correct args."""
+    """Test that _spawn_lumberjack calls subprocess.Popen with correct args."""
     mock_proc = MagicMock()
     mock_proc.pid = 12345
     mock_popen.return_value = mock_proc
 
     orch = Orchestrator(axe_config)
-    proc = orch._spawn_jack("hooks")
+    proc = orch._spawn_lumberjack("hooks")
 
     assert proc.pid == 12345
-    # Check that the command includes 'sase axe jack run hooks'
+    # Check that the command includes 'sase axe lumberjack run hooks'
     call_args = mock_popen.call_args
     cmd = call_args[0][0]
     assert "sase" in cmd[0]
-    assert cmd[1:5] == ["axe", "jack", "run", "hooks"]
+    assert cmd[1:5] == ["axe", "lumberjack", "run", "hooks"]
 
 
 # --- PID File Tests ---

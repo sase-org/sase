@@ -13,8 +13,8 @@ MUST update ALL of these files:
 ## Footer Keybinding Convention
 
 **CRITICAL**: The TUI footer (bottom bar) shows **only entry-dependent keymaps** — bindings whose availability is
-determined by a property of the currently selected entry (ChangeSpec on CLs tab, Agent on Agents tab, Jack/BgCmd on AXE
-tab). The implementation lives in `src/sase/ace/tui/widgets/keybinding_footer.py`.
+determined by a property of the currently selected entry (ChangeSpec on CLs tab, Agent on Agents tab, Lumberjack/BgCmd
+on AXE tab). The implementation lives in `src/sase/ace/tui/widgets/keybinding_footer.py`.
 
 Rules:
 

@@ -13,8 +13,8 @@ adds two new prompt directives:
 - **`%name:<name>`** — Assigns a name to an agent, written to `agent_meta.json` and `done.json`.
 - **`%wait:<name>`** — Blocks an agent until the named agent reaches DONE status.
 
-The agent runner writes a `waiting.json` marker when `%wait` directives are present. A new jack chop (`wait_checks`)
-resolves dependencies and writes a `ready.json` signal. The agent runner polls for that signal.
+The agent runner writes a `waiting.json` marker when `%wait` directives are present. A new lumberjack chop
+(`wait_checks`) resolves dependencies and writes a `ready.json` signal. The agent runner polls for that signal.
 
 The TUI's `n` key (already bound to `action_rename_cl` on changespecs tab) is extended to open a name-input modal on the
 Agents tab, writing directly to `agent_meta.json`.
@@ -132,7 +132,7 @@ Agents tab, writing directly to `agent_meta.json`.
 
 ---
 
-## Phase 3: Wait Coordination via Jack (parallel with Phase 2)
+## Phase 3: Wait Coordination via Lumberjack (parallel with Phase 2)
 
 ### 3a. Agent name resolution utility
 
@@ -151,12 +151,12 @@ After writing `agent_meta.json` and before `execute_workflow()` (~line 240):
 
 1. If `agent_wait_names` is non-empty:
    - Write `waiting.json` with `{"waiting_for": [...], "cl_name": ..., "timestamp": ...}`
-   - Poll for `ready.json` in the same artifacts dir (created by jack chop)
+   - Poll for `ready.json` in the same artifacts dir (created by lumberjack chop)
    - Poll interval: 2s, with a configurable max timeout (default 24h)
    - On `ready.json` found: delete both `waiting.json` and `ready.json`, proceed
    - Handle SIGTERM: existing handler should interrupt sleep
 
-### 3c. New jack chop: `wait_checks`
+### 3c. New lumberjack chop: `wait_checks`
 
 **New file**: `src/sase/axe/chops/wait_checks.py`
 
@@ -176,11 +176,11 @@ Logic:
 
 Register in `src/sase/axe/chops/__init__.py`.
 
-### 3d. Add `wait_checks` to the `hooks` jack
+### 3d. Add `wait_checks` to the `hooks` lumberjack
 
 **File**: `src/sase/axe/config.py`
 
-- Add `"wait_checks"` to the `hooks` jack's chop list (runs every 1s — fast enough for responsive unblocking)
+- Add `"wait_checks"` to the `hooks` lumberjack's chop list (runs every 1s — fast enough for responsive unblocking)
 
 ### 3e. Display WAITING status in TUI
 
@@ -203,7 +203,7 @@ Register in `src/sase/axe/chops/__init__.py`.
 ```
 Phase 1 (Parsing + Data Model)
     ├──> Phase 2 (TUI Display + Manual Naming)
-    └──> Phase 3 (Wait Coordination + Jack)
+    └──> Phase 3 (Wait Coordination + Lumberjack)
 ```
 
 Phases 2 and 3 touch mostly disjoint files and can run in parallel after Phase 1 lands.

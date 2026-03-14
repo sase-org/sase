@@ -17,13 +17,13 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     state_dir = tmp_path / ".sase" / "axe"
     state_dir.mkdir(parents=True, exist_ok=True)
     pid_file = state_dir / "orchestrator.pid"
-    jack_dir = state_dir / "jacks"
+    lumberjack_dir = state_dir / "lumberjacks"
     with (
         patch("sase.axe.state.AXE_STATE_DIR", state_dir),
         patch("sase.axe.orchestrator.AXE_STATE_DIR", state_dir),
         patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", pid_file),
         patch("sase.axe.process.ORCHESTRATOR_PID_FILE", pid_file),
-        patch("sase.axe.state.JACK_STATE_DIR", jack_dir),
+        patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
     ):
         yield state_dir
 
@@ -47,4 +47,4 @@ def test_is_axe_running_stale_pid(
 # --- get_axe_status Tests ---
 
 
-# --- get_jack_names Tests ---
+# --- get_lumberjack_names Tests ---

@@ -71,7 +71,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 ## Key Features
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
-- **AXE** — Jack-based daemon for continuous automation via configurable chop scripts
+- **AXE** — Lumberjack-based daemon for continuous automation via configurable chop scripts
 - **XPrompt** — Typed prompt templates with reference expansion, YAML front matter, and CLI tools for expansion,
   workflow visualization, and DAG graphing
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
@@ -129,10 +129,10 @@ sase
 | Command                | Description                                                       |
 | ---------------------- | ----------------------------------------------------------------- |
 | `sase ace`             | Interactive TUI for navigating and managing ChangeSpecs           |
-| `sase axe start`       | Start the jack-based daemon (orchestrator mode)                   |
+| `sase axe start`       | Start the lumberjack-based daemon (orchestrator mode)             |
 | `sase axe stop`        | Stop the running axe orchestrator                                 |
 | `sase axe chop`        | List or run individual chop scripts                               |
-| `sase axe jack`        | List, run, or check status of jacks                               |
+| `sase axe lumberjack`  | List, run, or check status of lumberjacks                         |
 | `sase search`          | Search and filter ChangeSpecs with query expressions              |
 | `sase run`             | Execute workflows, resume agents by name, or run a query directly |
 | `sase xprompt expand`  | Expand prompt templates with sase references (supports `--trace`) |
@@ -191,15 +191,15 @@ src/sase/
 │   ├── comments/          # Comment management
 │   ├── scheduler/         # Task scheduling within ACE
 │   └── workflows/         # ACE-specific workflow integrations
-├── axe/                   # Jack-based daemon (orchestrator, chops, runner pool)
-│   ├── orchestrator.py    # Multi-jack supervisor
-│   ├── jack.py      # Single-jack scheduler loop
+├── axe/                   # Lumberjack-based daemon (orchestrator, chops, runner pool)
+│   ├── orchestrator.py    # Multi-lumberjack supervisor
+│   ├── lumberjack.py      # Single-lumberjack scheduler loop
 │   ├── chop_script_runner.py # External chop script discovery and execution
 │   ├── chops/             # Built-in chop scripts
-│   ├── config.py          # Jack and chop configuration
+│   ├── config.py          # Lumberjack and chop configuration
 │   ├── runner_pool.py     # Shared concurrent runner pool
 │   ├── hook_jobs.py       # 1-second interval hook/mentor/workflow jobs
-│   ├── state.py           # Jack state persistence
+│   ├── state.py           # Lumberjack state persistence
 │   ├── process.py         # Process management utilities
 │   └── cli.py             # Axe CLI argument parsing
 ├── xprompt/               # Prompt templates and workflow execution

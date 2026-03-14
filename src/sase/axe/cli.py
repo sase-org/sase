@@ -17,8 +17,8 @@ from .chop_script_context import (
 from .chop_script_runner import discover_chop_script, run_chop_script
 from .config import AxeConfig, ChopConfig, load_axe_config
 from .state import (
-    ensure_jack_dirs,
-    read_jack_status,
+    ensure_lumberjack_dirs,
+    read_lumberjack_status,
 )
 
 
@@ -29,8 +29,8 @@ def handle_axe_chop_list(args: argparse.Namespace) -> None:
     console = Console()
     config = load_axe_config()
     seen: dict[str, ChopConfig] = {}
-    for jack in config.jacks.values():
-        for chop in jack.chops:
+    for lumberjack in config.lumberjacks.values():
+        for chop in lumberjack.chops:
             if chop.name not in seen:
                 seen[chop.name] = chop
     for chop in sorted(seen.values(), key=lambda c: c.name):
@@ -83,7 +83,7 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
             cs for cs in all_changespecs if evaluate_query(parsed, cs, all_changespecs)
         ]
 
-    state_dir = ensure_jack_dirs("_oneshot")
+    state_dir = ensure_lumberjack_dirs("_oneshot")
     tick_dir = state_dir / "tick"
     tick_dir.mkdir(parents=True, exist_ok=True)
 
@@ -99,7 +99,7 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         max_agent_runners=max_agent_runners,
         zombie_timeout_seconds=zombie_timeout,
         query=query,
-        jack_name="_oneshot",
+        lumberjack_name="_oneshot",
         state_dir=str(state_dir),
         all_changespecs_file=all_cs_file,
         filtered_changespecs_file=filtered_cs_file,
@@ -116,9 +116,9 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
 
 
 def _find_chop_config(chop_name: str, config: AxeConfig) -> ChopConfig | None:
-    """Look up a chop by name across all jack configs."""
-    for jack in config.jacks.values():
-        for chop in jack.chops:
+    """Look up a chop by name across all lumberjack configs."""
+    for lumberjack in config.lumberjacks.values():
+        for chop in lumberjack.chops:
             if chop.name == chop_name:
                 return chop
     return None
@@ -139,31 +139,31 @@ def _run_agent_chop_oneshot(chop: ChopConfig) -> None:
     sys.exit(0)
 
 
-def handle_axe_jack_list(args: argparse.Namespace) -> None:
-    """Print configured jack names and their chops."""
+def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
+    """Print configured lumberjack names and their chops."""
     from rich.console import Console
 
     console = Console()
     config = load_axe_config()
-    for i, (name, jack) in enumerate(sorted(config.jacks.items())):
+    for i, (name, lumberjack) in enumerate(sorted(config.lumberjacks.items())):
         if i > 0:
             console.print()
         console.print(f"[bold cyan]{name}[/bold cyan]")
-        console.print(f"  [dim]interval:[/dim] {jack.interval}s")
-        if jack.chops:
+        console.print(f"  [dim]interval:[/dim] {lumberjack.interval}s")
+        if lumberjack.chops:
             console.print("  [dim]chops:[/dim]")
-            for chop in jack.chops:
+            for chop in lumberjack.chops:
                 console.print(f"    [green]{chop.name}[/green]")
     sys.exit(0)
 
 
-def handle_axe_jack_run(args: argparse.Namespace) -> None:
-    """Run a single jack in the foreground."""
+def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
+    """Run a single lumberjack in the foreground."""
     from sase.ace.query import QueryParseError
 
-    from .jack import Jack
+    from .lumberjack import Lumberjack
 
-    jack_name: str = args.jack_name
+    lumberjack_name: str = args.lumberjack_name
     config = load_axe_config()
 
     # Apply CLI overrides to AxeConfig
@@ -184,33 +184,33 @@ def handle_axe_jack_run(args: argparse.Namespace) -> None:
         zombie_timeout_seconds=zombie_timeout,
         query=query,
         chop_script_dirs=config.chop_script_dirs,
-        jacks=config.jacks,
+        lumberjacks=config.lumberjacks,
     )
 
-    if jack_name not in config.jacks:
-        print(f"Error: unknown jack '{jack_name}'")
-        print(f"Available: {', '.join(sorted(config.jacks))}")
+    if lumberjack_name not in config.lumberjacks:
+        print(f"Error: unknown lumberjack '{lumberjack_name}'")
+        print(f"Available: {', '.join(sorted(config.lumberjacks))}")
         sys.exit(1)
 
-    jack_config = config.jacks[jack_name]
+    lumberjack_config = config.lumberjacks[lumberjack_name]
 
     try:
-        jack = Jack(jack_name, jack_config, config)
+        lumberjack = Lumberjack(lumberjack_name, lumberjack_config, config)
     except QueryParseError as e:
         print(f"Error: Invalid query: {e}")
         sys.exit(1)
 
-    success = jack.run()
+    success = lumberjack.run()
     sys.exit(0 if success else 1)
 
 
-def handle_axe_jack_status(args: argparse.Namespace) -> None:
-    """Show status of all jacks."""
+def handle_axe_lumberjack_status(args: argparse.Namespace) -> None:
+    """Show status of all lumberjacks."""
     config = load_axe_config()
     any_status = False
 
-    for name in sorted(config.jacks):
-        status = read_jack_status(name)
+    for name in sorted(config.lumberjacks):
+        status = read_lumberjack_status(name)
         if status is None:
             print(f"{name}: not running")
             continue
@@ -227,6 +227,6 @@ def handle_axe_jack_status(args: argparse.Namespace) -> None:
         )
 
     if not any_status:
-        print("No jacks are currently running.")
+        print("No lumberjacks are currently running.")
 
     sys.exit(0)

@@ -1,6 +1,6 @@
-"""Configuration for the jack-based axe architecture.
+"""Configuration for the lumberjack-based axe architecture.
 
-Loads jack definitions from the ``axe:`` section of the merged
+Loads lumberjack definitions from the ``axe:`` section of the merged
 config (default_config.yml → sase.yml → overlays).  Defaults are now
 guaranteed by the base config layer in ``default_config.yml``.
 """
@@ -22,8 +22,8 @@ class ChopConfig:
 
 
 @dataclass
-class JackConfig:
-    """Configuration for a single jack."""
+class LumberjackConfig:
+    """Configuration for a single lumberjack."""
 
     name: str
     interval: int
@@ -37,7 +37,7 @@ class JackConfig:
 
 @dataclass
 class AxeConfig:
-    """Top-level axe configuration with jack definitions."""
+    """Top-level axe configuration with lumberjack definitions."""
 
     max_hook_runners: int = 3
     max_agent_runners: int = 3
@@ -45,19 +45,19 @@ class AxeConfig:
     zombie_timeout_seconds: int = 7200
     query: str = ""
     chop_script_dirs: list[str] = field(default_factory=list)
-    jacks: dict[str, JackConfig] = field(default_factory=dict)
+    lumberjacks: dict[str, LumberjackConfig] = field(default_factory=dict)
 
 
-def _parse_jacks(raw: dict) -> dict[str, JackConfig]:
-    """Parse the ``jacks:`` mapping from YAML into dataclasses.
+def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
+    """Parse the ``lumberjacks:`` mapping from YAML into dataclasses.
 
     Args:
-        raw: The raw dict from ``axe.jacks`` in sase.yml.
+        raw: The raw dict from ``axe.lumberjacks`` in sase.yml.
 
     Returns:
-        Mapping of jack name to JackConfig.
+        Mapping of lumberjack name to LumberjackConfig.
     """
-    result: dict[str, JackConfig] = {}
+    result: dict[str, LumberjackConfig] = {}
     for name, cfg in raw.items():
         if not isinstance(cfg, dict):
             continue
@@ -88,7 +88,7 @@ def _parse_jacks(raw: dict) -> dict[str, JackConfig]:
                 )
             elif isinstance(entry, str):
                 chops.append(ChopConfig(name=entry, description=""))
-        result[name] = JackConfig(
+        result[name] = LumberjackConfig(
             name=name,
             interval=cfg.get("interval", 1),
             chops=chops,
@@ -119,11 +119,11 @@ def load_axe_config() -> AxeConfig:
     query = axe_data.get("query", "")
     chop_script_dirs = axe_data.get("chop_script_dirs", [])
 
-    raw_jacks = axe_data.get("jacks")
-    if isinstance(raw_jacks, dict):
-        jacks = _parse_jacks(raw_jacks)
+    raw_lumberjacks = axe_data.get("lumberjacks")
+    if isinstance(raw_lumberjacks, dict):
+        lumberjacks = _parse_lumberjacks(raw_lumberjacks)
     else:
-        jacks = {}
+        lumberjacks = {}
 
     return AxeConfig(
         max_hook_runners=max_hook_runners,
@@ -132,5 +132,5 @@ def load_axe_config() -> AxeConfig:
         zombie_timeout_seconds=zombie_timeout,
         query=query,
         chop_script_dirs=chop_script_dirs,
-        jacks=jacks,
+        lumberjacks=lumberjacks,
     )

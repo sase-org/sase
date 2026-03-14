@@ -295,7 +295,7 @@ def main() -> None:
 
                 print(f"Waiting for agents: {', '.join(agent_wait_names)}")
 
-                # Poll for ready.json (written by wait_checks jack chop)
+                # Poll for ready.json (written by wait_checks lumberjack chop)
                 ready_path = os.path.join(artifacts_dir, "ready.json")
                 _WAIT_POLL_INTERVAL = 2  # seconds
                 _WAIT_MAX_TIMEOUT = 86400  # 24 hours

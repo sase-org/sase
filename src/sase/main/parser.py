@@ -103,7 +103,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # --- axe start ---
     axe_start_parser = axe_subparsers.add_parser(
-        "start", help="Start the axe orchestrator (spawns all jacks)"
+        "start", help="Start the axe orchestrator (spawns all lumberjacks)"
     )
     axe_start_parser.add_argument(
         "--max-hook-runners",
@@ -150,48 +150,54 @@ def create_parser() -> argparse.ArgumentParser:
     )
     axe_chop_run_parser.add_argument("chop_name", help="Name of the chop to run")
 
-    # --- axe jack ---
-    axe_jack_parser = axe_subparsers.add_parser("jack", help="Jack management commands")
-    axe_jack_subparsers = axe_jack_parser.add_subparsers(
-        dest="axe_jack_subcommand", help="Jack subcommands"
+    # --- axe lumberjack ---
+    axe_lumberjack_parser = axe_subparsers.add_parser(
+        "lumberjack", help="Lumberjack management commands"
+    )
+    axe_lumberjack_subparsers = axe_lumberjack_parser.add_subparsers(
+        dest="axe_lumberjack_subcommand", help="Lumberjack subcommands"
     )
 
-    # sase axe jack list
-    axe_jack_subparsers.add_parser("list", help="List configured jacks")
+    # sase axe lumberjack list
+    axe_lumberjack_subparsers.add_parser("list", help="List configured lumberjacks")
 
-    # sase axe jack run <name>
-    axe_jack_run_parser = axe_jack_subparsers.add_parser(
-        "run", help="Run a single jack in the foreground"
+    # sase axe lumberjack run <name>
+    axe_lumberjack_run_parser = axe_lumberjack_subparsers.add_parser(
+        "run", help="Run a single lumberjack in the foreground"
     )
-    axe_jack_run_parser.add_argument("jack_name", help="Name of the jack to run")
-    # These flags are forwarded by the orchestrator when spawning jacks
-    axe_jack_run_parser.add_argument(
+    axe_lumberjack_run_parser.add_argument(
+        "lumberjack_name", help="Name of the lumberjack to run"
+    )
+    # These flags are forwarded by the orchestrator when spawning lumberjacks
+    axe_lumberjack_run_parser.add_argument(
         "-q",
         "--query",
         default="",
         help="Query string for filtering ChangeSpecs",
     )
-    axe_jack_run_parser.add_argument(
+    axe_lumberjack_run_parser.add_argument(
         "--max-hook-runners",
         type=int,
         default=None,
         help="Maximum concurrent hook runners",
     )
-    axe_jack_run_parser.add_argument(
+    axe_lumberjack_run_parser.add_argument(
         "--max-agent-runners",
         type=int,
         default=None,
         help="Maximum concurrent agent runners",
     )
-    axe_jack_run_parser.add_argument(
+    axe_lumberjack_run_parser.add_argument(
         "--zombie-timeout",
         type=int,
         default=None,
         help="Zombie detection timeout in seconds",
     )
 
-    # sase axe jack status
-    axe_jack_subparsers.add_parser("status", help="Show status of all jacks")
+    # sase axe lumberjack status
+    axe_lumberjack_subparsers.add_parser(
+        "status", help="Show status of all lumberjacks"
+    )
 
     # --- amend ---
     amend_parser = top_level_subparsers.add_parser(

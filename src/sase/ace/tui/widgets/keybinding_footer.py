@@ -4,7 +4,7 @@ Footer Convention
 -----------------
 The footer displays only **entry-dependent** keymaps — bindings whose
 availability is determined by a property of the currently selected entry
-(ChangeSpec on CLs, Agent on Agents, Jack/BgCmd on AXE).
+(ChangeSpec on CLs, Agent on Agents, Lumberjack/BgCmd on AXE).
 
 Rules:
   1. A keymap appears in the footer **if and only if** it has an associated
@@ -196,7 +196,7 @@ class KeybindingFooter(Horizontal):
         """Compute entry-dependent bindings for Axe tab.
 
         Only ``x`` is entry-dependent: its label changes between
-        "start/stop axe" (AxeParentItem) and "kill" (JackItem / BgCmdItem).
+        "start/stop axe" (AxeParentItem) and "kill" (LumberjackItem / BgCmdItem).
         """
         bindings: list[tuple[str, str]] = []
         if axe_current_view == "axe":

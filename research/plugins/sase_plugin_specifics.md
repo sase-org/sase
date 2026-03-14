@@ -10,7 +10,7 @@ The pluggy repo separation doc focuses exclusively on VCS provider plugins -- a 
 `sase-some-user-plugin` needs to be able to contribute:
 
 1. **XPrompts and workflows** -- `.md` and `.yml` files discoverable via `#name` syntax
-2. **Config defaults** -- `sase.yml`-style defaults (jack definitions, axe settings, etc.)
+2. **Config defaults** -- `sase.yml`-style defaults (lumberjack definitions, axe settings, etc.)
 3. **Chop scripts** -- executables for the axe scheduler system
 4. **Metahook scripts** -- executables triggered by failing hook patterns
 
@@ -53,8 +53,8 @@ Three-layer merge:
 2. `~/.config/sase/sase.yml` (user config -- lists **replace**)
 3. `~/.config/sase/sase_*.yml` overlays (sorted alphabetically -- lists **concatenate**)
 
-**Gap**: No mechanism for an installed package to inject a config layer. A plugin wanting to provide jack defaults would
-need to instruct users to manually create an overlay file.
+**Gap**: No mechanism for an installed package to inject a config layer. A plugin wanting to provide lumberjack defaults
+would need to instruct users to manually create an overlay file.
 
 ### Chop Scripts
 
@@ -69,8 +69,8 @@ Two-stage discovery:
 (e.g., `sase_chop_hook_checks = "sase.scripts:sase_chop_hook_checks"`). Any pip-installed package that exposes a
 `sase_chop_*` script will be found by `shutil.which`. This works today without changes.
 
-**Gap**: The chop must also be referenced in a jack definition to actually run. A plugin can install the script, but
-can't register it with a jack without also contributing config.
+**Gap**: The chop must also be referenced in a lumberjack definition to actually run. A plugin can install the script,
+but can't register it with a lumberjack without also contributing config.
 
 ### Metahook Scripts
 
@@ -90,14 +90,14 @@ Like chops, the script part already works via `[project.scripts]`. The config pa
 
 A user plugin (`sase-some-user-plugin`) installed alongside `sase` should be able to:
 
-| Capability              | Current state                         | What's needed                           |
-| ----------------------- | ------------------------------------- | --------------------------------------- |
-| Add xprompts/workflows  | Not possible (filesystem only)        | Entry-point or resource-based discovery |
-| Override xprompts       | Not possible for installed packages   | Priority-aware merge from plugins       |
-| Provide config defaults | Not possible                          | Plugin config layer in merge chain      |
-| Add chop scripts        | Works (via `sase_chop_*` on PATH)     | Also needs config contribution          |
-| Add metahook scripts    | Works (via `sase_metahook_*` on PATH) | Also needs config contribution          |
-| Add jack definitions    | Not possible                          | Via config contribution                 |
+| Capability                 | Current state                         | What's needed                           |
+| -------------------------- | ------------------------------------- | --------------------------------------- |
+| Add xprompts/workflows     | Not possible (filesystem only)        | Entry-point or resource-based discovery |
+| Override xprompts          | Not possible for installed packages   | Priority-aware merge from plugins       |
+| Provide config defaults    | Not possible                          | Plugin config layer in merge chain      |
+| Add chop scripts           | Works (via `sase_chop_*` on PATH)     | Also needs config contribution          |
+| Add metahook scripts       | Works (via `sase_metahook_*` on PATH) | Also needs config contribution          |
+| Add lumberjack definitions | Not possible                          | Via config contribution                 |
 
 ---
 
@@ -280,7 +280,7 @@ This lets a plugin define:
 ```yaml
 # sase_some_user_plugin/default_config.yml
 axe:
-  jacks:
+  lumberjacks:
     my_custom_scheduler:
       interval: 60
       chops:
@@ -293,7 +293,7 @@ metahooks:
     output_regex: "FAIL:.*"
 ```
 
-When installed, the jack and metahook definitions merge into the user's config automatically.
+When installed, the lumberjack and metahook definitions merge into the user's config automatically.
 
 **Implementation sketch** (changes to `config.py`):
 
@@ -353,7 +353,7 @@ The scripts land on `$PATH` after `pip install` and are found by `shutil.which("
 `shutil.which("sase_metahook_my_tool")` respectively.
 
 **Combined with config contribution** (section 2 above), a plugin can both install the script AND register it with a
-jack or metahook rule, making the chop/metahook fully functional on install with zero user configuration.
+lumberjack or metahook rule, making the chop/metahook fully functional on install with zero user configuration.
 
 ### 4. Entry Point Groups Summary
 

@@ -131,7 +131,7 @@ axe:
   zombie_timeout_seconds: 7200
   query: ""
   chop_script_dirs: []
-  jacks:
+  lumberjacks:
     hooks:
       interval: 1
       chops:

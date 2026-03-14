@@ -15,7 +15,7 @@ requests, answer questions), enabling remote interaction without returning to th
 
 ## Architecture Overview
 
-Two new chop scripts run in the existing `heartbeats` jack (60s interval):
+Two new chop scripts run in the existing `heartbeats` lumberjack (60s interval):
 
 - **`sase_chop_tg_outbound`** -- Checks if user is inactive (no TUI interaction for N seconds), loads unread
   notifications newer than the last sent, formats them as Telegram messages with inline keyboards, and sends them.
@@ -376,7 +376,7 @@ full question data (options, etc.) and stores it in the pending action so the in
 
 ### Verification
 
-- Install package, add `tg_outbound` chop to heartbeats jack in `sase_athena.yml`
+- Install package, add `tg_outbound` chop to heartbeats lumberjack in `sase_athena.yml`
 - Create a test notification: `echo '{"action":"HITL"}' | .venv/bin/sase notify --sender test`
 - Mark inactive: press `I` in sase ace
 - Wait for heartbeat cycle -- verify Telegram message received with inline keyboard buttons
@@ -510,15 +510,15 @@ def main() -> None:
 
 ---
 
-## Phase 5: Jack Config + Integration + Polish
+## Phase 5: Lumberjack Config + Integration + Polish
 
 **Repos**: The chezmoi repo and `sase-telegram`
 
-### 5.1 Jack configuration
+### 5.1 Lumberjack configuration
 
 **File**: `~/.local/share/chezmoi/home/dot_config/sase/sase_athena.yml`
 
-Add to the existing `heartbeats` jack:
+Add to the existing `heartbeats` lumberjack:
 
 ```yaml
 heartbeats:
@@ -600,7 +600,7 @@ Create `CLAUDE.md` and `AGENTS.md` for the `sase-telegram` repo following the sa
 
 ### Config (to modify)
 
-- `~/.local/share/chezmoi/home/dot_config/sase/sase_athena.yml` -- add chops to heartbeats jack
+- `~/.local/share/chezmoi/home/dot_config/sase/sase_athena.yml` -- add chops to heartbeats lumberjack
 
 ### Template repos (reference for scaffolding)
 

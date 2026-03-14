@@ -27,8 +27,8 @@ class AxeParentItem:
 
 
 @dataclass(frozen=True)
-class JackItem:
-    """A jack child entry."""
+class LumberjackItem:
+    """A lumberjack child entry."""
 
     name: str
 
@@ -40,11 +40,11 @@ class BgCmdItem:
     slot: int
 
 
-AxeItem = AxeParentItem | JackItem | BgCmdItem
+AxeItem = AxeParentItem | LumberjackItem | BgCmdItem
 
 
 class BgCmdList(OptionList):
-    """Left sidebar showing list of AXE tab items (axe parent, jacks, bgcmds)."""
+    """Left sidebar showing list of AXE tab items (axe parent, lumberjacks, bgcmds)."""
 
     class SelectionChanged(Message):
         """Message sent when selection changes."""
@@ -64,7 +64,7 @@ class BgCmdList(OptionList):
         items: list[AxeItem],
         current_idx: int,
         axe_running: bool,
-        jack_names: list[str],
+        lumberjack_names: list[str],
         bgcmd_infos: dict[int, BackgroundCommandInfo],
     ) -> None:
         """Update the list with current AXE items.
@@ -73,18 +73,18 @@ class BgCmdList(OptionList):
             items: Flat list of AxeItem entries to display.
             current_idx: Index of currently selected item.
             axe_running: Whether axe daemon is running.
-            jack_names: Jack names for status lookup.
+            lumberjack_names: Lumberjack names for status lookup.
             bgcmd_infos: Mapping of slot -> info for bgcmds.
         """
-        from sase.axe.state import read_jack_status
+        from sase.axe.state import read_lumberjack_status
 
         self._programmatic_update = True
         self._item_count = len(items)
 
         self.clear_options()
 
-        # Count jack children for the parent label
-        jack_count = sum(1 for item in items if isinstance(item, JackItem))
+        # Count lumberjack children for the parent label
+        lumberjack_count = sum(1 for item in items if isinstance(item, LumberjackItem))
 
         for idx, item in enumerate(items):
             is_selected = idx == current_idx
@@ -93,14 +93,14 @@ class BgCmdList(OptionList):
                     option = self._format_axe_parent_option(
                         is_running=axe_running,
                         is_selected=is_selected,
-                        child_count=jack_count,
-                        is_expanded=jack_count > 0,
+                        child_count=lumberjack_count,
+                        is_expanded=lumberjack_count > 0,
                     )
-                case JackItem(name=name):
-                    jack_status = read_jack_status(name)
-                    option = self._format_jack_option(
+                case LumberjackItem(name=name):
+                    lumberjack_status = read_lumberjack_status(name)
+                    option = self._format_lumberjack_option(
                         name=name,
-                        status=jack_status,
+                        status=lumberjack_status,
                         is_selected=is_selected,
                     )
                 case BgCmdItem(slot=slot):
@@ -153,21 +153,23 @@ class BgCmdList(OptionList):
             from sase.axe.config import load_axe_config
 
             config = load_axe_config()
-            total_jacks = len(config.jacks)
-            if total_jacks > 0:
-                fold_label = f" ({total_jacks} jacks)" if not is_expanded else ""
+            total_lumberjacks = len(config.lumberjacks)
+            if total_lumberjacks > 0:
+                fold_label = (
+                    f" ({total_lumberjacks} lumberjacks)" if not is_expanded else ""
+                )
                 if fold_label:
                     text.append(fold_label, style="dim")
 
         return Option(text, id="axe")
 
-    def _format_jack_option(
+    def _format_lumberjack_option(
         self,
         name: str,
         status: Any,
         is_selected: bool,
     ) -> Option:
-        """Format a jack child option for display."""
+        """Format a lumberjack child option for display."""
         text = Text()
 
         # Indentation + tree connector
@@ -191,7 +193,7 @@ class BgCmdList(OptionList):
         label_style = "bold #FFD700" if is_selected else "#FFD700"
         text.append(name, style=label_style)
 
-        return Option(text, id=f"jack-{name}")
+        return Option(text, id=f"lumberjack-{name}")
 
     def _format_bgcmd_option(
         self,

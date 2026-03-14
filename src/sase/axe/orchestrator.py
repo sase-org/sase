@@ -1,7 +1,7 @@
-"""Multi-jack supervisor.
+"""Multi-lumberjack supervisor.
 
-The Orchestrator spawns each configured jack as a
-``sase axe jack run <name>`` subprocess, monitors them, and
+The Orchestrator spawns each configured lumberjack as a
+``sase axe lumberjack run <name>`` subprocess, monitors them, and
 restarts any that exit unexpectedly.  On SIGTERM the orchestrator
 forwards the signal to all children and waits for them to exit.
 """
@@ -17,12 +17,12 @@ from pathlib import Path
 from .config import AxeConfig
 from .state import AXE_STATE_DIR
 
-# Orchestrator PID file (separate from per-jack PIDs)
+# Orchestrator PID file (separate from per-lumberjack PIDs)
 ORCHESTRATOR_PID_FILE = AXE_STATE_DIR / "orchestrator.pid"
 
 
 class Orchestrator:
-    """Multi-jack supervisor that spawns and monitors children."""
+    """Multi-lumberjack supervisor that spawns and monitors children."""
 
     def __init__(self, config: AxeConfig) -> None:
         self.config = config
@@ -47,10 +47,10 @@ class Orchestrator:
 
         raise FileNotFoundError("Cannot find 'sase' executable")
 
-    def _spawn_jack(self, name: str) -> subprocess.Popen[bytes]:
-        """Spawn a single jack subprocess."""
+    def _spawn_lumberjack(self, name: str) -> subprocess.Popen[bytes]:
+        """Spawn a single lumberjack subprocess."""
         sase_cmd = self._find_sase_executable()
-        cmd = [sase_cmd, "axe", "jack", "run", name]
+        cmd = [sase_cmd, "axe", "lumberjack", "run", name]
 
         # Forward relevant options
         if self.config.query:
@@ -62,7 +62,7 @@ class Orchestrator:
         # Ensure log directory exists
         log_dir = AXE_STATE_DIR / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"jack-{name}.log"
+        log_file = log_dir / f"lumberjack-{name}.log"
 
         with open(log_file, "a") as log:
             return subprocess.Popen(
@@ -88,7 +88,7 @@ class Orchestrator:
     def run(self) -> bool:
         """Run the orchestrator main loop.
 
-        Spawns all configured jacks, monitors them, and restarts
+        Spawns all configured lumberjacks, monitors them, and restarts
         any that exit unexpectedly.
 
         Returns:
@@ -97,13 +97,13 @@ class Orchestrator:
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         self._write_pid()
 
-        # Spawn all jacks
-        for name in self.config.jacks:
+        # Spawn all lumberjacks
+        for name in self.config.lumberjacks:
             try:
-                proc = self._spawn_jack(name)
+                proc = self._spawn_lumberjack(name)
                 self._children[name] = proc
             except (FileNotFoundError, OSError) as e:
-                print(f"Failed to spawn jack '{name}': {e}", file=sys.stderr)
+                print(f"Failed to spawn lumberjack '{name}': {e}", file=sys.stderr)
 
         try:
             while self._running:
@@ -113,15 +113,15 @@ class Orchestrator:
                     if ret is not None and self._running:
                         # Child exited unexpectedly — restart
                         print(
-                            f"Jack '{name}' exited (code {ret}), restarting...",
+                            f"Lumberjack '{name}' exited (code {ret}), restarting...",
                             file=sys.stderr,
                         )
                         try:
-                            new_proc = self._spawn_jack(name)
+                            new_proc = self._spawn_lumberjack(name)
                             self._children[name] = new_proc
                         except (FileNotFoundError, OSError) as e:
                             print(
-                                f"Failed to restart jack '{name}': {e}",
+                                f"Failed to restart lumberjack '{name}': {e}",
                                 file=sys.stderr,
                             )
                 time.sleep(1)

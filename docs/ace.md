@@ -218,7 +218,7 @@ The modal supports live filtering as you type in the search box and displays las
 | Key                 | Action                              |
 | ------------------- | ----------------------------------- |
 | `j` / `k`           | Move to next / previous command     |
-| `Ctrl+N` / `Ctrl+P` | Next / previous jack output         |
+| `Ctrl+N` / `Ctrl+P` | Next / previous lumberjack output   |
 | `g`                 | Scroll to top                       |
 | `G`                 | Scroll to bottom (pins auto-scroll) |
 
@@ -346,7 +346,7 @@ have been associated with the current CL.
 
 The tab bar shows contextual counts alongside each tab label using the format `(MxD.H)`:
 
-- **M** — main count (CLs, running agents, or running jacks)
+- **M** — main count (CLs, running agents, or running lumberjacks)
 - **x*D*** — done/completed count (separated by `x`)
 - **._H_** — hidden count, shown when hidden items are visible (separated by `.`)
 
@@ -355,7 +355,8 @@ Examples:
 - **CLs tab**: `CLs (5)` for 5 CLs, or `CLs (5.2)` when 2 hidden (reverted) CLs are visible
 - **Agents tab**: `Agents (2)` for 2 running agents, `Agents (2x1)` for 2 running + 1 done, `Agents (2x1.3)` with 3
   hidden also visible
-- **AXE tab**: `AXE (3)` for 3 running jacks, `AXE (3x2.1)` for 3 jacks + 2 done bgcmds + 1 hidden command visible
+- **AXE tab**: `AXE (3)` for 3 running lumberjacks, `AXE (3x2.1)` for 3 lumberjacks + 2 done bgcmds + 1 hidden command
+  visible
 
 ## File Panel Trimming
 

@@ -53,16 +53,16 @@
           },
           "default": []
         },
-        "jacks": {
+        "lumberjacks": {
           "type": "object",
-          "description": "Named jack definitions. Each key is a jack name with interval and chops config.",
+          "description": "Named lumberjack definitions. Each key is a lumberjack name with interval and chops config.",
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
               "interval": {
                 "type": "integer",
-                "description": "Tick interval in seconds for this jack",
+                "description": "Tick interval in seconds for this lumberjack",
                 "default": 1
               },
               "chops": {

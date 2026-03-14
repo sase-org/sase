@@ -2,7 +2,7 @@
 
 This module provides functions for sase ace to start, stop, and monitor
 the axe daemon process.  In the new architecture the daemon is an
-Orchestrator that manages individual Jack sub-processes.
+Orchestrator that manages individual Lumberjack sub-processes.
 """
 
 import os
@@ -20,7 +20,7 @@ from .config import AxeConfig, load_axe_config
 from .orchestrator import ORCHESTRATOR_PID_FILE
 from .state import (
     AXE_STATE_DIR,
-    read_jack_status,
+    read_lumberjack_status,
     read_status,
 )
 
@@ -148,7 +148,7 @@ def _wait_for_exit(pid: int, timeout: float) -> bool:
 def get_axe_status() -> dict | None:
     """Get current axe daemon status for TUI display.
 
-    Aggregates the orchestrator status with per-jack statuses.
+    Aggregates the orchestrator status with per-lumberjack statuses.
 
     Returns:
         Status dict, or None if not running.
@@ -181,30 +181,30 @@ def get_axe_status() -> dict | None:
         "uptime_seconds": status.uptime_seconds,
     }
 
-    # Append per-jack statuses
-    jacks_status: dict[str, dict] = {}
-    jack_start_times: list[str] = []
-    for name in get_jack_names():
-        jack_status = read_jack_status(name)
-        if jack_status is not None:
-            jacks_status[name] = {
-                "pid": jack_status.pid,
-                "status": jack_status.status,
-                "interval": jack_status.interval,
-                "chops": jack_status.chops,
-                "cycles_run": jack_status.cycles_run,
-                "errors_encountered": jack_status.errors_encountered,
-                "uptime_seconds": jack_status.uptime_seconds,
+    # Append per-lumberjack statuses
+    lumberjacks_status: dict[str, dict] = {}
+    lumberjack_start_times: list[str] = []
+    for name in get_lumberjack_names():
+        lumberjack_status = read_lumberjack_status(name)
+        if lumberjack_status is not None:
+            lumberjacks_status[name] = {
+                "pid": lumberjack_status.pid,
+                "status": lumberjack_status.status,
+                "interval": lumberjack_status.interval,
+                "chops": lumberjack_status.chops,
+                "cycles_run": lumberjack_status.cycles_run,
+                "errors_encountered": lumberjack_status.errors_encountered,
+                "uptime_seconds": lumberjack_status.uptime_seconds,
             }
-            jack_start_times.append(jack_status.started_at)
-    if jacks_status:
-        result["jacks"] = jacks_status
+            lumberjack_start_times.append(lumberjack_status.started_at)
+    if lumberjacks_status:
+        result["lumberjacks"] = lumberjacks_status
 
     # Derive started_at and current runner counts from live data — the
     # legacy status.json is not written by the new orchestrator
     # architecture so its fields can be stale from a previous run.
-    if jack_start_times:
-        result["started_at"] = min(jack_start_times)
+    if lumberjack_start_times:
+        result["started_at"] = min(lumberjack_start_times)
     result["current_hook_runners"] = count_hook_runners_global()
     result["current_agent_runners"] = count_agent_runners_global()
 
@@ -243,14 +243,14 @@ def get_axe_pid() -> int | None:
     return None
 
 
-def get_jack_names() -> list[str]:
-    """Return configured jack names from the axe config.
+def get_lumberjack_names() -> list[str]:
+    """Return configured lumberjack names from the axe config.
 
     Returns:
-        Sorted list of jack names.
+        Sorted list of lumberjack names.
     """
     config = load_axe_config()
-    return sorted(config.jacks.keys())
+    return sorted(config.lumberjacks.keys())
 
 
 def _cleanup_pid_file() -> None:

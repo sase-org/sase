@@ -319,22 +319,22 @@ def main() -> NoReturn:
                 print("Usage: sase axe chop {list,run}")
                 sys.exit(1)
 
-        elif axe_sub == "jack":
+        elif axe_sub == "lumberjack":
             from sase.axe.cli import (
-                handle_axe_jack_list,
-                handle_axe_jack_run,
-                handle_axe_jack_status,
+                handle_axe_lumberjack_list,
+                handle_axe_lumberjack_run,
+                handle_axe_lumberjack_status,
             )
 
-            jack_sub = getattr(args, "axe_jack_subcommand", None)
-            if jack_sub == "list":
-                handle_axe_jack_list(args)
-            elif jack_sub == "run":
-                handle_axe_jack_run(args)
-            elif jack_sub == "status":
-                handle_axe_jack_status(args)
+            lumberjack_sub = getattr(args, "axe_lumberjack_subcommand", None)
+            if lumberjack_sub == "list":
+                handle_axe_lumberjack_list(args)
+            elif lumberjack_sub == "run":
+                handle_axe_lumberjack_run(args)
+            elif lumberjack_sub == "status":
+                handle_axe_lumberjack_status(args)
             else:
-                print("Usage: sase axe jack {list,run,status}")
+                print("Usage: sase axe lumberjack {list,run,status}")
                 sys.exit(1)
 
         elif axe_sub == "start":
@@ -367,7 +367,7 @@ def main() -> NoReturn:
                 max_agent_runners=max_agent_runners,
                 zombie_timeout_seconds=zombie_timeout,
                 query=query,
-                jacks=config.jacks,
+                lumberjacks=config.lumberjacks,
             )
 
             try:
@@ -390,7 +390,7 @@ def main() -> NoReturn:
             if stop_axe_daemon():
                 elapsed = _time.monotonic() - t0
                 console.print(
-                    f"[bold green]Axe stopped[/bold green] — all jacks"
+                    f"[bold green]Axe stopped[/bold green] — all lumberjacks"
                     f" terminated in [cyan]{elapsed:.1f}s[/cyan]"
                 )
             else:
@@ -401,7 +401,7 @@ def main() -> NoReturn:
 
         else:
             # Bare `sase axe` — no subcommand given
-            print("Usage: sase axe {start,stop,chop,jack}")
+            print("Usage: sase axe {start,stop,chop,lumberjack}")
             sys.exit(1)
 
     # --- xprompt ---
