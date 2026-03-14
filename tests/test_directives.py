@@ -506,3 +506,20 @@ def test_split_prompt_for_models_spaces_in_args() -> None:
     assert len(result) == 2
     assert result[0] == "%model:opus\nDo work"
     assert result[1] == "%model:sonnet\nDo work"
+
+
+def test_split_prompt_for_models_after_xprompt_expansion() -> None:
+    """Xprompt-expanded %m(...) is correctly split by split_prompt_for_models."""
+    from sase.xprompt.processor import process_xprompt_references
+
+    # Simulate what happens when #swarm expands to %m(opus,sonnet)
+    with patch(
+        "sase.xprompt.processor.process_xprompt_references",
+        wraps=process_xprompt_references,
+    ):
+        expanded = "%m(opus,sonnet)\nReview this code"
+        result = split_prompt_for_models(expanded)
+        assert result is not None
+        assert len(result) == 2
+        assert result[0] == "%model:opus\nReview this code"
+        assert result[1] == "%model:sonnet\nReview this code"

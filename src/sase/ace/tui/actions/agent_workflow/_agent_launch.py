@@ -143,6 +143,12 @@ class AgentLaunchMixin:
                 # (with VCS refs, expansion happens in agent runner instead)
                 prompt = workflow_result
 
+        # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
+        # so multi-model directives from xprompts are detected below.
+        from sase.xprompt.processor import process_xprompt_references
+
+        prompt = process_xprompt_references(prompt)
+
         self._prompt_context = None
 
         # Check for multi-model directive (e.g., %m(opus,sonnet))
