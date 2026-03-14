@@ -504,9 +504,10 @@ Dashes and slashes in workflow names are normalized to underscores.
 
 ### Resume Support
 
-The `sase run --resume` flag loads a previous chat history file and prepends it to the new conversation. The
-`load_chat_history()` function supports both basenames and full paths, with an option to increment markdown heading
-levels for nesting.
+The `sase run --resume` flag resumes a previous conversation by agent name. The `#resume` workflow resolves the agent
+name to its artifacts directory, extracts the response path from `done.json`, and delegates to `#resume_by_chat` which
+loads the chat history and prepends it to the new conversation. The `--resume` flag also accepts a history file basename
+or full path for direct chat-file-based resumption via the `#resume_by_chat` workflow.
 
 ## Invocation Lifecycle
 

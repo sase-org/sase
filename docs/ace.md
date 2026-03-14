@@ -170,7 +170,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `@`                 | Run custom agent                                             |
 | `a`                 | Toggle auto-approve / answer HITL                            |
 | `n`                 | Name agent                                                   |
-| `r`                 | Revive chat as agent                                         |
+| `r`                 | Resume agent (by name if running, by chat file if completed) |
 | `v`                 | View files (hint mode)                                       |
 | `w`                 | Unwait a WAITING agent (run immediately)                     |
 | `x`                 | Kill / dismiss agent                                         |
@@ -363,6 +363,13 @@ When viewing agent files on the Agents tab, large files are automatically trimme
 indicator shows "N more lines below" when content is trimmed. Trim controls (`-`, `=`) are listed in the
 [Agent Actions](#agent-actions) keybindings above. Trim state is preserved when switching between agents or refreshing
 data.
+
+## Agent Auto-Naming
+
+All agents are automatically assigned a short alphabetic name (`a`, `b`, ..., `z`, `aa`, `ab`, ...) when launched
+without an explicit `%name` directive. Names are allocated sequentially, reusing names from dismissed agents. This
+enables the resume-by-name workflow: press `r` on a running named agent to queue a follow-up that waits for it to finish
+and then loads its conversation history.
 
 ## Agents Tab Metadata Panel
 

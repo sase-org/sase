@@ -72,7 +72,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
 - **AXE** — Jack-based daemon for continuous automation via configurable chop scripts
-- **XPrompt** — Typed prompt templates with reference expansion and YAML front matter
+- **XPrompt** — Typed prompt templates with reference expansion, YAML front matter, and CLI tools for expansion,
+  workflow visualization, and DAG graphing
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
@@ -125,25 +126,27 @@ sase
 
 ## CLI Commands
 
-| Command              | Description                                                  |
-| -------------------- | ------------------------------------------------------------ |
-| `sase ace`           | Interactive TUI for navigating and managing ChangeSpecs      |
-| `sase axe start`     | Start the jack-based daemon (orchestrator mode)              |
-| `sase axe stop`      | Stop the running axe orchestrator                            |
-| `sase axe chop`      | List or run individual chop scripts                          |
-| `sase axe jack`      | List, run, or check status of jacks                          |
-| `sase search`        | Search and filter ChangeSpecs with query expressions         |
-| `sase run`           | Execute workflows or run a query directly                    |
-| `sase xprompt`       | Expand prompt templates with sase references                 |
-| `sase commit`        | Create a commit with formatted CL description and metadata   |
-| `sase amend`         | Amend a commit with COMMITS tracking                         |
-| `sase revert`        | Revert a ChangeSpec by pruning its CL and archiving its diff |
-| `sase restore`       | Restore a reverted ChangeSpec by re-applying its diff        |
-| `sase init-git`      | Initialize a new bare-repo-backed git project                |
-| `sase path`          | Print well-known sase paths (for editor integration)         |
-| `sase notify`        | Create a notification (reads JSON from stdin or uses flags)  |
-| `sase user-question` | Handle user question from Claude Code hook                   |
-| `sase plan-approve`  | Handle plan approval from Claude Code hook                   |
+| Command                | Description                                                       |
+| ---------------------- | ----------------------------------------------------------------- |
+| `sase ace`             | Interactive TUI for navigating and managing ChangeSpecs           |
+| `sase axe start`       | Start the jack-based daemon (orchestrator mode)                   |
+| `sase axe stop`        | Stop the running axe orchestrator                                 |
+| `sase axe chop`        | List or run individual chop scripts                               |
+| `sase axe jack`        | List, run, or check status of jacks                               |
+| `sase search`          | Search and filter ChangeSpecs with query expressions              |
+| `sase run`             | Execute workflows, resume agents by name, or run a query directly |
+| `sase xprompt expand`  | Expand prompt templates with sase references (supports `--trace`) |
+| `sase xprompt explain` | Dry-run visualization of a workflow's execution plan              |
+| `sase xprompt graph`   | Generate a DAG visualization of a workflow (Mermaid or text)      |
+| `sase commit`          | Create a commit with formatted CL description and metadata        |
+| `sase amend`           | Amend a commit with COMMITS tracking                              |
+| `sase revert`          | Revert a ChangeSpec by pruning its CL and archiving its diff      |
+| `sase restore`         | Restore a reverted ChangeSpec by re-applying its diff             |
+| `sase init-git`        | Initialize a new bare-repo-backed git project                     |
+| `sase path`            | Print well-known sase paths (for editor integration)              |
+| `sase notify`          | Create a notification (reads JSON from stdin or uses flags)       |
+| `sase user-question`   | Handle user question from Claude Code hook                        |
+| `sase plan-approve`    | Handle plan approval from Claude Code hook                        |
 
 ## Core Concepts
 
@@ -163,7 +166,9 @@ They support control flow (conditionals, loops), parallel execution, and human-i
 
 XPrompt is the prompt template system. Templates use YAML front matter for metadata and Jinja2 for rendering. References
 like `#name(args)` are expanded from multiple discovery locations (project, user, built-in). XPrompt powers both
-standalone prompt expansion and the prompt steps within workflows.
+standalone prompt expansion and the prompt steps within workflows. The `sase xprompt` CLI provides subcommands for
+expanding prompts (`expand --trace`), visualizing workflow execution plans (`explain`), and generating workflow DAGs
+(`graph`).
 
 ## Project Structure
 
@@ -201,6 +206,9 @@ src/sase/
 │   ├── processor.py       # XPrompt expansion engine
 │   ├── directives.py      # %name directive parsing (%model, %name, %wait)
 │   ├── loader.py          # XPrompt discovery and loading
+│   ├── explain.py         # Dry-run workflow visualization (xprompt explain)
+│   ├── graph.py           # DAG visualization (xprompt graph)
+│   ├── _trace.py          # Expansion trace for --trace flag
 │   ├── workflow_executor*.py # Workflow execution (steps, loops, parallel)
 │   └── workflow_loader*.py   # Workflow YAML parsing and validation
 ├── llm_provider/          # Pluggable LLM abstraction (Claude, Gemini)
@@ -247,7 +255,8 @@ All tool configuration lives in `pyproject.toml`:
 - **Multi-version testing**: tox (see `tox.ini`)
 
 User configuration is loaded from `~/.config/sase/sase.yml` as the base, with optional `sase_*.yml` overlay files that
-are deep-merged on top.
+are deep-merged on top. A project-local `./sase.yml` in the current working directory takes highest priority. See
+[`docs/configuration.md`](docs/configuration.md) for the full reference.
 
 ## Development
 

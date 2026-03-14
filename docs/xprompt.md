@@ -12,6 +12,7 @@ Use xprompts when you want to:
 
 ## Table of Contents
 
+- [CLI Subcommands](#cli-subcommands)
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
 - [Reference Syntax](#reference-syntax)
@@ -22,12 +23,56 @@ Use xprompts when you want to:
 - [Jinja2 Integration](#jinja2-integration)
 - [Legacy Placeholders](#legacy-placeholders)
 - [Config-Based XPrompts](#config-based-xprompts)
-- [Directory Configuration Files](#directory-configuration-files)
+- [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
 - [Command Substitution](#command-substitution)
 - [Protected Content](#protected-content)
 - [Recursive Expansion](#recursive-expansion)
 - [Relationship to Workflows](#relationship-to-workflows)
+
+## CLI Subcommands
+
+The `sase xprompt` command provides three subcommands for working with xprompts.
+
+### `sase xprompt expand`
+
+Expands xprompt references in a prompt. Reads from a positional argument or stdin.
+
+```bash
+sase xprompt expand '#greet(Alice)'         # Expand from argument
+echo '#greet(Alice)' | sase xprompt expand  # Expand from stdin
+sase xprompt expand --trace '#plan'         # Show expansion trace on stderr
+```
+
+The `--trace` flag prints a detailed expansion trace to stderr showing each resolved reference, its source file,
+arguments, and expanded content. This is useful for debugging reference resolution order and understanding how a complex
+prompt is assembled.
+
+### `sase xprompt explain`
+
+Shows a dry-run visualization of a workflow's execution plan without actually running it. Displays workflow metadata,
+input requirements, resolved arguments, and the full step-by-step execution plan with types, control flow annotations,
+rendered step bodies, and output schemas.
+
+```bash
+sase xprompt explain my_workflow                    # Explain with no args
+sase xprompt explain my_workflow arg1 arg2          # With positional args
+sase xprompt explain my_workflow --arg key=value    # With named args
+```
+
+### `sase xprompt graph`
+
+Generates a directed acyclic graph (DAG) visualization of a workflow. Without a workflow name, lists all available
+multi-step workflows with their step counts and source paths.
+
+```bash
+sase xprompt graph                        # List all workflows
+sase xprompt graph my_workflow            # Mermaid DAG (default)
+sase xprompt graph my_workflow --format text  # Plain-text summary
+```
+
+The Mermaid output can be pasted into any Mermaid-compatible renderer. Parallel sub-steps are shown as subgraphs, and
+nodes include type indicators and control flow annotations.
 
 ## Discovery Order
 
@@ -92,6 +137,10 @@ whitespace, or after one of `([{"'`.
 | `` #name:`arg with spaces` `` | Colon+backtick syntax for args containing spaces      |
 | `#name+`                      | Plus syntax, equivalent to `#name:true`               |
 | `#ns/name`                    | Namespaced reference (e.g., project-specific)         |
+
+For VCS workspace references, underscores can be used as an alternative to colons: `#gh_sase` is equivalent to
+`#gh:sase`. The underscore is normalized to a colon before pattern matching, so both forms work identically. This is
+useful in contexts where colons are inconvenient.
 
 Markdown headings like `# Heading` are not matched because a space after `#` prevents the pattern from firing.
 
@@ -330,9 +379,11 @@ Config-based xprompts have priority 6 (below file-based, above plugin and built-
 
 ## Local Configuration Files
 
-You can define project-specific xprompts in a `sase.yml` file in the project root (current working directory). This file
-follows the same format as the global `~/.config/sase/sase.yml` and can override any sase config values, including
-xprompts:
+You can define project-specific xprompts in a `sase.yml` file in the current working directory. This is a full sase
+config file that can override any configuration, including xprompts. It is the highest-priority config source in the
+[deep-merge system](configuration.md#deep-merge-system), overriding global `sase.yml`, overlay files, plugin configs,
+and built-in defaults. Individual `.md` files in xprompts directories still take precedence over config-defined
+xprompts.
 
 ```yaml
 xprompts:
@@ -344,10 +395,6 @@ xprompts:
     input: { name: word, count: { type: int, default: 1 } }
     content: "Hello {{ name }}, count is {{ count }}"
 ```
-
-The local `sase.yml` is the highest-priority config source, overriding global `sase.yml`, overlay files, plugin configs,
-and built-in defaults. Individual `.md` files in xprompts directories still take precedence over config-defined
-xprompts.
 
 ## Directives
 

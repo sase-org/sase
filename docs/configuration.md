@@ -26,29 +26,31 @@ All sase configuration lives under `~/.config/sase/`. The base config file is:
 ~/.config/sase/sase.yml
 ```
 
-Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file (see
-[Deep-Merge System](#deep-merge-system) below).
+Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. A project-local
+`./sase.yml` in the current working directory takes highest priority. See [Deep-Merge System](#deep-merge-system) below.
 
 ## Deep-Merge System
 
-Sase builds a merged configuration through four layers, each merged on top of the previous:
+Sase builds a merged configuration through five layers, each merged on top of the previous:
 
 1. **`default_config.yml`** — bundled package defaults
 2. **Plugin `default_config.yml` files** — from installed plugin packages (via `sase_config` entry points), sorted by
    entry-point name; lists concatenate
-3. **`sase.yml`** — user config; lists **replace** defaults (not concatenate)
+3. **`sase.yml`** — user config (`~/.config/sase/sase.yml`); lists **replace** defaults (not concatenate)
 4. **`sase_*.yml` overlays** — sorted alphabetically; lists **concatenate**
+5. **Local `sase.yml`** — project-level config in the current working directory; lists **replace** (highest priority)
 
 This allows splitting configuration across multiple files (e.g., `sase_work.yml`, `sase_personal.yml`) without
-duplication, and plugins can provide sensible defaults that users can override.
+duplication, plugins can provide sensible defaults that users can override, and individual projects can customize
+behavior without changing global config.
 
 Merge semantics:
 
-| Type        | Behavior                                                               |
-| ----------- | ---------------------------------------------------------------------- |
-| **Dicts**   | Merged recursively (overlay keys override base keys).                  |
-| **Lists**   | Concatenated in layers 2 and 4; **replaced** in layer 3 (user config). |
-| **Scalars** | Override (overlay value replaces base value).                          |
+| Type        | Behavior                                                                            |
+| ----------- | ----------------------------------------------------------------------------------- |
+| **Dicts**   | Merged recursively (overlay keys override base keys).                               |
+| **Lists**   | Concatenated in layers 2 and 4; **replaced** in layers 3 and 5 (user/local config). |
+| **Scalars** | Override (overlay value replaces base value).                                       |
 
 For example, given a base file with two mentor profiles and an overlay that adds a third, the merged result contains all
 three profiles. If both files define the same scalar key (e.g., `axe.max_hook_runners`), the overlay wins.
@@ -368,7 +370,7 @@ Xprompts defined in `sase.yml` are priority 6 out of 8 in the resolution order:
 3. `~/.xprompts/*.md` (home, hidden directory)
 4. `~/xprompts/*.md` (home)
 5. `~/.config/sase/xprompts/{project}/*.md` (project-specific)
-6. `sase.yml` `xprompts:` section
+6. `sase.yml` `xprompts:` section (local `./sase.yml` overrides global; see [Deep-Merge System](#deep-merge-system))
 7. Plugin packages (via `sase_xprompts` entry points)
 8. `<sase_package>/xprompts/*.md` (built-in)
 
@@ -520,17 +522,33 @@ No flags. Stops the running axe orchestrator.
 
 ### `sase run`
 
-| Flag           | Values | Default | Description                                                   |
-| -------------- | ------ | ------- | ------------------------------------------------------------- |
-| `-d, --daemon` | flag   | -       | Run in daemon mode (background, detached from terminal).      |
-| `-l, --list`   | flag   | -       | List all available chat history files.                        |
-| `-r, --resume` | string | -       | Resume a previous conversation (optional: history file path). |
+| Flag           | Values | Default | Description                                                            |
+| -------------- | ------ | ------- | ---------------------------------------------------------------------- |
+| `-d, --daemon` | flag   | -       | Run as a detached background agent (appears in TUI Agents tab).        |
+| `-l, --list`   | flag   | -       | List all available chat history files.                                 |
+| `-r, --resume` | string | -       | Resume a previous conversation by agent name or history file basename. |
 
-### `sase xprompt`
+### `sase xprompt expand`
 
-| Flag       | Values | Default | Description                                          |
-| ---------- | ------ | ------- | ---------------------------------------------------- |
-| `[prompt]` | string | stdin   | Prompt text to expand (reads from stdin if omitted). |
+| Flag       | Values | Default | Description                                                  |
+| ---------- | ------ | ------- | ------------------------------------------------------------ |
+| `[prompt]` | string | stdin   | Prompt text to expand (reads from stdin if omitted).         |
+| `--trace`  | flag   | -       | Print expansion trace to stderr showing resolved references. |
+
+### `sase xprompt explain`
+
+| Flag            | Values | Default    | Description                                 |
+| --------------- | ------ | ---------- | ------------------------------------------- |
+| `workflow_name` | string | (required) | Workflow name to explain.                   |
+| `[args]`        | string | -          | Positional arguments for the workflow.      |
+| `--arg`         | string | -          | Named argument as `KEY=VALUE` (repeatable). |
+
+### `sase xprompt graph`
+
+| Flag              | Values           | Default   | Description                                             |
+| ----------------- | ---------------- | --------- | ------------------------------------------------------- |
+| `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
+| `--format`        | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
 
 ### `sase init-git`
 
