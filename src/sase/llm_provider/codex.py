@@ -36,6 +36,26 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
 _MAX_PLAN_FEEDBACK_RETRIES = 5
 
 
+def _log_interrupt(message: str, cycle: int) -> None:
+    """Append an entry to the interrupt log in the artifacts directory."""
+    import json
+    import time
+
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    log_path = Path(artifacts_dir) / "interrupt_log.jsonl"
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            json.dump(
+                {"message": message, "timestamp": time.time(), "cycle": cycle},
+                f,
+            )
+            f.write("\n")
+    except OSError:
+        pass
+
+
 def _find_codex_plan_file(after: float | None = None) -> str | None:
     """Find the most recently modified ``.md`` plan file in Codex directories.
 
@@ -59,6 +79,8 @@ def _find_codex_plan_file(after: float | None = None) -> str | None:
 
 class CodexProvider(LLMProvider):
     """LLM provider that invokes the Codex CLI tool."""
+
+    _pending_interrupt_message: str | None = None
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Codex model name for the given tier."""
@@ -128,26 +150,51 @@ class CodexProvider(LLMProvider):
             gemini_timer("Waiting for Codex") if not suppress_output else None
         )
 
-        if timer_context:
-            with timer_context:
+        current_prompt = prompt
+        accumulated_response = ""
+        cycle = 0
+        while True:
+            if timer_context:
+                with timer_context:
+                    response_content, stderr_content, return_code = (
+                        self._run_subprocess(base_args, current_prompt, suppress_output)
+                    )
+                    print()
+            else:
                 response_content, stderr_content, return_code = self._run_subprocess(
-                    base_args, prompt, suppress_output
+                    base_args, current_prompt, suppress_output
                 )
-                print()
-        else:
-            response_content, stderr_content, return_code = self._run_subprocess(
-                base_args, prompt, suppress_output
-            )
 
-        if return_code != 0:
-            raise subprocess.CalledProcessError(
-                return_code,
-                base_args,
-                output=response_content,
-                stderr=stderr_content,
-            )
+            # Check for user interrupt before error handling
+            if self._pending_interrupt_message is not None:
+                user_msg = self._pending_interrupt_message
+                self._pending_interrupt_message = None
+                cycle += 1
+                _log_interrupt(user_msg, cycle)
+                accumulated_response = (
+                    accumulated_response + "\n\n" + response_content.strip()
+                ).strip()
+                # Codex has no session persistence — reconstruct context
+                current_prompt = (
+                    f"{prompt}\n\n"
+                    f"--- Work So Far ---\n{accumulated_response}\n\n"
+                    f"--- User Message ---\n{user_msg}\n\n"
+                    "Continue working, incorporating the user's message above."
+                )
+                continue
 
-        return response_content.strip()
+            if return_code != 0:
+                raise subprocess.CalledProcessError(
+                    return_code,
+                    base_args,
+                    output=response_content,
+                    stderr=stderr_content,
+                )
+
+            accumulated_response = (
+                accumulated_response + "\n\n" + response_content.strip()
+            ).strip()
+            return accumulated_response
 
     # ------------------------------------------------------------------
     # Plan mode two-phase flow
@@ -219,6 +266,14 @@ class CodexProvider(LLMProvider):
                 response_content, stderr_content, return_code = self._run_subprocess(
                     plan_args, current_prompt, suppress_output
                 )
+
+            # Check for user interrupt before error handling
+            if self._pending_interrupt_message is not None:
+                user_msg = self._pending_interrupt_message
+                self._pending_interrupt_message = None
+                _log_interrupt(user_msg, retry_round)
+                current_prompt = user_msg
+                continue  # Restart phase 1 with user's message
 
             if return_code != 0:
                 raise subprocess.CalledProcessError(
@@ -312,26 +367,47 @@ class CodexProvider(LLMProvider):
             "-",
         ]
 
-        if not suppress_output:
-            with gemini_timer("Implementing plan"):
+        impl_cycle = 0
+        while True:
+            if not suppress_output:
+                with gemini_timer("Implementing plan"):
+                    impl_content, impl_stderr, impl_rc = self._run_subprocess(
+                        impl_args, impl_prompt, suppress_output
+                    )
+                    print()
+            else:
                 impl_content, impl_stderr, impl_rc = self._run_subprocess(
                     impl_args, impl_prompt, suppress_output
                 )
-                print()
-        else:
-            impl_content, impl_stderr, impl_rc = self._run_subprocess(
-                impl_args, impl_prompt, suppress_output
-            )
 
-        if impl_rc != 0:
-            raise subprocess.CalledProcessError(
-                impl_rc,
-                impl_args,
-                output=impl_content,
-                stderr=impl_stderr,
-            )
+            # Check for user interrupt before error handling
+            if self._pending_interrupt_message is not None:
+                user_msg = self._pending_interrupt_message
+                self._pending_interrupt_message = None
+                impl_cycle += 1
+                _log_interrupt(user_msg, impl_cycle)
+                response_content = (
+                    response_content.strip() + "\n\n" + impl_content.strip()
+                )
+                # Codex has no session persistence — reconstruct context
+                impl_prompt = (
+                    f"{plan_content}\n\n"
+                    f"--- Work So Far ---\n{impl_content.strip()}\n\n"
+                    f"--- User Message ---\n{user_msg}\n\n"
+                    "Continue implementing the plan, incorporating the "
+                    "user's message above."
+                )
+                continue
 
-        return (response_content.strip() + "\n\n" + impl_content.strip()).strip()
+            if impl_rc != 0:
+                raise subprocess.CalledProcessError(
+                    impl_rc,
+                    impl_args,
+                    output=impl_content,
+                    stderr=impl_stderr,
+                )
+
+            return (response_content.strip() + "\n\n" + impl_content.strip()).strip()
 
     # ------------------------------------------------------------------
     # Subprocess runner
@@ -365,6 +441,32 @@ class CodexProvider(LLMProvider):
         if process.stdin:
             process.stdin.write(prompt)
             process.stdin.close()
+
+        # Interrupt monitor: watch for interrupt_request.json from TUI
+        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+        if artifacts_dir:
+            import json
+            import threading
+            import time
+
+            interrupt_path = Path(artifacts_dir) / "interrupt_request.json"
+
+            def _monitor_interrupt() -> None:
+                while process.poll() is None:
+                    if interrupt_path.exists():
+                        try:
+                            data = json.loads(
+                                interrupt_path.read_text(encoding="utf-8")
+                            )
+                            self._pending_interrupt_message = data.get("message")
+                            interrupt_path.unlink(missing_ok=True)
+                            process.terminate()
+                        except (OSError, json.JSONDecodeError):
+                            pass
+                        return
+                    time.sleep(1.0)
+
+            threading.Thread(target=_monitor_interrupt, daemon=True).start()
 
         return stream_and_parse_codex_json_output(
             process, suppress_output=suppress_output
