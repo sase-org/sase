@@ -22,12 +22,14 @@ _header NAME:
 install: _setup
     uv pip install -e ".[dev]"
 
-# Run linters (ruff + mypy)
+# Run linters (ruff + mypy + pyscripts)
 lint: _setup (_header "lint")
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     {{ venv_bin }}/ruff check src/ tests/
     @printf "\n---------- Running mypy type checker... ----------\n"
     {{ venv_bin }}/mypy
+    @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
+    {{ venv_bin }}/python tools/pyscripts-260314
 
 # Auto-format all code
 fmt: (_header "fmt") fmt-py fmt-md
