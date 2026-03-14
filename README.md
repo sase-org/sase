@@ -100,7 +100,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 │(Claude,Codex,Gem)│ (pluggy plugins)│ (pluggy plugins)│
 ├──────────────────┴─────────────────┴─────────────────┤
 │                   Plugin Packages                    │
-│    sase-github (GitHub PRs)  sase-google (Mercurial)     │
+│    sase-github (GitHub PRs)  sase-google (Mercurial) │
 └──────────────────────────────────────────────────────┘
 ```
 
