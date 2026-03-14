@@ -212,6 +212,10 @@ def main() -> None:
             expanded_for_directives = process_xprompt_references(prompt)
             _, directives = extract_prompt_directives(expanded_for_directives)
             agent_name = directives.name
+            if agent_name is None:
+                from sase.agent_names import get_next_auto_name
+
+                agent_name = get_next_auto_name()
             agent_wait_names = directives.wait
             agent_model = directives.model
             if agent_model:
