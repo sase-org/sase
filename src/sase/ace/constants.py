@@ -6,8 +6,6 @@ DEFAULT_ZOMBIE_TIMEOUT_SECONDS = 2 * 60 * 60
 # Default required hooks that are always added to new ChangeSpecs (order matters)
 # - "!" prefix: skip fix-hook hints on failure
 # - "$" prefix: skip running for proposal entries (e.g., "1a")
-# Can be overridden via vcs_provider.default_hooks in sase.yml.
-_DEFAULT_REQUIRED_HOOKS = (
-    "!$sase_hg_presubmit",
-    "$sase_hg_lint",
-)
+# Can be overridden via vcs_provider.default_hooks in sase.yml or a plugin's
+# default_config.yml (via the sase_config entry point).
+_DEFAULT_REQUIRED_HOOKS: tuple[str, ...] = ()
