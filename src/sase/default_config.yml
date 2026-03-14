@@ -172,8 +172,5 @@ axe:
 llm_provider:
   provider: ""
 
-xprompts:
-  gpt: "gpt-5.4"
-
 vcs_provider:
   provider: "auto"
