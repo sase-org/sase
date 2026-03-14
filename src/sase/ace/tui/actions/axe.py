@@ -54,10 +54,10 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     _axe_lumberjack_idx: int | None
 
     def action_toggle_axe(self) -> None:
-        """Clear AXE output (X key on AXE tab).
-
-        On other tabs: no-op.
-        """
+        """Clear AXE output (X key on AXE tab), dismiss all on Agents tab."""
+        if self.current_tab == "agents":
+            self._dismiss_all_done_agents()  # type: ignore[attr-defined]
+            return
         if self.current_tab != "axe":
             return
 

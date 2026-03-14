@@ -238,6 +238,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.run_workflow), "Revive chat as agent"),
                 (d(a.reword), "Unwait (remove %wait, start now)"),
                 (d(a.kill_agent), "Kill / dismiss agent"),
+                (d(a.toggle_axe), "Dismiss all completed agents"),
                 (d(a.edit_spec), "Edit chat in editor"),
                 (d(a.edit_panel), "Edit panel content in editor"),
                 (

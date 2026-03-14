@@ -5,7 +5,7 @@ from .agent_name_modal import AgentNameModal
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
 from .confirm_delete_modal import ConfirmDeleteModal
-from .confirm_kill_modal import ConfirmKillModal
+from .confirm_kill_modal import ConfirmDismissAllModal, ConfirmKillModal
 from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
 from .notification_modal import NotificationModal
@@ -41,6 +41,7 @@ __all__ = [
     "CommandHistoryModal",
     "CommandInputModal",
     "ConfirmDeleteModal",
+    "ConfirmDismissAllModal",
     "ConfirmKillModal",
     "DismissedAgentSelectModal",
     "HelpModal",

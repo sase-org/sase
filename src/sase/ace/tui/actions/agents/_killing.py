@@ -451,6 +451,91 @@ class AgentKillingMixin:
 
             save_dismissed_agents(self._dismissed_agents)
 
+    def _dismiss_all_done_agents(self) -> None:
+        """Dismiss all done/failed agents after user confirmation."""
+        from ._core import DISMISSABLE_STATUSES
+
+        dismissable = [
+            a
+            for a in self._agents
+            if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
+        ]
+
+        if not dismissable:
+            self.notify("No agents to dismiss", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...modals import ConfirmDismissAllModal
+
+        def on_dismiss(confirmed: bool | None) -> None:
+            if confirmed:
+                self._do_dismiss_all(dismissable)
+
+        self.push_screen(ConfirmDismissAllModal(len(dismissable)), on_dismiss)  # type: ignore[attr-defined]
+
+    def _do_dismiss_all(self, agents: list[Agent]) -> None:
+        """Perform batch dismissal of done/failed agents."""
+        from ...models.agent import AgentType
+        from ....dismissed_agents import save_dismissed_agents
+
+        for agent in agents:
+            _dismiss_notifications_for_agent(agent)
+            self._agent_status_overrides.pop(agent.identity, None)
+            self._agent_pre_question_status.pop(agent.identity, None)
+
+            # Save bundle before deleting artifacts (for revive support)
+            self._save_agent_bundle(agent)
+
+            # Handle workspace release for workflow agents
+            if agent.agent_type == AgentType.WORKFLOW:
+                from sase.running_field import release_workspace
+
+                workflow_name = agent.workflow
+                if agent.is_workflow_child and agent.parent_workflow:
+                    workflow_name = agent.parent_workflow
+                if workflow_name is not None:
+                    workspace_num = agent.workspace_num
+                    if workspace_num is None:
+                        lookup_cl_name = None
+                        if not agent.is_workflow_child and agent.cl_name != "unknown":
+                            lookup_cl_name = agent.cl_name
+                        workspace_num = _find_workflow_workspace_from_running_field(
+                            agent.project_file,
+                            workflow_name,
+                            lookup_cl_name,
+                        )
+                    if workspace_num is not None:
+                        release_workspace(
+                            agent.project_file,
+                            workspace_num,
+                            f"workflow({workflow_name})",
+                        )
+
+            # Delete artifact files
+            delete_agent_artifacts(agent.artifacts_dir or agent.get_artifacts_dir())
+
+            # Track dismissal
+            self._dismissed_agents.add(agent.identity)
+
+            # Also dismiss children for workflow parents
+            if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+                for step in self._agents_with_children:
+                    if (
+                        step.is_workflow_child
+                        and step.parent_timestamp == agent.raw_suffix
+                        and step.parent_workflow == agent.workflow
+                    ):
+                        self._dismissed_agents.add(step.identity)
+
+        # Batch persist and reload
+        save_dismissed_agents(self._dismissed_agents)
+        self._refresh_notification_count()  # type: ignore[attr-defined]
+
+        count = len(agents)
+        s = "s" if count != 1 else ""
+        self.notify(f"Dismissed {count} agent{s}")  # type: ignore[attr-defined]
+        self._load_agents()  # type: ignore[attr-defined]
+
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent.
 
