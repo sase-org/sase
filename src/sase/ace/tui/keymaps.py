@@ -84,6 +84,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("toggle_thinking", "Thinking", False),
     ("toggle_thinking_reverse", "Thinking Rev", False),
     ("mark_inactive", "Mark Inactive", False),
+    ("mark_inactive_pinned", "Pin Inactive", False),
     ("copy_tab_content", "Copy", False),
     ("scroll_to_top", "Top", False),
     ("scroll_to_bottom", "Bottom", False),
@@ -216,6 +217,7 @@ class _AppKeymaps:
     clear_marks: str = "u"
     bulk_change_status: str = "S"
     mark_inactive: str = "i"
+    mark_inactive_pinned: str = "I"
     # Agent / axe
     kill_agent: str = "x"
     toggle_axe: str = "X"

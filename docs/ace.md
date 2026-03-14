@@ -294,6 +294,7 @@ These work on all tabs:
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
 | `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
 | `i`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)           |
+| `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
 | `N`                 | Show notifications                                                                |
 | `Q`                 | Stop axe daemon and quit                                                          |
 | `y`                 | Refresh current tab                                                               |
@@ -327,10 +328,14 @@ Type in the filter input to narrow the list in real time.
 
 ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
 than the configured threshold (`ace.inactive_seconds`, default: 600 seconds). The badge is also shown when the user
-presses `i` to manually mark themselves as inactive.
+presses `i` to manually mark themselves as inactive. Any keypress re-activates the user and hides the badge.
 
-Any keypress re-activates the user and hides the badge. External tools (e.g., chop scripts) can call `is_idle()` from
-`sase.ace.tui_activity` to check idle status programmatically.
+Pressing `I` (capital) activates **pinned idle** mode, shown as a red **■ IDLE** badge. Pinned idle stays active
+regardless of keypresses — only pressing `I` again clears it. This is useful when you want to remain marked as idle
+while still interacting with the TUI.
+
+External tools (e.g., chop scripts) can call `is_idle()` from `sase.ace.tui_activity` to check idle status
+programmatically.
 
 ## Agent Run Log Modal
 

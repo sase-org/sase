@@ -161,7 +161,10 @@ class EventHandlersMixin:
         Called from on_key() for normal bindings and directly from
         priority-binding actions (e.g. tab switching) that bypass on_key().
         """
-        # When manually idle (I key), _last_activity_time is absent.
+        # Pinned idle: only the I key can clear it, ignore all other activity.
+        if getattr(self, "_pinned_idle", False):
+            return
+        # When manually idle (i key), _last_activity_time is absent.
         # Re-enable tracking — any user activity should exit idle mode.
         if not hasattr(self, "_last_activity_time"):
             self._last_activity_time = time.monotonic()

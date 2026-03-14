@@ -179,6 +179,8 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.mark_inactive), "Toggle idle (any key clears)"),
+                (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
                 (d(a.toggle_hide_submitted), "Show/hide submitted CLs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted CLs"),
                 (d(a.browse_xprompts), "Browse xprompts"),
@@ -305,6 +307,8 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.mark_inactive), "Toggle idle (any key clears)"),
+                (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
                 (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (d(a.browse_xprompts), "Browse xprompts"),
@@ -397,6 +401,8 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.mark_inactive), "Toggle idle (any key clears)"),
+                (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
                 (d(a.start_agent_from_changespec), "Repeat last @/Space selection"),
                 (d(a.browse_xprompts), "Browse xprompts"),
                 (d(a.show_notifications), "Show notifications"),

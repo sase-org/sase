@@ -275,6 +275,7 @@ class AceApp(
         # Activity tracking state (for inactivity detection)
         self._last_activity_time: float = 0.0
         self._last_activity_flush: float = 0.0
+        self._pinned_idle: bool = False
 
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
@@ -579,7 +580,11 @@ class AceApp(
 
         First press enters idle (epoch 0, idle_state=True).
         Second press exits idle and resumes normal activity tracking.
+        No-op when pinned idle is active (only I can clear pinned idle).
         """
+        if self._pinned_idle:
+            return
+
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)
         if not hasattr(self, "_last_activity_time"):
             # Currently in manual idle — exit it.
@@ -600,6 +605,36 @@ class AceApp(
         # the inactive marker (epoch 0) with the current time.
         del self._last_activity_time
         indicator.set_idle(True)
+
+    def action_mark_inactive_pinned(self) -> None:
+        """Toggle pinned idle mode.
+
+        Pinned idle stays active until explicitly toggled off with I.
+        Regular keypresses do not clear pinned idle.
+        """
+        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+        if self._pinned_idle:
+            # Currently in pinned idle — exit it.
+            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
+
+            self._pinned_idle = False
+            self._last_activity_time = time.monotonic()
+            write_activity_timestamp(time.time())
+            write_idle_state(False)
+            indicator.set_idle(False)
+            return
+
+        # Enter pinned idle.
+        from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
+
+        self._pinned_idle = True
+        write_activity_timestamp(0)
+        write_idle_state(True)
+        # Clear activity tracking so _on_countdown_tick() doesn't overwrite
+        # the inactive marker (epoch 0) with the current time.
+        if hasattr(self, "_last_activity_time"):
+            del self._last_activity_time
+        indicator.set_idle(True, pinned=True)
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
