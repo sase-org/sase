@@ -471,7 +471,7 @@ def main() -> NoReturn:
                     print(f"Invalid --arg format: {item!r} (expected KEY=VALUE)")
                     sys.exit(1)
 
-            print(explain_workflow(workflow, args.args, named))
+            explain_workflow(workflow, args.args, named)
             sys.exit(0)
 
         else:
