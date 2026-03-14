@@ -444,5 +444,10 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Prompt text to expand. If not provided, reads from STDIN.",
     )
+    xprompt_parser.add_argument(
+        "--trace",
+        action="store_true",
+        help="Print expansion trace to stderr showing each resolved reference.",
+    )
 
     return parser

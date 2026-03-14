@@ -39,6 +39,7 @@ from .output_validation import (
     validate_against_schema,
     validate_response,
 )
+from ._trace import ExpansionRecord, ExpansionTrace, format_trace, print_trace
 from .processor import (
     is_jinja2_template,
     process_xprompt_references,
@@ -94,6 +95,11 @@ __all__ = [
     # Directives
     "PromptDirectives",
     "extract_prompt_directives",
+    # Trace
+    "ExpansionRecord",
+    "ExpansionTrace",
+    "format_trace",
+    "print_trace",
     # Processor
     "WorkflowResult",
     "execute_workflow",

@@ -9,8 +9,13 @@ invoke_agent, workflow executor) can insert logic between the two phases
 (e.g. embedded workflow expansion) while sharing the same canonical steps.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from sase.xprompt._trace import ExpansionTrace
 
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
@@ -50,6 +55,7 @@ def preprocess_prompt_early(
     extra_xprompts: dict[str, Any] | None = None,
     scope: dict[str, Any] | None = None,
     context: dict[str, Any] | None = None,
+    trace: ExpansionTrace | None = None,
 ) -> PreprocessResult:
     """Early preprocessing phase: Jinja2 context, xprompt expansion, directives.
 
@@ -65,6 +71,7 @@ def preprocess_prompt_early(
         scope: Variable scope for xprompt argument evaluation.
         context: Jinja2 template context dict.  When provided, the prompt is
             rendered as a Jinja2 template *before* xprompt expansion.
+        trace: Optional ExpansionTrace to collect expansion records into.
 
     Returns:
         A PreprocessResult with the partially processed prompt and extracted
@@ -83,7 +90,7 @@ def preprocess_prompt_early(
 
     # 2. Expand xprompt references
     prompt = process_xprompt_references(
-        prompt, extra_xprompts=extra_xprompts, scope=scope
+        prompt, extra_xprompts=extra_xprompts, scope=scope, trace=trace
     )
 
     # 3. Directive extraction (after xprompt expansion so directives inside

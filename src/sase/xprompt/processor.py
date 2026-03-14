@@ -1,5 +1,7 @@
 """XPrompt reference processing for prompts."""
 
+from __future__ import annotations
+
 import re
 import sys
 from typing import Any
@@ -30,6 +32,7 @@ from ._parsing import (
     parse_args,
     preprocess_shorthand_syntax,
 )
+from ._trace import ExpansionTrace, format_circular_ref_diagnostic
 from .loader import get_all_xprompts
 from .models import XPrompt
 
@@ -123,6 +126,8 @@ def process_xprompt_references(
     prompt: str,
     extra_xprompts: dict[str, XPrompt] | None = None,
     scope: dict[str, Any] | None = None,
+    *,
+    trace: ExpansionTrace | None = None,
 ) -> str:
     """Process xprompt references in the prompt.
 
@@ -148,6 +153,9 @@ def process_xprompt_references(
         scope: Optional base context (e.g., workflow execution context) passed
             through to Jinja2 template rendering. Xprompt-specific args take
             priority over scope values.
+        trace: Optional ExpansionTrace to collect expansion records into.
+            When provided, each xprompt expansion is recorded with its
+            iteration, source, arguments, and result.
 
     Returns:
         The transformed prompt with xprompts expanded
@@ -278,6 +286,16 @@ def process_xprompt_references(
                     xprompt, positional_args, named_args, scope=scope
                 )
 
+                if trace is not None:
+                    trace.add(
+                        iteration=iteration,
+                        name=name,
+                        source_path=xprompt.source_path,
+                        positional_args=list(positional_args),
+                        named_args=dict(named_args),
+                        expanded_text=expanded,
+                    )
+
                 # Handle section markers (### or ---) with proper line positioning
                 is_at_line_start = (
                     match.start() == 0 or prompt[match.start() - 1] == "\n"
@@ -307,12 +325,18 @@ def process_xprompt_references(
 
         iteration += 1
 
+    if trace is not None:
+        trace.total_iterations = iteration
+
     if iteration >= _MAX_EXPANSION_ITERATIONS:
-        print_status(
-            f"Maximum xprompt expansion depth ({_MAX_EXPANSION_ITERATIONS}) exceeded. "
-            "Check for circular references.",
-            "error",
-        )
+        if trace is not None and trace.records:
+            msg = format_circular_ref_diagnostic(trace, _MAX_EXPANSION_ITERATIONS)
+        else:
+            msg = (
+                f"Maximum xprompt expansion depth ({_MAX_EXPANSION_ITERATIONS}) "
+                "exceeded. Check for circular references."
+            )
+        print_status(msg, "error")
         sys.exit(1)
 
     # Restore disabled regions (markers preserved for downstream stages)
