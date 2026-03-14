@@ -217,6 +217,20 @@
         }
       }
     },
+    "github_orgs": {
+      "description": "GitHub organization/user names the user has push access to, used for cloning and PR submission",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
     "xprompts": {
       "type": "object",
       "description": "Reusable text templates that can be referenced in prompts",
