@@ -125,7 +125,7 @@ addopts = [
     "--import-mode=importlib",
     "--strict-markers",
     "--strict-config",
-    "--cov=sase",
+    "--cov=src/sase",
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html",
     "--cov-report=xml",
