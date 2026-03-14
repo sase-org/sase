@@ -3,6 +3,7 @@
 import os
 import subprocess
 from collections.abc import Iterator
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -143,37 +144,38 @@ def test_run_tick_missing_script(
 @patch("sase.axe.lumberjack.run_chop_script")
 @patch("sase.axe.lumberjack.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
-def test_run_every_skips_non_matching_cycles(
+def test_run_every_skips_when_not_enough_time_elapsed(
     mock_find: MagicMock,
     mock_discover: MagicMock,
     mock_run: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """Test that chops with run_every > 1 are skipped on non-matching cycles."""
+    """Test that chops with run_every are skipped when not enough time has elapsed."""
     config = LumberjackConfig(
         name="throttled",
         interval=10,
-        chops=[ChopConfig(name="slow_chop", description="", run_every=3)],
+        chops=[ChopConfig(name="slow_chop", description="", run_every=3600)],
     )
     mock_discover.return_value = Path("/fake/script")
     mock_run.return_value = _ok_result()
 
     lumberjack = Lumberjack("throttled", config, axe_config)
 
-    # Tick 0: cycles_run=0, 0%3==0 → runs
+    # First tick: no timestamp exists → runs
     lumberjack._run_tick()
     assert mock_run.call_count == 1
 
-    # Tick 1: cycles_run=1, 1%3!=0 → skipped
+    # Second tick immediately: timestamp was just set → skipped
     lumberjack._run_tick()
     assert mock_run.call_count == 1
 
-    # Tick 2: cycles_run=2, 2%3!=0 → skipped
-    lumberjack._run_tick()
-    assert mock_run.call_count == 1
+    # Simulate enough time having passed
+    from sase.sase_utils import EASTERN_TZ
 
-    # Tick 3: cycles_run=3, 3%3==0 → runs
+    lumberjack._chop_timestamps["slow_chop"] = datetime.now(EASTERN_TZ) - timedelta(
+        seconds=3601
+    )
     lumberjack._run_tick()
     assert mock_run.call_count == 2
 
@@ -188,20 +190,47 @@ def test_all_chops_run_on_first_tick(
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:
-    """Test that all chops run on the first tick regardless of run_every."""
+    """Test that all chops run on the first tick (no prior timestamps)."""
     config = LumberjackConfig(
         name="first_tick",
         interval=10,
         chops=[
-            ChopConfig(name="every_tick", description="", run_every=1),
-            ChopConfig(name="every_5th", description="", run_every=5),
-            ChopConfig(name="every_10th", description="", run_every=10),
+            ChopConfig(name="every_tick", description=""),
+            ChopConfig(name="hourly", description="", run_every=3600),
+            ChopConfig(name="daily", description="", run_every=86400),
         ],
     )
     mock_discover.return_value = Path("/fake/script")
     mock_run.return_value = _ok_result()
 
     lumberjack = Lumberjack("first_tick", config, axe_config)
+    lumberjack._run_tick()
+
+    assert mock_run.call_count == 3
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_chops_without_run_every_run_every_tick(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that chops without run_every always run."""
+    config = LumberjackConfig(
+        name="always",
+        interval=10,
+        chops=[ChopConfig(name="always_chop", description="")],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _ok_result()
+
+    lumberjack = Lumberjack("always", config, axe_config)
+    lumberjack._run_tick()
+    lumberjack._run_tick()
     lumberjack._run_tick()
 
     assert mock_run.call_count == 3

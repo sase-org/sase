@@ -10,6 +10,7 @@ from sase.axe.config import (
     LumberjackConfig,
     _parse_lumberjacks,
     load_axe_config,
+    _parse_duration,
 )
 
 
@@ -67,48 +68,71 @@ def test_parse_lumberjacks_skips_non_dict_entries() -> None:
     assert "hooks" in result
 
 
-def test_chop_config_run_every_defaults_to_one() -> None:
-    """Test that run_every defaults to 1."""
+def test_chop_config_run_every_defaults_to_none() -> None:
+    """Test that run_every defaults to None (run every tick)."""
     chop = ChopConfig(name="test", description="")
-    assert chop.run_every == 1
+    assert chop.run_every is None
+
+
+def test_parse_duration_seconds() -> None:
+    """Test parsing duration with seconds unit."""
+    assert _parse_duration("30s") == 30
+
+
+def test_parse_duration_minutes() -> None:
+    """Test parsing duration with minutes unit."""
+    assert _parse_duration("60m") == 3600
+
+
+def test_parse_duration_hours() -> None:
+    """Test parsing duration with hours unit."""
+    assert _parse_duration("2h") == 7200
+
+
+def test_parse_duration_invalid() -> None:
+    """Test that invalid duration values return None."""
+    assert _parse_duration("bad") is None
+    assert _parse_duration(60) is None
+    assert _parse_duration("") is None
+    assert _parse_duration("10x") is None
 
 
 def test_parse_lumberjacks_run_every_from_dict() -> None:
-    """Test that run_every is parsed from dict chop entries."""
+    """Test that run_every is parsed from duration string in dict chop entries."""
     raw = {
         "checks": {
             "interval": 60,
-            "chops": [{"name": "slow_check", "run_every": 5}],
+            "chops": [{"name": "slow_check", "run_every": "5m"}],
         },
     }
     result = _parse_lumberjacks(raw)
-    assert result["checks"].chops[0].run_every == 5
+    assert result["checks"].chops[0].run_every == 300
 
 
-def test_parse_lumberjacks_run_every_clamps_invalid() -> None:
-    """Test that invalid run_every values are clamped to 1."""
+def test_parse_lumberjacks_run_every_invalid_becomes_none() -> None:
+    """Test that invalid run_every values become None (run every tick)."""
     raw = {
         "checks": {
             "interval": 60,
             "chops": [
-                {"name": "zero", "run_every": 0},
-                {"name": "negative", "run_every": -3},
-                {"name": "string", "run_every": "bad"},
+                {"name": "bare_int", "run_every": 60},
+                {"name": "bad_string", "run_every": "bad"},
+                {"name": "missing"},
             ],
         },
     }
     result = _parse_lumberjacks(raw)
     for chop in result["checks"].chops:
-        assert chop.run_every == 1
+        assert chop.run_every is None
 
 
 def test_parse_lumberjacks_string_chops_get_default_run_every() -> None:
-    """Test that string chops get default run_every=1."""
+    """Test that string chops get default run_every=None."""
     raw = {
         "hooks": {"interval": 1, "chops": ["hook_checks"]},
     }
     result = _parse_lumberjacks(raw)
-    assert result["hooks"].chops[0].run_every == 1
+    assert result["hooks"].chops[0].run_every is None
 
 
 def test_load_axe_config_empty_data() -> None:

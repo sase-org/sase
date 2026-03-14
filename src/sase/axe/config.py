@@ -5,9 +5,27 @@ config (default_config.yml → sase.yml → overlays).  Defaults are now
 guaranteed by the base config layer in ``default_config.yml``.
 """
 
+import re
 from dataclasses import dataclass, field
 
 from sase.config import load_merged_config
+
+_DURATION_RE = re.compile(r"^(\d+)(s|m|h)$")
+_UNIT_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600}
+
+
+def _parse_duration(value: object) -> int | None:
+    """Parse a duration string like ``60m``, ``30s``, ``2h`` into seconds.
+
+    Returns:
+        Duration in seconds, or None if the value is invalid.
+    """
+    if not isinstance(value, str):
+        return None
+    match = _DURATION_RE.match(value)
+    if not match:
+        return None
+    return int(match.group(1)) * _UNIT_MULTIPLIERS[match.group(2)]
 
 
 @dataclass
@@ -17,7 +35,7 @@ class ChopConfig:
     name: str
     description: str
     agent: str | None = None
-    run_every: int = 1
+    run_every: int | None = None  # seconds, parsed from duration string (e.g. "60m")
     env: dict[str, str] = field(default_factory=dict)
 
 
@@ -65,12 +83,7 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
         chops: list[ChopConfig] = []
         for entry in raw_chops:
             if isinstance(entry, dict):
-                raw_run_every = entry.get("run_every", 1)
-                run_every = (
-                    raw_run_every
-                    if isinstance(raw_run_every, int) and raw_run_every >= 1
-                    else 1
-                )
+                run_every = _parse_duration(entry.get("run_every"))
                 raw_env = entry.get("env", {})
                 env = (
                     {str(k): str(v) for k, v in raw_env.items()}

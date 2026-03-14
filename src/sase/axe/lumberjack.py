@@ -35,7 +35,9 @@ from .state import (
     ensure_lumberjack_dirs,
     get_timestamp,
     lumberjack_log_path,
+    read_chop_timestamps,
     remove_lumberjack_pid,
+    write_chop_timestamps,
     write_lumberjack_metrics,
     write_lumberjack_pid,
     write_lumberjack_status,
@@ -78,6 +80,13 @@ class Lumberjack:
         self._check_runner = CheckCycleRunner(self.parsed_query, self._log)
         # Track running agent processes per chop (multiple allowed)
         self._agent_pids: dict[str, set[int]] = {}
+        # Load persisted chop last-run timestamps for time-based run_every
+        self._chop_timestamps: dict[str, datetime] = {}
+        for chop_name, ts_str in read_chop_timestamps(name).items():
+            try:
+                self._chop_timestamps[chop_name] = datetime.fromisoformat(ts_str)
+            except (ValueError, TypeError):
+                pass
 
     def _log(self, message: str, style: str | None = None) -> None:
         timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -123,11 +132,20 @@ class Lumberjack:
         )
         write_chop_context(ctx, context_file)
 
+        now = datetime.now(EASTERN_TZ)
+        timestamps_dirty = False
+
         for chop in self.config.chops:
-            if self._metrics.cycles_run % chop.run_every != 0:
-                continue
+            if chop.run_every is not None:
+                last_run = self._chop_timestamps.get(chop.name)
+                if last_run is not None:
+                    elapsed = (now - last_run).total_seconds()
+                    if elapsed < chop.run_every:
+                        continue
             if chop.agent is not None:
-                self._run_agent_chop(chop)
+                if self._run_agent_chop(chop) and chop.run_every is not None:
+                    self._chop_timestamps[chop.name] = now
+                    timestamps_dirty = True
                 continue
             try:
                 script = discover_chop_script(
@@ -146,6 +164,9 @@ class Lumberjack:
                             self._log(line)
                 if result.returncode == 0:
                     self._metrics.chops_executed += 1
+                    if chop.run_every is not None:
+                        self._chop_timestamps[chop.name] = now
+                        timestamps_dirty = True
                 else:
                     stderr = result.stderr.strip() if result.stderr else ""
                     self._handle_error(
@@ -158,10 +179,19 @@ class Lumberjack:
             except Exception as e:
                 self._handle_error(chop.name, e)
 
+        if timestamps_dirty:
+            write_chop_timestamps(
+                self.name,
+                {k: v.isoformat() for k, v in self._chop_timestamps.items()},
+            )
         self._metrics.cycles_run += 1
 
-    def _run_agent_chop(self, chop: ChopConfig) -> None:
-        """Launch an agent chop as a background process."""
+    def _run_agent_chop(self, chop: ChopConfig) -> bool:
+        """Launch an agent chop as a background process.
+
+        Returns:
+            True if the agent was launched successfully.
+        """
         assert chop.agent is not None
 
         # Clean up dead PIDs from previous launches
@@ -185,8 +215,10 @@ class Lumberjack:
             self._agent_pids.setdefault(chop.name, set()).add(result.pid)
             self._log(f"Launched agent chop '{chop.name}' (PID {result.pid})")
             self._metrics.chops_executed += 1
+            return True
         except Exception as e:
             self._handle_error(chop.name, e)
+            return False
 
     def _handle_error(self, job_name: str, error: Exception) -> None:
         self._log(f"Error in {job_name}: {error}", style="red")

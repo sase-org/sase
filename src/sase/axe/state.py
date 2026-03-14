@@ -499,6 +499,33 @@ def read_lumberjack_metrics(name: str) -> LumberjackMetrics | None:
         return None
 
 
+def write_chop_timestamps(name: str, timestamps: dict[str, str]) -> None:
+    """Write chop last-run timestamps to disk.
+
+    Args:
+        name: Lumberjack name.
+        timestamps: Mapping of chop name to ISO timestamp string.
+    """
+    lumberjack_dir = ensure_lumberjack_dirs(name)
+    _atomic_write_json(lumberjack_dir / "chop_timestamps.json", timestamps)
+
+
+def read_chop_timestamps(name: str) -> dict[str, str]:
+    """Read chop last-run timestamps from disk.
+
+    Args:
+        name: Lumberjack name.
+
+    Returns:
+        Mapping of chop name to ISO timestamp string, or empty dict.
+    """
+    timestamps_file = _lumberjack_dir(name) / "chop_timestamps.json"
+    data = _read_json(timestamps_file)
+    if data is None or not isinstance(data, dict):
+        return {}
+    return {str(k): str(v) for k, v in data.items()}
+
+
 def lumberjack_log_path(name: str) -> Path:
     """Return the output log path for a lumberjack.
 
