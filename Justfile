@@ -8,7 +8,8 @@ default:
 
 # Bootstrap .venv if it doesn't exist
 _setup:
-    @[ -x {{ venv_bin }}/python ] || (uv venv {{ venv_dir }} && uv pip install -e ".[dev]")
+    @[ -x {{ venv_bin }}/python ] || uv venv {{ venv_dir }}
+    @{{ venv_bin }}/mypy --version > /dev/null 2>&1 || uv pip install --reinstall-package mypy -e ".[dev]"
 
 # Print a box header for a top-level command (private helper)
 _header NAME:
