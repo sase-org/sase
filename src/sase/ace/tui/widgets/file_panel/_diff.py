@@ -11,8 +11,8 @@ from ...models.agent import Agent
 def get_agent_diff(agent: Agent) -> str | None:
     """Get diff output for an agent.
 
-    For RUNNING type agents, use workspace_num to find directory.
-    For other agents, try to determine workspace from project file.
+    For completed agents with a diff_path, read the pre-computed diff file.
+    For RUNNING agents, use workspace_num to find directory and run live diff.
 
     Args:
         agent: The agent to get diff for.
@@ -20,6 +20,16 @@ def get_agent_diff(agent: Agent) -> str | None:
     Returns:
         Diff output string, or None if unavailable.
     """
+    # Prefer the pre-computed diff file (e.g. from the gh workflow's diff
+    # step).  This is authoritative — the workspace may have been released
+    # and reused by the time we display the diff.
+    if agent.diff_path:
+        try:
+            text = Path(agent.diff_path).read_text()
+            return text if text.strip() else None
+        except OSError:
+            pass
+
     try:
         # Get project basename from file path
         project_basename = Path(agent.project_file).stem
