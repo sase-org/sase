@@ -28,7 +28,7 @@ def _get_step_texts(step: WorkflowStep) -> list[str]:
     return texts
 
 
-def _extract_step_references(step: WorkflowStep, all_step_names: set[str]) -> set[str]:
+def extract_step_references(step: WorkflowStep, all_step_names: set[str]) -> set[str]:
     """Parse Jinja2 expressions in *step* and return referenced step names.
 
     Only returns names that exist in *all_step_names* and differ from the step
@@ -44,7 +44,7 @@ def _extract_step_references(step: WorkflowStep, all_step_names: set[str]) -> se
                     refs.add(name)
     if step.parallel_config:
         for sub in step.parallel_config.steps:
-            refs.update(_extract_step_references(sub, all_step_names))
+            refs.update(extract_step_references(sub, all_step_names))
     return refs
 
 
@@ -53,7 +53,7 @@ def _extract_step_references(step: WorkflowStep, all_step_names: set[str]) -> se
 # ---------------------------------------------------------------------------
 
 
-def _step_type(step: WorkflowStep) -> str:
+def step_type(step: WorkflowStep) -> str:
     if step.agent is not None:
         return "agent"
     if step.bash is not None:
@@ -77,7 +77,7 @@ def _escape_label(text: str) -> str:
     return text.replace('"', "&quot;")
 
 
-def _control_annotations(step: WorkflowStep) -> str:
+def control_annotations(step: WorkflowStep) -> str:
     """Short control-flow annotation string for node labels."""
     parts: list[str] = []
     if step.condition:
@@ -93,13 +93,13 @@ def _control_annotations(step: WorkflowStep) -> str:
 
 def _node_label(step: WorkflowStep) -> str:
     """Build the display label for a step node."""
-    stype = _step_type(step)
-    flow = _control_annotations(step)
+    stype = step_type(step)
+    flow = control_annotations(step)
     second = stype if not flow else f"{stype} {flow}"
     return _escape_label(f"{step.name}<br/>{second}")
 
 
-def _collect_all_step_names(steps: list[WorkflowStep]) -> set[str]:
+def collect_all_step_names(steps: list[WorkflowStep]) -> set[str]:
     """Gather names of all steps including parallel sub-steps."""
     names: set[str] = set()
     for step in steps:
@@ -120,7 +120,7 @@ def _emit_leaf(step: WorkflowStep, lines: list[str], indent: int = 4) -> None:
     pad = " " * indent
     sid = _mermaid_id(step.name)
     label = _node_label(step)
-    stype = _step_type(step)
+    stype = step_type(step)
 
     if stype == "agent":
         lines.append(f'{pad}{sid}(["{label}"])')
@@ -135,7 +135,7 @@ def _emit_node(step: WorkflowStep, lines: list[str]) -> None:
     if step.parallel_config:
         sid = _mermaid_id(step.name)
         label = _escape_label(step.name)
-        flow = _control_annotations(step)
+        flow = control_annotations(step)
         if flow:
             label += f"<br/>{flow}"
         lines.append(f'    subgraph {sid}["{label}"]')
@@ -148,14 +148,14 @@ def _emit_node(step: WorkflowStep, lines: list[str]) -> None:
 
 def workflow_to_mermaid(workflow: Workflow) -> str:
     """Generate a ``graph TD`` Mermaid flowchart from *workflow*."""
-    all_names = _collect_all_step_names(workflow.steps)
+    all_names = collect_all_step_names(workflow.steps)
     lines: list[str] = ["graph TD"]
 
     for step in workflow.steps:
         _emit_node(step, lines)
 
     for step in workflow.steps:
-        refs = _extract_step_references(step, all_names)
+        refs = extract_step_references(step, all_names)
         target = _mermaid_id(step.name)
         for ref in sorted(refs):
             lines.append(f"    {_mermaid_id(ref)} --> {target}")
@@ -183,10 +183,10 @@ def workflow_to_text(workflow: Workflow) -> str:
 
     out.append("")
     out.append("Steps:")
-    all_names = _collect_all_step_names(workflow.steps)
+    all_names = collect_all_step_names(workflow.steps)
     for i, step in enumerate(workflow.steps, 1):
-        stype = _step_type(step)
-        flow = _control_annotations(step)
+        stype = step_type(step)
+        flow = control_annotations(step)
         line = f"  {i}. {step.name} [{stype}]"
         if flow:
             line += f"  {flow}"
@@ -194,9 +194,9 @@ def workflow_to_text(workflow: Workflow) -> str:
 
         if step.parallel_config:
             for sub in step.parallel_config.steps:
-                out.append(f"     - {sub.name} [{_step_type(sub)}]")
+                out.append(f"     - {sub.name} [{step_type(sub)}]")
 
-        refs = _extract_step_references(step, all_names)
+        refs = extract_step_references(step, all_names)
         if refs:
             out.append(f"     depends on: {', '.join(sorted(refs))}")
 

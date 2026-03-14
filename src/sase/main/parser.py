@@ -474,4 +474,26 @@ def create_parser() -> argparse.ArgumentParser:
         help="Output format (default: mermaid)",
     )
 
+    # xprompt explain
+    explain_parser = xprompt_subparsers.add_parser(
+        "explain",
+        help="Dry-run: show execution plan without running anything",
+    )
+    explain_parser.add_argument(
+        "workflow_name",
+        help="Workflow name to explain.",
+    )
+    explain_parser.add_argument(
+        "args",
+        nargs="*",
+        help="Positional arguments for the workflow.",
+    )
+    explain_parser.add_argument(
+        "--arg",
+        action="append",
+        dest="named_args",
+        metavar="KEY=VALUE",
+        help="Named argument (can be repeated).",
+    )
+
     return parser

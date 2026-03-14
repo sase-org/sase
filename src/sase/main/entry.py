@@ -451,8 +451,31 @@ def main() -> NoReturn:
                 print(workflow_to_mermaid(workflow))
             sys.exit(0)
 
+        elif subcommand == "explain":
+            from sase.xprompt.explain import explain_workflow
+            from sase.xprompt.loader import get_all_prompts
+
+            prompts = get_all_prompts()
+            workflow = prompts.get(args.workflow_name)
+            if workflow is None:
+                print(f"Unknown workflow: {args.workflow_name}")
+                sys.exit(1)
+
+            # Parse --arg KEY=VALUE pairs
+            named: dict[str, str] = {}
+            for item in args.named_args or []:
+                if "=" in item:
+                    k, v = item.split("=", 1)
+                    named[k] = v
+                else:
+                    print(f"Invalid --arg format: {item!r} (expected KEY=VALUE)")
+                    sys.exit(1)
+
+            print(explain_workflow(workflow, args.args, named))
+            sys.exit(0)
+
         else:
-            print("Usage: sase xprompt {expand,graph}")
+            print("Usage: sase xprompt {expand,graph,explain}")
             sys.exit(1)
 
     print(f"Unknown command: {args.command}")
