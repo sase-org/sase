@@ -28,18 +28,28 @@ infrastructure that turns individual agent runs into a managed software engineer
 
 ## Vision
 
-**Coding agents changed what's possible. They didn't change what's hard.**
+**Coding agents unlocked a new kind of leverage. They also exposed a new kind of chaos.**
 
-The first time you point an agent at a bug and watch it fix itself — that's magic. The hundredth time, it's Tuesday. And
-by then you've noticed the real problems aren't about the agent. They're about everything _around_ it.
+A single agent run can feel miraculous. A dozen runs feel productive. A few hundred runs, across bugs, reviews,
+refactors, experiments, and handoffs, reveal the real bottleneck: not code generation, but coordination.
 
-Your prompts live in shell history. Your agent runs are fire-and-forget terminal sessions. You're tracking status in
-your head, context-switching between provider CLIs, and hoping that the thing you kicked off an hour ago didn't silently
-drift off-task. There's no audit trail, no handoff path, no way to replay what happened or build on it systematically.
+Without structure, agent work becomes surprisingly fragile. Prompts disappear into shell history. Important context gets
+retyped instead of reused. Long-running tasks turn into terminal archaeology. You can ask an agent to do almost
+anything, but you still need a system for knowing:
 
-This is the gap between _using an agent_ and _running an engineering operation with agents._ sase fills it — not by
-making agents smarter, but by giving agent-driven engineering the same infrastructure that human-driven engineering has
-had for decades:
+- What is in flight?
+- What changed?
+- What stalled?
+- What should happen next?
+- Who can trust the result?
+
+That is the jump from _using an agent_ to _operating with agents._
+
+sase is built for that jump. It does not try to be yet another agent. It provides the missing operating layer around
+agents: the structure, visibility, lifecycle tracking, and automation needed to make agent-driven work repeatable at
+team scale.
+
+In practice, that means bringing software engineering discipline to AI-assisted execution:
 
 | What you need                                          | What sase provides                                                            |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -49,8 +59,12 @@ had for decades:
 | Background scheduling that doesn't need babysitting    | **AXE** — daemon for continuous, configurable automation                      |
 | One system above the agent layer, not one per provider | **Agent-agnostic** — swap Claude, Codex, or Gemini without rewriting anything |
 
-The end state isn't "agents that write better code." It's **engineering teams where agent-driven work is as auditable,
-resumable, and trustworthy as the work humans do by hand.**
+The goal is not just better prompts or smarter completions. The goal is **an engineering environment where agent work is
+observable, resumable, reviewable, and trustworthy by default**.
+
+That is the vision of Structured Agentic Software Engineering: agents as collaborators, not one-off demos; workflows as
+assets, not improvisation; and software teams that can scale AI assistance with the same rigor they already expect from
+testing, code review, and version control.
 
 ## Key Features
 
