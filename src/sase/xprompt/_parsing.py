@@ -338,6 +338,31 @@ def strip_hitl_suffix(workflow_ref: str) -> tuple[str, bool | None]:
 
 
 _VCS_TAG_PATTERN: re.Pattern[str] | None = None
+_VCS_UNDERSCORE_NORMALIZER: re.Pattern[str] | None = None
+
+
+def normalize_vcs_underscore_refs(prompt: str) -> str:
+    """Normalize ``#gh_sase`` to ``#gh:sase`` for known VCS workflow names.
+
+    The xprompt and embedded-workflow regex patterns treat ``_`` as part of the
+    identifier, so ``#gh_sase`` is parsed as a single name ``gh_sase`` which
+    doesn't match any workflow.  Converting the first ``_`` after a known VCS
+    prefix to ``:`` lets downstream patterns correctly split the VCS prefix
+    from the ref name.
+    """
+    global _VCS_UNDERSCORE_NORMALIZER  # noqa: PLW0603
+    if _VCS_UNDERSCORE_NORMALIZER is None:
+        from sase.workspace_provider import get_workflow_names
+
+        names = get_workflow_names()
+        if not names:
+            return prompt
+        alts = "|".join(re.escape(n) for n in sorted(names))
+        _VCS_UNDERSCORE_NORMALIZER = re.compile(
+            rf"((?:^|(?<=\s)|(?<=[(\"']))#(?:{alts}))_",
+            re.MULTILINE,
+        )
+    return _VCS_UNDERSCORE_NORMALIZER.sub(r"\1:", prompt)
 
 
 def _get_vcs_tag_pattern() -> re.Pattern[str]:

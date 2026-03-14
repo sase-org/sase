@@ -7,6 +7,7 @@ from sase.xprompt._parsing import (
     _preprocess_paren_shorthand,
     extract_vcs_workflow_tag,
     find_matching_paren_for_args,
+    normalize_vcs_underscore_refs,
     parse_workflow_reference,
     preprocess_shorthand_syntax,
     strip_hitl_suffix,
@@ -209,6 +210,69 @@ def test_extract_vcs_workflow_tag_underscore_git() -> None:
     """Test extracting a VCS tag with underscore separator for git."""
     with _patch_vcs_pattern():
         assert extract_vcs_workflow_tag("#git_myrepo Do stuff") == "#git_myrepo "
+
+
+# Tests for normalize_vcs_underscore_refs
+
+
+def _patch_workflow_names(names: set[str]):
+    """Patch get_workflow_names to return *names*."""
+    return patch(
+        "sase.workspace_provider.get_workflow_names",
+        return_value=names,
+    )
+
+
+def test_normalize_vcs_underscore_basic() -> None:
+    """Test #gh_sase → #gh:sase."""
+    # Reset cached normalizer so the patched names take effect
+    import sase.xprompt._parsing as _mod
+
+    _mod._VCS_UNDERSCORE_NORMALIZER = None
+    with _patch_workflow_names({"gh", "git", "hg"}):
+        assert normalize_vcs_underscore_refs("#gh_sase Fix bug") == "#gh:sase Fix bug"
+
+
+def test_normalize_vcs_underscore_git() -> None:
+    """Test #git_myrepo → #git:myrepo."""
+    import sase.xprompt._parsing as _mod
+
+    _mod._VCS_UNDERSCORE_NORMALIZER = None
+    with _patch_workflow_names({"gh", "git", "hg"}):
+        assert (
+            normalize_vcs_underscore_refs("#git_myrepo Do stuff")
+            == "#git:myrepo Do stuff"
+        )
+
+
+def test_normalize_vcs_underscore_not_vcs() -> None:
+    """Test non-VCS underscore names like #my_xprompt are NOT normalized."""
+    import sase.xprompt._parsing as _mod
+
+    _mod._VCS_UNDERSCORE_NORMALIZER = None
+    with _patch_workflow_names({"gh", "git", "hg"}):
+        assert normalize_vcs_underscore_refs("#my_xprompt hello") == "#my_xprompt hello"
+
+
+def test_normalize_vcs_underscore_preserves_colon() -> None:
+    """Test #gh:sase is left unchanged."""
+    import sase.xprompt._parsing as _mod
+
+    _mod._VCS_UNDERSCORE_NORMALIZER = None
+    with _patch_workflow_names({"gh", "git", "hg"}):
+        assert normalize_vcs_underscore_refs("#gh:sase Fix bug") == "#gh:sase Fix bug"
+
+
+def test_normalize_vcs_underscore_mid_line() -> None:
+    """Test normalization works after whitespace mid-line."""
+    import sase.xprompt._parsing as _mod
+
+    _mod._VCS_UNDERSCORE_NORMALIZER = None
+    with _patch_workflow_names({"gh", "git", "hg"}):
+        assert (
+            normalize_vcs_underscore_refs("text #gh_sase prompt")
+            == "text #gh:sase prompt"
+        )
 
 
 # Tests for strip_vcs_workflow_tag

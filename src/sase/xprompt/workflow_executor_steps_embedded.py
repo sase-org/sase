@@ -337,7 +337,11 @@ class EmbeddedWorkflowMixin:
             total_pre_steps_executed). The post_steps should be executed
             after the main prompt completes.
         """
-        from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+        from sase.xprompt._parsing import (
+            find_matching_paren_for_args,
+            normalize_vcs_underscore_refs,
+            parse_args,
+        )
         from sase.xprompt.loader import get_all_workflows
 
         workflows = get_all_workflows()
@@ -347,6 +351,10 @@ class EmbeddedWorkflowMixin:
         # inside triple-backtick blocks are not treated as real references.
         fenced_blocks: list[str] = []
         prompt = protect_fenced_blocks(prompt, fenced_blocks)
+
+        # Normalize #gh_sase → #gh:sase so the workflow ref pattern can
+        # correctly split VCS prefix from ref name.
+        prompt = normalize_vcs_underscore_refs(prompt)
 
         # ── Phase 1: Collection ──────────────────────────────────────────
         # Iterate matches left-to-right, parse args, build pending list.

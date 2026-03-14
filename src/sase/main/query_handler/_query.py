@@ -63,7 +63,11 @@ def expand_embedded_workflows_in_query(
         Tuple of (expanded_query, list of EmbeddedWorkflowResult objects).
     """
     from sase.xprompt._fenced_blocks import fenced_block_ranges
-    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+    from sase.xprompt._parsing import (
+        find_matching_paren_for_args,
+        normalize_vcs_underscore_refs,
+        parse_args,
+    )
     from sase.xprompt.loader import get_all_workflows
     from sase.xprompt.processor import process_xprompt_references
     from sase.xprompt.workflow_executor_utils import render_template
@@ -71,6 +75,10 @@ def expand_embedded_workflows_in_query(
     workflows = get_all_workflows()
     post_workflows: list[EmbeddedWorkflowResult] = []
     expanded_metadata: list[dict[str, Any]] = []
+
+    # Normalize #gh_sase → #gh:sase so the workflow ref pattern can
+    # correctly split VCS prefix from ref name.
+    query = normalize_vcs_underscore_refs(query)
 
     # Compute fenced code block ranges so we can skip references inside them.
     fenced_ranges = fenced_block_ranges(query)
