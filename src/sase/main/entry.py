@@ -57,6 +57,19 @@ def main() -> NoReturn:
 
     # --- path ---
     if args.command == "path":
+        if args.name == "config-schema":
+            from pathlib import Path
+            import importlib.resources
+
+            sase_pkg = Path(str(importlib.resources.files("sase")))
+            schema = (sase_pkg / ".." / ".." / "config" / "sase.schema.json").resolve()
+            if schema.is_file():
+                print(schema)
+            else:
+                print(f"config-schema not found at {schema}", file=sys.stderr)
+                sys.exit(1)
+            sys.exit(0)
+
         from sase.xprompt.loader import get_sase_package_xprompts_dir
 
         xprompts_dir = get_sase_package_xprompts_dir()

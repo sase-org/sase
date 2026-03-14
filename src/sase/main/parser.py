@@ -349,7 +349,12 @@ def create_parser() -> argparse.ArgumentParser:
     )
     path_parser.add_argument(
         "name",
-        choices=["xprompts-dir", "xprompts-schema", "xprompts-collection-schema"],
+        choices=[
+            "config-schema",
+            "xprompts-dir",
+            "xprompts-schema",
+            "xprompts-collection-schema",
+        ],
         help="Which path to print",
     )
 
