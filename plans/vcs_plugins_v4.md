@@ -65,11 +65,11 @@ git-specific modules. No callers changed yet — purely additive.
 | `src/sase/xprompt/workflow_executor_steps_prompt.py` | Replace `capture_git_diff()` → `capture_vcs_diff()` using `get_vcs_provider(os.getcwd())`                                                                                  |
 | `src/sase/git_utils.py`                              | **DELETE**                                                                                                                                                                 |
 | `tests/test_git_utils.py`                            | **DELETE** or migrate tests to hook-level tests                                                                                                                            |
-| `../sase-hg/src/sase_hg/plugin.py`                   | Add `vcs_diff_with_untracked` and `vcs_committed_diff` hookimpls (hg equivalents)                                                                                          |
+| `../sase-google/src/sase_hg/plugin.py`               | Add `vcs_diff_with_untracked` and `vcs_committed_diff` hookimpls (hg equivalents)                                                                                          |
 
 ### Verification
 
-- `just check` passes in sase and sase-hg
+- `just check` passes in sase and sase-google
 - `grep -r "git_utils" src/` returns nothing
 - File panel diffs work for git projects
 
@@ -95,7 +95,7 @@ Parameters: `changespec_name`, `changespec_parent`, `project_basename`, `project
 | `src/sase/ace/mail_ops.py`                                  | `prepare_mail()` delegates to `ws_prepare_mail` hook; remove `_prepare_mail_git`, `_prepare_mail_hg`, `_modify_description_for_mailing` |
 | `src/sase/workspace_provider/plugins/bare_git_workspace.py` | Add `ws_prepare_mail` hookimpl (logic from `_prepare_mail_git`)                                                                         |
 | `../sase-github/src/sase_github/workspace_plugin.py`        | Add `ws_prepare_mail` hookimpl (same git mail prep)                                                                                     |
-| `../sase-hg/src/sase_hg/workspace_plugin.py`                | Add `ws_prepare_mail` hookimpl (logic from `_prepare_mail_hg` + `_modify_description_for_mailing`)                                      |
+| `../sase-google/src/sase_hg/workspace_plugin.py`            | Add `ws_prepare_mail` hookimpl (logic from `_prepare_mail_hg` + `_modify_description_for_mailing`)                                      |
 
 **VCS-agnostic helpers staying in `mail_ops.py`:** `_has_valid_parent()`, `_get_cl_description()`,
 `_get_branch_number()`, `_run_findreviewers()`, `MailPrepResult`
@@ -174,17 +174,17 @@ Parameters: `changespec_name`, `changespec_parent`, `project_basename`, `project
 | `src/sase/workspace_provider/_registry.py`                  | Refactor `get_display_name_by_vcs_family()` to use `vcs_family` field instead of hard-coded set |
 | `src/sase/workspace_provider/plugins/bare_git_workspace.py` | Add `vcs_family="git"` to metadata                                                              |
 | `../sase-github/src/sase_github/workspace_plugin.py`        | Add `vcs_family="git"` to metadata                                                              |
-| `../sase-hg/src/sase_hg/workspace_plugin.py`                | Add `vcs_family="hg"` to metadata                                                               |
+| `../sase-google/src/sase_hg/workspace_plugin.py`            | Add `vcs_family="hg"` to metadata                                                               |
 
 ### 6B: Migrate `running_field.py:get_workspace_directory()`
 
 Replace the `.git` check + `sase_hg_get_workspace` fallback with delegation to the existing `ws_get_workspace_directory`
 hook.
 
-| File                                         | Change                                                                                                                                  |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/sase/running_field.py`                  | Rewrite `get_workspace_directory()` to call `workspace_provider.get_workspace_directory()` (the hook-based registry function)           |
-| `../sase-hg/src/sase_hg/workspace_plugin.py` | Update `ws_get_workspace_directory` to call `sase_hg_get_workspace` subprocess directly (avoid circular import through `running_field`) |
+| File                                             | Change                                                                                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/sase/running_field.py`                      | Rewrite `get_workspace_directory()` to call `workspace_provider.get_workspace_directory()` (the hook-based registry function)           |
+| `../sase-google/src/sase_hg/workspace_plugin.py` | Update `ws_get_workspace_directory` to call `sase_hg_get_workspace` subprocess directly (avoid circular import through `running_field`) |
 
 ### Verification
 

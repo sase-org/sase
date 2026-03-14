@@ -62,7 +62,7 @@ with plugin-declared metadata.
 
 - `sase-github/src/sase_github/workspace_plugin.py` - Implement `ws_get_workflow_metadata` returning
   `WorkflowMetadata("gh", <regex>, "GitHub", "SASE_GH")`
-- `sase-hg/src/sase_hg/workspace_plugin.py` - Implement `ws_get_workflow_metadata` returning
+- `sase-google/src/sase_hg/workspace_plugin.py` - Implement `ws_get_workflow_metadata` returning
   `WorkflowMetadata("hg", <regex>, "Mercurial", "SASE_HG")`
 - `sase core bare_git_workspace.py` - Implement `ws_get_workflow_metadata` returning
   `WorkflowMetadata("git", <regex>, "Git (bare)", "SASE_GIT")`
@@ -96,7 +96,7 @@ with plugin-declared metadata.
 
 - `sase-github/src/sase_github/workspace_plugin.py` - Implement: extract `github.com/.../pull/<N>`, generate
   `gh pr view` script, return `False` for reviewer comments
-- `sase-hg/src/sase_hg/workspace_plugin.py` - Implement: extract `http://cl/<N>`, generate `is_cl_submitted` script,
+- `sase-google/src/sase_hg/workspace_plugin.py` - Implement: extract `http://cl/<N>`, generate `is_cl_submitted` script,
   return `True` for reviewer comments, generate `critique_comments` script
 
 ---
@@ -126,7 +126,7 @@ with plugin-declared metadata.
 
 **Plugin repos:**
 
-- `sase-hg/src/sase_hg/plugin.py` - Implement `vcs_detect_repo_type`: check for `.hg/` dir, return `"hg"`
+- `sase-google/src/sase_hg/plugin.py` - Implement `vcs_detect_repo_type`: check for `.hg/` dir, return `"hg"`
 
 ---
 
@@ -153,7 +153,7 @@ with plugin-declared metadata.
 **Plugin repos:**
 
 - `sase-github` - Implement both hooks (git clone for workspace, simple prefix for formatting)
-- `sase-hg` - Implement both hooks (workspace_directory_for_num, full hg metadata tags)
+- `sase-google` - Implement both hooks (workspace_directory_for_num, full hg metadata tags)
 - `bare_git_workspace.py` in core - Implement both hooks
 
 ---

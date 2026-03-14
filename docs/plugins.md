@@ -9,12 +9,12 @@ additional functionality is available through optional plugin packages.
 
 Sase defines four entry point groups for plugin discovery:
 
-| Entry Point Group | Purpose                                             | Example Plugin           |
-| ----------------- | --------------------------------------------------- | ------------------------ |
-| `sase_vcs`        | VCS provider plugins (git, hg, etc.)                | `sase-github`            |
-| `sase_workspace`  | Workspace provider plugins (ref resolution, submit) | `sase-github`            |
-| `sase_xprompts`   | XPrompt templates and workflows                     | `sase-hg`                |
-| `sase_config`     | Default configuration (`default_config.yml`)        | `sase-hg`, `sase-github` |
+| Entry Point Group | Purpose                                             | Example Plugin               |
+| ----------------- | --------------------------------------------------- | ---------------------------- |
+| `sase_vcs`        | VCS provider plugins (git, hg, etc.)                | `sase-github`                |
+| `sase_workspace`  | Workspace provider plugins (ref resolution, submit) | `sase-github`                |
+| `sase_xprompts`   | XPrompt templates and workflows                     | `sase-google`                |
+| `sase_config`     | Default configuration (`default_config.yml`)        | `sase-google`, `sase-github` |
 
 ## Available Plugin Packages
 
@@ -22,7 +22,7 @@ Sase defines four entry point groups for plugin discovery:
 | ------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `sase` (core) | BareGitPlugin for standard git operations               | `sase_vcs: bare_git`, `sase_workspace: bare_git`                             |
 | `sase-github` | GitHubPlugin with GitHub CLI (`gh`) PR operations       | `sase_vcs: github`, `sase_workspace: github`, `sase_config`, `sase_xprompts` |
-| `sase-hg`     | HgPlugin for Mercurial with `sase_hg_*` helper commands | `sase_vcs: hg`, `sase_workspace: hg`, `sase_config`, `sase_xprompts`         |
+| `sase-google` | HgPlugin for Mercurial with `sase_hg_*` helper commands | `sase_vcs: hg`, `sase_workspace: hg`, `sase_config`, `sase_xprompts`         |
 
 ## Installation
 
@@ -34,7 +34,7 @@ pip install sase
 pip install sase-github
 
 # Add Mercurial support
-pip install sase-hg
+pip install sase-google
 ```
 
 ## How Plugins Are Discovered

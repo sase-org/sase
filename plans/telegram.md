@@ -94,19 +94,19 @@ Uses atomic write (write to `.tmp`, then `os.replace`) for crash safety.
 
 ---
 
-## Phase 2: sase-chop-telegram Repo Scaffold
+## Phase 2: sase-telegram Repo Scaffold
 
-**Repo**: New repo at `~/projects/github/bbugyi200/sase-chop-telegram/`
+**Repo**: New repo at `~/projects/github/bbugyi200/sase-telegram/`
 
 ### 2.1 Repository structure
 
 ```
-sase-chop-telegram/
+sase-telegram/
   CLAUDE.md                        # Points to @AGENTS.md
   AGENTS.md                        # Repo-specific agent instructions
   Justfile                         # install, lint, fmt, test, check, clean, build
   pyproject.toml                   # hatchling, ruff, mypy, pytest
-  src/sase_chop_telegram/
+  src/sase_telegram/
     __init__.py
     credentials.py                 # get_bot_token(), get_chat_id(), get_bot_username()
     telegram_client.py             # TelegramClient wrapper around python-telegram-bot
@@ -128,10 +128,10 @@ Following `sase-github/pyproject.toml` pattern exactly:
 - Build: hatchling
 - Dependencies: `sase>=0.1.0`, `python-telegram-bot>=21.0`
 - Entry points under `[project.scripts]`:
-  - `sase_chop_tg_outbound = "sase_chop_telegram.scripts:sase_chop_tg_outbound"`
-  - `sase_chop_tg_inbound = "sase_chop_telegram.scripts:sase_chop_tg_inbound"`
+  - `sase_chop_tg_outbound = "sase_telegram.scripts:sase_chop_tg_outbound"`
+  - `sase_chop_tg_inbound = "sase_telegram.scripts:sase_chop_tg_inbound"`
 - Tool config: ruff (same rules), mypy (same strictness), pytest (same options)
-- `[tool.hatch.build.targets.wheel]` packages = `["src/sase_chop_telegram"]`
+- `[tool.hatch.build.targets.wheel]` packages = `["src/sase_telegram"]`
 
 ### 2.3 Justfile
 
@@ -199,13 +199,13 @@ Sliding window rate limiter using `~/.sase/telegram/rate_limit.json`:
 
 - `just check` passes in the new repo
 - `just install` makes `sase_chop_tg_outbound` and `sase_chop_tg_inbound` available on PATH
-- `python -c "from sase_chop_telegram.credentials import get_bot_token; print(get_bot_token())"` succeeds
+- `python -c "from sase_telegram.credentials import get_bot_token; print(get_bot_token())"` succeeds
 
 ---
 
 ## Phase 3: Outbound Telegram Messages
 
-**Repo**: `sase-chop-telegram`
+**Repo**: `sase-telegram`
 
 ### 3.1 outbound.py -- Core logic
 
@@ -385,7 +385,7 @@ full question data (options, etc.) and stores it in the pending action so the in
 
 ## Phase 4: Inbound Telegram Message Handling
 
-**Repo**: `sase-chop-telegram`
+**Repo**: `sase-telegram`
 
 ### 4.1 inbound.py -- Core logic
 
@@ -512,7 +512,7 @@ def main() -> None:
 
 ## Phase 5: Jack Config + Integration + Polish
 
-**Repos**: The chezmoi repo and `sase-chop-telegram`
+**Repos**: The chezmoi repo and `sase-telegram`
 
 ### 5.1 Jack configuration
 
@@ -556,7 +556,7 @@ content (notification notes, plan file content, question text).
 
 ### 5.5 CLAUDE.md for new repo
 
-Create `CLAUDE.md` and `AGENTS.md` for the `sase-chop-telegram` repo following the sase-github pattern.
+Create `CLAUDE.md` and `AGENTS.md` for the `sase-telegram` repo following the sase-github pattern.
 
 ### Verification
 
@@ -585,18 +585,18 @@ Create `CLAUDE.md` and `AGENTS.md` for the `sase-chop-telegram` repo following t
 - `src/sase/main/user_question_handler.py` -- question response format reference
 - `src/sase/axe/chop_script_context.py` -- chop context serialization
 
-### sase-chop-telegram (all new)
+### sase-telegram (all new)
 
-- `src/sase_chop_telegram/credentials.py`
-- `src/sase_chop_telegram/telegram_client.py`
-- `src/sase_chop_telegram/callback_data.py`
-- `src/sase_chop_telegram/pending_actions.py`
-- `src/sase_chop_telegram/rate_limit.py`
-- `src/sase_chop_telegram/outbound.py`
-- `src/sase_chop_telegram/inbound.py`
-- `src/sase_chop_telegram/formatting.py`
-- `src/sase_chop_telegram/scripts/sase_chop_tg_outbound.py`
-- `src/sase_chop_telegram/scripts/sase_chop_tg_inbound.py`
+- `src/sase_telegram/credentials.py`
+- `src/sase_telegram/telegram_client.py`
+- `src/sase_telegram/callback_data.py`
+- `src/sase_telegram/pending_actions.py`
+- `src/sase_telegram/rate_limit.py`
+- `src/sase_telegram/outbound.py`
+- `src/sase_telegram/inbound.py`
+- `src/sase_telegram/formatting.py`
+- `src/sase_telegram/scripts/sase_chop_tg_outbound.py`
+- `src/sase_telegram/scripts/sase_chop_tg_inbound.py`
 
 ### Config (to modify)
 

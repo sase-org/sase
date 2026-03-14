@@ -5,7 +5,7 @@ retrieved by using the `pass show telegram_sase_bot_token` command. Some design 
 
 - We should use the python-telegram-bot library since I want to support inline keyboards (for "Approve" and "Reject"
   buttons for plan notifications, for example). These chop scripts are complicated enough to warrant their own repo, so
-  let's put these in a new ~/projects/github/bbugyi200/sase-chop-telegram/ directory. Use all of the same modern best
+  let's put these in a new ~/projects/github/bbugyi200/sase-telegram/ directory. Use all of the same modern best
   practices that we use for the sase repo (ex: Justfile, hatch packaging, etc.).
 - Chops don't support their own configuration at the moment, so we will not support any user configuration.
 - **Question**: What should trigger outbound messages? **Answer**:

@@ -15,7 +15,7 @@ Additional backends are installed as separate packages:
 | ------------- | ------------------------ | ----------------------------------------------- |
 | `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)        |
 | `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI) |
-| `sase-hg`     | `HgWorkspacePlugin`      | Mercurial workspaces                            |
+| `sase-google` | `HgWorkspacePlugin`      | Mercurial workspaces                            |
 
 Plugins register themselves via the `sase_workspace` entry point group. The plugin manager loads all registered plugins
 and dispatches operations through pluggy hooks. Most hooks use `firstresult=True` — the first plugin that returns a

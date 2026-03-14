@@ -43,7 +43,7 @@ class _MockHgPlugin:
 
 @pytest.fixture(autouse=True)
 def _register_mock_hg_plugin() -> Iterator[None]:
-    """Register a mock hg plugin so hg formatting tests work without sase-hg."""
+    """Register a mock hg plugin so hg formatting tests work without sase-google."""
     from sase.workspace_provider._registry import _get_manager
 
     manager = _get_manager()

@@ -16,13 +16,13 @@ the **BareGitPlugin** (for plain git repositories). Additional VCS backends are 
 | ------------- | --------------- | ------------------------------------------ |
 | `sase` (core) | `BareGitPlugin` | Standard git operations (bundled)          |
 | `sase-github` | `GitHubPlugin`  | Git + GitHub CLI (`gh`) for PR operations  |
-| `sase-hg`     | `HgPlugin`      | Mercurial with `sase_hg_*` helper commands |
+| `sase-google` | `HgPlugin`      | Mercurial with `sase_hg_*` helper commands |
 
 Install optional providers via pip:
 
 ```bash
 pip install sase-github   # GitHub PR support
-pip install sase-hg       # Mercurial support
+pip install sase-google       # Mercurial support
 ```
 
 Plugins register themselves via the `sase_vcs` entry point group. The plugin manager loads all registered plugins and
@@ -338,8 +338,8 @@ git commit --amend -m "<msg>\n<tag>=<value>"    # Append tag
 
 ## Mercurial Provider Details
 
-The Mercurial provider is available via the `sase-hg` package (`pip install sase-hg`). It uses a combination of standard
-`hg` commands and `sase_hg_*` wrapper commands.
+The Mercurial provider is available via the `sase-google` package (`pip install sase-google`). It uses a combination of
+standard `hg` commands and `sase_hg_*` wrapper commands.
 
 ### Core Commands
 
@@ -543,7 +543,7 @@ gh auth login
 
 ### Mercurial: Plugin Not Installed
 
-The Mercurial provider requires the `sase-hg` package. Without it, hg repositories will not be detected.
+The Mercurial provider requires the `sase-google` package. Without it, hg repositories will not be detected.
 
 **Symptoms:**
 
@@ -553,7 +553,7 @@ The Mercurial provider requires the `sase-hg` package. Without it, hg repositori
 **Fix:** Install the Mercurial plugin:
 
 ```bash
-pip install sase-hg
+pip install sase-google
 ```
 
 ### Mercurial: `sase_hg_*` Commands Not Found

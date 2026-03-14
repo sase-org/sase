@@ -18,7 +18,7 @@ class TestCrsWorkflow:
     def test_build_crs_prompt_basic(self) -> None:
         """Test building a CRS prompt.
 
-        The crs xprompt is provided by sase-hg plugin. When the plugin is not
+        The crs xprompt is provided by sase-google plugin. When the plugin is not
         installed, process_xprompt_references returns the raw reference string.
         """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -29,7 +29,7 @@ class TestCrsWorkflow:
             prompt = _build_crs_prompt(comments_file)
             # The prompt should contain the comments file path reference
             assert comments_file in prompt
-            # When sase-hg plugin provides crs.md, expanded prompt contains
+            # When sase-google plugin provides crs.md, expanded prompt contains
             # @file and Critique text; otherwise the raw #crs(...) reference
             assert "#crs" in prompt or "Critique" in prompt
         finally:

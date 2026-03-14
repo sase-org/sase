@@ -1,6 +1,6 @@
 Can you help me dig through the sase plugin integration logic along with the rest of the codebase to confirm that we
 have abstracted away ALL logic that might be specific to a certain VCS? If not plan the migration of the appropriate
-code to the ../sase-github/ and/or ../sase-hg/ repos. Our goal is to be able to implement a gitlab integration, a
+code to the ../sase-github/ and/or ../sase-google/ repos. Our goal is to be able to implement a gitlab integration, a
 facebook integration (using their internal VCS), and more without having to make ANY code changes to sase's core. For
 example, I'm seeing the `#gh` and `#hg` workflows referenced in this repo. That concerns me that the new `#gitlab`
 workflow might require changes to the core codebase.

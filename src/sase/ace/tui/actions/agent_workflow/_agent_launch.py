@@ -86,8 +86,8 @@ class AgentLaunchMixin:
 
             # Update `,<space>` saved selection to reflect the resolved VCS
             # ref from the actual submitted prompt.  Without this, editing
-            # ``#gh:sase-chop-telegram`` to ``#gh:sase`` before submitting
-            # would still replay as ``#gh:sase-chop-telegram`` on the next
+            # ``#gh:sase-telegram`` to ``#gh:sase`` before submitting
+            # would still replay as ``#gh:sase-telegram`` on the next
             # `,<space>`.
             if vcs_ref is not None:
                 from ...modals import SelectionItem
