@@ -55,6 +55,12 @@ def main() -> NoReturn:
         print(f"Initialized git project: {project_file}")
         sys.exit(0)
 
+    # --- image ---
+    if args.command == "image":
+        from .image_handler import handle_image_command
+
+        handle_image_command(args)
+
     # --- path ---
     if args.command == "path":
         if args.name == "config-schema":
