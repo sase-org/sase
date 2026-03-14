@@ -9,6 +9,7 @@ description = "Structured Agentic Software Engineering"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
+    "google-genai",
     "jinja2",
     "jsonschema",
     "langchain-core",
@@ -104,6 +105,7 @@ warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
 module = [
+    "google.*",
     "langchain_core.*",
     "schedule.*",
     "rapidfuzz.*",
