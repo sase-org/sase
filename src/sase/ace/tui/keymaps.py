@@ -5,9 +5,11 @@ prefix-key modes) and provides a loader that reads from the merged config
 system (``default_config.yml`` → plugins → ``sase.yml`` → overlays).
 """
 
+import importlib.resources
 import logging
 from dataclasses import dataclass, field, fields
 
+import yaml  # type: ignore[import-untyped]
 from textual.binding import Binding
 
 
@@ -170,92 +172,98 @@ def _is_valid_key(key: str) -> bool:
 
 @dataclass
 class _AppKeymaps:
-    """One field per configurable app-level action; defaults match the
-    original hardcoded BINDINGS in ``app.py``."""
+    """One field per configurable app-level action.
+
+    No defaults — all values must come from configuration files
+    (``default_config.yml`` or user/plugin overrides).  This ensures
+    ``default_config.yml`` is the single source of truth for default
+    keybindings and that adding a new field without a config entry is
+    caught immediately at startup.
+    """
 
     # Navigation
-    next_changespec: str = "j"
-    prev_changespec: str = "k"
-    scroll_to_top: str = "g"
-    scroll_to_bottom: str = "G"
-    scroll_detail_down: str = "ctrl+d"
-    scroll_detail_up: str = "ctrl+u"
-    scroll_prompt_down: str = "ctrl+f"
-    scroll_prompt_up: str = "ctrl+b"
-    prev_changespec_history: str = "ctrl+o"
-    next_changespec_history: str = "ctrl+k"
-    next_agent_file: str = "ctrl+n"
-    prev_agent_file: str = "ctrl+p"
+    next_changespec: str
+    prev_changespec: str
+    scroll_to_top: str
+    scroll_to_bottom: str
+    scroll_detail_down: str
+    scroll_detail_up: str
+    scroll_prompt_down: str
+    scroll_prompt_up: str
+    prev_changespec_history: str
+    next_changespec_history: str
+    next_agent_file: str
+    prev_agent_file: str
     # Tab switching
-    next_tab: str = "tab"
-    prev_tab: str = "shift+tab"
+    next_tab: str
+    prev_tab: str
     # CL actions
-    quit: str = "q"
-    change_status: str = "s"
-    run_workflow: str = "r"
-    mail: str = "M"
-    show_diff: str = "d"
-    reword: str = "w"
-    add_tag: str = "W"
-    view_files: str = "v"
-    edit_spec: str = "e"
-    rename_cl: str = "n"
+    quit: str
+    change_status: str
+    run_workflow: str
+    mail: str
+    show_diff: str
+    reword: str
+    add_tag: str
+    view_files: str
+    edit_spec: str
+    rename_cl: str
     # Proposals & sync
-    accept_proposal: str = "a"
-    rebase: str = "b"
-    start_rewind: str = "R"
-    sync: str = "Y"
-    refresh: str = "y"
+    accept_proposal: str
+    rebase: str
+    start_rewind: str
+    sync: str
+    refresh: str
     # Fold / collapse
-    hooks_or_collapse: str = "h"
-    hooks_or_collapse_all: str = "H"
-    expand_or_layout: str = "l"
-    expand_all_folds: str = "L"
-    toggle_layout: str = "p"
+    hooks_or_collapse: str
+    hooks_or_collapse_all: str
+    expand_or_layout: str
+    expand_all_folds: str
+    toggle_layout: str
     # Marking
-    toggle_mark: str = "m"
-    clear_marks: str = "u"
-    bulk_change_status: str = "S"
-    mark_inactive: str = "i"
-    mark_inactive_pinned: str = "I"
+    toggle_mark: str
+    clear_marks: str
+    bulk_change_status: str
+    mark_inactive: str
+    mark_inactive_pinned: str
     # Agent / axe
-    kill_agent: str = "x"
-    toggle_axe: str = "X"
-    stop_axe_and_quit: str = "Q"
-    start_custom_agent: str = "at"
-    start_agent_from_changespec: str = "space"
-    jump_to_agent_changespec: str = "enter"
-    edit_panel: str = "E"
+    kill_agent: str
+    toggle_axe: str
+    stop_axe_and_quit: str
+    start_custom_agent: str
+    start_agent_from_changespec: str
+    jump_to_agent_changespec: str
+    edit_panel: str
     # Thinking panel
-    toggle_thinking: str = "right_square_bracket"
-    toggle_thinking_reverse: str = "left_square_bracket"
+    toggle_thinking: str
+    toggle_thinking_reverse: str
     # File trim
-    reset_file_trim: str = "minus"
-    show_all_file_lines: str = "equals_sign"
+    reset_file_trim: str
+    show_all_file_lines: str
     # Queries
-    edit_query: str = "slash"
-    prev_query: str = "circumflex_accent"
-    next_query: str = "underscore"
+    edit_query: str
+    prev_query: str
+    next_query: str
     # Display / misc
-    toggle_hide_reverted: str = "full_stop"
-    toggle_hide_submitted: str = "x"
-    show_notifications: str = "N"
-    show_help: str = "question_mark"
-    browse_xprompts: str = "number_sign"
+    toggle_hide_reverted: str
+    toggle_hide_submitted: str
+    show_notifications: str
+    show_help: str
+    browse_xprompts: str
     # Workspace mode prefixes
-    checkout: str = "C"
-    start_checkout_mode: str = "c"
-    open_tmux: str = "T"
-    start_tmux_mode: str = "t"
+    checkout: str
+    start_checkout_mode: str
+    open_tmux: str
+    start_tmux_mode: str
     # Tree navigation prefixes
-    start_ancestor_mode: str = "<"
-    start_child_mode: str = ">"
-    start_sibling_mode: str = "~"
+    start_ancestor_mode: str
+    start_child_mode: str
+    start_sibling_mode: str
     # Mode activation prefixes
-    start_fold_mode: str = "z"
-    start_leader_mode: str = "comma"
-    start_bang_mode: str = "exclamation_mark"
-    copy_tab_content: str = "percent_sign"
+    start_fold_mode: str
+    start_leader_mode: str
+    start_bang_mode: str
+    copy_tab_content: str
 
 
 @dataclass
@@ -351,11 +359,51 @@ _BUILTIN_MODE_CLASSES: dict[str, type[_ModeKeymaps]] = {
 BUILTIN_MODE_NAMES: frozenset[str] = frozenset(_BUILTIN_MODE_CLASSES)
 
 
+# ---------------------------------------------------------------------------
+# Defaults loader & module-level consistency checks
+# ---------------------------------------------------------------------------
+
+
+def _load_builtin_app_defaults() -> dict[str, str]:
+    """Load app-level keymap defaults from the bundled ``default_config.yml``.
+
+    This file is the **single source of truth** for default keybindings.
+    Adding a new field to ``_AppKeymaps`` without a corresponding entry in
+    ``default_config.yml`` will cause startup to fail.
+    """
+    ref = importlib.resources.files("sase").joinpath("default_config.yml")
+    text = ref.read_text(encoding="utf-8")
+    data = yaml.safe_load(text)
+    if not isinstance(data, dict):
+        msg = "default_config.yml is not a valid YAML mapping"
+        raise RuntimeError(msg)
+    app = data.get("ace", {}).get("keymaps", {}).get("app", {})
+    if not isinstance(app, dict):
+        msg = "default_config.yml missing ace.keymaps.app section"
+        raise RuntimeError(msg)
+    return {k: str(v) for k, v in app.items()}
+
+
+# Every _AppKeymaps field must have a _BINDING_META entry and vice versa.
+_BINDING_META_ACTIONS: frozenset[str] = frozenset(a for a, _, _ in _BINDING_META)
+_APP_KEYMAP_FIELDS: frozenset[str] = frozenset(f.name for f in fields(_AppKeymaps))
+
+if _BINDING_META_ACTIONS != _APP_KEYMAP_FIELDS:
+    _only_in_meta = sorted(_BINDING_META_ACTIONS - _APP_KEYMAP_FIELDS)
+    _only_in_keymaps = sorted(_APP_KEYMAP_FIELDS - _BINDING_META_ACTIONS)
+    _parts: list[str] = []
+    if _only_in_meta:
+        _parts.append(f"in _BINDING_META but not _AppKeymaps: {_only_in_meta}")
+    if _only_in_keymaps:
+        _parts.append(f"in _AppKeymaps but not _BINDING_META: {_only_in_keymaps}")
+    raise RuntimeError(f"_BINDING_META / _AppKeymaps mismatch — {'; '.join(_parts)}")
+
+
 @dataclass
 class KeymapRegistry:
     """Top-level container for all keymap configuration."""
 
-    app: _AppKeymaps = field(default_factory=_AppKeymaps)
+    app: _AppKeymaps
     modes: dict[str, _ModeKeymaps] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -413,49 +461,73 @@ def _deep_merge_keys(
 def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     """Build a ``KeymapRegistry`` from the ``ace`` config section.
 
+    All app-level keybindings must be defined in configuration files
+    (starting from ``default_config.yml``).  Missing bindings cause a
+    ``ValueError`` at startup — this ensures ``default_config.yml``
+    stays in sync with ``_AppKeymaps``.
+
     Args:
         ace_cfg: The ``ace`` dict from the merged config (may be empty).
 
     Returns:
-        Fully populated registry with defaults for any missing keys.
+        Fully populated registry with defaults for any missing overrides.
     """
+    # Load defaults from default_config.yml (single source of truth).
+    builtin_defaults = _load_builtin_app_defaults()
+    app_field_names = {f.name for f in fields(_AppKeymaps)}
+
+    # Fail loudly if default_config.yml doesn't cover every field.
+    missing_from_defaults = sorted(app_field_names - set(builtin_defaults.keys()))
+    if missing_from_defaults:
+        raise ValueError(
+            f"default_config.yml missing app keymaps: "
+            f"{', '.join(missing_from_defaults)}. "
+            f"Add these under ace.keymaps.app."
+        )
+
     keymaps_cfg = ace_cfg.get("keymaps", {})
     if not isinstance(keymaps_cfg, dict):
-        return KeymapRegistry()
+        keymaps_cfg = {}
 
     # --- App keymaps ---
     app_overrides = keymaps_cfg.get("app", {})
     if not isinstance(app_overrides, dict):
         app_overrides = {}
 
-    app_defaults = _AppKeymaps()
-    app_field_names = {f.name for f in fields(_AppKeymaps)}
+    # Warn about unknown keys in config.
+    extra = sorted(set(app_overrides.keys()) - app_field_names)
+    if extra:
+        log.warning(
+            "Unknown keymap action(s) in config (ignored): %s",
+            ", ".join(extra),
+        )
+
+    # Build kwargs: prefer merged config value, fall back to builtin default.
     app_kwargs: dict[str, str] = {}
     for fname in app_field_names:
         if fname in app_overrides and isinstance(app_overrides[fname], str):
             app_kwargs[fname] = app_overrides[fname]
         else:
-            app_kwargs[fname] = getattr(app_defaults, fname)
+            app_kwargs[fname] = builtin_defaults[fname]
 
     # --- Validate user-overridden keys ---
     user_overridden = {
         fname
         for fname in app_field_names
-        if fname in app_overrides
-        and isinstance(app_overrides[fname], str)
-        and app_overrides[fname] != getattr(app_defaults, fname)
+        if app_kwargs[fname] != builtin_defaults[fname]
     }
 
     # Invalid key validation: revert unrecognised keys to defaults.
     for fname in sorted(user_overridden):
         if not _is_valid_key(app_kwargs[fname]):
+            default_val = builtin_defaults[fname]
             log.warning(
                 "Invalid key %r for action %r; reverting to default %r",
                 app_kwargs[fname],
                 fname,
-                getattr(app_defaults, fname),
+                default_val,
             )
-            app_kwargs[fname] = getattr(app_defaults, fname)
+            app_kwargs[fname] = default_val
             user_overridden.discard(fname)
 
     # Duplicate key detection: revert user overrides that conflict.
@@ -470,7 +542,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         if not overridden:
             continue
         for fname in overridden:
-            default_val = getattr(app_defaults, fname)
+            default_val = builtin_defaults[fname]
             log.warning(
                 "Duplicate key %r: action %r conflicts with %s; "
                 "reverting to default %r",

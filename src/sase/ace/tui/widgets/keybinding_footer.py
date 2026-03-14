@@ -31,7 +31,7 @@ from textual.widgets import Static
 from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
-from ..keymaps import KeymapRegistry, footer_key_display
+from ..keymaps import KeymapRegistry, footer_key_display, load_keymap_registry
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -43,7 +43,7 @@ class KeybindingFooter(Horizontal):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the footer widget."""
         super().__init__(**kwargs)
-        self._registry = KeymapRegistry()
+        self._registry = load_keymap_registry({})
         self._axe_running: bool = False
         self._axe_starting: bool = False
         self._axe_stopping: bool = False

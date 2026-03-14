@@ -67,6 +67,7 @@ ace:
       next_query: "underscore"
       # Display / misc
       toggle_hide_reverted: "full_stop"
+      toggle_hide_submitted: "x"
       show_notifications: "N"
       show_help: "question_mark"
       browse_xprompts: "number_sign"

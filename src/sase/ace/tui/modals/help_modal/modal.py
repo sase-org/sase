@@ -15,7 +15,7 @@ from ..base import CopyModeForwardingMixin
 if TYPE_CHECKING:
     from ...app import AceApp
 
-from ...keymaps import KeymapRegistry, key_display_name
+from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from .bindings import (
     COLUMN_SPLITS,
     CONTENT_WIDTH,
@@ -156,7 +156,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         try:
             return cast("AceApp", self.app)._keymap_registry
         except Exception:
-            return KeymapRegistry()
+            return load_keymap_registry({})
 
     def _get_bindings_for_tab(
         self,

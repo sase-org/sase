@@ -7,7 +7,7 @@ from textual.events import Click
 from textual.message import Message
 from textual.widgets import Static
 
-from ..keymaps import KeymapRegistry, key_display_name
+from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -23,7 +23,7 @@ class TabBar(Static):
             self.tab = tab
 
     def __init__(self, **kwargs: Any) -> None:
-        self._registry = KeymapRegistry()
+        self._registry = load_keymap_registry({})
         self._current_tab: TabName = "changespecs"
         self._cls_main_count: int = 0
         self._cls_hidden_count: int = 0

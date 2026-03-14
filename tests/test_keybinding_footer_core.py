@@ -96,10 +96,16 @@ def test_keybinding_footer_accept_hidden_without_proposals() -> None:
 
 def test_keybinding_footer_custom_registry_changes_keys() -> None:
     """Test that a non-default registry changes the displayed keys."""
-    from sase.ace.tui.keymaps import KeymapRegistry, _AppKeymaps
+    from sase.ace.tui.keymaps import (
+        KeymapRegistry,
+        _AppKeymaps,
+        _load_builtin_app_defaults,
+    )
 
     footer = KeybindingFooter()
-    custom_app = _AppKeymaps(accept_proposal="Z", show_diff="D")
+    kwargs = _load_builtin_app_defaults()
+    kwargs.update(accept_proposal="Z", show_diff="D")
+    custom_app = _AppKeymaps(**kwargs)
     footer.set_keymap_registry(KeymapRegistry(app=custom_app))
 
     commits = [CommitEntry(number=1, note="Test", proposal_letter="a")]
@@ -116,10 +122,16 @@ def test_keybinding_footer_custom_registry_changes_keys() -> None:
 
 def test_keybinding_footer_custom_registry_axe_key() -> None:
     """Test that remapped kill_agent key appears in axe bindings."""
-    from sase.ace.tui.keymaps import KeymapRegistry, _AppKeymaps
+    from sase.ace.tui.keymaps import (
+        KeymapRegistry,
+        _AppKeymaps,
+        _load_builtin_app_defaults,
+    )
 
     footer = KeybindingFooter()
-    custom_app = _AppKeymaps(kill_agent="K")
+    kwargs = _load_builtin_app_defaults()
+    kwargs.update(kill_agent="K")
+    custom_app = _AppKeymaps(**kwargs)
     footer.set_keymap_registry(KeymapRegistry(app=custom_app))
 
     bindings = footer._compute_axe_bindings("axe")

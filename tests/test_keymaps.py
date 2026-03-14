@@ -1,24 +1,35 @@
 """Tests for the ace TUI keymap registry."""
 
+from dataclasses import fields
+
 from sase.ace.tui.keymaps import (
     KeymapRegistry,
+    _BINDING_META,
     _AppKeymaps,
     _BangModeKeymaps,
     _CopyModeKeymaps,
     _FoldModeKeymaps,
     _LeaderModeKeymaps,
     _ModeKeymaps,
+    _load_builtin_app_defaults,
     build_app_bindings,
     key_display_name,
     load_keymap_registry,
 )
 
 
+def _default_app_keymaps(**overrides: str) -> _AppKeymaps:
+    """Create an _AppKeymaps using builtin defaults, with optional overrides."""
+    kwargs = _load_builtin_app_defaults()
+    kwargs.update(overrides)
+    return _AppKeymaps(**kwargs)
+
+
 # --- load_keymap_registry ---
 
 
-def test_empty_config_returns_defaults() -> None:
-    """Empty config produces a registry with all default values."""
+def test_empty_config_uses_builtin_defaults() -> None:
+    """Empty config uses defaults from default_config.yml."""
     reg = load_keymap_registry({})
     assert reg.app.next_changespec == "j"
     assert reg.app.quit == "q"
@@ -153,7 +164,7 @@ def test_unknown_mode_becomes_generic() -> None:
 
 
 def test_non_dict_keymaps_config() -> None:
-    """Non-dict keymaps config falls back to defaults."""
+    """Non-dict keymaps config falls back to builtin defaults."""
     reg = load_keymap_registry({"keymaps": "invalid"})
     assert reg.app.next_changespec == "j"
     assert isinstance(reg.fold_mode, _FoldModeKeymaps)
@@ -164,13 +175,13 @@ def test_non_dict_keymaps_config() -> None:
 
 def test_build_app_bindings_count() -> None:
     """build_app_bindings produces 69 configurable + 10 digit = 79 bindings."""
-    bindings = build_app_bindings(_AppKeymaps())
+    bindings = build_app_bindings(_default_app_keymaps())
     assert len(bindings) == 79
 
 
 def test_build_app_bindings_priority() -> None:
     """next_tab and prev_tab have priority=True, others don't."""
-    bindings = build_app_bindings(_AppKeymaps())
+    bindings = build_app_bindings(_default_app_keymaps())
     by_action = {b.action: b for b in bindings}
     assert by_action["next_tab"].priority is True
     assert by_action["prev_tab"].priority is True
@@ -180,7 +191,7 @@ def test_build_app_bindings_priority() -> None:
 
 def test_build_app_bindings_uses_config_keys() -> None:
     """Bindings reflect overridden keys from _AppKeymaps."""
-    km = _AppKeymaps(next_changespec="n", quit="Q")
+    km = _default_app_keymaps(next_changespec="n", quit="Q")
     bindings = build_app_bindings(km)
     by_action = {b.action: b for b in bindings}
     assert by_action["next_changespec"].key == "n"
@@ -189,7 +200,7 @@ def test_build_app_bindings_uses_config_keys() -> None:
 
 def test_build_app_bindings_digit_keys() -> None:
     """Digit bindings 0-9 are always appended."""
-    bindings = build_app_bindings(_AppKeymaps())
+    bindings = build_app_bindings(_default_app_keymaps())
     digit_actions = [b for b in bindings if b.action.startswith("load_saved_query")]
     assert len(digit_actions) == 10
     digit_keys = {b.key for b in digit_actions}
@@ -233,8 +244,26 @@ def test_key_display_passthrough() -> None:
 
 def test_registry_default_modes_always_present() -> None:
     """KeymapRegistry always has all four built-in modes."""
-    reg = KeymapRegistry()
+    reg = KeymapRegistry(app=_default_app_keymaps())
     assert "fold_mode" in reg.modes
     assert "copy_mode" in reg.modes
     assert "leader_mode" in reg.modes
     assert "bang_mode" in reg.modes
+
+
+# --- Source-of-truth consistency ---
+
+
+def test_default_config_covers_all_app_keymaps() -> None:
+    """default_config.yml must define every _AppKeymaps field."""
+    defaults = _load_builtin_app_defaults()
+    field_names = {f.name for f in fields(_AppKeymaps)}
+    missing = field_names - set(defaults.keys())
+    assert not missing, f"default_config.yml missing: {sorted(missing)}"
+
+
+def test_binding_meta_matches_app_keymaps() -> None:
+    """_BINDING_META must cover exactly _AppKeymaps fields."""
+    meta_actions = {a for a, _, _ in _BINDING_META}
+    field_names = {f.name for f in fields(_AppKeymaps)}
+    assert meta_actions == field_names
