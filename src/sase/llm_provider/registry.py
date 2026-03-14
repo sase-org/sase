@@ -16,6 +16,8 @@ _MODEL_TO_PROVIDER: dict[str, str] = {
     "sonnet": "claude",
     "haiku": "claude",
     # Codex / OpenAI models
+    "gpt-5.3-codex": "codex",
+    "codex-mini-latest": "codex",
     "o3": "codex",
     "o4-mini": "codex",
     "gpt-5.4": "codex",

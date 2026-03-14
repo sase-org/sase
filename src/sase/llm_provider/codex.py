@@ -28,8 +28,8 @@ from .types import ModelTier
 
 # Map model tiers to Codex model names
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "gpt-5.4",
-    "small": "o4-mini",
+    "large": "gpt-5.3-codex",
+    "small": "codex-mini-latest",
 }
 
 # Maximum number of plan feedback retry rounds before giving up

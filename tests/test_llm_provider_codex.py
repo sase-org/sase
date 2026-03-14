@@ -19,9 +19,9 @@ def test_codex_provider_is_llm_provider() -> None:
 def test_codex_provider_resolve_model_name() -> None:
     """Test that CodexProvider.resolve_model_name() returns correct names."""
     provider = CodexProvider()
-    assert provider.resolve_model_name() == "gpt-5.4"
-    assert provider.resolve_model_name("large") == "gpt-5.4"
-    assert provider.resolve_model_name("small") == "o4-mini"
+    assert provider.resolve_model_name() == "gpt-5.3-codex"
+    assert provider.resolve_model_name("large") == "gpt-5.3-codex"
+    assert provider.resolve_model_name("small") == "codex-mini-latest"
 
 
 @patch.dict(os.environ, {"SASE_CODEX_SMALL_ARGS": "--max-tokens 2000"})
@@ -89,7 +89,7 @@ def test_codex_provider_model_override(
     call_args = mock_popen.call_args
     cmd = call_args[0][0]
     assert "custom-model" in cmd
-    assert "gpt-5.4" not in cmd
+    assert "gpt-5.3-codex" not in cmd
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
@@ -113,7 +113,7 @@ def test_codex_provider_normal_mode_command_construction(
     assert cmd[0] == "codex"
     assert cmd[1] == "exec"
     assert "--model" in cmd
-    assert "gpt-5.4" in cmd
+    assert "gpt-5.3-codex" in cmd
     assert "--dangerously-bypass-approvals-and-sandbox" in cmd
     assert "--json" in cmd
     assert "--color" in cmd
