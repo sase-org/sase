@@ -137,7 +137,7 @@ def test_paren_double_colon_shorthand_empty_parens() -> None:
 
 # Build a test pattern that matches #gh, #hg, #git tags
 _TEST_VCS_PATTERN = re.compile(
-    r"^#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|:[^\s]*|)\s"
+    r"^#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
 )
 
 
@@ -197,6 +197,18 @@ def test_extract_vcs_workflow_tag_empty() -> None:
     """Test returns None for empty prompt."""
     with _patch_vcs_pattern():
         assert extract_vcs_workflow_tag("") is None
+
+
+def test_extract_vcs_workflow_tag_underscore() -> None:
+    """Test extracting a VCS tag with underscore separator (#gh_sase)."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("#gh_sase Fix the bug") == "#gh_sase "
+
+
+def test_extract_vcs_workflow_tag_underscore_git() -> None:
+    """Test extracting a VCS tag with underscore separator for git."""
+    with _patch_vcs_pattern():
+        assert extract_vcs_workflow_tag("#git_myrepo Do stuff") == "#git_myrepo "
 
 
 # Tests for strip_vcs_workflow_tag
