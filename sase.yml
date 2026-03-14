@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=config/sase.schema.json
 xprompts:
   bd/next:
     input:
