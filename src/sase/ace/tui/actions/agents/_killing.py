@@ -465,13 +465,23 @@ class AgentKillingMixin:
             self.notify("No agents to dismiss", severity="warning")  # type: ignore[attr-defined]
             return
 
+        # Build description similar to ConfirmKillModal format
+        count = len(dismissable)
+        s = "s" if count != 1 else ""
+        desc_parts = [f"Count: {count} agent{s}"]
+        for agent in dismissable:
+            name = agent.display_name
+            suffix = f" @{agent.agent_name}" if agent.agent_name else ""
+            desc_parts.append(f"  {name}{suffix}")
+        agent_description = "\n".join(desc_parts)
+
         from ...modals import ConfirmDismissAllModal
 
         def on_dismiss(confirmed: bool | None) -> None:
             if confirmed:
                 self._do_dismiss_all(dismissable)
 
-        self.push_screen(ConfirmDismissAllModal(len(dismissable)), on_dismiss)  # type: ignore[attr-defined]
+        self.push_screen(ConfirmDismissAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 
     def _do_dismiss_all(self, agents: list[Agent]) -> None:
         """Perform batch dismissal of done/failed agents."""

@@ -16,22 +16,21 @@ class ConfirmDismissAllModal(ModalScreen[bool]):
         ("n", "cancel", "No"),
     ]
 
-    def __init__(self, count: int) -> None:
+    def __init__(self, agent_description: str) -> None:
         """Initialize the confirm dismiss-all modal.
 
         Args:
-            count: Number of agents that will be dismissed.
+            agent_description: Description of the agents to dismiss.
         """
         super().__init__()
-        self.count = count
+        self.agent_description = agent_description
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
-        s = "s" if self.count != 1 else ""
         with Container():
-            yield Label("Dismiss All Agents", id="modal-title")
+            yield Label("Confirm Dismiss All", id="modal-title")
             yield Label(
-                f"Dismiss {self.count} completed agent{s}?",
+                f"Are you sure you want to dismiss these agents?\n\n{self.agent_description}",
                 id="confirm-message",
             )
             with Horizontal():
