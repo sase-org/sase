@@ -359,7 +359,7 @@ def execute_workflow(
         if flattened is not None:
             workflow, positional_args, named_args = flattened
         # Sync name — _flatten may rename the workflow even when not flattening
-        # (e.g., prompt_part workflows like #resume get named but not replaced)
+        # (e.g., prompt_part workflows like #resume_by_chat get named but not replaced)
         name = workflow.name
 
     # Compile-time validation with error state on failure

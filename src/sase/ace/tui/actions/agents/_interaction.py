@@ -261,7 +261,7 @@ class AgentInteractionMixin:
 
         if agent.status not in DISMISSABLE_STATUSES and agent.agent_name:
             name = agent.agent_name
-            prefix = f"#resume_by_name:{name} %w:{name} "
+            prefix = f"#resume:{name} %w:{name} "
 
             from sase.xprompt import extract_vcs_workflow_tag
 
@@ -287,7 +287,7 @@ class AgentInteractionMixin:
             return
 
         chat_path = agent.response_path
-        prefix = f"#resume:{chat_path} "
+        prefix = f"#resume_by_chat:{chat_path} "
 
         from sase.chat_history import extract_prompt_from_chat_file
         from sase.xprompt import extract_vcs_workflow_tag
