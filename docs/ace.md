@@ -30,7 +30,7 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 ```bash
 sase ace                              # Last query or "!!!"
 sase ace '"feature" AND "Drafted"'    # Filter by name and status
-sase ace '@myproject'                 # Filter by project
+sase ace '+myproject'                 # Filter by project
 sase ace -m small -r 30 '!!! OR @@@' # Small model, 30s refresh
 ```
 
@@ -169,6 +169,7 @@ The modal supports live filtering as you type in the search box and displays las
 | ------------------- | ------------------------------------------------------------ |
 | `@`                 | Run custom agent                                             |
 | `a`                 | Toggle auto-approve / answer HITL                            |
+| `m`                 | Send message to running agent (mid-execution interrupt)      |
 | `n`                 | Name agent                                                   |
 | `r`                 | Resume agent (by name if running, by chat file if completed) |
 | `v`                 | View files (hint mode)                                       |
@@ -381,6 +382,21 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   from the artifacts directory after completion
 
 When the file or thinking panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
+
+## Mid-Execution User Interrupt
+
+Press `m` on the Agents tab with a running agent selected to send a message to it mid-execution. A modal dialog appears
+where you can type your message and press `Enter` to send (or `Esc` to cancel).
+
+When a message is sent:
+
+1. The agent's current LLM subprocess is terminated
+2. The LLM provider resumes execution with the user's message injected into the conversation
+3. For Claude Code, the same session ID is reused so the message becomes a follow-up turn
+4. For Gemini, the prompt is reconstructed with the accumulated response so far plus the user's message
+
+Only agents in an interruptable status (RUNNING, PLAN APPROVED, PLANNING, WAITING, QUESTION) can receive messages.
+Interrupt events are logged to `interrupt_log.jsonl` in the agent's artifacts directory.
 
 ## Custom Keymaps
 
