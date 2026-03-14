@@ -246,7 +246,7 @@ class AgentInteractionMixin:
             self.notify("No content to edit", severity="warning")  # type: ignore[attr-defined]
 
     def action_resume_agent(self) -> None:
-        """Resume a DONE agent's conversation with a new prompt."""
+        """Resume a DONE agent's conversation, or queue resume for a running named agent."""
         if self.current_tab != "agents":
             return
 
@@ -255,6 +255,28 @@ class AgentInteractionMixin:
             return
 
         agent = self._agents[self.current_idx]
+
+        # Running named agents: use resume_by_name with %w to wait for completion
+        from ._core import DISMISSABLE_STATUSES
+
+        if agent.status not in DISMISSABLE_STATUSES and agent.agent_name:
+            name = agent.agent_name
+            prefix = f"#resume_by_name:{name} %w:{name} "
+
+            from sase.xprompt import extract_vcs_workflow_tag
+
+            raw_content = agent.get_raw_xprompt_content()
+            if raw_content:
+                vcs_tag = extract_vcs_workflow_tag(raw_content)
+                if vcs_tag:
+                    prefix = f"{vcs_tag}{prefix}"
+
+            self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                initial_text=prefix,
+                display_name=f"resume({name})",
+                history_sort_key=agent.cl_name or "resume",
+            )
+            return
 
         if agent.status != "DONE":
             self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]
