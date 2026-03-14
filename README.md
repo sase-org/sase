@@ -28,45 +28,29 @@ infrastructure that turns individual agent runs into a managed software engineer
 
 ## Vision
 
-Coding agents are powerful — but **using them in a real engineering workflow is still painful.**
+**Coding agents changed what's possible. They didn't change what's hard.**
 
-Running a single agent on a single task works fine. The problems start when you try to do it repeatedly, across multiple
-changes, with any kind of structure. sase exists to solve the coordination problems that show up at that point:
+The first time you point an agent at a bug and watch it fix itself — that's magic. The hundredth time, it's Tuesday. And
+by then you've noticed the real problems aren't about the agent. They're about everything _around_ it.
 
-> **Scheduling** — Agent runs are hard to schedule, monitor, and resume reliably.
->
-> **Prompt Logic** — Multi-step prompt pipelines get fragile fast when they're scattered across shell scripts and
-> scratch files.
->
-> **Tracking** — Work gets lost without a first-class unit for status, ownership, metadata, and review state.
->
-> **Portability** — Teams need one system above the agent layer, not a separate workflow for every provider.
->
-> **Supervision** — Automation still needs human checkpoints, VCS integration, and reproducible execution.
+Your prompts live in shell history. Your agent runs are fire-and-forget terminal sessions. You're tracking status in
+your head, context-switching between provider CLIs, and hoping that the thing you kicked off an hour ago didn't silently
+drift off-task. There's no audit trail, no handoff path, no way to replay what happened or build on it systematically.
 
----
+This is the gap between _using an agent_ and _running an engineering operation with agents._ sase fills it — not by
+making agents smarter, but by giving agent-driven engineering the same infrastructure that human-driven engineering has
+had for decades:
 
-<table>
-<tr><th>Before sase</th><th>After sase</th></tr>
-<tr>
-<td>
+| What you need                                          | What sase provides                                                            |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| A unit of work with status, ownership, and history     | **ChangeSpec** — tracked lifecycle from draft to submission                   |
+| Reproducible multi-step prompt pipelines               | **Workflows** — YAML-defined DAGs with agent, bash, and python steps          |
+| A way to see, filter, and act on everything in flight  | **ACE** — interactive TUI for navigating and supervising changes              |
+| Background scheduling that doesn't need babysitting    | **AXE** — daemon for continuous, configurable automation                      |
+| One system above the agent layer, not one per provider | **Agent-agnostic** — swap Claude, Codex, or Gemini without rewriting anything |
 
-Prompts live in shell history and scratch files. Each agent run is a one-off terminal session. Status is tracked in your
-head (or not at all). Switching agents means rewriting your wrapper scripts. There's no audit trail and no way to hand
-work off to a teammate.
-
-</td>
-<td>
-
-**ChangeSpecs** give each unit of work a tracked lifecycle. **Workflows** define reproducible multi-step pipelines.
-**ACE** provides the operational layer for navigating and supervising changes. **AXE** handles background scheduling.
-The whole system is agent-agnostic — swap providers without rewriting your workflow definitions.
-
-</td>
-</tr>
-</table>
-
-The goal isn't to make agents smarter. It's to make **agent-driven software engineering dependable.**
+The end state isn't "agents that write better code." It's **engineering teams where agent-driven work is as auditable,
+resumable, and trustworthy as the work humans do by hand.**
 
 ## Key Features
 
