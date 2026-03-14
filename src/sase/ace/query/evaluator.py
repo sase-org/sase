@@ -417,6 +417,49 @@ def query_explicitly_targets_terminal(
     return _check_expr(expr)
 
 
+def query_explicitly_targets_submitted(
+    expr: QueryExpr,
+    all_changespecs: list[ChangeSpec] | None = None,
+) -> bool:
+    """Check if query explicitly references Submitted status ChangeSpecs.
+
+    Used to determine whether to auto-disable the hide_submitted filter.
+    Returns True if the query contains status:submitted, or name:/ancestor:/sibling:
+    references to a ChangeSpec with Submitted status.
+
+    Args:
+        expr: The parsed query expression.
+        all_changespecs: List of all ChangeSpecs for name/ancestor lookups.
+
+    Returns:
+        True if the query explicitly targets Submitted status ChangeSpecs.
+    """
+    status_map: dict[str, str] = {}
+    if all_changespecs:
+        for cs in all_changespecs:
+            status_map[cs.name.lower()] = _get_base_status(cs.status)
+
+    def _check_expr(e: QueryExpr) -> bool:
+        if isinstance(e, PropertyMatch):
+            if e.key == "status" and e.value.lower() == "submitted":
+                return True
+            if e.key in ("name", "ancestor", "sibling"):
+                ref_status = status_map.get(e.value.lower(), "")
+                if ref_status == "Submitted":
+                    return True
+            return False
+        elif isinstance(e, NotExpr):
+            return False
+        elif isinstance(e, AndExpr):
+            return any(_check_expr(op) for op in e.operands)
+        elif isinstance(e, OrExpr):
+            return any(_check_expr(op) for op in e.operands)
+        else:
+            return False
+
+    return _check_expr(expr)
+
+
 def evaluate_query(
     query: QueryExpr,
     changespec: ChangeSpec,

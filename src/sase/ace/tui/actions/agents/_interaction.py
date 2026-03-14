@@ -25,6 +25,9 @@ class AgentInteractionMixin:
 
     def action_kill_agent(self) -> None:
         """Kill or dismiss agent, or toggle/kill axe on AXE tab."""
+        if self.current_tab == "changespecs":
+            self.action_toggle_hide_submitted()  # type: ignore[attr-defined]
+            return
         if self.current_tab == "axe":
             self._toggle_or_kill_axe_view()  # type: ignore[attr-defined]
             return

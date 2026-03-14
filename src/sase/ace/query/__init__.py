@@ -30,6 +30,7 @@ Precedence (tightest to loosest):
 
 from .evaluator import (
     evaluate_query,
+    query_explicitly_targets_submitted,
     query_explicitly_targets_terminal,
 )
 from .parser import QueryParseError, parse_query
@@ -49,6 +50,7 @@ __all__ = [
     "QueryParseError",
     # Evaluator
     "evaluate_query",
+    "query_explicitly_targets_submitted",
     "query_explicitly_targets_terminal",
     # Types
     "QueryExpr",

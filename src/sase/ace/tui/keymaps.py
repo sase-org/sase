@@ -97,6 +97,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("start_child_mode", "Child", False),
     ("start_sibling_mode", "Sibling", False),
     ("toggle_hide_reverted", "Toggle Reverted", False),
+    ("toggle_hide_submitted", "Toggle Submitted", False),
     ("start_leader_mode", "Leader", False),
     ("next_agent_file", "Next File", False),
     ("prev_agent_file", "Prev File", False),
@@ -235,6 +236,7 @@ class _AppKeymaps:
     next_query: str = "underscore"
     # Display / misc
     toggle_hide_reverted: str = "full_stop"
+    toggle_hide_submitted: str = "x"
     show_notifications: str = "N"
     show_help: str = "question_mark"
     browse_xprompts: str = "number_sign"

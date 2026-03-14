@@ -23,14 +23,18 @@ _PREFIX_CHAR_COLORS: dict[str, str] = {
 
 
 def _calculate_entry_display_width(
-    changespec: ChangeSpec, is_marked: bool, show_hideable: bool = False
+    changespec: ChangeSpec,
+    is_marked: bool,
+    show_hideable: bool = False,
+    show_submitted: bool = False,
 ) -> int:
     """Calculate display width of a ChangeSpec entry in terminal cells.
 
     Args:
         changespec: The ChangeSpec to measure
         is_marked: Whether this ChangeSpec is marked
-        show_hideable: Whether hideable indicator is shown
+        show_hideable: Whether hideable indicator is shown for reverted/archived
+        show_submitted: Whether hideable indicator is shown for submitted
 
     Returns:
         Width in terminal cells
@@ -38,10 +42,10 @@ def _calculate_entry_display_width(
     indicator, _ = _get_status_indicator(changespec)
     # Format: "◌ [✓] [{indicator}] {name} ({cl})" (with prefixes as applicable)
     parts = []
-    if show_hideable and get_base_status(changespec.status) in (
-        "Reverted",
-        "Archived",
-    ):
+    base_status = get_base_status(changespec.status)
+    if show_hideable and base_status in ("Reverted", "Archived"):
+        parts.append("\u25cc ")
+    elif show_submitted and base_status == "Submitted":
         parts.append("\u25cc ")
     if is_marked:
         parts.append("[✓] ")
@@ -130,6 +134,7 @@ class ChangeSpecList(OptionList):
         current_idx: int,
         marked_indices: set[int] | None = None,
         hide_reverted: bool = True,
+        hide_submitted: bool = True,
     ) -> None:
         """Update the list with new changespecs.
 
@@ -138,12 +143,14 @@ class ChangeSpecList(OptionList):
             current_idx: Index of currently selected ChangeSpec
             marked_indices: Set of indices that are marked
             hide_reverted: Whether reverted CLs are currently hidden
+            hide_submitted: Whether submitted CLs are currently hidden
         """
         self._programmatic_update = True
         self._marked_indices = marked_indices or set()
         self._changespecs = changespecs
-        # When not hiding reverted, show ◌ prefix on reverted/archived CLs
+        # When not hiding, show ◌ prefix on the relevant CLs
         show_hideable = not hide_reverted
+        show_submitted = not hide_submitted
         self.clear_options()
 
         max_width = 0
@@ -154,10 +161,14 @@ class ChangeSpecList(OptionList):
                 is_selected=(i == current_idx),
                 is_marked=is_marked,
                 show_hideable=show_hideable,
+                show_submitted=show_submitted,
             )
             self.add_option(option)
             width = _calculate_entry_display_width(
-                cs, is_marked=is_marked, show_hideable=show_hideable
+                cs,
+                is_marked=is_marked,
+                show_hideable=show_hideable,
+                show_submitted=show_submitted,
             )
             max_width = max(max_width, width)
 
@@ -183,6 +194,7 @@ class ChangeSpecList(OptionList):
         is_selected: bool,
         is_marked: bool,
         show_hideable: bool = False,
+        show_submitted: bool = False,
     ) -> Option:
         """Format a ChangeSpec as an option for display.
 
@@ -191,6 +203,7 @@ class ChangeSpecList(OptionList):
             is_selected: Whether this is the currently selected item
             is_marked: Whether this item is marked
             show_hideable: Whether to show ◌ prefix for reverted/archived CLs
+            show_submitted: Whether to show ◌ prefix for submitted CLs
 
         Returns:
             An Option for the OptionList
@@ -198,11 +211,11 @@ class ChangeSpecList(OptionList):
         text = Text()
 
         # Hideable indicator for reverted/archived CLs when visible
-        if show_hideable and get_base_status(changespec.status) in (
-            "Reverted",
-            "Archived",
-        ):
+        base_status = get_base_status(changespec.status)
+        if show_hideable and base_status in ("Reverted", "Archived"):
             text.append("\u25cc ", style="bold #FF5F87")
+        elif show_submitted and base_status == "Submitted":
+            text.append("\u25cc ", style="bold #00AF00")
 
         # Mark indicator (green checkmark)
         if is_marked:

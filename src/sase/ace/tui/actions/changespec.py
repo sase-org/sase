@@ -28,6 +28,7 @@ class ChangeSpecMixin:
     commits_collapsed: FoldLevel
     mentors_collapsed: FoldLevel
     hide_reverted: bool
+    hide_submitted: bool
     marked_indices: set[int]
     _hint_mode_active: bool
     _hint_mode_hints_for: str | None
@@ -43,6 +44,8 @@ class ChangeSpecMixin:
     _sibling_keys: dict[str, str]
     _hidden_reverted_count: int
     _query_reverted_count: int
+    _hidden_submitted_count: int
+    _query_submitted_count: int
     _axe_cmds_hidden: bool
 
     def _load_changespecs(self) -> None:
@@ -67,9 +70,13 @@ class ChangeSpecMixin:
         self._refresh_display()
 
     def _filter_changespecs(self, changespecs: list[ChangeSpec]) -> list[ChangeSpec]:
-        """Filter changespecs using the parsed query and hide_reverted setting."""
+        """Filter changespecs using the parsed query and hide settings."""
         from ...changespec import get_base_status
-        from ...query import evaluate_query, query_explicitly_targets_terminal
+        from ...query import (
+            evaluate_query,
+            query_explicitly_targets_submitted,
+            query_explicitly_targets_terminal,
+        )
 
         # First apply the query filter
         result = [
@@ -78,22 +85,37 @@ class ChangeSpecMixin:
             if evaluate_query(self.parsed_query, cs, changespecs)
         ]
 
-        # Count reverted/archived in query results (for tab bar suffix)
-        self._query_reverted_count = sum(
-            1 for cs in result if get_base_status(cs.status) in ("Reverted", "Archived")
+        # Count reverted/archived and submitted in query results (for tab bar)
+        self._query_reverted_count = 0
+        self._query_submitted_count = 0
+        for cs in result:
+            base_status = get_base_status(cs.status)
+            if base_status in ("Reverted", "Archived"):
+                self._query_reverted_count += 1
+            elif base_status == "Submitted":
+                self._query_submitted_count += 1
+
+        # Determine effective hide settings (disabled if query targets them)
+        effective_hide_reverted = (
+            self.hide_reverted
+            and not query_explicitly_targets_terminal(self.parsed_query, changespecs)
+        )
+        effective_hide_submitted = (
+            self.hide_submitted
+            and not query_explicitly_targets_submitted(self.parsed_query, changespecs)
         )
 
-        # Check if we should filter out terminal statuses (Reverted/Archived)
-        # (only if hide_reverted is True AND query doesn't explicitly target them)
+        # Filter out hidden statuses
         self._hidden_reverted_count = 0
-        if self.hide_reverted and not query_explicitly_targets_terminal(
-            self.parsed_query, changespecs
-        ):
+        self._hidden_submitted_count = 0
+        if effective_hide_reverted or effective_hide_submitted:
             filtered: list[ChangeSpec] = []
             for cs in result:
                 base_status = get_base_status(cs.status)
-                if base_status in ("Reverted", "Archived"):
+                if effective_hide_reverted and base_status in ("Reverted", "Archived"):
                     self._hidden_reverted_count += 1
+                elif effective_hide_submitted and base_status == "Submitted":
+                    self._hidden_submitted_count += 1
                 else:
                     filtered.append(cs)
             result = filtered
@@ -314,17 +336,25 @@ class ChangeSpecMixin:
         """Update the CLs tab bar label with current ChangeSpec counts."""
         from ..widgets import TabBar
 
-        show_hidden = not self.hide_reverted
-        if show_hidden:
-            main = len(self.changespecs) - self._query_reverted_count
-            hidden = self._query_reverted_count
-        else:
-            main = len(self.changespecs)
-            hidden = self._query_reverted_count
+        show_reverted = not self.hide_reverted
+        show_submitted = not self.hide_submitted
+
+        # Main count: total displayed minus any visible special statuses
+        main = len(self.changespecs)
+        if show_reverted:
+            main -= self._query_reverted_count
+        if show_submitted:
+            main -= self._query_submitted_count
 
         try:
             tab_bar = self.query_one("#tab-bar", TabBar)  # type: ignore[attr-defined]
-            tab_bar.update_cls_count(main, hidden, show_hidden=show_hidden)
+            tab_bar.update_cls_count(
+                main,
+                self._query_reverted_count,
+                show_hidden=show_reverted,
+                submitted_count=self._query_submitted_count,
+                show_submitted=show_submitted,
+            )
         except Exception:
             pass
 
@@ -352,6 +382,7 @@ class ChangeSpecMixin:
             self.current_idx,
             self.marked_indices,
             hide_reverted=self.hide_reverted,
+            hide_submitted=self.hide_submitted,
         )
         search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
 
@@ -518,4 +549,11 @@ class ChangeSpecMixin:
         if self.current_tab != "changespecs":
             return
         self.hide_reverted = not self.hide_reverted
+        self._reload_and_reposition()
+
+    def action_toggle_hide_submitted(self) -> None:
+        """Toggle visibility of submitted CLs."""
+        if self.current_tab != "changespecs":
+            return
+        self.hide_submitted = not self.hide_submitted
         self._reload_and_reposition()

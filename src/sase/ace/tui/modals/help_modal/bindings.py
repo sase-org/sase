@@ -179,6 +179,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.toggle_hide_submitted), "Show/hide submitted CLs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted CLs"),
                 (d(a.browse_xprompts), "Browse xprompts"),
                 (d(a.show_notifications), "Show notifications"),

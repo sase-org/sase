@@ -28,6 +28,8 @@ class TabBar(Static):
         self._cls_main_count: int = 0
         self._cls_hidden_count: int = 0
         self._cls_show_hidden: bool = False
+        self._cls_submitted_count: int = 0
+        self._cls_show_submitted: bool = False
         self._agents_manual_count: int = 0
         self._agents_hidden_count: int = 0
         self._agents_done_count: int = 0
@@ -63,22 +65,30 @@ class TabBar(Static):
         hidden_count: int,
         *,
         show_hidden: bool,
+        submitted_count: int = 0,
+        show_submitted: bool = False,
     ) -> None:
         """Update the ChangeSpec counts shown on the CLs tab label.
 
         Args:
-            main_count: Number of non-reverted ChangeSpecs matching query.
+            main_count: Number of non-reverted/non-submitted ChangeSpecs matching query.
             hidden_count: Number of reverted/archived ChangeSpecs matching query.
             show_hidden: Whether reverted/archived are currently visible.
+            submitted_count: Number of submitted ChangeSpecs matching query.
+            show_submitted: Whether submitted are currently visible.
         """
         if (
             self._cls_main_count != main_count
             or self._cls_hidden_count != hidden_count
             or self._cls_show_hidden != show_hidden
+            or self._cls_submitted_count != submitted_count
+            or self._cls_show_submitted != show_submitted
         ):
             self._cls_main_count = main_count
             self._cls_hidden_count = hidden_count
             self._cls_show_hidden = show_hidden
+            self._cls_submitted_count = submitted_count
+            self._cls_show_submitted = show_submitted
             self._refresh_content()
 
     def update_agents_count(
@@ -145,11 +155,16 @@ class TabBar(Static):
 
         # CLs tab
         cl_start = 0
+        submitted_key = key_display_name(self._registry.app.toggle_hide_submitted)
         m = str(self._cls_main_count) if self._cls_main_count > 0 else ""
+        # Build suffix parts: M, then xN (submitted), then .H (reverted)
+        suffix = m
+        if self._cls_show_submitted and self._cls_submitted_count > 0:
+            suffix += f"{submitted_key}{self._cls_submitted_count}"
         if self._cls_show_hidden and self._cls_hidden_count > 0:
-            cl_label = f" CLs ({m}{hide_key}{self._cls_hidden_count}) "
-        elif self._cls_main_count > 0:
-            cl_label = f" CLs ({m}) "
+            suffix += f"{hide_key}{self._cls_hidden_count}"
+        if suffix:
+            cl_label = f" CLs ({suffix}) "
         else:
             cl_label = " CLs "
         cl_base = (

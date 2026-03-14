@@ -186,8 +186,9 @@ class AceApp(
         Binding("<", "start_ancestor_mode", "Ancestor", show=False),
         Binding(">", "start_child_mode", "Child", show=False),
         Binding("~", "start_sibling_mode", "Sibling", show=False),
-        # Hide/show reverted
+        # Hide/show reverted/submitted
         Binding("full_stop", "toggle_hide_reverted", "Toggle Reverted", show=False),
+        Binding("x", "toggle_hide_submitted", "Toggle Submitted", show=False),
         # Leader mode (for quick shortcuts)
         Binding("comma", "start_leader_mode", "Leader", show=False),
         # File cycling (agents tab)
@@ -215,6 +216,7 @@ class AceApp(
     current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
     axe_running: reactive[bool] = reactive(False, recompose=False)
     hide_reverted: reactive[bool] = reactive(True, recompose=False)
+    hide_submitted: reactive[bool] = reactive(True, recompose=False)
     hide_non_run_agents: reactive[bool] = reactive(True, recompose=False)
     marked_indices: reactive[set[int]] = reactive(set, recompose=False)
 
