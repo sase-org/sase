@@ -108,7 +108,7 @@ Chezmoi iles related to sase that I know about:
   VCS providers, respectively.
 - The ../sase-telegram directory is a git repository that contains a plugin for Telegram integration (implemented using
   chops).
-- The ../sase-neovim directory is a git repository that contains a plugin for Neovim integration (ex: for project spec
+- The ../sase-nvim directory is a git repository that contains a plugin for Neovim integration (ex: for project spec
   file syntax highlighting).
 
 IMPORTANT: You can edit files in these repos if necessary. Just make sure to commit your changes to the corresponding
