@@ -406,23 +406,54 @@ def main() -> NoReturn:
 
     # --- xprompt ---
     if args.command == "xprompt":
-        from sase.llm_provider.preprocessing import (
-            preprocess_prompt_early,
-            preprocess_prompt_late,
-        )
-        from sase.xprompt._trace import ExpansionTrace, print_trace
+        subcommand = getattr(args, "xprompt_subcommand", None)
 
-        from sase.main.query_handler import expand_embedded_workflows_in_query
+        if subcommand == "expand":
+            from sase.llm_provider.preprocessing import (
+                preprocess_prompt_early,
+                preprocess_prompt_late,
+            )
+            from sase.xprompt._trace import ExpansionTrace, print_trace
 
-        prompt = args.prompt if args.prompt else sys.stdin.read()
-        trace = ExpansionTrace() if args.trace else None
-        early = preprocess_prompt_early(prompt, trace=trace)
-        expanded, _post_workflows = expand_embedded_workflows_in_query(early.prompt)
-        processed = preprocess_prompt_late(expanded, file_ref_mode="validate")
-        print(processed, end="")
-        if trace is not None:
-            print_trace(trace)
-        sys.exit(0)
+            from sase.main.query_handler import expand_embedded_workflows_in_query
+
+            prompt = args.prompt if args.prompt else sys.stdin.read()
+            trace = ExpansionTrace() if args.trace else None
+            early = preprocess_prompt_early(prompt, trace=trace)
+            expanded, _post_workflows = expand_embedded_workflows_in_query(early.prompt)
+            processed = preprocess_prompt_late(expanded, file_ref_mode="validate")
+            print(processed, end="")
+            if trace is not None:
+                print_trace(trace)
+            sys.exit(0)
+
+        elif subcommand == "graph":
+            from sase.xprompt.graph import (
+                list_workflows,
+                workflow_to_mermaid,
+                workflow_to_text,
+            )
+            from sase.xprompt.workflow_loader import get_all_workflows
+
+            workflows = get_all_workflows()
+            if not args.workflow_name:
+                print(list_workflows(workflows))
+                sys.exit(0)
+
+            workflow = workflows.get(args.workflow_name)
+            if workflow is None:
+                print(f"Unknown workflow: {args.workflow_name}")
+                sys.exit(1)
+
+            if args.format == "text":
+                print(workflow_to_text(workflow))
+            else:
+                print(workflow_to_mermaid(workflow))
+            sys.exit(0)
+
+        else:
+            print("Usage: sase xprompt {expand,graph}")
+            sys.exit(1)
 
     print(f"Unknown command: {args.command}")
     sys.exit(1)

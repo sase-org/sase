@@ -437,17 +437,41 @@ def create_parser() -> argparse.ArgumentParser:
     # --- xprompt ---
     xprompt_parser = top_level_subparsers.add_parser(
         "xprompt",
+        help="Expand and visualize xprompt workflows",
+    )
+    xprompt_subparsers = xprompt_parser.add_subparsers(dest="xprompt_subcommand")
+
+    # xprompt expand
+    expand_parser = xprompt_subparsers.add_parser(
+        "expand",
         help="Expand sase references (snippets, file refs) in a prompt",
     )
-    xprompt_parser.add_argument(
+    expand_parser.add_argument(
         "prompt",
         nargs="?",
         help="Prompt text to expand. If not provided, reads from STDIN.",
     )
-    xprompt_parser.add_argument(
+    expand_parser.add_argument(
         "--trace",
         action="store_true",
         help="Print expansion trace to stderr showing each resolved reference.",
+    )
+
+    # xprompt graph
+    graph_parser = xprompt_subparsers.add_parser(
+        "graph",
+        help="Generate a DAG visualization of a workflow",
+    )
+    graph_parser.add_argument(
+        "workflow_name",
+        nargs="?",
+        help="Workflow name to graph. If not provided, lists all workflows.",
+    )
+    graph_parser.add_argument(
+        "--format",
+        choices=["mermaid", "text"],
+        default="mermaid",
+        help="Output format (default: mermaid)",
     )
 
     return parser
