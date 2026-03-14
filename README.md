@@ -28,14 +28,20 @@ infrastructure that turns individual agent runs into a managed software engineer
 
 ## Vision
 
-**Coding agents unlocked a new kind of leverage. They also exposed a new kind of chaos.**
+**Coding agents did not eliminate software engineering overhead. They moved it.**
 
-A single agent run can feel miraculous. A dozen runs feel productive. A few hundred runs, across bugs, reviews,
-refactors, experiments, and handoffs, reveal the real bottleneck: not code generation, but coordination.
+The first few agent runs feel magical. You ask for a fix, a refactor, or a review and get back useful momentum in
+minutes. Then the volume rises. One task becomes ten. Ten becomes a queue. Now there are partial results, retries,
+handoffs, stale prompts, background jobs, unclear ownership, and diffs nobody fully trusts.
 
-Without structure, agent work becomes surprisingly fragile. Prompts disappear into shell history. Important context gets
-retyped instead of reused. Long-running tasks turn into terminal archaeology. You can ask an agent to do almost
-anything, but you still need a system for knowing:
+That is where the real problem appears. The bottleneck is no longer "can the model write code?" It is "can the team
+operate a growing system of agent work without losing control of quality, context, and flow?"
+
+Without structure, agent-driven work degrades fast. Prompts vanish into shell history. Context gets recopied instead of
+compoundingly reused. Long-running tasks become terminal archaeology. Progress exists, but it is hard to inspect, hard
+to resume, and even harder to trust.
+
+You can ask an agent to do almost anything, but you still need a system for knowing:
 
 - What is in flight?
 - What changed?
@@ -43,13 +49,13 @@ anything, but you still need a system for knowing:
 - What should happen next?
 - Who can trust the result?
 
-That is the jump from _using an agent_ to _operating with agents._
+That is the difference between _using agents_ and _running an agentic engineering system._
 
-sase is built for that jump. It does not try to be yet another agent. It provides the missing operating layer around
-agents: the structure, visibility, lifecycle tracking, and automation needed to make agent-driven work repeatable at
-team scale.
+sase is built for that second problem. It is not another coding agent. It is the operating layer around coding agents:
+the structure, visibility, lifecycle tracking, and automation needed to make agent-driven execution repeatable at team
+scale.
 
-In practice, that means bringing software engineering discipline to AI-assisted execution:
+In practice, that means applying familiar engineering discipline to a new execution model:
 
 | What you need                                          | What sase provides                                                            |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -59,12 +65,15 @@ In practice, that means bringing software engineering discipline to AI-assisted 
 | Background scheduling that doesn't need babysitting    | **AXE** — daemon for continuous, configurable automation                      |
 | One system above the agent layer, not one per provider | **Agent-agnostic** — swap Claude, Codex, or Gemini without rewriting anything |
 
-The goal is not just better prompts or smarter completions. The goal is **an engineering environment where agent work is
-observable, resumable, reviewable, and trustworthy by default**.
+The goal is not better prompt gymnastics. The goal is **an engineering environment where agent work is observable,
+resumable, reviewable, and trustworthy by default**.
 
-That is the vision of Structured Agentic Software Engineering: agents as collaborators, not one-off demos; workflows as
-assets, not improvisation; and software teams that can scale AI assistance with the same rigor they already expect from
-testing, code review, and version control.
+Structured Agentic Software Engineering means treating agent output the way mature teams treat every other critical part
+of delivery: with workflows instead of improvisation, state instead of guesswork, and systems that get stronger as usage
+increases.
+
+The long-term vision is straightforward: agents should feel less like clever terminal tricks and more like reliable
+members of the engineering stack. Not a demo. Not a novelty. A durable way to build software.
 
 ## Key Features
 
