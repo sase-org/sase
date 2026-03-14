@@ -57,28 +57,15 @@ def main() -> NoReturn:
 
     # --- path ---
     if args.command == "path":
-        from pathlib import Path
+        from sase.xprompt.loader import get_sase_package_xprompts_dir
 
-        if args.name == "config-schema":
-            import importlib.resources
-
-            sase_pkg = Path(str(importlib.resources.files("sase")))
-            schema = (sase_pkg / ".." / ".." / "config" / "sase.schema.json").resolve()
-            if schema.is_file():
-                print(schema)
-            else:
-                print(f"config-schema not found at {schema}", file=sys.stderr)
-                sys.exit(1)
-        else:
-            from sase.xprompt.loader import get_sase_package_xprompts_dir
-
-            xprompts_dir = get_sase_package_xprompts_dir()
-            if args.name == "xprompts-dir":
-                print(xprompts_dir)
-            elif args.name == "xprompts-schema":
-                print(xprompts_dir / "workflow.schema.json")
-            elif args.name == "xprompts-collection-schema":
-                print(xprompts_dir / "xprompts.schema.json")
+        xprompts_dir = get_sase_package_xprompts_dir()
+        if args.name == "xprompts-dir":
+            print(xprompts_dir)
+        elif args.name == "xprompts-schema":
+            print(xprompts_dir / "workflow.schema.json")
+        elif args.name == "xprompts-collection-schema":
+            print(xprompts_dir / "xprompts.schema.json")
         sys.exit(0)
 
     # --- notify ---

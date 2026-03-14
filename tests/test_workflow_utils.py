@@ -189,28 +189,16 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
 
 
 def test_get_initial_hooks_for_changespec_returns_required_hooks() -> None:
-    """Test that required hooks from config are returned."""
-    with (
-        patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
-        patch(
-            "sase.ace.hooks.defaults.get_vcs_provider_config",
-            return_value={"default_hooks": ["!$my_presubmit", "$my_lint"]},
-        ),
-    ):
-        result = get_initial_hooks_for_changespec()
-
-    assert result == ["!$my_presubmit", "$my_lint"]
-
-
-def test_get_initial_hooks_for_changespec_empty_without_config() -> None:
-    """Test that no hooks are returned when no config is set (no plugin)."""
+    """Test that required hooks are always returned."""
     with (
         patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
     ):
         result = get_initial_hooks_for_changespec()
 
-    assert result == []
+    assert "!$sase_hg_presubmit" in result
+    assert "$sase_hg_lint" in result
+    assert len(result) == 2
 
 
 def test_get_initial_hooks_for_changespec_preserves_order() -> None:
@@ -219,16 +207,13 @@ def test_get_initial_hooks_for_changespec_preserves_order() -> None:
         patch(
             "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
         ),
-        patch(
-            "sase.ace.hooks.defaults.get_vcs_provider_config",
-            return_value={"default_hooks": ["!$my_presubmit", "$my_lint"]},
-        ),
+        patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
     ):
         result = get_initial_hooks_for_changespec()
 
     # Required hooks should be first
-    assert result[0] == "!$my_presubmit"
-    assert result[1] == "$my_lint"
+    assert result[0] == "!$sase_hg_presubmit"
+    assert result[1] == "$sase_hg_lint"
     # Test targets should be last
     assert result[2] == "bb_rabbit_test //foo:test1"
 

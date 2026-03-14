@@ -14,14 +14,3 @@ def test_get_required_changespec_hooks_uses_config_override() -> None:
         result = get_required_changespec_hooks()
 
     assert result == ("!$my_presubmit", "$my_lint")
-
-
-def test_get_required_changespec_hooks_empty_default() -> None:
-    """Test that built-in default is empty (plugins provide their own)."""
-    with patch(
-        "sase.ace.hooks.defaults.get_vcs_provider_config",
-        return_value={},
-    ):
-        result = get_required_changespec_hooks()
-
-    assert result == ()

@@ -28,52 +28,45 @@ infrastructure that turns individual agent runs into a managed software engineer
 
 ## Vision
 
-**Coding agents did not eliminate software engineering overhead. They moved it.**
+Coding agents are powerful — but **using them in a real engineering workflow is still painful.**
 
-The first few agent runs feel magical. You ask for a fix, a refactor, or a review and get back useful momentum in
-minutes. Then the volume rises. One task becomes ten. Ten becomes a queue. Now there are partial results, retries,
-handoffs, stale prompts, background jobs, unclear ownership, and diffs nobody fully trusts.
+Running a single agent on a single task works fine. The problems start when you try to do it repeatedly, across multiple
+changes, with any kind of structure. sase exists to solve the coordination problems that show up at that point:
 
-That is where the real problem appears. The bottleneck is no longer "can the model write code?" It is "can the team
-operate a growing system of agent work without losing control of quality, context, and flow?"
+> **Scheduling** — Agent runs are hard to schedule, monitor, and resume reliably.
+>
+> **Prompt Logic** — Multi-step prompt pipelines get fragile fast when they're scattered across shell scripts and
+> scratch files.
+>
+> **Tracking** — Work gets lost without a first-class unit for status, ownership, metadata, and review state.
+>
+> **Portability** — Teams need one system above the agent layer, not a separate workflow for every provider.
+>
+> **Supervision** — Automation still needs human checkpoints, VCS integration, and reproducible execution.
 
-Without structure, agent-driven work degrades fast. Prompts vanish into shell history. Context gets recopied instead of
-compoundingly reused. Long-running tasks become terminal archaeology. Progress exists, but it is hard to inspect, hard
-to resume, and even harder to trust.
+---
 
-You can ask an agent to do almost anything, but you still need a system for knowing:
+<table>
+<tr><th>Before sase</th><th>After sase</th></tr>
+<tr>
+<td>
 
-- What is in flight?
-- What changed?
-- What stalled?
-- What should happen next?
-- Who can trust the result?
+Prompts live in shell history and scratch files. Each agent run is a one-off terminal session. Status is tracked in your
+head (or not at all). Switching agents means rewriting your wrapper scripts. There's no audit trail and no way to hand
+work off to a teammate.
 
-That is the difference between _using agents_ and _running an agentic engineering system._
+</td>
+<td>
 
-sase is built for that second problem. It is not another coding agent. It is the operating layer around coding agents:
-the structure, visibility, lifecycle tracking, and automation needed to make agent-driven execution repeatable at team
-scale.
+**ChangeSpecs** give each unit of work a tracked lifecycle. **Workflows** define reproducible multi-step pipelines.
+**ACE** provides the operational layer for navigating and supervising changes. **AXE** handles background scheduling.
+The whole system is agent-agnostic — swap providers without rewriting your workflow definitions.
 
-In practice, that means applying familiar engineering discipline to a new execution model:
+</td>
+</tr>
+</table>
 
-| What you need                                          | What sase provides                                                            |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| A unit of work with status, ownership, and history     | **ChangeSpec** — tracked lifecycle from draft to submission                   |
-| Reproducible multi-step prompt pipelines               | **Workflows** — YAML-defined DAGs with agent, bash, and python steps          |
-| A way to see, filter, and act on everything in flight  | **ACE** — interactive TUI for navigating and supervising changes              |
-| Background scheduling that doesn't need babysitting    | **AXE** — daemon for continuous, configurable automation                      |
-| One system above the agent layer, not one per provider | **Agent-agnostic** — swap Claude, Codex, or Gemini without rewriting anything |
-
-The goal is not better prompt gymnastics. The goal is **an engineering environment where agent work is observable,
-resumable, reviewable, and trustworthy by default**.
-
-Structured Agentic Software Engineering means treating agent output the way mature teams treat every other critical part
-of delivery: with workflows instead of improvisation, state instead of guesswork, and systems that get stronger as usage
-increases.
-
-The long-term vision is straightforward: agents should feel less like clever terminal tricks and more like reliable
-members of the engineering stack. Not a demo. Not a novelty. A durable way to build software.
+The goal isn't to make agents smarter. It's to make **agent-driven software engineering dependable.**
 
 ## Key Features
 

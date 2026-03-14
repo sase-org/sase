@@ -166,8 +166,7 @@ vcs_provider:
 | `vcs_provider.workspace_root` | string       | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
 | `vcs_provider.default_hooks`  | list[string] | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
 
-The built-in default hooks are empty. VCS provider plugins (e.g., `sase-google`) supply their own defaults via the
-`sase_config` entry point.
+The built-in default hooks (used when `default_hooks` is not set) are `!$sase_hg_presubmit` and `$sase_hg_lint`.
 
 Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
