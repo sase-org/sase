@@ -24,7 +24,11 @@ class MarkingMixin:
     marked_indices: set[int]
 
     def action_toggle_mark(self) -> None:
-        """Toggle mark on the current ChangeSpec."""
+        """Toggle mark on the current ChangeSpec, or send message on agents tab."""
+        if self.current_tab == "agents":
+            self.action_send_agent_message()  # type: ignore[attr-defined]
+            return
+
         if self.current_tab != "changespecs":
             return
 

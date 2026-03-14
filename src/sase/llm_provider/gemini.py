@@ -64,8 +64,29 @@ def _find_gemini_plan_file(after: float | None = None) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _log_interrupt(message: str, cycle: int) -> None:
+    """Append an entry to the interrupt log in the artifacts directory."""
+    import json
+
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    log_path = Path(artifacts_dir) / "interrupt_log.jsonl"
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            json.dump(
+                {"message": message, "timestamp": time.time(), "cycle": cycle},
+                f,
+            )
+            f.write("\n")
+    except OSError:
+        pass
+
+
 class GeminiProvider(LLMProvider):
     """LLM provider that invokes Google's Gemini CLI tool."""
+
+    _pending_interrupt_message: str | None = None
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:  # noqa: ARG002
         """Return the Gemini model name."""
@@ -115,26 +136,46 @@ class GeminiProvider(LLMProvider):
             gemini_timer("Waiting for Gemini") if not suppress_output else None
         )
 
-        if timer_context:
-            with timer_context:
+        current_prompt = prompt
+        accumulated_response = ""
+        cycle = 0
+
+        while True:
+            if timer_context:
+                with timer_context:
+                    response_content, stderr_content, return_code = (
+                        self._run_subprocess(base_args, current_prompt, suppress_output)
+                    )
+                    print()
+            else:
                 response_content, stderr_content, return_code = self._run_subprocess(
-                    base_args, prompt, suppress_output
+                    base_args, current_prompt, suppress_output
                 )
-                print()
-        else:
-            response_content, stderr_content, return_code = self._run_subprocess(
-                base_args, prompt, suppress_output
-            )
 
-        if return_code != 0:
-            raise subprocess.CalledProcessError(
-                return_code,
-                base_args,
-                output=response_content,
-                stderr=stderr_content,
-            )
+            # Check for user interrupt before error handling
+            if self._pending_interrupt_message is not None:
+                user_msg = self._pending_interrupt_message
+                self._pending_interrupt_message = None
+                cycle += 1
+                _log_interrupt(user_msg, cycle)
+                accumulated_response += response_content
+                # Gemini has no session persistence — reconstruct context
+                current_prompt = (
+                    f"{prompt}\n\n"
+                    f"--- Your Previous Response ---\n{accumulated_response}\n\n"
+                    f"--- User Follow-up ---\n{user_msg}"
+                )
+                continue
 
-        return response_content.strip()
+            if return_code != 0:
+                raise subprocess.CalledProcessError(
+                    return_code,
+                    base_args,
+                    output=response_content,
+                    stderr=stderr_content,
+                )
+
+            return (accumulated_response + response_content).strip()
 
     # ------------------------------------------------------------------
     # Plan mode two-phase flow
@@ -175,17 +216,45 @@ class GeminiProvider(LLMProvider):
                 else None
             )
 
-            # Phase 1: planning
-            if timer_context:
-                with timer_context:
+            # Phase 1: planning (with interrupt support)
+            current_plan_prompt = prompt
+            plan_cycle = 0
+            accumulated_plan_response = ""
+
+            while True:
+                if timer_context:
+                    with timer_context:
+                        response_content, stderr_content, return_code = (
+                            self._run_subprocess(
+                                plan_args, current_plan_prompt, suppress_output
+                            )
+                        )
+                        print()
+                else:
                     response_content, stderr_content, return_code = (
-                        self._run_subprocess(plan_args, prompt, suppress_output)
+                        self._run_subprocess(
+                            plan_args, current_plan_prompt, suppress_output
+                        )
                     )
-                    print()
-            else:
-                response_content, stderr_content, return_code = self._run_subprocess(
-                    plan_args, prompt, suppress_output
-                )
+
+                # Check for user interrupt before error handling
+                if self._pending_interrupt_message is not None:
+                    user_msg = self._pending_interrupt_message
+                    self._pending_interrupt_message = None
+                    plan_cycle += 1
+                    _log_interrupt(user_msg, plan_cycle)
+                    accumulated_plan_response += response_content
+                    current_plan_prompt = (
+                        f"{prompt}\n\n"
+                        f"--- Your Previous Response ---\n"
+                        f"{accumulated_plan_response}\n\n"
+                        f"--- User Follow-up ---\n{user_msg}"
+                    )
+                    continue
+
+                break  # No interrupt — proceed to plan validation
+
+            response_content = accumulated_plan_response + response_content
 
             # Accept rc=0 (normal exit) or rc=2 (hook denial = plan captured)
             if return_code not in (0, 2):
@@ -230,26 +299,51 @@ class GeminiProvider(LLMProvider):
                 "Implement it now."
             )
 
-            if not suppress_output:
-                with gemini_timer("Implementing plan"):
+            original_impl_prompt = impl_prompt
+            accumulated_impl_response = ""
+            impl_cycle = 0
+
+            while True:
+                if not suppress_output:
+                    with gemini_timer("Implementing plan"):
+                        impl_content, impl_stderr, impl_rc = self._run_subprocess(
+                            impl_args, impl_prompt, suppress_output
+                        )
+                        print()
+                else:
                     impl_content, impl_stderr, impl_rc = self._run_subprocess(
                         impl_args, impl_prompt, suppress_output
                     )
-                    print()
-            else:
-                impl_content, impl_stderr, impl_rc = self._run_subprocess(
-                    impl_args, impl_prompt, suppress_output
-                )
 
-            if impl_rc != 0:
-                raise subprocess.CalledProcessError(
-                    impl_rc,
-                    impl_args,
-                    output=impl_content,
-                    stderr=impl_stderr,
-                )
+                # Check for user interrupt before error handling
+                if self._pending_interrupt_message is not None:
+                    user_msg = self._pending_interrupt_message
+                    self._pending_interrupt_message = None
+                    impl_cycle += 1
+                    _log_interrupt(user_msg, impl_cycle)
+                    accumulated_impl_response += impl_content
+                    impl_prompt = (
+                        f"{original_impl_prompt}\n\n"
+                        f"--- Your Previous Response ---\n"
+                        f"{accumulated_impl_response}\n\n"
+                        f"--- User Follow-up ---\n{user_msg}"
+                    )
+                    continue
 
-            return (response_content.strip() + "\n\n" + impl_content.strip()).strip()
+                if impl_rc != 0:
+                    raise subprocess.CalledProcessError(
+                        impl_rc,
+                        impl_args,
+                        output=impl_content,
+                        stderr=impl_stderr,
+                    )
+
+                accumulated_impl_response += impl_content
+                break
+
+            return (
+                response_content.strip() + "\n\n" + accumulated_impl_response.strip()
+            ).strip()
         finally:
             os.environ.pop("SASE_PLAN_EXTERNAL_APPROVAL", None)
 
@@ -285,6 +379,31 @@ class GeminiProvider(LLMProvider):
         if process.stdin:
             process.stdin.write(prompt)
             process.stdin.close()
+
+        # Interrupt monitor: watch for interrupt_request.json from TUI
+        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+        if artifacts_dir:
+            import json
+            import threading
+
+            interrupt_path = Path(artifacts_dir) / "interrupt_request.json"
+
+            def _monitor_interrupt() -> None:
+                while process.poll() is None:
+                    if interrupt_path.exists():
+                        try:
+                            data = json.loads(
+                                interrupt_path.read_text(encoding="utf-8")
+                            )
+                            self._pending_interrupt_message = data.get("message")
+                            interrupt_path.unlink(missing_ok=True)
+                            process.terminate()
+                        except (OSError, json.JSONDecodeError):
+                            pass
+                        return
+                    time.sleep(1.0)
+
+            threading.Thread(target=_monitor_interrupt, daemon=True).start()
 
         # Stream output in real-time
         return stream_process_output(process, suppress_output=suppress_output)

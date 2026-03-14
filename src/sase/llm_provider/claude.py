@@ -49,8 +49,30 @@ def _find_plan_file() -> str | None:
     return str(max(md_files, key=lambda f: f.stat().st_mtime))
 
 
+def _log_interrupt(message: str, cycle: int) -> None:
+    """Append an entry to the interrupt log in the artifacts directory."""
+    import json
+    import time
+
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    log_path = Path(artifacts_dir) / "interrupt_log.jsonl"
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            json.dump(
+                {"message": message, "timestamp": time.time(), "cycle": cycle},
+                f,
+            )
+            f.write("\n")
+    except OSError:
+        pass
+
+
 class ClaudeCodeProvider(LLMProvider):
     """LLM provider that invokes the Claude Code CLI tool."""
+
+    _pending_interrupt_message: str | None = None
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Claude model alias for the given tier."""
@@ -157,6 +179,17 @@ class ClaudeCodeProvider(LLMProvider):
                     suppress_output,
                     plan_marker_path=marker_path,
                 )
+
+            # Check for user interrupt BEFORE plan marker or return code.
+            # When interrupted, the monitor thread terminates the process
+            # (non-zero return code), but we should restart with the user's
+            # message rather than treating it as an error.
+            if self._pending_interrupt_message is not None:
+                user_msg = self._pending_interrupt_message
+                self._pending_interrupt_message = None
+                _log_interrupt(user_msg, retry_round)
+                current_prompt = user_msg
+                continue  # Restart phase 1 with user's message
 
             # Check if plan was approved BEFORE checking return code.
             # When the monitoring thread terminates the process (due to
@@ -276,28 +309,42 @@ class ClaudeCodeProvider(LLMProvider):
                 "Proceed with implementing the plan now."
             )
 
-        if timer_context:
-            with gemini_timer("Implementing plan"):
+        impl_cycle = 0
+        while True:
+            if timer_context:
+                with gemini_timer("Implementing plan"):
+                    impl_content, impl_stderr, impl_rc = self._run_subprocess(
+                        impl_args, impl_prompt, suppress_output
+                    )
+                    print()
+            else:
                 impl_content, impl_stderr, impl_rc = self._run_subprocess(
                     impl_args, impl_prompt, suppress_output
                 )
-                print()
-        else:
-            impl_content, impl_stderr, impl_rc = self._run_subprocess(
-                impl_args, impl_prompt, suppress_output
-            )
 
-        if impl_rc != 0:
-            raise subprocess.CalledProcessError(
-                impl_rc,
-                impl_args,
-                output=impl_content,
-                stderr=impl_stderr,
-            )
+            # Check for user interrupt before error handling
+            if self._pending_interrupt_message is not None:
+                user_msg = self._pending_interrupt_message
+                self._pending_interrupt_message = None
+                impl_cycle += 1
+                _log_interrupt(user_msg, impl_cycle)
+                response_content = (
+                    response_content.strip() + "\n\n" + impl_content.strip()
+                )
+                impl_prompt = user_msg
+                continue  # Restart with user's message (same session)
 
-        # Combine phase 1 + phase 2 response text
-        response_content = response_content.strip() + "\n\n" + impl_content.strip()
-        return response_content.strip()
+            if impl_rc != 0:
+                raise subprocess.CalledProcessError(
+                    impl_rc,
+                    impl_args,
+                    output=impl_content,
+                    stderr=impl_stderr,
+                )
+
+            # Combine phase 1 + phase 2 response text
+            response_content = response_content.strip() + "\n\n" + impl_content.strip()
+            return response_content.strip()
 
     def _run_subprocess(
         self,
@@ -348,6 +395,32 @@ class ClaudeCodeProvider(LLMProvider):
                     time.sleep(1.0)
 
             threading.Thread(target=_monitor_marker, daemon=True).start()
+
+        # Interrupt monitor: watch for interrupt_request.json from TUI
+        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+        if artifacts_dir:
+            import json
+            import threading
+            import time
+
+            interrupt_path = Path(artifacts_dir) / "interrupt_request.json"
+
+            def _monitor_interrupt() -> None:
+                while process.poll() is None:
+                    if interrupt_path.exists():
+                        try:
+                            data = json.loads(
+                                interrupt_path.read_text(encoding="utf-8")
+                            )
+                            self._pending_interrupt_message = data.get("message")
+                            interrupt_path.unlink(missing_ok=True)
+                            process.terminate()
+                        except (OSError, json.JSONDecodeError):
+                            pass
+                        return
+                    time.sleep(1.0)
+
+            threading.Thread(target=_monitor_interrupt, daemon=True).start()
 
         # Stream JSON output and extract assistant text
         return stream_and_parse_json_output(process, suppress_output=suppress_output)

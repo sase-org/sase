@@ -1,5 +1,6 @@
 """Modal dialogs for the ace TUI."""
 
+from .agent_interrupt_modal import AgentInterruptModal
 from .agent_name_modal import AgentNameModal
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
@@ -34,6 +35,7 @@ from .xprompt_select_modal import XPromptSelectModal
 
 __all__ = [
     "AddXPromptModal",
+    "AgentInterruptModal",
     "AgentNameModal",
     "AgentRunLogModal",
     "CommandHistoryModal",

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: done
 ---
 
 # Plan: Mid-Execution User Interrupt for Running Agents

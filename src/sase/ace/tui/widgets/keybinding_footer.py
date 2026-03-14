@@ -400,6 +400,17 @@ class KeybindingFooter(Horizontal):
                 else:
                     bindings.append((self._kd("accept_proposal"), "unapprove"))
 
+        # Send message to running agent (not done/failed)
+        _INTERRUPTABLE = {
+            "RUNNING",
+            "PLAN APPROVED",
+            "PLANNING",
+            "WAITING",
+            "QUESTION",
+        }
+        if agent.status in _INTERRUPTABLE:
+            bindings.append((self._kd("toggle_mark"), "message"))
+
         # Name agent (not available for done/failed agents)
         if agent.status not in ("DONE", "FAILED"):
             bindings.append((self._kd("rename_cl"), "name"))
