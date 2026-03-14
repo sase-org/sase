@@ -169,3 +169,28 @@ def notify_plan_approval(
         action_data=action_data,
     )
     append_notification(n)
+
+
+def notify_image_generated(
+    prompt: str,
+    model: str,
+    image_file: str,
+) -> None:
+    """Send a notification when an image is generated."""
+    preview = prompt.strip()
+    if len(preview) > 200:
+        preview = f"{preview[:200]}..."
+
+    n = Notification(
+        id=str(uuid4()),
+        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        sender="image",
+        notes=[
+            f"Generated image with {model}",
+            f"Prompt: {preview}",
+        ],
+        files=[image_file],
+        action=None,
+        action_data={"model": model, "prompt": prompt},
+    )
+    append_notification(n)
