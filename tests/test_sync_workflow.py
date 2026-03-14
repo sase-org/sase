@@ -1,10 +1,10 @@
 """Tests for the sync workflow YAML and its Python script steps."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.workflow_loader import _load_workflow_from_file
 
 
@@ -12,7 +12,7 @@ from sase.xprompt.workflow_loader import _load_workflow_from_file
 # Workflow loading tests
 # ---------------------------------------------------------------------------
 
-SYNC_YML = Path(__file__).resolve().parent.parent / "xprompts" / "sync.yml"
+SYNC_YML = get_sase_package_xprompts_dir() / "sync.yml"
 
 
 @pytest.fixture()

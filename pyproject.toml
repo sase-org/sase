@@ -64,9 +64,6 @@ bare_git = "sase.workspace_provider.plugins.bare_git_workspace:BareGitWorkspaceP
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"xprompts" = "sase/_xprompts"
-
 # --- Ruff ---
 [tool.ruff]
 target-version = "py312"
