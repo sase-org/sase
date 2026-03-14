@@ -28,45 +28,31 @@ infrastructure that turns individual agent runs into a managed software engineer
 
 ## Vision
 
-Coding agents are powerful — but **using them in a real engineering workflow is still painful.**
+The first time you hand a task to a coding agent, it feels like magic.
 
-Running a single agent on a single task works fine. The problems start when you try to do it repeatedly, across multiple
-changes, with any kind of structure. sase exists to solve the coordination problems that show up at that point:
+Managing ten of them across different tasks, codebases, and providers — while tracking what ran, what worked, and what
+still needs review — is when the cracks appear. The agents are fine. The infrastructure around them isn't.
 
-> **Scheduling** — Agent runs are hard to schedule, monitor, and resume reliably.
->
-> **Prompt Logic** — Multi-step prompt pipelines get fragile fast when they're scattered across shell scripts and
-> scratch files.
->
-> **Tracking** — Work gets lost without a first-class unit for status, ownership, metadata, and review state.
->
-> **Portability** — Teams need one system above the agent layer, not a separate workflow for every provider.
->
-> **Supervision** — Automation still needs human checkpoints, VCS integration, and reproducible execution.
+**sase is that infrastructure.**
 
----
+Modern coding agents are genuinely capable, but every run is an island: prompts scattered across shell history, status
+tracked in your head, no audit trail, a different wrapper script for each provider. Repeatable, reviewable, multi-agent
+workflows aren't an agent problem — they're a coordination problem. sase solves that layer:
 
-<table>
-<tr><th>Before sase</th><th>After sase</th></tr>
-<tr>
-<td>
+|                   | Without sase                      | With sase                                         |
+| ----------------- | --------------------------------- | ------------------------------------------------- |
+| **Prompts**       | Shell history and scratch files   | Versioned, reusable XPrompt templates             |
+| **Work tracking** | In your head (or not at all)      | ChangeSpecs with a full status lifecycle          |
+| **Observability** | Re-run it and hope                | ACE — an operational view across all your changes |
+| **Scheduling**    | Manual terminal sessions          | AXE daemon with configurable automation           |
+| **Portability**   | A new wrapper script per provider | One workflow definition, any agent                |
+| **Audit trail**   | None                              | Full history, reviewable and reproducible         |
 
-Prompts live in shell history and scratch files. Each agent run is a one-off terminal session. Status is tracked in your
-head (or not at all). Switching agents means rewriting your wrapper scripts. There's no audit trail and no way to hand
-work off to a teammate.
+Think of what `git` did for collaborative development — it didn't make developers better programmers, it made their work
+_reliable and reproducible at scale_. sase does the same thing one layer up: it takes powerful-but-ephemeral agent runs
+and turns them into a managed, auditable engineering pipeline.
 
-</td>
-<td>
-
-**ChangeSpecs** give each unit of work a tracked lifecycle. **Workflows** define reproducible multi-step pipelines.
-**ACE** provides the operational layer for navigating and supervising changes. **AXE** handles background scheduling.
-The whole system is agent-agnostic — swap providers without rewriting your workflow definitions.
-
-</td>
-</tr>
-</table>
-
-The goal isn't to make agents smarter. It's to make **agent-driven software engineering dependable.**
+**The goal isn't to make agents smarter. It's to make agent-driven software engineering something you can depend on.**
 
 ## Key Features
 
