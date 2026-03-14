@@ -175,7 +175,6 @@ def main() -> None:
     agent_llm_provider: str | None = None
     agent_vcs_provider: str | None = None
     agent_hidden: bool = False
-    attempt: int = 1
 
     try:
         try:
@@ -402,109 +401,16 @@ def main() -> None:
             if directives.plan:
                 os.environ["SASE_AGENT_PLAN_MODE"] = "1"
 
-            # Load max retries from config
-            from sase.axe.config import load_axe_config
-
-            axe_cfg = load_axe_config()
-            max_retries = axe_cfg.max_agent_retries
-
             anon_workflow = create_anonymous_workflow(prompt)
 
-            # Patterns in response text that indicate transient/retriable failures.
-            # These occur when invoke_agent() catches a subprocess error and returns
-            # the error content as a "successful" AIMessage instead of raising.
-            _RETRIABLE_PATTERNS = [
-                "Error running LLM provider command",
-                "exceeded your current quota",
-                "RetryableQuotaError",
-                "rate limit",
-                "Per user memory limit reached",
-                "RESOURCE_EXHAUSTED",
-                "500 Internal Server Error",
-                "503 Service Unavailable",
-                "overloaded",
-            ]
-
-            def _is_retriable_response(response_text: str | None) -> bool:
-                """Check if a workflow response indicates a transient failure."""
-                if not response_text:
-                    return False
-                text_lower = response_text.lower()
-                return any(p.lower() in text_lower for p in _RETRIABLE_PATTERNS)
-
-            # Retry loop for transient failures
-            result = None
-            last_error: Exception | str | None = None
-            for attempt in range(1, max_retries + 1):
-                if attempt > 1:
-                    # Update agent_meta.json with retry attempt number
-                    agent_meta["retry_attempt"] = attempt
-                    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-                    with open(meta_path, "w", encoding="utf-8") as f:
-                        json.dump(agent_meta, f, indent=2)
-                    print(f"\n=== RETRY ATTEMPT {attempt}/{max_retries} ===\n")
-
-                    # Re-create the anonymous workflow for a fresh execution
-                    anon_workflow = create_anonymous_workflow(prompt)
-
-                try:
-                    result = execute_workflow(
-                        anon_workflow.name,
-                        [],
-                        {"cl_name": cl_name},
-                        artifacts_dir=artifacts_dir,
-                        silent=True,
-                        workflow_obj=anon_workflow,
-                    )
-
-                    # Check if the "successful" response actually contains
-                    # a transient error (invoke_agent swallows exceptions)
-                    if _is_retriable_response(result.response_text):
-                        error_snippet = (result.response_text or "")[:200]
-                        if attempt < max_retries:
-                            print(
-                                f"Attempt {attempt}/{max_retries} failed "
-                                f"(retriable error in response): {error_snippet}",
-                                file=sys.stderr,
-                            )
-                            last_error = error_snippet
-                            time.sleep(5)
-                            continue
-                        else:
-                            print(
-                                f"Attempt {attempt}/{max_retries} failed "
-                                f"(max retries reached): {error_snippet}",
-                                file=sys.stderr,
-                            )
-                            last_error = error_snippet
-                    else:
-                        last_error = None
-                        break
-
-                except Exception as retry_exc:
-                    last_error = retry_exc
-                    if attempt < max_retries:
-                        import traceback as tb_mod
-
-                        print(
-                            f"Attempt {attempt}/{max_retries} failed: {retry_exc}",
-                            file=sys.stderr,
-                        )
-                        tb_mod.print_exc()
-                        # Brief delay before retry
-                        time.sleep(5)
-                    else:
-                        print(
-                            f"Attempt {attempt}/{max_retries} failed "
-                            f"(max retries reached): {retry_exc}",
-                            file=sys.stderr,
-                        )
-
-            if last_error is not None:
-                if isinstance(last_error, Exception):
-                    raise last_error
-                raise RuntimeError(last_error)
-            assert result is not None
+            result = execute_workflow(
+                anon_workflow.name,
+                [],
+                {"cl_name": cl_name},
+                artifacts_dir=artifacts_dir,
+                silent=True,
+                workflow_obj=anon_workflow,
+            )
 
             # Extract response text for chat history
             response_content = result.response_text or ""
@@ -557,8 +463,6 @@ def main() -> None:
                 done_marker["llm_provider"] = agent_llm_provider
             if agent_vcs_provider:
                 done_marker["vcs_provider"] = agent_vcs_provider
-            if attempt > 1:
-                done_marker["retry_attempt"] = attempt
             if agent_hidden:
                 done_marker["hidden"] = True
             done_path = os.path.join(artifacts_dir, "done.json")
@@ -595,8 +499,6 @@ def main() -> None:
                     error_done["llm_provider"] = agent_llm_provider
                 if agent_vcs_provider:
                     error_done["vcs_provider"] = agent_vcs_provider
-                if attempt > 1:
-                    error_done["retry_attempt"] = attempt
                 if agent_hidden:
                     error_done["hidden"] = True
                 done_path = os.path.join(artifacts_dir, "done.json")

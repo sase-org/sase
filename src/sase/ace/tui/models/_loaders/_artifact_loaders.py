@@ -56,9 +56,6 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.approve = True
     if data.get("hidden"):
         agent.hidden = True
-    if data.get("retry_attempt"):
-        agent.retry_attempt = data["retry_attempt"]
-
     # Parse run_started_at (actual start time after waiting period)
     run_started_at = data.get("run_started_at")
     if isinstance(run_started_at, str):
@@ -310,7 +307,6 @@ def load_done_agents(
                         agent_name=data.get("name"),
                         hidden=bool(data.get("hidden")),
                         approve=bool(data.get("approve")),
-                        retry_attempt=data.get("retry_attempt", 0),
                     )
 
                     # Always enrich from agent_meta.json — it may contain

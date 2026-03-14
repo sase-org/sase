@@ -179,7 +179,6 @@ lumberjacks, each running a set of chops on a fixed interval. Defaults are provi
 axe:
   max_hook_runners: 3 # concurrent hook runners (default: 3)
   max_agent_runners: 3 # concurrent agent runners (default: 3)
-  max_agent_retries: 3 # retry attempts for failed agent launches (default: 3)
   zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
   query: "" # query filter for ChangeSpecs (default: all)
   chop_script_dirs: [] # additional directories to search for chop scripts
@@ -228,7 +227,6 @@ axe:
 | ------------------------ | ------------ | ------- | ----------------------------------------------------------------------------- |
 | `max_hook_runners`       | int          | `3`     | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
 | `max_agent_runners`      | int          | `3`     | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
-| `max_agent_retries`      | int          | `3`     | Retry attempts for failed agent launches before giving up.                    |
 | `zombie_timeout_seconds` | int          | `7200`  | Seconds after which a running hook or workflow is flagged as a zombie.        |
 | `query`                  | string       | `""`    | Query string for filtering ChangeSpecs (empty = all).                         |
 | `chop_script_dirs`       | list[string] | `[]`    | Additional directories to search for external chop scripts.                   |

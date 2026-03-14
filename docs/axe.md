@@ -123,7 +123,6 @@ configuration reference.
 | ------------------------ | ------- | ----------------------------------------- |
 | `max_hook_runners`       | 3       | Concurrent hook runners allowed globally  |
 | `max_agent_runners`      | 3       | Concurrent agent runners allowed globally |
-| `max_agent_retries`      | 3       | Retry attempts for failed agent launches  |
 | `zombie_timeout_seconds` | 7200    | Timeout for marking jobs as zombie        |
 | `query`                  | `""`    | Optional query filter for all changespecs |
 | `chop_script_dirs`       | `[]`    | Directories to search for chop scripts    |

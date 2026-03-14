@@ -59,7 +59,6 @@ class AxeConfig:
 
     max_hook_runners: int = 3
     max_agent_runners: int = 3
-    max_agent_retries: int = 5
     zombie_timeout_seconds: int = 7200
     query: str = ""
     chop_script_dirs: list[str] = field(default_factory=list)
@@ -127,7 +126,6 @@ def load_axe_config() -> AxeConfig:
 
     max_hook_runners = axe_data.get("max_hook_runners", 3)
     max_agent_runners = axe_data.get("max_agent_runners", 3)
-    max_agent_retries = axe_data.get("max_agent_retries", 5)
     zombie_timeout = axe_data.get("zombie_timeout_seconds", 7200)
     query = axe_data.get("query", "")
     chop_script_dirs = axe_data.get("chop_script_dirs", [])
@@ -141,7 +139,6 @@ def load_axe_config() -> AxeConfig:
     return AxeConfig(
         max_hook_runners=max_hook_runners,
         max_agent_runners=max_agent_runners,
-        max_agent_retries=max_agent_retries,
         zombie_timeout_seconds=zombie_timeout,
         query=query,
         chop_script_dirs=chop_script_dirs,
