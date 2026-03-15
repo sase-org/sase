@@ -19,21 +19,11 @@ class GitCommon(CommandRunner):
     @hookimpl
     def vcs_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
         # When asked to checkout a remote-tracking ref like origin/master,
-        # prefer the local branch to avoid detaching HEAD.
+        # always use the local branch name to leverage git's DWIM behavior.
+        # If the local branch exists, git uses it directly; if not, git
+        # auto-creates a local tracking branch from the remote-tracking ref.
         if revision.startswith("origin/"):
-            local_branch = revision[len("origin/") :]
-            verify = self._run(
-                [
-                    "git",
-                    "rev-parse",
-                    "--verify",
-                    "--quiet",
-                    f"refs/heads/{local_branch}",
-                ],
-                cwd,
-            )
-            if verify.success:
-                revision = local_branch
+            revision = revision[len("origin/") :]
         out = self._run(["git", "checkout", revision], cwd)
         return self._to_result(out, "git checkout")
 
@@ -175,6 +165,21 @@ class GitCommon(CommandRunner):
         )
         if out.success:
             return changespec_name
+
+        # Try branch with suffix preserved (new-style: #pr creates banana_1)
+        from sase.sase_utils import changespec_name_to_branch_with_suffix
+
+        branch_with_suffix = changespec_name_to_branch_with_suffix(
+            changespec_name, project_basename
+        )
+        out = self._run(
+            ["git", "rev-parse", "--verify", "--quiet", branch_with_suffix],
+            cwd,
+        )
+        if out.success:
+            return branch_with_suffix
+
+        # Fall back to branch without suffix (legacy: branch is banana)
         from sase.sase_utils import changespec_name_to_branch
 
         return changespec_name_to_branch(changespec_name, project_basename)
