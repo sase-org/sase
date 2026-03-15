@@ -175,3 +175,5 @@ llm_provider:
 
 vcs_provider:
   provider: "auto"
+
+xprompt_aliases: {}
