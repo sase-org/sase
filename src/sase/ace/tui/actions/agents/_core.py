@@ -152,6 +152,17 @@ class AgentsMixinCore(
             if raw_suffix is not None
         }
 
+        # Build (cl_name, raw_suffix) pairs for cross-type matching of
+        # RUNNING agents.  When a WORKFLOW agent is killed and its artifacts
+        # are deleted, the RUNNING field entry may persist and produce an
+        # agent with AgentType.RUNNING — a direct identity mismatch that
+        # the primary identity check misses.
+        dismissed_cl_suffixes: set[tuple[str, str]] = {
+            (cl_name, raw_suffix)
+            for _, cl_name, raw_suffix in self._dismissed_agents
+            if raw_suffix is not None
+        }
+
         # Capture dismissed agents found by the loader (for revive + self-healing).
         # Exclude RUNNING agents: a done.json auto-dismiss can share the same
         # identity/raw_suffix as a still-active RUNNING field agent; treating the
@@ -191,12 +202,16 @@ class AgentsMixinCore(
 
         self._dismissed_agent_objects = dismissed_from_loader
 
-        # Filter out dismissed agents.  RUNNING agents bypass the secondary
-        # dismissed_suffixes index (to avoid cross-contamination when an
-        # auto-dismissed done.json copy happens to share a suffix with a
-        # live process), but they DO respect direct identity matches in
-        # _dismissed_agents so that explicitly killed agents disappear
-        # immediately.
+        # Filter out dismissed agents.  Non-RUNNING agents use the broad
+        # dismissed_suffixes index (suffix-only).  RUNNING agents use the
+        # narrower dismissed_cl_suffixes index (cl_name, raw_suffix) to
+        # avoid cross-CL contamination while still catching agents that
+        # reappear with a different AgentType after dedup (e.g. a killed
+        # WORKFLOW agent whose artifacts are deleted but whose RUNNING
+        # field entry persists, producing an AgentType.RUNNING agent).
+        # RUNNING agents with cl_name="unknown" fall back to suffix-only
+        # matching since "unknown" is a transient placeholder from the
+        # RUNNING field that gets resolved during dedup.
         all_agents = [
             a
             for a in all_agents
@@ -204,6 +219,14 @@ class AgentsMixinCore(
             and (
                 a.status == "RUNNING"
                 or (a.raw_suffix is None or a.raw_suffix not in dismissed_suffixes)
+            )
+            and not (
+                a.status == "RUNNING"
+                and a.raw_suffix is not None
+                and (
+                    (a.cl_name, a.raw_suffix) in dismissed_cl_suffixes
+                    or (a.cl_name == "unknown" and a.raw_suffix in dismissed_suffixes)
+                )
             )
         ]
 
