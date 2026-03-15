@@ -6,6 +6,7 @@ them so plugin classes only override the handful of methods that differ.
 """
 
 import os
+import tempfile
 
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
@@ -140,7 +141,8 @@ class GitCommon(CommandRunner):
             )
             return (False, error_msg)
         try:
-            with open(diff_name, "w") as f:
+            diff_path = os.path.join(tempfile.gettempdir(), diff_name)
+            with open(diff_path, "w") as f:
                 f.write(diff_out.stdout)
                 if not diff_out.stdout.endswith("\n"):
                     f.write("\n")
