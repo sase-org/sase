@@ -51,7 +51,7 @@ in mind that each phase will be completed by a distinct `claude` instance.
 - We MUST support all of the same functionality that claude's native question/answer system does (e.g. multiple
   questions, recommended answers, custom answers, etc.---see how we display these in the notification popup in the TUI;
   I want to keep this exactly the same as the current experience).
-- The `sase plan` command will be resoponsible for:
+- The `sase questions` command will be resoponsible for:
   - Killing the current agent that asked the question(s).
   - Triggering the question notification in the same way that claude code's hooks currently (you should remove these
     hooks from the chezmoi repo) do for questions.
