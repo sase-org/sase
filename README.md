@@ -84,24 +84,24 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                       sase CLI                       │
-├────────────┬────────────┬────────────┬───────────────┤
-│  ace       │  axe       │  run       │ commit/amend  │
-│  (TUI)     │  (daemon)  │ (workflows)│  (VCS ops)    │
-├────────────┴────────────┴────────────┴───────────────┤
-│                     Core Engine                      │
-│    ┌────────────┐  ┌────────────┐  ┌────────────┐    │
-│    │ ChangeSpec │  │  XPrompt   │  │  Workflows │    │
-│    │  Tracking  │  │  Templates │  │   (YAML)   │    │
-│    └────────────┘  └────────────┘  └────────────┘    │
-├──────────────────┬─────────────────┬─────────────────┤
-│   LLM Provider   │  VCS Provider   │ Workspace Prov. │
-│(Claude,Codex,Gem)│ (pluggy plugins)│ (pluggy plugins)│
-├──────────────────┴─────────────────┴─────────────────┤
-│                   Plugin Packages                    │
-│  sase-github · sase-google · sase-telegram · sase-nvim│
-└──────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                        sase CLI                        │
+├─────────────┬────────────┬────────────┬────────────────┤
+│  ace        │  axe       │  run       │ commit/amend   │
+│  (TUI)      │  (daemon)  │ (workflows)│  (VCS ops)     │
+├─────────────┴────────────┴────────────┴────────────────┤
+│                      Core Engine                       │
+│    ┌────────────┐  ┌────────────┐  ┌────────────┐      │
+│    │ ChangeSpec │  │  XPrompt   │  │  Workflows │      │
+│    │  Tracking  │  │  Templates │  │   (YAML)   │      │
+│    └────────────┘  └────────────┘  └────────────┘      │
+├───────────────────┬─────────────────┬──────────────────┤
+│   LLM Provider    │  VCS Provider   │ Workspace Prov.  │
+│(Claude,Codex,Gem) │ (pluggy plugins)│ (pluggy plugins) │
+├───────────────────┴─────────────────┴──────────────────┤
+│                    Plugin Packages                     │
+│  sase-github · sase-google · sase-telegram · sase-nvim │
+└────────────────────────────────────────────────────────┘
 ```
 
 ## Requirements
