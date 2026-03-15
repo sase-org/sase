@@ -80,7 +80,7 @@ function check_sibling_repos() {
     fi
 
     local sibling_repos_with_changes=()
-    for repo_dir in "$PROJECT_DIR"/../sase-*/; do
+    for repo_dir in "$PROJECT_DIR"/../sase-*/ "$HOME/.local/share/chezmoi"; do
         [ -d "$repo_dir/.git" ] || continue
         local repo_changes
         repo_changes=$(cd "$repo_dir" && { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } | sort -u)
