@@ -1,5 +1,6 @@
 ---
 status: draft
+bead_id: sase-owpf
 ---
 
 # Plan: `/sase_plan` and `/sase_questions` Skills
