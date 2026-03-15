@@ -93,23 +93,11 @@ def main() -> NoReturn:
 
         handle_plan_command(args.plan_file)
 
-    # --- plan-approve ---
-    if args.command == "plan-approve":
-        from .plan_approve_handler import handle_plan_approve_command
-
-        handle_plan_approve_command()
-
     # --- questions ---
     if args.command == "questions":
         from .questions_command_handler import handle_questions_command
 
         handle_questions_command(args.questions_json)
-
-    # --- user-question ---
-    if args.command == "user-question":
-        from .user_question_handler import handle_user_question_command
-
-        handle_user_question_command()
 
     # --- restore ---
     if args.command == "restore":

@@ -365,12 +365,6 @@ def create_parser() -> argparse.ArgumentParser:
     )
     plan_parser.add_argument("plan_file", help="Path to the plan .md file")
 
-    # --- plan-approve ---
-    top_level_subparsers.add_parser(
-        "plan-approve",
-        help="Handle plan approval from Claude Code hook (reads JSON from stdin)",
-    )
-
     # --- questions ---
     questions_parser = top_level_subparsers.add_parser(
         "questions",
@@ -453,12 +447,6 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         const="",  # Empty string means "use most recent"
         help="Resume a previous conversation. Optionally specify history file basename or path (defaults to most recent).",
-    )
-
-    # --- user-question ---
-    top_level_subparsers.add_parser(
-        "user-question",
-        help="Handle user question from Claude Code hook (reads JSON from stdin)",
     )
 
     # --- xprompt ---

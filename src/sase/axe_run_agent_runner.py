@@ -562,9 +562,6 @@ def main() -> None:
 
             if directives.approve:
                 os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
-            if directives.plan:
-                os.environ["SASE_AGENT_PLAN_MODE"] = "1"
-
             # Follow-up loop: handles plan approval and question flows
             current_prompt = prompt
             current_role_suffix = ""

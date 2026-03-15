@@ -113,3 +113,12 @@ Chezmoi iles related to sase that I know about:
 
 IMPORTANT: You can edit files in these repos if necessary. Just make sure to commit your changes to the corresponding
 repo using your commit skill (NOT `git commit`) after making them.
+
+## Plan Mode and Questions (sase Agents Only)
+
+When running inside sase (`SASE_AGENT` is set):
+
+- You do NOT have access to plan mode (`EnterPlanMode`/`ExitPlanMode`). Use the `/sase_plan` skill instead.
+- You do NOT have access to `AskUserQuestion`. Use the `/sase_questions` skill instead.
+- The `sase plan` and `sase questions` CLI commands are implementation details used by these skills -- do not reference
+  them directly.
