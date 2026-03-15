@@ -236,6 +236,90 @@ def test_chops_without_run_every_run_every_tick(
     assert mock_run.call_count == 3
 
 
+# --- Guard Tests ---
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_guard_pass_allows_chop_to_run(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that a chop runs when its guard command succeeds (exit 0)."""
+    config = LumberjackConfig(
+        name="guarded",
+        interval=10,
+        chops=[ChopConfig(name="guarded_chop", description="", guard="true")],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _ok_result()
+
+    lumberjack = Lumberjack("guarded", config, axe_config)
+    lumberjack._run_tick()
+
+    assert mock_run.call_count == 1
+    assert lumberjack._metrics.chops_executed == 1
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_guard_fail_skips_chop(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that a chop is skipped when its guard command fails (exit != 0)."""
+    config = LumberjackConfig(
+        name="guarded",
+        interval=10,
+        chops=[ChopConfig(name="guarded_chop", description="", guard="false")],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _ok_result()
+
+    lumberjack = Lumberjack("guarded", config, axe_config)
+    lumberjack._run_tick()
+
+    assert mock_run.call_count == 0
+    assert lumberjack._metrics.chops_executed == 0
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_guard_does_not_update_run_every_timestamp(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that a failed guard does not update the run_every timestamp."""
+    config = LumberjackConfig(
+        name="guarded",
+        interval=10,
+        chops=[
+            ChopConfig(
+                name="guarded_chop", description="", run_every=3600, guard="false"
+            )
+        ],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _ok_result()
+
+    lumberjack = Lumberjack("guarded", config, axe_config)
+    lumberjack._run_tick()
+
+    assert "guarded_chop" not in lumberjack._chop_timestamps
+
+
 # --- Status/Metrics Writing Tests ---
 
 

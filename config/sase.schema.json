@@ -5,6 +5,62 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "ace": {
+      "type": "object",
+      "description": "Configuration for the ace TUI",
+      "additionalProperties": false,
+      "properties": {
+        "inactive_seconds": {
+          "type": "integer",
+          "description": "Seconds of inactivity before auto-sleep",
+          "default": 600
+        },
+        "keymaps": {
+          "type": "object",
+          "description": "Keymap configuration for the TUI",
+          "additionalProperties": false,
+          "properties": {
+            "app": {
+              "type": "object",
+              "description": "Top-level application keybindings (action name to key string)",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "modes": {
+              "type": "object",
+              "description": "Named prefix-key mode definitions",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "prefix": {
+                    "type": "string",
+                    "description": "Key that activates this mode"
+                  },
+                  "keys": {
+                    "type": "object",
+                    "description": "Keybindings within this mode",
+                    "additionalProperties": {
+                      "oneOf": [
+                        { "type": "string" },
+                        {
+                          "type": "object",
+                          "description": "Nested key group (e.g., copy mode per-tab keys)",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "axe": {
       "type": "object",
       "description": "Configuration for the axe scheduler daemon",
@@ -67,9 +123,50 @@
               },
               "chops": {
                 "type": "array",
-                "description": "List of chop script names to run on each tick",
+                "description": "List of chop scripts to run on each tick",
                 "items": {
-                  "type": "string"
+                  "oneOf": [
+                    { "type": "string" },
+                    {
+                      "type": "object",
+                      "required": ["name"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Name of the chop script"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Description of what this chop does"
+                        },
+                        "agent": {
+                          "type": "string",
+                          "description": "Agent reference to run instead of a chop script"
+                        },
+                        "xprompt": {
+                          "type": "string",
+                          "description": "XPrompt reference to run instead of a chop script"
+                        },
+                        "run_every": {
+                          "type": "string",
+                          "description": "Duration string (e.g., '60m', '30s', '2h') controlling how often this chop runs",
+                          "pattern": "^\\d+(s|m|h)$"
+                        },
+                        "guard": {
+                          "type": "string",
+                          "description": "Shell command that must exit 0 for the chop to run. If it exits non-zero, the chop is skipped for this tick."
+                        },
+                        "env": {
+                          "type": "object",
+                          "description": "Environment variables to set when running the chop",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }

@@ -36,6 +36,7 @@ class ChopConfig:
     description: str
     agent: str | None = None
     run_every: int | None = None  # seconds, parsed from duration string (e.g. "60m")
+    guard: str | None = None  # shell command; chop skipped if exit code != 0
     env: dict[str, str] = field(default_factory=dict)
 
 
@@ -95,6 +96,7 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
                         description=entry.get("description", ""),
                         agent=entry.get("agent") or entry.get("xprompt"),
                         run_every=run_every,
+                        guard=entry.get("guard"),
                         env=env,
                     )
                 )

@@ -311,9 +311,24 @@ def _start_stale_hooks_for_proposal(
 
     try:
         # Get workspace directory
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
-        )
+        try:
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, project_basename
+            )
+        except RuntimeError as e:
+            log(
+                f"[WS#{workspace_num}] Warning: Failed to resolve workspace for "
+                f"proposal {entry_id} on {changespec.name}: {e}",
+                "yellow",
+            )
+            if should_release_on_error:
+                release_workspace(
+                    changespec.file_path,
+                    workspace_num,
+                    proposal_workflow,
+                    changespec.name,
+                )
+            return updates, started_hooks, limited_count
 
         if not os.path.isdir(workspace_dir):
             log(
@@ -545,9 +560,24 @@ def _start_stale_hooks_shared_workspace(
 
     try:
         # Get workspace directory
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
-        )
+        try:
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, project_basename
+            )
+        except RuntimeError as e:
+            log(
+                f"[WS#{workspace_num}] Warning: Failed to resolve workspace for "
+                f"{changespec.name}: {e}",
+                "yellow",
+            )
+            if should_release_on_error:
+                release_workspace(
+                    changespec.file_path,
+                    workspace_num,
+                    entry_workflow,
+                    changespec.name,
+                )
+            return updates, started_hooks, limited_count
 
         if not os.path.isdir(workspace_dir):
             log(

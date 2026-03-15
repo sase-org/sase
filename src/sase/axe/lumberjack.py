@@ -8,6 +8,7 @@ housekeeping).
 
 import os
 import signal
+import subprocess
 import time
 import traceback
 from collections.abc import Callable
@@ -142,6 +143,8 @@ class Lumberjack:
                     elapsed = (now - last_run).total_seconds()
                     if elapsed < chop.run_every:
                         continue
+            if chop.guard is not None and not self._check_guard(chop):
+                continue
             if chop.agent is not None:
                 if self._run_agent_chop(chop) and chop.run_every is not None:
                     self._chop_timestamps[chop.name] = now
@@ -185,6 +188,33 @@ class Lumberjack:
                 {k: v.isoformat() for k, v in self._chop_timestamps.items()},
             )
         self._metrics.cycles_run += 1
+
+    def _check_guard(self, chop: ChopConfig) -> bool:
+        """Run a chop's guard command and return whether the chop should proceed.
+
+        Returns:
+            True if the guard passes (exit code 0), False otherwise.
+        """
+        assert chop.guard is not None
+        try:
+            result = subprocess.run(
+                chop.guard,
+                shell=True,
+                capture_output=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                self._log(
+                    f"Guard for '{chop.name}' returned {result.returncode}, skipping"
+                )
+                return False
+            return True
+        except subprocess.TimeoutExpired:
+            self._log(f"Guard for '{chop.name}' timed out, skipping", style="yellow")
+            return False
+        except Exception as e:
+            self._log(f"Guard for '{chop.name}' failed: {e}", style="red")
+            return False
 
     def _run_agent_chop(self, chop: ChopConfig) -> bool:
         """Launch an agent chop as a background process.
