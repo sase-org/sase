@@ -92,7 +92,10 @@ def load_changespecs_from_file(path: str) -> list[ChangeSpec]:
         List of deserialized ChangeSpecs.
     """
     with open(path) as f:
-        raw_list = json.load(f)
+        content = f.read()
+    if not content.strip():
+        return []
+    raw_list = json.loads(content)
     return [_reconstruct_changespec(d) for d in raw_list]
 
 
