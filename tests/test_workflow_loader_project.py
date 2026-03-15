@@ -99,6 +99,7 @@ def test_get_all_workflows_without_project_excludes_project_workflows() -> None:
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project"
         ) as mock_load_project,
+        patch("sase.xprompt.workflow_loader.detect_project", return_value=None),
     ):
         get_all_workflows()  # No project param
 
@@ -157,5 +158,5 @@ def test_yml_files_discovered_as_workflow_files() -> None:
         ):
             discovered = _discover_workflow_files()
 
-        filenames = [path.name for path, _ in discovered]
+        filenames = [path.name for path, _, _ in discovered]
         assert "real_workflow.yml" in filenames

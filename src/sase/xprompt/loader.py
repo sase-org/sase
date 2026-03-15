@@ -1,5 +1,6 @@
 """XPrompt discovery and loading from files and configuration."""
 
+import functools
 import importlib.resources
 import logging
 from pathlib import Path
@@ -19,6 +20,36 @@ log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
+
+
+@functools.cache
+def detect_project() -> str | None:
+    """Auto-detect the current project name from the workspace.
+
+    Uses the ``workspace_name`` shell command.  The result is cached for
+    the lifetime of the process so the subprocess only runs once.
+    """
+    try:
+        from sase.sase_utils import run_shell_command
+
+        result = run_shell_command("workspace_name", capture_output=True)
+        if result.returncode != 0:
+            return None
+        name = result.stdout.strip()
+        return name if name else None
+    except Exception:
+        return None
+
+
+def _namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
+    """Return a copy of *xp* with its name prefixed by ``{project}/``."""
+    namespaced_name = f"{project}/{xp.name}"
+    return XPrompt(
+        name=namespaced_name,
+        content=xp.content,
+        inputs=xp.inputs,
+        source_path=xp.source_path,
+    )
 
 
 def get_sase_package_xprompts_dir() -> Path:
@@ -102,16 +133,21 @@ def get_xprompt_search_paths() -> list[Path]:
     return paths
 
 
-def _load_xprompts_from_files() -> dict[str, XPrompt]:
+def _load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
     """Load xprompts from file system locations.
 
     Scans each search directory for ``.md`` files. Earlier directories in the
     search path take precedence over later ones.
 
+    When *project* is given, xprompts from CWD directories (``.xprompts/``,
+    ``xprompts/``) are namespaced with ``{project}/``.
+
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
         Earlier priority sources override later ones.
     """
+    cwd = Path.cwd()
+    cwd_dirs = {cwd / ".xprompts", cwd / "xprompts"}
     search_paths = get_xprompt_search_paths()
     xprompts: dict[str, XPrompt] = {}
 
@@ -121,16 +157,19 @@ def _load_xprompts_from_files() -> dict[str, XPrompt]:
         if not search_dir.is_dir():
             continue
 
+        is_local = search_dir in cwd_dirs
         for md_file in search_dir.glob("*.md"):
             if md_file.is_file():
                 xprompt = _load_xprompt_from_file(md_file)
                 if xprompt:
+                    if project and is_local:
+                        xprompt = _namespace_xprompt(project, xprompt)
                     xprompts[xprompt.name] = xprompt
 
     return xprompts
 
 
-def _load_xprompts_from_config() -> dict[str, XPrompt]:
+def _load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]:
     """Load xprompts from config sources with proper source attribution.
 
     Loads xprompts from each config source separately (built-in defaults,
@@ -138,11 +177,15 @@ def _load_xprompts_from_config() -> dict[str, XPrompt]:
     xprompt gets the correct source attribution instead of all being
     tagged as ``"config"``.
 
+    When *project* is given, xprompts from the local ``sase.yml``
+    (``local_config`` source) are namespaced with ``{project}/``.
+
     Priority order (within config sources, later overrides earlier):
     1. Built-in ``default_config.yml``
     2. Plugin ``default_config.yml`` files
     3. User ``sase.yml``
     4. Overlay ``sase_*.yml`` files
+    5. Local ``./sase.yml``
 
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
@@ -151,6 +194,11 @@ def _load_xprompts_from_config() -> dict[str, XPrompt]:
 
     for source_label, xprompts_data in load_xprompts_by_source():
         parsed = parse_xprompt_entries(xprompts_data, source_label)
+        if project and source_label == "local_config":
+            parsed = {
+                f"{project}/{name}": _namespace_xprompt(project, xp)
+                for name, xp in parsed.items()
+            }
         all_xprompts.update(parsed)
 
     return all_xprompts
@@ -246,29 +294,24 @@ def _load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     if not project_dir.is_dir():
         return {}
 
-    def _namespace(name: str, xp: XPrompt) -> XPrompt:
-        namespaced_name = f"{project}/{name}"
-        return XPrompt(
-            name=namespaced_name,
-            content=xp.content,
-            inputs=xp.inputs,
-            source_path=xp.source_path,
-        )
-
     xprompts: dict[str, XPrompt] = {}
 
     for md_file in project_dir.glob("*.md"):
         if md_file.is_file():
             xprompt = _load_xprompt_from_file(md_file)
             if xprompt:
-                namespaced_name = f"{project}/{xprompt.name}"
-                xprompts[namespaced_name] = _namespace(xprompt.name, xprompt)
+                ns = _namespace_xprompt(project, xprompt)
+                xprompts[ns.name] = ns
 
     return xprompts
 
 
 def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     """Get all xprompts from all sources, respecting priority order.
+
+    When *project* is given (or auto-detected via ``detect_project()``),
+    xprompts from project-local sources (CWD xprompt directories and the
+    local ``sase.yml``) are namespaced with ``{project}/``.
 
     Priority order (first wins on name conflict):
     1. .xprompts/*.md (CWD, hidden)
@@ -281,11 +324,14 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     8. <sase_package>/xprompts/*.md (internal)
 
     Args:
-        project: Optional project name to include project-specific xprompts.
+        project: Optional project name.  When ``None``, the project is
+            auto-detected via :func:`detect_project`.
 
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
     """
+    effective_project = project if project is not None else detect_project()
+
     # Start with lowest priority and let higher priority override
     all_xprompts: dict[str, XPrompt] = {}
 
@@ -296,16 +342,16 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     all_xprompts.update(_load_xprompts_from_plugins())
 
     # 6. Config-based xprompts
-    config_xprompts = _load_xprompts_from_config()
+    config_xprompts = _load_xprompts_from_config(project=effective_project)
     all_xprompts.update(config_xprompts)
 
     # 5. Project-specific xprompts (if project provided)
-    if project:
-        project_xprompts = _load_xprompts_from_project(project)
+    if effective_project:
+        project_xprompts = _load_xprompts_from_project(effective_project)
         all_xprompts.update(project_xprompts)
 
     # 1-4. File-based xprompts (highest priority) - already sorted
-    file_xprompts = _load_xprompts_from_files()
+    file_xprompts = _load_xprompts_from_files(project=effective_project)
     all_xprompts.update(file_xprompts)
 
     return all_xprompts

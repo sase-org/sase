@@ -8,6 +8,7 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
+    detect_project,
     get_sase_package_xprompts_dir,
     get_xprompt_search_paths,
 )
@@ -25,6 +26,19 @@ from sase.xprompt.workflow_models import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
+    """Return a copy of *wf* with its name prefixed by ``{project}/``."""
+    namespaced_name = f"{project}/{wf.name}"
+    return Workflow(
+        name=namespaced_name,
+        inputs=wf.inputs,
+        steps=wf.steps,
+        source_path=wf.source_path,
+        xprompts=wf.xprompts,
+        wraps_all=wf.wraps_all,
+    )
 
 
 def _load_workflow_from_file(file_path: Path) -> Workflow | None:
@@ -122,32 +136,39 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
     return workflow
 
 
-def _discover_workflow_files() -> list[tuple[Path, int]]:
-    """Find all workflow files in search paths with priority info.
+def _discover_workflow_files() -> list[tuple[Path, int, bool]]:
+    """Find all workflow files in search paths with priority and locality info.
 
     Returns:
-        List of (file_path, priority) tuples, where lower priority wins.
+        List of ``(file_path, priority, is_local)`` tuples.
+        Lower *priority* wins.  *is_local* is ``True`` for CWD directories.
     """
+    cwd = Path.cwd()
+    cwd_dirs = {cwd / ".xprompts", cwd / "xprompts"}
     search_paths = get_xprompt_search_paths()
-    results: list[tuple[Path, int]] = []
+    results: list[tuple[Path, int, bool]] = []
 
     for priority, search_dir in enumerate(search_paths):
         if not search_dir.is_dir():
             continue
 
+        is_local = search_dir in cwd_dirs
         for yml_file in search_dir.glob("*.yml"):
             if yml_file.is_file():
-                results.append((yml_file, priority))
+                results.append((yml_file, priority, is_local))
 
         for yaml_file in search_dir.glob("*.yaml"):
             if yaml_file.is_file():
-                results.append((yaml_file, priority))
+                results.append((yaml_file, priority, is_local))
 
     return results
 
 
-def _load_workflows_from_files() -> dict[str, Workflow]:
+def _load_workflows_from_files(project: str | None = None) -> dict[str, Workflow]:
     """Load workflows from file system locations.
+
+    When *project* is given, workflows from CWD directories are namespaced
+    with ``{project}/``.
 
     Returns:
         Dictionary mapping workflow name to Workflow object.
@@ -159,11 +180,14 @@ def _load_workflows_from_files() -> dict[str, Workflow]:
     discovered.sort(key=lambda x: x[1])
 
     workflows: dict[str, Workflow] = {}
-    for file_path, _ in discovered:
+    for file_path, _, is_local in discovered:
         workflow = _load_workflow_from_file(file_path)
-        if workflow and workflow.name not in workflows:
-            # First occurrence wins
-            workflows[workflow.name] = workflow
+        if workflow:
+            if project and is_local:
+                workflow = _namespace_workflow(project, workflow)
+            if workflow.name not in workflows:
+                # First occurrence wins
+                workflows[workflow.name] = workflow
 
     return workflows
 
@@ -278,41 +302,25 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
         if yml_file.is_file():
             workflow = _load_workflow_from_file(yml_file)
             if workflow:
-                # Use file stem for project workflows to avoid duplicate prefixes
-                # (the YAML's name field might already include the project prefix)
-                base_name = yml_file.stem
-                namespaced_name = f"{project}/{base_name}"
-                workflows[namespaced_name] = Workflow(
-                    name=namespaced_name,
-                    inputs=workflow.inputs,
-                    steps=workflow.steps,
-                    source_path=workflow.source_path,
-                    xprompts=workflow.xprompts,
-                    wraps_all=workflow.wraps_all,
-                )
+                ns = _namespace_workflow(project, workflow)
+                workflows[ns.name] = ns
 
     for yaml_file in project_dir.glob("*.yaml"):
         if yaml_file.is_file():
             workflow = _load_workflow_from_file(yaml_file)
             if workflow:
-                # Use file stem for project workflows to avoid duplicate prefixes
-                # (the YAML's name field might already include the project prefix)
-                base_name = yaml_file.stem
-                namespaced_name = f"{project}/{base_name}"
-                if namespaced_name not in workflows:  # .yml takes precedence
-                    workflows[namespaced_name] = Workflow(
-                        name=namespaced_name,
-                        inputs=workflow.inputs,
-                        steps=workflow.steps,
-                        source_path=workflow.source_path,
-                        xprompts=workflow.xprompts,
-                        wraps_all=workflow.wraps_all,
-                    )
+                ns = _namespace_workflow(project, workflow)
+                if ns.name not in workflows:  # .yml takes precedence
+                    workflows[ns.name] = ns
     return workflows
 
 
 def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     """Get all workflows from all sources, respecting priority order.
+
+    When *project* is given (or auto-detected via ``detect_project()``),
+    workflows from project-local sources (CWD xprompt directories) are
+    namespaced with ``{project}/``.
 
     Priority order (first wins on name conflict):
     1. .xprompts/*.yml (CWD, hidden)
@@ -324,11 +332,14 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     7. <sase_package>/xprompts/*.yml (internal)
 
     Args:
-        project: Optional project name to include project-specific workflows.
+        project: Optional project name.  When ``None``, the project is
+            auto-detected via :func:`detect_project`.
 
     Returns:
         Dictionary mapping workflow name to Workflow object.
     """
+    effective_project = project if project is not None else detect_project()
+
     all_workflows: dict[str, Workflow] = {}
 
     # 7. Internal workflows (lowest priority)
@@ -338,12 +349,12 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     all_workflows.update(_load_workflows_from_plugins())
 
     # 5. Project-specific workflows (if project provided)
-    if project:
-        project_workflows = _load_workflows_from_project(project)
+    if effective_project:
+        project_workflows = _load_workflows_from_project(effective_project)
         all_workflows.update(project_workflows)
 
     # File-based workflows (highest priority) - already sorted
-    file_workflows = _load_workflows_from_files()
+    file_workflows = _load_workflows_from_files(project=effective_project)
     all_workflows.update(file_workflows)
 
     return all_workflows
