@@ -390,6 +390,11 @@ def run_query(
     # Get project info for workspace claiming (creates project file if needed)
     project_file, workspace_num, _ = ensure_project_file_and_get_workspace_num()
 
+    # Resolve aliases before saving so history stores canonical names
+    from sase.xprompt import resolve_xprompt_aliases
+
+    query = resolve_xprompt_aliases(query)
+
     # Save prompt to history immediately (only for new queries, not resume)
     # This ensures the prompt is visible in `sase run .` from other terminals
     if previous_history is None:

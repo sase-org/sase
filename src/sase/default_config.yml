@@ -176,6 +176,7 @@ llm_provider:
 vcs_provider:
   provider: "auto"
 
+xprompt_aliases: {}
 xprompts:
   phase: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
