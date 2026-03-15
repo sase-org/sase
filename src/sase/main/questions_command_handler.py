@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-import signal
 import sys
 import time
 from pathlib import Path
 from typing import NoReturn
+
+from sase.main.utils import kill_agent_runner_group
 
 
 def _validate_questions(questions: list[dict]) -> None:  # type: ignore[type-arg]
@@ -44,8 +45,7 @@ def handle_questions_command(questions_json: str) -> NoReturn:
     1. Guard: verify SASE_AGENT and SASE_ARTIFACTS_DIR env vars
     2. Parse and validate questions JSON
     3. Write .sase_questions_pending marker JSON to SASE_ARTIFACTS_DIR
-    4. Install no-op SIGTERM handler
-    5. Kill process group via SIGTERM
+    4. Kill the agent runner's process group via SIGTERM
     """
     # Guard: must be running inside sase agent
     if not os.environ.get("SASE_AGENT"):
@@ -88,9 +88,8 @@ def handle_questions_command(questions_json: str) -> NoReturn:
         f.flush()
         os.fsync(f.fileno())
 
-    # Install no-op SIGTERM handler so this process survives its own killpg
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
-
-    # Kill process group
-    os.killpg(os.getpgrp(), signal.SIGTERM)
-    sys.exit(0)
+    # Kill the agent runner's process group (which includes the claude
+    # subprocess).  We cannot use our own process group because Claude Code
+    # spawns Bash-tool subprocesses in an isolated process group — the
+    # SIGTERM would never reach `claude` or the agent runner.
+    kill_agent_runner_group(artifacts_dir)

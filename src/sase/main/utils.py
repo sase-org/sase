@@ -1,6 +1,13 @@
 """Utility functions for the main entry point."""
 
+from __future__ import annotations
+
+import json
 import os
+import signal
+import sys
+from pathlib import Path
+from typing import NoReturn
 
 from sase.workspace_provider import get_workspace_name
 
@@ -35,6 +42,39 @@ def _get_workspace_num(project_name: str) -> int:
         if workspace_suffix in cwd:
             return n
     return 1
+
+
+def kill_agent_runner_group(artifacts_dir: str) -> NoReturn:
+    """Kill the agent runner's process group to stop the current agent.
+
+    Reads ``agent_meta.json`` from *artifacts_dir* to discover the agent
+    runner's PID, resolves its process-group ID, and sends ``SIGTERM`` to
+    the entire group.  This is necessary because Claude Code launches Bash
+    tool subprocesses in an isolated process group — killing our own group
+    (``os.getpgrp()``) would never reach ``claude`` or the agent runner.
+
+    The caller must write any required marker files **before** calling this
+    function.
+    """
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        runner_pid: int = meta["pid"]
+        runner_pgid = os.getpgid(runner_pid)
+    except (FileNotFoundError, KeyError, json.JSONDecodeError, OSError) as exc:
+        print(
+            f"Error: cannot determine agent runner process group: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Ignore SIGTERM so this process isn't killed if it happens to share
+    # the target group (e.g. same-group fallback on some systems).
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
+    os.killpg(runner_pgid, signal.SIGTERM)
+    sys.exit(0)
 
 
 def ensure_project_file_and_get_workspace_num() -> ProjectInfo:

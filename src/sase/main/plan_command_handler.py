@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-import signal
 import sys
 import time
 from pathlib import Path
 from typing import NoReturn
+
+from sase.main.utils import kill_agent_runner_group
 
 
 def handle_plan_command(plan_file: str) -> NoReturn:
@@ -18,8 +19,7 @@ def handle_plan_command(plan_file: str) -> NoReturn:
     2. Validate plan_file exists
     3. Archive plan to ~/.sase/plans/
     4. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
-    5. Install no-op SIGTERM handler
-    6. Kill process group via SIGTERM
+    5. Kill the agent runner's process group via SIGTERM
     """
     # Guard: must be running inside sase agent
     if not os.environ.get("SASE_AGENT"):
@@ -61,9 +61,8 @@ def handle_plan_command(plan_file: str) -> NoReturn:
         f.flush()
         os.fsync(f.fileno())
 
-    # Install no-op SIGTERM handler so this process survives its own killpg
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
-
-    # Kill process group
-    os.killpg(os.getpgrp(), signal.SIGTERM)
-    sys.exit(0)
+    # Kill the agent runner's process group (which includes the claude
+    # subprocess).  We cannot use our own process group because Claude Code
+    # spawns Bash-tool subprocesses in an isolated process group — the
+    # SIGTERM would never reach `claude` or the agent runner.
+    kill_agent_runner_group(artifacts_dir)
