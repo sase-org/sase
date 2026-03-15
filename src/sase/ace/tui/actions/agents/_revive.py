@@ -87,18 +87,19 @@ class AgentRevivalMixin:
             self.notify("No dismissed agents in this scope")  # type: ignore[attr-defined]
             return
 
-        def _on_agent_selected(agent: object) -> None:
-            if agent is None:
+        def _on_agents_selected(agents: object) -> None:
+            if agents is None:
                 return
-            from ...models import Agent
-
-            if not isinstance(agent, Agent):
+            if not isinstance(agents, list) or not agents:
                 return
-            self._do_revive_agent(agent)
+            if len(agents) == 1:
+                self._do_revive_agent(agents[0])
+            else:
+                self._do_revive_agents(agents)  # type: ignore[attr-defined]
 
         self.app.push_screen(  # type: ignore[attr-defined]
             DismissedAgentSelectModal(filtered, all_dismissed=all_in_scope),
-            _on_agent_selected,
+            _on_agents_selected,
         )
 
     def _do_revive_agent(self, agent: object) -> None:
@@ -157,6 +158,58 @@ class AgentRevivalMixin:
                     self.current_idx = idx  # type: ignore[attr-defined]
                     self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
                     break
+
+    def _do_revive_agents(self, agents: list[Agent]) -> None:
+        """Revive multiple dismissed agents in a single batch.
+
+        Batches disk operations for efficiency: one save_dismissed_agents()
+        call and one _load_agents() call instead of N each.
+        """
+        from ....dismissed_agents import (
+            remove_bundle_by_identity,
+            save_dismissed_agents,
+        )
+        from ...models import Agent as AgentModel
+
+        valid_agents = [a for a in agents if isinstance(a, AgentModel)]
+        if not valid_agents:
+            return
+
+        # Phase 1: Remove all from dismissed set (including children)
+        for agent in valid_agents:
+            self._dismissed_agents.discard(agent.identity)
+            if not agent.is_workflow_child and agent.raw_suffix:
+                for dismissed_agent in list(self._dismissed_agent_objects):
+                    if (
+                        dismissed_agent.is_workflow_child
+                        and dismissed_agent.parent_timestamp == agent.raw_suffix
+                        and dismissed_agent.parent_workflow == agent.workflow
+                    ):
+                        self._dismissed_agents.discard(dismissed_agent.identity)
+
+        # Phase 2: Single disk write for dismissed set
+        save_dismissed_agents(self._dismissed_agents)
+
+        # Phase 3: Restore artifacts and clean bundles
+        for agent in valid_agents:
+            self._restore_agent_artifacts(agent)
+            if not agent.is_workflow_child and agent.raw_suffix:
+                for dismissed_agent in list(self._dismissed_agent_objects):
+                    if (
+                        dismissed_agent.is_workflow_child
+                        and dismissed_agent.parent_timestamp == agent.raw_suffix
+                        and dismissed_agent.parent_workflow == agent.workflow
+                    ):
+                        self._restore_agent_artifacts(
+                            dismissed_agent,
+                            parent_artifacts_dir=agent.artifacts_dir,
+                        )
+            remove_bundle_by_identity(agent.identity)
+
+        # Phase 4: Single notification and refresh
+        count = len(valid_agents)
+        self.notify(f"Revived {count} agent{'s' if count != 1 else ''}")  # type: ignore[attr-defined]
+        self._load_agents()  # type: ignore[attr-defined]
 
     def _restore_agent_artifacts(
         self,

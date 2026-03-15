@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
@@ -53,11 +54,17 @@ class _ReviveFilterInput(Input):
                 self.cursor_position = 0
 
 
-class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | None]):
-    """Modal for selecting a dismissed agent to revive."""
+class DismissedAgentSelectModal(
+    OptionListNavigationMixin, ModalScreen[list[Agent] | None]
+):
+    """Modal for selecting dismissed agents to revive (supports multi-select)."""
 
     _option_list_id = "dismissed-agent-list"
-    BINDINGS = [*OptionListNavigationMixin.NAVIGATION_BINDINGS]
+    BINDINGS = [
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        Binding("tab", "toggle_mark", "Mark", priority=True),
+        Binding("ctrl+a", "toggle_all", "Mark All", priority=True),
+    ]
 
     def __init__(
         self,
@@ -79,6 +86,7 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
         self._chat_contents: dict[int, str] = {}
         self._filtered: list[tuple[int, Agent]] = list(enumerate(agents))
         self._step_counts: dict[str, int] = self._compute_step_counts()
+        self._marked: set[int] = set()
 
     def _compute_step_counts(self) -> dict[str, int]:
         """Count child steps per parent (keyed by raw_suffix)."""
@@ -117,7 +125,7 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container(id="dismissed-agent-modal-container"):
-            yield Label("Select Agent to Revive", id="modal-title")
+            yield Label("Revive Agents", id="modal-title")
             yield _ReviveFilterInput(
                 placeholder="Type to filter...", id="dismissed-filter"
             )
@@ -132,7 +140,7 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
                         yield Static("", id="dismissed-preview-metadata")
                         yield Static("", id="dismissed-preview-content")
             yield Static(
-                "j/k: navigate | ^d/^u: scroll preview | Enter: select | Esc/q: cancel",
+                "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll | Enter: revive | Esc/q: cancel",
                 id="dismissed-agent-hints",
             )
 
@@ -149,17 +157,23 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
             return f"bold {color}"
         return "dim"
 
-    def _format_agent_label(self, agent: Agent) -> Text:
+    def _format_agent_label(self, agent: Agent, orig_idx: int = -1) -> Text:
         """Create styled text for an agent option."""
         text = Text()
 
+        # Mark indicator
+        if orig_idx in self._marked:
+            text.append(" \u25cf ", style="bold #00D7D7")
+        else:
+            text.append("   ")
+
         # Status icon
         if agent.status == "DONE":
-            text.append(" \u2714 ", style="bold #5FD75F")
+            text.append("\u2714 ", style="bold #5FD75F")
         elif agent.status == "FAILED":
-            text.append(" \u2718 ", style="bold #FF5F5F")
+            text.append("\u2718 ", style="bold #FF5F5F")
         else:
-            text.append(" \u25cb ", style="dim")
+            text.append("\u25cb ", style="dim")
 
         # [type] colored by type
         type_color = self._get_type_color(agent)
@@ -194,7 +208,7 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
     def _create_options(self, agents: list[Agent]) -> list[Option]:
         """Create options from agents."""
         return [
-            Option(self._format_agent_label(agent), id=str(i))
+            Option(self._format_agent_label(agent, i), id=str(i))
             for i, agent in enumerate(agents)
         ]
 
@@ -215,6 +229,67 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
                 results.append((i, agent))
         return results
 
+    # --- Mark / bulk selection ---
+
+    def action_toggle_mark(self) -> None:
+        """Toggle mark on highlighted agent and advance cursor."""
+        option_list = self.query_one("#dismissed-agent-list", OptionList)
+        highlighted = option_list.highlighted
+        if highlighted is None or highlighted >= len(self._filtered):
+            return
+        orig_idx = self._filtered[highlighted][0]
+        if orig_idx in self._marked:
+            self._marked.discard(orig_idx)
+        else:
+            self._marked.add(orig_idx)
+        self._rebuild_options()
+        self._update_hints()
+        # Auto-advance to next item
+        option_list.action_cursor_down()
+
+    def action_toggle_all(self) -> None:
+        """Toggle marks on all currently filtered agents."""
+        filtered_indices = {idx for idx, _ in self._filtered}
+        if filtered_indices and filtered_indices <= self._marked:
+            # All filtered items are already marked → unmark them
+            self._marked -= filtered_indices
+        else:
+            # Some or none marked → mark all filtered
+            self._marked |= filtered_indices
+        self._rebuild_options()
+        self._update_hints()
+
+    def _rebuild_options(self) -> None:
+        """Rebuild the option list to reflect mark state changes."""
+        option_list = self.query_one("#dismissed-agent-list", OptionList)
+        old_highlighted = option_list.highlighted
+        option_list.clear_options()
+        for orig_idx, agent in self._filtered:
+            option_list.add_option(
+                Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
+            )
+        if old_highlighted is not None and 0 <= old_highlighted < len(self._filtered):
+            option_list.highlighted = old_highlighted
+
+    def _update_hints(self) -> None:
+        """Update the hints bar to reflect current mark count."""
+        hints = self.query_one("#dismissed-agent-hints", Static)
+        count = len(self._marked)
+        if count:
+            text = (
+                "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll"
+                f" | Enter: revive ({count}) | Esc/q: cancel"
+            )
+        else:
+            text = "j/k: navigate | tab: mark | ^a: all | ^d/^u: scroll | Enter: revive | Esc/q: cancel"
+        hints.update(text)
+
+    def _get_marked_agents(self) -> list[Agent]:
+        """Get all marked agents in original order."""
+        return [self.agents[i] for i in sorted(self._marked) if i < len(self.agents)]
+
+    # --- Event handlers ---
+
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle filter input change."""
         self._filtered = self._get_filtered_agents(event.value)
@@ -222,15 +297,21 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
         option_list.clear_options()
         for orig_idx, agent in self._filtered:
             option_list.add_option(
-                Option(self._format_agent_label(agent), id=str(orig_idx))
+                Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
             )
         if self._filtered:
             self._update_preview(self._filtered[0][1])
         else:
             self._clear_preview()
+        self._update_hints()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in filter input."""
+        # If agents are marked, revive all marked
+        if self._marked:
+            self.dismiss(self._get_marked_agents())
+            return
+        # Otherwise, single selection from filtered list
         filtered = self._get_filtered_agents(event.value.strip())
         if not filtered:
             self.dismiss(None)
@@ -238,9 +319,9 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         highlighted = option_list.highlighted
         if highlighted is not None and 0 <= highlighted < len(filtered):
-            self.dismiss(filtered[highlighted][1])
+            self.dismiss([filtered[highlighted][1]])
         else:
-            self.dismiss(filtered[0][1])
+            self.dismiss([filtered[0][1]])
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -253,10 +334,17 @@ class DismissedAgentSelectModal(OptionListNavigationMixin, ModalScreen[Agent | N
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection."""
+        # If agents are marked, revive all marked
+        if self._marked:
+            self.dismiss(self._get_marked_agents())
+            return
+        # Otherwise, single selection
         if event.option and event.option.id is not None:
             idx = int(event.option.id)
             if 0 <= idx < len(self.agents):
-                self.dismiss(self.agents[idx])
+                self.dismiss([self.agents[idx]])
+
+    # --- Preview ---
 
     def scroll_preview_down(self) -> None:
         """Scroll preview panel down (half page)."""
