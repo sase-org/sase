@@ -359,6 +359,35 @@ def create_parser() -> argparse.ArgumentParser:
         help="Path to an existing bare repo to register instead of creating new",
     )
 
+    # --- image ---
+    image_parser = top_level_subparsers.add_parser(
+        "image",
+        help="Generate an image using Gemini and save it locally",
+    )
+    image_parser.add_argument(
+        "prompt",
+        nargs="*",
+        help="Prompt text for image generation (or pipe via stdin)",
+    )
+    # Options for 'image' (keep sorted alphabetically by long option name)
+    image_parser.add_argument(
+        "-m",
+        "--model",
+        default="gemini-3-pro-image-preview",
+        help="Gemini image model (default: gemini-3-pro-image-preview)",
+    )
+    image_parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="Do not create a sase notification for this generated image",
+    )
+    image_parser.add_argument(
+        "-o",
+        "--output-dir",
+        default=None,
+        help="Directory to write generated images (default: ~/.sase/images)",
+    )
+
     # --- notify ---
     notify_parser = top_level_subparsers.add_parser(
         "notify",
