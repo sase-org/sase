@@ -48,7 +48,15 @@ xprompts:
       the same name in the prompts/ directory. If found, a `status` field should be added (or updated if it already exists) to
       the frontmatter of the plan file with a value of `done`.
 
-  bd/review:
+  bd/review/prompt:
+    input:
+      file_base: word
+    content: |
+      Can you help me review the prompt I've prepared in the @prompts/{{ file_base }}.md file and look for gaps / ambiguity
+      in the requirements? In particular, what design decisions would you need from me if I were to ask you to implement the
+      functionality described in that file?
+
+  bd/review/plan:
     input:
       file_base: word
     content: |
