@@ -138,7 +138,7 @@ axe:
         - name: my_chop
           description: "What this chop does"
           agent: my_agent # Optional — runs as background agent process
-          run_every: 5 # Run every 5th cycle (default: 1)
+          run_every: "5m" # Time-based duration: run at most once per 5 minutes
           env:
             MY_VAR: "value" # Custom environment variables
 ```

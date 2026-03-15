@@ -100,7 +100,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 │(Claude,Codex,Gem)│ (pluggy plugins)│ (pluggy plugins)│
 ├──────────────────┴─────────────────┴─────────────────┤
 │                   Plugin Packages                    │
-│    sase-github (GitHub PRs)  sase-google (Mercurial) │
+│  sase-github · sase-google · sase-telegram · sase-nvim│
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -126,27 +126,27 @@ sase
 
 ## CLI Commands
 
-| Command                | Description                                                       |
-| ---------------------- | ----------------------------------------------------------------- |
-| `sase ace`             | Interactive TUI for navigating and managing ChangeSpecs           |
-| `sase axe start`       | Start the lumberjack-based daemon (orchestrator mode)             |
-| `sase axe stop`        | Stop the running axe orchestrator                                 |
-| `sase axe chop`        | List or run individual chop scripts                               |
-| `sase axe lumberjack`  | List, run, or check status of lumberjacks                         |
-| `sase search`          | Search and filter ChangeSpecs with query expressions              |
-| `sase run`             | Execute workflows, resume agents by name, or run a query directly |
-| `sase xprompt expand`  | Expand prompt templates with sase references (supports `--trace`) |
-| `sase xprompt explain` | Dry-run visualization of a workflow's execution plan              |
-| `sase xprompt graph`   | Generate a DAG visualization of a workflow (Mermaid or text)      |
-| `sase commit`          | Create a commit with formatted CL description and metadata        |
-| `sase amend`           | Amend a commit with COMMITS tracking                              |
-| `sase revert`          | Revert a ChangeSpec by pruning its CL and archiving its diff      |
-| `sase restore`         | Restore a reverted ChangeSpec by re-applying its diff             |
-| `sase init-git`        | Initialize a new bare-repo-backed git project                     |
-| `sase path`            | Print well-known sase paths (for editor integration)              |
-| `sase notify`          | Create a notification (reads JSON from stdin or uses flags)       |
-| `sase user-question`   | Handle user question from Claude Code hook                        |
-| `sase plan-approve`    | Handle plan approval from Claude Code hook                        |
+| Command                | Description                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `sase ace`             | Interactive TUI for navigating and managing ChangeSpecs                          |
+| `sase axe start`       | Start the lumberjack-based daemon (orchestrator mode)                            |
+| `sase axe stop`        | Stop the running axe orchestrator                                                |
+| `sase axe chop`        | List or run individual chop scripts                                              |
+| `sase axe lumberjack`  | List, run, or check status of lumberjacks                                        |
+| `sase search`          | Search and filter ChangeSpecs with query expressions                             |
+| `sase run`             | Execute workflows, resume agents by name, or run a query directly                |
+| `sase xprompt expand`  | Expand prompt templates with sase references (supports `--trace`)                |
+| `sase xprompt explain` | Dry-run visualization of a workflow's execution plan                             |
+| `sase xprompt graph`   | Generate a DAG visualization of a workflow (Mermaid or text)                     |
+| `sase commit`          | Create a commit with formatted CL description and metadata                       |
+| `sase amend`           | Amend a commit with COMMITS tracking                                             |
+| `sase revert`          | Revert a ChangeSpec by pruning its CL and archiving its diff                     |
+| `sase restore`         | Restore a reverted ChangeSpec by re-applying its diff                            |
+| `sase init-git`        | Initialize a new bare-repo-backed git project                                    |
+| `sase path`            | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `config-schema`) |
+| `sase notify`          | Create a notification (reads JSON from stdin or uses flags)                      |
+| `sase user-question`   | Handle user question from Claude Code hook                                       |
+| `sase plan-approve`    | Handle plan approval from Claude Code hook                                       |
 
 ## Core Concepts
 
@@ -181,6 +181,7 @@ src/sase/
 │   ├── query/             # Query language (boolean expressions, filters)
 │   ├── tui/               # Textual-based TUI interface
 │   │   ├── thinking/      # Claude thinking block parser and display
+│   │   ├── keymaps/       # Keymap registry, loader, and types
 │   │   ├── actions/       # Keybinding action handlers
 │   │   ├── modals/        # Modal dialogs (query, status, hook history, etc.)
 │   │   └── widgets/       # TUI widget components
@@ -195,7 +196,6 @@ src/sase/
 │   ├── orchestrator.py    # Multi-lumberjack supervisor
 │   ├── lumberjack.py      # Single-lumberjack scheduler loop
 │   ├── chop_script_runner.py # External chop script discovery and execution
-│   ├── chops/             # Built-in chop scripts
 │   ├── config.py          # Lumberjack and chop configuration
 │   ├── runner_pool.py     # Shared concurrent runner pool
 │   ├── hook_jobs.py       # 1-second interval hook/mentor/workflow jobs

@@ -18,11 +18,13 @@ Sase defines four entry point groups for plugin discovery:
 
 ## Available Plugin Packages
 
-| Package       | Description                                             | Entry Points                                                                 |
-| ------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `sase` (core) | BareGitPlugin for standard git operations               | `sase_vcs: bare_git`, `sase_workspace: bare_git`                             |
-| `sase-github` | GitHubPlugin with GitHub CLI (`gh`) PR operations       | `sase_vcs: github`, `sase_workspace: github`, `sase_config`, `sase_xprompts` |
-| `sase-google` | HgPlugin for Mercurial with `sase_hg_*` helper commands | `sase_vcs: hg`, `sase_workspace: hg`, `sase_config`, `sase_xprompts`         |
+| Package         | Description                                                                             | Entry Points                                                                 |
+| --------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `sase` (core)   | BareGitPlugin for standard git operations                                               | `sase_vcs: bare_git`, `sase_workspace: bare_git`                             |
+| `sase-github`   | GitHubPlugin with GitHub CLI (`gh`) PR operations                                       | `sase_vcs: github`, `sase_workspace: github`, `sase_config`, `sase_xprompts` |
+| `sase-google`   | HgPlugin for Mercurial with `sase_hg_*` helper commands                                 | `sase_vcs: hg`, `sase_workspace: hg`, `sase_config`, `sase_xprompts`         |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy)                                                     |
+| `sase-nvim`     | Neovim integration (e.g., project spec syntax highlighting)                             | standalone (not pluggy)                                                      |
 
 ## Installation
 

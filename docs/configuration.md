@@ -123,7 +123,7 @@ Custom mode key fields:
 The keymap loader validates configuration: invalid keys are reverted to defaults, duplicate bindings are warned, and
 prefix conflicts between custom modes and app bindings are detected.
 
-Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps.py`
+Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps/`
 
 ### llm_provider
 
@@ -166,7 +166,8 @@ vcs_provider:
 | `vcs_provider.workspace_root` | string       | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
 | `vcs_provider.default_hooks`  | list[string] | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
 
-The built-in default hooks (used when `default_hooks` is not set) are `!$sase_hg_presubmit` and `$sase_hg_lint`.
+The built-in default hooks (used when `default_hooks` is not set) are `!$sase_hg_presubmit` and `$sase_hg_lint` for
+Mercurial repos. Git repos have no default hooks.
 
 Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
@@ -241,13 +242,13 @@ axe:
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type         | Required | Default | Description                                                                       |
-| ------------- | ------------ | -------- | ------- | --------------------------------------------------------------------------------- |
-| `name`        | string       | yes      | -       | Chop name identifying the chop script to run.                                     |
-| `description` | string       | yes      | -       | Human-readable description of what the chop does.                                 |
-| `agent`       | string       | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key). |
-| `run_every`   | int          | no       | `1`     | Run this chop every N cycles (e.g., `5` = run once per 5 lumberjack cycles).      |
-| `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.                       |
+| Field         | Type         | Required | Default | Description                                                                                  |
+| ------------- | ------------ | -------- | ------- | -------------------------------------------------------------------------------------------- |
+| `name`        | string       | yes      | -       | Chop name identifying the chop script to run.                                                |
+| `description` | string       | yes      | -       | Human-readable description of what the chop does.                                            |
+| `agent`       | string       | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key).            |
+| `run_every`   | string       | no       | -       | Time-based duration string (e.g., `"60m"`, `"30s"`, `"2h"`). Limits how often the chop runs. |
+| `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.                                  |
 
 Each chop entry can also be a plain string (chop name only, legacy format):
 
@@ -259,7 +260,7 @@ chops:
   - name: custom_chop
     description: Run custom analysis
     agent: "#analyze"
-    run_every: 5
+    run_every: "5m"
     env:
       MY_API_KEY: "secret"
   # String format (legacy, description defaults to empty)
@@ -559,9 +560,9 @@ No flags. Stops the running axe orchestrator.
 
 ### `sase path`
 
-| Flag   | Values                            | Default    | Description         |
-| ------ | --------------------------------- | ---------- | ------------------- |
-| `name` | `xprompts-dir`, `xprompts-schema` | (required) | Which path to print |
+| Flag   | Values                                             | Default    | Description         |
+| ------ | -------------------------------------------------- | ---------- | ------------------- |
+| `name` | `xprompts-dir`, `xprompts-schema`, `config-schema` | (required) | Which path to print |
 
 ### `sase notify`
 

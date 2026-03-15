@@ -175,6 +175,8 @@ The modal supports live filtering as you type in the search box and displays las
 | `v`                 | View files (hint mode)                                       |
 | `w`                 | Unwait a WAITING agent (run immediately)                     |
 | `x`                 | Kill / dismiss agent                                         |
+| `X`                 | Dismiss all completed agents (with confirmation)             |
+| `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)     |
 | `e`                 | Edit chat in editor                                          |
 | `E`                 | Edit panel content in editor                                 |
 | `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse) |
