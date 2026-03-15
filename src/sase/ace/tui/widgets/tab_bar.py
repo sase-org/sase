@@ -147,74 +147,109 @@ class TabBar(Static):
             self._axe_show_hidden = show_hidden
             self._refresh_content()
 
+    def _append_tab_with_suffix(
+        self,
+        text: Text,
+        name: str,
+        main_count: int,
+        key_counts: list[tuple[str, int]],
+        active_color: str,
+        is_active: bool,
+    ) -> tuple[int, int]:
+        """Append a styled tab label with suffix counts.
+
+        Key hint characters are wrapped in brackets and styled less prominently
+        than the count digits, making suffixes like ``5[D]2[.]1`` scannable.
+
+        Args:
+            text: The Text object to append to.
+            name: Tab name (e.g. "CLs", "Agents", "AXE").
+            main_count: Primary item count (0 to omit).
+            key_counts: Pre-filtered list of (key_display, count) pairs.
+            active_color: Hex color when this tab is active.
+            is_active: Whether this is the currently selected tab.
+
+        Returns:
+            (start, end) character positions for click detection.
+        """
+        start = len(text.plain)
+
+        base = f"bold reverse {active_color}" if is_active else "dim"
+        key_hint = f"reverse {active_color}" if is_active else "dim italic"
+
+        # Filter to non-zero counts
+        key_counts = [(k, c) for k, c in key_counts if c > 0]
+        has_suffix = main_count > 0 or len(key_counts) > 0
+
+        if has_suffix:
+            text.append(f" {name} (", style=base)
+            if main_count > 0:
+                text.append(str(main_count), style=base)
+            for key, count in key_counts:
+                text.append(f"[{key}]", style=key_hint)
+                text.append(str(count), style=base)
+            text.append(") ", style=base)
+        else:
+            text.append(f" {name} ", style=base)
+
+        end = len(text.plain)
+        return (start, end)
+
     def _build_content(self) -> Text:
         """Build the tab bar content."""
         text = Text()
         dismiss_key = key_display_name(self._registry.app.kill_agent)
         hide_key = key_display_name(self._registry.app.toggle_hide_reverted)
+        submitted_key = key_display_name(self._registry.app.toggle_hide_submitted)
 
         # CLs tab
-        cl_start = 0
-        submitted_key = key_display_name(self._registry.app.toggle_hide_submitted)
-        m = str(self._cls_main_count) if self._cls_main_count > 0 else ""
-        # Build suffix parts: M, then xN (submitted), then .H (reverted)
-        suffix = m
-        if self._cls_show_submitted and self._cls_submitted_count > 0:
-            suffix += f"{submitted_key}{self._cls_submitted_count}"
-        if self._cls_show_hidden and self._cls_hidden_count > 0:
-            suffix += f"{hide_key}{self._cls_hidden_count}"
-        if suffix:
-            cl_label = f" CLs ({suffix}) "
-        else:
-            cl_label = " CLs "
-        cl_base = (
-            "bold reverse #00D7AF" if self._current_tab == "changespecs" else "dim"
+        cls_key_counts: list[tuple[str, int]] = []
+        if self._cls_show_submitted:
+            cls_key_counts.append((submitted_key, self._cls_submitted_count))
+        if self._cls_show_hidden:
+            cls_key_counts.append((hide_key, self._cls_hidden_count))
+        self._cl_tab_range = self._append_tab_with_suffix(
+            text,
+            "CLs",
+            self._cls_main_count,
+            cls_key_counts,
+            "#00D7AF",
+            self._current_tab == "changespecs",
         )
-        text.append(cl_label, style=cl_base)
-        cl_end = len(text.plain)
-        self._cl_tab_range = (cl_start, cl_end)
 
         text.append(" | ", style="dim #808080")
 
         # Agents tab
-        agents_start = len(text.plain)
-        m = str(self._agents_manual_count) if self._agents_manual_count > 0 else ""
-        suffix = m
-        if self._agents_done_count > 0:
-            suffix += f"{dismiss_key}{self._agents_done_count}"
-        if self._agents_show_hidden and self._agents_hidden_count > 0:
-            suffix += f"{hide_key}{self._agents_hidden_count}"
-        if suffix:
-            agents_label = f" Agents ({suffix}) "
-        else:
-            agents_label = " Agents "
-        if self._current_tab == "agents":
-            text.append(agents_label, style="bold reverse #87D7FF")
-        else:
-            text.append(agents_label, style="dim")
-        agents_end = len(text.plain)
-        self._agents_tab_range = (agents_start, agents_end)
+        agents_key_counts: list[tuple[str, int]] = [
+            (dismiss_key, self._agents_done_count),
+        ]
+        if self._agents_show_hidden:
+            agents_key_counts.append((hide_key, self._agents_hidden_count))
+        self._agents_tab_range = self._append_tab_with_suffix(
+            text,
+            "Agents",
+            self._agents_manual_count,
+            agents_key_counts,
+            "#87D7FF",
+            self._current_tab == "agents",
+        )
 
         text.append(" | ", style="dim #808080")
 
-        # Axe tab
-        axe_start = len(text.plain)
-        m = str(self._axe_main_count) if self._axe_main_count > 0 else ""
-        suffix = m
-        if self._axe_done_count > 0:
-            suffix += f"{dismiss_key}{self._axe_done_count}"
-        if self._axe_show_hidden and self._axe_hidden_count > 0:
-            suffix += f"{hide_key}{self._axe_hidden_count}"
-        if suffix:
-            axe_label = f" AXE ({suffix}) "
-        else:
-            axe_label = " AXE "
-        if self._current_tab == "axe":
-            text.append(axe_label, style="bold reverse #FF5F5F")
-        else:
-            text.append(axe_label, style="dim")
-        axe_end = len(text.plain)
-        self._axe_tab_range = (axe_start, axe_end)
+        # AXE tab
+        axe_key_counts: list[tuple[str, int]] = [
+            (dismiss_key, self._axe_done_count),
+        ]
+        if self._axe_show_hidden:
+            axe_key_counts.append((hide_key, self._axe_hidden_count))
+        self._axe_tab_range = self._append_tab_with_suffix(
+            text,
+            "AXE",
+            self._axe_main_count,
+            axe_key_counts,
+            "#FF5F5F",
+            self._current_tab == "axe",
+        )
 
         return text
 
