@@ -358,10 +358,26 @@ def create_parser() -> argparse.ArgumentParser:
         help="Which path to print",
     )
 
+    # --- plan ---
+    plan_parser = top_level_subparsers.add_parser(
+        "plan",
+        help="Submit a plan file for approval (used by /sase_plan skill)",
+    )
+    plan_parser.add_argument("plan_file", help="Path to the plan .md file")
+
     # --- plan-approve ---
     top_level_subparsers.add_parser(
         "plan-approve",
         help="Handle plan approval from Claude Code hook (reads JSON from stdin)",
+    )
+
+    # --- questions ---
+    questions_parser = top_level_subparsers.add_parser(
+        "questions",
+        help="Ask the user questions (used by /sase_questions skill)",
+    )
+    questions_parser.add_argument(
+        "questions_json", help="JSON string containing questions"
     )
 
     # --- restore ---

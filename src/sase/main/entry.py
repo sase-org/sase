@@ -87,11 +87,23 @@ def main() -> NoReturn:
 
         handle_notify_command(args)
 
+    # --- plan ---
+    if args.command == "plan":
+        from .plan_command_handler import handle_plan_command
+
+        handle_plan_command(args.plan_file)
+
     # --- plan-approve ---
     if args.command == "plan-approve":
         from .plan_approve_handler import handle_plan_approve_command
 
         handle_plan_approve_command()
+
+    # --- questions ---
+    if args.command == "questions":
+        from .questions_command_handler import handle_questions_command
+
+        handle_questions_command(args.questions_json)
 
     # --- user-question ---
     if args.command == "user-question":

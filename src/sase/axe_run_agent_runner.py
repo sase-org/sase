@@ -268,6 +268,9 @@ def main() -> None:
 
                     claim_agent_name(agent_name, artifacts_dir)
 
+                if agent_name:
+                    os.environ["SASE_AGENT_NAME"] = agent_name
+
             # Write running marker for home mode (no workspace tracking available)
             if is_home_mode:
                 running_marker_path = os.path.join(artifacts_dir, "running.json")
