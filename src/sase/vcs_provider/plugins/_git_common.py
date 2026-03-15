@@ -160,29 +160,34 @@ class GitCommon(CommandRunner):
     def vcs_resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:
-        out = self._run(
-            ["git", "rev-parse", "--verify", "--quiet", changespec_name], cwd
+        from sase.sase_utils import (
+            changespec_name_to_branch,
+            changespec_name_to_branch_with_suffix,
         )
-        if out.success:
-            return changespec_name
-
-        # Try branch with suffix preserved (new-style: #pr creates banana_1)
-        from sase.sase_utils import changespec_name_to_branch_with_suffix
 
         branch_with_suffix = changespec_name_to_branch_with_suffix(
             changespec_name, project_basename
         )
-        out = self._run(
-            ["git", "rev-parse", "--verify", "--quiet", branch_with_suffix],
-            cwd,
+        branch_without_suffix = changespec_name_to_branch(
+            changespec_name, project_basename
         )
-        if out.success:
-            return branch_with_suffix
+        candidates = [changespec_name, branch_with_suffix, branch_without_suffix]
 
-        # Fall back to branch without suffix (legacy: branch is banana)
-        from sase.sase_utils import changespec_name_to_branch
+        # Try each candidate against local refs
+        for candidate in candidates:
+            out = self._run(["git", "rev-parse", "--verify", "--quiet", candidate], cwd)
+            if out.success:
+                return candidate
 
-        return changespec_name_to_branch(changespec_name, project_basename)
+        # No local match — fetch from remote and retry
+        self._run(["git", "fetch", "origin"], cwd, timeout=600)
+        for candidate in candidates:
+            out = self._run(["git", "rev-parse", "--verify", "--quiet", candidate], cwd)
+            if out.success:
+                return candidate
+
+        # Fall back to branch without suffix (may fail at checkout)
+        return branch_without_suffix
 
     @hookimpl
     def vcs_show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
