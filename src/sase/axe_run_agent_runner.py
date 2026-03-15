@@ -256,6 +256,9 @@ def main() -> None:
                     update_meta_suffix(current_artifacts_dir, ".plan")
                     from sase.llm_provider._plan_utils import handle_plan_approval
 
+                    # Clear the killed flag set by the plan command's SIGTERM
+                    # so the poll loop only exits on a NEW kill signal.
+                    reset_killed()
                     approved = handle_plan_approval(
                         plan_data.get("plan_file"),
                         str(uuid.uuid4()),
@@ -288,6 +291,9 @@ def main() -> None:
                         current_artifacts_dir,
                         current_role_suffix or ".q",
                     )
+                    # Clear the killed flag set by the questions command's
+                    # SIGTERM so the poll loop only exits on a NEW kill signal.
+                    reset_killed()
                     response = handle_questions_flow(
                         q_data.get("questions", []),
                         current_artifacts_dir,
