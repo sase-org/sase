@@ -72,20 +72,28 @@ def test_expanded_shows_non_hidden_children() -> None:
 
 
 def test_annotation_collapsed_hidden_children_only() -> None:
-    """Test COLLAPSED annotation shows '(+N steps)' when only hidden children exist."""
+    """Test COLLAPSED annotation shows total step count when only hidden children exist."""
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (0, 5)}
     result = _compute_fold_annotation(parent, fold_counts, set())
-    assert result == " (+5 steps)"
+    assert result == " (5 steps)"
+
+
+def test_annotation_collapsed_shows_total() -> None:
+    """Test COLLAPSED annotation shows total (non_hidden + hidden) step count."""
+    parent = _make_parent("ts1")
+    fold_counts = {"ts1": (2, 3)}
+    result = _compute_fold_annotation(parent, fold_counts, set())
+    assert result == " (5 steps)"
 
 
 def test_annotation_expanded_hidden_remaining() -> None:
-    """Test EXPANDED annotation shows '(+N hidden)' for remaining hidden children."""
+    """Test EXPANDED annotation shows total and hidden count."""
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (2, 3)}
     visible = {"ts1"}
     result = _compute_fold_annotation(parent, fold_counts, visible)
-    assert result == " (+3 hidden)"
+    assert result == " (5 steps, 3 hidden)"
 
 
 def test_annotation_expanded_no_hidden() -> None:
@@ -98,13 +106,13 @@ def test_annotation_expanded_no_hidden() -> None:
 
 
 def test_annotation_fully_expanded_shows_hidden_count() -> None:
-    """Test FULLY_EXPANDED annotation shows '(+N shown)' for hidden children."""
+    """Test FULLY_EXPANDED annotation shows total and revealed hidden count."""
     parent = _make_parent("ts1")
     fold_counts = {"ts1": (2, 3)}
     visible = {"ts1"}
     fully_expanded = {"ts1"}
     result = _compute_fold_annotation(parent, fold_counts, visible, fully_expanded)
-    assert result == " (+3 shown)"
+    assert result == " (5 steps, 3 shown)"
 
 
 def test_annotation_no_fold_counts() -> None:

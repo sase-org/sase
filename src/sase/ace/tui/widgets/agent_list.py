@@ -295,12 +295,12 @@ class AgentList(OptionList):
 
         # Fold annotation for workflow parents
         if fold_annotation:
-            if "steps" in fold_annotation:
-                # COLLAPSED: "(+N steps)" in dim cyan
-                text.append(fold_annotation, style="dim #00D7D7")
-            else:
-                # EXPANDED/FULLY_EXPANDED: "(+N hidden)" or "(+N shown)" in dim
+            if "hidden" in fold_annotation or "shown" in fold_annotation:
+                # EXPANDED/FULLY_EXPANDED: "(N steps, M hidden/shown)" in dim
                 text.append(fold_annotation, style="dim")
+            else:
+                # COLLAPSED: "(N steps)" in dim cyan
+                text.append(fold_annotation, style="dim #00D7D7")
 
         # Agent name annotation
         if agent.agent_name:
@@ -368,12 +368,8 @@ def _compute_fold_annotation(
         # COLLAPSED: suppress annotation for anonymous single-prompt workflows
         if agent.is_anonymous and agent.appears_as_agent and total == 1:
             return ""
-        # COLLAPSED: show total count of children
-        if non_hidden > 0:
-            return f" (+{non_hidden} steps)"
-        if hidden > 0:
-            return f" (+{hidden} steps)"
-        return ""
+        # COLLAPSED: show total step count
+        return f" ({total} steps)"
 
     # Children are visible (EXPANDED or FULLY_EXPANDED)
     is_fully_expanded = (
@@ -383,11 +379,11 @@ def _compute_fold_annotation(
 
     if hidden > 0 and is_fully_expanded:
         # FULLY_EXPANDED: all children shown including hidden ones
-        return f" (+{hidden} shown)"
+        return f" ({total} steps, {hidden} shown)"
 
     if hidden > 0:
         # EXPANDED: some children still hidden
-        return f" (+{hidden} hidden)"
+        return f" ({total} steps, {hidden} hidden)"
 
     # All children visible, no hidden steps exist
     return ""
