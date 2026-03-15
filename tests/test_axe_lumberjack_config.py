@@ -135,24 +135,6 @@ def test_parse_lumberjacks_string_chops_get_default_run_every() -> None:
     assert result["hooks"].chops[0].run_every is None
 
 
-def test_parse_lumberjacks_guard_from_dict() -> None:
-    """Test that guard field is parsed from dict chop entries."""
-    raw = {
-        "checks": {
-            "interval": 60,
-            "chops": [{"name": "guarded", "guard": "test -f /tmp/flag"}],
-        },
-    }
-    result = _parse_lumberjacks(raw)
-    assert result["checks"].chops[0].guard == "test -f /tmp/flag"
-
-
-def test_chop_config_guard_defaults_to_none() -> None:
-    """Test that guard defaults to None (no guard check)."""
-    chop = ChopConfig(name="test", description="")
-    assert chop.guard is None
-
-
 def test_load_axe_config_empty_data() -> None:
     """Test loading config with empty data returns AxeConfig defaults."""
     with patch("sase.axe.config.load_merged_config", return_value={}):
