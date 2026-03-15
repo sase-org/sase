@@ -436,7 +436,9 @@ class ChangeSpecMixin:
             elif getattr(self, "_copy_mode_active", False):
                 footer_widget.update_copy_bindings(self.current_tab)
             else:
-                footer_widget.update_bindings(changespec)
+                footer_widget.update_bindings(
+                    changespec, mark_count=len(self.marked_indices)
+                )
         else:
             detail_widget.show_empty(self.canonical_query_string)  # type: ignore[attr-defined]
             if getattr(self, "_leader_mode_active", False):

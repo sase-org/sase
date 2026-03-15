@@ -2,16 +2,14 @@
 
 Footer Convention
 -----------------
-The footer displays only **entry-dependent** keymaps — bindings whose
-availability is determined by a property of the currently selected entry
-(ChangeSpec on CLs, Agent on Agents, Lumberjack/BgCmd on AXE).
+The footer displays **conditional** keymaps — bindings whose availability
+is determined by the currently selected entry (ChangeSpec, Agent, etc.) or
+by transient app state (e.g. marks exist, completed agents present).
 
 Rules:
   1. A keymap appears in the footer **if and only if** it has an associated
-     condition based on the selected entry.
-  2. There MUST exist an entry for which the keymap IS available and an entry
-     for which it is NOT available (i.e. the condition is non-trivial).
-  3. Global actions (quit, refresh, tab switch, fold, edit query, etc.) are
+     condition that is sometimes true and sometimes false.
+  2. Global actions (quit, refresh, tab switch, fold, edit query, etc.) are
      NOT shown — they belong in the help modal only.
 
 Formatting:
@@ -164,9 +162,9 @@ class KeybindingFooter(Horizontal):
         except Exception:
             pass
 
-    def update_bindings(self, changespec: ChangeSpec) -> None:
-        """Update bindings based on current ChangeSpec (entry-dependent only)."""
-        bindings = self._compute_available_bindings(changespec)
+    def update_bindings(self, changespec: ChangeSpec, *, mark_count: int = 0) -> None:
+        """Update bindings based on current ChangeSpec and app state."""
+        bindings = self._compute_available_bindings(changespec, mark_count=mark_count)
         text = self._format_bindings(bindings)
         self._update_display(text)
 
@@ -177,9 +175,11 @@ class KeybindingFooter(Horizontal):
         text.append(" edit query", style="dim")
         self._update_display(text)
 
-    def update_agent_bindings(self, agent: "Agent | None") -> None:
-        """Update bindings for Agents tab (entry-dependent only)."""
-        bindings = self._compute_agent_bindings(agent)
+    def update_agent_bindings(
+        self, agent: "Agent | None", *, completed_count: int = 0
+    ) -> None:
+        """Update bindings for Agents tab."""
+        bindings = self._compute_agent_bindings(agent, completed_count=completed_count)
         text = self._format_bindings(bindings)
         self._update_display(text)
 
@@ -353,15 +353,25 @@ class KeybindingFooter(Horizontal):
     def _compute_agent_bindings(
         self,
         agent: "Agent | None",
+        *,
+        completed_count: int = 0,
     ) -> list[tuple[str, str]]:
-        """Compute entry-dependent bindings for Agents tab.
+        """Compute conditional bindings for Agents tab.
 
-        Only bindings whose availability depends on the selected agent's
-        state are included (see module docstring for the full convention).
+        Includes entry-dependent bindings (based on the selected agent's
+        state) and app-state bindings (e.g. completed agents exist).
         """
         bindings: list[tuple[str, str]] = []
 
         if agent is None:
+            # Even with no selected agent, show app-state bindings
+            if completed_count > 0:
+                bindings.append(
+                    (
+                        self._kd("toggle_axe"),
+                        f"dismiss all ({completed_count})",
+                    )
+                )
             return bindings
 
         x = self._kd("kill_agent")
@@ -428,16 +438,26 @@ class KeybindingFooter(Horizontal):
         ):
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
+        # --- App-state bindings ---
+
+        # Dismiss all completed (only when completed agents exist)
+        if completed_count > 0:
+            bindings.append(
+                (self._kd("toggle_axe"), f"dismiss all ({completed_count})")
+            )
+
         return bindings
 
     def _compute_available_bindings(
         self,
         changespec: ChangeSpec,
+        *,
+        mark_count: int = 0,
     ) -> list[tuple[str, str]]:
-        """Compute entry-dependent bindings for CLs tab.
+        """Compute conditional bindings for CLs tab.
 
-        Only bindings whose availability depends on the selected ChangeSpec's
-        state are included (see module docstring for the full convention).
+        Includes entry-dependent bindings (based on the selected ChangeSpec)
+        and app-state bindings (e.g. marks exist).
         """
         bindings: list[tuple[str, str]] = []
 
@@ -454,17 +474,24 @@ class KeybindingFooter(Horizontal):
 
         base_status = get_base_status(changespec.status)
 
-        # Reword (only if CL exists AND status is WIP, Draft, Ready, or Mailed)
+        _EDITABLE = ("WIP", "Draft", "Ready", "Mailed")
+
+        # Reword (only if CL exists AND status is editable)
         if changespec.cl is not None:
-            if base_status in ("WIP", "Draft", "Ready", "Mailed"):
+            if base_status in _EDITABLE:
                 bindings.append((self._kd("reword"), "reword"))
+
+        # Add tag (only if CL exists AND status is editable)
+        if changespec.cl is not None:
+            if base_status in _EDITABLE:
+                bindings.append((self._kd("add_tag"), "add tag"))
 
         # Mail (only if status is Ready)
         if base_status == "Ready":
             bindings.append((self._kd("mail"), "mail"))
 
-        # Rebase (only if status is WIP, Draft, Ready, or Mailed)
-        if base_status in ("WIP", "Draft", "Ready", "Mailed"):
+        # Rebase (only if status is editable)
+        if base_status in _EDITABLE:
             bindings.append((self._kd("rebase"), "rebase"))
 
         # Rewind (only if status is not Submitted/Reverted and >=2 accepted entries)
@@ -473,13 +500,17 @@ class KeybindingFooter(Horizontal):
             if len(numeric_entries) >= 2:
                 bindings.append((self._kd("start_rewind"), "rewind"))
 
-        # Sync (only if status is WIP, Draft, Ready, or Mailed)
-        if base_status in ("WIP", "Draft", "Ready", "Mailed"):
+        # Sync (only if status is editable)
+        if base_status in _EDITABLE:
             bindings.append((self._kd("sync"), "sync"))
 
         # Rename (only if status is not Submitted or Reverted)
         if base_status not in ("Submitted", "Reverted"):
             bindings.append((self._kd("rename_cl"), "rename"))
+
+        # View files (only if CL exists)
+        if changespec.cl is not None:
+            bindings.append((self._kd("view_files"), "files"))
 
         # Hooks from failed targets (only if failed hooks file exists)
         if get_failed_hooks_file_path(changespec):
@@ -493,6 +524,15 @@ class KeybindingFooter(Horizontal):
             bindings.append(
                 (self._kd("run_workflow"), f"run ({len(workflows)} workflows)")
             )
+
+        # --- App-state bindings ---
+
+        # Marks (only when marks exist)
+        if mark_count > 0:
+            bindings.append(
+                (self._kd("bulk_change_status"), f"bulk status ({mark_count})")
+            )
+            bindings.append((self._kd("clear_marks"), f"unmark ({mark_count})"))
 
         return bindings
 

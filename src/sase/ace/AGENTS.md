@@ -12,15 +12,14 @@ MUST update ALL of these files:
 
 ## Footer Keybinding Convention
 
-**CRITICAL**: The TUI footer (bottom bar) shows **only entry-dependent keymaps** — bindings whose availability is
-determined by a property of the currently selected entry (ChangeSpec on CLs tab, Agent on Agents tab, Lumberjack/BgCmd
-on AXE tab). The implementation lives in `src/sase/ace/tui/widgets/keybinding_footer.py`.
+**CRITICAL**: The TUI footer (bottom bar) shows **conditional keymaps** — bindings whose availability is determined by
+the currently selected entry (ChangeSpec, Agent, etc.) or by transient app state (e.g. marks exist, completed agents
+present). The implementation lives in `src/sase/ace/tui/widgets/keybinding_footer.py`.
 
 Rules:
 
-1. A keymap appears in the footer **if and only if** it has a condition based on the selected entry.
-2. There MUST exist an entry where the keymap IS available AND an entry where it is NOT available.
-3. Global actions (quit, refresh, tab switch, fold, edit query, etc.) belong in the help modal only.
+1. A keymap appears in the footer **if and only if** it has a condition that is sometimes true and sometimes false.
+2. Global actions (quit, refresh, tab switch, fold, edit query, etc.) belong in the help modal only.
 
 Formatting:
 

@@ -486,7 +486,12 @@ class AgentsMixinCore(
                 self.current_tab, file_visible=file_visible
             )
         else:
-            footer_widget.update_agent_bindings(current_agent)
+            completed_count = sum(
+                1 for a in self._agents if a.status in DISMISSABLE_STATUSES
+            )
+            footer_widget.update_agent_bindings(
+                current_agent, completed_count=completed_count
+            )
 
     def _toggle_hide_non_run_agents(self) -> None:
         """Toggle visibility of non-run agents and refresh the display."""
