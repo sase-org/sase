@@ -182,6 +182,13 @@ def _flatten_anonymous_workflow(
                 # scans for a standalone workflow among the references.
                 pass
             else:
+                # Also check: the prompt may contain a standalone workflow
+                # reference beyond the first (e.g., "#gh:sase #sase/pylimit_split").
+                # The fast path only parsed the first reference, so scan the
+                # full prompt text for a standalone workflow to flatten to.
+                standalone = _find_standalone_workflow_ref(prompt_text, prompts)
+                if standalone is not None:
+                    return standalone
                 workflow.name = wf_name
                 return None
         else:

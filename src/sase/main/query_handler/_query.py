@@ -20,6 +20,51 @@ from sase.xprompt.workflow_models import WorkflowStep
 from ..utils import ensure_project_file_and_get_workspace_num
 
 
+def _resolve_vcs_cwd(query: str) -> str | None:
+    """Detect VCS workflow refs in the query and resolve workspace CWD.
+
+    If the query contains a VCS workflow reference (e.g., ``#gh:sase``),
+    resolves the ref to the primary workspace directory and changes CWD.
+    This ensures that project-specific workflows are discoverable and
+    CWD-relative paths in workflow steps work correctly.
+
+    Mirrors the TUI behavior where the subprocess CWD is set to the
+    resolved workspace directory before the workflow runs.
+
+    Args:
+        query: The query text.
+
+    Returns:
+        The resolved project name, or None if no VCS ref was found.
+    """
+    if "#" not in query:
+        return None
+
+    from sase.workspace_provider import get_workflow_names, resolve_ref
+    from sase.xprompt._parsing import normalize_vcs_underscore_refs
+
+    normalized = normalize_vcs_underscore_refs(query)
+
+    for workflow_type in get_workflow_names():
+        pattern = rf"#({re.escape(workflow_type)}):([a-zA-Z0-9_.~/-]+)"
+        match = re.search(pattern, normalized)
+        if match:
+            ref = match.group(2)
+            try:
+                resolved = resolve_ref(ref, workflow_type)
+            except (ValueError, Exception):
+                continue
+            if resolved and resolved.primary_workspace_dir:
+                os.chdir(resolved.primary_workspace_dir)
+                # Clear cached project detection since CWD changed
+                from sase.xprompt.loader import detect_project
+
+                detect_project.cache_clear()
+                return resolved.project_name or ref
+
+    return None
+
+
 @dataclass
 class EmbeddedWorkflowResult:
     """Result from expanding an embedded workflow in a query.
@@ -387,6 +432,11 @@ def run_query(
     from sase.xprompt.models import create_anonymous_workflow
     from sase.xprompt.workflow_runner import execute_workflow
 
+    # Resolve VCS refs early so project-specific workflows are discoverable
+    # and CWD-relative paths in workflow steps work correctly.  This mirrors
+    # the TUI behavior where subprocess CWD is set before workflow execution.
+    vcs_project = _resolve_vcs_cwd(query)
+
     # Get project info for workspace claiming (creates project file if needed)
     project_file, workspace_num, _ = ensure_project_file_and_get_workspace_num()
 
@@ -453,6 +503,7 @@ def run_query(
             {},
             artifacts_dir=artifacts_dir,
             workflow_obj=anon_workflow,
+            project=vcs_project,
         )
 
         # Extract response text for chat history
