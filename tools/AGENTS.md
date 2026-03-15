@@ -28,6 +28,18 @@ said, there are a few exceptions:
   `--exclude-decorator <name>` option. This can be repeated for multiple decorator names. The decorator is matched by
   its simple name (e.g. `--exclude-decorator hook` matches `@hook`, `@hook(...)`, and `@hook.sub`).
 
+## `sase_stop_hook`
+
+The main stop hook called by LLM provider sessions (Claude Code, Codex, Gemini). It does two things:
+
+1. Runs xprompt hook commands when `SASE_AGENT` is set and the agent's xprompts defined `hooks`.
+2. Delegates to `sase_old_stop_hook` for legacy quality checks (lint, test, commit prompts).
+
+## `sase_old_stop_hook`
+
+Legacy stop hook with quality checks (formatting, linting, testing, commit prompts, sibling repo checks). Called by
+`sase_stop_hook` as part of the stop hook chain. Will be removed once the new hook system fully replaces it.
+
 ## `sase_bd`
 
 Wrapper for the `bd` (beads) issue tracker. Always use `sase_bd` instead of calling `bd` directly. This is NOT a

@@ -158,6 +158,7 @@ class XPrompt:
     content: str
     inputs: list[InputArg] = field(default_factory=list)
     source_path: str | None = None
+    hooks: list[str] = field(default_factory=list)
 
     def get_input_by_name(self, name: str) -> InputArg | None:
         """Get an input argument definition by name.

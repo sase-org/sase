@@ -155,6 +155,7 @@ def process_xprompt_references(
     scope: dict[str, Any] | None = None,
     *,
     trace: ExpansionTrace | None = None,
+    hooks_collector: list[str] | None = None,
 ) -> str:
     """Process xprompt references in the prompt.
 
@@ -183,6 +184,9 @@ def process_xprompt_references(
         trace: Optional ExpansionTrace to collect expansion records into.
             When provided, each xprompt expansion is recorded with its
             iteration, source, arguments, and result.
+        hooks_collector: Optional list to collect hook commands from expanded
+            xprompts into. When provided, hook commands from each expanded
+            xprompt's ``hooks`` field are appended to this list.
 
     Returns:
         The transformed prompt with xprompts expanded
@@ -324,6 +328,9 @@ def process_xprompt_references(
                         named_args=dict(named_args),
                         expanded_text=expanded,
                     )
+
+                if hooks_collector is not None and xprompt.hooks:
+                    hooks_collector.extend(xprompt.hooks)
 
                 # Handle section markers (### or ---) with proper line positioning
                 is_at_line_start = (

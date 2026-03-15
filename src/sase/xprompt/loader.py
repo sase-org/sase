@@ -47,6 +47,7 @@ def _namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         content=xp.content,
         inputs=xp.inputs,
         source_path=xp.source_path,
+        hooks=xp.hooks,
     )
 
 
@@ -96,11 +97,19 @@ def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     if front_matter and "input" in front_matter:
         inputs = parse_inputs_from_front_matter(front_matter["input"])
 
+    # Parse hooks if present
+    hooks: list[str] = []
+    if front_matter and "hooks" in front_matter:
+        raw_hooks = front_matter["hooks"]
+        if isinstance(raw_hooks, list):
+            hooks = [str(h) for h in raw_hooks]
+
     return XPrompt(
         name=name,
         content=body,
         inputs=inputs,
         source_path=str(file_path),
+        hooks=hooks,
     )
 
 
@@ -264,12 +273,19 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
             if front_matter and "input" in front_matter:
                 inputs = parse_inputs_from_front_matter(front_matter["input"])
 
+            hooks: list[str] = []
+            if front_matter and "hooks" in front_matter:
+                raw_hooks = front_matter["hooks"]
+                if isinstance(raw_hooks, list):
+                    hooks = [str(h) for h in raw_hooks]
+
             source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
             xprompts[name] = XPrompt(
                 name=name,
                 content=body,
                 inputs=inputs,
                 source_path=source,
+                hooks=hooks,
             )
 
     return xprompts

@@ -1,47 +1,16 @@
 #!/bin/bash
 
-# Directory containing this script (the bin/ directory)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# sase_stop_hook: runs xprompt hook commands for sase agents.
+#
+# Xprompt hooks only run when:
+#   1. SASE_AGENT is set (running as a sase agent)
+#   2. SASE_XPROMPT_HOOKS_FILE is set and points to an existing JSON file
+#   3. The file contains at least one hook command
+#
+# Exit codes (for Claude Code / Codex / Gemini):
+#   0 = success (all hooks passed, or no hooks to run)
+#   2 = failure (blocks the agent and shows stderr with details)
 
-# File patterns for conditional execution
-PYTHON_PATTERN='^(src/sase|tests)/.*\.py$'
-MD_PATTERN='\.md$'
-
-# Session-unique marker file to avoid duplicate commit prompts
-if [ -n "$TMUX_PANE" ]; then
-    TMUX_PANE_ID="${TMUX_PANE//[%]/}"
-else
-    TMUX_PANE_ID="default"
-fi
-STORED_DIFF_FILE="/tmp/sase_stop_hook_diff_${TMUX_PANE_ID}"
-STORED_DIFF_FILE_SIBLINGS="/tmp/sase_stop_hook_sibling_diff_${TMUX_PANE_ID}"
-
-# Get list of uncommitted changed files (modified + untracked)
-function get_changed_files() {
-    {
-        git diff --name-only HEAD 2>/dev/null
-        git ls-files --others --exclude-standard 2>/dev/null
-    } | sort -u
-}
-
-# Check if any changed files match a pattern (reads from cached $CHANGED_FILES)
-function has_changes_matching() {
-    local pattern="$1"
-    echo "$CHANGED_FILES" | grep -qE "$pattern"
-}
-
-# Print the command we are about to run.
-function print_cmd_to_user() {
-    local group="$1"
-    local cmd="$2"
-    echo "[sase_stop_hook:${group}] Running \`$cmd\`..."
-}
-
-# Truncate command output to avoid blowing up the Claude Code context window.
-# When the stop hook returns exit code 2, stderr is injected into the
-# conversation. Large outputs (e.g., 3600+ pytest lines) can push the
-# conversation past the 200k-token limit, causing "Prompt is too long" errors.
 _MAX_ERROR_LINES=80
 function truncate_output() {
     local output="$1"
@@ -56,173 +25,57 @@ function truncate_output() {
     fi
 }
 
-# Send Mac notification for failures
-function send_failure_notification() {
-    local errors="$1"
-    local prefix="\[sase]"
-    local window
-    if [[ -n "$TMUX_PANE" ]]; then
-        window=$(tmux display-message -t "$TMUX_PANE" -p '#W' 2>/dev/null)
-        if [[ -n "$window" ]]; then
-            prefix="\[sase#${window}]"
-        fi
-    fi
-
-    terminal-notifier -title "${prefix} Stop Hook - FAILED" -message "$errors"
-}
-
-# Check sibling sase-* repos for uncommitted changes
-function check_sibling_repos() {
-    # If marker file exists from previous sibling commit prompt, skip
-    if [ -f "$STORED_DIFF_FILE_SIBLINGS" ]; then
-        rm -f "$STORED_DIFF_FILE_SIBLINGS"
+function run() {
+    # Only run when inside a sase agent session
+    if [ -z "$SASE_AGENT" ]; then
         return 0
     fi
 
-    local sibling_repos_with_changes=()
-    for repo_dir in "$PROJECT_DIR"/../sase-*/ "$HOME/.local/share/chezmoi"; do
-        [ -d "$repo_dir/.git" ] || continue
-        local repo_changes
-        repo_changes=$(cd "$repo_dir" && { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } | sort -u)
-        if echo "$repo_changes" | grep -q .; then
-            sibling_repos_with_changes+=("$(basename "$repo_dir")")
-        fi
-    done
+    # Check for hooks file
+    if [ -z "$SASE_XPROMPT_HOOKS_FILE" ] || [ ! -f "$SASE_XPROMPT_HOOKS_FILE" ]; then
+        return 0
+    fi
 
-    if [ ${#sibling_repos_with_changes[@]} -gt 0 ]; then
-        touch "$STORED_DIFF_FILE_SIBLINGS"
-        local repos_list
-        repos_list=$(printf ', %s' "${sibling_repos_with_changes[@]}")
-        repos_list=${repos_list:2} # Remove leading ', '
-        echo "Found uncommitted changes in sibling repo(s): ${repos_list}." \
-            " If you made these changes, please use your /commit skill to commit them." >&2
+    # Parse hook commands from the JSON array
+    local hooks
+    hooks=$(python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    hooks = json.load(f)
+for h in hooks:
+    print(h)
+" "$SASE_XPROMPT_HOOKS_FILE" 2>/dev/null)
+
+    if [ -z "$hooks" ]; then
+        return 0
+    fi
+
+    # Run each hook command, collecting failures
+    local failed_commands=()
+    local failed_outputs=()
+
+    while IFS= read -r hook_cmd; do
+        echo "[sase_stop_hook:xprompt_hooks] Running \`$hook_cmd\`..."
+        local output
+        if ! output=$(eval "$hook_cmd" 2>&1); then
+            failed_commands+=("$hook_cmd")
+            failed_outputs+=("$(truncate_output "$output")")
+        fi
+    done <<< "$hooks"
+
+    # Report failures
+    if [ ${#failed_commands[@]} -gt 0 ]; then
+        local error_msg="The following xprompt hook command(s) failed:\n\n"
+        for i in "${!failed_commands[@]}"; do
+            error_msg+="  Command: ${failed_commands[$i]}\n"
+            error_msg+="  Output:\n${failed_outputs[$i]}\n\n"
+        done
+        error_msg+="Please fix the issues reported by the failed hook command(s) above and try again."
+        echo -e "$error_msg" >&2
         return 2
     fi
 
     return 0
-}
-
-# Run quality checks conditionally based on changed files
-function run() {
-    cd "$PROJECT_DIR" || return 1
-
-    # If marker file exists from previous commit prompt, skip main checks
-    # but still check sibling repos
-    if [ -f "$STORED_DIFF_FILE" ]; then
-        rm -f "$STORED_DIFF_FILE"
-        check_sibling_repos
-        return $?
-    fi
-
-    # Log that this hook ran
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_stop_hook ran" >>"$PROJECT_DIR/.claude/hooks.log"
-
-    # Cache changed files once (eliminates redundant git calls)
-    CHANGED_FILES="$(get_changed_files)"
-
-    # Check which types of files have changed
-    local has_python_changes=false
-    local has_md_changes=false
-
-    if has_changes_matching "$PYTHON_PATTERN"; then
-        has_python_changes=true
-    fi
-    if has_changes_matching "$MD_PATTERN"; then
-        has_md_changes=true
-    fi
-
-    # Auto-format changed files before running checks
-    if [ "$has_python_changes" = true ]; then
-        print_cmd_to_user "fmt" "just fmt-py"
-        just fmt-py 2>&1 || true
-    fi
-    if [ "$has_md_changes" = true ]; then
-        print_cmd_to_user "fmt" "just fmt-md"
-        just fmt-md 2>&1 || true
-    fi
-
-    # Re-cache changed files after formatting (formatting may have changed files)
-    CHANGED_FILES="$(get_changed_files)"
-
-    # Create temp directory for parallel job output
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' RETURN
-
-    local pids=()
-
-    # Run Python linters and tests if Python files changed
-    if [ "$has_python_changes" = true ]; then
-        (
-            local errors=""
-            local output
-
-            print_cmd_to_user "python" "just lint"
-            if ! output=$(just lint 2>&1); then
-                errors+="just lint FAILED:\n$(truncate_output "$output")\n\n"
-            fi
-
-            # Run python tests (can take 60+ seconds)
-            print_cmd_to_user "python" "just test"
-            if ! output=$(timeout 120 just test 2>&1); then
-                local exit_code=$?
-                if [ $exit_code -eq 124 ]; then
-                    errors+="just test TIMED OUT after 120 seconds\n\n"
-                else
-                    errors+="just test FAILED:\n$(truncate_output "$output")\n\n"
-                fi
-            fi
-
-            print_cmd_to_user "python" "just pyvision"
-            if ! output=$(just pyvision 2>&1); then
-                errors+="just pyvision FAILED:\n$(truncate_output "$output")\n\n"
-            fi
-
-            print_cmd_to_user "python" "just pylimit"
-            if ! output=$(just pylimit 2>&1); then
-                errors+="just pylimit FAILED:\n$(truncate_output "$output")\n\n"
-            fi
-
-            if [ -n "$errors" ]; then
-                printf '%s' "$errors" >"$tmpdir/python_errors"
-            fi
-        ) &
-        pids+=($!)
-    fi
-
-    # Wait for all background jobs to complete
-    for pid in "${pids[@]}"; do
-        wait "$pid"
-    done
-
-    # Collect errors from all groups
-    local errors=""
-    for f in "$tmpdir"/python_errors; do
-        if [ -f "$f" ]; then
-            errors+="$(cat "$f")"
-        fi
-    done
-
-    # If any errors occurred, block and report
-    if [ -n "$errors" ]; then
-        send_failure_notification "$errors"
-        echo -e "$errors" >&2
-        return 2 # Exit code 2 blocks Claude and shows stderr
-    fi
-
-    # Check if there are any uncommitted changes (uses cached file list)
-    if echo "$CHANGED_FILES" | grep -q .; then
-        # Create marker file and request commit
-        touch "$STORED_DIFF_FILE"
-        echo "All checks passed. If you made any file changes (which includes changes to the .beads/issues.jsonl file)," \
-            " please use your /commit skill to commit them now. If you completed any beads by making those changes, make" \
-            " sure to close them with the \`bd close\` command." >&2
-        return 2
-    fi
-
-    # No main repo changes — check sibling repos
-    check_sibling_repos
-    return $?
 }
 
 run "$@"
