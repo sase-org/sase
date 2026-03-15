@@ -1,18 +1,11 @@
 """File locking for ChangeSpec files to prevent race conditions."""
 
 import fcntl
-import logging
 import os
-import subprocess
 import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from pathlib import Path
-
-logger = logging.getLogger(__name__)
-
-SASE_DIR = Path.home() / ".sase"
 
 
 class LockTimeoutError(Exception):
@@ -22,68 +15,6 @@ class LockTimeoutError(Exception):
         self.lock_file = lock_file
         self.timeout = timeout
         super().__init__(f"Timeout waiting for lock on {lock_file} after {timeout}s")
-
-
-def _ensure_sase_git_repo() -> None:
-    """Ensure ~/.sase is a git repository with .gitignore."""
-    git_dir = SASE_DIR / ".git"
-    if not git_dir.exists():
-        subprocess.run(
-            ["git", "init"],
-            cwd=str(SASE_DIR),
-            capture_output=True,
-            check=True,
-        )
-        # Create .gitignore
-        gitignore = SASE_DIR / ".gitignore"
-        gitignore.write_text(
-            "# Lock files\n*.lock\n\n# Temp files from atomic writes\n.tmp_*\n"
-        )
-
-
-def _git_commit_changespec(project_file: str, commit_message: str) -> None:
-    """Stage and commit changes to the project file.
-
-    Only commits if the file is inside ~/.sase directory.
-    """
-    # Only commit files inside ~/.sase
-    try:
-        project_path = Path(project_file).resolve()
-        sase_path = SASE_DIR.resolve()
-        if not str(project_path).startswith(str(sase_path)):
-            return
-    except (OSError, ValueError):
-        return
-
-    _ensure_sase_git_repo()
-    # Stage the specific file, retrying once on failure (e.g. index.lock contention)
-    for attempt in range(2):
-        result = subprocess.run(
-            ["git", "add", project_file],
-            cwd=str(SASE_DIR),
-            capture_output=True,
-        )
-        if result.returncode == 0:
-            break
-        if attempt == 0:
-            logger.warning(
-                "git add failed (attempt 1), retrying in 1s: %s",
-                result.stderr.decode(errors="replace").strip(),
-            )
-            time.sleep(1)
-        else:
-            logger.error(
-                "git add failed after retry, skipping git commit: %s",
-                result.stderr.decode(errors="replace").strip(),
-            )
-            return
-    # Commit (don't fail if nothing to commit)
-    subprocess.run(
-        ["git", "commit", "-m", commit_message, "--", project_file],
-        cwd=str(SASE_DIR),
-        capture_output=True,
-        check=False,
-    )
 
 
 @contextmanager
@@ -145,12 +76,12 @@ def changespec_lock(
 def write_changespec_atomic(
     project_file: str,
     content: str,
-    commit_message: str,
+    _commit_message: str = "",
 ) -> None:
-    """Write content to a ChangeSpec file atomically and commit to git.
+    """Write content to a ChangeSpec file atomically.
 
     This function should be called WHILE holding a lock on the file.
-    It handles the temp file + os.replace() pattern and commits to git.
+    It handles the temp file + os.replace() pattern.
 
     Skips the write entirely if the new content is identical to what is
     already on disk, avoiding unnecessary file modifications (which can
@@ -159,7 +90,7 @@ def write_changespec_atomic(
     Args:
         project_file: Path to the .gp file.
         content: The full file content to write.
-        commit_message: Git commit message describing the change.
+        _commit_message: Deprecated, ignored. Kept for call-site compat.
     """
     # Skip write if content hasn't changed
     try:
@@ -176,8 +107,6 @@ def write_changespec_atomic(
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
         os.replace(temp_path, project_file)
-        # Commit the change while still holding lock
-        _git_commit_changespec(project_file, commit_message)
     except Exception:
         try:
             os.unlink(temp_path)
