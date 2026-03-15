@@ -125,11 +125,11 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal {
     align: center middle;
 }
 
-StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container, ConfirmKillModal > Container {
+StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container, ConfirmKillModal > Container, ConfirmDismissAllModal > Container {
     width: 60;
     height: auto;
     max-height: 80%;
@@ -225,18 +225,21 @@ PlanApprovalModal {
     margin-top: 1;
 }
 
-/* Confirm Kill Modal styling */
-ConfirmKillModal #confirm-message {
+/* Confirm Kill / Dismiss All Modal styling */
+ConfirmKillModal #confirm-message,
+ConfirmDismissAllModal #confirm-message {
     margin: 1 0;
 }
 
-ConfirmKillModal Horizontal {
+ConfirmKillModal Horizontal,
+ConfirmDismissAllModal Horizontal {
     align: center middle;
     height: auto;
     margin-top: 1;
 }
 
-ConfirmKillModal Button {
+ConfirmKillModal Button,
+ConfirmDismissAllModal Button {
     margin: 0 1;
 }
 
