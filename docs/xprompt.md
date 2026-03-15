@@ -27,6 +27,7 @@ Use xprompts when you want to:
 - [Directives](#directives)
 - [Command Substitution](#command-substitution)
 - [Protected Content](#protected-content)
+- [XPrompt Aliases](#xprompt-aliases)
 - [Recursive Expansion](#recursive-expansion)
 - [Relationship to Workflows](#relationship-to-workflows)
 
@@ -99,6 +100,11 @@ defines the xprompt `summarize`). The name can be overridden via the `name` fiel
 
 Project-specific xprompts (priority 5) are namespaced: a file `bar.md` in the `foo` project directory becomes `foo/bar`
 and is referenced as `#foo/bar`.
+
+When a project is detected (via the workspace provider), CWD xprompts (priorities 1-2) and local config xprompts are
+also auto-namespaced with the `{project}/` prefix. For example, if the project is `myapp` and `xprompts/deploy.md`
+exists in the CWD, it becomes `myapp/deploy` and is referenced as `#myapp/deploy`. This prevents name collisions between
+project-local xprompts and global or built-in ones.
 
 ## File Format
 
@@ -532,6 +538,23 @@ Normal expansion resumes here.
 
 The markers are stripped from the final output. This is useful for embedding raw xprompt syntax in documentation or for
 passing literal `#name` patterns to downstream consumers.
+
+## XPrompt Aliases
+
+XPrompt aliases provide raw text-level substitution that runs _before_ any other xprompt processing. They are defined in
+the `xprompt_aliases` config field in `sase.yml`:
+
+```yaml
+xprompt_aliases:
+  gh_sase: "gh:sase" # #gh_sase → #gh:sase
+  gh_foo: "gh:foo/bar" # #gh_foo  → #gh:foo/bar
+```
+
+When the processor encounters `#alias_name` in a prompt, it replaces the alias name portion with the target string
+before any xprompt resolution occurs. This is particularly useful when the target contains characters (like `:`) that
+must be present in the raw text for other processing logic — such as VCS directory-switching — to work correctly.
+
+See [Configuration Reference: xprompt_aliases](configuration.md#xprompt_aliases) for the full field specification.
 
 ## Recursive Expansion
 

@@ -15,6 +15,7 @@ and CLI flags.
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
   - [xprompts](#xprompts)
+  - [xprompt_aliases](#xprompt_aliases)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 
@@ -166,8 +167,8 @@ vcs_provider:
 | `vcs_provider.workspace_root` | string       | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
 | `vcs_provider.default_hooks`  | list[string] | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
 
-The built-in default hooks (used when `default_hooks` is not set) are `!$sase_hg_presubmit` and `$sase_hg_lint` for
-Mercurial repos. Git repos have no default hooks.
+When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (e.g., the
+`sase-google` plugin supplies Mercurial-specific hooks). The core `sase` package has no built-in default hooks.
 
 Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
@@ -378,6 +379,28 @@ content.
 
 Source: `src/sase/xprompt/loader.py`
 
+### xprompt_aliases
+
+Defines raw text-level alias substitutions that are applied _before_ any xprompt processing. This is useful for creating
+shorthand references where the alias must be present in the raw text for other processing logic (such as VCS
+directory-switching) to work correctly.
+
+```yaml
+xprompt_aliases:
+  gh_sase: "gh:sase" # #gh_sase → #gh:sase
+  gh_foo: "gh:foo/bar" # #gh_foo → #gh:foo/bar
+```
+
+| Field             | Type         | Default | Description                                                  |
+| ----------------- | ------------ | ------- | ------------------------------------------------------------ |
+| `xprompt_aliases` | dict[string] | `{}`    | Mapping of alias name → target. Applied as text substitution |
+
+Each entry maps an alias name to a target string. When the processor encounters `#alias_name` in a prompt, it replaces
+it with `#target` before any other xprompt resolution occurs. Only `#`-prefixed references are substituted; the alias
+name must match `[a-zA-Z_][a-zA-Z0-9_]*`.
+
+Source: `src/sase/xprompt/processor.py`
+
 ## Environment Variables
 
 ### LLM Provider
@@ -569,3 +592,15 @@ No flags. Stops the running axe orchestrator.
 | Flag       | Values | Default | Description                                               |
 | ---------- | ------ | ------- | --------------------------------------------------------- |
 | `--sender` | string | -       | Notification sender name (overrides sender in JSON input) |
+
+### `sase plan`
+
+| Flag        | Values | Default    | Description                 |
+| ----------- | ------ | ---------- | --------------------------- |
+| `plan_file` | path   | (required) | Path to the plan `.md` file |
+
+### `sase questions`
+
+| Flag             | Values | Default    | Description                             |
+| ---------------- | ------ | ---------- | --------------------------------------- |
+| `questions_json` | string | (required) | JSON string containing questions to ask |

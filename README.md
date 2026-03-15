@@ -145,8 +145,8 @@ sase
 | `sase init-git`        | Initialize a new bare-repo-backed git project                                    |
 | `sase path`            | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `config-schema`) |
 | `sase notify`          | Create a notification (reads JSON from stdin or uses flags)                      |
-| `sase user-question`   | Handle user question from Claude Code hook                                       |
-| `sase plan-approve`    | Handle plan approval from Claude Code hook                                       |
+| `sase plan`            | Submit a plan for approval (used by `/sase_plan` skill)                          |
+| `sase questions`       | Ask the user questions (used by `/sase_questions` skill)                         |
 
 ## Core Concepts
 

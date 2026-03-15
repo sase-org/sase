@@ -62,6 +62,7 @@ Result of resolving a workspace reference:
 | `ws_get_workflow_metadata` | `WorkflowMetadata | None`       | Declare this plugin's workflow type metadata |
 | `ws_detect_workflow_type`  | `str              | None`       | Detect workflow type from a project file     |
 | `ws_get_change_label`      | `str              | None`       | Get the change label (e.g., `"PR"`, `"CL"`)  |
+| `ws_get_workspace_name`    | `str              | None`       | Get the workspace/project name for a CWD     |
 
 `ws_get_workflow_metadata` is the only hook that collects results from **all** plugins (not `firstresult`). This allows
 the registry to build a complete map of all available workflow types.
@@ -110,6 +111,7 @@ manager. These are the primary API for consumers:
 | `get_display_name()`               | Get display name for a workflow type         |
 | `get_display_name_by_vcs()`        | Get display name by VCS provider name        |
 | `get_display_name_by_vcs_family()` | Get display name by VCS family               |
+| `get_workspace_name()`             | Get workspace/project name for a directory   |
 | `get_ref_patterns()`               | Get all registered ref patterns              |
 | `get_pre_allocated_env_prefix()`   | Get env-var prefix for a workflow type       |
 
