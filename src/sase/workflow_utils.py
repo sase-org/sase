@@ -34,7 +34,7 @@ def get_cl_name_from_branch() -> str | None:
 
 
 def get_project_from_workspace() -> str | None:
-    """Get the current project name from workspace_name command.
+    """Get the current project name from sase_workspace_name command.
 
     Returns:
         The project name, or None if command fails.

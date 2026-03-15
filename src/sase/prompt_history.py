@@ -42,7 +42,7 @@ def _get_workspace_name() -> str:
     Returns:
         The workspace name, or "unknown" if it cannot be determined.
     """
-    result = run_shell_command("workspace_name", capture_output=True)
+    result = run_shell_command("sase_workspace_name", capture_output=True)
     if result.returncode != 0:
         return "unknown"
     return result.stdout.strip() or "unknown"

@@ -44,7 +44,7 @@ class AmendWorkflow(BaseWorkflow):
             propose: If True, create a proposed entry instead of amending.
             target_dir: Optional directory to run commands in (for propose mode).
             project_file: Optional path to project file. If not provided,
-                will try to infer from workspace_name command.
+                will try to infer from sase_workspace_name command.
         """
         self._note = note
         self._chat_path = chat_path
@@ -82,7 +82,7 @@ class AmendWorkflow(BaseWorkflow):
             project = get_project_from_workspace()
             if not project:
                 print_status(
-                    "Failed to get project name from 'workspace_name' command.",
+                    "Failed to get project name from 'sase_workspace_name' command.",
                     "error",
                 )
                 return False
