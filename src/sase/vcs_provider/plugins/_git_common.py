@@ -171,7 +171,19 @@ class GitCommon(CommandRunner):
         branch_without_suffix = changespec_name_to_branch(
             changespec_name, project_basename
         )
+
+        # Also try prefix-stripped name with underscores preserved — branches
+        # may have been created without underscore-to-hyphen conversion.
+        prefix = f"{project_basename}_"
+        prefix_stripped = (
+            changespec_name[len(prefix) :]
+            if changespec_name.startswith(prefix)
+            else None
+        )
+
         candidates = [changespec_name, branch_with_suffix, branch_without_suffix]
+        if prefix_stripped and prefix_stripped not in candidates:
+            candidates.append(prefix_stripped)
 
         # Try each candidate against local refs
         for candidate in candidates:
@@ -179,12 +191,22 @@ class GitCommon(CommandRunner):
             if out.success:
                 return candidate
 
-        # No local match — fetch from remote and retry
+        # No local match — fetch from remote and retry against both local
+        # and remote-tracking refs (rev-parse only finds local refs, but
+        # git checkout can DWIM-create from origin/<branch>).
         self._run(["git", "fetch", "origin"], cwd, timeout=600)
         for candidate in candidates:
             out = self._run(["git", "rev-parse", "--verify", "--quiet", candidate], cwd)
             if out.success:
                 return candidate
+            # Check remote-tracking ref — vcs_checkout strips "origin/" and
+            # git's DWIM creates a local tracking branch automatically.
+            remote_ref = f"origin/{candidate}"
+            out = self._run(
+                ["git", "rev-parse", "--verify", "--quiet", remote_ref], cwd
+            )
+            if out.success:
+                return remote_ref
 
         # Fall back to branch without suffix (may fail at checkout)
         return branch_without_suffix
