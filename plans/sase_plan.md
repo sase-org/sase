@@ -22,11 +22,13 @@ Handler for `sase plan <plan_file>`:
 1. Guard: verify `SASE_AGENT` and `SASE_ARTIFACTS_DIR` env vars are set
 2. Validate `plan_file` exists
 3. Archive plan to `~/.sase/plans/` via `save_plan_to_sase()` from `src/sase/llm_provider/_plan_utils.py:35`
-4. Write `.sase_plan_pending` marker JSON to `SASE_ARTIFACTS_DIR`:
+4. Write `.sase_plan_pending` marker JSON to `SASE_ARTIFACTS_DIR` (flush and close before proceeding):
    ```json
    {"plan_file": "<archived_path>", "original_file": "<abs_path>", "timestamp": ...}
    ```
-5. Kill process group: `os.killpg(os.getpgrp(), signal.SIGTERM)`
+5. Install no-op SIGTERM handler (`signal.signal(signal.SIGTERM, signal.SIG_IGN)`) so the process survives its own
+   `killpg` long enough to send the signal
+6. Kill process group: `os.killpg(os.getpgrp(), signal.SIGTERM)`
 
 ### New file: `src/sase/main/questions_command_handler.py`
 
@@ -34,11 +36,13 @@ Handler for `sase questions '<json>'`:
 
 1. Guard: verify `SASE_AGENT` and `SASE_ARTIFACTS_DIR` env vars are set
 2. Parse and validate questions JSON (schema below)
-3. Write `.sase_questions_pending` marker JSON to `SASE_ARTIFACTS_DIR`:
+3. Write `.sase_questions_pending` marker JSON to `SASE_ARTIFACTS_DIR` (flush and close before proceeding):
    ```json
    {"questions": [...], "timestamp": ...}
    ```
-4. Kill process group: `os.killpg(os.getpgrp(), signal.SIGTERM)`
+4. Install no-op SIGTERM handler (`signal.signal(signal.SIGTERM, signal.SIG_IGN)`) so the process survives its own
+   `killpg` long enough to send the signal
+5. Kill process group: `os.killpg(os.getpgrp(), signal.SIGTERM)`
 
 **Question JSON schema** (matches existing TUI `user_question_modal.py` format):
 
@@ -198,12 +202,33 @@ while True:
 **Key helpers needed in the runner** (private functions):
 
 - `_read_and_delete_marker(artifacts_dir, filename)` -- Read JSON, delete file, return data or None
-- `_update_meta_suffix(artifacts_dir, suffix)` -- Update `role_suffix` in agent_meta.json
-- `_create_followup_artifacts(project_name, base_meta, suffix)` -- Create new artifacts dir with `agent_meta.json`
-  containing `role_suffix` and `parent_timestamp` fields
-- `_handle_questions_flow(questions, artifacts_dir)` -- Notification + polling (mirrors `handle_plan_approval()` pattern
-  but for questions; uses `notify_user_question()` from `src/sase/notifications/senders.py:108`)
-- `_format_qa_for_prompt(response)` -- Format answers as `### Questions and Answers` markdown
+
+- `_update_meta_suffix(artifacts_dir, suffix)` -- Read `agent_meta.json`, set `role_suffix` field, write back. This
+  annotates the _just-killed_ agent's artifacts (e.g. marks it as `.plan` or `.code.q`).
+
+- `_create_followup_artifacts(project_name, base_meta, suffix)` -- Create a new timestamped artifacts directory for the
+  follow-up agent. Write a new `agent_meta.json` containing:
+  - `role_suffix`: the suffix string (e.g. `".code"`, `".code.q"`)
+  - `parent_timestamp`: the previous agent's timestamp (for TUI grouping)
+  - All inherited fields from `base_meta`: `model`, `llm_provider`, `vcs_provider`, `name`, `approve`, etc.
+  - Fresh `run_started_at` timestamp Return the new artifacts directory path.
+
+- `_handle_questions_flow(questions, artifacts_dir)` -- Full question notification + answer collection:
+  1. Generate `session_id = str(uuid.uuid4())`
+  2. Create response directory: `~/.sase/user_question/<session_id>/`
+  3. Write `question_request.json` to the response directory:
+     `{"session_id": ..., "timestamp": ..., "questions": [...]}`
+  4. Call `notify_user_question()` from `senders.py:108` to create TUI notification (with `action_data.response_dir`
+     pointing to the response directory)
+  5. Call `send_desktop_notification()` + `ring_tmux_bell()` from `plan_approve_handler.py`
+  6. **If `is_auto_approve_active()`**: skip notification, auto-select first option per question (matching existing
+     `user_question_handler.py` auto-approve behavior), return synthetic response
+  7. Poll for `question_response.json` in the response directory with `_POLL_INTERVAL = 0.5` seconds
+  8. Check `was_killed()` each iteration -- if killed during polling (user killed from TUI), return `None`
+  9. When response appears, parse it and return `{"answers": [...], "global_note": "..."}`
+
+- `_format_qa_for_prompt(response)` -- Format the response dict as `### Questions and Answers` markdown (see format
+  below)
 
 **Reusable functions** (DO NOT reimplement):
 
@@ -214,11 +239,20 @@ while True:
 - `send_desktop_notification()`, `ring_tmux_bell()`, `get_tmux_prefix()` from `plan_approve_handler.py`
 - `save_plan_to_sase()`, `write_plan_path_artifact()` from `src/sase/llm_provider/_plan_utils.py`
 
-**Plan rejection**: Write `done.json` with `"outcome": "plan_rejected"`. No retry loop -- the workflow is killed and
-dismissed.
+**`done.json` outcomes** -- written at loop exit to `current_artifacts_dir/done.json` with standard fields (`cl_name`,
+`project_file`, `timestamp`, `model`, `llm_provider`, etc. inherited from existing done marker logic):
+
+| Scenario                                 | `outcome` field   | Notes                                                                        |
+| ---------------------------------------- | ----------------- | ---------------------------------------------------------------------------- |
+| Normal completion (no kill)              | `"completed"`     | Standard path -- agent finished on its own                                   |
+| Plan rejected                            | `"plan_rejected"` | Workflow dies, no retry                                                      |
+| Killed during polling (plan or question) | `"killed"`        | User killed from TUI while waiting for answer                                |
+| Killed by user (no marker)               | N/A               | Re-raise exception; let existing error handling write `"failed"` done marker |
+
+**Plan rejection**: No retry loop -- the workflow is killed and dismissed.
 
 **Auto-approve**: Check `is_auto_approve_active()`. If true, skip plan notification and immediately spawn coder. For
-questions, auto-select first option per question.
+questions, auto-select first option per question (matching the existing behavior in `user_question_handler.py:95-108`).
 
 **Q&A prompt format**:
 
@@ -360,6 +394,14 @@ deny JSON (Claude Code ignores stdout on exit 2):
 
 ```json
 {
+  "matcher": "EnterPlanMode",
+  "hooks": [{
+    "type": "command",
+    "command": "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Plan mode is disabled. Use the /sase_plan skill instead.\"}}'",
+    "timeout": 5
+  }]
+},
+{
   "matcher": "ExitPlanMode",
   "hooks": [{
     "type": "command",
@@ -384,7 +426,7 @@ deny JSON (Claude Code ignores stdout on exit 2):
 
 When running inside sase (`SASE_AGENT` is set):
 
-- You do NOT have access to plan mode or `ExitPlanMode`. Use the `/sase_plan` skill instead.
+- You do NOT have access to plan mode (`EnterPlanMode`/`ExitPlanMode`). Use the `/sase_plan` skill instead.
 - You do NOT have access to `AskUserQuestion`. Use the `/sase_questions` skill instead.
 - The `sase plan` and `sase questions` CLI commands are implementation details used by these skills -- do not reference
   them directly.
@@ -414,13 +456,48 @@ interrupt monitoring thread.
 - `os.environ["SASE_AGENT_PLAN_MODE"] = "1"` (line 407) -- no longer needed
 - Keep `directives.plan` in agent_meta for backward compat, but stop setting the env var
 
+### Remove orphaned hook handlers and infrastructure
+
+The old hooks called `uv run sase plan-approve` and `uv run sase user-question`. With hooks changed to simple deny
+commands, these handlers are dead code.
+
+**Remove from `src/sase/main/parser.py`**:
+
+- `plan-approve` subcommand definition
+- `user-question` subcommand definition
+
+**Remove from `src/sase/main/entry.py`**:
+
+- `plan-approve` dispatch entry (`handle_plan_approve_command`)
+- `user-question` dispatch entry (`handle_user_question_command`)
+
+**Remove `src/sase/main/user_question_handler.py`** entirely -- all functionality moves to the runner's
+`_handle_questions_flow` helper.
+
+**Trim `src/sase/main/plan_approve_handler.py`** -- Keep the utility functions that are still reused by the runner:
+
+- `is_auto_approve_active()` (used by runner for auto-approve checks)
+- `send_desktop_notification()` (used by runner for notifications)
+- `ring_tmux_bell()` / `get_tmux_prefix()` (used by runner for notifications)
+- `emit_hook_decision()` (may still be useful)
+
+Remove `handle_plan_approve_command()` and `_find_plan_file()` (the main hook handler logic).
+
+**Remove `~/.local/share/chezmoi/home/dot_claude/hooks/executable_plan_hook`** -- This notification hook was used by
+Claude Code's native plan mode. No longer needed since plan notifications are now triggered by the runner.
+
 ---
 
 ## Key Design Decisions
 
-1. **Kill mechanism**: `os.killpg(os.getpgrp(), SIGTERM)` kills the entire process group. The runner's `soft=True`
-   SIGTERM handler sets a flag without exiting. Claude dies, the runner catches the exception, checks markers, and takes
-   follow-up action.
+1. **Kill mechanism -- process group kill, not targeted runner signaling**: The requirement says to "signal the agent
+   runner rather than killing claude directly." We chose `os.killpg(os.getpgrp(), SIGTERM)` instead, which kills the
+   entire process group. The runner survives via a `soft=True` SIGTERM handler that sets a flag without exiting. This is
+   simpler and more reliable than a targeted signaling approach (which would require IPC -- sockets, pipes, or shared
+   files -- to communicate between the CLI command and the runner). The trade-off: every process in the group receives
+   SIGTERM, so the CLI command itself must install `SIG_IGN` before calling `killpg` to avoid dying before the signal is
+   fully dispatched. The `SASE_AGENT_NAME` env var is still set for TUI display and logging purposes, even though the
+   kill mechanism doesn't need it.
 
 2. **Follow-up in same process**: The runner loops and calls `execute_workflow()` again rather than spawning a new
    subprocess. Simpler, reuses same workspace.
@@ -428,10 +505,20 @@ interrupt monitoring thread.
 3. **Questions accumulate**: `current_prompt += Q&A section` so chained questions (`.code.q` -> `.code.q.q`) carry all
    previous answers forward.
 
-4. **Skills are global**: Placed in `~/.claude/skills/` via chezmoi. The SKILL.md description states they're sase-only,
-   and the CLI commands verify `SASE_AGENT`.
+4. **Skills are globally registered**: The requirement says skills should "not be registered or available when claude is
+   run directly outside of sase." Claude Code does not support conditional skill registration based on environment
+   variables -- skills in `~/.claude/skills/` are always visible. We accept this trade-off: the skills are globally
+   registered but the SKILL.md descriptions state they're sase-only, the AGENTS.md instructions tell the agent not to
+   use them outside sase, and the CLI commands guard with `SASE_AGENT` env var (erroring immediately if not set). In
+   practice, a user running claude directly will never trigger the skill, and if they do, the CLI command fails
+   gracefully with a clear error.
 
 5. **Plan rejection = workflow death**: No retry loop. The entire workflow is dismissed.
+
+6. **Orphaned handler cleanup**: The old `plan-approve` and `user-question` subcommands were designed as Claude Code
+   hook handlers (called via `uv run sase plan-approve` etc.). With hooks changed to simple deny-and-redirect commands,
+   and all plan/question orchestration moved to the runner, these handlers become dead code. Removing them prevents
+   confusion about which code path is authoritative.
 
 ---
 
@@ -473,6 +560,8 @@ unset SASE_AGENT
 ### Phase 3
 
 - Run `just lint` and `just test` to verify no regressions
-- Verify hooks deny native plan mode: launch claude, try `ExitPlanMode` -> denied
+- Verify hooks deny native plan mode: launch claude, try `EnterPlanMode` -> denied, try `ExitPlanMode` -> denied
 - Verify hooks deny native questions: try `AskUserQuestion` -> denied
 - Verify `claude.py` simplified invoke works for normal (non-plan) agent runs
+- Verify `sase plan-approve` and `sase user-question` subcommands are removed (should error with unknown command)
+- Verify `executable_plan_hook` is removed from chezmoi
