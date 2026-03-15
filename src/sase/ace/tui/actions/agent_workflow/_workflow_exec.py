@@ -238,7 +238,7 @@ class WorkflowExecMixin:
                         ctx.workspace_dir,
                         str(ctx.workspace_num),
                         artifacts_dir,
-                        ctx.update_target or ctx.display_name or "",
+                        ctx.update_target,
                         "",  # not home mode
                         (
                             "1"
