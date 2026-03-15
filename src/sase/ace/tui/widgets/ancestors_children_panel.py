@@ -52,7 +52,8 @@ class AncestorsChildrenPanel(Static):
         self._descendant_tree: list[_ChildNode] = []  # Tree of all descendants
         self._ancestor_keys: dict[str, str] = {}  # name -> key hint
         self._children_keys: dict[str, str] = {}  # key -> name (for navigation)
-        self._hidden_reverted_count: int = 0  # Count of hidden reverted entries
+        self._hidden_ancestor_count: int = 0  # Count of hidden reverted ancestors
+        self._hidden_descendant_count: int = 0  # Count of hidden reverted descendants
         # Sibling-related fields
         self._siblings: list[str] = []  # Sibling names sorted by suffix number
         self._sibling_statuses: dict[str, str] = {}  # name -> status
@@ -81,7 +82,8 @@ class AncestorsChildrenPanel(Static):
             - sibling_keys: key -> name (e.g., {"~~": "foo__1", "~a": "foo__2"})
         """
         # Reset hidden counts
-        self._hidden_reverted_count = 0
+        self._hidden_ancestor_count = 0
+        self._hidden_descendant_count = 0
         self._hidden_reverted_sibling_count = 0
 
         # Build ancestors (recursive parent traversal)
@@ -111,7 +113,11 @@ class AncestorsChildrenPanel(Static):
         Returns:
             Number of reverted ancestors/descendants/siblings that were hidden.
         """
-        return self._hidden_reverted_count + self._hidden_reverted_sibling_count
+        return (
+            self._hidden_ancestor_count
+            + self._hidden_descendant_count
+            + self._hidden_reverted_sibling_count
+        )
 
     def _find_ancestors(
         self,
@@ -147,7 +153,7 @@ class AncestorsChildrenPanel(Static):
                     parent_cs.status.startswith("Reverted")
                     or parent_cs.status.startswith("Archived")
                 ):
-                    self._hidden_reverted_count += 1
+                    self._hidden_ancestor_count += 1
                     # Continue traversal but don't add to display list
                     current = parent_cs
                     continue
@@ -287,7 +293,7 @@ class AncestorsChildrenPanel(Static):
             for name in child_names:
                 status = status_map.get(name.lower(), "WIP")
                 if status.startswith("Reverted") or status.startswith("Archived"):
-                    self._hidden_reverted_count += 1
+                    self._hidden_descendant_count += 1
                 else:
                     filtered_names.append(name)
             child_names = filtered_names
@@ -449,7 +455,13 @@ class AncestorsChildrenPanel(Static):
 
     def _refresh_content(self) -> None:
         """Refresh the panel content."""
-        if not self._ancestors and not self._descendant_tree and not self._siblings:
+        has_visible = self._ancestors or self._descendant_tree or self._siblings
+        has_hidden = (
+            self._hidden_ancestor_count > 0
+            or self._hidden_descendant_count > 0
+            or self._hidden_reverted_sibling_count > 0
+        )
+        if not has_visible and not has_hidden:
             self.display = False
             return
 
@@ -458,8 +470,13 @@ class AncestorsChildrenPanel(Static):
         has_previous_section = False
 
         # ANCESTORS section (reversed: show furthest ancestor first)
-        if self._ancestors:
+        if self._ancestors or self._hidden_ancestor_count > 0:
             text.append("ANCESTORS", style="bold #87D7FF")
+            if self._hidden_ancestor_count > 0:
+                text.append(
+                    f" ({self._hidden_ancestor_count} hidden)",
+                    style="dim #808080",
+                )
             for name in reversed(self._ancestors):
                 key = self._ancestor_keys.get(name, "")
                 text.append("\n")
@@ -472,18 +489,28 @@ class AncestorsChildrenPanel(Static):
             has_previous_section = True
 
         # CHILDREN section (tree view)
-        if self._descendant_tree:
+        if self._descendant_tree or self._hidden_descendant_count > 0:
             if has_previous_section:
                 text.append("\n\n")  # Blank line between sections
             text.append("CHILDREN", style="bold #87D7FF")
+            if self._hidden_descendant_count > 0:
+                text.append(
+                    f" ({self._hidden_descendant_count} hidden)",
+                    style="dim #808080",
+                )
             self._render_tree(self._descendant_tree, text)
             has_previous_section = True
 
         # SIBLINGS section
-        if self._siblings:
+        if self._siblings or self._hidden_reverted_sibling_count > 0:
             if has_previous_section:
                 text.append("\n\n")  # Blank line between sections
             text.append("SIBLINGS", style="bold #87D7FF")
+            if self._hidden_reverted_sibling_count > 0:
+                text.append(
+                    f" ({self._hidden_reverted_sibling_count} hidden)",
+                    style="dim #808080",
+                )
             for name in self._siblings:
                 # Find key for this sibling (reverse lookup)
                 key = ""
@@ -550,7 +577,8 @@ class AncestorsChildrenPanel(Static):
         self._descendant_tree = []
         self._ancestor_keys = {}
         self._children_keys = {}
-        self._hidden_reverted_count = 0
+        self._hidden_ancestor_count = 0
+        self._hidden_descendant_count = 0
         # Clear sibling-related fields
         self._siblings = []
         self._sibling_statuses = {}

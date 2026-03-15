@@ -35,6 +35,8 @@ class ChangeSpecInfoPanel(Static):
         self._seconds_remaining: int = 0
         self._refresh_interval: int = 0
         self._marked_count: int = 0
+        self._hidden_reverted: int = 0  # Reverted/archived hidden from list
+        self._hidden_submitted: int = 0  # Submitted hidden from list
         self._fold_commits: FoldLevel = FoldLevel.COLLAPSED
         self._fold_hooks: FoldLevel = FoldLevel.COLLAPSED
         self._fold_mentors: FoldLevel = FoldLevel.COLLAPSED
@@ -51,6 +53,18 @@ class ChangeSpecInfoPanel(Static):
         self._total_count = total
         self._marked_count = marked_count
         self._refresh_content()
+
+    def update_hidden_counts(self, reverted: int, submitted: int) -> None:
+        """Update the hidden ChangeSpec counts.
+
+        Args:
+            reverted: Number of reverted/archived CLs hidden from the list.
+            submitted: Number of submitted CLs hidden from the list.
+        """
+        if self._hidden_reverted != reverted or self._hidden_submitted != submitted:
+            self._hidden_reverted = reverted
+            self._hidden_submitted = submitted
+            self._refresh_content()
 
     def update_countdown(self, remaining: int, interval: int) -> None:
         """Update the countdown timer.
@@ -95,6 +109,18 @@ class ChangeSpecInfoPanel(Static):
         if self._marked_count > 0:
             text.append("   ", style="")
             text.append(f"[{self._marked_count} marked]", style="bold #00D700")
+
+        # Hidden count badges (shown when items are hidden from the list)
+        if self._hidden_reverted > 0 or self._hidden_submitted > 0:
+            text.append("   ", style="")
+            if self._hidden_reverted > 0:
+                text.append(f"+{self._hidden_reverted}", style="dim #808080")
+                text.append("X", style="bold #808080")
+            if self._hidden_reverted > 0 and self._hidden_submitted > 0:
+                text.append(" ", style="")
+            if self._hidden_submitted > 0:
+                text.append(f"+{self._hidden_submitted}", style="dim #00AF00")
+                text.append("S", style="bold #00AF00")
 
         # Fold indicators (only shown when any section is non-collapsed)
         has_fold = not (

@@ -469,6 +469,9 @@ class ChangeSpecMixin:
         info_panel.update_position(
             position, len(self.changespecs), len(self.marked_indices)
         )
+        info_panel.update_hidden_counts(
+            self._hidden_reverted_count, self._hidden_submitted_count
+        )
         info_panel.update_countdown(self._countdown_remaining, self.refresh_interval)  # type: ignore[attr-defined]
 
     def action_edit_spec(self) -> None:
