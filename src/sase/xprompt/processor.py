@@ -39,6 +39,9 @@ from .models import XPrompt
 # Maximum number of expansion iterations to prevent infinite loops
 _MAX_EXPANSION_ITERATIONS = 100
 
+# Matches content starting with a %xprompts_enabled:false marker.
+_DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
+
 # Pattern to match xprompt references: #name, #name(, #name:arg, or #name+
 # Must be at start of string, after whitespace, or after certain punctuation
 # Note: No space allowed after # (to avoid matching markdown headings)
@@ -340,6 +343,18 @@ def process_xprompt_references(
                     and prompt[match_end] != "\n"
                 ):
                     expanded += "\n\n"
+
+                # Ensure disabled-region markers start on their own line.
+                # When expanded content begins with %xprompts_enabled:false
+                # but the insertion point is mid-line (e.g. after an
+                # unexpanded VCS ref), prepend a newline so downstream
+                # protect/strip_disabled_region_markers can match it.
+                if (
+                    expanded
+                    and not is_at_line_start
+                    and _DISABLED_REGION_START_RE.match(expanded)
+                ):
+                    expanded = "\n" + expanded
 
                 prompt = prompt[: match.start()] + expanded + prompt[match_end:]
         except XPromptError as e:

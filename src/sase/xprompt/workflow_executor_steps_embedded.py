@@ -30,6 +30,11 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
+# Matches content starting with a %xprompts_enabled:false marker.
+# Used to detect when expanded content needs a preceding newline so the
+# marker remains at line-start (required by disabled-region handling).
+_DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
+
 
 @dataclass
 class EmbeddedWorkflowInfo:
@@ -495,9 +500,19 @@ class EmbeddedWorkflowMixin:
         # ── Phase 4: Text replacement ────────────────────────────────────
         # Sort by match_start descending so right-to-left replacement is position-safe.
         for p in sorted(pending, key=lambda x: x.match_start, reverse=True):
-            prompt = (
-                prompt[: p.match_start] + p.rendered_prompt_part + prompt[p.match_end :]
-            )
+            replacement = p.rendered_prompt_part
+            # When the rendered content starts with a disabled-region marker
+            # but the insertion point is mid-line (e.g. after an unexpanded
+            # VCS ref like #hg:sase), prepend a newline so the marker starts
+            # at a line boundary — required for downstream protect/strip.
+            if (
+                replacement
+                and p.match_start > 0
+                and prompt[p.match_start - 1] != "\n"
+                and _DISABLED_REGION_START_RE.match(replacement)
+            ):
+                replacement = "\n" + replacement
+            prompt = prompt[: p.match_start] + replacement + prompt[p.match_end :]
 
         # Restore fenced code blocks now that matching and replacement are done.
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)

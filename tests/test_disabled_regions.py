@@ -54,9 +54,82 @@ class TestStripDisabledRegionMarkers:
 class TestProcessXpromptReferencesDisabledRegions:
     """Integration: process_xprompt_references skips disabled region content."""
 
+    @patch("sase.xprompt.processor.get_all_xprompts")
+    def test_expansion_ensures_disabled_marker_at_line_start(
+        self,
+        mock_get_xprompts: MagicMock,
+    ) -> None:
+        """When xprompt expands to content starting with %xprompts_enabled:false
+        and is mid-line (after an unexpanded ref), a newline is prepended."""
+        from sase.xprompt.models import XPrompt
+        from sase.xprompt.processor import process_xprompt_references
+
+        mock_get_xprompts.return_value = {
+            "resume_test": XPrompt(
+                name="resume_test",
+                content=(
+                    "%xprompts_enabled:false\n"
+                    "# Previous Conversation\n"
+                    "some history\n"
+                    "%xprompts_enabled:true\n"
+                    "# New Query\n"
+                ),
+            ),
+        }
+        # Simulate: unexpanded VCS ref followed by #resume_test
+        prompt = "#unknown_vcs:sase #resume_test"
+        result = process_xprompt_references(prompt)
+        # The %xprompts_enabled:false must be at a line start (after \n)
+        idx = result.index("%xprompts_enabled:false")
+        assert idx == 0 or result[idx - 1] == "\n"
+
 
 class TestPreprocessPromptLateDisabledRegions:
     """Integration: preprocess_prompt_late strips markers and protects content."""
+
+    @patch(
+        "sase.gemini_wrapper.file_references.process_command_substitution",
+        side_effect=lambda x: x,
+    )
+    @patch(
+        "sase.gemini_wrapper.file_references.format_with_prettier",
+        side_effect=lambda x: x,
+    )
+    @patch(
+        "sase.gemini_wrapper.file_references.strip_html_comments",
+        side_effect=lambda x: x,
+    )
+    @patch("sase.xprompt.is_jinja2_template", return_value=False)
+    def test_markers_stripped_when_preceded_by_unexpanded_ref(
+        self,
+        _mock_jinja: MagicMock,
+        _mock_html: MagicMock,
+        _mock_prettier: MagicMock,
+        _mock_cmd_sub: MagicMock,
+    ) -> None:
+        """Markers must be stripped even when preceded by unexpanded refs.
+
+        Regression test: when an unexpanded VCS ref like #hg:sase sits on the
+        same line as %xprompts_enabled:false, the marker must still be stripped
+        as long as it starts on its own line (after the newline fix in
+        process_xprompt_references / embedded workflow expansion).
+        """
+        from sase.llm_provider.preprocessing import preprocess_prompt_late
+
+        # After the newline fix, the prompt looks like:
+        # #hg:sase \n%xprompts_enabled:false\n...
+        prompt = (
+            "#hg:sase \n"
+            "%xprompts_enabled:false\n"
+            "# Previous Conversation\n"
+            "some history\n"
+            "%xprompts_enabled:true\n"
+            "# New Query\n"
+        )
+        result = preprocess_prompt_late(prompt, file_ref_mode="skip")
+        assert "%xprompts_enabled" not in result
+        assert "# Previous Conversation" in result
+        assert "# New Query" in result
 
     @patch("sase.gemini_wrapper.file_references.process_command_substitution")
     @patch(
