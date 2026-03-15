@@ -232,81 +232,90 @@ def main() -> None:
                         silent=True,
                         workflow_obj=anon_workflow,
                     )
-                    break  # Normal completion
-
                 except Exception:
                     if not was_killed():
                         raise  # Genuine error, not a marker-based kill
+                    result = None
 
-                    # Check for marker files left by `sase plan` / `sase questions`
-                    plan_data = read_and_delete_marker(
-                        current_artifacts_dir, ".sase_plan_pending"
+                # If the process wasn't killed, this is a normal completion.
+                # When it WAS killed, invoke_agent() may have swallowed the
+                # CalledProcessError and returned an error AIMessage instead
+                # of raising, so we must check for markers in both paths.
+                if not was_killed():
+                    break  # Normal completion
+
+                # Check for marker files left by `sase plan` / `sase questions`
+                plan_data = read_and_delete_marker(
+                    current_artifacts_dir, ".sase_plan_pending"
+                )
+                q_data = read_and_delete_marker(
+                    current_artifacts_dir, ".sase_questions_pending"
+                )
+
+                if plan_data:
+                    update_meta_suffix(current_artifacts_dir, ".plan")
+                    from sase.llm_provider._plan_utils import handle_plan_approval
+
+                    approved = handle_plan_approval(
+                        plan_data.get("plan_file"),
+                        str(uuid.uuid4()),
+                        killed_check=was_killed,
                     )
-                    q_data = read_and_delete_marker(
-                        current_artifacts_dir, ".sase_questions_pending"
+                    if approved is None and was_killed():
+                        loop_outcome = "killed"
+                        break
+                    if not approved:
+                        loop_outcome = "plan_rejected"
+                        break
+                    # Plan approved -> spawn coder with plan as prompt
+                    current_role_suffix = ".code"
+                    current_artifacts_dir = create_followup_artifacts(
+                        project_name,
+                        agent_meta,
+                        current_role_suffix,
+                        convert_timestamp_to_artifacts_format(timestamp),
                     )
+                    current_prompt = (
+                        f"@{plan_data['plan_file']}\n\n"
+                        "The above plan has been reviewed and approved. "
+                        "Implement it now."
+                    )
+                    continue
 
-                    if plan_data:
-                        update_meta_suffix(current_artifacts_dir, ".plan")
-                        from sase.llm_provider._plan_utils import handle_plan_approval
+                elif q_data:
+                    current_role_suffix += ".q"
+                    update_meta_suffix(
+                        current_artifacts_dir,
+                        current_role_suffix or ".q",
+                    )
+                    response = handle_questions_flow(
+                        q_data.get("questions", []),
+                        current_artifacts_dir,
+                    )
+                    if response is None:
+                        loop_outcome = "killed"
+                        break
+                    current_artifacts_dir = create_followup_artifacts(
+                        project_name,
+                        agent_meta,
+                        current_role_suffix,
+                        convert_timestamp_to_artifacts_format(timestamp),
+                    )
+                    current_prompt = (
+                        current_prompt + "\n\n" + format_qa_for_prompt(response)
+                    )
+                    continue
 
-                        approved = handle_plan_approval(
-                            plan_data.get("plan_file"),
-                            str(uuid.uuid4()),
-                            killed_check=was_killed,
-                        )
-                        if approved is None and was_killed():
-                            loop_outcome = "killed"
-                            break
-                        if not approved:
-                            loop_outcome = "plan_rejected"
-                            break
-                        # Plan approved -> spawn coder with plan as prompt
-                        current_role_suffix = ".code"
-                        current_artifacts_dir = create_followup_artifacts(
-                            project_name,
-                            agent_meta,
-                            current_role_suffix,
-                            convert_timestamp_to_artifacts_format(timestamp),
-                        )
-                        current_prompt = (
-                            f"@{plan_data['plan_file']}\n\n"
-                            "The above plan has been reviewed and approved. "
-                            "Implement it now."
-                        )
-                        continue
-
-                    elif q_data:
-                        current_role_suffix += ".q"
-                        update_meta_suffix(
-                            current_artifacts_dir,
-                            current_role_suffix or ".q",
-                        )
-                        response = handle_questions_flow(
-                            q_data.get("questions", []),
-                            current_artifacts_dir,
-                        )
-                        if response is None:
-                            loop_outcome = "killed"
-                            break
-                        current_artifacts_dir = create_followup_artifacts(
-                            project_name,
-                            agent_meta,
-                            current_role_suffix,
-                            convert_timestamp_to_artifacts_format(timestamp),
-                        )
-                        current_prompt = (
-                            current_prompt + "\n\n" + format_qa_for_prompt(response)
-                        )
-                        continue
-
-                    else:
-                        raise  # Killed by user (no marker)
+                else:
+                    # Killed by user (no marker)
+                    loop_outcome = "killed"
+                    break
 
             # Clean up SASE_ARTIFACTS_DIR env var
             os.environ.pop("SASE_ARTIFACTS_DIR", None)
 
             if loop_outcome == "completed":
+                assert result is not None
                 # Extract response text for chat history
                 response_content = result.response_text or ""
 
