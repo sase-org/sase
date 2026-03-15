@@ -88,6 +88,8 @@ def _calculate_entry_display_width(
         parts.append(f"{_DONE_ICON} ")
     dt = agent.get_display_type(is_expanded=is_expanded)
     parts.extend([f"[{dt}] ", agent.display_name, " ", f"({agent.status})"])
+    if agent.role_suffix:
+        parts.append(f" {agent.role_suffix}")
     if agent.agent_name:
         parts.append(f" @{agent.agent_name}")
     if fold_annotation:
@@ -301,6 +303,10 @@ class AgentList(OptionList):
             else:
                 # COLLAPSED: "(N steps)" in dim cyan
                 text.append(fold_annotation, style="dim #00D7D7")
+
+        # Role suffix annotation for follow-up agents
+        if agent.role_suffix:
+            text.append(f" {agent.role_suffix}", style="dim #AF87D7")
 
         # Agent name annotation
         if agent.agent_name:

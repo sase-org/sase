@@ -8,6 +8,7 @@ import os
 import shutil
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 # Poll interval for plan approval responses (seconds)
@@ -94,11 +95,23 @@ def append_plan_feedback_log(feedback: str, round_num: int) -> None:
         pass
 
 
-def handle_plan_approval(plan_file: str | None, session_id: str) -> str | None:
+def handle_plan_approval(
+    plan_file: str | None,
+    session_id: str,
+    *,
+    killed_check: Callable[[], bool] | None = None,
+) -> str | None:
     """Handle plan approval flow.
 
     Creates a TUI notification via ``notify_plan_approval()``, then polls for
     the user's response.  Sends desktop notification and tmux bell.
+
+    Args:
+        plan_file: Path to the plan file.
+        session_id: Unique session ID for the approval flow.
+        killed_check: Optional callable that returns True if the process was
+            killed (SIGTERM). When provided, the poll loop checks it each
+            iteration and returns None early if killed.
 
     Returns the plan file path if approved, ``None`` if rejected or missing.
     """
@@ -158,6 +171,9 @@ def handle_plan_approval(plan_file: str | None, session_id: str) -> str | None:
 
     # Poll for response (blocks until the user acts)
     while True:
+        if killed_check is not None and killed_check():
+            return None
+
         if response_path.exists():
             try:
                 with open(response_path, encoding="utf-8") as f:

@@ -18,7 +18,9 @@ def was_killed() -> bool:
     return _killed_state["killed"]
 
 
-def install_sigterm_handler(description: str = "process") -> None:
+def install_sigterm_handler(
+    description: str = "process", *, soft: bool = False
+) -> None:
     """Install a SIGTERM handler that sets killed flag and exits gracefully.
 
     The handler uses sys.exit() instead of re-raising SIGTERM so that
@@ -26,14 +28,23 @@ def install_sigterm_handler(description: str = "process") -> None:
 
     Args:
         description: What was killed (e.g., "agent", "mentor", "workflow").
+        soft: When True, set the killed flag but don't call sys.exit().
+            This allows the caller to detect the kill and handle it
+            (e.g., check for marker files before deciding what to do).
     """
 
     def _handler(_signum: int, _frame: object) -> None:
         _killed_state["killed"] = True
         print(f"\nReceived SIGTERM - {description} was killed", file=sys.stderr)
-        sys.exit(128 + signal.SIGTERM)
+        if not soft:
+            sys.exit(128 + signal.SIGTERM)
 
     signal.signal(signal.SIGTERM, _handler)
+
+
+def reset_killed() -> None:
+    """Clear the killed flag between follow-up loop iterations."""
+    _killed_state["killed"] = False
 
 
 def prepare_workspace(

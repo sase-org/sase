@@ -141,6 +141,9 @@ class Agent:
     # Whether this agent was launched with %approve (fully autonomous)
     approve: bool = False
 
+    # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
+    role_suffix: str | None = None
+
     def get_display_type(self, *, is_expanded: bool = False) -> str:
         """Compute display type with optional fold-state context.
 
