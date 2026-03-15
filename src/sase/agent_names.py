@@ -364,6 +364,21 @@ def _get_active_agent_names() -> set[str]:
             if not name:
                 continue
 
+            # Workflow agents with appears_as_agent=False are multi-step
+            # workflows that never show on the Agents tab — their names
+            # should not be reserved.
+            wf_path = artifact_dir / "workflow_state.json"
+            if wf_path.exists():
+                try:
+                    with open(wf_path, encoding="utf-8") as f:
+                        wf_data = json.load(f)
+                    if isinstance(wf_data, dict) and not wf_data.get(
+                        "appears_as_agent", False
+                    ):
+                        continue
+                except (json.JSONDecodeError, OSError):
+                    pass
+
             # Done agents still hold their name until dismissed
             # (dismissal deletes the artifact directory).
             done_path = artifact_dir / "done.json"
