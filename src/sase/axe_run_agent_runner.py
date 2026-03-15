@@ -172,13 +172,15 @@ def _handle_questions_flow(
         answers = []
         for q in questions:
             options = q.get("options", [])
+            selected = options[0]["label"] if options else ""
             answers.append(
                 {
                     "question": q.get("question", ""),
-                    "answer": options[0] if options else "",
+                    "selected": selected,
+                    "custom_feedback": None,
                 }
             )
-        return {"answers": answers}
+        return {"answers": answers, "global_note": ""}
 
     # Create response directory and write request
     session_id = str(uuid.uuid4())
@@ -237,9 +239,16 @@ def _format_qa_for_prompt(response: dict[str, Any]) -> str:
     lines = ["### Questions and Answers", ""]
     for answer in response.get("answers", []):
         q = answer.get("question", "")
-        a = answer.get("answer", "")
-        lines.append(f"**Q:** {q}")
-        lines.append(f"**A:** {a}")
+        selected = answer.get("selected", "")
+        custom = answer.get("custom_feedback")
+        line = f"**Q: {q}** A: Selected '{selected}'"
+        if custom:
+            line += f' Custom note: "{custom}"'
+        lines.append(line)
+        lines.append("")
+    global_note = response.get("global_note")
+    if global_note:
+        lines.append(f"**Global note from user:** {global_note}")
         lines.append("")
     return "\n".join(lines)
 
