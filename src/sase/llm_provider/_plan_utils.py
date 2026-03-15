@@ -38,10 +38,15 @@ def save_plan_to_sase(plan_file: str) -> Path:
     sase_plans_dir = Path.home() / ".sase" / "plans"
     sase_plans_dir.mkdir(parents=True, exist_ok=True)
     src = Path(plan_file)
-    dest = sase_plans_dir / src.name
+    # Strip "sase_plan_" prefix if present
+    name = src.name
+    if name.startswith("sase_plan_"):
+        name = name[len("sase_plan_") :]
+    dest = sase_plans_dir / name
     if dest.exists():
-        stem = src.stem
-        suffix = src.suffix
+        dest_path = Path(name)
+        stem = dest_path.stem
+        suffix = dest_path.suffix
         counter = 1
         while dest.exists():
             dest = sase_plans_dir / f"{stem}_{counter}{suffix}"
