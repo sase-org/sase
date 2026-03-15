@@ -1,6 +1,7 @@
 vcs_provider:
   default_hooks:
     - "just lint"
+    - "just pyvision"
     - "just test"
 
 xprompts:
