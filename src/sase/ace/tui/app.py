@@ -7,7 +7,6 @@ import time
 from typing import Literal
 
 from textual.app import App, ComposeResult
-from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.timer import Timer
@@ -31,6 +30,7 @@ from .actions import (
     CustomModeMixin,
     EventHandlersMixin,
     HintActionsMixin,
+    LifecycleMixin,
     MarkingMixin,
     NavigationMixin,
     ProposalRebaseMixin,
@@ -39,6 +39,7 @@ from .actions import (
     SyncMixin,
     WorkspaceActionsMixin,
 )
+from .bindings import DEFAULT_BINDINGS
 from .models import Agent
 from .models.agent import AgentType
 from .widgets import (
@@ -82,6 +83,7 @@ class AceApp(
     ClipboardMixin,
     CustomModeMixin,
     EventHandlersMixin,
+    LifecycleMixin,
     MarkingMixin,
     NavigationMixin,
     ProposalRebaseMixin,
@@ -99,107 +101,7 @@ class AceApp(
     CSS_PATH = "styles.tcss"
     ENABLE_COMMAND_PALETTE = False
 
-    BINDINGS = [
-        Binding("j", "next_changespec", "Next", show=False),
-        Binding("k", "prev_changespec", "Previous", show=False),
-        Binding("q", "quit", "Quit", show=False),
-        Binding("s", "change_status", "Status", show=False),
-        Binding("r", "run_workflow", "Run", show=False),
-        Binding("M", "mail", "Mail", show=False),
-        Binding("d", "show_diff", "Diff", show=False),
-        Binding("w", "reword", "Reword", show=False),
-        Binding("W", "add_tag", "Add Tag", show=False),
-        Binding("v", "view_files", "View", show=False),
-        Binding("h", "hooks_or_collapse", "Hooks / Collapse", show=False),
-        Binding("H", "hooks_or_collapse_all", "Hooks / Collapse All", show=False),
-        Binding("z", "start_fold_mode", "Fold", show=False),
-        Binding("a", "accept_proposal", "Accept", show=False),
-        Binding("b", "rebase", "Rebase", show=False),
-        Binding("R", "start_rewind", "Rewind", show=False),
-        Binding("T", "open_tmux", "Tmux", show=False),
-        Binding("t", "start_tmux_mode", "Tmux Mode", show=False),
-        Binding("C", "checkout", "Checkout", show=False),
-        Binding("c", "start_checkout_mode", "Checkout Mode", show=False),
-        # Note: "!" binding removed - use "a" then "@" to mark ready to mail
-        Binding("y", "refresh", "Refresh", show=False),
-        Binding("Y", "sync", "Sync", show=False),
-        Binding("slash", "edit_query", "Edit Query", show=False),
-        Binding("e", "edit_spec", "Edit Spec", show=False),
-        Binding("ctrl+d", "scroll_detail_down", "Scroll Down", show=False),
-        Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
-        Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),
-        Binding("ctrl+b", "scroll_prompt_up", "Scroll Prompt Up", show=False),
-        # Saved query keybindings (1-9, 0)
-        Binding("1", "load_saved_query_1", "Load Q1", show=False),
-        Binding("2", "load_saved_query_2", "Load Q2", show=False),
-        Binding("3", "load_saved_query_3", "Load Q3", show=False),
-        Binding("4", "load_saved_query_4", "Load Q4", show=False),
-        Binding("5", "load_saved_query_5", "Load Q5", show=False),
-        Binding("6", "load_saved_query_6", "Load Q6", show=False),
-        Binding("7", "load_saved_query_7", "Load Q7", show=False),
-        Binding("8", "load_saved_query_8", "Load Q8", show=False),
-        Binding("9", "load_saved_query_9", "Load Q9", show=False),
-        Binding("0", "load_saved_query_0", "Load Q0", show=False),
-        # Tab switching
-        Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
-        Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),
-        # Axe control (AXE tab only - global access via !x)
-        Binding("X", "toggle_axe", "Start/Stop Axe", show=False),
-        Binding("Q", "stop_axe_and_quit", "Stop & Quit", show=False),
-        # Agent workflow (all tabs) - shows project/CL selection modals
-        Binding("at", "start_custom_agent", "Run Agent", show=False),
-        # Run agent from ChangeSpec (CLs tab only)
-        Binding("space", "start_agent_from_changespec", "Run Agent (CL)", show=False),
-        # Bang mode prefix (all tabs) - !x = toggle axe, !! = run bgcmd
-        Binding("exclamation_mark", "start_bang_mode", "Bang Mode", show=False),
-        # Marking (CLs tab only)
-        Binding("m", "toggle_mark", "Mark", show=False),
-        Binding("n", "rename_cl", "Rename", show=False),
-        Binding("u", "clear_marks", "Unmark All", show=False),
-        Binding("S", "bulk_change_status", "Bulk Status", show=False),
-        Binding("N", "show_notifications", "Notifications", show=False),
-        Binding("x", "kill_agent", "Kill", show=False),
-        Binding("l", "expand_or_layout", "Expand / Layout", show=False),
-        Binding("L", "expand_all_folds", "Expand All", show=False),
-        Binding("p", "toggle_layout", "Layout", show=False),
-        Binding("right_square_bracket", "toggle_thinking", "Thinking", show=False),
-        Binding(
-            "left_square_bracket", "toggle_thinking_reverse", "Thinking Rev", show=False
-        ),
-        Binding("i", "mark_inactive", "Mark Inactive", show=False),
-        # Copy to clipboard (changespecs tab - % followed by key)
-        Binding("percent_sign", "copy_tab_content", "Copy", show=False),
-        # Scroll to top/bottom (Axe tab)
-        Binding("g", "scroll_to_top", "Top", show=False),
-        Binding("G", "scroll_to_bottom", "Bottom", show=False),
-        # Help
-        Binding("question_mark", "show_help", "Help", show=False),
-        # XPrompt browser
-        Binding("number_sign", "browse_xprompts", "XPrompts", show=False),
-        # Query history navigation
-        Binding("circumflex_accent", "prev_query", "Prev Query", show=False),
-        Binding("underscore", "next_query", "Next Query", show=False),
-        # ChangeSpec history navigation (vim-style jumplist)
-        Binding("ctrl+o", "prev_changespec_history", "Prev CL History", show=False),
-        Binding("ctrl+k", "next_changespec_history", "Next CL History", show=False),
-        # Ancestor/child/sibling navigation
-        Binding("<", "start_ancestor_mode", "Ancestor", show=False),
-        Binding(">", "start_child_mode", "Child", show=False),
-        Binding("~", "start_sibling_mode", "Sibling", show=False),
-        # Hide/show reverted/submitted
-        Binding("full_stop", "toggle_hide_reverted", "Toggle Reverted", show=False),
-        Binding("x", "toggle_hide_submitted", "Toggle Submitted", show=False),
-        # Leader mode (for quick shortcuts)
-        Binding("comma", "start_leader_mode", "Leader", show=False),
-        # File cycling (agents tab)
-        Binding("ctrl+n", "next_agent_file", "Next File", show=False),
-        Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
-        Binding("E", "edit_panel", "Edit Panel", show=False),
-        Binding("minus", "reset_file_trim", "Reset Trim", show=False),
-        Binding("equals_sign", "show_all_file_lines", "Show All", show=False),
-        # Jump to CL from agent (agents tab)
-        Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
-    ]
+    BINDINGS = DEFAULT_BINDINGS
 
     # Reactive properties
     changespecs: reactive[list[ChangeSpec]] = reactive([], recompose=False)
@@ -532,123 +434,6 @@ class AceApp(
             self._refresh_timer = self.set_interval(
                 self.refresh_interval, self._on_auto_refresh, name="auto-refresh"
             )
-
-    def _initialize_agent_tracking(self) -> None:
-        """Initialize notification tracking by seeding unread count.
-
-        This ensures we don't trigger bell/toast for notifications that
-        were already unread when the TUI started.
-        """
-        from sase.notifications import load_notifications
-
-        notifications = load_notifications()
-        unread_count = sum(1 for n in notifications if not n.read)
-        self._last_unread_count = unread_count
-
-        indicator = self.query_one("#notification-indicator", NotificationIndicator)
-        indicator.set_count(unread_count)
-
-    def _save_current_selection(self) -> None:
-        """Save the currently selected ChangeSpec name."""
-        from ..last_selection import save_last_selection
-
-        if self.changespecs:
-            if self.current_tab == "changespecs":
-                idx = min(self.current_idx, len(self.changespecs) - 1)
-            else:
-                idx = min(self._changespecs_last_idx, len(self.changespecs) - 1)
-            changespec = self.changespecs[idx]
-            save_last_selection(changespec.name)
-            self._save_selection_for_current_query()
-
-    def _restore_last_selection(self) -> None:
-        """Restore the previously selected ChangeSpec if it exists."""
-        from ..last_selection import load_last_selection
-
-        last_name = load_last_selection()
-        if last_name is None:
-            return
-        for idx, cs in enumerate(self.changespecs):
-            if cs.name == last_name:
-                self.current_idx = idx
-                return
-
-    async def action_quit(self) -> None:
-        """Quit the application, saving the current selection."""
-        self._save_current_selection()
-        from sase.ace.tui_activity import (
-            remove_idle_state,
-            remove_last_keypress,
-            remove_tui_pid,
-            write_activity_timestamp,
-        )
-
-        write_activity_timestamp(time.time())
-        remove_idle_state()
-        remove_last_keypress()
-        remove_tui_pid()
-        self.exit()
-
-    def action_mark_inactive(self) -> None:
-        """Toggle manual idle mode.
-
-        First press enters idle (epoch 0, idle_state=True).
-        Second press exits idle and resumes normal activity tracking.
-        No-op when pinned idle is active (only I can clear pinned idle).
-        """
-        if self._pinned_idle:
-            return
-
-        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
-        if not hasattr(self, "_last_activity_time"):
-            # Currently in manual idle — exit it.
-            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
-
-            self._last_activity_time = time.monotonic()
-            write_activity_timestamp(time.time())
-            write_idle_state(False)
-            indicator.set_idle(False)
-            return
-
-        # Enter manual idle.
-        from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
-
-        write_activity_timestamp(0)
-        write_idle_state(True)
-        # Clear activity tracking so _on_countdown_tick() doesn't overwrite
-        # the inactive marker (epoch 0) with the current time.
-        del self._last_activity_time
-        indicator.set_idle(True)
-
-    def action_mark_inactive_pinned(self) -> None:
-        """Toggle pinned idle mode.
-
-        Pinned idle stays active until explicitly toggled off with I.
-        Regular keypresses do not clear pinned idle.
-        """
-        indicator = self.query_one("#inactive-indicator", InactiveIndicator)
-        if self._pinned_idle:
-            # Currently in pinned idle — exit it.
-            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
-
-            self._pinned_idle = False
-            self._last_activity_time = time.monotonic()
-            write_activity_timestamp(time.time())
-            write_idle_state(False)
-            indicator.set_idle(False)
-            return
-
-        # Enter pinned idle.
-        from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
-
-        self._pinned_idle = True
-        write_activity_timestamp(0)
-        write_idle_state(True)
-        # Clear activity tracking so _on_countdown_tick() doesn't overwrite
-        # the inactive marker (epoch 0) with the current time.
-        if hasattr(self, "_last_activity_time"):
-            del self._last_activity_time
-        indicator.set_idle(True, pinned=True)
 
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
