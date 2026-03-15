@@ -422,6 +422,20 @@ class AceApp(
         """
         return to_canonical_string(self.parsed_query)
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Disable tab switching when a modal screen is active.
+
+        This allows modals (e.g. revive agent modal) to use priority tab
+        bindings without the app-level next_tab/prev_tab consuming the key
+        first.
+        """
+        if action in ("next_tab", "prev_tab"):
+            from textual.screen import ModalScreen
+
+            if isinstance(self.screen, ModalScreen):
+                return False
+        return super().check_action(action, parameters)
+
     def compose(self) -> ComposeResult:
         """Compose the app layout."""
         yield Header()
