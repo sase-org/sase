@@ -305,34 +305,6 @@ def create_parser() -> argparse.ArgumentParser:
         help="End timestamp for duration calculation (YYmmdd_HHMMSS format).",
     )
 
-    # --- image ---
-    image_parser = top_level_subparsers.add_parser(
-        "image",
-        help="Generate an image using Nano Banana 2 (Gemini image generation)",
-    )
-    image_parser.add_argument(
-        "prompt",
-        nargs="+",
-        help="Text description of the image to generate",
-    )
-    image_parser.add_argument(
-        "--aspect-ratio",
-        choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
-        default="1:1",
-        help="Aspect ratio for the generated image (default: 1:1)",
-    )
-    image_parser.add_argument(
-        "--model",
-        default=None,
-        help="Model ID override (default: gemini-3.1-flash-image-preview)",
-    )
-    image_parser.add_argument(
-        "-o",
-        "--output",
-        default=None,
-        help="Output file path (default: ~/.sase/images/<timestamp>.png)",
-    )
-
     # --- init-git ---
     init_git_parser = top_level_subparsers.add_parser(
         "init-git",

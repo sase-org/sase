@@ -40,28 +40,6 @@ def main() -> NoReturn:
     if args.command == "commit":
         handle_commit_command(args)
 
-    # --- image ---
-    if args.command == "image":
-        from sase.image_gen import generate_image
-        from sase.notifications.senders import notify_image_generated
-
-        prompt = " ".join(args.prompt)
-        print(f"Generating image: {prompt}")
-        try:
-            image_path = generate_image(
-                prompt,
-                model=args.model,
-                aspect_ratio=args.aspect_ratio,
-                output_path=args.output,
-            )
-            print(f"Image saved to: {image_path}")
-            notify_image_generated(str(image_path), prompt)
-            print("Notification created.")
-        except RuntimeError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-        sys.exit(0)
-
     # --- init-git ---
     if args.command == "init-git":
         from sase.workspace_provider.plugins.bare_git_workspace import (

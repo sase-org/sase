@@ -136,21 +136,6 @@ def notify_user_question(
     append_notification(n)
 
 
-def notify_image_generated(
-    image_path: str,
-    prompt: str,
-) -> None:
-    """Send a notification when an image has been generated."""
-    n = Notification(
-        id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
-        sender="image-gen",
-        notes=[f"Generated image: {prompt}"],
-        files=[image_path],
-    )
-    append_notification(n)
-
-
 def notify_plan_approval(
     plan_file: str,
     response_dir: str,
