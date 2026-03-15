@@ -46,7 +46,7 @@ class CommitWorkflow(BaseWorkflow):
                 vim will be opened for the user to write a commit message.
             bug: Bug number for BUG= tag. Defaults to the VCS provider's bug detection.
             fixed_bug: Bug number for FIXED= tag. Mutually exclusive with bug.
-            project: Project name to prepend. Defaults to output of 'workspace_name'.
+            project: Project name to prepend. Defaults to output of 'sase_workspace_name'.
             chat_path: Path to the chat file for COMMITS entry.
             timestamp: Shared timestamp for synced chat/diff files.
             end_timestamp: End timestamp for duration calculation.
@@ -89,7 +89,7 @@ class CommitWorkflow(BaseWorkflow):
         return result.strip() if result else ""
 
     def _get_project(self) -> str:
-        """Get the project name, either from init or from workspace_name command."""
+        """Get the project name, either from init or from sase_workspace_name command."""
         if self._project:
             return self._project
 
@@ -97,7 +97,7 @@ class CommitWorkflow(BaseWorkflow):
         success, result = provider.get_workspace_name(os.getcwd())
         if not success:
             print_status(
-                "Failed to get project name from 'workspace_name' command. "
+                "Failed to get project name from 'sase_workspace_name' command. "
                 "Use -p to specify manually.",
                 "error",
             )

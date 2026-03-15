@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [ -d .git ]; then
+    basename "$(pwd)" | sd '_\d+$' ''
+else
+    pwd | xargs dirname | xargs basename | sd '_\d+$' ''
+fi

@@ -26,13 +26,13 @@ if TYPE_CHECKING:
 def detect_project() -> str | None:
     """Auto-detect the current project name from the workspace.
 
-    Uses the ``workspace_name`` shell command.  The result is cached for
+    Uses the ``sase_workspace_name`` tool.  The result is cached for
     the lifetime of the process so the subprocess only runs once.
     """
     try:
-        from sase.sase_utils import run_shell_command
+        from sase.sase_utils import get_tool, run_shell_command
 
-        result = run_shell_command("workspace_name", capture_output=True)
+        result = run_shell_command(get_tool("sase_workspace_name"), capture_output=True)
         if result.returncode != 0:
             return None
         name = result.stdout.strip()

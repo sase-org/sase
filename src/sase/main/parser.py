@@ -293,7 +293,7 @@ def create_parser() -> argparse.ArgumentParser:
     commit_parser.add_argument(
         "-p",
         "--project",
-        help="Project name to prepend to the CL description. Defaults to output of 'workspace_name'.",
+        help="Project name to prepend to the CL description. Defaults to output of 'sase_workspace_name'.",
     )
     commit_parser.add_argument(
         "--timestamp",

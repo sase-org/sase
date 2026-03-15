@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from sase.sase_utils import generate_timestamp, strip_reverted_suffix
+from sase.sase_utils import generate_timestamp, get_tool, strip_reverted_suffix
 from sase.shared_utils import run_shell_command
 
 _PROMPT_HISTORY_FILE = Path.home() / ".sase" / "prompt_history.json"
@@ -42,7 +42,7 @@ def _get_workspace_name() -> str:
     Returns:
         The workspace name, or "unknown" if it cannot be determined.
     """
-    result = run_shell_command("workspace_name", capture_output=True)
+    result = run_shell_command(get_tool("sase_workspace_name"), capture_output=True)
     if result.returncode != 0:
         return "unknown"
     return result.stdout.strip() or "unknown"

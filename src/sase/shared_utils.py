@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
-from sase.sase_utils import EASTERN_TZ, get_vendored_tool, run_shell_command
+from sase.sase_utils import EASTERN_TZ, get_tool, get_vendored_tool, run_shell_command
 from sase.rich_utils import (
     print_file_operation,
     print_status,
@@ -152,7 +152,7 @@ def create_artifacts_directory(
 
     Args:
         workflow_name: Name of the workflow (e.g., 'crs', 'new-tdd-feature')
-        project_name: Name of the project. If None, will attempt to get from workspace_name command
+        project_name: Name of the project. If None, will attempt to get from sase_workspace_name command
         timestamp: Optional pre-existing timestamp in YYmmdd_HHMMSS format.
             When provided, it is converted to YYYYmmddHHMMSS format for the
             artifacts directory. When None, generates a new timestamp.
@@ -165,12 +165,12 @@ def create_artifacts_directory(
     else:
         artifacts_timestamp = datetime.now(EASTERN_TZ).strftime("%Y%m%d%H%M%S")
 
-    # Get project name from workspace_name command if not provided
+    # Get project name from sase_workspace_name command if not provided
     if project_name is None:
-        result = run_shell_command("workspace_name", capture_output=True)
+        result = run_shell_command(get_tool("sase_workspace_name"), capture_output=True)
         if result.returncode != 0:
             raise RuntimeError(
-                f"Failed to get project name from workspace_name: {result.stderr}"
+                f"Failed to get project name from sase_workspace_name: {result.stderr}"
             )
         project_name = result.stdout.strip()
 

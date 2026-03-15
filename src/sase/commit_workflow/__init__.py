@@ -40,7 +40,7 @@ def main() -> NoReturn:
         "-p",
         "--project",
         help="Project name to prepend to the CL description (e.g., 'foobar'). "
-        "Defaults to the output of the 'workspace_name' command.",
+        "Defaults to the output of the 'sase_workspace_name' command.",
     )
 
     args = parser.parse_args()
