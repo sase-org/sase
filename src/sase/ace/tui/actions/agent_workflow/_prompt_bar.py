@@ -323,8 +323,14 @@ class PromptBarMixin:
                 except Exception:
                     pass
 
-        # Get project from prompt context if available
-        project = self._prompt_context.project_name if self._prompt_context else None
+        # Get project from prompt context if available.
+        # In home mode, let auto-detection resolve the actual project name
+        # from CWD rather than passing "home" as the project.
+        ctx = self._prompt_context
+        if ctx and not ctx.is_home_mode:
+            project = ctx.project_name
+        else:
+            project = None
         self.push_screen(XPromptSelectModal(project=project), on_xprompt_select)  # type: ignore[attr-defined]
 
     def on_prompt_input_bar_workflow_editor_requested(self, event: object) -> None:
