@@ -2,24 +2,20 @@
 
 import os
 
-from sase.shared_utils import run_shell_command
+from sase.workspace_provider import get_workspace_name
 
 # Type alias for project info return type
 ProjectInfo = tuple[str | None, int | None, str | None]
 
 
 def _get_project_name() -> str | None:
-    """Get the project name from the sase_workspace_name command.
+    """Get the project name via the workspace provider.
 
     Returns:
         The project name, or None if not in a recognized workspace.
     """
     try:
-        result = run_shell_command("sase_workspace_name", capture_output=True)
-        if result.returncode != 0:
-            return None
-        project_name = result.stdout.strip()
-        return project_name if project_name else None
+        return get_workspace_name(os.getcwd()) or None
     except Exception:
         return None
 

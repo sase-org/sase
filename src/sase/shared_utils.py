@@ -165,14 +165,13 @@ def create_artifacts_directory(
     else:
         artifacts_timestamp = datetime.now(EASTERN_TZ).strftime("%Y%m%d%H%M%S")
 
-    # Get project name from sase_workspace_name command if not provided
+    # Get project name from workspace provider if not provided
     if project_name is None:
-        result = run_shell_command("sase_workspace_name", capture_output=True)
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to get project name from sase_workspace_name: {result.stderr}"
-            )
-        project_name = result.stdout.strip()
+        from sase.workspace_provider import get_workspace_name
+
+        project_name = get_workspace_name(os.getcwd())
+        if not project_name:
+            raise RuntimeError("Failed to detect project name from workspace provider")
 
     # Create artifacts directory in new location: ~/.sase/projects/<project>/artifacts/<workflow>/<timestamp>
     artifacts_dir = os.path.expanduser(

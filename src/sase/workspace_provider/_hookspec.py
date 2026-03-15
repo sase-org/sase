@@ -130,3 +130,6 @@ class WorkspaceHookSpec:
         bug: str | None,
         fixed_bug: str | None,
     ) -> bool | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_get_workspace_name(self, cwd: str) -> str | None: ...

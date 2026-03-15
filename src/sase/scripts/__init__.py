@@ -66,10 +66,6 @@ def sase_bug() -> NoReturn:
     _exec_script("sase_bug")
 
 
-def sase_workspace_name() -> NoReturn:
-    _exec_script("sase_workspace_name")
-
-
 def sase_xcmd() -> NoReturn:
     _exec_script("sase_xcmd")
 

@@ -6,6 +6,7 @@ service like GitHub).
 """
 
 import os
+import re
 import subprocess
 
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata, hookimpl
@@ -156,6 +157,47 @@ class BareGitWorkspacePlugin:
         if not self._is_bare_git_project(project_file):
             return None
         return prepare_mail_git(changespec_name, project_basename, target_dir, console)
+
+    @hookimpl
+    def ws_get_workspace_name(self, cwd: str) -> str | None:
+        cwd = os.path.abspath(cwd)
+        # Try git remote origin URL first
+        try:
+            result = subprocess.run(
+                ["git", "config", "--get", "remote.origin.url"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                url = result.stdout.strip()
+                if url:
+                    name = os.path.basename(url)
+                    if name.endswith(".git"):
+                        name = name[:-4]
+                    if name:
+                        return re.sub(r"_\d+$", "", name)
+        except Exception:
+            pass
+
+        # Fall back to repo root basename
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                name = os.path.basename(result.stdout.strip())
+                if name:
+                    return re.sub(r"_\d+$", "", name)
+        except Exception:
+            pass
+
+        return None
 
     @hookimpl
     def ws_format_commit_description(

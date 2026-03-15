@@ -132,3 +132,6 @@ class WorkspacePluginManager:
             bug=bug,
             fixed_bug=fixed_bug,
         )
+
+    def get_workspace_name(self, cwd: str) -> str | None:
+        return self._pm.hook.ws_get_workspace_name(cwd=cwd)  # type: ignore[no-any-return]

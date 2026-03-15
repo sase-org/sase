@@ -217,3 +217,67 @@ class TestInitBareGitProject:
                         clone_dir=os.path.join(d, "clone") + "/",
                         existing_bare="/some/dir",
                     )
+
+
+# ── ws_get_workspace_name ─────────────────────────────────────────
+
+_WS_MOD = "sase.workspace_provider.plugins.bare_git_workspace"
+
+
+class TestWsGetWorkspaceName:
+    def _make_plugin(self):  # type: ignore[no-untyped-def]
+        from sase.workspace_provider.plugins.bare_git_workspace import (
+            BareGitWorkspacePlugin,
+        )
+
+        return BareGitWorkspacePlugin()
+
+    @patch(f"{_WS_MOD}.subprocess.run")
+    def test_remote_url(self, mock_run: MagicMock) -> None:
+        """Extracts project name from remote.origin.url, stripping .git."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="https://github.com/org/my-project.git\n",
+        )
+        result = self._make_plugin().ws_get_workspace_name(cwd="/some/dir")
+        assert result == "my-project"
+
+    @patch(f"{_WS_MOD}.subprocess.run")
+    def test_remote_url_no_git_suffix(self, mock_run: MagicMock) -> None:
+        """Works when remote URL has no .git suffix."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="/repos/cool-project\n",
+        )
+        result = self._make_plugin().ws_get_workspace_name(cwd="/some/dir")
+        assert result == "cool-project"
+
+    @patch(f"{_WS_MOD}.subprocess.run")
+    def test_falls_back_to_toplevel(self, mock_run: MagicMock) -> None:
+        """Falls back to git rev-parse --show-toplevel when remote fails."""
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr=""),  # remote fails
+            MagicMock(returncode=0, stdout="/home/user/myrepo\n"),  # toplevel
+        ]
+        result = self._make_plugin().ws_get_workspace_name(cwd="/some/dir")
+        assert result == "myrepo"
+
+    @patch(f"{_WS_MOD}.subprocess.run")
+    def test_strips_workspace_suffix(self, mock_run: MagicMock) -> None:
+        """Strips _N workspace suffix from name."""
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr=""),  # remote fails
+            MagicMock(returncode=0, stdout="/home/user/sase_3\n"),  # toplevel
+        ]
+        result = self._make_plugin().ws_get_workspace_name(cwd="/some/dir")
+        assert result == "sase"
+
+    @patch(f"{_WS_MOD}.subprocess.run")
+    def test_not_git_repo(self, mock_run: MagicMock) -> None:
+        """Returns None when not in a git repo."""
+        mock_run.side_effect = [
+            MagicMock(returncode=1, stdout="", stderr=""),  # remote fails
+            MagicMock(returncode=128, stdout="", stderr=""),  # not a repo
+        ]
+        result = self._make_plugin().ws_get_workspace_name(cwd="/tmp")
+        assert result is None

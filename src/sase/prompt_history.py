@@ -5,7 +5,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from sase.sase_utils import generate_timestamp, strip_reverted_suffix
-from sase.shared_utils import run_shell_command
 
 _PROMPT_HISTORY_FILE = Path.home() / ".sase" / "prompt_history.json"
 
@@ -30,6 +29,8 @@ def _get_current_branch_or_workspace() -> str:
     Returns:
         The branch or workspace name, or "unknown" if it cannot be determined.
     """
+    from sase.shared_utils import run_shell_command
+
     result = run_shell_command("branch_or_workspace_name", capture_output=True)
     if result.returncode != 0:
         return "unknown"
@@ -42,10 +43,11 @@ def _get_workspace_name() -> str:
     Returns:
         The workspace name, or "unknown" if it cannot be determined.
     """
-    result = run_shell_command("sase_workspace_name", capture_output=True)
-    if result.returncode != 0:
-        return "unknown"
-    return result.stdout.strip() or "unknown"
+    import os
+
+    from sase.workspace_provider import get_workspace_name
+
+    return get_workspace_name(os.getcwd()) or "unknown"
 
 
 def _load_prompt_history() -> list[PromptEntry]:

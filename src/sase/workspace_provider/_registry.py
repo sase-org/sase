@@ -245,6 +245,11 @@ def format_commit_description(
         f.write(f"[{project}] {content}\n")
 
 
+def get_workspace_name(cwd: str) -> str | None:
+    """Detect the workspace/project name for *cwd* via plugins."""
+    return _get_manager().get_workspace_name(cwd)
+
+
 def submit_changespec(
     changespec_file: str,
     changespec_name: str,
