@@ -134,7 +134,7 @@ def prompt_for_change_action(
         shared_timestamp: Optional shared timestamp for synced chat/diff files
         end_timestamp: Optional end timestamp for duration calculation
         project_file: Optional path to project file. If not provided,
-            will try to infer from sase_workspace_name command.
+            will try to infer from workspace_name command.
         auto_reject: If True, auto-select 'n' (reject) after creating the proposal.
             Used when running in background/loop context where stdin is unavailable.
         cl_name: If provided, use this as the CL name instead of running
@@ -360,7 +360,7 @@ def execute_change_action(
         shared_timestamp: Optional shared timestamp for synced chat/diff files
         end_timestamp: Optional end timestamp for duration calculation
         project_file: Optional path to project file. If not provided,
-            will try to infer from sase_workspace_name command.
+            will try to infer from workspace_name command.
 
     Returns:
         True if action completed successfully, False otherwise

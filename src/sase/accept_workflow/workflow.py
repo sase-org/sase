@@ -53,7 +53,7 @@ class AcceptWorkflow(BaseWorkflow):
                 Each proposal_id is e.g., "2a", and msg is an optional message.
             cl_name: Optional CL name. Defaults to current branch name.
             project_file: Optional path to project file. If not provided,
-                will try to infer from sase_workspace_name command.
+                will try to infer from workspace_name command.
             mark_ready_to_mail: If True, also reject remaining proposals
                 the same atomic write
                 with the commit entry renumbering.
@@ -106,7 +106,7 @@ class AcceptWorkflow(BaseWorkflow):
             project = get_project_from_workspace()
             if not project:
                 print_status(
-                    "Failed to get project name from 'sase_workspace_name' command.",
+                    "Failed to get project name from 'workspace_name' command.",
                     "error",
                 )
                 return False

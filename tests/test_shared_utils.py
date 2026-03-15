@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sase.sase_utils import get_tool, run_shell_command
+from sase.sase_utils import run_shell_command
 from sase.shared_utils import (
     _finalize_log_file,
     _initialize_log_file,
@@ -98,10 +98,8 @@ def test_create_artifacts_directory_without_project_name(
 
     artifacts_dir = create_artifacts_directory("test-workflow")
 
-    # Verify sase_workspace_name was called
-    mock_run_cmd.assert_called_once_with(
-        get_tool("sase_workspace_name"), capture_output=True
-    )
+    # Verify workspace_name was called
+    mock_run_cmd.assert_called_once_with("workspace_name", capture_output=True)
 
     # Check directory format includes the auto-detected project name
     expanded_home = str(Path.home())
@@ -119,20 +117,20 @@ def test_create_artifacts_directory_without_project_name(
 
 
 @patch("sase.shared_utils.run_shell_command")
-def test_create_artifacts_directory_sase_workspace_name_fails(
+def test_create_artifacts_directory_workspace_name_fails(
     mock_run_cmd: MagicMock,
 ) -> None:
-    """Test that RuntimeError is raised when sase_workspace_name fails."""
+    """Test that RuntimeError is raised when workspace_name fails."""
     mock_result = MagicMock()
     mock_result.returncode = 1
-    mock_result.stderr = "sase_workspace_name not found"
+    mock_result.stderr = "workspace_name not found"
     mock_run_cmd.return_value = mock_result
 
     with pytest.raises(RuntimeError) as exc_info:
         create_artifacts_directory("test-workflow")
 
     assert "Failed to get project name" in str(exc_info.value)
-    assert "sase_workspace_name not found" in str(exc_info.value)
+    assert "workspace_name not found" in str(exc_info.value)
 
 
 # Tests for get_sase_log_file

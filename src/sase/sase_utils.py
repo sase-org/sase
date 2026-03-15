@@ -28,30 +28,15 @@ def get_sase_tmpdir() -> str | None:
     return None
 
 
-def _tools_dir() -> Path:
-    """Return the repo's tools/ directory path."""
-    # src/sase/sase_utils.py -> src/sase -> src -> repo_root
-    return Path(__file__).resolve().parent.parent.parent / "tools"
-
-
-def get_tool(name: str) -> str:
-    """Get the path to a tool script in tools/{name}.
-
-    Falls back to the bare name (assumed on PATH) if not found.
-    """
-    tool_path = _tools_dir() / name
-    if tool_path.is_file():
-        return str(tool_path)
-    return name
-
-
 def get_vendored_tool(name: str) -> str:
     """Get the path to a vendored tool script in tools/{name}-YYMMDD.
 
     Searches the repo's tools/ directory for date-stamped versions of the
     named script. Falls back to the bare name (assumed on PATH) if not found.
     """
-    tools_dir = _tools_dir()
+    # src/sase/sase_utils.py -> src/sase -> src -> repo_root
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    tools_dir = repo_root / "tools"
     if tools_dir.is_dir():
         matches = sorted(tools_dir.glob(f"{name}-*"))
         if matches:
