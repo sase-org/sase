@@ -158,40 +158,41 @@ class TabBar(Static):
     ) -> tuple[int, int]:
         """Append a styled tab label with suffix counts.
 
-        Key hint characters are wrapped in brackets and styled less prominently
-        than the count digits, making suffixes like ``5[D]2[.]1`` scannable.
-
-        Args:
-            text: The Text object to append to.
-            name: Tab name (e.g. "CLs", "Agents", "AXE").
-            main_count: Primary item count (0 to omit).
-            key_counts: Pre-filtered list of (key_display, count) pairs.
-            active_color: Hex color when this tab is active.
-            is_active: Whether this is the currently selected tab.
+        Active tabs use bold colored text; inactive tabs are muted gray.
+        Key hint characters use a dimmer shade to distinguish them from
+        count digits (e.g. ``5 D2 .1`` reads as "5 items, D-dismiss 2,
+        .-toggle 1").
 
         Returns:
             (start, end) character positions for click detection.
         """
         start = len(text.plain)
-
-        base = f"bold reverse {active_color}" if is_active else "dim"
-        key_hint = f"reverse {active_color}" if is_active else "dim italic"
-
-        # Filter to non-zero counts
         key_counts = [(k, c) for k, c in key_counts if c > 0]
         has_suffix = main_count > 0 or len(key_counts) > 0
 
-        if has_suffix:
-            text.append(f" {name} (", style=base)
-            if main_count > 0:
-                text.append(str(main_count), style=base)
-            for key, count in key_counts:
-                text.append(f"[{key}]", style=key_hint)
-                text.append(str(count), style=base)
-            text.append(") ", style=base)
+        if is_active:
+            name_style = f"bold {active_color}"
+            count_style = active_color
+            hint_style = f"dim {active_color}"
         else:
-            text.append(f" {name} ", style=base)
+            name_style = "#888888"
+            count_style = "#707070"
+            hint_style = "#505050"
 
+        text.append(f" {name}", style=name_style)
+
+        if has_suffix:
+            text.append(" (", style=hint_style)
+            if main_count > 0:
+                text.append(str(main_count), style=count_style)
+            for i, (key, count) in enumerate(key_counts):
+                if main_count > 0 or i > 0:
+                    text.append(" ", style="")
+                text.append(key, style=hint_style)
+                text.append(str(count), style=count_style)
+            text.append(")", style=hint_style)
+
+        text.append(" ", style="")
         end = len(text.plain)
         return (start, end)
 
@@ -217,7 +218,7 @@ class TabBar(Static):
             self._current_tab == "changespecs",
         )
 
-        text.append(" | ", style="dim #808080")
+        text.append(" │ ", style="#444444")
 
         # Agents tab
         agents_key_counts: list[tuple[str, int]] = [
@@ -234,7 +235,7 @@ class TabBar(Static):
             self._current_tab == "agents",
         )
 
-        text.append(" | ", style="dim #808080")
+        text.append(" │ ", style="#444444")
 
         # AXE tab
         axe_key_counts: list[tuple[str, int]] = [
