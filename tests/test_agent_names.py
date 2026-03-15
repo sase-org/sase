@@ -20,6 +20,7 @@ def _make_agent(
     done: bool = False,
     outcome: str | None = None,
     pid: int | None = None,
+    appears_as_agent: bool | None = None,
 ) -> Path:
     """Create a fake agent artifact directory with agent_meta.json."""
     artifact_dir = (
@@ -35,6 +36,12 @@ def _make_agent(
         if outcome:
             done_data["outcome"] = outcome
         (artifact_dir / "done.json").write_text(json.dumps(done_data))
+    if appears_as_agent is not None:
+        wf_data: dict[str, object] = {
+            "workflow_name": "test",
+            "appears_as_agent": appears_as_agent,
+        }
+        (artifact_dir / "workflow_state.json").write_text(json.dumps(wf_data))
     return artifact_dir
 
 
@@ -148,5 +155,26 @@ class TestGetNextAutoName:
     def test_reuses_name_when_no_pid(self, tmp_path: Path) -> None:
         """Agent without done.json and no PID info gets its name reused."""
         _make_agent(tmp_path, "proj", "run1", "a")
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"
+
+    def test_workflow_without_appears_as_agent_frees_name(self, tmp_path: Path) -> None:
+        """Workflows with appears_as_agent=False don't hold names."""
+        _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=False)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "a"
+
+    def test_workflow_with_appears_as_agent_holds_name(self, tmp_path: Path) -> None:
+        """Workflows with appears_as_agent=True hold names normally."""
+        _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert get_next_auto_name() == "b"
+
+    def test_mixed_workflow_and_agent_names(self, tmp_path: Path) -> None:
+        """Only agents visible on Agents tab hold names."""
+        # Workflow (not shown) — name "a" should be free
+        _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=False)
+        # Real agent (shown) — name "b" should be held
+        _make_agent(tmp_path, "proj", "run2", "b", done=True, appears_as_agent=True)
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
