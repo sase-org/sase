@@ -153,6 +153,10 @@
                           "description": "Duration string (e.g., '60m', '30s', '2h') controlling how often this chop runs",
                           "pattern": "^\\d+(s|m|h)$"
                         },
+                        "guard": {
+                          "type": "string",
+                          "description": "Shell command that must exit 0 for the chop to run. If it exits non-zero, the chop is skipped for this tick."
+                        },
                         "env": {
                           "type": "object",
                           "description": "Environment variables to set when running the chop",
