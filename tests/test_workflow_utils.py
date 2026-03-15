@@ -188,26 +188,25 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
 # Tests for get_initial_hooks_for_changespec
 
 
-def test_get_initial_hooks_for_changespec_returns_hg_hooks_for_hg() -> None:
-    """Test that hg default hooks are returned for Mercurial repos."""
+def test_get_initial_hooks_for_changespec_returns_config_hooks() -> None:
+    """Test that hooks from plugin config are returned."""
+    config = {"default_hooks": ["!$sase_google_presubmit", "$sase_google_lint"]}
     with (
         patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
-        patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
-        patch("sase.vcs_provider._registry.detect_vcs_family", return_value="hg"),
+        patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value=config),
     ):
         result = get_initial_hooks_for_changespec()
 
-    assert "!$sase_hg_presubmit" in result
-    assert "$sase_hg_lint" in result
+    assert "!$sase_google_presubmit" in result
+    assert "$sase_google_lint" in result
     assert len(result) == 2
 
 
-def test_get_initial_hooks_for_changespec_returns_empty_for_git() -> None:
-    """Test that no default hooks are returned for git repos."""
+def test_get_initial_hooks_for_changespec_returns_empty_without_config() -> None:
+    """Test that no default hooks are returned when no config is set."""
     with (
         patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
-        patch("sase.vcs_provider._registry.detect_vcs_family", return_value="git"),
     ):
         result = get_initial_hooks_for_changespec()
 
@@ -216,18 +215,18 @@ def test_get_initial_hooks_for_changespec_returns_empty_for_git() -> None:
 
 def test_get_initial_hooks_for_changespec_preserves_order() -> None:
     """Test that hooks are in correct order: required first, then test targets."""
+    config = {"default_hooks": ["!$sase_google_presubmit", "$sase_google_lint"]}
     with (
         patch(
             "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
         ),
-        patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
-        patch("sase.vcs_provider._registry.detect_vcs_family", return_value="hg"),
+        patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value=config),
     ):
         result = get_initial_hooks_for_changespec()
 
     # Required hooks should be first
-    assert result[0] == "!$sase_hg_presubmit"
-    assert result[1] == "$sase_hg_lint"
+    assert result[0] == "!$sase_google_presubmit"
+    assert result[1] == "$sase_google_lint"
     # Test targets should be last
     assert result[2] == "bb_rabbit_test //foo:test1"
 
