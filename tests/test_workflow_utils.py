@@ -188,17 +188,30 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
 # Tests for get_initial_hooks_for_changespec
 
 
-def test_get_initial_hooks_for_changespec_returns_required_hooks() -> None:
-    """Test that required hooks are always returned."""
+def test_get_initial_hooks_for_changespec_returns_hg_hooks_for_hg() -> None:
+    """Test that hg default hooks are returned for Mercurial repos."""
     with (
         patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
+        patch("sase.vcs_provider._registry.detect_vcs_family", return_value="hg"),
     ):
         result = get_initial_hooks_for_changespec()
 
     assert "!$sase_hg_presubmit" in result
     assert "$sase_hg_lint" in result
     assert len(result) == 2
+
+
+def test_get_initial_hooks_for_changespec_returns_empty_for_git() -> None:
+    """Test that no default hooks are returned for git repos."""
+    with (
+        patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
+        patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
+        patch("sase.vcs_provider._registry.detect_vcs_family", return_value="git"),
+    ):
+        result = get_initial_hooks_for_changespec()
+
+    assert len(result) == 0
 
 
 def test_get_initial_hooks_for_changespec_preserves_order() -> None:
@@ -208,6 +221,7 @@ def test_get_initial_hooks_for_changespec_preserves_order() -> None:
             "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
         ),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
+        patch("sase.vcs_provider._registry.detect_vcs_family", return_value="hg"),
     ):
         result = get_initial_hooks_for_changespec()
 
