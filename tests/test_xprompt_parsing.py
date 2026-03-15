@@ -212,6 +212,27 @@ def test_extract_vcs_workflow_tag_underscore_git() -> None:
         assert extract_vcs_workflow_tag("#git_myrepo Do stuff") == "#git_myrepo "
 
 
+def test_extract_vcs_workflow_tag_directive_same_line() -> None:
+    """Test extracting VCS tag when %directive is on the same line."""
+    with _patch_vcs_pattern():
+        result = extract_vcs_workflow_tag("%n:a #gh_sase Fix the bug")
+        assert result == "#gh_sase "
+
+
+def test_extract_vcs_workflow_tag_multiple_directives_same_line() -> None:
+    """Test extracting VCS tag with multiple %directives on the same line."""
+    with _patch_vcs_pattern():
+        result = extract_vcs_workflow_tag("%n:a %model:opus #gh:sase Fix the bug")
+        assert result == "#gh:sase "
+
+
+def test_extract_vcs_workflow_tag_directive_mixed_lines() -> None:
+    """Test extracting VCS tag with directives on separate lines and same line."""
+    with _patch_vcs_pattern():
+        result = extract_vcs_workflow_tag("%plan\n%n:a #gh:sase Fix the bug")
+        assert result == "#gh:sase "
+
+
 # Tests for normalize_vcs_underscore_refs
 
 

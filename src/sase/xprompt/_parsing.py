@@ -375,18 +375,19 @@ def _get_vcs_tag_pattern() -> re.Pattern[str]:
     return _VCS_TAG_PATTERN
 
 
+_DIRECTIVE_PREFIX_RE = re.compile(r"(%\S+[\s]+)+")
+
+
 def extract_vcs_workflow_tag(prompt: str) -> str | None:
     """Extract a leading VCS workflow tag from a prompt string.
 
-    Skips leading ``%directive`` lines before checking for a VCS tag.
+    Skips leading ``%directive`` tokens before checking for a VCS tag.
+    Handles directives on the same line as the VCS tag (e.g. from
+    Telegram-originated prompts like ``%n:a #gh_sase Fix the bug``).
     Returns the matched tag (e.g., ``"#gh:sase "``) or ``None``.
     """
-    stripped = prompt
-    while stripped.startswith("%"):
-        line_end = stripped.find("\n")
-        if line_end == -1:
-            return None
-        stripped = stripped[line_end + 1 :]
+    m = _DIRECTIVE_PREFIX_RE.match(prompt)
+    stripped = prompt[m.end() :] if m else prompt
 
     match = _get_vcs_tag_pattern().match(stripped)
     if match:
