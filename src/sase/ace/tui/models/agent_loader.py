@@ -622,6 +622,13 @@ def load_all_agents() -> list[Agent]:
         result: list[Agent] = []
         for agent in sorted_agents:
             result.append(agent)
+            # Don't insert child steps for follow-up agents — they're
+            # already nested under their parent workflow, so showing
+            # their internal steps creates visual duplicates at the
+            # same indent level (the flat list only supports one level
+            # of nesting).
+            if agent.parent_timestamp and not agent.parent_workflow:
+                continue
             if agent.raw_suffix and (
                 agent.agent_type == AgentType.WORKFLOW
                 or (
