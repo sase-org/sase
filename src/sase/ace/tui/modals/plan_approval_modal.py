@@ -16,7 +16,7 @@ from .base import CopyModeForwardingMixin
 class PlanApprovalResult:
     """Result from the plan approval modal."""
 
-    action: str  # "approve" or "reject"
+    action: str  # "approve", "reject", or "epic"
     feedback: str | None = None
 
 
@@ -32,27 +32,32 @@ class PlanApprovalModal(
         ("r", "reject", "Reject"),
         ("f", "feedback", "Reject w/ feedback"),
         ("e", "edit", "Edit"),
+        ("E", "epic", "Epic"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
 
-    def __init__(self, plan_file: str) -> None:
+    def __init__(self, plan_file: str, *, beads_supported: bool = False) -> None:
         """Initialize the plan approval modal.
 
         Args:
             plan_file: Path to the plan markdown file.
+            beads_supported: Whether beads-based epic creation is available.
         """
         super().__init__()
         self._plan_file = plan_file
         self._feedback_mode = False
+        self._beads_supported = beads_supported
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         plan_name = os.path.basename(self._plan_file)
+        epic_hint = "[magenta]E[/magenta]=Epic  " if self._beads_supported else ""
         hints = (
             "[green]a[/green]=Approve  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Reject w/ feedback  "
             "[blue]e[/blue]=Edit  "
+            f"{epic_hint}"
             "[dim]q[/dim]=Cancel  |  Ctrl+D/U to scroll"
         )
 
@@ -126,6 +131,12 @@ class PlanApprovalModal(
         if self._feedback_mode:
             return
         self.dismiss(PlanApprovalResult(action="edit"))
+
+    def action_epic(self) -> None:
+        """Create an epic from the plan."""
+        if self._feedback_mode or not self._beads_supported:
+            return
+        self.dismiss(PlanApprovalResult(action="epic"))
 
     def action_feedback(self) -> None:
         """Enter feedback mode to reject with feedback."""
