@@ -45,6 +45,22 @@ from sase.shared_utils import (
 install_sigterm_handler("agent", soft=True)
 
 
+def _write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
+    """Write plan_path.json to the artifacts directory.
+
+    This allows the TUI workflow loader to find the plan file and display
+    it in the file panel for the .plan agent entry.
+    """
+    from pathlib import Path
+
+    plan_path_file = Path(artifacts_dir) / "plan_path.json"
+    try:
+        with open(plan_path_file, "w", encoding="utf-8") as f:
+            json.dump({"plan_path": plan_path}, f)
+    except OSError:
+        pass
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
     # Accept 13 args: cl_name, project_file, workspace_dir, output_path,
@@ -270,6 +286,9 @@ def main() -> None:
                     if not approved:
                         loop_outcome = "plan_rejected"
                         break
+                    # Write plan_path.json so the TUI can show the plan
+                    # in the file panel for the .plan agent entry.
+                    _write_plan_path_artifact(current_artifacts_dir, approved)
                     # Plan approved -> spawn coder with plan as prompt
                     current_role_suffix = ".code"
                     current_artifacts_dir = create_followup_artifacts(
