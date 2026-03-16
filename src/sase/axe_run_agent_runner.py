@@ -150,6 +150,13 @@ def main() -> None:
 
     prompt = resolve_xprompt_aliases(prompt)
 
+    # Extract VCS workflow tag from the raw prompt before xprompt expansion.
+    # This is needed to prepend the tag to follow-up agents (.code) so that
+    # embedded workflows (e.g. #gh) run and set meta_* fields.
+    from sase.xprompt._parsing import extract_vcs_workflow_tag
+
+    vcs_tag = extract_vcs_workflow_tag(prompt)
+
     # Save raw xprompt for TUI display (before any preprocessing)
     raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
     with open(raw_xprompt_path, "w", encoding="utf-8") as f:
@@ -434,7 +441,9 @@ def main() -> None:
                         convert_timestamp_to_artifacts_format(timestamp),
                         workspace_num=workspace_num,
                     )
+                    vcs_prefix = vcs_tag or ""
                     current_prompt = (
+                        f"{vcs_prefix}"
                         f"@{plan_data['plan_file']}\n\n"
                         "The above plan has been reviewed and approved. "
                         "Implement it now."
