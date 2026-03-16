@@ -6,6 +6,7 @@ plan approval, and question-flow handling.
 
 import json
 import os
+import subprocess
 import time
 import uuid
 from dataclasses import dataclass
@@ -65,6 +66,32 @@ class _AgentExecResult:
     saved_path: str | None = None
     diff_path: str | None = None
     current_artifacts_dir: str = ""
+
+
+def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
+    """Commit SDD spec and plan files via ccommit before launching the epic agent.
+
+    The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
+    wipes uncommitted files.  Committing (and pushing) the SDD files first
+    ensures the epic agent can still read them.
+    """
+    spec_file = os.path.join(workspace_dir, "specs", f"{plan_name}.md")
+    plan_file = os.path.join(workspace_dir, "plans", f"{plan_name}.md")
+    files = [f for f in (spec_file, plan_file) if os.path.exists(f)]
+    if not files:
+        return
+    subprocess.run(
+        [
+            "ccommit",
+            "chore",
+            f"Add SDD spec and plan for {plan_name}",
+            *files,
+        ],
+        cwd=workspace_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def _write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
@@ -284,6 +311,9 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             vcs_prefix = ctx.vcs_tag or ""
 
             if plan_result.action == "epic":
+                # Commit SDD files so the #gh pre-step doesn't wipe them
+                if sdd_plan_name:
+                    _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
                 # Epic: spawn epic agent to create beads
                 current_role_suffix = ".epic"
                 current_artifacts_dir = create_followup_artifacts(
