@@ -366,8 +366,8 @@ class AgentInteractionMixin:
 
     def _open_agent_tmux_window(self) -> None:
         """Open a new tmux window in the selected agent's workspace directory."""
-        import os
         import subprocess
+        from pathlib import Path
 
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
@@ -384,13 +384,14 @@ class AgentInteractionMixin:
             self.notify("No workspace directory for agent", severity="warning")  # type: ignore[attr-defined]
             return
 
-        basename = os.path.basename(workspace_dir)
+        project_name = Path(agent.project_file).parent.name
+        window_name = f"{project_name}_{agent.workspace_num}"
         try:
             subprocess.run(
-                ["tmux", "new-window", "-n", basename, "-c", workspace_dir],
+                ["tmux", "new-window", "-n", window_name, "-c", workspace_dir],
                 check=False,
             )
-            self.notify(f"Opened tmux window: {basename}")  # type: ignore[attr-defined]
+            self.notify(f"Opened tmux window: {window_name}")  # type: ignore[attr-defined]
         except FileNotFoundError:
             self.notify("tmux command not found", severity="error")  # type: ignore[attr-defined]
 
