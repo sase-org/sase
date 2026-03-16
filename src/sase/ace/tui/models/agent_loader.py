@@ -547,6 +547,17 @@ def load_all_agents() -> list[Agent]:
             if parent and parent.status == "DONE":
                 parent.status = "PLAN APPROVED"
 
+    # Override DONE → PLANNING for plan-only workflows (no follow-up spawned yet).
+    # A workflow with role_suffix ".plan" that's still DONE means the plan was
+    # submitted but no coder follow-up exists yet (awaiting user approval).
+    for agent in agents:
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and agent.role_suffix == ".plan"
+            and agent.status == "DONE"
+        ):
+            agent.status = "PLANNING"
+
     # Sort by start time (most recent first), with None times at end
     agents_with_time = [a for a in agents if a.start_time is not None]
     agents_without_time = [a for a in agents if a.start_time is None]
