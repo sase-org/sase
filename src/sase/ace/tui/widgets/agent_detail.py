@@ -182,7 +182,11 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             # DONE, FAILED, etc.
             files = agent.all_files
             if files:
-                file_panel.set_file_list(files)
+                # For .plan agents, default to the plan file (after the diff)
+                start = 0
+                if agent.role_suffix == ".plan" and len(files) > 1:
+                    start = 1
+                file_panel.set_file_list(files, start_index=start)
             elif agent.workspace_num is not None:
                 # No saved diff file — try fetching committed diff from workspace
                 file_panel.update_display(

@@ -100,11 +100,24 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         # Populate file list with live diff sentinel + extra files
         if agent.extra_files:
             self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
+            # For .plan agents, default to showing the plan file
+            if agent.role_suffix == ".plan":
+                self._current_file_index = 1
             self.post_message(
-                FileListChanged(file_count=len(self._file_list), file_index=0)
+                FileListChanged(
+                    file_count=len(self._file_list),
+                    file_index=self._current_file_index,
+                )
             )
         else:
             self._file_list = []
+
+        # If starting on a static extra file (e.g. plan for .plan agents),
+        # display it immediately and fetch the diff in the background.
+        if self._current_file_index != 0 and self._file_list:
+            self._display_file_at_current_index()
+            self._start_background_fetch(agent)
+            return
 
         if cache_entry is not None:
             age_seconds = (datetime.now() - cache_entry.fetch_time).total_seconds()
@@ -131,11 +144,12 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
 
         self._start_background_fetch(agent)
 
-    def set_file_list(self, files: list[str]) -> None:
-        """Store the file list, reset index to 0, and display the first file.
+    def set_file_list(self, files: list[str], start_index: int = 0) -> None:
+        """Store the file list, reset index, and display a file.
 
         Args:
             files: Ordered list of file paths to make available for cycling.
+            start_index: Initial file index to display (default 0).
         """
         # Cancel any running background worker to prevent it from overwriting
         # the static file display (e.g. stale live-diff from RUNNING phase)
@@ -147,13 +161,16 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         # full reset (which would leave this static file list on screen).
         self._current_agent = None
 
-        if files == self._file_list:
+        if files == self._file_list and start_index == self._current_file_index:
             return
         self._reset_trim_state()
         self._file_list = list(files)
-        self._current_file_index = 0
+        self._current_file_index = min(start_index, len(files) - 1) if files else 0
         self.post_message(
-            FileListChanged(file_count=len(self._file_list), file_index=0)
+            FileListChanged(
+                file_count=len(self._file_list),
+                file_index=self._current_file_index,
+            )
         )
         if files:
             self._display_file_at_current_index()
