@@ -237,7 +237,7 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
     timestamp = generate_timestamp()
     workflow_name = f"ace(run)-{timestamp}"
 
-    if workspace_dir is None:
+    if not workspace_dir:
         if is_home_mode:
             workspace_dir = os.path.expanduser("~")
             workspace_num = 0
