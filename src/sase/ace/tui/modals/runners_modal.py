@@ -1,8 +1,11 @@
 """Modal showing all currently running processes and agents."""
 
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
@@ -12,13 +15,38 @@ from ._runners_data import RunnerInfo, collect_runners, get_runner_count
 from .base import CopyModeForwardingMixin
 
 # Re-export for public API
-__all__ = ["RunnersModal", "get_runner_count"]
+__all__ = ["RunnersModal", "RunnerJumpTarget", "get_runner_count"]
 
 # Dynamic box sizing constants
 _CSS_MAX_WIDTH = 200  # Must match max-width in styles.tcss for RunnersModal
 _CSS_CHROME = 8  # Border (2) + padding (2*2) + extra (2) from CSS container
 _PREFIX_SUFFIX = 7  # "  │  " (5 chars) + " │" (2 chars)
 _MIN_BOX_WIDTH = 60
+
+# Hint characters for jump mode (1-9, then a-z)
+_HINT_CHARS = "123456789abcdefghijklmnopqrstuvwxyz"
+
+_FOOTER_NORMAL = "Press r / q / Esc to close  |  j jump  |  Ctrl+D/U to scroll"
+_FOOTER_JUMP = "Press hint key to jump  |  Esc to cancel"
+
+
+@dataclass
+class RunnerJumpTarget:
+    """Target for jumping to a runner from the runners modal."""
+
+    cl_name: str
+    project_file: str
+    jump_tab: Literal["changespecs", "agents"]
+    pid: int | None = None
+    raw_suffix: str | None = None
+
+
+@dataclass
+class _JumpableRunner:
+    """Internal: a runner entry with its section category."""
+
+    runner: RunnerInfo
+    section: Literal["manual", "axe", "process"]
 
 
 def _abbreviate_agent_type(agent_type: str) -> str:
@@ -76,13 +104,14 @@ def _format_duration(start_time: datetime | None) -> str:
     return f"{hours}h{minutes}m"
 
 
-class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
+class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]):
     """Modal showing all currently running processes and agents."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
         ("r", "close", "Close"),  # Same key closes
+        ("j", "jump", "Jump"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
@@ -101,14 +130,60 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         """Compose the modal layout."""
         self._box_width = self._compute_box_width()
         self._content_width = self._box_width - _PREFIX_SUFFIX
+        self._jump_mode = False
+        self._jumpable_runners: list[_JumpableRunner] = []
+        self._cached_runners: (
+            tuple[list[RunnerInfo], list[RunnerInfo], list[RunnerInfo]] | None
+        ) = None
         with Container(id="runners-modal-container"):
             yield Static(self._build_title(), id="runners-title")
             with VerticalScroll(id="runners-content-scroll"):
                 yield Static(self._build_content(), id="runners-content")
-            yield Static(
-                "Press r / q / Esc to close  |  Ctrl+D/U to scroll",
-                id="runners-footer",
-            )
+            yield Static(_FOOTER_NORMAL, id="runners-footer")
+
+    def on_key(self, event: events.Key) -> None:
+        """Handle key events, intercepting for jump mode."""
+        if not self._jump_mode:
+            # Not in jump mode - delegate to CopyModeForwardingMixin
+            super().on_key(event)
+            return
+
+        # In jump mode: intercept all keys
+        key = event.key
+        event.prevent_default()
+        event.stop()
+
+        if key == "escape":
+            self._jump_mode = False
+            self._refresh_content(show_hints=False)
+            self._update_footer(jump_mode=False)
+            return
+
+        # Look up hint character
+        try:
+            idx = _HINT_CHARS.index(key)
+        except ValueError:
+            return  # Unknown key, ignore
+
+        if idx >= len(self._jumpable_runners):
+            return  # Out of range
+
+        jumpable = self._jumpable_runners[idx]
+        runner = jumpable.runner
+
+        jump_tab: Literal["changespecs", "agents"] = (
+            "agents" if jumpable.section == "axe" else "changespecs"
+        )
+
+        target = RunnerJumpTarget(
+            cl_name=runner.cl_name,
+            project_file=runner.project_file,
+            jump_tab=jump_tab,
+            pid=runner.pid,
+            raw_suffix=runner.raw_suffix,
+        )
+
+        self.dismiss(target)
 
     def _build_title(self) -> Text:
         """Build the styled title."""
@@ -121,16 +196,34 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         text.append("\n")
         return text
 
-    def _build_content(self) -> Text:
-        """Build the main content showing processes and agents."""
-        processes, axe_agents, manual_agents = collect_runners()
+    def _build_content(self, *, show_hints: bool = False) -> Text:
+        """Build the main content showing processes and agents.
+
+        Args:
+            show_hints: Whether to display jump hint characters next to entries.
+        """
+        if self._cached_runners is None:
+            self._cached_runners = collect_runners()
+        processes, axe_agents, manual_agents = self._cached_runners
+
+        self._jumpable_runners = []
+        hint_idx = 0
         text = Text()
+
+        def _next_hint() -> str | None:
+            nonlocal hint_idx
+            if not show_hints or hint_idx >= len(_HINT_CHARS):
+                return None
+            char = _HINT_CHARS[hint_idx]
+            hint_idx += 1
+            return char
 
         # Manual Agents section (cyan) - user-started agents
         self._add_section_header(text, "Manual Agents", "#00CED1")
         if manual_agents:
             for runner in manual_agents:
-                self._add_runner_entry(text, runner, "#00CED1")
+                self._jumpable_runners.append(_JumpableRunner(runner, "manual"))
+                self._add_runner_entry(text, runner, "#00CED1", hint_char=_next_hint())
         else:
             self._add_empty_row(text, "No manual agents", "#00CED1")
         self._add_section_footer(text, "#00CED1")
@@ -141,7 +234,8 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._add_section_header(text, "Axe Agents", "#FF8C00")
         if axe_agents:
             for runner in axe_agents:
-                self._add_runner_entry(text, runner, "#FF8C00")
+                self._jumpable_runners.append(_JumpableRunner(runner, "axe"))
+                self._add_runner_entry(text, runner, "#FF8C00", hint_char=_next_hint())
         else:
             self._add_empty_row(text, "No axe agents", "#FF8C00")
         self._add_section_footer(text, "#FF8C00")
@@ -152,7 +246,8 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._add_section_header(text, "Running Processes", "#FFD700")
         if processes:
             for runner in processes:
-                self._add_runner_entry(text, runner, "#FFD700")
+                self._jumpable_runners.append(_JumpableRunner(runner, "process"))
+                self._add_runner_entry(text, runner, "#FFD700", hint_char=_next_hint())
         else:
             self._add_empty_row(text, "No running processes", "#FFD700")
         self._add_section_footer(text, "#FFD700")
@@ -207,17 +302,31 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
         text.append(" \u2502", style=f"dim {color}")
         text.append("\n")
 
-    def _add_runner_entry(self, text: Text, runner: RunnerInfo, color: str) -> None:
+    def _add_runner_entry(
+        self,
+        text: Text,
+        runner: RunnerInfo,
+        color: str,
+        *,
+        hint_char: str | None = None,
+    ) -> None:
         """Add a single runner entry.
 
         Args:
             text: The Text object to append to.
             runner: The runner info to display.
             color: The color for the box drawing border.
+            hint_char: Optional hint character to display for jump mode.
         """
         # Build content parts and track length
         parts: list[tuple[str, str]] = []  # (text, style) tuples
         content_len = 0
+
+        # Hint character (if in jump mode)
+        if hint_char is not None:
+            hint_str = f"[{hint_char}] "
+            parts.append((hint_str, "bold #FFFF00"))
+            content_len += len(hint_str)
 
         # Workspace number
         ws_str = (
@@ -320,6 +429,32 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[None]):
             text.append(" " * padding, style="")
         text.append(" \u2502", style=f"dim {color}")
         text.append("\n")
+
+    def _refresh_content(self, *, show_hints: bool = False) -> None:
+        """Refresh the content display.
+
+        Args:
+            show_hints: Whether to display jump hint characters.
+        """
+        content = self.query_one("#runners-content", Static)
+        content.update(self._build_content(show_hints=show_hints))
+
+    def _update_footer(self, *, jump_mode: bool) -> None:
+        """Update footer text based on current mode.
+
+        Args:
+            jump_mode: Whether jump mode is active.
+        """
+        footer = self.query_one("#runners-footer", Static)
+        footer.update(_FOOTER_JUMP if jump_mode else _FOOTER_NORMAL)
+
+    def action_jump(self) -> None:
+        """Enter jump mode to quickly navigate to a runner."""
+        if not self._jumpable_runners:
+            return
+        self._jump_mode = True
+        self._refresh_content(show_hints=True)
+        self._update_footer(jump_mode=True)
 
     def action_close(self) -> None:
         """Close the modal."""

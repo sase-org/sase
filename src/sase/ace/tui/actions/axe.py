@@ -234,5 +234,19 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     def action_show_runners(self) -> None:
         """Show the runners modal with all current runners."""
         from ..modals import RunnersModal
+        from ..modals.runners_modal import RunnerJumpTarget
 
-        self.push_screen(RunnersModal())  # type: ignore[attr-defined]
+        def on_dismiss(result: RunnerJumpTarget | None) -> None:
+            if result is None:
+                return
+
+            if result.jump_tab == "changespecs":
+                from .agents._notification_actions import navigate_to_changespec_tab
+
+                navigate_to_changespec_tab(self, result.cl_name, result.project_file)
+            else:  # agents
+                from .agents._notification_actions import navigate_to_agent_tab
+
+                navigate_to_agent_tab(self, result.cl_name, result.pid)
+
+        self.push_screen(RunnersModal(), on_dismiss)  # type: ignore[attr-defined]

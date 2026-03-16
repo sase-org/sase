@@ -146,6 +146,40 @@ def get_meta_changespec_name(agent: Agent) -> str | None:
     return None
 
 
+def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> bool:
+    """Navigate to an agent in the Agents tab.
+
+    Matches by PID first (most precise), then falls back to cl_name.
+
+    Args:
+        app: The AceApp instance.
+        cl_name: The CL name to match.
+        pid: Optional PID for precise matching.
+
+    Returns:
+        True if the agent was found and selected.
+    """
+    app.current_tab = "agents"  # type: ignore[attr-defined]
+
+    agents: list[Agent] = app._agents  # type: ignore[attr-defined]
+
+    # Try PID match first (most precise)
+    if pid is not None:
+        for idx, agent in enumerate(agents):
+            if agent.pid == pid:
+                app.current_idx = idx  # type: ignore[attr-defined]
+                return True
+
+    # Fallback to cl_name match
+    for idx, agent in enumerate(agents):
+        if agent.cl_name == cl_name:
+            app.current_idx = idx  # type: ignore[attr-defined]
+            return True
+
+    app.notify(f"Agent '{cl_name}' not found", severity="warning")  # type: ignore[attr-defined]
+    return False
+
+
 def navigate_to_changespec_tab(
     app: object, changespec_name: str, project_file: str
 ) -> bool:
