@@ -58,6 +58,8 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.hidden = True
     if data.get("role_suffix"):
         agent.role_suffix = data["role_suffix"]
+    if data.get("parent_timestamp"):
+        agent.parent_timestamp = data["parent_timestamp"]
     # Parse run_started_at (actual start time after waiting period)
     run_started_at = data.get("run_started_at")
     if isinstance(run_started_at, str):
