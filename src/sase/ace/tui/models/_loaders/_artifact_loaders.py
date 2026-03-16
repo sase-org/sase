@@ -58,7 +58,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.hidden = True
     if data.get("role_suffix"):
         agent.role_suffix = data["role_suffix"]
-    if data.get("parent_timestamp"):
+    if data.get("parent_timestamp") and agent.parent_timestamp is None:
         agent.parent_timestamp = data["parent_timestamp"]
     if data.get("workspace_num") is not None and agent.workspace_num is None:
         try:
