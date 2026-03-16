@@ -154,8 +154,7 @@ def navigate_to_changespec_tab(
     1. Switch to CLs tab
     2. Search for changespec_name in current filtered list
     3. If found, select it
-    4. If NOT found, change query to ``project:<project> AND NOT status:SUBMITTED``,
-       reload, and select it
+    4. If NOT found, change query to ``project:<project>``, reload, and select it
 
     Args:
         app: The AceApp instance.
@@ -187,7 +186,7 @@ def navigate_to_changespec_tab(
         return False
 
     project_name = Path(project_file).parent.name
-    new_query = f"project:{project_name} AND NOT status:SUBMITTED"
+    new_query = f"project:{project_name}"
 
     try:
         new_parsed = parse_query(new_query)
