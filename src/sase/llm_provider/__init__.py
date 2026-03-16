@@ -16,6 +16,13 @@ from .preprocessing import (
     preprocess_prompt_late,
 )
 from .registry import get_provider, register_provider
+from .retry_config import (
+    ProviderRetryConfig,
+    RetryState,
+    get_retry_config,
+    get_wait_time,
+    is_retryable_error,
+)
 from .types import LoggingContext, ModelTier
 
 __all__ = [
@@ -24,8 +31,13 @@ __all__ = [
     "LoggingContext",
     "ModelTier",
     "PreprocessResult",
+    "ProviderRetryConfig",
+    "RetryState",
     "get_provider",
+    "get_retry_config",
+    "get_wait_time",
     "invoke_agent",
+    "is_retryable_error",
     "log_prompt_and_response",
     "preprocess_prompt",
     "preprocess_prompt_early",
