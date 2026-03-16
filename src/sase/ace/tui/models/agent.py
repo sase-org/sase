@@ -144,6 +144,26 @@ class Agent:
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
+    @property
+    def effective_workspace_num(self) -> int | None:
+        """Workspace number considering meta_workspace from step_output.
+
+        Workflow step agents may store their workspace number in
+        ``step_output["meta_workspace"]`` rather than in :attr:`workspace_num`.
+        This property mirrors the display logic in ``_build_header_text``.
+        """
+        meta_ws = None
+        if self.step_output and isinstance(self.step_output, dict):
+            raw = self.step_output.get("meta_workspace")
+            if raw is not None:
+                try:
+                    meta_ws = int(raw)
+                except (ValueError, TypeError):
+                    pass
+        if meta_ws is not None:
+            return meta_ws
+        return self.workspace_num
+
     def get_display_type(self, *, is_expanded: bool = False) -> str:
         """Compute display type with optional fold-state context.
 

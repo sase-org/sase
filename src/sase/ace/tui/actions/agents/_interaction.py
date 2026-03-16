@@ -377,15 +377,16 @@ class AgentInteractionMixin:
 
         from ...widgets.prompt_panel._file_path_hints import resolve_agent_workspace_dir
 
+        effective_ws_num = agent.effective_workspace_num
         workspace_dir = resolve_agent_workspace_dir(
-            agent.workspace_num, agent.project_file
+            effective_ws_num, agent.project_file
         )
         if not workspace_dir:
             self.notify("No workspace directory for agent", severity="warning")  # type: ignore[attr-defined]
             return
 
         project_name = Path(agent.project_file).parent.name
-        window_name = f"{project_name}_{agent.workspace_num}"
+        window_name = f"{project_name}_{effective_ws_num}"
         try:
             subprocess.run(
                 ["tmux", "new-window", "-n", window_name, "-c", workspace_dir],

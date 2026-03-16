@@ -186,7 +186,7 @@ class AgentDisplayMixin:
             return {}
 
         workspace_dir = resolve_agent_workspace_dir(
-            agent.workspace_num, agent.project_file
+            agent.effective_workspace_num, agent.project_file
         )
         hint_counter = 1
         hint_mappings: dict[int, str] = {}
@@ -310,11 +310,9 @@ class AgentDisplayMixin:
         # Extract meta_* overrides from step_output
         meta_project = None
         meta_changespec = None
-        meta_workspace = None
         if agent.step_output and isinstance(agent.step_output, dict):
             meta_project = agent.step_output.get("meta_project")
             meta_changespec = agent.step_output.get("meta_changespec")
-            meta_workspace = agent.step_output.get("meta_workspace")
 
         # For workflow step agents, show "Step" instead of "ChangeSpec"
         if agent.is_workflow_child and agent.step_name:
@@ -344,11 +342,11 @@ class AgentDisplayMixin:
                 header_text.append(")")
             header_text.append("\n")
 
-        # Workspace (if available) - check meta_workspace first, then agent field
+        # Workspace (if available)
         # Hide workspace for deferred-workspace agents (workspace_num=0 means
         # no workspace allocated yet, used by WAITING agents)
-        workspace_num = meta_workspace or agent.workspace_num
-        if workspace_num is not None and int(workspace_num) > 0:
+        workspace_num = agent.effective_workspace_num
+        if workspace_num is not None and workspace_num > 0:
             header_text.append("Workspace: ", style="bold #87D7FF")
             header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 
