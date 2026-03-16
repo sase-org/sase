@@ -306,11 +306,10 @@ def main() -> None:
                     if plan_result is None:
                         loop_outcome = "plan_rejected"
                         break
+                    approved, plan_action = plan_result
                     # Write plan_path.json so the TUI can show the plan
                     # in the file panel for the .plan agent entry.
-                    _write_plan_path_artifact(
-                        current_artifacts_dir, plan_result.plan_file
-                    )
+                    _write_plan_path_artifact(current_artifacts_dir, approved)
 
                     # Write SDD files (spec + plan) to project
                     sdd_plan_name: str | None = None
@@ -325,11 +324,9 @@ def main() -> None:
                         sdd_dir = get_sdd_dir(
                             workspace_dir, workspace_num, version_controlled
                         )
-                        sdd_plan_name = os.path.splitext(
-                            os.path.basename(plan_result.plan_file)
-                        )[0]
+                        sdd_plan_name = os.path.splitext(os.path.basename(approved))[0]
                         sdd_spec_path_obj, _ = write_sdd_files(
-                            sdd_dir, sdd_plan_name, prompt, plan_result.plan_file
+                            sdd_dir, sdd_plan_name, prompt, approved
                         )
                         sdd_spec_path = str(sdd_spec_path_obj)
                     except Exception:
@@ -338,7 +335,7 @@ def main() -> None:
                     # VCS workflow tag prefix for follow-up agents
                     vcs_prefix = vcs_tag or ""
 
-                    if plan_result.action == "epic":
+                    if plan_action == "epic":
                         # Epic: spawn epic agent to create beads
                         current_role_suffix = ".epic"
                         current_artifacts_dir = create_followup_artifacts(

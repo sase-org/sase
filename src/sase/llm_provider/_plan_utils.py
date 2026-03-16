@@ -5,19 +5,10 @@ import os
 import shutil
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 
 # Poll interval for plan approval responses (seconds)
 _POLL_INTERVAL = 0.5
-
-
-@dataclass
-class PlanApprovalResult:
-    """Result from plan approval flow."""
-
-    action: str  # "approve" or "epic"
-    plan_file: str
 
 
 def save_plan_to_sase(plan_file: str) -> Path:
@@ -48,7 +39,7 @@ def handle_plan_approval(
     *,
     killed_check: Callable[[], bool] | None = None,
     epic_available: bool = False,
-) -> PlanApprovalResult | None:
+) -> tuple[str, str] | None:
     """Handle plan approval flow.
 
     Creates a TUI notification via ``notify_plan_approval()``, then polls for
@@ -62,17 +53,13 @@ def handle_plan_approval(
             iteration and returns None early if killed.
         epic_available: Whether the Epic option should be offered.
 
-    Returns a ``PlanApprovalResult`` when accepted, or ``None`` if
-    rejected / missing / killed.
+    Returns ``(plan_file, action)`` where action is ``"approve"`` or
+    ``"epic"`` when accepted, or ``None`` if rejected / missing / killed.
     """
     from sase.main.plan_approve_handler import is_auto_approve_active
 
     if is_auto_approve_active():
-        return (
-            PlanApprovalResult(action="approve", plan_file=plan_file)
-            if plan_file
-            else None
-        )
+        return (plan_file, "approve") if plan_file else None
 
     if not plan_file:
         return None
@@ -140,7 +127,7 @@ def handle_plan_approval(
                 action = response_data.get("action")
                 if action in ("approve", "epic"):
                     response_path.unlink()
-                    return PlanApprovalResult(action=action, plan_file=plan_file)
+                    return (plan_file, action)
                 # On rejection, do NOT delete response_path so
                 # read_plan_feedback() can read the feedback.
                 return None
