@@ -233,6 +233,7 @@ def main() -> None:
             current_role_suffix = ""
             current_artifacts_dir = artifacts_dir
             loop_outcome = "completed"
+            sdd_spec_path: str | None = None  # Track spec for Q&A updates
 
             while True:
                 reset_killed()
@@ -289,6 +290,27 @@ def main() -> None:
                     # Write plan_path.json so the TUI can show the plan
                     # in the file panel for the .plan agent entry.
                     _write_plan_path_artifact(current_artifacts_dir, approved)
+
+                    # Write SDD files (spec + plan) to project
+                    try:
+                        from sase.sdd import (
+                            get_sdd_config,
+                            get_sdd_dir,
+                            write_sdd_files,
+                        )
+
+                        version_controlled = get_sdd_config()
+                        sdd_dir = get_sdd_dir(
+                            workspace_dir, workspace_num, version_controlled
+                        )
+                        plan_name = os.path.splitext(os.path.basename(approved))[0]
+                        sdd_spec_path_obj, _ = write_sdd_files(
+                            sdd_dir, plan_name, prompt, approved
+                        )
+                        sdd_spec_path = str(sdd_spec_path_obj)
+                    except Exception:
+                        pass  # Best effort — don't block the workflow
+
                     # Plan approved -> spawn coder with plan as prompt
                     current_role_suffix = ".code"
                     current_artifacts_dir = create_followup_artifacts(
@@ -328,9 +350,19 @@ def main() -> None:
                         convert_timestamp_to_artifacts_format(timestamp),
                         workspace_num=workspace_num,
                     )
-                    current_prompt = (
-                        current_prompt + "\n\n" + format_qa_for_prompt(response)
-                    )
+                    qa_text = format_qa_for_prompt(response)
+                    current_prompt = current_prompt + "\n\n" + qa_text
+
+                    # Update SDD spec file with Q&A answers
+                    if sdd_spec_path is not None:
+                        try:
+                            from pathlib import Path as _Path
+
+                            from sase.sdd import update_spec_with_qa
+
+                            update_spec_with_qa(_Path(sdd_spec_path), qa_text)
+                        except Exception:
+                            pass  # Best effort
                     continue
 
                 else:

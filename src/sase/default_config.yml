@@ -177,6 +177,9 @@ llm_provider:
 vcs_provider:
   provider: "auto"
 
+sdd:
+  version_controlled: false
+
 xprompt_aliases: {}
 xprompts:
   phase: |

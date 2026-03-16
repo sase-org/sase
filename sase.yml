@@ -1,3 +1,6 @@
+sdd:
+  version_controlled: true
+
 vcs_provider:
   default_hooks:
     - "just lint"
