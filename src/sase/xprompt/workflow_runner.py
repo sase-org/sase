@@ -267,7 +267,7 @@ class WorkflowResult:
 def execute_workflow(
     name: str,
     positional_args: list[str],
-    named_args: dict[str, str],
+    named_args: dict[str, Any],
     artifacts_dir: str | None = None,
     *,
     silent: bool = False,
@@ -382,7 +382,7 @@ def execute_workflow(
         raise
 
     # Build args dict from positional and named args
-    args: dict[str, str] = dict(named_args)
+    args: dict[str, Any] = dict(named_args)
 
     # Map positional args to input names
     for i, value in enumerate(positional_args):
@@ -466,7 +466,7 @@ def execute_workflow(
 def expand_workflow_for_embedding(
     workflow_name: str,
     positional_args: list[str],
-    named_args: dict[str, str],
+    named_args: dict[str, Any],
 ) -> tuple[str, list[WorkflowStep], list[WorkflowStep]]:
     """Expand a workflow for embedding into a containing prompt.
 
@@ -498,7 +498,7 @@ def expand_workflow_for_embedding(
     workflow = workflows[workflow_name]
 
     # Build args dict from positional and named args
-    args: dict[str, str] = dict(named_args)
+    args: dict[str, Any] = dict(named_args)
 
     # Map positional args to input names
     for i, value in enumerate(positional_args):

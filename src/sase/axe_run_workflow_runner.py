@@ -10,6 +10,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from typing import Any
 
 from sase.axe_runner_utils import (
     all_steps_hidden,
@@ -150,10 +151,12 @@ def main() -> None:
         # Execute the workflow
         from sase.xprompt import execute_workflow
 
-        # Inject cl_name into named_args so it's available in workflow context
-        workflow_named_args = dict(named_args)
+        # Inject cl_name and workspace_num into named_args so they're available
+        # in workflow context as implicit Jinja2 variables.
+        workflow_named_args: dict[str, Any] = dict(named_args)
         workflow_named_args["cl_name"] = cl_name
         workflow_named_args["project_file"] = project_file
+        workflow_named_args["workspace_num"] = workspace_num
 
         execute_workflow(
             workflow_name,
