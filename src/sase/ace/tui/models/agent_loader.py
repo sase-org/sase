@@ -508,6 +508,17 @@ def load_all_agents() -> list[Agent]:
                 _merge_agent_fields(agent, existing)
                 pid_remove_ids.add(id(existing))
                 seen_pids[agent.pid] = agent
+            elif (
+                agent.agent_type == AgentType.WORKFLOW
+                and existing.agent_type == AgentType.WORKFLOW
+                and agent.raw_suffix
+                and existing.raw_suffix
+                and agent.raw_suffix != existing.raw_suffix
+            ):
+                # Both WORKFLOWs with distinct artifact dirs — these are
+                # follow-up phases (plan→code) from the same runner process.
+                # Keep both; they represent different work, not duplicates.
+                pass
             else:
                 # Same type — remove the newer one (current agent)
                 _merge_agent_fields(existing, agent)

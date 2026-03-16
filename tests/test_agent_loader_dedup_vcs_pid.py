@@ -555,3 +555,82 @@ def test_pid_dedup_safety_net_works_on_hidden_agents() -> None:
     assert len(pid_agents) == 1
     # The non-VCS agent should be kept (VCS is removed)
     assert pid_agents[0].workflow == "fix-hook"
+
+
+def test_pid_dedup_preserves_followup_workflow_agents() -> None:
+    """Test that follow-up WORKFLOW agents sharing a PID are not deduplicated.
+
+    When an agent runner handles plan approval, both the plan phase and code
+    phase write workflow_state.json to separate artifact directories. Both
+    share the same PID (the runner process). The PID safety net must keep
+    both since they represent different work phases, not duplicates.
+    """
+    from datetime import datetime
+
+    # Plan phase WORKFLOW (older timestamp)
+    plan_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 3, 15, 21, 32, 15),
+        workflow="sase",
+        raw_suffix="20260315213215",
+        pid=1780415,
+        role_suffix=".plan",
+    )
+
+    # Code phase WORKFLOW (newer timestamp, same PID)
+    code_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2026, 3, 15, 21, 45, 30),
+        workflow="sase",
+        raw_suffix="20260315214530",
+        pid=1780415,
+        role_suffix=".code",
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[plan_agent, code_agent],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=False,
+        ),
+    ):
+        result = load_all_agents()
+
+    # Both should survive — they are different phases, not duplicates
+    assert len(result) == 2
+    suffixes = {a.raw_suffix for a in result}
+    assert "20260315213215" in suffixes
+    assert "20260315214530" in suffixes
