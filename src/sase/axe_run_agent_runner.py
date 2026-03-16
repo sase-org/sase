@@ -277,6 +277,7 @@ def main() -> None:
                         agent_meta,
                         current_role_suffix,
                         convert_timestamp_to_artifacts_format(timestamp),
+                        workspace_num=workspace_num,
                     )
                     current_prompt = (
                         f"@{plan_data['plan_file']}\n\n"
@@ -306,6 +307,7 @@ def main() -> None:
                         agent_meta,
                         current_role_suffix,
                         convert_timestamp_to_artifacts_format(timestamp),
+                        workspace_num=workspace_num,
                     )
                     current_prompt = (
                         current_prompt + "\n\n" + format_qa_for_prompt(response)

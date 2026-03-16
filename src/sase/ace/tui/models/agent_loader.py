@@ -529,6 +529,24 @@ def load_all_agents() -> list[Agent]:
     if pid_remove_ids:
         agents = [a for a in agents if id(a) not in pid_remove_ids]
 
+    # Override status for DONE parents with active follow-up children.
+    # When a planner workflow completes and spawns a coder follow-up
+    # (linked via parent_timestamp), the parent should show PLAN APPROVED.
+    _completed_statuses = {"DONE", "FAILED"}
+    parent_by_suffix: dict[str, Agent] = {}
+    for agent in agents:
+        if agent.raw_suffix and not agent.is_workflow_child:
+            parent_by_suffix[agent.raw_suffix] = agent
+    for agent in agents:
+        if (
+            agent.parent_timestamp
+            and not agent.parent_workflow  # Follow-up agent, not workflow step
+            and agent.status not in _completed_statuses
+        ):
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent and parent.status == "DONE":
+                parent.status = "PLAN APPROVED"
+
     # Sort by start time (most recent first), with None times at end
     agents_with_time = [a for a in agents if a.start_time is not None]
     agents_without_time = [a for a in agents if a.start_time is None]

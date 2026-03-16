@@ -60,6 +60,11 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         agent.role_suffix = data["role_suffix"]
     if data.get("parent_timestamp"):
         agent.parent_timestamp = data["parent_timestamp"]
+    if data.get("workspace_num") is not None and agent.workspace_num is None:
+        try:
+            agent.workspace_num = int(data["workspace_num"])
+        except (ValueError, TypeError):
+            pass
     # Parse run_started_at (actual start time after waiting period)
     run_started_at = data.get("run_started_at")
     if isinstance(run_started_at, str):

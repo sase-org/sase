@@ -106,6 +106,8 @@ def create_followup_artifacts(
     base_meta: dict[str, Any],
     suffix: str,
     prev_artifacts_timestamp: str,
+    *,
+    workspace_num: int | None = None,
 ) -> str:
     """Create a new timestamped artifacts directory for a follow-up agent.
 
@@ -124,6 +126,8 @@ def create_followup_artifacts(
             followup_meta[key] = base_meta[key]
     followup_meta["role_suffix"] = suffix
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp
+    if workspace_num is not None:
+        followup_meta["workspace_num"] = workspace_num
     followup_meta["run_started_at"] = datetime.now(UTC).isoformat()
 
     meta_path = os.path.join(new_artifacts_dir, "agent_meta.json")
