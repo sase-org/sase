@@ -174,7 +174,13 @@ axe:
 
 llm_provider:
   provider: ""
-  retry: {}
+  retry:
+    gemini:
+      max_retries: 3
+      error_patterns:
+        - "An unexpected critical error occurred:"
+      wait_times: [60, 300, 1800]
+      fallback_model: "gemini-3-flash-preview"
 
 vcs_provider:
   provider: "auto"
