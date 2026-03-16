@@ -193,3 +193,46 @@ xprompts:
   phase: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct `claude` instance.
+
+  bd/next:
+    input:
+      prompt: { type: text, default: "" }
+    content: |
+      Can you run the `tools/sase_bd ready` command to see which beads are ready to be worked, claim the next ready bead by
+      marking it as in-progress, complete the work associated with it, and then close the bead (do NOT close the parent epic
+      bead)? Make sure to mark the bead as in-progress before you start planning. {{ prompt }}
+
+      IMPORTANT: Do NOT create any beads of your own. You are meant to work the pre-existing ready bead that you select. If
+      you decide to create a plan for this bead, make sure you explicitly mention the bead ID in the plan.
+
+  bd/new_epic:
+    input:
+      plan_file_path: path
+    content: |
+      Can you help me create one bead for every phase in the {{ plan_file_path }} plan file?
+
+      These beads should all be children of a new epic bead (make sure this bead has a type of "epic" and not, for example,
+      "feature") that you should also create. The epic bead should be linked to the plan file using the `tools/sase_bd create`
+      command's `--design` option. Also, add the bead ID of the epic to a new frontmatter field called `bead_id` in the plan
+      file.
+
+      Make sure that each phase bead has the appropriate dependencies set up.
+
+  bd/land_epic:
+    input:
+      bead_id: word
+    content: |
+      Can you help me verify that all the work associated with the bead with ID {{ bead_id }} is complete?
+
+      Actually read through the source code and the git commits that are associated with that bead's work (they should have
+      the bead ID in the commit message) and ensure all of the work that the previous agents say is complete, is actually
+      complete. Also, run `tools/sase_bd show` on every child bead and ensure that any notes on those beads have been
+      addressed.
+
+      If not, plan out the remaining work and complete it. Otherwise, close the bead using the `tools/sase_bd close` command.
+      Finally, run the `just pyvision` command AFTER closing the epic bead (some symbols can be ignored while an epic is open)
+      to make sure we didn't leave any unused code behind.
+
+      Finally, find the plan file associated with this work (should be in the plans/ directory) and then look for a file of
+      the same name in the prompts/ directory. If found, a `status` field should be added (or updated if it already exists) to
+      the frontmatter of the plan file with a value of `done`.
