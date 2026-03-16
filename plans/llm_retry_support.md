@@ -1,5 +1,6 @@
 ---
 status: pending
+bead_id: sase-8h82
 ---
 
 # Add Configurable LLM Provider Retry & Fallback Support
