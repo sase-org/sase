@@ -236,12 +236,20 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         """Populate the file list when extra_files first appear on a same-agent refresh."""
         if agent.extra_files and not self._file_list:
             self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
+            # For .plan agents, default to showing the plan file
+            if agent.role_suffix == ".plan":
+                self._current_file_index = 1
             self.post_message(
                 FileListChanged(
                     file_count=len(self._file_list),
                     file_index=self._current_file_index,
                 )
             )
+            # Display the extra file immediately so the parent receives
+            # FileVisibilityChanged(has_file=True) and can switch from
+            # auto-shown thinking to the file panel.
+            if self._current_file_index != 0:
+                self._display_file_at_current_index()
 
     def _post_file_visibility(self, has_file: bool) -> None:
         """Post a FileVisibilityChanged message with current file list state."""
