@@ -1,0 +1,91 @@
+steps:
+  - name: search
+    hidden: true
+    parallel:
+      - name: gemini
+        agent: |
+          %model:gemini-2.5-pro
+          Find recent, medium-to-long articles or research papers that will help
+          me continue developing sase (Structured Agentic Software Engineering),
+          a Python toolkit for building and orchestrating AI agents.
+
+          Focus areas:
+          - AI agent architectures and orchestration patterns
+          - Multi-agent systems and coordination
+          - LLM tool use and function calling
+          - Developer tooling for AI-assisted software engineering
+          - Prompt engineering and workflow automation
+
+          For each recommendation, provide:
+          - Title and author(s)
+          - Publication date (or approximate)
+          - URL if available
+          - 2-3 sentence summary of why it's relevant to sase development
+
+          Aim for 5-10 recommendations. Prefer articles from the last 6 months.
+      - name: claude
+        agent: |
+          %model:sonnet
+          Find recent, medium-to-long articles or research papers that will help
+          me continue developing sase (Structured Agentic Software Engineering),
+          a Python toolkit for building and orchestrating AI agents.
+
+          Focus areas:
+          - AI agent architectures and orchestration patterns
+          - Multi-agent systems and coordination
+          - LLM tool use and function calling
+          - Developer tooling for AI-assisted software engineering
+          - Prompt engineering and workflow automation
+
+          For each recommendation, provide:
+          - Title and author(s)
+          - Publication date (or approximate)
+          - URL if available
+          - 2-3 sentence summary of why it's relevant to sase development
+
+          Aim for 5-10 recommendations. Prefer articles from the last 6 months.
+      - name: codex
+        agent: |
+          %model:o3
+          Find recent, medium-to-long articles or research papers that will help
+          me continue developing sase (Structured Agentic Software Engineering),
+          a Python toolkit for building and orchestrating AI agents.
+
+          Focus areas:
+          - AI agent architectures and orchestration patterns
+          - Multi-agent systems and coordination
+          - LLM tool use and function calling
+          - Developer tooling for AI-assisted software engineering
+          - Prompt engineering and workflow automation
+
+          For each recommendation, provide:
+          - Title and author(s)
+          - Publication date (or approximate)
+          - URL if available
+          - 2-3 sentence summary of why it's relevant to sase development
+
+          Aim for 5-10 recommendations. Prefer articles from the last 6 months.
+
+  - name: consolidate
+    agent: |
+      You are consolidating article and research paper recommendations from
+      three different AI agents. Your job is to merge, de-duplicate, and rank
+      the results, then pick a single "best next read".
+
+      ## Gemini's recommendations
+      {{ search.gemini._raw }}
+
+      ## Claude's recommendations
+      {{ search.claude._raw }}
+
+      ## Codex's recommendations
+      {{ search.codex._raw }}
+
+      ## Instructions
+      1. Merge all recommendations into a single list
+      2. De-duplicate (same article found by multiple agents = higher signal)
+      3. Rank by relevance to sase development (agent orchestration, multi-step
+         workflows, tool use, developer tooling)
+      4. For each article, note which agent(s) recommended it
+      5. At the end, provide a single "Best Next Read" recommendation with a
+         brief explanation of why it should be read first
