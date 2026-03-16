@@ -330,6 +330,25 @@
         }
       ]
     },
+    "sdd": {
+      "type": "object",
+      "description": "Configuration for Structured Design Documents",
+      "additionalProperties": false,
+      "properties": {
+        "version_controlled": {
+          "type": "boolean",
+          "description": "Whether SDD files are stored in version-controlled project root (true) or in .sase/sdd (false)",
+          "default": false
+        }
+      }
+    },
+    "xprompt_aliases": {
+      "type": "object",
+      "description": "Aliases for xprompt references, substituted before any other xprompt processing (e.g., {\"#gh_sase\": \"#gh:sase\"})",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "xprompts": {
       "type": "object",
       "description": "Reusable text templates that can be referenced in prompts",
