@@ -88,12 +88,12 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     # Config sources: user sase.yml
     if source_path == "config":
-        return "sase.yml Config", "~/.config/sase/sase.yml", True
+        return "User sase.yml", "~/.config/sase/sase.yml", True
 
     # Config overlay sources: sase_*.yml files
     if source_path.startswith("config_overlay:"):
         filename = source_path.removeprefix("config_overlay:")
-        return "sase.yml Config", f"~/.config/sase/{filename}", True
+        return "User sase.yml", f"~/.config/sase/{filename}", True
 
     # Local sase.yml in CWD
     if source_path == "local_config":
@@ -252,9 +252,9 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
                 ordered.append((cat, groups[cat]))
                 seen.add(cat)
 
-        if "sase.yml Config" in groups and "sase.yml Config" not in seen:
-            ordered.append(("sase.yml Config", groups["sase.yml Config"]))
-            seen.add("sase.yml Config")
+        if "User sase.yml" in groups and "User sase.yml" not in seen:
+            ordered.append(("User sase.yml", groups["User sase.yml"]))
+            seen.add("User sase.yml")
 
         # Plugin categories
         for cat in sorted(groups.keys()):
