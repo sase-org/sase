@@ -100,9 +100,6 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         # Populate file list with live diff sentinel + extra files
         if agent.extra_files:
             self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
-            # For .plan agents, default to showing the plan file
-            if agent.role_suffix == ".plan":
-                self._current_file_index = 1
             self.post_message(
                 FileListChanged(
                     file_count=len(self._file_list),
@@ -112,8 +109,8 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         else:
             self._file_list = []
 
-        # If starting on a static extra file (e.g. plan for .plan agents),
-        # display it immediately and fetch the diff in the background.
+        # If starting on a static extra file, display it immediately
+        # and fetch the diff in the background.
         if self._current_file_index != 0 and self._file_list:
             self._display_file_at_current_index()
             self._start_background_fetch(agent)
