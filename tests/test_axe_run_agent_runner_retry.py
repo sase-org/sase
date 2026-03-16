@@ -85,12 +85,17 @@ class _WorkflowResult:
 
 
 _RUNNER = "sase.axe_run_agent_runner"
+_EXEC = "sase.axe_run_agent_exec"
 
 
 def _base_patches(artifacts_dir: str) -> dict[str, Any]:
     """Return a dict of common mock targets and their return values."""
+    # Shared mocks for names imported into both runner and exec modules
+    was_killed_mock = MagicMock(return_value=False)
+    prepare_ws_mock = MagicMock(return_value=True)
     return {
-        f"{_RUNNER}.prepare_workspace": MagicMock(return_value=True),
+        # --- runner module ---
+        f"{_RUNNER}.prepare_workspace": prepare_ws_mock,
         f"{_RUNNER}.extract_directives_and_write_meta": MagicMock(
             return_value=_AGENT_INFO
         ),
@@ -98,16 +103,20 @@ def _base_patches(artifacts_dir: str) -> dict[str, Any]:
             return_value="20260316_120000"
         ),
         f"{_RUNNER}.create_artifacts_directory": MagicMock(return_value=artifacts_dir),
-        f"{_RUNNER}.save_chat_history": MagicMock(return_value="/tmp/history.md"),
-        f"{_RUNNER}.format_extra_sections": MagicMock(return_value=""),
-        f"{_RUNNER}.extract_step_output_and_diff_path": MagicMock(
-            return_value=(None, None)
-        ),
         f"{_RUNNER}.format_duration": MagicMock(return_value="1s"),
         f"{_RUNNER}.record_stop_time": MagicMock(),
-        f"{_RUNNER}.was_killed": MagicMock(return_value=False),
-        f"{_RUNNER}.reset_killed": MagicMock(),
+        f"{_RUNNER}.was_killed": was_killed_mock,
         f"{_RUNNER}.all_steps_hidden": MagicMock(return_value=True),
+        # --- exec module (execution loop) ---
+        f"{_EXEC}.prepare_workspace": prepare_ws_mock,
+        f"{_EXEC}.was_killed": was_killed_mock,
+        f"{_EXEC}.reset_killed": MagicMock(),
+        f"{_EXEC}.save_chat_history": MagicMock(return_value="/tmp/history.md"),
+        f"{_EXEC}.format_extra_sections": MagicMock(return_value=""),
+        f"{_EXEC}.extract_step_output_and_diff_path": MagicMock(
+            return_value=(None, None)
+        ),
+        # --- xprompt (patched at source) ---
         "sase.xprompt.resolve_xprompt_aliases": MagicMock(side_effect=lambda x: x),
         "sase.xprompt._parsing.extract_vcs_workflow_tag": MagicMock(return_value=None),
         "sase.xprompt.processor.process_xprompt_references": MagicMock(
@@ -170,7 +179,7 @@ class TestRetryLoop:
         """When get_retry_config returns None, errors propagate normally."""
         patches = _base_patches(str(tmp_path / "artifacts"))
         execute_mock = MagicMock(side_effect=RuntimeError("rate limit exceeded"))
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=None)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=None)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
 
         _run_main(patches, tmp_path)
@@ -182,7 +191,7 @@ class TestRetryLoop:
         patches = _base_patches(str(tmp_path / "artifacts"))
         config = _make_retry_config(error_patterns=["rate limit"])
         execute_mock = MagicMock(side_effect=RuntimeError("authentication failed"))
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=config)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
 
         _run_main(patches, tmp_path)
@@ -200,9 +209,9 @@ class TestRetryLoop:
                 _WorkflowResult("success"),
             ]
         )
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=config)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_RUNNER}.time.sleep"] = MagicMock()
+        patches[f"{_EXEC}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -228,9 +237,9 @@ class TestRetryLoop:
                 _WorkflowResult("success"),
             ]
         )
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=config)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_RUNNER}.time.sleep"] = capture_sleep
+        patches[f"{_EXEC}.time.sleep"] = capture_sleep
 
         _run_main(patches, tmp_path)
 
@@ -247,9 +256,9 @@ class TestRetryLoop:
                 _WorkflowResult("success"),
             ]
         )
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=config)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_RUNNER}.time.sleep"] = MagicMock()
+        patches[f"{_EXEC}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -270,9 +279,9 @@ class TestRetryLoop:
                 _WorkflowResult("success"),
             ]
         )
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=config)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_RUNNER}.time.sleep"] = MagicMock()
+        patches[f"{_EXEC}.time.sleep"] = MagicMock()
 
         env_overrides: list[str] = []
         original_setitem = os.environ.__class__.__setitem__
@@ -295,7 +304,7 @@ class TestRetryLoop:
         patches = _base_patches(str(tmp_path / "artifacts"))
         config = _make_retry_config(max_retries=2, wait_times=[5])
         execute_mock = MagicMock(side_effect=RuntimeError("rate limit exceeded"))
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=config)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
 
         # was_killed returns False initially (for the re-raise check),
@@ -307,8 +316,10 @@ class TestRetryLoop:
             kill_calls += 1
             return kill_calls >= 2
 
+        # Override in both modules (runner finally block + exec loop)
         patches[f"{_RUNNER}.was_killed"] = mock_was_killed
-        patches[f"{_RUNNER}.time.sleep"] = MagicMock()
+        patches[f"{_EXEC}.was_killed"] = mock_was_killed
+        patches[f"{_EXEC}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -325,9 +336,9 @@ class TestRetryLoop:
                 _WorkflowResult("success"),
             ]
         )
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=config)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_RUNNER}.time.sleep"] = MagicMock()
+        patches[f"{_EXEC}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -345,7 +356,7 @@ class TestRetryLoop:
         """done.json has no retry_metadata when workflow succeeds first try."""
         artifacts_dir = tmp_path / "artifacts"
         patches = _base_patches(str(artifacts_dir))
-        patches[f"{_RUNNER}.get_retry_config"] = MagicMock(return_value=None)
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=None)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = MagicMock(
             return_value=_WorkflowResult("success")
         )
