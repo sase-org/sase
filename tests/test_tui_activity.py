@@ -340,6 +340,7 @@ def test_is_idle_true_when_pid_missing_state_active_no_keypress(
 def test_is_idle_false_when_keypress_recent(tmp_path: Path) -> None:
     """Even if idle_state says '1', a recent keypress overrides to not-idle."""
     with (
+        _patch_activity_file(tmp_path),
         _patch_idle_state_file(tmp_path),
         _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
@@ -353,6 +354,7 @@ def test_is_idle_false_when_keypress_recent(tmp_path: Path) -> None:
 def test_is_idle_true_when_keypress_old_enough(tmp_path: Path) -> None:
     """Idle state is respected when the keypress is old enough."""
     with (
+        _patch_activity_file(tmp_path),
         _patch_idle_state_file(tmp_path),
         _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
@@ -366,6 +368,7 @@ def test_is_idle_true_when_keypress_old_enough(tmp_path: Path) -> None:
 def test_is_idle_true_when_no_keypress_file(tmp_path: Path) -> None:
     """Missing keypress file does not block idle detection."""
     with (
+        _patch_activity_file(tmp_path),
         _patch_idle_state_file(tmp_path),
         _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
@@ -378,6 +381,7 @@ def test_is_idle_true_when_no_keypress_file(tmp_path: Path) -> None:
 def test_is_idle_true_when_keypress_is_zero(tmp_path: Path) -> None:
     """Manual idle (epoch=0) is not blocked by the guard."""
     with (
+        _patch_activity_file(tmp_path),
         _patch_idle_state_file(tmp_path),
         _patch_last_keypress_file(tmp_path),
         patch("sase.ace.tui_activity._is_tui_running", return_value=True),
