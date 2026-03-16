@@ -357,6 +357,43 @@ class AgentInteractionMixin:
         # Refresh footer to reflect new state
         self._refresh_agents_display()  # type: ignore[attr-defined]
 
+    def action_start_tmux_mode(self) -> None:
+        """Open tmux window for agent workspace (agents tab) or enter tmux mode."""
+        if self.current_tab == "agents":
+            self._open_agent_tmux_window()
+            return
+        super().action_start_tmux_mode()  # type: ignore[misc]
+
+    def _open_agent_tmux_window(self) -> None:
+        """Open a new tmux window in the selected agent's workspace directory."""
+        import os
+        import subprocess
+
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+
+        from ...widgets.prompt_panel._file_path_hints import resolve_agent_workspace_dir
+
+        workspace_dir = resolve_agent_workspace_dir(
+            agent.workspace_num, agent.project_file
+        )
+        if not workspace_dir:
+            self.notify("No workspace directory for agent", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        basename = os.path.basename(workspace_dir)
+        try:
+            subprocess.run(
+                ["tmux", "new-window", "-n", basename, "-c", workspace_dir],
+                check=False,
+            )
+            self.notify(f"Opened tmux window: {basename}")  # type: ignore[attr-defined]
+        except FileNotFoundError:
+            self.notify("tmux command not found", severity="error")  # type: ignore[attr-defined]
+
     def action_toggle_approve(self) -> None:
         """Toggle auto-approve for the selected agent."""
         import json

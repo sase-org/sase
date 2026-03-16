@@ -427,6 +427,10 @@ class KeybindingFooter(Horizontal):
         if agent.status not in ("DONE", "FAILED"):
             bindings.append((self._kd("rename_cl"), "name"))
 
+        # Open tmux window (only if agent has a workspace)
+        if agent.workspace_num is not None and agent.workspace_num > 0:
+            bindings.append((self._kd("start_tmux_mode"), "tmux"))
+
         # Jump to CL (for ChangeSpec-level agents, or project agents with meta CL/PR)
         if not agent.is_project_agent:
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
