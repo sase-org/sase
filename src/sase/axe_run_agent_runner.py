@@ -35,6 +35,13 @@ from sase.axe_runner_utils import (
     reset_killed,
     was_killed,
 )
+from sase.llm_provider.retry_config import (
+    RetryState,
+    get_retry_config,
+    get_wait_time,
+    is_retryable_error,
+    truncate_error_snippet,
+)
 from sase.chat_history import save_chat_history
 from sase.chat_history_extras import format_extra_sections
 from sase.shared_utils import (
@@ -235,6 +242,15 @@ def main() -> None:
             if info.approve:
                 os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
 
+            # Retry configuration
+            retry_cfg = (
+                get_retry_config(agent_llm_provider) if agent_llm_provider else None
+            )
+            retry_errors: list[str] = []
+            retry_count = 0
+            using_fallback = False
+            _allow_retry = True  # Only retry initial execute_workflow calls
+
             # Follow-up loop: handles plan approval and question flows
             current_prompt = prompt
             current_role_suffix = ""
@@ -256,9 +272,100 @@ def main() -> None:
                         silent=True,
                         workflow_obj=anon_workflow,
                     )
-                except Exception:
+                except Exception as wf_exc:
                     if not was_killed():
-                        raise  # Genuine error, not a marker-based kill
+                        error_str = str(wf_exc)
+                        if (
+                            _allow_retry
+                            and retry_cfg
+                            and is_retryable_error(error_str, retry_cfg)
+                        ):
+                            snippet = truncate_error_snippet(error_str)
+                            retry_errors.append(snippet)
+                            if retry_count < retry_cfg.max_retries:
+                                # Retry with wait
+                                retry_count += 1
+                                wait_time = get_wait_time(retry_count, retry_cfg)
+                                RetryState(
+                                    status="retrying",
+                                    retry_count=retry_count,
+                                    max_retries=retry_cfg.max_retries,
+                                    wait_seconds=wait_time,
+                                    next_retry_at_epoch=time.time() + wait_time,
+                                    last_error_snippet=snippet,
+                                ).write_to(artifacts_dir)
+                                from sase.notifications.senders import (
+                                    notify_agent_retry,
+                                )
+
+                                notify_agent_retry(
+                                    "agent-retry",
+                                    cl_name,
+                                    retry_count,
+                                    retry_cfg.max_retries,
+                                    wait_time,
+                                    snippet,
+                                )
+                                # Sleep in 1s increments
+                                for _ in range(wait_time):
+                                    if was_killed():
+                                        break
+                                    time.sleep(1)
+                                if was_killed():
+                                    loop_outcome = "killed"
+                                    break
+                                # Re-prepare workspace
+                                RetryState(
+                                    status="running_retry",
+                                    retry_count=retry_count,
+                                    max_retries=retry_cfg.max_retries,
+                                    last_error_snippet=snippet,
+                                ).write_to(artifacts_dir)
+                                if update_target and not is_home_mode:
+                                    prepare_workspace(
+                                        workspace_dir,
+                                        cl_name,
+                                        update_target,
+                                        backup_suffix="ace",
+                                        project_basename=project_name,
+                                    )
+                                os.chdir(workspace_dir)
+                                continue  # Retry
+                            elif retry_cfg.fallback_model and not using_fallback:
+                                # Fallback to alternate model
+                                using_fallback = True
+                                os.environ["SASE_MODEL_OVERRIDE"] = (
+                                    retry_cfg.fallback_model
+                                )
+                                RetryState(
+                                    status="running_fallback",
+                                    retry_count=retry_count,
+                                    max_retries=retry_cfg.max_retries,
+                                    fallback_model=retry_cfg.fallback_model,
+                                    using_fallback=True,
+                                    last_error_snippet=snippet,
+                                ).write_to(artifacts_dir)
+                                from sase.notifications.senders import (
+                                    notify_agent_fallback,
+                                )
+
+                                notify_agent_fallback(
+                                    "agent-retry",
+                                    cl_name,
+                                    retry_cfg.fallback_model,
+                                    retry_count,
+                                )
+                                if update_target and not is_home_mode:
+                                    prepare_workspace(
+                                        workspace_dir,
+                                        cl_name,
+                                        update_target,
+                                        backup_suffix="ace",
+                                        project_basename=project_name,
+                                    )
+                                os.chdir(workspace_dir)
+                                continue  # Fallback attempt
+                        raise  # Not retryable or no retries left
                     result = None
 
                 # If the process wasn't killed, this is a normal completion.
@@ -332,6 +439,7 @@ def main() -> None:
                         "The above plan has been reviewed and approved. "
                         "Implement it now."
                     )
+                    _allow_retry = False
                     continue
 
                 elif q_data:
@@ -370,12 +478,29 @@ def main() -> None:
                             update_spec_with_qa(_Path(sdd_spec_path), qa_text)
                         except Exception:
                             pass  # Best effort
+                    _allow_retry = False
                     continue
 
                 else:
                     # Killed by user (no marker)
                     loop_outcome = "killed"
                     break
+
+            # Clean up retry state
+            RetryState.delete_from(artifacts_dir)
+            if "SASE_MODEL_OVERRIDE" in os.environ:
+                del os.environ["SASE_MODEL_OVERRIDE"]
+
+            # Build retry metadata for done.json
+            _retry_meta: dict[str, Any] | None = None
+            if retry_count > 0 or using_fallback:
+                _retry_meta = {
+                    "retry_count": retry_count,
+                    "retry_errors": retry_errors,
+                    "used_fallback": using_fallback,
+                }
+                if using_fallback and retry_cfg:
+                    _retry_meta["fallback_model"] = retry_cfg.fallback_model
 
             # Clean up SASE_ARTIFACTS_DIR env var
             os.environ.pop("SASE_ARTIFACTS_DIR", None)
@@ -428,6 +553,7 @@ def main() -> None:
                     step_output=step_output,
                     diff_path=diff_path,
                     plan_path=plan_path,
+                    retry_metadata=_retry_meta,
                 )
                 done_path = os.path.join(current_artifacts_dir, "done.json")
                 with open(done_path, "w", encoding="utf-8") as f:
@@ -446,6 +572,7 @@ def main() -> None:
                     agent_name=agent_name,
                     agent_model=agent_model,
                     agent_hidden=agent_hidden,
+                    retry_metadata=_retry_meta,
                 )
                 done_path = os.path.join(current_artifacts_dir, "done.json")
                 with open(done_path, "w", encoding="utf-8") as f:

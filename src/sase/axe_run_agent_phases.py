@@ -290,6 +290,7 @@ def build_done_marker(
     plan_path: str | None = None,
     error: str | None = None,
     traceback_str: str | None = None,
+    retry_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a done marker dict for writing to done.json."""
     marker: dict[str, Any] = {
@@ -322,6 +323,8 @@ def build_done_marker(
         marker["error"] = error
     if traceback_str:
         marker["traceback"] = traceback_str
+    if retry_metadata:
+        marker["retry_metadata"] = retry_metadata
     return marker
 
 

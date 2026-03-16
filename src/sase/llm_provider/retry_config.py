@@ -74,6 +74,14 @@ class RetryState:
             pass
 
 
+def truncate_error_snippet(error: str, max_len: int = 100) -> str:
+    """Truncate error string for display in retry state."""
+    error = error.strip()
+    if len(error) <= max_len:
+        return error
+    return error[:max_len] + "..."
+
+
 def get_retry_config(provider_name: str) -> ProviderRetryConfig | None:
     """Load retry config for a specific provider from merged config.
 
