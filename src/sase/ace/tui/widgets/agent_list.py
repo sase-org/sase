@@ -33,6 +33,17 @@ _HIDDEN_ICON = "◌"
 _CHILD_INDENT = "  └─ "
 
 
+def _short_model_name(model: str) -> str:
+    """Extract short display name from a model string."""
+    model_lower = model.lower()
+    for keyword in ("flash", "opus", "sonnet", "haiku", "pro"):
+        if keyword in model_lower:
+            return keyword
+    # Fallback: last segment before any date suffix
+    parts = model.split("-")
+    return parts[0] if parts else model
+
+
 def _is_foldable_parent(agent: Agent) -> bool:
     """Check if an agent is a foldable workflow parent.
 
@@ -88,6 +99,14 @@ def _calculate_entry_display_width(
         parts.append(f"{_DONE_ICON} ")
     dt = agent.get_display_type(is_expanded=is_expanded)
     parts.extend([f"[{dt}] ", agent.display_name, " ", f"({agent.status})"])
+    # Retry annotations width
+    if agent.status == "RETRYING" and agent.retry_next_at_epoch:
+        parts.append(" (99s)")  # Max countdown width estimate
+    if agent.status == "RUNNING" and agent.retry_count > 0:
+        annotation = f" \u21bb{agent.retry_count}"
+        if agent.using_fallback and agent.fallback_model:
+            annotation += f"\u25b8{_short_model_name(agent.fallback_model)}"
+        parts.append(annotation)
     if agent.role_suffix:
         parts.append(f" {agent.role_suffix}")
     if agent.agent_name:
@@ -291,9 +310,26 @@ class AgentList(OptionList):
             text.append(agent.status, style="bold #FF87D7")  # Pink
         elif agent.status == "QUESTION":
             text.append(agent.status, style="bold #FFAF00")  # Amber/orange
+        elif agent.status == "RETRYING":
+            # Compute countdown from retry_next_at_epoch
+            countdown = ""
+            if agent.retry_next_at_epoch:
+                import time
+
+                remaining = max(0, int(agent.retry_next_at_epoch - time.time()))
+                countdown = f" ({remaining}s)"
+            text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
         else:
             text.append(agent.status, style="dim")
         text.append(")", style="dim")
+
+        # Retry/fallback annotations for RUNNING agents that have retried
+        if agent.status == "RUNNING" and agent.retry_count > 0:
+            annotation = f" \u21bb{agent.retry_count}"
+            if agent.using_fallback and agent.fallback_model:
+                short_name = _short_model_name(agent.fallback_model)
+                annotation += f"\u25b8{short_name}"
+            text.append(annotation, style="bold #FF8700")  # Orange
 
         # Fold annotation for workflow parents
         if fold_annotation:

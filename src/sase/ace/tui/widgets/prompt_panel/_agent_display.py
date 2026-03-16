@@ -396,6 +396,21 @@ class AgentDisplayMixin:
             header_text.append("Waiting for: ", style="bold #87D7FF")
             header_text.append(f"{', '.join(agent.waiting_for)}\n", style="#FF87D7")
 
+        # Retry info (for agents that have retried or are using fallback)
+        if agent.retry_count > 0 or agent.using_fallback:
+            header_text.append("Retries: ", style="bold #87D7FF")
+            header_text.append(
+                f"{agent.retry_count}/{agent.max_retries}\n", style="#FF8700"
+            )
+            if agent.fallback_model:
+                header_text.append("Fallback: ", style="bold #87D7FF")
+                if agent.using_fallback:
+                    header_text.append(
+                        f"{agent.fallback_model}\n", style="bold #FF8700"
+                    )
+                else:
+                    header_text.append(f"{agent.fallback_model}\n", style="dim #FF8700")
+
         # Timestamp(s)
         header_text.append("Timestamps: ", style="bold #87D7FF")
         header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")

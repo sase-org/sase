@@ -135,6 +135,17 @@ class Agent:
     # Whether this agent should be hidden by default (shown with '.' toggle)
     hidden: bool = False
 
+    # Retry/fallback state (populated from retry_state.json)
+    retry_count: int = 0
+    max_retries: int = 0
+    retry_next_at_epoch: float | None = None
+    retry_wait_seconds: int = 0
+    using_fallback: bool = False
+    fallback_model: str | None = None
+    retry_status: str | None = (
+        None  # "retrying" | "running_retry" | "running_fallback" | None
+    )
+
     # Whether this agent was loaded from a ChangeSpec field (HOOKS/MENTORS/COMMENTS)
     _from_changespec: bool = False
 

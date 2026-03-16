@@ -144,6 +144,29 @@ class AgentsMixinCore(
         # Load fresh agent list
         all_agents = load_all_agents()
 
+        # Populate retry fields from retry_state.json for running agents
+        from sase.llm_provider.retry_config import RetryState
+
+        for agent in all_agents:
+            if agent.status != "RUNNING":
+                continue
+            artifacts_dir = agent.get_artifacts_dir()
+            if not artifacts_dir:
+                continue
+            retry_state = RetryState.read_from(artifacts_dir)
+            if retry_state is None:
+                continue
+            agent.retry_count = retry_state.retry_count
+            agent.max_retries = retry_state.max_retries
+            agent.retry_next_at_epoch = retry_state.next_retry_at_epoch
+            agent.retry_wait_seconds = retry_state.wait_seconds
+            agent.using_fallback = retry_state.using_fallback
+            agent.fallback_model = retry_state.fallback_model
+            agent.retry_status = retry_state.status
+            # Override display status for "retrying" state
+            if retry_state.status == "retrying":
+                agent.status = "RETRYING"
+
         # Build secondary index for robust dismissed matching
         # (agent cl_name or type may change between loads due to dedup merging)
         dismissed_suffixes: set[str] = {

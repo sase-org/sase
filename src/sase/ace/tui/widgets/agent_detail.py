@@ -17,7 +17,15 @@ from .thinking_panel import AgentThinkingPanel
 
 
 _ACTIVE_STATUSES = frozenset(
-    {"RUNNING", "WAITING", "WAITING INPUT", "PLANNING", "PLAN APPROVED", "QUESTION"}
+    {
+        "RUNNING",
+        "WAITING",
+        "WAITING INPUT",
+        "PLANNING",
+        "PLAN APPROVED",
+        "QUESTION",
+        "RETRYING",
+    }
 )
 
 
