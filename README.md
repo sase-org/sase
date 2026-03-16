@@ -183,6 +183,7 @@ src/sase/
 │   │   ├── thinking/      # Claude thinking block parser and display
 │   │   ├── keymaps/       # Keymap registry, loader, and types
 │   │   ├── actions/       # Keybinding action handlers
+│   │   ├── models/        # Agent, workflow, and fold-state data models
 │   │   ├── modals/        # Modal dialogs (query, status, hook history, etc.)
 │   │   └── widgets/       # TUI widget components
 │   │       ├── file_panel/   # Agent file viewer (diff, display, trimming)
@@ -202,6 +203,7 @@ src/sase/
 │   ├── state.py           # Lumberjack state persistence
 │   ├── process.py         # Process management utilities
 │   └── cli.py             # Axe CLI argument parsing
+├── xprompts/              # Built-in xprompt workflows and schema
 ├── xprompt/               # Prompt templates and workflow execution
 │   ├── processor.py       # XPrompt expansion engine
 │   ├── directives.py      # %name directive parsing (%model, %name, %wait)

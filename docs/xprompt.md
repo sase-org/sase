@@ -15,6 +15,7 @@ Use xprompts when you want to:
 - [CLI Subcommands](#cli-subcommands)
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
+  - [Hooks](#hooks)
 - [Reference Syntax](#reference-syntax)
 - [Arguments](#arguments)
 - [Shorthand Syntax](#shorthand-syntax)
@@ -127,8 +128,39 @@ Hello, {{ user_name }}! Welcome aboard.
 | ------- | -------- | --------------------------------------------------------------- |
 | `name`  | No       | XPrompt name (defaults to filename stem)                        |
 | `input` | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs)) |
+| `hooks` | No       | List of shell commands to run when the agent's stop hook fires  |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
+
+### Hooks
+
+The `hooks` field defines shell commands that are collected during xprompt expansion and executed by the agent's stop
+hook when the agent session ends. This is useful for running cleanup, validation, or post-processing tasks after an
+agent finishes.
+
+```markdown
+---
+name: my_prompt
+hooks:
+  - "just lint"
+  - "just test"
+---
+
+Do something useful.
+```
+
+During expansion, hooks from all referenced xprompts are collected into a temporary JSON file (path set via the
+`SASE_XPROMPT_HOOKS_FILE` environment variable). The stop hook reads this file and runs each command in order.
+
+Hooks are also supported in config-based xprompts (`sase.yml`):
+
+```yaml
+xprompts:
+  my_prompt:
+    content: "Do something useful."
+    hooks:
+      - "just lint"
+```
 
 ## Reference Syntax
 

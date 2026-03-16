@@ -111,6 +111,40 @@ The `agent` field contains a prompt template that can:
 
 > **Note:** The keyword `prompt` is still accepted for backward compatibility, but `agent` is the canonical name.
 
+### Prompt Part Steps
+
+Inject text into the containing agent prompt without triggering a separate LLM call. When a workflow is referenced via
+`#name(args)`, the `prompt_part` content is expanded inline into the calling prompt. Steps before and after the
+`prompt_part` still execute as pre/post-processing.
+
+```yaml
+- name: inject
+  prompt_part: |
+    ---
+    IMPORTANT: You should make the necessary file changes, but should NOT create a git commit.
+    ---
+```
+
+This is the step type that simple `.md` xprompts are internally converted to — a single `prompt_part` step. Workflows
+with a `prompt_part` step can mix it with other step types (bash, python) for pre/post-processing around an inline
+prompt fragment:
+
+```yaml
+steps:
+  - name: setup
+    bash: git status --porcelain
+    output: { status: text }
+  - name: inject
+    prompt_part: |
+      Current git status:
+      {{ setup.status }}
+  - name: cleanup
+    bash: echo "done"
+```
+
+> **Note:** A workflow may have at most one `prompt_part` step. It is mutually exclusive with `agent`, `bash`, `python`,
+> and `parallel` within a single step.
+
 ### Bash Steps
 
 Execute a shell command:
