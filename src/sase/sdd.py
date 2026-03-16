@@ -41,26 +41,13 @@ def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     return workspace_dir
 
 
-def check_epic_available(workspace_dir: str, workspace_num: int) -> bool:
-    """Check if the Epic option should be shown for plan approval.
-
-    Requires both:
-    1. ``sdd.version_controlled`` is enabled in merged config
-    2. ``.beads/`` directory exists in the primary workspace
-    """
-    if not get_sdd_config():
-        return False
-    primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
-    return Path(primary, ".beads").is_dir()
-
-
 def write_sdd_files(
     sdd_dir: Path,
     plan_name: str,
     spec_content: str,
     plan_file: str,
 ) -> tuple[Path, Path]:
-    """Write specs/<name>.md and plans/<name>.md to sdd_dir.
+    """Write specs/<name>.md and plans/<name>.yaml to sdd_dir.
 
     Returns (spec_path, plan_path).
     """
@@ -72,7 +59,7 @@ def write_sdd_files(
     spec_path = specs_dir / f"{plan_name}.md"
     spec_path.write_text(spec_content, encoding="utf-8")
 
-    plan_path = plans_dir / f"{plan_name}.md"
+    plan_path = plans_dir / f"{plan_name}.yaml"
     plan_source = Path(plan_file)
     if plan_source.exists():
         plan_path.write_text(plan_source.read_text(encoding="utf-8"), encoding="utf-8")

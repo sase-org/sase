@@ -478,7 +478,6 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         return False
 
     plan_file = notification.files[0]
-    show_epic = notification.action_data.get("epic_available") == "true"
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -494,9 +493,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             editor = os.environ.get("EDITOR") or "nvim"
             with app.suspend():  # type: ignore[attr-defined]
                 subprocess.run([editor, plan_file], check=False)
-            app.push_screen(  # type: ignore[attr-defined]
-                PlanApprovalModal(plan_file, show_epic=show_epic), on_dismiss
-            )
+            app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
             return
 
         # Find matching agent for status override updates
@@ -525,8 +522,8 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         if result.feedback is not None:
             response_data["feedback"] = result.feedback
 
-        # On approval/epic, save plan to workspace .sase/plans/ directory
-        if result.action in ("approve", "epic") and notification.files:
+        # On approval, save plan to workspace .sase/plans/ directory
+        if result.action == "approve" and notification.files:
             project_dir = notification.action_data.get("project_dir")
             if project_dir:
                 import os
@@ -561,14 +558,14 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
 
         # Update status override based on action
         if agent is not None:
-            if result.action in ("approve", "epic"):
+            if result.action == "approve":
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 # Persist approval to agent_meta.json so it survives TUI restarts
                 persist_plan_approved(agent)
             # For reject with feedback: keep "PLANNING" override (no change)
             app._load_agents()  # type: ignore[attr-defined]
 
-    app.push_screen(PlanApprovalModal(plan_file, show_epic=show_epic), on_dismiss)  # type: ignore[attr-defined]
+    app.push_screen(PlanApprovalModal(plan_file), on_dismiss)  # type: ignore[attr-defined]
     return True
 
 

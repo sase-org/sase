@@ -36,7 +36,7 @@ def test_handle_plan_approval_auto_approve() -> None:
         "sase.main.plan_approve_handler.is_auto_approve_active", return_value=True
     ):
         result = handle_plan_approval("/path/to/plan.md", "session-123")
-    assert result == ("/path/to/plan.md", "approve")
+    assert result == "/path/to/plan.md"
 
 
 def test_handle_plan_approval_none_plan_file() -> None:

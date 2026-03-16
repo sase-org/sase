@@ -32,22 +32,19 @@ class PlanApprovalModal(
         ("r", "reject", "Reject"),
         ("f", "feedback", "Reject w/ feedback"),
         ("e", "edit", "Edit"),
-        ("E", "epic", "Epic"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
 
-    def __init__(self, plan_file: str, *, show_epic: bool = False) -> None:
+    def __init__(self, plan_file: str) -> None:
         """Initialize the plan approval modal.
 
         Args:
             plan_file: Path to the plan markdown file.
-            show_epic: Whether to show the Epic (E) option.
         """
         super().__init__()
         self._plan_file = plan_file
         self._feedback_mode = False
-        self._show_epic = show_epic
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -56,10 +53,8 @@ class PlanApprovalModal(
             "[green]a[/green]=Approve  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Reject w/ feedback  "
             "[blue]e[/blue]=Edit  "
+            "[dim]q[/dim]=Cancel  |  Ctrl+D/U to scroll"
         )
-        if self._show_epic:
-            hints += "[magenta]E[/magenta]=Epic  "
-        hints += "[dim]q[/dim]=Cancel  |  Ctrl+D/U to scroll"
 
         with Container(id="plan-approval-container"):
             yield Static(
@@ -131,12 +126,6 @@ class PlanApprovalModal(
         if self._feedback_mode:
             return
         self.dismiss(PlanApprovalResult(action="edit"))
-
-    def action_epic(self) -> None:
-        """Create an epic from the plan."""
-        if self._feedback_mode or not self._show_epic:
-            return
-        self.dismiss(PlanApprovalResult(action="epic"))
 
     def action_feedback(self) -> None:
         """Enter feedback mode to reject with feedback."""
