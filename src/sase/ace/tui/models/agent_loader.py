@@ -544,10 +544,32 @@ def load_all_agents() -> list[Agent]:
             and not agent.parent_workflow  # Follow-up agent, not workflow step
         ):
             parents_with_followup.add(agent.parent_timestamp)
-            if agent.status not in _completed_statuses:
-                parent = parent_by_suffix.get(agent.parent_timestamp)
-                if parent and parent.status == "DONE":
-                    parent.status = "PLAN APPROVED"
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent:
+                # Override DONE → PLAN APPROVED while follow-up is active
+                if agent.status not in _completed_statuses:
+                    if parent.status == "DONE":
+                        parent.status = "PLAN APPROVED"
+
+                # Propagate meta_* fields from follow-up child to parent
+                # so the metadata panel shows dynamic variables (e.g. Commit
+                # Message) on the main workflow entry too.
+                if agent.step_output and isinstance(agent.step_output, dict):
+                    meta_fields = {
+                        k: v
+                        for k, v in agent.step_output.items()
+                        if k.startswith("meta_") and v
+                    }
+                    if meta_fields:
+                        if parent.step_output is None:
+                            parent.step_output = {}
+                        parent.step_output.update(meta_fields)
+
+                # Propagate diff_path from follow-up child to parent so the
+                # file panel can display the code diff (more relevant than
+                # the planner's own diff).
+                if agent.diff_path:
+                    parent.diff_path = agent.diff_path
 
     # Override DONE → PLANNING for plan-only workflows (no follow-up spawned yet).
     # A workflow with role_suffix ".plan" that's still DONE means the plan was

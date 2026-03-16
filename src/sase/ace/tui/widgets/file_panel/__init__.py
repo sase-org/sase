@@ -233,8 +233,11 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         """Populate the file list when extra_files first appear on a same-agent refresh."""
         if agent.extra_files and not self._file_list:
             self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
-            # For .plan agents, default to showing the plan file
-            if agent.role_suffix == ".plan":
+            # For .plan agents without a code diff, default to showing
+            # the plan file.  When a follow-up .code agent has completed
+            # and propagated its diff_path, show the diff instead (index 0)
+            # so the user sees the code changes by default.
+            if agent.role_suffix == ".plan" and not agent.diff_path:
                 self._current_file_index = 1
             self.post_message(
                 FileListChanged(
