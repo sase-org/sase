@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.llm_provider._plan_utils import (
+    PlanApprovalResult,
     handle_plan_approval,
     save_plan_to_sase,
 )
@@ -36,7 +37,7 @@ def test_handle_plan_approval_auto_approve() -> None:
         "sase.main.plan_approve_handler.is_auto_approve_active", return_value=True
     ):
         result = handle_plan_approval("/path/to/plan.md", "session-123")
-    assert result == ("/path/to/plan.md", "approve")
+    assert result == PlanApprovalResult(action="approve", plan_file="/path/to/plan.md")
 
 
 def test_handle_plan_approval_none_plan_file() -> None:
