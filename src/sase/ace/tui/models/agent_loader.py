@@ -570,6 +570,30 @@ def load_all_agents() -> list[Agent]:
 
     sorted_agents = agents_with_time + agents_without_time
 
+    # Reorder follow-up agents (parent_timestamp set, no parent_workflow)
+    # to appear immediately after their parent workflow.
+    # Without this, follow-ups sort before their parent by start_time
+    # (since follow-ups start later and we sort most-recent-first),
+    # causing them to render as orphaned children above their parent.
+    followups_by_parent: dict[str, list[Agent]] = {}
+    non_followup: list[Agent] = []
+    for agent in sorted_agents:
+        if agent.parent_timestamp and not agent.parent_workflow:
+            followups_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
+        else:
+            non_followup.append(agent)
+
+    if followups_by_parent:
+        reordered: list[Agent] = []
+        for agent in non_followup:
+            reordered.append(agent)
+            if agent.raw_suffix and agent.raw_suffix in followups_by_parent:
+                reordered.extend(followups_by_parent.pop(agent.raw_suffix))
+        # Append any orphaned follow-ups (parent not found)
+        for remaining in followups_by_parent.values():
+            reordered.extend(remaining)
+        sorted_agents = reordered
+
     # Insert workflow agent steps immediately after their parent workflows
     if workflow_agent_steps:
         # Pre-index steps by parent_timestamp for O(1) lookup
