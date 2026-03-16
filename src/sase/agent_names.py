@@ -219,9 +219,15 @@ def find_named_agent(name: str) -> _NamedAgent | None:
                 outcome=outcome,
             )
 
-            # Running agents take priority — return immediately
+            # Running agents take priority — return immediately,
+            # but only if the process is actually alive.  Parent-phase
+            # artifacts (e.g. .plan) share the agent name yet never
+            # write done.json; without a liveness check we'd return
+            # them as "running" and block wait resolution forever.
             if not is_done:
-                return agent
+                if _is_process_alive(data, artifact_dir):
+                    return agent
+                continue
 
             # Otherwise, remember as fallback
             if best_match is None:

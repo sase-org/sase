@@ -67,12 +67,25 @@ class TestFindNamedAgent:
 
     def test_prefers_running_over_done(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run-old", "foo", done=True)
-        running_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
+        running_dir = _make_agent(tmp_path, "proj", "run-new", "foo", pid=os.getpid())
         with patch.object(Path, "home", return_value=tmp_path):
             result = find_named_agent("foo")
         assert result is not None
         assert not result.is_done
         assert result.artifacts_dir == str(running_dir)
+
+    def test_skips_dead_agent_without_done(self, tmp_path: Path) -> None:
+        """Dead parent phases (no done.json, dead PID) are skipped."""
+        _make_agent(tmp_path, "proj", "run-old", "foo", pid=_DEAD_PID)
+        done_dir = _make_agent(
+            tmp_path, "proj", "run-new", "foo", done=True, outcome="completed"
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = find_named_agent("foo")
+        assert result is not None
+        assert result.is_done
+        assert result.outcome == "completed"
+        assert result.artifacts_dir == str(done_dir)
 
 
 class TestClaimAgentName:
