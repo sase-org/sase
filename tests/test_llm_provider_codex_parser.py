@@ -1,19 +1,14 @@
-"""Tests for Codex NDJSON parser, _format_codex_action, and _find_codex_plan_file."""
+"""Tests for Codex NDJSON parser and _format_codex_action."""
 
 import json
-import os
 import subprocess
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from sase.llm_provider._subprocess import (
     _format_codex_action,
     _process_codex_json_line,
     stream_and_parse_codex_json_output,
 )
-from sase.llm_provider.codex import _find_codex_plan_file
-
 
 # --- codex NDJSON parser tests ---
 
@@ -192,55 +187,3 @@ def test_format_codex_action_empty_name() -> None:
     """Test that empty/missing name returns None."""
     assert _format_codex_action({}) is None
     assert _format_codex_action({"name": ""}) is None
-
-
-# --- _find_codex_plan_file tests ---
-
-
-def test_find_codex_plan_file_returns_most_recent(tmp_path: Path) -> None:
-    """Test that _find_codex_plan_file finds the newest .md file."""
-    plans_dir = tmp_path / ".codex" / "plans"
-    plans_dir.mkdir(parents=True)
-
-    old_file = plans_dir / "old_plan.md"
-    old_file.write_text("old plan")
-    os.utime(old_file, (1000, 1000))
-
-    new_file = plans_dir / "new_plan.md"
-    new_file.write_text("new plan")
-    os.utime(new_file, (2000, 2000))
-
-    with patch.object(Path, "home", return_value=tmp_path):
-        result = _find_codex_plan_file()
-
-    assert result == str(new_file)
-
-
-def test_find_codex_plan_file_filters_by_after(tmp_path: Path) -> None:
-    """Test that _find_codex_plan_file respects after timestamp filter."""
-    plans_dir = tmp_path / ".codex" / "plans"
-    plans_dir.mkdir(parents=True)
-
-    old_file = plans_dir / "old_plan.md"
-    old_file.write_text("old")
-    os.utime(old_file, (1000, 1000))
-
-    new_file = plans_dir / "new_plan.md"
-    new_file.write_text("new")
-    os.utime(new_file, (2000, 2000))
-
-    with patch.object(Path, "home", return_value=tmp_path):
-        result = _find_codex_plan_file(after=1500)
-    assert result == str(new_file)
-
-    with patch.object(Path, "home", return_value=tmp_path):
-        result = _find_codex_plan_file(after=2500)
-    assert result is None
-
-
-def test_find_codex_plan_file_returns_none_when_empty(tmp_path: Path) -> None:
-    """Test that _find_codex_plan_file returns None with no matching files."""
-    with patch.object(Path, "home", return_value=tmp_path):
-        result = _find_codex_plan_file()
-
-    assert result is None

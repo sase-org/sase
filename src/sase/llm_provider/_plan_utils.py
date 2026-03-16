@@ -1,36 +1,14 @@
-"""Shared plan utilities for LLM providers.
-
-Extracted from gemini.py and claude.py to avoid duplication across providers.
-"""
+"""Shared plan utilities for LLM providers."""
 
 import json
 import os
 import shutil
 import time
-import uuid
 from collections.abc import Callable
 from pathlib import Path
 
 # Poll interval for plan approval responses (seconds)
 _POLL_INTERVAL = 0.5
-
-
-def save_response_as_plan(text: str, provider_name: str) -> str:
-    """Save response text as a plan file when no ``.md`` file exists on disk.
-
-    Args:
-        text: The plan text to save.
-        provider_name: Provider name used to determine directory
-            (e.g. ``"gemini"`` -> ``~/.gemini/plans/``).
-
-    Returns:
-        Path to the saved plan file.
-    """
-    plans_dir = Path.home() / f".{provider_name}" / "plans"
-    plans_dir.mkdir(parents=True, exist_ok=True)
-    plan_path = plans_dir / f"{provider_name}_plan_{uuid.uuid4().hex[:8]}.md"
-    plan_path.write_text(text, encoding="utf-8")
-    return str(plan_path)
 
 
 def save_plan_to_sase(plan_file: str) -> Path:
@@ -53,51 +31,6 @@ def save_plan_to_sase(plan_file: str) -> Path:
             counter += 1
     shutil.copy2(src, dest)
     return dest
-
-
-def write_plan_path_artifact(saved_plan_path: Path) -> None:
-    """Write ``plan_path.json`` so agent runner can thread it to ``done.json``."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if artifacts_dir:
-        plan_path_file = Path(artifacts_dir) / "plan_path.json"
-        plan_path_file.write_text(json.dumps({"plan_path": str(saved_plan_path)}))
-
-
-def read_plan_feedback(approval_dir: Path) -> str | None:
-    """Read plan rejection feedback from plan_response.json if present.
-
-    Returns the feedback string if the plan was rejected with feedback,
-    or None otherwise.
-    """
-    response_path = approval_dir / "plan_response.json"
-    if not response_path.exists():
-        return None
-    try:
-        with open(response_path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("action") == "reject" and data.get("feedback"):
-            return data["feedback"]
-    except (json.JSONDecodeError, OSError):
-        pass
-    return None
-
-
-def append_plan_feedback_log(feedback: str, round_num: int) -> None:
-    """Append a plan feedback record to plan_feedback.jsonl in SASE_ARTIFACTS_DIR."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        return
-    record = {
-        "round": round_num,
-        "feedback": feedback,
-        "timestamp": time.time(),
-    }
-    try:
-        path = os.path.join(artifacts_dir, "plan_feedback.jsonl")
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
-    except OSError:
-        pass
 
 
 def handle_plan_approval(
