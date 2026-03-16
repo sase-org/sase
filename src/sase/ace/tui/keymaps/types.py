@@ -325,6 +325,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "agent_home": "h",
             "agent_from_cl": "space",
             "kill_and_edit": "x",
+            "activity_info": "i",
         }
     )
 

@@ -56,7 +56,7 @@ def write_last_keypress(epoch: float) -> None:
     os.replace(tmp, LAST_KEYPRESS_FILE)
 
 
-def _get_last_keypress() -> float | None:
+def get_last_keypress() -> float | None:
     """Return the epoch stored in the last-keypress file, or ``None``."""
     try:
         return float(LAST_KEYPRESS_FILE.read_text().strip())
@@ -224,7 +224,7 @@ def is_idle() -> bool:
 
 def _has_recent_keypress(threshold: float = _IDLE_GUARD_SECONDS) -> bool:
     """Return True if a keypress occurred within *threshold* seconds."""
-    last_kp = _get_last_keypress()
+    last_kp = get_last_keypress()
     if last_kp is not None and last_kp > 0:
         return time.time() - last_kp < threshold
     return False

@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
 
+from ..activity_log import ActivityEventType, ActivityLog
+
 # Type alias for tab names (used in type hints)
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -23,6 +25,7 @@ class LifecycleMixin:
     _last_activity_time: float
     _pinned_idle: bool
     _last_unread_count: int
+    _activity_log: ActivityLog
 
     def _initialize_agent_tracking(self) -> None:
         """Initialize notification tracking by seeding unread count.
@@ -108,6 +111,7 @@ class LifecycleMixin:
             write_activity_timestamp(time.time())
             write_idle_state(False)
             indicator.set_idle(False)
+            self._activity_log.record(ActivityEventType.ACTIVE)
             return
 
         # Enter manual idle.
@@ -119,6 +123,7 @@ class LifecycleMixin:
         # the inactive marker (epoch 0) with the current time.
         del self._last_activity_time
         indicator.set_idle(True)
+        self._activity_log.record(ActivityEventType.IDLE_MANUAL)
 
     def action_mark_inactive_pinned(self) -> None:
         """Toggle pinned idle mode.
@@ -144,6 +149,7 @@ class LifecycleMixin:
             write_idle_state(False)
             write_pinned_idle(False)
             indicator.set_idle(False)
+            self._activity_log.record(ActivityEventType.ACTIVE)
             return
 
         # Enter pinned idle.
@@ -162,3 +168,4 @@ class LifecycleMixin:
         if hasattr(self, "_last_activity_time"):
             del self._last_activity_time
         indicator.set_idle(True, pinned=True)
+        self._activity_log.record(ActivityEventType.IDLE_PINNED)

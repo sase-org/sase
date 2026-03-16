@@ -145,6 +145,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_from_cl'))}",
                     "Run agent from current CL",
                 ),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
+                    "Activity dashboard",
+                ),
             ],
         ),
         (
@@ -276,6 +280,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_and_edit'))}",
                     "Kill agent & edit prompt",
                 ),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
+                    "Activity dashboard",
+                ),
             ],
         ),
         (
@@ -367,6 +375,10 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
             [
                 (f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
                 (f"{d(lm.prefix)}{d(_sk(lm.keys, 'runners'))}", "Show runners info"),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
+                    "Activity dashboard",
+                ),
             ],
         ),
         (

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Literal
 
 from textual import events
 
+from ..activity_log import ActivityEventType, ActivityLog
 from ..widgets import (
     AgentList,
     BgCmdList,
@@ -53,6 +54,7 @@ class EventHandlersMixin:
     _inactive_seconds: int
     _last_activity_time: float
     _last_activity_flush: float
+    _activity_log: ActivityLog
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
@@ -151,6 +153,7 @@ class EventHandlersMixin:
                 # distinguish natural idle (non-zero epoch) from
                 # manual/pinned idle (epoch=0).
                 write_activity_timestamp(time.time())
+                self._activity_log.record(ActivityEventType.IDLE_AUTO)
 
     def _record_user_activity(self) -> None:
         """Record user activity to reset the idle indicator.
@@ -178,6 +181,7 @@ class EventHandlersMixin:
             write_idle_state(False)
             write_activity_timestamp(time.time())
             self._last_activity_flush = time.monotonic()
+            self._activity_log.record(ActivityEventType.ACTIVE)
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout/tmux, copy, and ancestry sub-keys."""

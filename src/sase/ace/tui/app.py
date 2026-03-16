@@ -179,6 +179,11 @@ class AceApp(
         self._last_activity_flush: float = 0.0
         self._pinned_idle: bool = False
 
+        # Activity event log (for Activity Dashboard modal)
+        from .activity_log import ActivityLog
+
+        self._activity_log = ActivityLog()
+
         # Leader mode state (for , key sub-commands)
         self._leader_mode_active: bool = False
 
@@ -419,7 +424,10 @@ class AceApp(
             write_tui_pid,
         )
 
+        from .activity_log import ActivityEventType
+
         write_tui_pid()
+        self._activity_log.record(ActivityEventType.SESSION_START)
         if read_pinned_idle():
             self._pinned_idle = True
             if hasattr(self, "_last_activity_time"):
@@ -428,6 +436,7 @@ class AceApp(
             write_idle_state(True)
             indicator = self.query_one("#inactive-indicator", InactiveIndicator)
             indicator.set_idle(True, pinned=True)
+            self._activity_log.record(ActivityEventType.IDLE_RESTORED)
         else:
             self._last_activity_time = time.monotonic()
             self._last_activity_flush = time.monotonic()

@@ -9,6 +9,7 @@ from ._types import PromptContext, TabName
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
+    from ...activity_log import ActivityLog
     from ...keymaps import KeymapRegistry
     from ...models import Agent
     from ...modals import SelectionItem
@@ -41,6 +42,8 @@ class EntryPointsMixin:
     _agents: list[Agent]
     _leader_mode_active: bool
     _keymap_registry: KeymapRegistry
+    _activity_log: ActivityLog
+    _inactive_seconds: int
 
     # State for prompt input
     _prompt_context: PromptContext | None = None
@@ -48,6 +51,12 @@ class EntryPointsMixin:
     _bulk_changespecs: list[ChangeSpec] | None = None
     # State for repeat-last-@/<space> selection
     _last_custom_agent_selection: SelectionItem | None = None
+
+    def _show_activity_dashboard(self) -> None:
+        """Show the Activity Dashboard modal."""
+        from ...modals import ActivityModal
+
+        self.push_screen(ActivityModal(self._activity_log, self._inactive_seconds))  # type: ignore[attr-defined]
 
     def action_start_agent_from_changespec(self) -> None:
         """Repeat last @/<space> agent selection (bound to space)."""
@@ -126,6 +135,11 @@ class EntryPointsMixin:
         if key == leader_keys["kill_and_edit"]:
             if self.current_tab == "agents":
                 self._kill_and_edit_agent()
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        if key == leader_keys["activity_info"]:
+            self._show_activity_dashboard()
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 

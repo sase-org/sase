@@ -121,6 +121,7 @@ ace:
           agent_home: "h"
           agent_from_cl: "space"
           kill_and_edit: "x"
+          activity_info: "i"
       bang_mode:
         prefix: "exclamation_mark"
         keys:

@@ -253,6 +253,7 @@ class KeybindingFooter(Horizontal):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
+        bindings.append((k("activity_info"), "activity"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix
         prefix = Text()

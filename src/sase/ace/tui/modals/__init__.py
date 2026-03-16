@@ -28,12 +28,14 @@ from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
+from .activity_modal import ActivityModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
 from .xprompt_browser_modal import XPromptBrowserModal
 from .xprompt_select_modal import XPromptSelectModal
 
 __all__ = [
+    "ActivityModal",
     "AddXPromptModal",
     "AgentInterruptModal",
     "AgentNameModal",
