@@ -7,5 +7,6 @@ create_changespec_for_workflow
 extract_response_from_chat_file
 get_next_auto_name
 kill_named_agent
+list_running_agents
 get_tui_last_activity
 is_idle

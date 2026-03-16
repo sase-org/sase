@@ -11,6 +11,7 @@ import signal
 import string
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -30,6 +31,125 @@ class _KillResult:
 
     success: bool
     message: str
+
+
+@dataclass
+class _RunningAgentInfo:
+    """Summary info for a running agent."""
+
+    name: str | None
+    project: str
+    pid: int | None
+    model: str | None
+    provider: str | None
+    workspace_num: int | None
+    duration: str
+    approve: bool
+
+
+# pyvision: public_api_methods.txt
+def list_running_agents() -> list[_RunningAgentInfo]:
+    """List all currently running agents across all projects.
+
+    Scans ``~/.sase/projects/*/artifacts/ace-run/*/`` for agents that
+    have no ``done.json`` and whose process is still alive.
+
+    Returns:
+        A list of _RunningAgentInfo, sorted by start time (most recent first).
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return []
+
+    agents: list[tuple[str, _RunningAgentInfo]] = []  # (timestamp, info)
+    now = datetime.now(UTC)
+
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        project_name = project_dir.name
+
+        for artifact_dir in ace_run_dir.iterdir():
+            if not artifact_dir.is_dir():
+                continue
+
+            # Skip completed agents
+            if (artifact_dir / "done.json").exists():
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            # Verify process is alive
+            if not _is_process_alive(data, artifact_dir):
+                continue
+
+            # Parse start time from directory name (YYYYmmddHHMMSS)
+            ts_str = artifact_dir.name
+            duration = "?"
+            try:
+                start = datetime.strptime(ts_str, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+                delta = now - start
+                total_seconds = int(delta.total_seconds())
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                if hours > 0:
+                    duration = f"{hours}h{minutes}m"
+                elif minutes > 0:
+                    duration = f"{minutes}m{seconds}s"
+                else:
+                    duration = f"{seconds}s"
+            except ValueError:
+                pass
+
+            # Resolve workspace number from RUNNING field
+            workspace_num: int | None = None
+            if project_name != "home":
+                try:
+                    from sase.running_field import get_claimed_workspaces
+
+                    project_file = str(project_dir / f"{project_name}.gp")
+                    for claim in get_claimed_workspaces(project_file):
+                        if claim.artifacts_timestamp == ts_str:
+                            workspace_num = claim.workspace_num
+                            break
+                except Exception:
+                    pass
+
+            agents.append(
+                (
+                    ts_str,
+                    _RunningAgentInfo(
+                        name=data.get("name"),
+                        project=project_name,
+                        pid=data.get("pid"),
+                        model=data.get("model"),
+                        provider=data.get("llm_provider"),
+                        workspace_num=workspace_num,
+                        duration=duration,
+                        approve=bool(data.get("approve")),
+                    ),
+                )
+            )
+
+    # Sort by timestamp descending (most recent first)
+    agents.sort(key=lambda x: x[0], reverse=True)
+    return [info for _, info in agents]
 
 
 def find_named_agent(name: str) -> _NamedAgent | None:
