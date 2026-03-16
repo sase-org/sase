@@ -21,8 +21,14 @@ workspace_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 primary_dir="$(resolve_primary_dir "$workspace_dir")"
 
 if [[ ! -d "$primary_dir/.beads" ]]; then
-    echo "sase_bd: warning: '$primary_dir' has no .beads/, falling back to current dir" >&2
-    exec bd "$@"
+    if [[ -d "$primary_dir/.sase/sdd/.git" ]]; then
+        # Local SDD setup detected — auto-init .beads/
+        bd init --quiet --skip-hooks --dir "$primary_dir" 2>/dev/null || true
+    fi
+    if [[ ! -d "$primary_dir/.beads" ]]; then
+        echo "sase_bd: warning: '$primary_dir' has no .beads/, falling back to current dir" >&2
+        exec bd "$@"
+    fi
 fi
 
 if [[ "$primary_dir" != "$workspace_dir" ]]; then

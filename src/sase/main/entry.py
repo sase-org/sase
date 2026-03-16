@@ -40,6 +40,16 @@ def main() -> NoReturn:
     if args.command == "commit":
         handle_commit_command(args)
 
+    # --- init-beads ---
+    if args.command == "init-beads":
+        from sase.main.utils import ensure_project_file_and_get_workspace_num
+        from sase.sdd import init_beads
+
+        _, workspace_num, _ = ensure_project_file_and_get_workspace_num()
+        sdd_path = init_beads(os.getcwd(), workspace_num or 1)
+        print(f"Initialized SDD directory: {sdd_path}")
+        sys.exit(0)
+
     # --- init-git ---
     if args.command == "init-git":
         from sase.workspace_provider.plugins.bare_git_workspace import (

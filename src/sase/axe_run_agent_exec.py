@@ -288,6 +288,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             sdd_plan_name: str | None = None
             try:
                 from sase.sdd import (
+                    commit_sdd_files,
                     get_sdd_config,
                     get_sdd_dir,
                     write_sdd_files,
@@ -304,6 +305,8 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                     sdd_dir, sdd_plan_name, prompt, plan_result.plan_file
                 )
                 sdd_spec_path = str(sdd_spec_path_obj)
+                if not version_controlled:
+                    commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
             except Exception:
                 pass  # Best effort — don't block the workflow
 

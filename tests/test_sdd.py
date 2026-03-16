@@ -1,11 +1,15 @@
 """Tests for sdd.py - SDD file writing utilities."""
 
+import subprocess
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from sase.sdd import (
     _get_primary_workspace_dir,
+    commit_sdd_files,
     get_sdd_dir,
+    init_beads,
     update_spec_with_qa,
     write_sdd_files,
 )
@@ -134,3 +138,95 @@ def test_update_spec_with_qa_missing_file() -> None:
     """No-op if spec file doesn't exist."""
     update_spec_with_qa(Path("/nonexistent/spec.md"), "qa content")
     # Should not raise
+
+
+# ---------------------------------------------------------------------------
+# init_beads
+# ---------------------------------------------------------------------------
+
+
+def test_init_beads_creates_sdd_git_repo() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("sase.sdd.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess([], 0)
+            result = init_beads(tmpdir, 1)
+
+        assert result == Path(tmpdir) / ".sase" / "sdd"
+        assert result.is_dir()
+
+
+def test_init_beads_idempotent() -> None:
+    """Calling init_beads twice should not error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sdd_dir = Path(tmpdir) / ".sase" / "sdd"
+        sdd_dir.mkdir(parents=True)
+        # Simulate existing git repo
+        (sdd_dir / ".git").mkdir()
+        # Simulate existing .beads
+        (Path(tmpdir) / ".beads").mkdir()
+
+        result = init_beads(tmpdir, 1)
+        assert result == sdd_dir
+
+
+# ---------------------------------------------------------------------------
+# commit_sdd_files
+# ---------------------------------------------------------------------------
+
+
+def test_commit_sdd_files() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sdd_dir = Path(tmpdir)
+        subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=sdd_dir,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=sdd_dir,
+            check=True,
+            capture_output=True,
+        )
+
+        # Write a file and commit it
+        (sdd_dir / "test.md").write_text("hello", encoding="utf-8")
+        commit_sdd_files(sdd_dir, "Test commit")
+
+        # Verify commit exists
+        log = subprocess.run(
+            ["git", "log", "--oneline"],
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+        )
+        assert "Test commit" in log.stdout
+
+
+def test_commit_sdd_files_no_changes() -> None:
+    """No-op when there are no changes to commit."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sdd_dir = Path(tmpdir)
+        subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
+
+        # Call with no files — should not error or create empty commit
+        commit_sdd_files(sdd_dir, "Empty commit")
+
+        log = subprocess.run(
+            ["git", "log", "--oneline"],
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+        )
+        # No commits should exist
+        assert log.stdout.strip() == ""
+
+
+def test_commit_sdd_files_not_git_repo() -> None:
+    """No-op if sdd_dir is not a git repo."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sdd_dir = Path(tmpdir)
+        commit_sdd_files(sdd_dir, "Should not error")
+        # Should not raise

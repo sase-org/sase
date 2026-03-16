@@ -1,5 +1,6 @@
 """Utilities for writing version-controlled spec and plan (SDD) files."""
 
+import subprocess
 from pathlib import Path
 
 from sase.config import load_merged_config
@@ -39,6 +40,59 @@ def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     if stripped.endswith(suffix):
         return stripped[: -len(suffix)]
     return workspace_dir
+
+
+def init_beads(workspace_dir: str, workspace_num: int) -> Path:
+    """Bootstrap `.sase/sdd/` as a standalone git repo for local SDD tracking.
+
+    1. Creates `.sase/sdd/` in the primary workspace.
+    2. Runs `git init` inside it if not already a git repo.
+    3. Runs `bd init --quiet --skip-hooks` in the primary workspace if `.beads/` missing.
+
+    Returns the `.sase/sdd/` path.
+    """
+    primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
+    sdd_dir = Path(primary) / ".sase" / "sdd"
+    sdd_dir.mkdir(parents=True, exist_ok=True)
+
+    if not (sdd_dir / ".git").is_dir():
+        subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
+
+    beads_dir = Path(primary) / ".beads"
+    if not beads_dir.is_dir():
+        subprocess.run(
+            ["bd", "init", "--quiet", "--skip-hooks"],
+            cwd=primary,
+            check=True,
+            capture_output=True,
+        )
+
+    return sdd_dir
+
+
+def commit_sdd_files(sdd_dir: Path, message: str) -> None:
+    """Auto-commit SDD files in a local `.sase/sdd/` git repo.
+
+    No-op if `sdd_dir` is not a git repo or there are no staged changes.
+    """
+    if not (sdd_dir / ".git").is_dir():
+        return
+
+    subprocess.run(["git", "add", "-A"], cwd=sdd_dir, check=True, capture_output=True)
+
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        cwd=sdd_dir,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        # There are staged changes — commit them
+        subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=sdd_dir,
+            check=True,
+            capture_output=True,
+        )
 
 
 def check_epic_available(workspace_dir: str, workspace_num: int) -> bool:
