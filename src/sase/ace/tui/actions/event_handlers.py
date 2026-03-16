@@ -109,12 +109,12 @@ class EventHandlersMixin:
                 # Re-write PID file periodically so it recovers if
                 # deleted externally (e.g. stale cleanup race).
                 write_tui_pid()
-                # Only write the activity/HWM timestamp while the user
-                # is active.  When idle, _check_idle_state already wrote
+                # Only write the activity timestamp while the user is
+                # active.  When idle, _check_idle_state already wrote
                 # the idle transition time and we must not overwrite it
-                # with the stale last-keypress time — that would let the
-                # Telegram outbound chop's high-water mark fall behind
-                # notifications that the user already saw in the TUI.
+                # with the stale last-keypress time — is_idle() uses
+                # the activity timestamp to detect manual/pinned idle
+                # (epoch=0) vs natural idle.
                 indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
                 if not indicator._idle:
                     from sase.ace.tui_activity import write_activity_timestamp
@@ -147,12 +147,9 @@ class EventHandlersMixin:
 
             write_idle_state(idle)
             if idle:
-                # Write the current wall-clock time (idle transition time)
-                # so the Telegram outbound chop's high-water mark advances
-                # past notifications the user already saw in the TUI.
-                # Without this, the high-water mark stays at the last
-                # keypress time, and any notification created between the
-                # last keypress and the idle transition leaks to Telegram.
+                # Write the current wall-clock time so is_idle() can
+                # distinguish natural idle (non-zero epoch) from
+                # manual/pinned idle (epoch=0).
                 write_activity_timestamp(time.time())
 
     def _record_user_activity(self) -> None:
