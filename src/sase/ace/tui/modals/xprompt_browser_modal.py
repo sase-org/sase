@@ -95,6 +95,10 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
         filename = source_path.removeprefix("config_overlay:")
         return "sase.yml Config", f"~/.config/sase/{filename}", True
 
+    # Local sase.yml in CWD
+    if source_path == "local_config":
+        return "Local sase.yml", "./sase.yml", True
+
     # Inside sase package (built-in)
     if source_path.startswith(sase_pkg_dir):
         return "Built-in", source_path.replace(home, "~"), False
