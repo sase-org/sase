@@ -144,6 +144,7 @@ def notify_plan_approval(
     agent_cl_name: str | None = None,
     agent_project_file: str | None = None,
     agent_timestamp: str | None = None,
+    epic_available: bool = False,
 ) -> None:
     """Send a notification when a Claude Code plan is ready for approval."""
     plan_name = plan_file.rsplit("/", 1)[-1] if "/" in plan_file else plan_file
@@ -159,6 +160,8 @@ def notify_plan_approval(
         action_data["agent_project_file"] = agent_project_file
     if agent_timestamp:
         action_data["agent_timestamp"] = agent_timestamp
+    if epic_available:
+        action_data["epic_available"] = "true"
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(EASTERN_TZ).isoformat(),

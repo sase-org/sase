@@ -143,6 +143,12 @@ def main() -> None:
 
     prompt = resolve_xprompt_aliases(prompt)
 
+    # Extract VCS workflow tag from the raw prompt before xprompt expansion.
+    # This is needed to prepend the tag to follow-up agents (.code, .epic).
+    from sase.xprompt._parsing import extract_vcs_workflow_tag
+
+    vcs_tag = extract_vcs_workflow_tag(prompt)
+
     # Save raw xprompt for TUI display (before any preprocessing)
     raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
     with open(raw_xprompt_path, "w", encoding="utf-8") as f:
@@ -280,25 +286,33 @@ def main() -> None:
                     update_meta_suffix(current_artifacts_dir, ".plan")
                     from sase.llm_provider._plan_utils import handle_plan_approval
 
+                    # Check if the Epic option should be offered
+                    from sase.sdd import check_epic_available
+
+                    epic_available = check_epic_available(workspace_dir, workspace_num)
+
                     # Clear the killed flag set by the plan command's SIGTERM
                     # so the poll loop only exits on a NEW kill signal.
                     reset_killed()
-                    approved = handle_plan_approval(
+                    plan_result = handle_plan_approval(
                         plan_data.get("plan_file"),
                         str(uuid.uuid4()),
                         killed_check=was_killed,
+                        epic_available=epic_available,
                     )
-                    if approved is None and was_killed():
+                    if plan_result is None and was_killed():
                         loop_outcome = "killed"
                         break
-                    if not approved:
+                    if plan_result is None:
                         loop_outcome = "plan_rejected"
                         break
+                    approved, plan_action = plan_result
                     # Write plan_path.json so the TUI can show the plan
                     # in the file panel for the .plan agent entry.
                     _write_plan_path_artifact(current_artifacts_dir, approved)
 
                     # Write SDD files (spec + plan) to project
+                    sdd_plan_name: str | None = None
                     try:
                         from sase.sdd import (
                             get_sdd_config,
@@ -310,28 +324,49 @@ def main() -> None:
                         sdd_dir = get_sdd_dir(
                             workspace_dir, workspace_num, version_controlled
                         )
-                        plan_name = os.path.splitext(os.path.basename(approved))[0]
+                        sdd_plan_name = os.path.splitext(os.path.basename(approved))[0]
                         sdd_spec_path_obj, _ = write_sdd_files(
-                            sdd_dir, plan_name, prompt, approved
+                            sdd_dir, sdd_plan_name, prompt, approved
                         )
                         sdd_spec_path = str(sdd_spec_path_obj)
                     except Exception:
                         pass  # Best effort — don't block the workflow
 
-                    # Plan approved -> spawn coder with plan as prompt
-                    current_role_suffix = ".code"
-                    current_artifacts_dir = create_followup_artifacts(
-                        project_name,
-                        agent_meta,
-                        current_role_suffix,
-                        convert_timestamp_to_artifacts_format(timestamp),
-                        workspace_num=workspace_num,
-                    )
-                    current_prompt = (
-                        f"@{plan_data['plan_file']}\n\n"
-                        "The above plan has been reviewed and approved. "
-                        "Implement it now."
-                    )
+                    # VCS workflow tag prefix for follow-up agents
+                    vcs_prefix = vcs_tag or ""
+
+                    if plan_action == "epic":
+                        # Epic: spawn epic agent to create beads
+                        current_role_suffix = ".epic"
+                        current_artifacts_dir = create_followup_artifacts(
+                            project_name,
+                            agent_meta,
+                            current_role_suffix,
+                            convert_timestamp_to_artifacts_format(timestamp),
+                            workspace_num=workspace_num,
+                        )
+                        plan_ref = (
+                            f"plans/{sdd_plan_name}.md"
+                            if sdd_plan_name
+                            else plan_data["plan_file"]
+                        )
+                        current_prompt = f"{vcs_prefix}#bd/new_epic:{plan_ref}"
+                    else:
+                        # Approve: spawn coder with plan as prompt
+                        current_role_suffix = ".code"
+                        current_artifacts_dir = create_followup_artifacts(
+                            project_name,
+                            agent_meta,
+                            current_role_suffix,
+                            convert_timestamp_to_artifacts_format(timestamp),
+                            workspace_num=workspace_num,
+                        )
+                        current_prompt = (
+                            f"{vcs_prefix}"
+                            f"@{plan_data['plan_file']}\n\n"
+                            "The above plan has been reviewed and approved. "
+                            "Implement it now."
+                        )
                     continue
 
                 elif q_data:

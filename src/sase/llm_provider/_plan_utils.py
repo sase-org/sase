@@ -38,7 +38,8 @@ def handle_plan_approval(
     session_id: str,
     *,
     killed_check: Callable[[], bool] | None = None,
-) -> str | None:
+    epic_available: bool = False,
+) -> tuple[str, str] | None:
     """Handle plan approval flow.
 
     Creates a TUI notification via ``notify_plan_approval()``, then polls for
@@ -50,13 +51,15 @@ def handle_plan_approval(
         killed_check: Optional callable that returns True if the process was
             killed (SIGTERM). When provided, the poll loop checks it each
             iteration and returns None early if killed.
+        epic_available: Whether the Epic option should be offered.
 
-    Returns the plan file path if approved, ``None`` if rejected or missing.
+    Returns ``(plan_file, action)`` where action is ``"approve"`` or
+    ``"epic"`` when accepted, or ``None`` if rejected / missing / killed.
     """
     from sase.main.plan_approve_handler import is_auto_approve_active
 
     if is_auto_approve_active():
-        return plan_file
+        return (plan_file, "approve") if plan_file else None
 
     if not plan_file:
         return None
@@ -92,6 +95,7 @@ def handle_plan_approval(
         agent_cl_name=agent_cl_name,
         agent_project_file=agent_project_file,
         agent_timestamp=agent_timestamp,
+        epic_available=epic_available,
     )
 
     # Desktop notification + tmux bell
@@ -120,9 +124,10 @@ def handle_plan_approval(
                 if request_path.exists():
                     request_path.unlink()
 
-                if response_data.get("action") == "approve":
+                action = response_data.get("action")
+                if action in ("approve", "epic"):
                     response_path.unlink()
-                    return plan_file
+                    return (plan_file, action)
                 # On rejection, do NOT delete response_path so
                 # read_plan_feedback() can read the feedback.
                 return None
