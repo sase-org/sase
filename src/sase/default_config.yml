@@ -236,3 +236,24 @@ xprompts:
       Finally, find the plan file associated with this work (should be in the plans/ directory) and then look for a file of
       the same name in the prompts/ directory. If found, a `status` field should be added (or updated if it already exists) to
       the frontmatter of the plan file with a value of `done`.
+
+  bd/review/prompt:
+    input:
+      file_base: word
+    content: |
+      Can you help me review the prompt I've prepared in the @prompts/{{ file_base }}.md file and look for gaps / ambiguity
+      in the requirements? In particular, what design decisions would you need from me if I were to ask you to implement the
+      functionality described in that file?
+
+  bd/review/plan:
+    input:
+      file_base: word
+    content: |
+      Can you review the requirements in the @prompts/{{ file_base }}.md file against the plan in the @plans/{{ file_base }}.md
+      file and ensure that the following qualities are met?:
+
+        1. ALL requirements in the prompt file have been satisified.
+        2. Each phase of the plan is sufficiently detailed.
+        3. ALL necessary design decisions have been made and documented in the plan.
+
+      If there are any deficiencies in the current plan, you should update the plan file to properly address them.
