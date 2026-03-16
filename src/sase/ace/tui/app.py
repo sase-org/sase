@@ -409,21 +409,32 @@ class AceApp(
         if self._auto_start_axe and not self.axe_running:
             self._start_axe()
 
-        # Write initial activity timestamp, idle state, and PID file
-        self._last_activity_time = time.monotonic()
-        self._last_activity_flush = time.monotonic()
+        # Write initial activity timestamp, idle state, and PID file.
+        # If pinned idle was active in the previous session, restore it.
         from sase.ace.tui_activity import (
+            read_pinned_idle,
             write_activity_timestamp,
             write_idle_state,
             write_last_keypress,
             write_tui_pid,
         )
 
-        now = time.time()
-        write_activity_timestamp(now)
-        write_last_keypress(now)
-        write_idle_state(False)
         write_tui_pid()
+        if read_pinned_idle():
+            self._pinned_idle = True
+            if hasattr(self, "_last_activity_time"):
+                del self._last_activity_time
+            write_activity_timestamp(0)
+            write_idle_state(True)
+            indicator = self.query_one("#inactive-indicator", InactiveIndicator)
+            indicator.set_idle(True, pinned=True)
+        else:
+            self._last_activity_time = time.monotonic()
+            self._last_activity_flush = time.monotonic()
+            now = time.time()
+            write_activity_timestamp(now)
+            write_last_keypress(now)
+            write_idle_state(False)
 
         # Set up auto-refresh timer if enabled
         if self.refresh_interval > 0:

@@ -14,6 +14,7 @@ ACTIVITY_FILE: Path = Path.home() / ".sase" / "tui_last_activity"
 PID_FILE: Path = Path.home() / ".sase" / "tui_pid"
 IDLE_STATE_FILE: Path = Path.home() / ".sase" / "tui_idle_state"
 LAST_KEYPRESS_FILE: Path = Path.home() / ".sase" / "tui_last_keypress"
+PINNED_IDLE_FILE: Path = Path.home() / ".sase" / "tui_pinned_idle"
 
 # If the TUI is running and reports idle, but the last keypress was
 # less than this many seconds ago, something is wrong — override
@@ -118,6 +119,25 @@ def remove_last_keypress() -> None:
         LAST_KEYPRESS_FILE.unlink()
     except FileNotFoundError:
         pass
+
+
+def write_pinned_idle(pinned: bool) -> None:
+    """Atomically write the pinned idle state to disk.
+
+    Persists the pinned idle flag so the TUI can restore it after a restart.
+    """
+    PINNED_IDLE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = PINNED_IDLE_FILE.with_suffix(".tmp")
+    tmp.write_text("1" if pinned else "0")
+    os.replace(tmp, PINNED_IDLE_FILE)
+
+
+def read_pinned_idle() -> bool:
+    """Return whether pinned idle was active in a previous session."""
+    try:
+        return PINNED_IDLE_FILE.read_text().strip() == "1"
+    except (FileNotFoundError, ValueError):
+        return False
 
 
 def _is_tui_running() -> bool:

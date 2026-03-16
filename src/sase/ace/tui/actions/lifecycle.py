@@ -76,10 +76,15 @@ class LifecycleMixin:
             write_activity_timestamp,
         )
 
-        write_activity_timestamp(time.time())
-        remove_idle_state()
-        remove_last_keypress()
-        remove_tui_pid()
+        if self._pinned_idle:
+            # Pinned idle persists across restarts — leave idle state files
+            # intact so external consumers still see the user as idle.
+            remove_tui_pid()
+        else:
+            write_activity_timestamp(time.time())
+            remove_idle_state()
+            remove_last_keypress()
+            remove_tui_pid()
         self.exit()  # type: ignore[attr-defined]
 
     def action_mark_inactive(self) -> None:
@@ -119,28 +124,39 @@ class LifecycleMixin:
         """Toggle pinned idle mode.
 
         Pinned idle stays active until explicitly toggled off with I.
-        Regular keypresses do not clear pinned idle.
+        Regular keypresses do not clear pinned idle.  The state is
+        persisted to disk so it survives TUI restarts.
         """
         from ..widgets import InactiveIndicator
 
         indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
         if self._pinned_idle:
             # Currently in pinned idle — exit it.
-            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
+            from sase.ace.tui_activity import (
+                write_activity_timestamp,
+                write_idle_state,
+                write_pinned_idle,
+            )
 
             self._pinned_idle = False
             self._last_activity_time = time.monotonic()
             write_activity_timestamp(time.time())
             write_idle_state(False)
+            write_pinned_idle(False)
             indicator.set_idle(False)
             return
 
         # Enter pinned idle.
-        from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
+        from sase.ace.tui_activity import (
+            write_activity_timestamp,
+            write_idle_state,
+            write_pinned_idle,
+        )
 
         self._pinned_idle = True
         write_activity_timestamp(0)
         write_idle_state(True)
+        write_pinned_idle(True)
         # Clear activity tracking so _on_countdown_tick() doesn't overwrite
         # the inactive marker (epoch 0) with the current time.
         if hasattr(self, "_last_activity_time"):
