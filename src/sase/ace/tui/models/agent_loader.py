@@ -537,24 +537,28 @@ def load_all_agents() -> list[Agent]:
     for agent in agents:
         if agent.raw_suffix and not agent.is_workflow_child:
             parent_by_suffix[agent.raw_suffix] = agent
+    parents_with_followup: set[str] = set()
     for agent in agents:
         if (
             agent.parent_timestamp
             and not agent.parent_workflow  # Follow-up agent, not workflow step
-            and agent.status not in _completed_statuses
         ):
-            parent = parent_by_suffix.get(agent.parent_timestamp)
-            if parent and parent.status == "DONE":
-                parent.status = "PLAN APPROVED"
+            parents_with_followup.add(agent.parent_timestamp)
+            if agent.status not in _completed_statuses:
+                parent = parent_by_suffix.get(agent.parent_timestamp)
+                if parent and parent.status == "DONE":
+                    parent.status = "PLAN APPROVED"
 
     # Override DONE → PLANNING for plan-only workflows (no follow-up spawned yet).
     # A workflow with role_suffix ".plan" that's still DONE means the plan was
     # submitted but no coder follow-up exists yet (awaiting user approval).
+    # If a follow-up exists (even if completed), the plan was already approved.
     for agent in agents:
         if (
             agent.agent_type == AgentType.WORKFLOW
             and agent.role_suffix == ".plan"
             and agent.status == "DONE"
+            and agent.raw_suffix not in parents_with_followup
         ):
             agent.status = "PLANNING"
 
