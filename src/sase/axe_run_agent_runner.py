@@ -148,6 +148,13 @@ def main() -> None:
     with open(raw_xprompt_path, "w", encoding="utf-8") as f:
         f.write(prompt)
 
+    # Expand xprompt references so directives from xprompts (e.g.,
+    # #swarm expanding to %model:opus) are available for extraction.
+    # This must happen after saving raw_xprompt.md above.
+    from sase.xprompt.processor import process_xprompt_references
+
+    prompt = process_xprompt_references(prompt)
+
     # Defaults for agent metadata (populated later, but needed by error handler)
     agent_name: str | None = None
     agent_model: str | None = None

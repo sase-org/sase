@@ -145,8 +145,10 @@ class AgentLaunchMixin:
 
         # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
         # so multi-model directives from xprompts are detected below.
+        # Keep the raw prompt for the agent runner to save as raw_xprompt.md.
         from sase.xprompt.processor import process_xprompt_references
 
+        raw_prompt = prompt
         prompt = process_xprompt_references(prompt)
 
         self._prompt_context = None
@@ -168,14 +170,15 @@ class AgentLaunchMixin:
             ctx.workspace_num = 0
             ctx.workspace_dir = get_workspace_directory(ctx.project_name, 1)
 
-        # Launch single background agent
+        # Launch single background agent — pass raw (unexpanded) prompt so
+        # the runner saves the original user input as raw_xprompt.md.
         self._launch_background_agent(
             cl_name=ctx.display_name,
             project_file=ctx.project_file,
             workspace_dir=ctx.workspace_dir,
             workspace_num=ctx.workspace_num,
             workflow_name=ctx.workflow_name,
-            prompt=prompt,
+            prompt=raw_prompt,
             timestamp=ctx.timestamp,
             update_target=ctx.update_target,
             project_name=ctx.project_name,
