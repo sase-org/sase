@@ -20,10 +20,21 @@ resolve_primary_dir() {
 workspace_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 primary_dir="$(resolve_primary_dir "$workspace_dir")"
 
+sdd_beads="$primary_dir/.sase/sdd/.beads"
+sdd_dir=""  # set when .beads/ lives inside .sase/sdd/
+
 if [[ ! -d "$primary_dir/.beads" ]]; then
-    if [[ -d "$primary_dir/.sase/sdd/.git" ]]; then
-        # Local SDD setup detected — auto-init .beads/
-        bd init --quiet --skip-hooks --dir "$primary_dir" 2>/dev/null || true
+    if [[ -d "$sdd_beads" ]]; then
+        # Non-VC repo: .beads/ lives inside .sase/sdd/
+        sdd_dir="$primary_dir/.sase/sdd"
+        primary_dir="$sdd_dir"
+    elif [[ -d "$primary_dir/.sase/sdd/.git" ]]; then
+        # Local SDD setup detected — auto-init .beads/ inside .sase/sdd/
+        bd init --quiet --skip-hooks --dir "$primary_dir/.sase/sdd" 2>/dev/null || true
+        if [[ -d "$sdd_beads" ]]; then
+            sdd_dir="$primary_dir/.sase/sdd"
+            primary_dir="$sdd_dir"
+        fi
     fi
     if [[ ! -d "$primary_dir/.beads" ]]; then
         echo "sase_bd: warning: '$primary_dir' has no .beads/, falling back to current dir" >&2
@@ -74,6 +85,16 @@ if [[ "${1:-}" == "show" && -n "${2:-}" ]]; then
     echo "sase_bd: 'bd show' failed (exit $rc), falling back to JSONL parsing" >&2
     jsonl_show_fallback "$2"
     exit $?
+fi
+
+# Auto-commit to .sase/sdd/ git repo after write operations
+if [[ -n "$sdd_dir" ]] && [[ "${1:-}" =~ ^(create|update|close|dep|init)$ ]]; then
+    bd "$@"
+    rc=$?
+    git -C "$sdd_dir" add -A 2>/dev/null || true
+    git -C "$sdd_dir" diff --cached --quiet 2>/dev/null || \
+        git -C "$sdd_dir" commit -m "beads: $1" --quiet 2>/dev/null || true
+    exit $rc
 fi
 
 exec bd "$@"

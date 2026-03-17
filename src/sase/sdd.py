@@ -58,11 +58,11 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
     if not (sdd_dir / ".git").is_dir():
         subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
 
-    beads_dir = Path(primary) / ".beads"
+    beads_dir = sdd_dir / ".beads"
     if not beads_dir.is_dir():
         subprocess.run(
             ["bd", "init", "--quiet", "--skip-hooks"],
-            cwd=primary,
+            cwd=sdd_dir,
             check=True,
             capture_output=True,
         )
@@ -98,14 +98,14 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
 def check_epic_available(workspace_dir: str, workspace_num: int) -> bool:
     """Check if the Epic option should be shown for plan approval.
 
-    Requires both:
-    1. ``sdd.version_controlled`` is enabled in merged config
-    2. ``.beads/`` directory exists in the primary workspace
+    Returns True when ``.beads/`` exists in the primary workspace.
+    For VC repos: ``primary/.beads/``
+    For non-VC repos: ``primary/.sase/sdd/.beads/``
     """
-    if not get_sdd_config():
-        return False
     primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
-    return Path(primary, ".beads").is_dir()
+    if get_sdd_config():
+        return Path(primary, ".beads").is_dir()
+    return Path(primary, ".sase", "sdd", ".beads").is_dir()
 
 
 def write_sdd_files(

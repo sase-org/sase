@@ -153,6 +153,10 @@ def test_init_beads_creates_sdd_git_repo() -> None:
 
         assert result == Path(tmpdir) / ".sase" / "sdd"
         assert result.is_dir()
+        # Verify bd init was called with cwd=sdd_dir (not primary workspace)
+        sdd_dir = Path(tmpdir) / ".sase" / "sdd"
+        bd_call = mock_run.call_args_list[1]  # second call is bd init
+        assert bd_call.kwargs.get("cwd") == sdd_dir
 
 
 def test_init_beads_idempotent() -> None:
@@ -162,8 +166,8 @@ def test_init_beads_idempotent() -> None:
         sdd_dir.mkdir(parents=True)
         # Simulate existing git repo
         (sdd_dir / ".git").mkdir()
-        # Simulate existing .beads
-        (Path(tmpdir) / ".beads").mkdir()
+        # Simulate existing .beads inside sdd_dir
+        (sdd_dir / ".beads").mkdir()
 
         result = init_beads(tmpdir, 1)
         assert result == sdd_dir

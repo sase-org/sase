@@ -29,10 +29,11 @@ def test_check_epic_available_no_beads_dir() -> None:
 
 
 def test_check_epic_available_sdd_disabled() -> None:
-    """Returns False when sdd.version_controlled is disabled."""
+    """Returns False when sdd.version_controlled is disabled and no .sase/sdd/.beads/."""
     with tempfile.TemporaryDirectory() as tmpdir:
         (Path(tmpdir) / ".beads").mkdir()
         with patch("sase.sdd.get_sdd_config", return_value=False):
+            # .beads/ at project root doesn't count for non-VC repos
             assert check_epic_available(tmpdir, 1) is False
 
 
@@ -41,6 +42,14 @@ def test_check_epic_available_both_missing() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("sase.sdd.get_sdd_config", return_value=False):
             assert check_epic_available(tmpdir, 1) is False
+
+
+def test_check_epic_available_non_vc_repo() -> None:
+    """Returns True for non-VC repo with .sase/sdd/.beads/."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        (Path(tmpdir) / ".sase" / "sdd" / ".beads").mkdir(parents=True)
+        with patch("sase.sdd.get_sdd_config", return_value=False):
+            assert check_epic_available(tmpdir, 1) is True
 
 
 def test_check_epic_available_workspace_num_2() -> None:
@@ -93,6 +102,26 @@ def test_epic_prompt_without_vcs_tag() -> None:
     sdd_plan_name = "my_feature"
     expected = "#bd/new_epic:plans/my_feature.md"
     assert f"{vcs_tag}#bd/new_epic:plans/{sdd_plan_name}.md" == expected
+
+
+def test_epic_prompt_non_vc_repo() -> None:
+    """Epic prompt for non-VC repo should use .sase/sdd/plans/ prefix."""
+    vcs_tag = ""
+    sdd_plan_name = "my_feature"
+    version_controlled = False
+    plan_ref = (
+        f".sase/sdd/plans/{sdd_plan_name}.md"
+        if sdd_plan_name and not version_controlled
+        else f"plans/{sdd_plan_name}.md"
+        if sdd_plan_name
+        else "fallback"
+    )
+    expected = ".sase/sdd/plans/my_feature.md"
+    assert plan_ref == expected
+    assert (
+        f"{vcs_tag}#bd/new_epic:{plan_ref}"
+        == "#bd/new_epic:.sase/sdd/plans/my_feature.md"
+    )
 
 
 def test_coder_prompt_includes_vcs_tag() -> None:

@@ -10,6 +10,7 @@ import subprocess
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sase.axe_run_agent_helpers import (
@@ -100,8 +101,6 @@ def _write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
     This allows the TUI workflow loader to find the plan file and display
     it in the file panel for the .plan agent entry.
     """
-    from pathlib import Path
-
     plan_path_file = Path(artifacts_dir) / "plan_path.json"
     try:
         with open(plan_path_file, "w", encoding="utf-8") as f:
@@ -285,15 +284,17 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             _write_plan_path_artifact(current_artifacts_dir, plan_result.plan_file)
 
             # Write SDD files (spec + plan) to project
-            sdd_plan_name: str | None = None
-            try:
-                from sase.sdd import (
-                    commit_sdd_files,
-                    get_sdd_config,
-                    get_sdd_dir,
-                    write_sdd_files,
-                )
+            from sase.sdd import (
+                commit_sdd_files,
+                get_sdd_config,
+                get_sdd_dir,
+                write_sdd_files,
+            )
 
+            sdd_plan_name: str | None = None
+            version_controlled = True  # safe default (VC path is the no-op path)
+            sdd_dir = Path(ctx.workspace_dir)
+            try:
                 version_controlled = get_sdd_config()
                 sdd_dir = get_sdd_dir(
                     ctx.workspace_dir, ctx.workspace_num, version_controlled
@@ -316,7 +317,10 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             if plan_result.action == "epic":
                 # Commit SDD files so the #gh pre-step doesn't wipe them
                 if sdd_plan_name:
-                    _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
+                    if version_controlled:
+                        _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
+                    else:
+                        commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
                 # Epic: spawn epic agent to create beads
                 current_role_suffix = ".epic"
                 current_artifacts_dir = create_followup_artifacts(
@@ -327,7 +331,9 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                     workspace_num=ctx.workspace_num,
                 )
                 plan_ref = (
-                    f"plans/{sdd_plan_name}.md"
+                    f".sase/sdd/plans/{sdd_plan_name}.md"
+                    if sdd_plan_name and not version_controlled
+                    else f"plans/{sdd_plan_name}.md"
                     if sdd_plan_name
                     else plan_data["plan_file"]
                 )
@@ -380,11 +386,9 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             # Update SDD spec file with Q&A answers
             if sdd_spec_path is not None:
                 try:
-                    from pathlib import Path as _Path
-
                     from sase.sdd import update_spec_with_qa
 
-                    update_spec_with_qa(_Path(sdd_spec_path), qa_text)
+                    update_spec_with_qa(Path(sdd_spec_path), qa_text)
                 except Exception:
                     pass  # Best effort
             _allow_retry = False
