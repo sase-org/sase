@@ -34,3 +34,28 @@ def test_find_beads_location_non_vc_walkup_fallback_when_primary_unknown(
 
     assert root == workspace / ".sase" / "sdd"
     assert beads_dirname == "beads"
+
+
+def test_find_beads_location_non_vc_variant_workspace_maps_to_primary(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    project_name = "yserve"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+
+    primary = tmp_path / "workspaces" / "yserve_yp_last_conv" / "google3"
+    primary.mkdir(parents=True)
+    (project_dir / f"{project_name}.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+
+    variant = tmp_path / "workspaces" / "yserve_101" / "google3"
+    variant.mkdir(parents=True)
+    monkeypatch.chdir(variant)
+
+    with patch("sase.sdd.get_sdd_config", return_value=None):
+        root, beads_dirname = _find_beads_location()
+
+    assert root == primary / ".sase" / "sdd"
+    assert beads_dirname == "beads"

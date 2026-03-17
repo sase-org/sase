@@ -15,6 +15,7 @@ from pathlib import Path
 from sase.bead import db as db_mod
 from sase.bead.jsonl import dict_to_issue
 from sase.bead.model import Issue, IssueType, Status
+from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 
 
@@ -43,14 +44,8 @@ def resolve_primary_workspace() -> Path | None:
     that implement ``vcs_get_workspace_name`` but not the workspace
     provider hook.
     """
-    # Strategy 1: workspace provider plugin
-    project_name: str | None = None
-    try:
-        from sase.workspace_provider import get_workspace_name
-
-        project_name = get_workspace_name(os.getcwd())
-    except Exception:
-        pass
+    # Strategy 1: workspace/provider-derived project name
+    project_name = infer_project_name_from_cwd()
 
     if project_name:
         result = _resolve_from_project_file(project_name)
@@ -118,44 +113,18 @@ def _resolve_by_scanning_projects(cwd: str) -> Path | None:
     Handles numbered workspace variants (e.g. CWD under ``yserve_101/google3``
     matches project ``yserve`` with ``WORKSPACE_DIR=/…/yserve/google3``).
     """
-    projects_dir = Path.home() / ".sase" / "projects"
-    if not projects_dir.is_dir():
+    scanned = scan_projects_for_cwd(cwd)
+    if scanned is None:
         return None
-
-    from sase.workspace_utils import parse_workspace_dir
-
-    for project_dir in sorted(projects_dir.iterdir()):
-        if not project_dir.is_dir():
-            continue
-        project_name = project_dir.name
-        gp_file = project_dir / f"{project_name}.gp"
-        workspace_dir = parse_workspace_dir(str(gp_file))
-        if not workspace_dir:
-            continue
-
-        primary = Path(workspace_dir.rstrip("/"))
-        if not primary.is_dir():
-            continue
-
-        # Direct match: CWD is under the primary workspace
-        primary_str = str(primary)
-        if cwd == primary_str or cwd.startswith(primary_str + "/"):
-            return primary
-
-        # Numbered variant: e.g. primary = /a/yserve/google3,
-        # CWD = /a/yserve_101/google3/...
-        if _cwd_matches_numbered_workspace(cwd, primary, project_name):
-            return primary
-
-    return None
+    return scanned[1]
 
 
-def _cwd_matches_numbered_workspace(cwd: str, primary: Path, project_name: str) -> bool:
+def cwd_matches_workspace_variant(cwd: str, primary: Path, project_name: str) -> bool:
     """Check if *cwd* is under a numbered variant of *primary*.
 
-    Compares path components and allows exactly one to differ: the
-    component equal to *project_name* in *primary* may appear as
-    ``project_name_<N>`` in *cwd*.
+    Compares path components and allows exactly one variant difference:
+    a component matching ``project_name`` or ``project_name_<suffix>``
+    may be replaced by another component with the same base project name.
     """
     primary_parts = primary.parts
     cwd_parts = Path(cwd).parts
@@ -163,13 +132,17 @@ def _cwd_matches_numbered_workspace(cwd: str, primary: Path, project_name: str) 
     if len(cwd_parts) < len(primary_parts):
         return False
 
-    numbered_re = re.compile(rf"^{re.escape(project_name)}_\d+$")
-
     for i in range(len(primary_parts)):
         if primary_parts[i] == cwd_parts[i]:
             continue
-        # Allow exactly one difference: project_name → project_name_N
-        if primary_parts[i] == project_name and numbered_re.match(cwd_parts[i]):
+        # Allow exactly one difference: project_name(_*) ↔ project_name(_*)
+        primary_is_variant = primary_parts[i] == project_name or primary_parts[
+            i
+        ].startswith(f"{project_name}_")
+        cwd_is_variant = cwd_parts[i] == project_name or cwd_parts[i].startswith(
+            f"{project_name}_"
+        )
+        if primary_is_variant and cwd_is_variant:
             # Remaining primary parts must match
             for j in range(i + 1, len(primary_parts)):
                 if cwd_parts[j] != primary_parts[j]:

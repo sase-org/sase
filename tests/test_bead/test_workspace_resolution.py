@@ -4,9 +4,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.bead.workspace import (
-    _cwd_matches_numbered_workspace,
     _enumerate_workspace_beads_dirs,
     _resolve_by_scanning_projects,
+    cwd_matches_workspace_variant,
     resolve_primary_workspace,
 )
 
@@ -33,43 +33,46 @@ def test_enumerate_workspace_beads_dirs_vc_includes_workspaces(tmp_path: Path) -
     assert result == [primary / ".sase_beads", workspace_2 / ".sase_beads"]
 
 
-# --- _cwd_matches_numbered_workspace tests ---
+# --- cwd_matches_workspace_variant tests ---
 
 
 def test_numbered_workspace_basic_match() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert _cwd_matches_numbered_workspace("/a/b/yserve_101/google3", primary, "yserve")
+    assert cwd_matches_workspace_variant("/a/b/yserve_101/google3", primary, "yserve")
 
 
 def test_numbered_workspace_cwd_deeper_than_primary() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert _cwd_matches_numbered_workspace(
+    assert cwd_matches_workspace_variant(
         "/a/b/yserve_101/google3/deep/path", primary, "yserve"
     )
 
 
 def test_numbered_workspace_no_match_different_project() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert not _cwd_matches_numbered_workspace(
+    assert not cwd_matches_workspace_variant(
         "/a/b/other_101/google3", primary, "yserve"
     )
 
 
 def test_numbered_workspace_no_match_same_dir() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert not _cwd_matches_numbered_workspace("/a/b/yserve/google3", primary, "yserve")
+    assert not cwd_matches_workspace_variant("/a/b/yserve/google3", primary, "yserve")
 
 
 def test_numbered_workspace_no_match_cwd_too_short() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert not _cwd_matches_numbered_workspace("/a/b", primary, "yserve")
+    assert not cwd_matches_workspace_variant("/a/b", primary, "yserve")
 
 
 def test_numbered_workspace_suffix_only_digits() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert not _cwd_matches_numbered_workspace(
-        "/a/b/yserve_abc/google3", primary, "yserve"
-    )
+    assert cwd_matches_workspace_variant("/a/b/yserve_abc/google3", primary, "yserve")
+
+
+def test_numbered_workspace_variant_to_variant_match() -> None:
+    primary = Path("/a/b/yserve_yp_last_conv/google3")
+    assert cwd_matches_workspace_variant("/a/b/yserve_101/google3", primary, "yserve")
 
 
 # --- _resolve_by_scanning_projects tests ---
@@ -102,6 +105,22 @@ def test_scanning_projects_numbered_variant(tmp_path: Path, monkeypatch) -> None
     numbered.mkdir(parents=True)
 
     result = _resolve_by_scanning_projects(str(numbered))
+    assert result == primary
+
+
+def test_scanning_projects_variant_to_variant(tmp_path: Path, monkeypatch) -> None:
+    """CWD under one variant should match a primary path under another variant."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    projects_dir = tmp_path / ".sase" / "projects" / "yserve"
+    projects_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / "yserve_yp_last_conv" / "google3"
+    primary.mkdir(parents=True)
+    (projects_dir / "yserve.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    cwd_variant = tmp_path / "workspaces" / "yserve_101" / "google3"
+    cwd_variant.mkdir(parents=True)
+
+    result = _resolve_by_scanning_projects(str(cwd_variant))
     assert result == primary
 
 

@@ -6,6 +6,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from sase.bead.project_name import infer_project_name_from_cwd
+
 
 def _git_user_email() -> str:
     """Get the current git user email, or empty string."""
@@ -23,6 +25,10 @@ def _git_user_email() -> str:
 
 def _detect_prefix(root_dir: Path) -> str:
     """Detect issue prefix from git remote or directory name."""
+    project_name = infer_project_name_from_cwd()
+    if project_name:
+        return project_name
+
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],

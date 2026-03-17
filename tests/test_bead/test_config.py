@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import json
 
-from sase.bead.config import get_default_config, load_config, save_config
+from sase.bead.config import (
+    _detect_prefix,
+    get_default_config,
+    load_config,
+    save_config,
+)
 
 
 def test_get_default_config(tmp_path):
@@ -41,3 +46,13 @@ def test_save_config_creates_json(tmp_path):
     raw = (beads_dir / "config.json").read_text()
     parsed = json.loads(raw)
     assert parsed["issue_prefix"] == "proj"
+
+
+def test_detect_prefix_uses_project_name_from_cwd(tmp_path, monkeypatch):
+    root = tmp_path / ".sase" / "sdd"
+    root.mkdir(parents=True)
+
+    monkeypatch.setattr(
+        "sase.bead.config.infer_project_name_from_cwd", lambda: "yserve"
+    )
+    assert _detect_prefix(root) == "yserve"
