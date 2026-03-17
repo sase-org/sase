@@ -33,18 +33,36 @@ def get_project_beads_dirs() -> list[Path] | None:
 def resolve_primary_workspace() -> Path | None:
     """Resolve the primary workspace directory from CWD.
 
-    Uses the sase workspace provider to detect the project name,
-    then looks up WORKSPACE_DIR in the project file.
+    Tries two strategies:
+      1. Workspace provider plugin (``ws_get_workspace_name``).
+      2. Scan ``~/.sase/projects/`` and match CWD against each
+         project's ``WORKSPACE_DIR`` (including numbered variants
+         like ``project_101``).
+
+    Strategy 2 is the fallback for VCS providers (e.g. Mercurial/Google)
+    that implement ``vcs_get_workspace_name`` but not the workspace
+    provider hook.
     """
+    # Strategy 1: workspace provider plugin
+    project_name: str | None = None
     try:
         from sase.workspace_provider import get_workspace_name
 
         project_name = get_workspace_name(os.getcwd())
-        if not project_name:
-            return None
     except Exception:
-        return None
+        pass
 
+    if project_name:
+        result = _resolve_from_project_file(project_name)
+        if result is not None:
+            return result
+
+    # Strategy 2: scan all projects
+    return _resolve_by_scanning_projects(os.path.abspath(os.getcwd()))
+
+
+def _resolve_from_project_file(project_name: str) -> Path | None:
+    """Look up WORKSPACE_DIR from ``~/.sase/projects/<name>/<name>.gp``."""
     project_file = (
         Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
     )
@@ -62,6 +80,74 @@ def resolve_primary_workspace() -> Path | None:
         return None
 
     return primary
+
+
+def _resolve_by_scanning_projects(cwd: str) -> Path | None:
+    """Scan ``~/.sase/projects/`` to find a project whose workspace matches CWD.
+
+    Handles numbered workspace variants (e.g. CWD under ``yserve_101/google3``
+    matches project ``yserve`` with ``WORKSPACE_DIR=/…/yserve/google3``).
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.is_dir():
+        return None
+
+    from sase.workspace_utils import parse_workspace_dir
+
+    for project_dir in sorted(projects_dir.iterdir()):
+        if not project_dir.is_dir():
+            continue
+        project_name = project_dir.name
+        gp_file = project_dir / f"{project_name}.gp"
+        workspace_dir = parse_workspace_dir(str(gp_file))
+        if not workspace_dir:
+            continue
+
+        primary = Path(workspace_dir.rstrip("/"))
+        if not primary.is_dir():
+            continue
+
+        # Direct match: CWD is under the primary workspace
+        primary_str = str(primary)
+        if cwd == primary_str or cwd.startswith(primary_str + "/"):
+            return primary
+
+        # Numbered variant: e.g. primary = /a/yserve/google3,
+        # CWD = /a/yserve_101/google3/...
+        if _cwd_matches_numbered_workspace(cwd, primary, project_name):
+            return primary
+
+    return None
+
+
+def _cwd_matches_numbered_workspace(cwd: str, primary: Path, project_name: str) -> bool:
+    """Check if *cwd* is under a numbered variant of *primary*.
+
+    Compares path components and allows exactly one to differ: the
+    component equal to *project_name* in *primary* may appear as
+    ``project_name_<N>`` in *cwd*.
+    """
+    primary_parts = primary.parts
+    cwd_parts = Path(cwd).parts
+
+    if len(cwd_parts) < len(primary_parts):
+        return False
+
+    numbered_re = re.compile(rf"^{re.escape(project_name)}_\d+$")
+
+    for i in range(len(primary_parts)):
+        if primary_parts[i] == cwd_parts[i]:
+            continue
+        # Allow exactly one difference: project_name → project_name_N
+        if primary_parts[i] == project_name and numbered_re.match(cwd_parts[i]):
+            # Remaining primary parts must match
+            for j in range(i + 1, len(primary_parts)):
+                if cwd_parts[j] != primary_parts[j]:
+                    return False
+            return True
+        return False
+
+    return False
 
 
 def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
