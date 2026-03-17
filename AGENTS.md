@@ -13,7 +13,8 @@ just fmt           # Auto-format code
 just test          # pytest with coverage
 just check         # All checks (fmt-check + lint + test)
 just test-tox      # Multi-version testing (3.12, 3.13, 3.14)
-.venv/bin/sase     # Run CLI (always use .venv/bin/sase, NEVER bare `sase`)
+.venv/bin/sase     # Run CLI (use this for non-bead commands)
+sase bead          # Use bare `sase bead` for bead workflows
 ```
 
 ## Ephemeral `sase_<N>` Workspace Directories
@@ -22,7 +23,7 @@ Sase runs agents (like you) are run from ephemeral workspace directories, which 
 live in the same parent directory as the main repo. These directories are named `sase_<N>` where `<N>` is some integer.
 You need to be mindful not to run commands outside of these workspace directories, since they have their own isolated
 virtual environments. So, for example, if you need to run `sase`, make sure to run `.venv/bin/sase` from within the
-`sase_<N>` directory; you should NEVER run just `sase`.
+`sase_<N>` directory. Exception: for bead commands, run `sase bead ...`.
 
 **IMPORTANT**: One consequence of this is that you need to run `just install` before running other commands like
 `just lint` or `just test` (since it is possible we haven't used this workspace directory in a long time and package

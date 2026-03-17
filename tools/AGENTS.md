@@ -42,5 +42,5 @@ Legacy stop hook with quality checks (formatting, linting, testing, commit promp
 
 ## `sase_bead`
 
-Thin wrapper that delegates to `.venv/bin/sase bead`. Exists for compatibility with tools (like `pyvision`) that expect
-`BD_COMMAND` to be a single executable. Always use `.venv/bin/sase bead` instead of `bd` directly.
+Thin wrapper that delegates to `sase bead`. Exists for compatibility with tools (like `pyvision`) that expect
+`BD_COMMAND` to be a single executable. Always use `sase bead` instead of `bd` directly.

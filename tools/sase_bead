@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec .venv/bin/sase bead "$@"
+exec sase bead "$@"
