@@ -167,9 +167,8 @@ class AceApp(
         # Fold mode state (for z key sub-command)
         self._fold_mode_active: bool = False
 
-        # Checkout/tmux mode state (for c/t key sub-commands)
+        # Checkout mode state (for c key sub-commands)
         self._checkout_mode_active: bool = False
-        self._tmux_mode_active: bool = False
 
         # Copy mode state (for % key sub-commands)
         self._copy_mode_active: bool = False

@@ -74,10 +74,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.start_rewind), "Rewind to prev commit (non-Sub/Rev)"),
                 (d(a.change_status), "Change status"),
                 (d(a.bulk_change_status), "Bulk status change (marked CLs)"),
-                (
-                    f"{d(a.open_tmux)} / {d(a.start_tmux_mode)}1-{d(a.start_tmux_mode)}9",
-                    "Checkout + tmux (workspace 1-9)",
-                ),
+                (d(a.start_tmux_mode), "Checkout + tmux (prompts ws#)"),
                 (d(a.clear_marks), "Clear all marks"),
                 (d(a.view_files), "View files"),
                 (d(a.reword), "Reword CL description"),

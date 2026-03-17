@@ -163,23 +163,26 @@ class WorkspaceActionsMixin:
         self._checkout_mode_active = True  # type: ignore[attr-defined]
 
     def action_start_tmux_mode(self) -> None:
-        """Enter tmux mode - press 1-9 to select workspace."""
+        """Open tmux for selected CL - prompts for workspace number."""
         if self.current_tab != "changespecs":
             return
-        self._tmux_mode_active = True  # type: ignore[attr-defined]
 
-    def _handle_checkout_tmux_key(self, key: str) -> bool:
-        """Handle key in checkout/tmux mode. Returns True if handled."""
-        is_checkout = self._checkout_mode_active  # type: ignore[attr-defined]
+        from ..modals import WorkspaceInputModal
+
+        def on_workspace_entered(workspace_num: int | None) -> None:
+            if workspace_num is None:
+                return
+            self._open_tmux_for_workspace(workspace_num)
+
+        self.push_screen(WorkspaceInputModal(default_workspace=1), on_workspace_entered)  # type: ignore[attr-defined]
+
+    def _handle_checkout_key(self, key: str) -> bool:
+        """Handle key in checkout mode. Returns True if handled."""
         self._checkout_mode_active = False  # type: ignore[attr-defined]
-        self._tmux_mode_active = False  # type: ignore[attr-defined]
 
         if key in "123456789":
             workspace_num = int(key)
-            if is_checkout:
-                self._checkout_to_workspace(workspace_num)
-            else:
-                self._open_tmux_for_workspace(workspace_num)
+            self._checkout_to_workspace(workspace_num)
             return True
 
         # Invalid key - just exit mode

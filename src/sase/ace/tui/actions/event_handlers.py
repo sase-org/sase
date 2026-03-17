@@ -37,7 +37,6 @@ class EventHandlersMixin:
     _countdown_remaining: int
     _fold_mode_active: bool
     _checkout_mode_active: bool
-    _tmux_mode_active: bool
     _copy_mode_active: bool
     _agents: list[Agent]
     _changespecs_last_idx: int
@@ -184,14 +183,14 @@ class EventHandlersMixin:
             self._activity_log.record(ActivityEventType.ACTIVE)
 
     def on_key(self, event: events.Key) -> None:
-        """Handle key events, including fold, checkout/tmux, copy, and ancestry sub-keys."""
+        """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""
         self._record_user_activity()
         if self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
-        elif self._checkout_mode_active or self._tmux_mode_active:
-            if self._handle_checkout_tmux_key(event.key):  # type: ignore[attr-defined]
+        elif self._checkout_mode_active:
+            if self._handle_checkout_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
         elif self._copy_mode_active:
