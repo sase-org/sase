@@ -572,13 +572,13 @@ class EmbeddedWorkflowMixin:
         step: WorkflowStep,
         step_state: StepState,
     ) -> None:
-        """Propagate the last embedded workflow's output to the parent step.
+        """Propagate an embedded workflow's output to the parent step.
 
-        If the parent prompt step declares ``output`` AND the last post-step of
-        the last embedded workflow also declares ``output``, and each parent
-        output property type matches a corresponding embedded output property
-        type, then build a remapped output dict and overwrite
-        ``step_state.output`` and ``self.context[step.name]``.
+        Searches through embedded workflows for the first one whose last
+        post-step output can be type-matched to the parent step's declared
+        ``output``.  The list is ordered rightmost-non-wraps_all first, so
+        forward iteration naturally prefers the rightmost content-producing
+        workflow over wraps_all teardown workflows appended at the end.
 
         Matching is by property **type** (not name), so a parent declaring
         ``{my_path: path}`` will match an embedded step declaring
@@ -594,23 +594,22 @@ class EmbeddedWorkflowMixin:
         if not embedded_workflows:
             return
 
-        last_info = embedded_workflows[-1]
-        if not last_info.post_steps:
-            return
+        for info in embedded_workflows:
+            if not info.post_steps:
+                continue
 
-        last_post_step = last_info.post_steps[-1]
-        if not last_post_step.output:
-            return
+            last_post_step = info.post_steps[-1]
+            if not last_post_step.output:
+                continue
 
-        # Get the actual output of the last post-step from the embedded context
-        embedded_output = last_info.context.get(last_post_step.name)
-        if not isinstance(embedded_output, dict):
-            return
+            embedded_output = info.context.get(last_post_step.name)
+            if not isinstance(embedded_output, dict):
+                continue
 
-        mapped = map_output_by_type(step.output, last_post_step.output, embedded_output)
-        if mapped is None:
-            return
-
-        # Propagate: overwrite step output with remapped output
-        step_state.output = mapped
-        self.context[step.name] = mapped
+            mapped = map_output_by_type(
+                step.output, last_post_step.output, embedded_output
+            )
+            if mapped is not None:
+                step_state.output = mapped
+                self.context[step.name] = mapped
+                return
