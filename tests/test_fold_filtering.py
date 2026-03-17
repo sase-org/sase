@@ -1,7 +1,7 @@
 """Tests for filter_agents_by_fold_state and _compute_fold_annotation."""
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import filter_agents_by_fold_state
+from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.fold_state import FoldStateManager
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
 
