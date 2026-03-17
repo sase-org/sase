@@ -8,39 +8,49 @@ import sys
 from pathlib import Path
 
 from sase.bead.model import IssueType, Status
-from sase.bead.project import BEADS_DIRNAME, BeadProject
+from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
 from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
 
 
-def _find_project_root() -> Path:
-    """Walk up from cwd to find a directory containing .sase_beads/.
+def _find_beads_location() -> tuple[Path, str]:
+    """Walk up from cwd to find a beads directory.
 
-    Falls back to the primary workspace via the sase workspace provider
-    if no .sase_beads/ is found in ancestor directories.
+    Checks both VC mode (.sase_beads/) and non-VC mode (.sase/sdd/beads/).
+    Falls back to the primary workspace via the sase workspace provider.
+
+    Returns (root_dir, beads_dirname) where root_dir / beads_dirname is the
+    beads directory.
     """
     cwd = Path.cwd()
     for parent in [cwd, *cwd.parents]:
         if (parent / BEADS_DIRNAME).is_dir():
-            return parent
+            return parent, BEADS_DIRNAME
+        non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
+        if non_vc.is_dir():
+            return parent / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
 
     # Fall back to workspace provider
     from sase.bead.workspace import resolve_primary_workspace
 
     primary = resolve_primary_workspace()
-    if primary and (primary / BEADS_DIRNAME).is_dir():
-        return primary
+    if primary:
+        if (primary / BEADS_DIRNAME).is_dir():
+            return primary, BEADS_DIRNAME
+        non_vc = primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
+        if non_vc.is_dir():
+            return primary / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
 
-    return cwd
+    return cwd, BEADS_DIRNAME
 
 
 def _get_project() -> BeadProject:
     """Open the BeadProject for write operations."""
-    root = _find_project_root()
+    root, beads_dirname = _find_beads_location()
     try:
-        return BeadProject(root)
+        return BeadProject(root, beads_dirname=beads_dirname)
     except FileNotFoundError:
         print(
-            f"Error: no {BEADS_DIRNAME}/ directory found. Run 'sase bead init' first.",
+            f"Error: no {beads_dirname}/ directory found. Run 'sase bead init' first.",
             file=sys.stderr,
         )
         sys.exit(1)
