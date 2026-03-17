@@ -27,21 +27,26 @@ def _find_beads_location() -> tuple[Path, str]:
 
     primary = resolve_primary_workspace()
     if primary:
-        # Non-VC SDD data is primary-workspace scoped.
+        # Non-VC SDD data is primary-workspace scoped — always check first.
         non_vc = primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
         if non_vc.is_dir():
             return primary / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
+        # VC beads: prefer local workspace copy (each workspace has its own),
+        # then fall back to primary.
+        if (cwd / BEADS_DIRNAME).is_dir():
+            return cwd, BEADS_DIRNAME
         if (primary / BEADS_DIRNAME).is_dir():
             return primary, BEADS_DIRNAME
+        # Nothing initialized yet — default to primary, not cwd.
+        return primary, BEADS_DIRNAME
 
+    # No primary workspace — legacy walk-up from cwd.
     for parent in [cwd, *cwd.parents]:
         if (parent / BEADS_DIRNAME).is_dir():
             return parent, BEADS_DIRNAME
-        # If primary workspace couldn't be resolved, preserve legacy fallback.
-        if primary is None:
-            non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
-            if non_vc.is_dir():
-                return parent / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
+        non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
+        if non_vc.is_dir():
+            return parent / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
 
     return cwd, BEADS_DIRNAME
 
