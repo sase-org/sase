@@ -18,6 +18,7 @@ from sase.axe_run_agent_helpers import (
     extract_step_output_and_diff_path,
     format_qa_for_prompt,
     handle_questions_flow,
+    normalize_handoff_interruption_state,
     read_and_delete_marker,
     update_meta_suffix,
 )
@@ -256,6 +257,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
         )
 
         if plan_data:
+            normalize_handoff_interruption_state(current_artifacts_dir)
             update_meta_suffix(current_artifacts_dir, ".plan")
             from sase.llm_provider._plan_utils import handle_plan_approval
 
@@ -357,6 +359,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             continue
 
         elif q_data:
+            normalize_handoff_interruption_state(current_artifacts_dir)
             current_role_suffix += ".q"
             update_meta_suffix(
                 current_artifacts_dir,

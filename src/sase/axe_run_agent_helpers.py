@@ -8,6 +8,7 @@ import json
 import os
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sase.axe_runner_utils import was_killed
@@ -99,6 +100,84 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
             json.dump(meta, f, indent=2)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
+
+
+def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
+    """Normalize SIGTERM-induced failed state before plan/question handoff.
+
+    ``sase plan`` and ``sase questions`` intentionally SIGTERM the current agent
+    process group so the runner can switch into approval/question mode.  The
+    workflow executor may persist this as a failed step/workflow first
+    (LLMInvocationError exit code -15).  This helper rewrites that transient
+    state to completed so the TUI does not show a false failure.
+    """
+
+    def _is_sigterm_error(error: object) -> bool:
+        if not isinstance(error, str):
+            return False
+        lowered = error.lower()
+        return "exit code -15" in lowered or "sigterm" in lowered
+
+    state_path = Path(artifacts_dir) / "workflow_state.json"
+    saw_sigterm_failure = False
+
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            state_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        state_data = None
+
+    if isinstance(state_data, dict):
+        changed = False
+        for step_data in state_data.get("steps", []):
+            if (
+                isinstance(step_data, dict)
+                and step_data.get("status") == "failed"
+                and _is_sigterm_error(step_data.get("error"))
+            ):
+                saw_sigterm_failure = True
+                step_data["status"] = "completed"
+                step_data["error"] = None
+                step_data["traceback"] = None
+                changed = True
+
+        if state_data.get("status") == "failed" and (
+            saw_sigterm_failure or _is_sigterm_error(state_data.get("error"))
+        ):
+            state_data["status"] = "completed"
+            state_data["error"] = None
+            state_data["traceback"] = None
+            changed = True
+
+        if changed:
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump(state_data, f, indent=2)
+
+    if not saw_sigterm_failure:
+        return
+
+    for marker_path in Path(artifacts_dir).glob("prompt_step_*.json"):
+        try:
+            with open(marker_path, encoding="utf-8") as f:
+                marker_data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        if not isinstance(marker_data, dict):
+            continue
+        if marker_data.get("status") != "failed":
+            continue
+        if not _is_sigterm_error(marker_data.get("error")):
+            continue
+
+        marker_data["status"] = "completed"
+        marker_data["error"] = None
+        marker_data["traceback"] = None
+        try:
+            with open(marker_path, "w", encoding="utf-8") as f:
+                json.dump(marker_data, f, indent=2)
+        except OSError:
+            continue
 
 
 def create_followup_artifacts(
