@@ -16,6 +16,14 @@ _AGENT_TYPE_COLORS: dict[AgentType, str] = {
     AgentType.WORKFLOW: "#FF87D7",  # Pink for workflow agent steps
 }
 
+# Per-step-type colors for workflow child entries
+_STEP_TYPE_COLORS: dict[str, str] = {
+    "agent": "#5FD7FF",  # Bright cyan — LLM agent steps stand out
+    "bash": "#FFAF5F",  # Warm amber — shell commands
+    "python": "#87D787",  # Soft green — code execution
+    "parallel": "#D7AFFF",  # Soft lavender — parallel orchestration
+}
+
 # Icon for autonomous (%approve) agents
 _APPROVE_ICON = "⚡"
 
@@ -304,9 +312,11 @@ class AgentList(OptionList):
         # Agent type indicator with color
         dt = agent.get_display_type(is_expanded=is_expanded)
 
-        # Color: RUNNING blue for appears_as_agent (except anonymous when expanded → WORKFLOW pink)
+        # Color: RUNNING blue for appears_as_agent, per-step-type for workflow children
         if agent.appears_as_agent and not (agent.is_anonymous and is_expanded):
             color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
+        elif agent.is_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
+            color = _STEP_TYPE_COLORS[agent.step_type]
         else:
             color = _AGENT_TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
         text.append(f"[{dt}] ", style=f"bold {color}")

@@ -19,6 +19,14 @@ _TYPE_COLORS: dict[AgentType, str] = {
     AgentType.WORKFLOW: "#FF87D7",
 }
 
+# Per-step-type colors for workflow child entries
+_STEP_TYPE_COLORS: dict[str, str] = {
+    "agent": "#5FD7FF",  # Bright cyan — LLM agent steps stand out
+    "bash": "#FFAF5F",  # Warm amber — shell commands
+    "python": "#87D787",  # Soft green — code execution
+    "parallel": "#D7AFFF",  # Soft lavender — parallel orchestration
+}
+
 _STATUS_COLORS: dict[str, str] = {
     "DONE": "#5FD75F",
     "FAILED": "#FF5F5F",
@@ -148,6 +156,8 @@ class DismissedAgentSelectModal(
         """Get the color for an agent's type label."""
         if agent.appears_as_agent:
             return _TYPE_COLORS[AgentType.RUNNING]
+        if agent.is_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
+            return _STEP_TYPE_COLORS[agent.step_type]
         return _TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
 
     def _get_status_style(self, status: str) -> str:
@@ -419,7 +429,8 @@ class DismissedAgentSelectModal(
                     step_name = child.step_name or child.cl_name
                     status_style = self._get_status_style(child.status)
                     meta.append(f"  {i}. ", style="dim #AAAAAA")
-                    meta.append(f"[{step_type}] ", style=f"dim {type_color}")
+                    step_color = _STEP_TYPE_COLORS.get(step_type, type_color)
+                    meta.append(f"[{step_type}] ", style=f"dim {step_color}")
                     meta.append(f"{step_name:<20}", style="dim")
                     meta.append(f"{child.status}\n", style=status_style)
 
