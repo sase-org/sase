@@ -120,14 +120,12 @@ repo using your commit skill (NOT `git commit`) after making them.
 - You do NOT have access to plan mode (`EnterPlanMode`/`ExitPlanMode`). Use the `/sase_plan` skill instead.
 - You do NOT have access to `AskUserQuestion`. Use the `/sase_questions` skill instead.
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:full hash:d4f96305 -->
+## Issue Tracking with beads
 
-## Issue Tracking with bd (beads)
+**IMPORTANT**: This project uses **beads** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other
+tracking methods. Always use `.venv/bin/sase bead` (NEVER bare `bd` or `sbd`).
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other
-tracking methods.
-
-### Why bd?
+### Why beads?
 
 - Dependency-aware: Track blockers and relationships between issues
 - Git-friendly: Dolt-powered version control with native sync
@@ -139,27 +137,27 @@ tracking methods.
 **Check for ready work:**
 
 ```bash
-bd ready --json
+.venv/bin/sase bead ready
 ```
 
 **Create new issues:**
 
 ```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
+.venv/bin/sase bead create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4
+.venv/bin/sase bead create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:sase-123
 ```
 
 **Claim and update:**
 
 ```bash
-bd update <id> --claim --json
-bd update bd-42 --priority 1 --json
+.venv/bin/sase bead update <id> --claim
+.venv/bin/sase bead update sase-42 --priority 1
 ```
 
 **Complete work:**
 
 ```bash
-bd close bd-42 --reason "Completed" --json
+.venv/bin/sase bead close sase-42 --reason "Completed"
 ```
 
 ### Issue Types
@@ -180,32 +178,29 @@ bd close bd-42 --reason "Completed" --json
 
 ### Workflow for AI Agents
 
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task atomically**: `bd update <id> --claim`
+1. **Check ready work**: `.venv/bin/sase bead ready` shows unblocked issues
+2. **Claim your task atomically**: `.venv/bin/sase bead update <id> --claim`
 3. **Work on it**: Implement, test, document
 4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
+   - `.venv/bin/sase bead create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
+5. **Complete**: `.venv/bin/sase bead close <id> --reason "Done"`
 
 ### Auto-Sync
 
-bd automatically syncs via Dolt:
+Beads automatically sync via Dolt:
 
 - Each write auto-commits to Dolt history
-- Use `bd dolt push`/`bd dolt pull` for remote sync
+- Use `.venv/bin/sase bead dolt push`/`.venv/bin/sase bead dolt pull` for remote sync
 - No manual export/import needed!
 
 ### Important Rules
 
-- ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
-
-For more details, see README.md and docs/QUICKSTART.md.
+- Always use `.venv/bin/sase bead` for ALL task tracking
+- Link discovered work with `discovered-from` dependencies
+- Check `.venv/bin/sase bead ready` before asking "what should I work on?"
+- Do NOT create markdown TODO lists
+- Do NOT use external issue trackers
+- Do NOT duplicate tracking systems
 
 ## Landing the Plane (Session Completion)
 
@@ -219,7 +214,7 @@ For more details, see README.md and docs/QUICKSTART.md.
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd dolt push
+   .venv/bin/sase bead dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```
@@ -233,5 +228,3 @@ For more details, see README.md and docs/QUICKSTART.md.
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
-
-<!-- END BEADS INTEGRATION -->
