@@ -45,6 +45,7 @@ class _RunningAgentInfo:
     workspace_num: int | None
     duration: str
     approve: bool
+    prompt: str | None = None
 
 
 # pyvision: public_api_methods.txt
@@ -131,6 +132,17 @@ def list_running_agents() -> list[_RunningAgentInfo]:
                 except Exception:
                     pass
 
+            # Read raw prompt (first ~200 chars)
+            prompt_snippet: str | None = None
+            raw_prompt_path = artifact_dir / "raw_xprompt.md"
+            if raw_prompt_path.exists():
+                try:
+                    prompt_snippet = raw_prompt_path.read_text(encoding="utf-8")[
+                        :200
+                    ].strip()
+                except OSError:
+                    pass
+
             agents.append(
                 (
                     ts_str,
@@ -143,6 +155,7 @@ def list_running_agents() -> list[_RunningAgentInfo]:
                         workspace_num=workspace_num,
                         duration=duration,
                         approve=bool(data.get("approve")),
+                        prompt=prompt_snippet,
                     ),
                 )
             )
