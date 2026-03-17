@@ -56,17 +56,18 @@ dependencies may have changed).
 
 ## Issue Tracking
 
-This project uses **bd** (beads) for issue tracking. Always use `sase_bd` (at `tools/sase_bd`) instead of `bd` directly.
-Run `sase_bd onboard` to get started. IMPORTANT: Do NOT create beads unless you are explicitly asked to by the user.
+This project uses **bd** (beads) for issue tracking. Always use `.venv/bin/sase bead` instead of `bd` directly. Run
+`.venv/bin/sase bead onboard` to get started. IMPORTANT: Do NOT create beads unless you are explicitly asked to by the
+user.
 
 ### Quick Reference
 
 ```bash
-tools/sase_bd ready              # Find available work
-tools/sase_bd show <id>          # View issue details
-tools/sase_bd update <id> --status in_progress  # Claim work
-tools/sase_bd close <id>         # Complete work
-tools/sase_bd sync               # Sync with git
+.venv/bin/sase bead ready              # Find available work
+.venv/bin/sase bead show <id>          # View issue details
+.venv/bin/sase bead update <id> --status in_progress  # Claim work
+.venv/bin/sase bead close <id>         # Complete work
+.venv/bin/sase bead sync               # Sync with git
 ```
 
 ## End-to-End Testing w/ `sase ace --agent`
@@ -120,9 +121,11 @@ repo using your commit skill (NOT `git commit`) after making them.
 - You do NOT have access to `AskUserQuestion`. Use the `/sase_questions` skill instead.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:full hash:d4f96305 -->
+
 ## Issue Tracking with bd (beads)
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other
+tracking methods.
 
 ### Why bd?
 
@@ -225,6 +228,7 @@ For more details, see README.md and docs/QUICKSTART.md.
 7. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
+
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push

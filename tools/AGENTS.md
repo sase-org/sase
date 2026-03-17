@@ -40,7 +40,7 @@ The main stop hook called by LLM provider sessions (Claude Code, Codex, Gemini).
 Legacy stop hook with quality checks (formatting, linting, testing, commit prompts, sibling repo checks). Called by
 `sase_stop_hook` as part of the stop hook chain. Will be removed once the new hook system fully replaces it.
 
-## `sase_bd`
+## `sase_bead`
 
-Wrapper for the `bd` (beads) issue tracker. Always use `sase_bd` instead of calling `bd` directly. This is NOT a
-vendored script (no date suffix).
+Thin wrapper that delegates to `.venv/bin/sase bead`. Exists for compatibility with tools (like `pyvision`) that expect
+`BD_COMMAND` to be a single executable. Always use `.venv/bin/sase bead` instead of `bd` directly.

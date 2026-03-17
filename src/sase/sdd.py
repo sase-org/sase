@@ -3,6 +3,7 @@
 import subprocess
 from pathlib import Path
 
+from sase.bead.project import BeadProject
 from sase.config import load_merged_config
 
 
@@ -74,37 +75,7 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
         print("  Beads already initialized", flush=True)
     else:
         print("  Initializing beads ...", flush=True)
-        try:
-            subprocess.run(
-                ["bd", "init", "--quiet", "--skip-hooks"],
-                cwd=sdd_dir,
-                check=True,
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-                timeout=30,
-            )
-        except subprocess.TimeoutExpired as err:
-            if beads_dir.is_dir():
-                print(
-                    "  Warning: 'bd init' timed out, but .beads/ was created",
-                    flush=True,
-                )
-            else:
-                raise RuntimeError(
-                    "'bd init' timed out after 30s and .beads/ was not created"
-                ) from err
-        except subprocess.CalledProcessError as err:
-            if beads_dir.is_dir():
-                print(
-                    "  Warning: 'bd init' exited with errors, but .beads/ was created",
-                    flush=True,
-                )
-            else:
-                stderr = (err.stderr or b"").decode().strip()
-                msg = f"'bd init' failed (exit {err.returncode})"
-                if stderr:
-                    msg += f": {stderr}"
-                raise RuntimeError(msg) from err
+        BeadProject.init(sdd_dir)
 
     return sdd_dir
 

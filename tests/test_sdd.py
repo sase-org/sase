@@ -147,16 +147,18 @@ def test_update_spec_with_qa_missing_file() -> None:
 
 def test_init_beads_creates_sdd_git_repo() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("sase.sdd.subprocess.run") as mock_run:
+        with (
+            patch("sase.sdd.subprocess.run") as mock_run,
+            patch("sase.sdd.BeadProject.init") as mock_bead_init,
+        ):
             mock_run.return_value = subprocess.CompletedProcess([], 0)
             result = init_beads(tmpdir, 1)
 
         assert result == Path(tmpdir) / ".sase" / "sdd"
         assert result.is_dir()
-        # Verify bd init was called with cwd=sdd_dir (not primary workspace)
+        # Verify BeadProject.init was called with sdd_dir
         sdd_dir = Path(tmpdir) / ".sase" / "sdd"
-        bd_call = mock_run.call_args_list[1]  # second call is bd init
-        assert bd_call.kwargs.get("cwd") == sdd_dir
+        mock_bead_init.assert_called_once_with(sdd_dir)
 
 
 def test_init_beads_idempotent() -> None:
