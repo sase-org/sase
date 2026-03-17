@@ -260,9 +260,9 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             from sase.llm_provider._plan_utils import handle_plan_approval
 
             # Check if the Epic option should be offered
-            from sase.sdd import check_epic_available
+            from sase.sdd import check_sbd_available
 
-            epic_available = check_epic_available(ctx.workspace_dir, ctx.workspace_num)
+            epic_available = check_sbd_available(ctx.workspace_dir, ctx.workspace_num)
 
             # Clear the killed flag set by the plan command's SIGTERM
             # so the poll loop only exits on a NEW kill signal.
@@ -271,7 +271,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 plan_data.get("plan_file"),
                 str(uuid.uuid4()),
                 killed_check=was_killed,
-                epic_available=epic_available,
+                sbd_available=epic_available,
             )
             if plan_result is None and was_killed():
                 loop_outcome = "killed"
@@ -337,7 +337,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                     if sdd_plan_name
                     else plan_data["plan_file"]
                 )
-                current_prompt = f"{vcs_prefix}#bd/new_epic:{plan_ref}"
+                current_prompt = f"{vcs_prefix}#sbd/new_epic:{plan_ref}"
             else:
                 # Approve: spawn coder with plan as prompt
                 current_role_suffix = ".code"

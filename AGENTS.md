@@ -56,17 +56,18 @@ dependencies may have changed).
 
 ## Issue Tracking
 
-This project uses **bd** (beads) for issue tracking. Always use `sase_bd` (at `tools/sase_bd`) instead of `bd` directly.
-Run `sase_bd onboard` to get started. IMPORTANT: Do NOT create beads unless you are explicitly asked to by the user.
+This project uses **sbd** (sase-beads) for issue tracking. Always use `sase_sbd` (at `tools/sase_sbd`) instead of `sbd`
+directly. Run `sase_sbd onboard` to get started. IMPORTANT: Do NOT create beads unless you are explicitly asked to by
+the user.
 
 ### Quick Reference
 
 ```bash
-tools/sase_bd ready              # Find available work
-tools/sase_bd show <id>          # View issue details
-tools/sase_bd update <id> --status in_progress  # Claim work
-tools/sase_bd close <id>         # Complete work
-tools/sase_bd sync               # Sync with git
+tools/sase_sbd ready              # Find available work
+tools/sase_sbd show <id>          # View issue details
+tools/sase_sbd update <id> --status in_progress  # Claim work
+tools/sase_sbd close <id>         # Complete work
+tools/sase_sbd sync               # Sync with git
 ```
 
 ## End-to-End Testing w/ `sase ace --agent`

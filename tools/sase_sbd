@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euo pipefail
+
+# Wrapper for `sbd` (sase-beads) that redirects non-primary workspace
+# invocations to the primary workspace directory, avoiding duplicate
+# database errors.
+#
+# Workspace pattern:
+#   Primary:     .../sase/
+#   Non-primary: .../sase_100/, sase_101/, etc.
+
+resolve_primary_dir() {
+    local dir="$1"
+    if [[ "$dir" =~ ^(.+)_[0-9]+$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo "$dir"
+    fi
+}
+
+workspace_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+primary_dir="$(resolve_primary_dir "$workspace_dir")"
+
+sdd_sbd="$primary_dir/.sase/sdd/.sbd"
+sdd_dir=""  # set when .sbd/ lives inside .sase/sdd/
+
+if [[ ! -d "$primary_dir/.sbd" ]]; then
+    if [[ -d "$sdd_sbd" ]]; then
+        # Non-VC repo: .sbd/ lives inside .sase/sdd/
+        sdd_dir="$primary_dir/.sase/sdd"
+        primary_dir="$sdd_dir"
+    elif [[ -d "$primary_dir/.sase/sdd/.git" ]]; then
+        # Local SDD setup detected — auto-init .sbd/ inside .sase/sdd/
+        sbd init --dir "$primary_dir/.sase/sdd" 2>/dev/null || true
+        if [[ -d "$sdd_sbd" ]]; then
+            sdd_dir="$primary_dir/.sase/sdd"
+            primary_dir="$sdd_dir"
+        fi
+    fi
+    if [[ ! -d "$primary_dir/.sbd" ]]; then
+        echo "sase_sbd: warning: '$primary_dir' has no .sbd/, falling back to current dir" >&2
+        exec sbd "$@"
+    fi
+fi
+
+if [[ "$primary_dir" != "$workspace_dir" ]]; then
+    cd "$primary_dir"
+fi
+
+# Auto-commit to .sase/sdd/ git repo after write operations
+if [[ -n "$sdd_dir" ]] && [[ "${1:-}" =~ ^(create|update|close|dep|init)$ ]]; then
+    sbd "$@"
+    rc=$?
+    git -C "$sdd_dir" add -A 2>/dev/null || true
+    git -C "$sdd_dir" diff --cached --quiet 2>/dev/null || \
+        git -C "$sdd_dir" commit -m "sbd: $1" --quiet 2>/dev/null || true
+    exit $rc
+fi
+
+exec sbd "$@"

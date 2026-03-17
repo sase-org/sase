@@ -58,5 +58,5 @@ CLAUDE.local.md
 # Hypothesis
 .hypothesis/
 
-# beads
-.beads/.beads-credential-key
+# sase-beads
+.sbd/sbd.db

@@ -9,7 +9,7 @@ from sase.sdd import (
     _get_primary_workspace_dir,
     commit_sdd_files,
     get_sdd_dir,
-    init_beads,
+    init_sbd,
     update_spec_with_qa,
     write_sdd_files,
 )
@@ -141,35 +141,37 @@ def test_update_spec_with_qa_missing_file() -> None:
 
 
 # ---------------------------------------------------------------------------
-# init_beads
+# init_sbd
 # ---------------------------------------------------------------------------
 
 
-def test_init_beads_creates_sdd_git_repo() -> None:
+def test_init_sbd_creates_sdd_git_repo() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("sase.sdd.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess([], 0)
-            result = init_beads(tmpdir, 1)
+            with patch("sase_beads.project.SbdProject.init") as mock_sbd_init:
+                mock_project = mock_sbd_init.return_value
+                mock_project._conn.close.return_value = None
+                result = init_sbd(tmpdir, 1)
 
         assert result == Path(tmpdir) / ".sase" / "sdd"
         assert result.is_dir()
-        # Verify bd init was called with cwd=sdd_dir (not primary workspace)
+        # Verify SbdProject.init was called with sdd_dir
         sdd_dir = Path(tmpdir) / ".sase" / "sdd"
-        bd_call = mock_run.call_args_list[1]  # second call is bd init
-        assert bd_call.kwargs.get("cwd") == sdd_dir
+        mock_sbd_init.assert_called_once_with(sdd_dir)
 
 
-def test_init_beads_idempotent() -> None:
-    """Calling init_beads twice should not error."""
+def test_init_sbd_idempotent() -> None:
+    """Calling init_sbd twice should not error."""
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir) / ".sase" / "sdd"
         sdd_dir.mkdir(parents=True)
         # Simulate existing git repo
         (sdd_dir / ".git").mkdir()
-        # Simulate existing .beads inside sdd_dir
-        (sdd_dir / ".beads").mkdir()
+        # Simulate existing .sbd inside sdd_dir
+        (sdd_dir / ".sbd").mkdir()
 
-        result = init_beads(tmpdir, 1)
+        result = init_sbd(tmpdir, 1)
         assert result == sdd_dir
 
 

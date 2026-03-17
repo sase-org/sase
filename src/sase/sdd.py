@@ -42,15 +42,19 @@ def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     return workspace_dir
 
 
-def init_beads(workspace_dir: str, workspace_num: int) -> Path:
+def init_sbd(workspace_dir: str, workspace_num: int) -> Path:
     """Bootstrap `.sase/sdd/` as a standalone git repo for local SDD tracking.
 
     1. Creates `.sase/sdd/` in the primary workspace.
     2. Runs `git init` inside it if not already a git repo.
-    3. Runs `bd init --quiet --skip-hooks` in the primary workspace if `.beads/` missing.
+    3. Initializes sase-beads (`.sbd/`) via ``SbdProject.init()`` if missing.
 
     Returns the `.sase/sdd/` path.
     """
+    import subprocess
+
+    from sase_beads.project import SbdProject
+
     primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
     sdd_dir = Path(primary) / ".sase" / "sdd"
 
@@ -69,42 +73,13 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
             stdin=subprocess.DEVNULL,
         )
 
-    beads_dir = sdd_dir / ".beads"
-    if beads_dir.is_dir():
-        print("  Beads already initialized", flush=True)
+    sbd_dir = sdd_dir / ".sbd"
+    if sbd_dir.is_dir():
+        print("  sase-beads already initialized", flush=True)
     else:
-        print("  Initializing beads ...", flush=True)
-        try:
-            subprocess.run(
-                ["bd", "init", "--quiet", "--skip-hooks"],
-                cwd=sdd_dir,
-                check=True,
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-                timeout=30,
-            )
-        except subprocess.TimeoutExpired as err:
-            if beads_dir.is_dir():
-                print(
-                    "  Warning: 'bd init' timed out, but .beads/ was created",
-                    flush=True,
-                )
-            else:
-                raise RuntimeError(
-                    "'bd init' timed out after 30s and .beads/ was not created"
-                ) from err
-        except subprocess.CalledProcessError as err:
-            if beads_dir.is_dir():
-                print(
-                    "  Warning: 'bd init' exited with errors, but .beads/ was created",
-                    flush=True,
-                )
-            else:
-                stderr = (err.stderr or b"").decode().strip()
-                msg = f"'bd init' failed (exit {err.returncode})"
-                if stderr:
-                    msg += f": {stderr}"
-                raise RuntimeError(msg) from err
+        print("  Initializing sase-beads ...", flush=True)
+        project = SbdProject.init(sdd_dir)
+        project._conn.close()
 
     return sdd_dir
 
@@ -134,17 +109,17 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
         )
 
 
-def check_epic_available(workspace_dir: str, workspace_num: int) -> bool:
+def check_sbd_available(workspace_dir: str, workspace_num: int) -> bool:
     """Check if the Epic option should be shown for plan approval.
 
-    Returns True when ``.beads/`` exists in the primary workspace.
-    For VC repos: ``primary/.beads/``
-    For non-VC repos: ``primary/.sase/sdd/.beads/``
+    Returns True when ``.sbd/`` exists in the primary workspace.
+    For VC repos: ``primary/.sbd/``
+    For non-VC repos: ``primary/.sase/sdd/.sbd/``
     """
     primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
     if get_sdd_config():
-        return Path(primary, ".beads").is_dir()
-    return Path(primary, ".sase", "sdd", ".beads").is_dir()
+        return Path(primary, ".sbd").is_dir()
+    return Path(primary, ".sase", "sdd", ".sbd").is_dir()
 
 
 def write_sdd_files(

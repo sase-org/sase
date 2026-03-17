@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Migrate .beads/ issues.jsonl to .sbd/ format (sase-beads).
+
+Reads from .beads/issues.jsonl, converts to sbd format, and writes .sbd/issues.jsonl.
+Maps old types (task/bug/feature) → child, epic → epic.
+Preserves IDs, timestamps, and dependencies.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+# Type mapping: beads → sase-beads
+TYPE_MAP = {
+    "task": "child",
+    "bug": "child",
+    "feature": "child",
+    "epic": "epic",
+}
+
+
+def migrate(project_dir: Path) -> None:
+    beads_jsonl = project_dir / ".beads" / "issues.jsonl"
+    sbd_dir = project_dir / ".sbd"
+
+    if not beads_jsonl.exists():
+        print(f"Error: {beads_jsonl} not found", file=sys.stderr)
+        sys.exit(1)
+
+    sbd_dir.mkdir(parents=True, exist_ok=True)
+    sbd_jsonl = sbd_dir / "issues.jsonl"
+
+    migrated = 0
+    with open(beads_jsonl, encoding="utf-8") as src, open(
+        sbd_jsonl, "w", encoding="utf-8"
+    ) as dst:
+        for line in src:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+
+            # Map issue type
+            old_type = rec.get("type", "task")
+            rec["issue_type"] = TYPE_MAP.get(old_type, "child")
+            rec.pop("type", None)
+
+            # Rename fields for sbd compatibility
+            if "created" in rec and "created_at" not in rec:
+                rec["created_at"] = rec.pop("created")
+            if "updated" in rec and "updated_at" not in rec:
+                rec["updated_at"] = rec.pop("updated")
+
+            dst.write(json.dumps(rec) + "\n")
+            migrated += 1
+
+    print(f"Migrated {migrated} issues from {beads_jsonl} → {sbd_jsonl}")
+
+
+if __name__ == "__main__":
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
+    migrate(target)
