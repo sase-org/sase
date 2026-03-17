@@ -300,6 +300,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             f"Copy Mode ({d(cm.prefix)})",
             [
                 (f"{d(cm.prefix)}{d(ag_copy['chat'])}", "Copy chat file path"),
+                (f"{d(cm.prefix)}{d(ag_copy['prompt'])}", "Copy agent prompt"),
                 (f"{d(cm.prefix)}{d(ag_copy['snapshot'])}", "Copy sase ace snapshot"),
             ],
         ),

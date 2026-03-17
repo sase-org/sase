@@ -337,6 +337,7 @@ class KeybindingFooter(Horizontal):
         elif tab == "agents":
             bindings = [
                 (k("chat"), "chat"),
+                (k("prompt"), "prompt"),
                 (k("snapshot"), "snap"),
             ]
             if file_visible:

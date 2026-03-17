@@ -146,6 +146,8 @@ class ClipboardMixin:
             self._copy_chat_path()
         elif key == ag_keys["file_path"]:
             self._copy_file_path()
+        elif key == ag_keys["prompt"]:
+            self._copy_agent_prompt()
         elif key == ag_keys["snapshot"]:
             self._copy_snapshot()
         else:
@@ -308,6 +310,27 @@ class ClipboardMixin:
                 chat_path if len(chat_path) <= 50 else "..." + chat_path[-47:]
             )
             self.notify(f"Copied: {display_path}")  # type: ignore[attr-defined]
+        else:
+            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+
+    def _copy_agent_prompt(self) -> None:
+        """Copy the prompt (raw xprompt) of the selected agent (%p on agents tab)."""
+        if not self._agents:
+            self.notify("No agents available", severity="warning")  # type: ignore[attr-defined]
+            return
+        if self.current_idx < 0 or self.current_idx >= len(self._agents):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+        content = agent.get_raw_xprompt_content()
+        if content is None:
+            self.notify("No prompt available for this agent", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if copy_to_system_clipboard(content.strip()):
+            lines = len(content.strip().split("\n"))
+            self.notify(f"Copied: Agent Prompt ({lines} lines)")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
 
