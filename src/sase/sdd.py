@@ -93,6 +93,18 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
                 raise RuntimeError(
                     "'bd init' timed out after 30s and .beads/ was not created"
                 ) from err
+        except subprocess.CalledProcessError as err:
+            if beads_dir.is_dir():
+                print(
+                    "  Warning: 'bd init' exited with errors, but .beads/ was created",
+                    flush=True,
+                )
+            else:
+                stderr = (err.stderr or b"").decode().strip()
+                msg = f"'bd init' failed (exit {err.returncode})"
+                if stderr:
+                    msg += f": {stderr}"
+                raise RuntimeError(msg) from err
 
     return sdd_dir
 
