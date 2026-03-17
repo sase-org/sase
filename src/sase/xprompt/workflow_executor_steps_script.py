@@ -242,12 +242,14 @@ class ScriptStepMixin:
         rendered_code = render_template(step.python, self.context)
 
         # Execute python code using the same interpreter.
-        # stderr is NOT captured so that long-running subprocesses (e.g.
-        # sase_hg_sync) can stream progress output to the terminal.
+        # stderr is captured so that failures include the traceback in the
+        # error message.  On success, any captured stderr is re-emitted so
+        # that long-running subprocesses (e.g. sase_hg_sync) still surface
+        # progress output.
         try:
             result = subprocess.run(
                 [sys.executable, "-c", rendered_code],
-                stdout=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 cwd=os.getcwd(),
             )
@@ -257,14 +259,22 @@ class ScriptStepMixin:
             ) from e
 
         if result.returncode != 0:
+            # Prefer stderr (contains tracebacks), fall back to stdout,
+            # then to a bare exit-code message.
             error_msg = (
-                result.stdout.strip()
-                if result.stdout
-                else f"Exit code {result.returncode}"
+                result.stderr.strip()
+                or result.stdout.strip()
+                or f"Exit code {result.returncode}"
             )
             raise WorkflowExecutionError(
                 f"Python step '{step.name}' failed: {error_msg}"
             )
+
+        # Re-emit captured stderr so progress output still reaches the
+        # terminal on success.
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+            sys.stderr.flush()
 
         # Parse output (same formats as bash: JSON, key=value, plain text)
         output = parse_bash_output(result.stdout)
