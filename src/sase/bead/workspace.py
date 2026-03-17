@@ -64,17 +64,6 @@ def resolve_primary_workspace() -> Path | None:
     return primary
 
 
-def _find_beads_dir(workspace: Path) -> Path | None:
-    """Return the beads directory for a workspace, checking both VC and non-VC paths."""
-    vc = workspace / BEADS_DIRNAME
-    if vc.is_dir():
-        return vc
-    non_vc = workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
-    if non_vc.is_dir():
-        return non_vc
-    return None
-
-
 def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     """Enumerate beads directories across all workspaces.
 

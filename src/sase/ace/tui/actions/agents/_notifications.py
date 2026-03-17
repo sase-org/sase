@@ -271,7 +271,11 @@ class AgentNotificationMixin:
 
         def _on_dismiss(result: Notification | None) -> None:
             if result is not None:
-                mark_read(result.id)
+                # Don't mark PlanApproval/UserQuestion as read on selection —
+                # they must stay unread until the user explicitly responds,
+                # so cancelling the popup keeps the notification visible.
+                if result.action not in ("PlanApproval", "UserQuestion"):
+                    mark_read(result.id)
 
             # Always refresh count from disk — covers x-dismiss, R-read-all, Enter-select
             self._refresh_notification_count()
