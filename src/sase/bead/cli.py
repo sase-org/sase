@@ -8,19 +8,32 @@ from pathlib import Path
 
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
+from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
 
 
 def _find_project_root() -> Path:
-    """Walk up from cwd to find a directory containing .beads/."""
+    """Walk up from cwd to find a directory containing .beads/.
+
+    Falls back to the primary workspace via the sase workspace provider
+    if no .beads/ is found in ancestor directories.
+    """
     cwd = Path.cwd()
     for parent in [cwd, *cwd.parents]:
         if (parent / ".beads").is_dir():
             return parent
+
+    # Fall back to workspace provider
+    from sase.bead.workspace import resolve_primary_workspace
+
+    primary = resolve_primary_workspace()
+    if primary and (primary / ".beads").is_dir():
+        return primary
+
     return cwd
 
 
 def _get_project() -> BeadProject:
-    """Open the BeadProject, printing an error if not found."""
+    """Open the BeadProject for write operations."""
     root = _find_project_root()
     try:
         return BeadProject(root)
@@ -30,6 +43,17 @@ def _get_project() -> BeadProject:
             file=sys.stderr,
         )
         sys.exit(1)
+
+
+def _get_read_view() -> MergedBeadView | BeadProject:
+    """Get a merged read view across all workspaces.
+
+    Falls back to the local BeadProject if workspace resolution fails.
+    """
+    beads_dirs = get_project_beads_dirs()
+    if beads_dirs:
+        return MergedBeadView(beads_dirs)
+    return _get_project()
 
 
 def _status_icon(status: Status) -> str:
@@ -93,10 +117,10 @@ def handle_bead_create(args: argparse.Namespace) -> None:
 
 
 def handle_bead_list(args: argparse.Namespace) -> None:
-    with _get_project() as proj:
+    with _get_read_view() as view:
         status = Status(args.status) if args.status else None
         issue_type = IssueType(args.type) if args.type else None
-        issues = proj.list_issues(status=status, issue_type=issue_type)
+        issues = view.list_issues(status=status, issue_type=issue_type)
         if not issues:
             print("No issues found.")
             return
@@ -107,9 +131,9 @@ def handle_bead_list(args: argparse.Namespace) -> None:
 
 
 def handle_bead_show(args: argparse.Namespace) -> None:
-    with _get_project() as proj:
+    with _get_read_view() as view:
         try:
-            issue = proj.show(args.id)
+            issue = view.show(args.id)
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
@@ -123,7 +147,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"\nPARENT\n  ↑ {issue.parent_id}")
         # Show children if plan
         if issue.issue_type == IssueType.PLAN:
-            children = proj.get_epic_children(issue.id)
+            children = view.get_epic_children(issue.id)
             if children:
                 print("\nCHILDREN")
                 for c in children:
@@ -135,13 +159,13 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print("\nDEPENDS ON")
             for d in deps_on:
                 try:
-                    dep_issue = proj.show(d.depends_on_id)
+                    dep_issue = view.show(d.depends_on_id)
                     di = _status_icon(dep_issue.status)
                     print(f"  → {di} {dep_issue.id}: {dep_issue.title}")
                 except KeyError:
                     print(f"  → {d.depends_on_id} (not found)")
         # Show what this blocks
-        all_issues = proj.list_issues()
+        all_issues = view.list_issues()
         blocks: list[str] = []
         for other in all_issues:
             for d in other.dependencies:
@@ -151,7 +175,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print("\nBLOCKS")
             for bid in blocks:
                 try:
-                    b = proj.show(bid)
+                    b = view.show(bid)
                     bi = _status_icon(b.status)
                     print(f"  ← {bi} {b.id}: {b.title}")
                 except KeyError:
@@ -165,8 +189,8 @@ def handle_bead_show(args: argparse.Namespace) -> None:
 
 
 def handle_bead_ready(args: argparse.Namespace) -> None:
-    with _get_project() as proj:
-        issues = proj.ready()
+    with _get_read_view() as view:
+        issues = view.ready()
         if not issues:
             print("No issues ready (all blocked or none open).")
             return
@@ -225,8 +249,8 @@ def handle_bead_dep(args: argparse.Namespace) -> None:
 
 
 def handle_bead_blocked(args: argparse.Namespace) -> None:
-    with _get_project() as proj:
-        issues = proj.blocked()
+    with _get_read_view() as view:
+        issues = view.blocked()
         if not issues:
             print("No blocked issues.")
             return
@@ -250,8 +274,8 @@ def handle_bead_sync(args: argparse.Namespace) -> None:
 
 
 def handle_bead_stats(args: argparse.Namespace) -> None:
-    with _get_project() as proj:
-        s = proj.stats()
+    with _get_read_view() as view:
+        s = view.stats()
         print("Issue Statistics")
         print(f"  Total:       {s.get('total', 0)}")
         print(f"  Open:        {s.get('open', 0)}")

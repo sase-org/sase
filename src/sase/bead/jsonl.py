@@ -39,7 +39,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
     }
 
 
-def _dict_to_issue(data: dict[str, object]) -> Issue:
+def dict_to_issue(data: dict[str, object]) -> Issue:
     deps_raw = data.get("dependencies", [])
     assert isinstance(deps_raw, list)
     deps = [
@@ -100,7 +100,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
             continue
         try:
             data = json.loads(line)
-            issues.append(_dict_to_issue(data))
+            issues.append(dict_to_issue(data))
         except (json.JSONDecodeError, KeyError, ValueError):
             continue
 

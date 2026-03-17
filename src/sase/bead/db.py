@@ -110,6 +110,16 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+# pyvision: public_api_methods.txt
+def create_memory_db() -> sqlite3.Connection:
+    """Create an in-memory database with the beads schema."""
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(_SCHEMA)
+    return conn
+
+
 def _row_to_issue(row: sqlite3.Row) -> Issue:
     return Issue(
         id=row["id"],

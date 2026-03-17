@@ -4,6 +4,7 @@
 # Used as a pyvision pragma target: `# pyvision: public_api_methods.txt`
 
 create_changespec_for_workflow
+create_memory_db
 extract_response_from_chat_file
 get_next_auto_name
 kill_named_agent
