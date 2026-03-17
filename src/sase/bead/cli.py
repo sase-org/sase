@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -185,7 +186,8 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         if issue.notes:
             print(f"\nNOTES\n{issue.notes}")
         if issue.design:
-            print(f"\nDESIGN\n{issue.design}")
+            rel = os.path.relpath(issue.design)
+            print(f"\nPLAN: {rel}")
 
 
 def handle_bead_ready(args: argparse.Namespace) -> None:
