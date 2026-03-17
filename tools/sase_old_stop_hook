@@ -8,15 +8,6 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 PYTHON_PATTERN='^(src/sase|tests)/.*\.py$'
 MD_PATTERN='\.md$'
 
-# Session-unique marker file to avoid duplicate commit prompts
-if [ -n "$TMUX_PANE" ]; then
-    TMUX_PANE_ID="${TMUX_PANE//[%]/}"
-else
-    TMUX_PANE_ID="default"
-fi
-STORED_DIFF_FILE="/tmp/sase_old_stop_hook_diff_${TMUX_PANE_ID}"
-STORED_DIFF_FILE_SIBLINGS="/tmp/sase_old_stop_hook_sibling_diff_${TMUX_PANE_ID}"
-
 # Get list of uncommitted changed files (modified + untracked)
 function get_changed_files() {
     {
@@ -73,12 +64,6 @@ function send_failure_notification() {
 
 # Check sibling sase-* repos for uncommitted changes
 function check_sibling_repos() {
-    # If marker file exists from previous sibling commit prompt, skip
-    if [ -f "$STORED_DIFF_FILE_SIBLINGS" ]; then
-        rm -f "$STORED_DIFF_FILE_SIBLINGS"
-        return 0
-    fi
-
     local sibling_repos_with_changes=()
     for repo_dir in "$PROJECT_DIR"/../sase-*/ "$HOME/.local/share/chezmoi"; do
         [ -d "$repo_dir/.git" ] || continue
@@ -90,12 +75,11 @@ function check_sibling_repos() {
     done
 
     if [ ${#sibling_repos_with_changes[@]} -gt 0 ]; then
-        touch "$STORED_DIFF_FILE_SIBLINGS"
         local repos_list
         repos_list=$(printf ', %s' "${sibling_repos_with_changes[@]}")
         repos_list=${repos_list:2} # Remove leading ', '
-        echo "Found uncommitted changes in sibling repo(s): ${repos_list}." \
-            " If you made these changes, please use your /commit skill to commit them." >&2
+        echo "Uncommitted changes detected in sibling repo(s): ${repos_list}." \
+            " Use your /commit skill to commit them before continuing." >&2
         return 2
     fi
 
@@ -105,14 +89,6 @@ function check_sibling_repos() {
 # Run quality checks conditionally based on changed files
 function run() {
     cd "$PROJECT_DIR" || return 1
-
-    # If marker file exists from previous commit prompt, skip main checks
-    # but still check sibling repos
-    if [ -f "$STORED_DIFF_FILE" ]; then
-        rm -f "$STORED_DIFF_FILE"
-        check_sibling_repos
-        return $?
-    fi
 
     # Log that this hook ran
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_old_stop_hook ran" >>"$PROJECT_DIR/.claude/hooks.log"
@@ -212,10 +188,9 @@ function run() {
 
     # Check if there are any uncommitted changes (uses cached file list)
     if echo "$CHANGED_FILES" | grep -q .; then
-        # Create marker file and request commit
-        touch "$STORED_DIFF_FILE"
-        echo "All checks passed. If you made any file changes," \
-            " please use your /commit skill to commit them now." >&2
+        echo "All checks passed, but uncommitted changes are still present:" >&2
+        echo "$CHANGED_FILES" >&2
+        echo "Use your /commit skill to commit these changes now before continuing." >&2
         return 2
     fi
 
