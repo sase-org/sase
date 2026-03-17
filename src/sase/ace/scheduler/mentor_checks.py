@@ -393,8 +393,8 @@ def check_mentors(
     updates: list[str] = []
     mentors_started = 0
 
-    # Don't check mentors for terminal statuses
-    if changespec.status in ("WIP", "Reverted", "Submitted", "Archived"):
+    # Don't check mentors for non-review statuses
+    if changespec.status in ("Draft", "WIP", "Reverted", "Submitted", "Archived"):
         return updates, mentors_started
 
     # Phase 1: Check completion of running mentors
