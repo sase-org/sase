@@ -101,7 +101,7 @@ def test_flatten_anonymous_workflow_no_rename_for_multi_ref_prompt(
     """Test that multi-reference prompts don't rename the anonymous workflow.
 
     When the prompt contains additional # references beyond the first one
-    (e.g., '#gh:sase #bd/next'), the workflow should stay anonymous since
+    (e.g., '#gh:sase #sbd/next'), the workflow should stay anonymous since
     it's an ad-hoc prompt, not a single workflow reference.
     """
     gh_wf = Workflow(
@@ -109,7 +109,7 @@ def test_flatten_anonymous_workflow_no_rename_for_multi_ref_prompt(
         steps=[WorkflowStep(name="main", prompt_part="GitHub setup: {{ gh_ref }}")],
     )
     mock_get_all_prompts.return_value = {"gh": gh_wf}
-    workflow = _make_anonymous_workflow("#gh:sase #bd/next %n:sase-svxv.1")
+    workflow = _make_anonymous_workflow("#gh:sase #sbd/next %n:sase-svxv.1")
     result = _flatten_anonymous_workflow(workflow)
     assert result is None
     # Should NOT be renamed to "gh" — this is a multi-reference prompt

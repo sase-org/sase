@@ -174,7 +174,7 @@ def _flatten_anonymous_workflow(
             # instead of the anonymous "tmp_*" name (e.g., "resume" not
             # "tmp_260223_115114"). But don't rename if the args contain
             # additional # references, indicating a multi-reference prompt
-            # (e.g., "#gh:sase #bd/next ...") rather than a single workflow
+            # (e.g., "#gh:sase #sbd/next ...") rather than a single workflow
             # reference.
             has_extra_refs = any("#" in arg for arg in positional_args)
             if has_extra_refs:
