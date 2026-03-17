@@ -199,6 +199,92 @@ def create_parser() -> argparse.ArgumentParser:
         "status", help="Show status of all lumberjacks"
     )
 
+    # --- bead ---
+    bead_parser = top_level_subparsers.add_parser(
+        "bead",
+        help="Lightweight git-native issue tracking",
+    )
+    bead_subparsers = bead_parser.add_subparsers(
+        dest="bead_subcommand", help="Bead subcommands"
+    )
+
+    # sase bead init
+    bead_subparsers.add_parser("init", help="Create .beads/ in current directory")
+
+    # sase bead create
+    bead_create_parser = bead_subparsers.add_parser("create", help="Create a new issue")
+    bead_create_parser.add_argument("--title", required=True, help="Issue title")
+    bead_create_parser.add_argument(
+        "--type", required=True, choices=["epic", "child"], help="Issue type"
+    )
+    bead_create_parser.add_argument(
+        "--parent", help="Parent epic ID (required for children)"
+    )
+    bead_create_parser.add_argument("--description", help="Issue description")
+    bead_create_parser.add_argument("--assignee", help="Assignee")
+
+    # sase bead list
+    bead_list_parser = bead_subparsers.add_parser("list", help="List issues")
+    bead_list_parser.add_argument(
+        "--status",
+        choices=["open", "in_progress", "closed"],
+        help="Filter by status",
+    )
+    bead_list_parser.add_argument(
+        "--type", choices=["epic", "child"], help="Filter by type"
+    )
+
+    # sase bead show
+    bead_show_parser = bead_subparsers.add_parser("show", help="Show issue details")
+    bead_show_parser.add_argument("id", help="Issue ID")
+
+    # sase bead ready
+    bead_subparsers.add_parser("ready", help="Show issues ready to work")
+
+    # sase bead update
+    bead_update_parser = bead_subparsers.add_parser("update", help="Update an issue")
+    bead_update_parser.add_argument("id", help="Issue ID")
+    bead_update_parser.add_argument(
+        "--status", choices=["open", "in_progress", "closed"]
+    )
+    bead_update_parser.add_argument("--title")
+    bead_update_parser.add_argument("--description")
+    bead_update_parser.add_argument("--notes")
+    bead_update_parser.add_argument("--design")
+    bead_update_parser.add_argument("--assignee")
+
+    # sase bead close
+    bead_close_parser = bead_subparsers.add_parser(
+        "close", help="Close one or more issues"
+    )
+    bead_close_parser.add_argument("ids", nargs="+", help="Issue IDs to close")
+    bead_close_parser.add_argument("--reason", help="Close reason")
+
+    # sase bead dep
+    bead_dep_parser = bead_subparsers.add_parser("dep", help="Manage dependencies")
+    bead_dep_subparsers = bead_dep_parser.add_subparsers(dest="dep_action")
+    bead_dep_add_parser = bead_dep_subparsers.add_parser("add", help="Add a dependency")
+    bead_dep_add_parser.add_argument("issue", help="Issue that depends on another")
+    bead_dep_add_parser.add_argument("depends_on", help="Issue being depended on")
+
+    # sase bead blocked
+    bead_subparsers.add_parser("blocked", help="Show blocked issues")
+
+    # sase bead sync
+    bead_sync_parser = bead_subparsers.add_parser("sync", help="Sync with git")
+    bead_sync_parser.add_argument(
+        "--status", action="store_true", help="Just check sync status"
+    )
+
+    # sase bead stats
+    bead_subparsers.add_parser("stats", help="Show project statistics")
+
+    # sase bead doctor
+    bead_subparsers.add_parser("doctor", help="Run health checks")
+
+    # sase bead onboard
+    bead_subparsers.add_parser("onboard", help="Show quick-start guide")
+
     # --- amend ---
     amend_parser = top_level_subparsers.add_parser(
         "amend",

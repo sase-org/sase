@@ -36,6 +36,50 @@ def main() -> NoReturn:
     if args.command == "amend":
         handle_amend_command(args)
 
+    # --- bead ---
+    if args.command == "bead":
+        from sase.bead.cli import (
+            handle_bead_blocked,
+            handle_bead_close,
+            handle_bead_create,
+            handle_bead_dep,
+            handle_bead_doctor,
+            handle_bead_init,
+            handle_bead_list,
+            handle_bead_onboard,
+            handle_bead_ready,
+            handle_bead_show,
+            handle_bead_stats,
+            handle_bead_sync,
+            handle_bead_update,
+        )
+
+        bead_sub = getattr(args, "bead_subcommand", None)
+        _BEAD_HANDLERS = {
+            "init": handle_bead_init,
+            "create": handle_bead_create,
+            "list": handle_bead_list,
+            "show": handle_bead_show,
+            "ready": handle_bead_ready,
+            "update": handle_bead_update,
+            "close": handle_bead_close,
+            "dep": handle_bead_dep,
+            "blocked": handle_bead_blocked,
+            "sync": handle_bead_sync,
+            "stats": handle_bead_stats,
+            "doctor": handle_bead_doctor,
+            "onboard": handle_bead_onboard,
+        }
+        handler = _BEAD_HANDLERS.get(bead_sub)  # type: ignore[arg-type]
+        if handler is None:
+            print(
+                "Usage: sase bead"
+                " {init,create,list,show,ready,update,close,dep,blocked,sync,stats,doctor,onboard}"
+            )
+            sys.exit(1)
+        handler(args)
+        sys.exit(0)
+
     # --- commit ---
     if args.command == "commit":
         handle_commit_command(args)

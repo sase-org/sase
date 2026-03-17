@@ -1,0 +1,258 @@
+"""CLI handlers for the 'sase bead' subcommand."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from sase.bead.model import IssueType, Status
+from sase.bead.project import BeadProject
+
+
+def _find_project_root() -> Path:
+    """Walk up from cwd to find a directory containing .beads/."""
+    cwd = Path.cwd()
+    for parent in [cwd, *cwd.parents]:
+        if (parent / ".beads").is_dir():
+            return parent
+    return cwd
+
+
+def _get_project() -> BeadProject:
+    """Open the BeadProject, printing an error if not found."""
+    root = _find_project_root()
+    try:
+        return BeadProject(root)
+    except FileNotFoundError:
+        print(
+            "Error: no .beads/ directory found. Run 'sase bead init' first.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def _status_icon(status: Status) -> str:
+    return {"open": "○", "in_progress": "◐", "closed": "✓"}[status.value]
+
+
+# --- Subcommand handlers ---
+
+
+def handle_bead_init(args: argparse.Namespace) -> None:
+    root = Path.cwd()
+    if (root / ".beads").exists():
+        print("Already initialized: .beads/ exists")
+        return
+    with BeadProject.init(root):
+        pass
+    print(f"Initialized .beads/ in {root}")
+
+
+def handle_bead_create(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        issue_type = IssueType(args.type)
+        issue = proj.create(
+            title=args.title,
+            issue_type=issue_type,
+            parent_id=args.parent,
+            description=args.description or "",
+            assignee=args.assignee or "",
+        )
+        print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
+
+
+def handle_bead_list(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        status = Status(args.status) if args.status else None
+        issue_type = IssueType(args.type) if args.type else None
+        issues = proj.list_issues(status=status, issue_type=issue_type)
+        if not issues:
+            print("No issues found.")
+            return
+        for issue in issues:
+            icon = _status_icon(issue.status)
+            parent = f" ← {issue.parent_id}" if issue.parent_id else ""
+            print(f"{icon} {issue.id} · {issue.title}{parent}")
+
+
+def handle_bead_show(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        try:
+            issue = proj.show(args.id)
+        except KeyError:
+            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+
+        icon = _status_icon(issue.status)
+        print(f"{icon} {issue.id} · {issue.title}   [{issue.status.value.upper()}]")
+        print(f"Type: {issue.issue_type.value} · Owner: {issue.owner or '(none)'}")
+        if issue.assignee:
+            print(f"Assignee: {issue.assignee}")
+        if issue.parent_id:
+            print(f"\nPARENT\n  ↑ {issue.parent_id}")
+        # Show children if epic
+        if issue.issue_type == IssueType.EPIC:
+            children = proj.get_epic_children(issue.id)
+            if children:
+                print("\nCHILDREN")
+                for c in children:
+                    ci = _status_icon(c.status)
+                    print(f"  {ci} {c.id}: {c.title}")
+        # Show dependencies
+        deps_on = list(issue.dependencies)
+        if deps_on:
+            print("\nDEPENDS ON")
+            for d in deps_on:
+                try:
+                    dep_issue = proj.show(d.depends_on_id)
+                    di = _status_icon(dep_issue.status)
+                    print(f"  → {di} {dep_issue.id}: {dep_issue.title}")
+                except KeyError:
+                    print(f"  → {d.depends_on_id} (not found)")
+        # Show what this blocks
+        all_issues = proj.list_issues()
+        blocks: list[str] = []
+        for other in all_issues:
+            for d in other.dependencies:
+                if d.depends_on_id == issue.id:
+                    blocks.append(other.id)
+        if blocks:
+            print("\nBLOCKS")
+            for bid in blocks:
+                try:
+                    b = proj.show(bid)
+                    bi = _status_icon(b.status)
+                    print(f"  ← {bi} {b.id}: {b.title}")
+                except KeyError:
+                    print(f"  ← {bid} (not found)")
+        if issue.description:
+            print(f"\nDESCRIPTION\n{issue.description}")
+        if issue.notes:
+            print(f"\nNOTES\n{issue.notes}")
+        if issue.design:
+            print(f"\nDESIGN\n{issue.design}")
+
+
+def handle_bead_ready(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        issues = proj.ready()
+        if not issues:
+            print("No issues ready (all blocked or none open).")
+            return
+        for issue in issues:
+            parent = f" ← {issue.parent_id}" if issue.parent_id else ""
+            print(f"○ {issue.id} · {issue.title}{parent}")
+        print(f"\n{'-' * 60}")
+        print(f"Ready: {len(issues)} issues with no active blockers")
+
+
+def handle_bead_update(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        fields: dict[str, str | None] = {}
+        if args.status:
+            fields["status"] = args.status
+        if args.title:
+            fields["title"] = args.title
+        if args.description is not None:
+            fields["description"] = args.description
+        if args.notes is not None:
+            fields["notes"] = args.notes
+        if args.design is not None:
+            fields["design"] = args.design
+        if args.assignee is not None:
+            fields["assignee"] = args.assignee
+        if not fields:
+            print("No fields to update.", file=sys.stderr)
+            sys.exit(1)
+        try:
+            issue = proj.update(args.id, **fields)
+        except KeyError:
+            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        print(f"✓ Updated issue: {issue.id} — {issue.title}")
+
+
+def handle_bead_close(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        try:
+            closed = proj.close(args.ids, reason=args.reason)
+        except KeyError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        for issue in closed:
+            print(f"✓ Closed: {issue.id} — {issue.title}")
+
+
+def handle_bead_dep(args: argparse.Namespace) -> None:
+    if args.dep_action == "add":
+        with _get_project() as proj:
+            dep = proj.add_dependency(args.issue, args.depends_on)
+            print(f"✓ Added dependency: {dep.issue_id} depends on {dep.depends_on_id}")
+    else:
+        print(f"Unknown dep action: {args.dep_action}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_bead_blocked(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        issues = proj.blocked()
+        if not issues:
+            print("No blocked issues.")
+            return
+        for issue in issues:
+            blockers = [d.depends_on_id for d in issue.dependencies]
+            blocker_str = ", ".join(blockers)
+            print(f"● {issue.id} · {issue.title}  [blocked by: {blocker_str}]")
+
+
+def handle_bead_sync(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        if args.status:
+            clean = proj.sync_is_clean()
+            if clean:
+                print("✓ JSONL is in sync with git")
+            else:
+                print("○ JSONL has uncommitted changes")
+            return
+        proj.sync()
+        print("✓ Synced issues to git")
+
+
+def handle_bead_stats(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        s = proj.stats()
+        print("Issue Statistics")
+        print(f"  Total:       {s.get('total', 0)}")
+        print(f"  Open:        {s.get('open', 0)}")
+        print(f"  In Progress: {s.get('in_progress', 0)}")
+        print(f"  Closed:      {s.get('closed', 0)}")
+        print(f"  Epics:       {s.get('epic', 0)}")
+        print(f"  Children:    {s.get('child', 0)}")
+
+
+def handle_bead_doctor(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        messages = proj.doctor()
+        for msg in messages:
+            print(msg)
+
+
+def handle_bead_onboard(args: argparse.Namespace) -> None:
+    print("""sase bead — Lightweight git-native issue tracking
+
+Quick Start:
+  sase bead init                                 Create .beads/ in current directory
+  sase bead create --title="Fix bug" --type=child --parent=<epic-id>
+  sase bead create --title="New feature" --type=epic
+  sase bead list                                 List all issues
+  sase bead list --status=open                   List open issues
+  sase bead ready                                Show issues ready to work
+  sase bead show <id>                            View issue details
+  sase bead update <id> --status=in_progress     Claim an issue
+  sase bead close <id>                           Close an issue
+  sase bead dep add <issue> <depends-on>         Add dependency
+  sase bead blocked                              Show blocked issues
+  sase bead sync                                 Commit JSONL to git
+  sase bead stats                                Project statistics
+  sase bead doctor                               Health check""")
