@@ -56,6 +56,11 @@ def resolve_primary_workspace() -> Path | None:
         result = _resolve_from_project_file(project_name)
         if result is not None:
             return result
+        # If WORKSPACE_DIR is missing/stale in the .gp file, ask the
+        # workspace provider directly for workspace #1.
+        result = _resolve_from_workspace_provider(project_name)
+        if result is not None:
+            return result
 
     # Strategy 2: scan all projects
     return _resolve_by_scanning_projects(os.path.abspath(os.getcwd()))
@@ -80,6 +85,31 @@ def _resolve_from_project_file(project_name: str) -> Path | None:
         return None
 
     return primary
+
+
+def _resolve_from_workspace_provider(project_name: str) -> Path | None:
+    """Resolve primary workspace using workspace provider plugins."""
+    try:
+        from sase.workspace_provider import (
+            detect_workflow_type,
+            get_workspace_directory as ws_get_workspace_directory,
+        )
+        from sase.workspace_utils import parse_workspace_dir
+
+        project_file = (
+            Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
+        )
+        workflow_type = detect_workflow_type(str(project_file))
+        primary_workspace_dir = parse_workspace_dir(str(project_file)) or ""
+        workspace = ws_get_workspace_directory(
+            workflow_type, 1, project_name, primary_workspace_dir
+        )
+        primary = Path(workspace.rstrip("/"))
+        if primary.is_dir():
+            return primary
+    except Exception:
+        return None
+    return None
 
 
 def _resolve_by_scanning_projects(cwd: str) -> Path | None:

@@ -1,11 +1,13 @@
 """Tests for workspace-aware beads directory resolution."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 from sase.bead.workspace import (
     _cwd_matches_numbered_workspace,
     _enumerate_workspace_beads_dirs,
     _resolve_by_scanning_projects,
+    resolve_primary_workspace,
 )
 
 
@@ -114,3 +116,34 @@ def test_scanning_projects_no_match(tmp_path: Path, monkeypatch) -> None:
 
     result = _resolve_by_scanning_projects("/some/other/path")
     assert result is None
+
+
+def test_resolve_primary_workspace_via_provider_when_workspace_dir_missing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Falls back to workspace provider when .gp lacks WORKSPACE_DIR."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    project_name = "yserve"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    (project_dir / f"{project_name}.gp").write_text("RUNNING:\nNAME: x\n")
+
+    primary = tmp_path / "workspaces" / project_name / "google3"
+    primary.mkdir(parents=True)
+    monkeypatch.chdir(primary)
+
+    with (
+        patch("sase.workspace_provider.get_workspace_name", return_value=project_name),
+        patch(
+            "sase.workspace_provider.detect_workflow_type", return_value="hg"
+        ) as mock_detect,
+        patch(
+            "sase.workspace_provider.get_workspace_directory",
+            return_value=str(primary),
+        ) as mock_get_dir,
+    ):
+        result = resolve_primary_workspace()
+
+    assert result == primary
+    mock_detect.assert_called_once_with(str(project_dir / f"{project_name}.gp"))
+    mock_get_dir.assert_called_once_with("hg", 1, project_name, "")
