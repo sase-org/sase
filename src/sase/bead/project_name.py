@@ -53,8 +53,6 @@ def scan_projects_for_cwd(cwd: str) -> tuple[str, Path] | None:
             continue
 
         primary = Path(workspace_dir.rstrip("/"))
-        if not primary.is_dir():
-            continue
 
         if _cwd_matches_project_workspace(cwd, primary, project_name):
             return project_name, primary

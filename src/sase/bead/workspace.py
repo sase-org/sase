@@ -15,8 +15,8 @@ from pathlib import Path
 from sase.bead import db as db_mod
 from sase.bead.jsonl import dict_to_issue
 from sase.bead.model import Issue, IssueType, Status
-from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
+from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 
 
 def get_project_beads_dirs() -> list[Path] | None:
@@ -85,8 +85,8 @@ def _resolve_from_project_file(project_name: str) -> Path | None:
 def _resolve_from_workspace_provider(project_name: str) -> Path | None:
     """Resolve primary workspace using workspace provider plugins."""
     try:
+        from sase.workspace_provider import detect_workflow_type
         from sase.workspace_provider import (
-            detect_workflow_type,
             get_workspace_directory as ws_get_workspace_directory,
         )
         from sase.workspace_utils import parse_workspace_dir
@@ -116,7 +116,10 @@ def _resolve_by_scanning_projects(cwd: str) -> Path | None:
     scanned = scan_projects_for_cwd(cwd)
     if scanned is None:
         return None
-    return scanned[1]
+    primary = scanned[1]
+    if not primary.is_dir():
+        return None
+    return primary
 
 
 def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:

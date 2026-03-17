@@ -56,3 +56,22 @@ def test_detect_prefix_uses_project_name_from_cwd(tmp_path, monkeypatch):
         "sase.bead.config.infer_project_name_from_cwd", lambda: "yserve"
     )
     assert _detect_prefix(root) == "yserve"
+
+
+def test_detect_prefix_with_trailing_vcs_component(tmp_path, monkeypatch):
+    """Prefix should be project name, not the workspace root dir name (e.g. google3)."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    # Register project
+    project_dir = tmp_path / ".sase" / "projects" / "yserve"
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / "yserve" / "google3"
+    (project_dir / "yserve.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    # CWD is under a variant (primary need not exist on disk)
+    variant = tmp_path / "workspaces" / "yserve_101" / "google3"
+    variant.mkdir(parents=True)
+    monkeypatch.chdir(variant)
+
+    # root_dir is the workspace root dir (e.g. google3) — should NOT be the prefix
+    assert _detect_prefix(variant) == "yserve"

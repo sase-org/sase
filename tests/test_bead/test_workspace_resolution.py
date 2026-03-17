@@ -124,6 +124,31 @@ def test_scanning_projects_variant_to_variant(tmp_path: Path, monkeypatch) -> No
     assert result == primary
 
 
+def test_scanning_projects_primary_not_on_disk(tmp_path: Path, monkeypatch) -> None:
+    """Project name should resolve even when primary workspace doesn't exist on disk."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    projects_dir = tmp_path / ".sase" / "projects" / "yserve"
+    projects_dir.mkdir(parents=True)
+    # Primary workspace path in .gp file — does NOT exist on disk.
+    primary = tmp_path / "workspaces" / "yserve" / "google3"
+    (projects_dir / "yserve.gp").write_text(f"WORKSPACE_DIR: {primary}\n")
+
+    # CWD is under a variant workspace that DOES exist.
+    variant = tmp_path / "workspaces" / "yserve_101" / "google3"
+    variant.mkdir(parents=True)
+
+    # _resolve_by_scanning_projects returns None (primary isn't on disk),
+    # but scan_projects_for_cwd still matches the project name.
+    result = _resolve_by_scanning_projects(str(variant))
+    assert result is None
+
+    from sase.bead.project_name import scan_projects_for_cwd
+
+    scanned = scan_projects_for_cwd(str(variant))
+    assert scanned is not None
+    assert scanned[0] == "yserve"
+
+
 def test_scanning_projects_no_match(tmp_path: Path, monkeypatch) -> None:
     """CWD doesn't match any project."""
     monkeypatch.setenv("HOME", str(tmp_path))
