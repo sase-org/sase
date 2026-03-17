@@ -182,12 +182,12 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 except KeyError:
                     print(f"  ← {bid} (not found)")
         if issue.description:
-            print(f"\nDESCRIPTION\n{issue.description}")
+            print(f"\nDESCRIPTION\n  {issue.description}")
         if issue.notes:
-            print(f"\nNOTES\n{issue.notes}")
+            print(f"\nNOTES\n  {issue.notes}")
         if issue.design:
             rel = os.path.relpath(issue.design)
-            print(f"\nPLAN: {rel}")
+            print(f"\nPLAN\n  {rel}")
 
 
 def handle_bead_ready(args: argparse.Namespace) -> None:
