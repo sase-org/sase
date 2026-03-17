@@ -1,10 +1,14 @@
+---
+bead_id: sase-5fkw
+---
+
 # Plan: sase-beads Package + Migration from steveyegge/beads
 
 ## Overview
 
-Build the `sase-beads` Python package in the `../sase-beads` repo (currently empty), then migrate sase from the
-external `bd` Go binary to `sbd`. The package provides simple epic/child issue tracking backed by SQLite + JSONL, with
-zero external dependencies beyond Python stdlib.
+Build the `sase-beads` Python package in the `../sase-beads` repo (currently empty), then migrate sase from the external
+`bd` Go binary to `sbd`. The package provides simple epic/child issue tracking backed by SQLite + JSONL, with zero
+external dependencies beyond Python stdlib.
 
 **Reference**: `research/sase_beads.md` contains the full design (schema, JSONL format, field definitions, etc.).
 
@@ -12,8 +16,7 @@ zero external dependencies beyond Python stdlib.
 
 ## Phase 1: sase-beads Core Library
 
-**Repo**: `../sase-beads`
-**Goal**: Scaffold the repo and implement the core data layer with thorough tests.
+**Repo**: `../sase-beads` **Goal**: Scaffold the repo and implement the core data layer with thorough tests.
 
 ### 1.1 Repo scaffold
 
@@ -73,9 +76,8 @@ just check  # fmt-check + lint + test all pass
 
 ## Phase 2: sbd CLI + Python API
 
-**Repo**: `../sase-beads`
-**Prereq**: Phase 1 complete (core library with passing tests)
-**Goal**: Implement all CLI commands and the `SbdProject` public API.
+**Repo**: `../sase-beads` **Prereq**: Phase 1 complete (core library with passing tests) **Goal**: Implement all CLI
+commands and the `SbdProject` public API.
 
 ### 2.1 Project class (`src/sase_beads/project.py`)
 
@@ -149,9 +151,8 @@ sbd init && sbd create --title="Test" --type=epic && sbd list  # Manual smoke te
 
 ## Phase 3: Documentation + Integration Tests
 
-**Repo**: `../sase-beads`
-**Prereq**: Phase 2 complete (working CLI + API)
-**Goal**: Write comprehensive README, add integration tests, polish the package.
+**Repo**: `../sase-beads` **Prereq**: Phase 2 complete (working CLI + API) **Goal**: Write comprehensive README, add
+integration tests, polish the package.
 
 ### 3.1 README.md
 
@@ -193,9 +194,8 @@ just check   # All checks pass including new integration tests
 
 ## Phase 4: sase Migration
 
-**Repos**: `../sase_100` (sase) + `../sase-beads`
-**Prereq**: Phase 3 complete (sase-beads package is published/installable)
-**Goal**: Migrate sase from steveyegge/beads (`bd`) to sase-beads (`sbd`).
+**Repos**: `../sase_100` (sase) + `../sase-beads` **Prereq**: Phase 3 complete (sase-beads package is
+published/installable) **Goal**: Migrate sase from steveyegge/beads (`bd`) to sase-beads (`sbd`).
 
 ### 4.1 Add dependency
 
