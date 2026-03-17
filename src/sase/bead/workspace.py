@@ -119,40 +119,6 @@ def _resolve_by_scanning_projects(cwd: str) -> Path | None:
     return scanned[1]
 
 
-def cwd_matches_workspace_variant(cwd: str, primary: Path, project_name: str) -> bool:
-    """Check if *cwd* is under a numbered variant of *primary*.
-
-    Compares path components and allows exactly one variant difference:
-    a component matching ``project_name`` or ``project_name_<suffix>``
-    may be replaced by another component with the same base project name.
-    """
-    primary_parts = primary.parts
-    cwd_parts = Path(cwd).parts
-
-    if len(cwd_parts) < len(primary_parts):
-        return False
-
-    for i in range(len(primary_parts)):
-        if primary_parts[i] == cwd_parts[i]:
-            continue
-        # Allow exactly one difference: project_name(_*) ↔ project_name(_*)
-        primary_is_variant = primary_parts[i] == project_name or primary_parts[
-            i
-        ].startswith(f"{project_name}_")
-        cwd_is_variant = cwd_parts[i] == project_name or cwd_parts[i].startswith(
-            f"{project_name}_"
-        )
-        if primary_is_variant and cwd_is_variant:
-            # Remaining primary parts must match
-            for j in range(i + 1, len(primary_parts)):
-                if cwd_parts[j] != primary_parts[j]:
-                    return False
-            return True
-        return False
-
-    return False
-
-
 def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     """Enumerate beads directories across all workspaces.
 
