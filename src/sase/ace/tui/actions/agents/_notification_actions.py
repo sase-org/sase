@@ -478,7 +478,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         return False
 
     plan_file = notification.files[0]
-    sbd_available = notification.action_data.get("sbd_available") == "true"
+    beads_supported = notification.action_data.get("beads_supported") == "1"
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -495,7 +495,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             with app.suspend():  # type: ignore[attr-defined]
                 subprocess.run([editor, plan_file], check=False)
             app.push_screen(  # type: ignore[attr-defined]
-                PlanApprovalModal(plan_file, sbd_available=sbd_available),
+                PlanApprovalModal(plan_file, beads_supported=beads_supported),
                 on_dismiss,
             )
             return
@@ -573,7 +573,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             app._load_agents()  # type: ignore[attr-defined]
 
     app.push_screen(  # type: ignore[attr-defined]
-        PlanApprovalModal(plan_file, sbd_available=sbd_available), on_dismiss
+        PlanApprovalModal(plan_file, beads_supported=beads_supported), on_dismiss
     )
     return True
 

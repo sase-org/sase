@@ -37,22 +37,22 @@ class PlanApprovalModal(
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
 
-    def __init__(self, plan_file: str, *, sbd_available: bool = False) -> None:
+    def __init__(self, plan_file: str, *, beads_supported: bool = False) -> None:
         """Initialize the plan approval modal.
 
         Args:
             plan_file: Path to the plan markdown file.
-            sbd_available: Whether beads-based epic creation is available.
+            beads_supported: Whether beads-based epic creation is available.
         """
         super().__init__()
         self._plan_file = plan_file
         self._feedback_mode = False
-        self._sbd_available = sbd_available
+        self._beads_supported = beads_supported
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         plan_name = os.path.basename(self._plan_file)
-        epic_hint = "[magenta]E[/magenta]=Epic  " if self._sbd_available else ""
+        epic_hint = "[magenta]E[/magenta]=Epic  " if self._beads_supported else ""
         hints = (
             "[green]a[/green]=Approve  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Reject w/ feedback  "
@@ -134,7 +134,7 @@ class PlanApprovalModal(
 
     def action_epic(self) -> None:
         """Create an epic from the plan."""
-        if self._feedback_mode or not self._sbd_available:
+        if self._feedback_mode or not self._beads_supported:
             return
         self.dismiss(PlanApprovalResult(action="epic"))
 

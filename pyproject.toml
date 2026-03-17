@@ -15,7 +15,6 @@ dependencies = [
     "pluggy",
     "pyyaml",
     "rich",
-    "sase-beads",
     "schedule",
     "textual>=0.45.0",
 ]
@@ -55,9 +54,6 @@ sase_chop_cl_submitted_checks = "sase.scripts:sase_chop_cl_submitted_checks"
 sase_chop_comment_checks = "sase.scripts:sase_chop_comment_checks"
 sase_chop_error_digest = "sase.scripts:sase_chop_error_digest"
 sase_xcmd = "sase.scripts:sase_xcmd"
-
-[tool.uv.sources]
-sase-beads = { path = "../sase-beads", editable = true }
 
 [project.entry-points."sase_vcs"]
 bare_git = "sase.vcs_provider.plugins.bare_git:BareGitPlugin"

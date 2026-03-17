@@ -305,10 +305,10 @@ def create_parser() -> argparse.ArgumentParser:
         help="End timestamp for duration calculation (YYmmdd_HHMMSS format).",
     )
 
-    # --- init-sbd ---
+    # --- init-beads ---
     top_level_subparsers.add_parser(
-        "init-sbd",
-        help="Bootstrap .sase/sdd/ as a git-tracked SDD directory with sase-beads",
+        "init-beads",
+        help="Bootstrap .sase/sdd/ as a git-tracked SDD directory with beads",
     )
 
     # --- init-git ---

@@ -43,19 +43,11 @@ just test-py 312    # Specific version
 - **Mypy**: Add `# type: ignore[code]` to the line
 - **Coverage**: Add `# pragma: no cover` to exclude from coverage
 
-## Migrating from beads to sase-beads
-
-If you have an existing `.beads/` directory, run the migration script:
-
-```bash
-python3 tools/migrate_beads_to_sbd [project-dir]
-```
-
 ## Submitting Issues
 
-This project uses `sbd` (sase-beads) for issue tracking:
+This project uses `bd` (beads) for issue tracking:
 
 ```bash
-sbd create --title="Description" --type=bug --priority=2
-sbd ready    # See available work
+bd create --title="Description" --type=bug --priority=2
+bd ready    # See available work
 ```
