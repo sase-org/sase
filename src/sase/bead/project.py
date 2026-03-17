@@ -13,18 +13,27 @@ from sase.bead.model import Dependency, Issue, IssueType, Status
 from sase.bead.sync import git_sync, rebuild_from_jsonl, sync_status
 
 
+BEADS_DIRNAME = ".sase_beads"
+"""Default beads subdirectory name (used in version-controlled mode)."""
+
+BEADS_DIRNAME_NON_VC = "beads"
+"""Beads subdirectory name inside .sase/sdd/ (non-version-controlled mode)."""
+
+
 class BeadProject:
     """Main API for beads issue tracking.
 
     Wraps the database, config, and sync layers into a single interface.
     """
 
-    def __init__(self, root_dir: str | Path) -> None:
+    def __init__(
+        self, root_dir: str | Path, beads_dirname: str = BEADS_DIRNAME
+    ) -> None:
         self.root_dir = Path(root_dir).resolve()
-        self.beads_dir = self.root_dir / ".beads"
+        self.beads_dir = self.root_dir / beads_dirname
         if not self.beads_dir.exists():
             raise FileNotFoundError(
-                f"No .beads/ directory found at {self.root_dir}. "
+                f"No {beads_dirname}/ directory found at {self.root_dir}. "
                 "Run 'sase bead init' first."
             )
         # Rebuild from JSONL if needed (e.g., fresh clone)
@@ -43,10 +52,10 @@ class BeadProject:
         self._conn.close()
 
     @staticmethod
-    def init(root_dir: str | Path) -> BeadProject:
-        """Create a new .beads/ directory and return a BeadProject."""
+    def init(root_dir: str | Path, beads_dirname: str = BEADS_DIRNAME) -> BeadProject:
+        """Create a new beads directory and return a BeadProject."""
         root = Path(root_dir).resolve()
-        beads_dir = root / ".beads"
+        beads_dir = root / beads_dirname
         beads_dir.mkdir(parents=True, exist_ok=True)
         # Write default config
         config = get_default_config(root)
@@ -56,7 +65,7 @@ class BeadProject:
         conn.close()
         # Create empty JSONL
         (beads_dir / "issues.jsonl").touch()
-        return BeadProject(root)
+        return BeadProject(root, beads_dirname=beads_dirname)
 
     def create(
         self,

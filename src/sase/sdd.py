@@ -3,7 +3,7 @@
 import subprocess
 from pathlib import Path
 
-from sase.bead.project import BeadProject
+from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
 from sase.config import load_merged_config
 
 
@@ -48,7 +48,7 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
 
     1. Creates `.sase/sdd/` in the primary workspace.
     2. Runs `git init` inside it if not already a git repo.
-    3. Runs `bd init --quiet --skip-hooks` in the primary workspace if `.beads/` missing.
+    3. Runs `bd init --quiet --skip-hooks` in the primary workspace if `beads/` missing.
 
     Returns the `.sase/sdd/` path.
     """
@@ -70,12 +70,12 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
             stdin=subprocess.DEVNULL,
         )
 
-    beads_dir = sdd_dir / ".beads"
+    beads_dir = sdd_dir / BEADS_DIRNAME_NON_VC
     if beads_dir.is_dir():
         print("  Beads already initialized", flush=True)
     else:
         print("  Initializing beads ...", flush=True)
-        BeadProject.init(sdd_dir)
+        BeadProject.init(sdd_dir, beads_dirname=BEADS_DIRNAME_NON_VC)
 
     return sdd_dir
 
@@ -108,16 +108,16 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
 def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
     """Ensure beads are initialized, calling ``init_beads`` if necessary.
 
-    For VC repos: initializes ``.beads/`` in the primary workspace root.
-    For non-VC repos: delegates to ``init_beads()`` for ``.sase/sdd/.beads/``.
+    For VC repos: initializes ``.sase_beads/`` in the primary workspace root.
+    For non-VC repos: delegates to ``init_beads()`` for ``.sase/sdd/beads/``.
     """
     primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
     if get_sdd_config():
-        beads_dir = Path(primary, ".beads")
+        beads_dir = Path(primary, BEADS_DIRNAME)
         if not beads_dir.is_dir():
             BeadProject.init(Path(primary))
     else:
-        beads_dir = Path(primary, ".sase", "sdd", ".beads")
+        beads_dir = Path(primary, ".sase", "sdd", BEADS_DIRNAME_NON_VC)
         if not beads_dir.is_dir():
             init_beads(workspace_dir, workspace_num)
 

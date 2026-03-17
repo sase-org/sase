@@ -14,9 +14,9 @@ from sase.sdd import ensure_beads_initialized
 
 
 def test_ensure_beads_initialized_vc_already_exists() -> None:
-    """No-op when sdd.version_controlled is enabled and .beads/ already exists."""
+    """No-op when sdd.version_controlled is enabled and .sase_beads/ already exists."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / ".beads").mkdir()
+        (Path(tmpdir) / ".sase_beads").mkdir()
         with (
             patch("sase.sdd.get_sdd_config", return_value=True),
             patch("sase.sdd.BeadProject") as mock_bp,
@@ -26,7 +26,7 @@ def test_ensure_beads_initialized_vc_already_exists() -> None:
 
 
 def test_ensure_beads_initialized_vc_creates_beads() -> None:
-    """Initializes .beads/ when sdd.version_controlled is enabled and .beads/ missing."""
+    """Initializes .sase_beads/ when sdd.version_controlled is enabled and .sase_beads/ missing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
             patch("sase.sdd.get_sdd_config", return_value=True),
@@ -37,9 +37,9 @@ def test_ensure_beads_initialized_vc_creates_beads() -> None:
 
 
 def test_ensure_beads_initialized_non_vc_already_exists() -> None:
-    """No-op when non-VC repo already has .sase/sdd/.beads/."""
+    """No-op when non-VC repo already has .sase/sdd/beads/."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / ".sase" / "sdd" / ".beads").mkdir(parents=True)
+        (Path(tmpdir) / ".sase" / "sdd" / "beads").mkdir(parents=True)
         with (
             patch("sase.sdd.get_sdd_config", return_value=False),
             patch("sase.sdd.init_beads") as mock_init,
@@ -49,7 +49,7 @@ def test_ensure_beads_initialized_non_vc_already_exists() -> None:
 
 
 def test_ensure_beads_initialized_non_vc_calls_init_beads() -> None:
-    """Calls init_beads when non-VC repo is missing .sase/sdd/.beads/."""
+    """Calls init_beads when non-VC repo is missing .sase/sdd/beads/."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
             patch("sase.sdd.get_sdd_config", return_value=False),
@@ -60,7 +60,7 @@ def test_ensure_beads_initialized_non_vc_calls_init_beads() -> None:
 
 
 def test_ensure_beads_initialized_workspace_num_2() -> None:
-    """For workspace_num > 1, checks .beads/ in the primary workspace."""
+    """For workspace_num > 1, checks .sase_beads/ in the primary workspace."""
     with tempfile.TemporaryDirectory() as tmpdir:
         primary = Path(tmpdir) / "project"
         primary.mkdir()

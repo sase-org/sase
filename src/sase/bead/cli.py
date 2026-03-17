@@ -7,26 +7,26 @@ import sys
 from pathlib import Path
 
 from sase.bead.model import IssueType, Status
-from sase.bead.project import BeadProject
+from sase.bead.project import BEADS_DIRNAME, BeadProject
 from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
 
 
 def _find_project_root() -> Path:
-    """Walk up from cwd to find a directory containing .beads/.
+    """Walk up from cwd to find a directory containing .sase_beads/.
 
     Falls back to the primary workspace via the sase workspace provider
-    if no .beads/ is found in ancestor directories.
+    if no .sase_beads/ is found in ancestor directories.
     """
     cwd = Path.cwd()
     for parent in [cwd, *cwd.parents]:
-        if (parent / ".beads").is_dir():
+        if (parent / BEADS_DIRNAME).is_dir():
             return parent
 
     # Fall back to workspace provider
     from sase.bead.workspace import resolve_primary_workspace
 
     primary = resolve_primary_workspace()
-    if primary and (primary / ".beads").is_dir():
+    if primary and (primary / BEADS_DIRNAME).is_dir():
         return primary
 
     return cwd
@@ -39,7 +39,7 @@ def _get_project() -> BeadProject:
         return BeadProject(root)
     except FileNotFoundError:
         print(
-            "Error: no .beads/ directory found. Run 'sase bead init' first.",
+            f"Error: no {BEADS_DIRNAME}/ directory found. Run 'sase bead init' first.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -65,12 +65,12 @@ def _status_icon(status: Status) -> str:
 
 def handle_bead_init(args: argparse.Namespace) -> None:
     root = Path.cwd()
-    if (root / ".beads").exists():
-        print("Already initialized: .beads/ exists")
+    if (root / BEADS_DIRNAME).exists():
+        print(f"Already initialized: {BEADS_DIRNAME}/ exists")
         return
     with BeadProject.init(root):
         pass
-    print(f"Initialized .beads/ in {root}")
+    print(f"Initialized {BEADS_DIRNAME}/ in {root}")
 
 
 def handle_bead_create(args: argparse.Namespace) -> None:
@@ -296,7 +296,7 @@ def handle_bead_onboard(args: argparse.Namespace) -> None:
     print("""sase bead — Lightweight git-native issue tracking
 
 Quick Start:
-  sase bead init                                 Create .beads/ in current directory
+  sase bead init                                 Create .sase_beads/ in current directory
   sase bead create --title="Fix bug" --parent=<plan-id>
   sase bead create --title="New feature" --plan=plan.md
   sase bead create --title="Sub-plan" --plan=plan.md --parent=<plan-id>

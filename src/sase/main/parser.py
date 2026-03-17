@@ -209,7 +209,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # sase bead init
-    bead_subparsers.add_parser("init", help="Create .beads/ in current directory")
+    bead_subparsers.add_parser("init", help="Create .sase_beads/ in current directory")
 
     # sase bead create
     bead_create_parser = bead_subparsers.add_parser("create", help="Create a new issue")

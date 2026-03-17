@@ -17,10 +17,10 @@ def project(tmp_path):
 
 def test_init_creates_beads_dir(tmp_path):
     with BeadProject.init(tmp_path):
-        assert (tmp_path / ".beads").is_dir()
-        assert (tmp_path / ".beads" / "config.json").exists()
-        assert (tmp_path / ".beads" / "beads.db").exists()
-        assert (tmp_path / ".beads" / "issues.jsonl").exists()
+        assert (tmp_path / ".sase_beads").is_dir()
+        assert (tmp_path / ".sase_beads" / "config.json").exists()
+        assert (tmp_path / ".sase_beads" / "beads.db").exists()
+        assert (tmp_path / ".sase_beads" / "issues.jsonl").exists()
 
 
 def test_init_already_exists(tmp_path):

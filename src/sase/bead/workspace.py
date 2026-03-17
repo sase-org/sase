@@ -15,10 +15,11 @@ from pathlib import Path
 from sase.bead import db as db_mod
 from sase.bead.jsonl import dict_to_issue
 from sase.bead.model import Issue, IssueType, Status
+from sase.bead.project import BEADS_DIRNAME
 
 
 def get_project_beads_dirs() -> list[Path] | None:
-    """Find all .beads/ directories across all workspaces of the current project.
+    """Find all .sase_beads/ directories across all workspaces of the current project.
 
     Returns None if not in a recognized sase project (caller should fall back
     to the old walk-up-from-cwd behavior).
@@ -64,7 +65,7 @@ def resolve_primary_workspace() -> Path | None:
 
 
 def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
-    """Enumerate .beads/ directories across all workspaces.
+    """Enumerate .sase_beads/ directories across all workspaces.
 
     Scans sibling directories matching ``<primary_basename>_<N>`` pattern.
     """
@@ -75,7 +76,7 @@ def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     beads_dirs: list[Path] = []
 
     # Primary workspace
-    primary_beads = primary_workspace / ".beads"
+    primary_beads = primary_workspace / BEADS_DIRNAME
     if primary_beads.is_dir():
         beads_dirs.append(primary_beads)
 
@@ -83,7 +84,7 @@ def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     if parent.is_dir():
         for entry in sorted(parent.iterdir()):
             if entry.is_dir() and pattern.match(entry.name):
-                beads = entry / ".beads"
+                beads = entry / BEADS_DIRNAME
                 if beads.is_dir():
                     beads_dirs.append(beads)
 
