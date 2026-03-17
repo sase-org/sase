@@ -104,11 +104,6 @@ def _base_patches(artifacts_dir: str) -> dict[str, Any]:
         f"{_RUNNER}.create_artifacts_directory": MagicMock(return_value=artifacts_dir),
         # Prevent tests from writing real notifications to the store
         "sase.notifications.senders.append_notification": MagicMock(),
-        f"{_RUNNER}.save_chat_history": MagicMock(return_value="/tmp/history.md"),
-        f"{_RUNNER}.format_extra_sections": MagicMock(return_value=""),
-        f"{_RUNNER}.extract_step_output_and_diff_path": MagicMock(
-            return_value=(None, None)
-        ),
         f"{_RUNNER}.format_duration": MagicMock(return_value="1s"),
         f"{_RUNNER}.record_stop_time": MagicMock(),
         f"{_RUNNER}.was_killed": was_killed_mock,
