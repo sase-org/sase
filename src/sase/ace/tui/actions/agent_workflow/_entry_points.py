@@ -239,6 +239,7 @@ class EntryPointsMixin:
             changespec.file_path, changespec.name, None
         )
         if ok:
+            changespec.comments = None
             self.notify(f"Cleared COMMENTS for {changespec.name}")  # type: ignore[attr-defined]
         else:
             self.notify(  # type: ignore[attr-defined]
