@@ -45,9 +45,15 @@ def main() -> NoReturn:
         from sase.main.utils import ensure_project_file_and_get_workspace_num
         from sase.sdd import init_beads
 
+        print("Initializing beads for SDD tracking ...", flush=True)
+        print("  Resolving project workspace ...", flush=True)
         _, workspace_num, _ = ensure_project_file_and_get_workspace_num()
-        sdd_path = init_beads(os.getcwd(), workspace_num or 1)
-        print(f"Initialized SDD directory: {sdd_path}")
+        try:
+            sdd_path = init_beads(os.getcwd(), workspace_num or 1)
+        except RuntimeError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Done! SDD directory: {sdd_path}")
         sys.exit(0)
 
     # --- init-git ---

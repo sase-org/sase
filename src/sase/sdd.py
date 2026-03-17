@@ -53,19 +53,46 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
     """
     primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
     sdd_dir = Path(primary) / ".sase" / "sdd"
+
+    print(f"  Creating {sdd_dir}", flush=True)
     sdd_dir.mkdir(parents=True, exist_ok=True)
 
-    if not (sdd_dir / ".git").is_dir():
-        subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
-
-    beads_dir = sdd_dir / ".beads"
-    if not beads_dir.is_dir():
+    if (sdd_dir / ".git").is_dir():
+        print("  Git repo already initialized", flush=True)
+    else:
+        print("  Initializing git repo ...", flush=True)
         subprocess.run(
-            ["bd", "init", "--quiet", "--skip-hooks"],
+            ["git", "init"],
             cwd=sdd_dir,
             check=True,
             capture_output=True,
+            stdin=subprocess.DEVNULL,
         )
+
+    beads_dir = sdd_dir / ".beads"
+    if beads_dir.is_dir():
+        print("  Beads already initialized", flush=True)
+    else:
+        print("  Initializing beads ...", flush=True)
+        try:
+            subprocess.run(
+                ["bd", "init", "--quiet", "--skip-hooks"],
+                cwd=sdd_dir,
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as err:
+            if beads_dir.is_dir():
+                print(
+                    "  Warning: 'bd init' timed out, but .beads/ was created",
+                    flush=True,
+                )
+            else:
+                raise RuntimeError(
+                    "'bd init' timed out after 30s and .beads/ was not created"
+                ) from err
 
     return sdd_dir
 
