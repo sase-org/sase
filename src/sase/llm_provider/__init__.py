@@ -23,10 +23,11 @@ from .retry_config import (
     get_wait_time,
     is_retryable_error,
 )
-from .types import LoggingContext, ModelTier
+from .types import LLMInvocationError, LoggingContext, ModelTier
 
 __all__ = [
     "FileRefMode",
+    "LLMInvocationError",
     "LLMProvider",
     "LoggingContext",
     "ModelTier",

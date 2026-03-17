@@ -15,7 +15,7 @@ from sase.change_actions import (
 from sase.chat_history import save_chat_history
 from sase.commit_utils import run_sase_hg_clean
 from sase.sase_utils import generate_timestamp, strip_hook_prefix
-from sase.llm_provider import invoke_agent
+from sase.llm_provider import LLMInvocationError, invoke_agent
 from sase.running_field import (
     claim_workspace,
     get_first_available_workspace,
@@ -305,20 +305,24 @@ def handle_run_fix_hook_workflow(
         # Capture start timestamp for accurate duration calculation
         start_timestamp = generate_timestamp()
 
-        response = invoke_agent(
-            prompt,
-            agent_type="fix-hook",
-            model_tier="large",
-            workflow="fix-hook",
-        )
+        try:
+            response = invoke_agent(
+                prompt,
+                agent_type="fix-hook",
+                model_tier="large",
+                workflow="fix-hook",
+            )
+            response_content = str(response.content)
+        except LLMInvocationError as e:
+            response_content = str(e)
         self.console.print(
-            f"\n[green]Agent Response:[/green]\n{_esc(str(response.content))}\n"
+            f"\n[green]Agent Response:[/green]\n{_esc(response_content)}\n"
         )
 
         # Save chat history for the COMMITS entry
         chat_path = save_chat_history(
             prompt=prompt,
-            response=str(response.content),
+            response=response_content,
             workflow="fix-hook",
             timestamp=start_timestamp,
         )

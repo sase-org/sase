@@ -3,7 +3,10 @@
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.llm_provider._invoke import invoke_agent
+from sase.llm_provider.types import LLMInvocationError
 from sase.llm_provider.preprocessing import _PreprocessResult
 
 
@@ -15,19 +18,19 @@ def test_invoke_agent_handles_error(
     mock_preprocess: MagicMock,
     mock_get_provider: MagicMock,
 ) -> None:
-    """Test invoke_agent handles provider errors gracefully."""
+    """Test invoke_agent raises LLMInvocationError on provider failure."""
     mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed prompt")
     mock_provider = MagicMock()
     mock_provider.invoke.side_effect = Exception("test error")
     mock_get_provider.return_value = mock_provider
 
-    result = invoke_agent(
-        "raw prompt",
-        agent_type="test",
-        suppress_output=True,
-    )
+    with pytest.raises(LLMInvocationError, match="Error: test error"):
+        invoke_agent(
+            "raw prompt",
+            agent_type="test",
+            suppress_output=True,
+        )
 
-    assert "Error: test error" in result.content
     mock_postprocess_error.assert_called_once()
 
 

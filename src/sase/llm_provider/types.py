@@ -5,6 +5,16 @@ from typing import Any, Literal
 
 ModelTier = Literal["large", "small"]
 
+
+class LLMInvocationError(Exception):
+    """Raised when an LLM provider invocation fails.
+
+    Carries the formatted error content so callers can inspect or display it.
+    """
+
+    pass
+
+
 # Mapping from old terminology to new
 _MODEL_SIZE_TO_TIER: dict[str, ModelTier] = {"big": "large", "little": "small"}
 

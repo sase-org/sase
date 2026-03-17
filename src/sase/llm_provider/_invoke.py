@@ -22,6 +22,7 @@ from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
 from .registry import get_provider, resolve_model_provider
 from .types import (
+    LLMInvocationError,
     _MODEL_SIZE_TO_TIER,
     _MODEL_TIER_TO_LABEL,
     LoggingContext,
@@ -202,7 +203,10 @@ def invoke_agent(
             start_timestamp=start_timestamp,
         )
 
-        return AIMessage(content=error_content)
+        raise LLMInvocationError(error_content) from e
+
+    except LLMInvocationError:
+        raise
 
     except Exception as e:
         error_content = f"Error: {str(e)}"
@@ -215,4 +219,4 @@ def invoke_agent(
             start_timestamp=start_timestamp,
         )
 
-        return AIMessage(content=error_content)
+        raise LLMInvocationError(error_content) from e

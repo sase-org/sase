@@ -62,22 +62,26 @@ def invoke_agent(
     Returns:
         The AIMessage response from the agent.
     """
+    from sase.llm_provider import LLMInvocationError
     from sase.llm_provider import invoke_agent as _llm_invoke_agent
 
-    return _llm_invoke_agent(
-        prompt,
-        agent_type=agent_type,
-        model_size=model_size,
-        iteration=iteration,
-        workflow_tag=workflow_tag,
-        artifacts_dir=artifacts_dir,
-        workflow=workflow,
-        suppress_output=suppress_output,
-        timestamp=timestamp,
-        is_home_mode=is_home_mode,
-        skip_preprocessing=skip_preprocessing,
-        directives=directives,
-    )
+    try:
+        return _llm_invoke_agent(
+            prompt,
+            agent_type=agent_type,
+            model_size=model_size,
+            iteration=iteration,
+            workflow_tag=workflow_tag,
+            artifacts_dir=artifacts_dir,
+            workflow=workflow,
+            suppress_output=suppress_output,
+            timestamp=timestamp,
+            is_home_mode=is_home_mode,
+            skip_preprocessing=skip_preprocessing,
+            directives=directives,
+        )
+    except LLMInvocationError as e:
+        return AIMessage(content=str(e))
 
 
 class GeminiCommandWrapper:
@@ -151,18 +155,22 @@ class GeminiCommandWrapper:
         if not query:
             return AIMessage(content="No query found in messages")
 
+        from sase.llm_provider import LLMInvocationError
         from sase.llm_provider import invoke_agent as _llm_invoke_agent
 
-        return _llm_invoke_agent(
-            query,
-            agent_type=self.agent_type,
-            model_tier=_MODEL_SIZE_TO_TIER[self.model_size],
-            iteration=self.iteration,
-            workflow_tag=self.workflow_tag,
-            artifacts_dir=self.artifacts_dir,
-            workflow=self.workflow,
-            suppress_output=self.suppress_output,
-            timestamp=self.timestamp,
-            is_home_mode=self.is_home_mode,
-            decision_counts=self.decision_counts,
-        )
+        try:
+            return _llm_invoke_agent(
+                query,
+                agent_type=self.agent_type,
+                model_tier=_MODEL_SIZE_TO_TIER[self.model_size],
+                iteration=self.iteration,
+                workflow_tag=self.workflow_tag,
+                artifacts_dir=self.artifacts_dir,
+                workflow=self.workflow,
+                suppress_output=self.suppress_output,
+                timestamp=self.timestamp,
+                is_home_mode=self.is_home_mode,
+                decision_counts=self.decision_counts,
+            )
+        except LLMInvocationError as e:
+            return AIMessage(content=str(e))

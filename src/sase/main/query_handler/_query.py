@@ -385,7 +385,7 @@ def execute_standalone_steps(
             context[step.name] = output
 
         elif step.is_agent_step() and step.agent:
-            from sase.llm_provider import invoke_agent
+            from sase.llm_provider import LLMInvocationError, invoke_agent
             from sase.shared_utils import ensure_str_content
             from sase.xprompt import process_xprompt_references
 
@@ -402,12 +402,15 @@ def execute_standalone_steps(
                     dir=get_sase_tmpdir(),
                 )
 
-            response = invoke_agent(
-                expanded_prompt,
-                agent_type=f"embedded-{workflow_name}-{step.name}",
-                artifacts_dir=step_artifacts_dir,
-            )
-            response_text = ensure_str_content(response.content)
+            try:
+                response = invoke_agent(
+                    expanded_prompt,
+                    agent_type=f"embedded-{workflow_name}-{step.name}",
+                    artifacts_dir=step_artifacts_dir,
+                )
+                response_text = ensure_str_content(response.content)
+            except LLMInvocationError as e:
+                response_text = str(e)
 
             # Store raw output for prompt steps
             context[step.name] = {"_raw": response_text}

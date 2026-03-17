@@ -25,7 +25,7 @@ from sase.axe_runner_utils import (
 )
 from sase.chat_history import find_chat_by_timestamp
 from sase.sase_utils import shorten_path, strip_hook_prefix
-from sase.llm_provider import invoke_agent
+from sase.llm_provider import LLMInvocationError, invoke_agent
 from sase.main.query_handler import (
     execute_standalone_steps,
     expand_embedded_workflows_in_query,
@@ -155,15 +155,18 @@ def main() -> int:
         print(f"Command: {run_hook_command}")
         print()
 
-        response = invoke_agent(
-            expanded_prompt,
-            agent_type="fix-hook",
-            model_tier="large",
-            workflow="fix-hook",
-            artifacts_dir=artifacts_dir,
-            timestamp=timestamp,
-        )
-        response_content = ensure_str_content(response.content)
+        try:
+            response = invoke_agent(
+                expanded_prompt,
+                agent_type="fix-hook",
+                model_tier="large",
+                workflow="fix-hook",
+                artifacts_dir=artifacts_dir,
+                timestamp=timestamp,
+            )
+            response_content = ensure_str_content(response.content)
+        except LLMInvocationError as e:
+            response_content = str(e)
         print(f"\nAgent Response:\n{response_content}\n")
 
         # Build who identifier for proposal

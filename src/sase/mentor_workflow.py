@@ -9,7 +9,7 @@ from rich.markup import escape as _esc
 
 from sase.ace.changespec import find_all_changespecs
 from sase.sase_utils import generate_timestamp
-from sase.llm_provider import invoke_agent
+from sase.llm_provider import LLMInvocationError, invoke_agent
 from sase.main.query_handler import (
     execute_standalone_steps,
     expand_embedded_workflows_in_query,
@@ -197,20 +197,25 @@ class MentorWorkflow(BaseWorkflow):
             )
 
             print_status(f"Running mentor '{self.mentor_name}'...", "progress")
-            response = invoke_agent(
-                expanded_prompt,
-                agent_type=f"mentor-{self.mentor_name}",
-                model_tier="large",
-                iteration=1,
-                workflow_tag=workflow_tag,
-                artifacts_dir=artifacts_dir,
-                workflow=f"mentor-{self.mentor_name}",
-                timestamp=self._timestamp,
-                branch_or_workspace=resolved_cl_name,
-            )
+            try:
+                response = invoke_agent(
+                    expanded_prompt,
+                    agent_type=f"mentor-{self.mentor_name}",
+                    model_tier="large",
+                    iteration=1,
+                    workflow_tag=workflow_tag,
+                    artifacts_dir=artifacts_dir,
+                    workflow=f"mentor-{self.mentor_name}",
+                    timestamp=self._timestamp,
+                    branch_or_workspace=resolved_cl_name,
+                )
+            except LLMInvocationError as e:
+                from langchain_core.messages import AIMessage
+
+                response = AIMessage(content=str(e))
+            response_content = ensure_str_content(response.content)
 
             # Execute post-steps from embedded workflows
-            response_content = ensure_str_content(response.content)
             for ewf_result in post_workflows:
                 ewf_result.context["_prompt"] = expanded_prompt
                 ewf_result.context["_response"] = response_content

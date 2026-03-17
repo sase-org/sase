@@ -4,7 +4,7 @@ import os
 import sys
 from typing import NoReturn
 
-from sase.llm_provider import invoke_agent
+from sase.llm_provider import LLMInvocationError, invoke_agent
 from sase.main.query_handler import (
     execute_standalone_steps,
     expand_embedded_workflows_in_query,
@@ -170,19 +170,22 @@ class CrsWorkflow(BaseWorkflow):
 
         # Call Gemini
         print_status("Calling Gemini to address change requests...", "progress")
-        response = invoke_agent(
-            expanded_prompt,
-            agent_type="crs",
-            model_tier="large",
-            iteration=1,
-            workflow_tag=workflow_tag,
-            artifacts_dir=artifacts_dir,
-            workflow="crs",
-            timestamp=self._timestamp,
-        )
+        try:
+            response = invoke_agent(
+                expanded_prompt,
+                agent_type="crs",
+                model_tier="large",
+                iteration=1,
+                workflow_tag=workflow_tag,
+                artifacts_dir=artifacts_dir,
+                workflow="crs",
+                timestamp=self._timestamp,
+            )
+            response_content = ensure_str_content(response.content)
+        except LLMInvocationError as e:
+            response_content = str(e)
 
         # Save the response
-        response_content = ensure_str_content(response.content)
         self.response_path = os.path.join(artifacts_dir, "crs_response.txt")
         with open(self.response_path, "w") as f:
             f.write(response_content)
