@@ -40,12 +40,7 @@ The main stop hook called by LLM provider sessions (Claude Code, Codex, Gemini).
 Legacy stop hook with quality checks (formatting, linting, testing, commit prompts, sibling repo checks). Called by
 `sase_stop_hook` as part of the stop hook chain. Will be removed once the new hook system fully replaces it.
 
-## `sase_bd` (legacy)
+## `sase_bd`
 
-Legacy wrapper for the `bd` (beads) issue tracker. Still needed until the `.beads/` → `.sbd/` data migration is run.
-This is NOT a vendored script (no date suffix).
-
-## `sase_sbd`
-
-Wrapper for the `sbd` (sase-beads) issue tracker. Always use `sase_sbd` instead of calling `sbd` directly. This is NOT a
+Wrapper for the `bd` (beads) issue tracker. Always use `sase_bd` instead of calling `bd` directly. This is NOT a
 vendored script (no date suffix).

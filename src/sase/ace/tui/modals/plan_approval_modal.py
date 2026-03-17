@@ -42,7 +42,7 @@ class PlanApprovalModal(
 
         Args:
             plan_file: Path to the plan markdown file.
-            sbd_available: Whether sase-beads epic creation is available.
+            sbd_available: Whether beads-based epic creation is available.
         """
         super().__init__()
         self._plan_file = plan_file
