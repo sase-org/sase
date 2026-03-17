@@ -11,8 +11,11 @@ import signal
 import string
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
+
 from pathlib import Path
+
+from sase.sase_utils import EASTERN_TZ
 
 
 @dataclass
@@ -63,7 +66,7 @@ def list_running_agents() -> list[_RunningAgentInfo]:
         return []
 
     agents: list[tuple[str, _RunningAgentInfo]] = []  # (timestamp, info)
-    now = datetime.now(UTC)
+    now = datetime.now(EASTERN_TZ)
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -104,7 +107,9 @@ def list_running_agents() -> list[_RunningAgentInfo]:
             ts_str = artifact_dir.name
             duration = "?"
             try:
-                start = datetime.strptime(ts_str, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
+                start = datetime.strptime(ts_str, "%Y%m%d%H%M%S").replace(
+                    tzinfo=EASTERN_TZ
+                )
                 delta = now - start
                 total_seconds = int(delta.total_seconds())
                 hours, remainder = divmod(total_seconds, 3600)
