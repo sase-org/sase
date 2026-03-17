@@ -9,7 +9,7 @@ from sase.sdd import (
     _get_primary_workspace_dir,
     commit_sdd_files,
     get_sdd_dir,
-    init_beads,
+    _init_beads,
     update_spec_with_qa,
     write_sdd_files,
 )
@@ -154,7 +154,7 @@ def test_update_spec_with_qa_missing_file() -> None:
 
 
 # ---------------------------------------------------------------------------
-# init_beads
+# _init_beads
 # ---------------------------------------------------------------------------
 
 
@@ -165,7 +165,7 @@ def test_init_beads_creates_sdd_git_repo() -> None:
             patch("sase.sdd.BeadProject.init") as mock_bead_init,
         ):
             mock_run.return_value = subprocess.CompletedProcess([], 0)
-            result = init_beads(tmpdir, 1)
+            result = _init_beads(tmpdir, 1)
 
         assert result == Path(tmpdir) / ".sase" / "sdd"
         assert result.is_dir()
@@ -179,7 +179,7 @@ def test_init_beads_creates_sdd_git_repo() -> None:
 
 
 def test_init_beads_idempotent() -> None:
-    """Calling init_beads twice should not error."""
+    """Calling _init_beads twice should not error."""
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir) / ".sase" / "sdd"
         sdd_dir.mkdir(parents=True)
@@ -192,7 +192,7 @@ def test_init_beads_idempotent() -> None:
 
         with patch("sase.sdd.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess([], 0)
-            result = init_beads(tmpdir, 1)
+            result = _init_beads(tmpdir, 1)
         assert result == sdd_dir
 
 

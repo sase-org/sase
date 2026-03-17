@@ -52,17 +52,41 @@ def _find_beads_location() -> tuple[Path, str]:
     return cwd, BEADS_DIRNAME
 
 
+def _init_beads(root: Path, beads_dirname: str) -> None:
+    """Initialize beads at the given location.
+
+    For non-VC mode, bootstraps a standalone git repo inside the SDD directory.
+    """
+    if beads_dirname == BEADS_DIRNAME_NON_VC:
+        import subprocess
+
+        root.mkdir(parents=True, exist_ok=True)
+        if not (root / ".git").is_dir():
+            subprocess.run(
+                ["git", "init"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+            )
+        gitignore = root / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text("beads/beads.db\n", encoding="utf-8")
+    with BeadProject.init(root, beads_dirname=beads_dirname):
+        pass
+    if beads_dirname == BEADS_DIRNAME_NON_VC:
+        from sase.sdd import commit_sdd_files
+
+        commit_sdd_files(root, "Initialize beads")
+
+
 def _get_project() -> BeadProject:
-    """Open the BeadProject for write operations."""
+    """Open the BeadProject for write operations, auto-initializing if needed."""
     root, beads_dirname = _find_beads_location()
-    try:
-        return BeadProject(root, beads_dirname=beads_dirname)
-    except FileNotFoundError:
-        print(
-            f"Error: no {beads_dirname}/ directory found. Run 'sase bead init' first.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    beads_path = root / beads_dirname
+    if not beads_path.exists():
+        _init_beads(root, beads_dirname)
+    return BeadProject(root, beads_dirname=beads_dirname)
 
 
 def _get_read_view() -> MergedBeadView | BeadProject:
@@ -89,29 +113,7 @@ def handle_bead_init(args: argparse.Namespace) -> None:
     if beads_path.exists():
         print(f"Already initialized: {beads_path}")
         return
-    # Non-VC mode: bootstrap .sase/sdd/ as a standalone git repo.
-    if beads_dirname == BEADS_DIRNAME_NON_VC:
-        import subprocess
-
-        root.mkdir(parents=True, exist_ok=True)
-        if not (root / ".git").is_dir():
-            subprocess.run(
-                ["git", "init"],
-                cwd=root,
-                check=True,
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-            )
-        gitignore = root / ".gitignore"
-        if not gitignore.exists():
-            gitignore.write_text("beads/beads.db\n", encoding="utf-8")
-    with BeadProject.init(root, beads_dirname=beads_dirname):
-        pass
-    # Non-VC mode: auto-commit the initial beads files.
-    if beads_dirname == BEADS_DIRNAME_NON_VC:
-        from sase.sdd import commit_sdd_files
-
-        commit_sdd_files(root, "Initialize beads")
+    _init_beads(root, beads_dirname)
     print(f"Initialized {beads_dirname}/ in {root}")
 
 

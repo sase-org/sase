@@ -74,7 +74,7 @@ def _get_primary_workspace_dir_from_project(workspace_dir: str) -> str | None:
         return None
 
 
-def init_beads(workspace_dir: str, workspace_num: int) -> Path:
+def _init_beads(workspace_dir: str, workspace_num: int) -> Path:
     """Bootstrap `.sase/sdd/` as a standalone git repo for local SDD tracking.
 
     1. Creates `.sase/sdd/` in the primary workspace.
@@ -144,10 +144,10 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
 
 
 def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
-    """Ensure beads are initialized, calling ``init_beads`` if necessary.
+    """Ensure beads are initialized, calling ``_init_beads`` if necessary.
 
     For VC repos: initializes ``.sase_beads/`` in the primary workspace root.
-    For non-VC repos: delegates to ``init_beads()`` for ``.sase/sdd/beads/``.
+    For non-VC repos: delegates to ``_init_beads()`` for ``.sase/sdd/beads/``.
     """
     primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
     if get_sdd_config():
@@ -157,7 +157,7 @@ def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
     else:
         beads_dir = Path(primary, ".sase", "sdd", BEADS_DIRNAME_NON_VC)
         if not beads_dir.is_dir():
-            init_beads(workspace_dir, workspace_num)
+            _init_beads(workspace_dir, workspace_num)
 
 
 def write_sdd_files(
