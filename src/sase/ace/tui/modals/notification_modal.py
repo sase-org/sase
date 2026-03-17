@@ -48,6 +48,8 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
             if b[0] not in ("ctrl+n", "ctrl+p")
         ),
         ("x", "dismiss_notification", "Dismiss"),
+        ("y", "confirm_dismiss_notification", "Confirm Dismiss"),
+        ("n", "cancel_dismiss_notification", "Cancel Dismiss"),
         ("e", "open_in_editor", "Edit"),
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),
@@ -65,6 +67,7 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         super().__init__()
         self._notifications = list(notifications)
         self._current_file_index: int = 0
+        self._pending_confirm_notification_id: str | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -302,26 +305,51 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
 
         notification = self._notifications[idx]
 
-        # Plan and question notifications require explicit responses —
-        # don't allow silent dismissal.
+        # Plan/question notifications require an explicit y/n confirmation.
         if notification.action in ("PlanApproval", "UserQuestion"):
-            self.notify(
-                "Cannot dismiss plan/question notifications", severity="warning"
-            )
+            self._pending_confirm_notification_id = notification.id
+            self.notify("Dismiss plan/question notification? (y/n)")
             return
 
+        self._pending_confirm_notification_id = None
+        self._dismiss_notification_by_index(idx)
+
+    def action_confirm_dismiss_notification(self) -> None:
+        """Confirm dismissal of a plan/question notification."""
+        pending_id = self._pending_confirm_notification_id
+        if pending_id is None:
+            return
+
+        idx = next(
+            (
+                i
+                for i, notification in enumerate(self._notifications)
+                if notification.id == pending_id
+            ),
+            None,
+        )
+        self._pending_confirm_notification_id = None
+        if idx is None:
+            return
+
+        self._dismiss_notification_by_index(idx)
+
+    def action_cancel_dismiss_notification(self) -> None:
+        """Cancel a pending plan/question dismiss confirmation."""
+        if self._pending_confirm_notification_id is None:
+            return
+        self._pending_confirm_notification_id = None
+        self.notify("Dismiss canceled")
+
+    def _dismiss_notification_by_index(self, idx: int) -> None:
+        """Dismiss notification at index and rebuild the list UI."""
+        notification = self._notifications[idx]
         mark_dismissed(notification.id)
 
-        # Remove from local list and rebuild
         self._notifications.pop(idx)
-
-        # Determine which index to highlight after removal:
-        # same index (now the next item), or last item if we dismissed the tail
-        if self._notifications:
-            highlight = min(idx, len(self._notifications) - 1)
-        else:
-            highlight = None
-
+        highlight = (
+            min(idx, len(self._notifications) - 1) if self._notifications else None
+        )
         self._rebuild_list(highlight_index=highlight)
 
     def action_read_all(self) -> None:
