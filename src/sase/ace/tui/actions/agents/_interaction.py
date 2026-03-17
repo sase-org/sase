@@ -388,11 +388,28 @@ class AgentInteractionMixin:
         project_name = Path(agent.project_file).parent.name
         window_name = f"{project_name}_{effective_ws_num}"
         try:
-            subprocess.run(
-                ["tmux", "new-window", "-n", window_name, "-c", workspace_dir],
+            # Check if a window with this name already exists
+            result = subprocess.run(
+                ["tmux", "list-windows", "-F", "#{window_name}"],
+                capture_output=True,
+                text=True,
                 check=False,
             )
-            self.notify(f"Opened tmux window: {window_name}")  # type: ignore[attr-defined]
+            if (
+                result.returncode == 0
+                and window_name in result.stdout.strip().splitlines()
+            ):
+                subprocess.run(
+                    ["tmux", "select-window", "-t", f":={window_name}"],
+                    check=False,
+                )
+                self.notify(f"Switched to tmux window: {window_name}")  # type: ignore[attr-defined]
+            else:
+                subprocess.run(
+                    ["tmux", "new-window", "-n", window_name, "-c", workspace_dir],
+                    check=False,
+                )
+                self.notify(f"Opened tmux window: {window_name}")  # type: ignore[attr-defined]
         except FileNotFoundError:
             self.notify("tmux command not found", severity="error")  # type: ignore[attr-defined]
 

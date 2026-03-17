@@ -80,12 +80,38 @@ class WorkspaceActionsMixin:
             if not success:
                 return (False, f"checkout failed: {error}")
 
-            # Run tm <session>
+            # Switch to existing tmux window or create a new one
             try:
-                subprocess.run(["tm", tmux_session], check=False)
-                return (True, f"Opened tmux for {tmux_session}")
+                result = subprocess.run(
+                    ["tmux", "list-windows", "-F", "#{window_name}"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if (
+                    result.returncode == 0
+                    and tmux_session in result.stdout.strip().splitlines()
+                ):
+                    subprocess.run(
+                        ["tmux", "select-window", "-t", f":={tmux_session}"],
+                        check=False,
+                    )
+                    return (True, f"Switched to tmux window: {tmux_session}")
+                else:
+                    subprocess.run(
+                        [
+                            "tmux",
+                            "new-window",
+                            "-n",
+                            tmux_session,
+                            "-c",
+                            str(workspace_dir),
+                        ],
+                        check=False,
+                    )
+                    return (True, f"Opened tmux window: {tmux_session}")
             except FileNotFoundError:
-                return (False, "tm command not found")
+                return (False, "tmux command not found")
 
         with self.suspend():  # type: ignore[attr-defined]
             success, message = run_commands()
