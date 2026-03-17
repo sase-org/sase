@@ -260,6 +260,12 @@ def create_parser() -> argparse.ArgumentParser:
     bead_close_parser.add_argument("ids", nargs="+", help="Issue IDs to close")
     bead_close_parser.add_argument("--reason", help="Close reason")
 
+    # sase bead rm
+    bead_rm_parser = bead_subparsers.add_parser(
+        "rm", help="Remove an issue and all its children"
+    )
+    bead_rm_parser.add_argument("id", help="Issue ID to remove")
+
     # sase bead dep
     bead_dep_parser = bead_subparsers.add_parser("dep", help="Manage dependencies")
     bead_dep_subparsers = bead_dep_parser.add_subparsers(dest="dep_action")

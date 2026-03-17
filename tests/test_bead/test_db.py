@@ -9,6 +9,7 @@ from sase.bead.db import (
     blocked_issues,
     close_issue,
     create_issue,
+    delete_issue,
     get_dependencies,
     get_epic_children,
     get_issue,
@@ -218,6 +219,31 @@ class TestEpicChildren:
     def test_no_children(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
         assert get_epic_children(conn, "e-1") == []
+
+
+class TestDeleteIssue:
+    def test_delete_existing(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        assert delete_issue(conn, "e-1") is True
+        assert get_issue(conn, "e-1") is None
+
+    def test_delete_nonexistent(self, conn: sqlite3.Connection) -> None:
+        assert delete_issue(conn, "no-such") is False
+
+    def test_delete_cascades_children(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic())
+        create_issue(conn, _child("c-1"))
+        create_issue(conn, _child("c-2"))
+        delete_issue(conn, "e-1")
+        assert get_issue(conn, "c-1") is None
+        assert get_issue(conn, "c-2") is None
+
+    def test_delete_cascades_dependencies(self, conn: sqlite3.Connection) -> None:
+        create_issue(conn, _epic("e-1"))
+        create_issue(conn, _epic("e-2"))
+        add_dependency(conn, "e-2", "e-1", NOW)
+        delete_issue(conn, "e-1")
+        assert get_dependencies(conn, "e-2") == []
 
 
 class TestStats:

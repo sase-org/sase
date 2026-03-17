@@ -213,6 +213,49 @@ def test_jsonl_persisted_after_create(project):
     assert "Epic" in jsonl
 
 
+def test_remove_plan(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    removed = project.remove(epic.id)
+    assert len(removed) == 1
+    assert removed[0].id == epic.id
+    with pytest.raises(KeyError):
+        project.show(epic.id)
+
+
+def test_remove_plan_cascades_children(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    c2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
+    removed = project.remove(epic.id)
+    removed_ids = [i.id for i in removed]
+    assert c1.id in removed_ids
+    assert c2.id in removed_ids
+    assert epic.id in removed_ids
+    assert project.list_issues() == []
+
+
+def test_remove_phase(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
+    removed = project.remove(child.id)
+    assert len(removed) == 1
+    assert removed[0].id == child.id
+    # Parent still exists
+    assert project.show(epic.id).id == epic.id
+
+
+def test_remove_not_found(project):
+    with pytest.raises(KeyError):
+        project.remove("nonexistent")
+
+
+def test_remove_updates_jsonl(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    project.remove(epic.id)
+    jsonl = (project.beads_dir / "issues.jsonl").read_text()
+    assert jsonl.strip() == ""
+
+
 def test_counter_persists_across_instances(tmp_path):
     with BeadProject.init(tmp_path) as proj1:
         proj1.create("E1", IssueType.PLAN)

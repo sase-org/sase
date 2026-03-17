@@ -312,6 +312,17 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
             print(msg)
 
 
+def handle_bead_rm(args: argparse.Namespace) -> None:
+    with _get_project() as proj:
+        try:
+            removed = proj.remove(args.id)
+        except KeyError:
+            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            sys.exit(1)
+        for issue in removed:
+            print(f"✗ Removed: {issue.id} — {issue.title}")
+
+
 def handle_bead_onboard(args: argparse.Namespace) -> None:
     print("""sase bead — Lightweight git-native issue tracking
 
@@ -326,6 +337,7 @@ Quick Start:
   sase bead show <id>                            View issue details
   sase bead update <id> --status=in_progress     Claim an issue
   sase bead close <id>                           Close an issue
+  sase bead rm <id>                              Remove an issue (and children)
   sase bead dep add <issue> <depends-on>         Add dependency
   sase bead blocked                              Show blocked issues
   sase bead sync                                 Commit JSONL to git

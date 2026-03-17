@@ -151,6 +151,25 @@ class BeadProject:
         self._export()
         return closed
 
+    def remove(self, issue_id: str) -> list[Issue]:
+        """Delete an issue and all its children.
+
+        Returns the list of issues that were removed (the target plus any
+        cascade-deleted children), ordered children-first.
+        Raises KeyError if the issue does not exist.
+        """
+        issue = db_mod.get_issue(self._conn, issue_id)
+        if issue is None:
+            raise KeyError(f"Issue not found: {issue_id}")
+        # Collect children before deletion (CASCADE will remove them)
+        removed: list[Issue] = []
+        if issue.issue_type == IssueType.PLAN:
+            removed.extend(db_mod.get_epic_children(self._conn, issue_id))
+        removed.append(issue)
+        db_mod.delete_issue(self._conn, issue_id)
+        self._export()
+        return removed
+
     def add_dependency(self, issue_id: str, depends_on_id: str) -> Dependency:
         """Add a dependency: issue_id depends on depends_on_id."""
         owner = str(self._config.get("owner", ""))
