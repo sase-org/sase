@@ -28,7 +28,7 @@ from sase.vcs_provider import get_vcs_provider
 ChangeAction = Literal["accept", "promote", "reject", "purge"]
 
 
-def _delete_proposal_entry(
+def delete_proposal_entry(
     project_file: str, cl_name: str, base_num: int, letter: str
 ) -> bool:
     """Delete a proposal entry from a ChangeSpec's COMMITS.
@@ -639,7 +639,7 @@ def execute_change_action(
 
         # Delete the proposal entry from the project file
         console.print(f"[cyan]Deleting proposal ({proposal_id})...[/cyan]")
-        success = _delete_proposal_entry(
+        success = delete_proposal_entry(
             resolved_project_file, cl_name, base_num, letter
         )
         if success:

@@ -223,7 +223,7 @@ class EntryPointsMixin:
         )
 
     def _clear_changespec_comments(self) -> None:
-        """Remove the COMMENTS field from the currently selected ChangeSpec."""
+        """Remove the COMMENTS field and any CRS proposal commits."""
         if not self.changespecs:
             self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
             return
@@ -233,6 +233,35 @@ class EntryPointsMixin:
             self.notify("No comments to clear", severity="warning")  # type: ignore[attr-defined]
             return
 
+        # Delete any CRS proposal commits associated with comments
+        deleted_proposals = 0
+        if changespec.commits:
+            import os
+
+            from sase.change_actions import delete_proposal_entry
+
+            crs_proposals = [
+                c
+                for c in changespec.commits
+                if c.is_proposed and c.note.startswith("[crs")
+            ]
+            for entry in crs_proposals:
+                if entry.diff:
+                    try:
+                        diff_path = os.path.expanduser(entry.diff)
+                        if os.path.isfile(diff_path):
+                            os.remove(diff_path)
+                    except OSError:
+                        pass
+                if entry.proposal_letter:
+                    if delete_proposal_entry(
+                        changespec.file_path,
+                        changespec.name,
+                        entry.number,
+                        entry.proposal_letter,
+                    ):
+                        deleted_proposals += 1
+
         from sase.ace.comments.operations import update_changespec_comments_field
 
         ok = update_changespec_comments_field(
@@ -240,7 +269,16 @@ class EntryPointsMixin:
         )
         if ok:
             changespec.comments = None
-            self.notify(f"Cleared COMMENTS for {changespec.name}")  # type: ignore[attr-defined]
+            if changespec.commits and deleted_proposals:
+                changespec.commits = [
+                    c
+                    for c in changespec.commits
+                    if not (c.is_proposed and c.note.startswith("[crs"))
+                ]
+            msg = f"Cleared COMMENTS for {changespec.name}"
+            if deleted_proposals:
+                msg += f" (deleted {deleted_proposals} CRS proposal(s))"
+            self.notify(msg)  # type: ignore[attr-defined]
         else:
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to clear COMMENTS for {changespec.name}", severity="error"

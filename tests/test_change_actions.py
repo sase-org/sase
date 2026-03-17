@@ -3,16 +3,16 @@
 import os
 import tempfile
 
-from sase.change_actions import _delete_proposal_entry
+from sase.change_actions import delete_proposal_entry
 
 
-def test_delete_proposal_entry_file_not_found() -> None:
+def testdelete_proposal_entry_file_not_found() -> None:
     """Test deleting from a non-existent file."""
-    result = _delete_proposal_entry("/nonexistent/path/file.gp", "my_feature", 1, "a")
+    result = delete_proposal_entry("/nonexistent/path/file.gp", "my_feature", 1, "a")
     assert result is False
 
 
-def test_delete_proposal_entry_wrong_cl_name() -> None:
+def testdelete_proposal_entry_wrong_cl_name() -> None:
     """Test that we don't delete entries from wrong ChangeSpec."""
     project_content = """NAME: feature_a
 COMMITS:
@@ -30,7 +30,7 @@ COMMITS:
 
     try:
         # Delete 1a from feature_a only
-        result = _delete_proposal_entry(project_file, "feature_a", 1, "a")
+        result = delete_proposal_entry(project_file, "feature_a", 1, "a")
         assert result is True
 
         with open(project_file, encoding="utf-8") as f:
