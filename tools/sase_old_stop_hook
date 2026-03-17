@@ -47,6 +47,34 @@ function truncate_output() {
     fi
 }
 
+# Detect Codex hook runtime.
+function is_codex_runtime() {
+    [ -n "$CODEX_THREAD_ID" ] || [ -n "$CODEX_CI" ]
+}
+
+# Emit a hook "block" response that works for both Codex and Claude.
+# - Codex: structured JSON on stdout + exit 0.
+# - Claude: message on stderr + exit 2.
+function emit_block() {
+    local reason="$1"
+    local details="${2:-}"
+
+    if is_codex_runtime; then
+        printf '{"decision":"block","reason":"%s"}\n' "$reason"
+        if [ -n "$details" ]; then
+            echo -e "$details" >&2
+        fi
+        return 0
+    fi
+
+    if [ -n "$details" ]; then
+        echo -e "$details" >&2
+    else
+        echo "$reason" >&2
+    fi
+    return 2
+}
+
 # Send Mac notification for failures
 function send_failure_notification() {
     local errors="$1"
@@ -78,9 +106,10 @@ function check_sibling_repos() {
         local repos_list
         repos_list=$(printf ', %s' "${sibling_repos_with_changes[@]}")
         repos_list=${repos_list:2} # Remove leading ', '
-        echo "Uncommitted changes detected in sibling repo(s): ${repos_list}." \
-            " Use your /commit skill to commit them before continuing." >&2
-        return 2
+        emit_block \
+            "Stop hook blocked: sibling repos have uncommitted changes. Run /commit now." \
+            "Uncommitted changes detected in sibling repo(s): ${repos_list}. Use your /commit skill to commit them before continuing."
+        return $?
     fi
 
     return 0
@@ -182,16 +211,18 @@ function run() {
     # If any errors occurred, block and report
     if [ -n "$errors" ]; then
         send_failure_notification "$errors"
-        echo -e "$errors" >&2
-        return 2 # Exit code 2 blocks Claude and shows stderr
+        emit_block \
+            "Stop hook blocked: quality checks failed. Fix failures, then run /commit." \
+            "$errors"
+        return $?
     fi
 
     # Check if there are any uncommitted changes (uses cached file list)
     if echo "$CHANGED_FILES" | grep -q .; then
-        echo "All checks passed, but uncommitted changes are still present:" >&2
-        echo "$CHANGED_FILES" >&2
-        echo "Use your /commit skill to commit these changes now before continuing." >&2
-        return 2
+        emit_block \
+            "Stop hook blocked: uncommitted changes remain. Run /commit now." \
+            "All checks passed, but uncommitted changes are still present:\n$CHANGED_FILES\nUse your /commit skill to commit these changes now before continuing."
+        return $?
     fi
 
     # No main repo changes — check sibling repos
