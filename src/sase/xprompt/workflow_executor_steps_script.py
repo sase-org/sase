@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import threading
 from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
@@ -242,14 +243,14 @@ class ScriptStepMixin:
         rendered_code = render_template(step.python, self.context)
 
         # Execute python code using the same interpreter.
-        # stderr is captured so that failures include the traceback in the
-        # error message.  On success, any captured stderr is re-emitted so
-        # that long-running subprocesses (e.g. sase_hg_sync) still surface
-        # progress output.
+        # stderr is streamed in real-time so long-running subprocesses
+        # (e.g. sase_hg_sync) surface progress output as it happens,
+        # while also being collected for error reporting on failure.
         try:
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 [sys.executable, "-c", rendered_code],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
                 cwd=os.getcwd(),
             )
@@ -258,26 +259,39 @@ class ScriptStepMixin:
                 f"Failed to execute python step '{step.name}': {e}"
             ) from e
 
-        if result.returncode != 0:
+        # Stream stderr to the terminal in real-time while collecting it.
+        stderr_lines: list[str] = []
+
+        def _stream_stderr() -> None:
+            assert proc.stderr is not None
+            for line in proc.stderr:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+                stderr_lines.append(line)
+
+        stderr_thread = threading.Thread(target=_stream_stderr)
+        stderr_thread.start()
+
+        assert proc.stdout is not None
+        stdout = proc.stdout.read()
+        proc.wait()
+        stderr_thread.join()
+        captured_stderr = "".join(stderr_lines)
+
+        if proc.returncode != 0:
             # Prefer stderr (contains tracebacks), fall back to stdout,
             # then to a bare exit-code message.
             error_msg = (
-                result.stderr.strip()
-                or result.stdout.strip()
-                or f"Exit code {result.returncode}"
+                captured_stderr.strip()
+                or stdout.strip()
+                or f"Exit code {proc.returncode}"
             )
             raise WorkflowExecutionError(
                 f"Python step '{step.name}' failed: {error_msg}"
             )
 
-        # Re-emit captured stderr so progress output still reaches the
-        # terminal on success.
-        if result.stderr:
-            sys.stderr.write(result.stderr)
-            sys.stderr.flush()
-
         # Parse output (same formats as bash: JSON, key=value, plain text)
-        output = parse_bash_output(result.stdout)
+        output = parse_bash_output(stdout)
 
         # Coerce types based on output schema (e.g. "true" → True for bool fields)
         step_output_types = output_types_from_step(step)
