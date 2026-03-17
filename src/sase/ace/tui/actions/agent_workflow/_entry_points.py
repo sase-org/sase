@@ -143,6 +143,12 @@ class EntryPointsMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["clear_comments"]:
+            if self.current_tab == "changespecs":
+                self._clear_changespec_comments()
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
@@ -216,6 +222,29 @@ class EntryPointsMixin:
             history_sort_key=cl_name,
         )
 
+    def _clear_changespec_comments(self) -> None:
+        """Remove the COMMENTS field from the currently selected ChangeSpec."""
+        if not self.changespecs:
+            self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        changespec = self.changespecs[self.current_idx]
+        if not changespec.comments:
+            self.notify("No comments to clear", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from sase.ace.comments.operations import update_changespec_comments_field
+
+        ok = update_changespec_comments_field(
+            changespec.file_path, changespec.name, None
+        )
+        if ok:
+            self.notify(f"Cleared COMMENTS for {changespec.name}")  # type: ignore[attr-defined]
+        else:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to clear COMMENTS for {changespec.name}", severity="error"
+            )
+
     def _update_leader_footer(self, *, current_tab: TabName = "changespecs") -> None:
         """Update the footer to show leader mode bindings.
 
@@ -224,9 +253,16 @@ class EntryPointsMixin:
         """
         from ...widgets import KeybindingFooter
 
+        has_comments = False
+        if current_tab == "changespecs" and self.changespecs:
+            cs = self.changespecs[self.current_idx]
+            has_comments = bool(cs.comments)
+
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            footer.update_leader_bindings(current_tab=current_tab)
+            footer.update_leader_bindings(
+                current_tab=current_tab, has_comments=has_comments
+            )
         except Exception:
             pass
 

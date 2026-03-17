@@ -129,6 +129,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
             f"Leader Mode ({d(lm.prefix)})",
             [
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'clear_comments'))}",
+                    "Clear COMMENTS field",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'run_cmd'))}",
                     "Run command (use current CL)",
                 ),

@@ -228,11 +228,17 @@ class KeybindingFooter(Horizontal):
         prefix.append_text(text)
         self._update_display(prefix)
 
-    def update_leader_bindings(self, *, current_tab: str = "changespecs") -> None:
+    def update_leader_bindings(
+        self,
+        *,
+        current_tab: str = "changespecs",
+        has_comments: bool = False,
+    ) -> None:
         """Update bindings to show leader mode options.
 
         Args:
             current_tab: The currently active tab name.
+            has_comments: Whether the selected ChangeSpec has a COMMENTS field.
         """
         d = footer_key_display
         keys = self._registry.leader_mode.keys
@@ -244,6 +250,8 @@ class KeybindingFooter(Horizontal):
 
         bindings: list[tuple[str, str]] = []
         if current_tab == "changespecs":
+            if has_comments:
+                bindings.append((k("clear_comments"), "clear comments"))
             bindings.append((k("run_cmd"), "run cmd (CL)"))
             bindings.append((k("kill_mentors"), "kill mentors"))
         if self._runner_count > 0:

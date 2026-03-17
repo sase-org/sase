@@ -327,6 +327,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "agent_from_cl": "space",
             "kill_and_edit": "x",
             "activity_info": "i",
+            "clear_comments": "c",
         }
     )
 
