@@ -83,7 +83,7 @@ class VCSProvider(ABC):
     def stash_and_clean(
         self, diff_name: str, cwd: str, *, timeout: int = 300
     ) -> tuple[bool, str | None]:
-        """Save uncommitted changes to a diff file and clean the workspace."""
+        """Stash uncommitted changes and clean the workspace."""
 
     # --- Optional core methods (default raises NotImplementedError) ---
 

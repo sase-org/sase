@@ -6,7 +6,6 @@ them so plugin classes only override the handful of methods that differ.
 """
 
 import os
-import tempfile
 
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
@@ -134,26 +133,18 @@ class GitCommon(CommandRunner):
     def vcs_stash_and_clean(
         self, diff_name: str, cwd: str, timeout: int
     ) -> tuple[bool, str | None]:
-        diff_out = self._run(["git", "diff", "HEAD"], cwd, timeout=timeout)
-        if not diff_out.success:
-            error_msg = (
-                diff_out.stderr.strip() or diff_out.stdout.strip() or "no error output"
-            )
-            return (False, error_msg)
-        try:
-            diff_path = os.path.join(tempfile.gettempdir(), diff_name)
-            with open(diff_path, "w") as f:
-                f.write(diff_out.stdout)
-                if not diff_out.stdout.endswith("\n"):
-                    f.write("\n")
-        except OSError as e:
-            return (False, f"Failed to write diff file: {e}")
-        reset_out = self._run(["git", "reset", "--hard", "HEAD"], cwd, timeout=timeout)
-        if not reset_out.success:
-            return (False, f"git reset --hard failed: {reset_out.stderr.strip()}")
-        clean_out = self._run(["git", "clean", "-fd"], cwd, timeout=timeout)
-        if not clean_out.success:
-            return (False, f"git clean -fd failed: {clean_out.stderr.strip()}")
+        status_out = self._run(["git", "status", "--porcelain"], cwd, timeout=timeout)
+        if not status_out.success:
+            return (False, f"git status failed: {status_out.stderr.strip()}")
+        if not status_out.stdout.strip():
+            return (True, None)
+        out = self._run(
+            ["git", "stash", "push", "--include-untracked", "-m", diff_name],
+            cwd,
+            timeout=timeout,
+        )
+        if not out.success:
+            return (False, f"git stash push failed: {out.stderr.strip()}")
         return (True, None)
 
     # --- Optional core operations ---

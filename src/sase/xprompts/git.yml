@@ -35,14 +35,16 @@ steps:
 
   - name: prepare
     bash: |
-      # Save diff backup if workspace is dirty
-      if ! git diff --quiet HEAD 2>/dev/null; then
-        git diff HEAD > "/tmp/git-workspace-backup-$(date +%s).patch"
+      # Stash any uncommitted changes (including untracked files)
+      if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+        git stash push --include-untracked -m "git-workflow-$(date +%s)" --quiet
+        echo "stashed=true"
+      else
+        echo "stashed=false"
       fi
-      git checkout . && git clean -fd
       git fetch --quiet
       echo "success=true"
-    output: { success: bool }
+    output: { success: bool, stashed: bool }
 
   - name: checkout
     python: |

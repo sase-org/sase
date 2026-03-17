@@ -3,7 +3,7 @@
 Covers: commit, amend, rename_branch, rebase, archive, prune, stash_and_clean.
 """
 
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
@@ -65,75 +65,68 @@ def test_git_archive_branch_delete_fails(mock_run: MagicMock) -> None:
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_stash_and_clean_diff_fails(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_stash_and_clean when diff fails."""
-    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="diff error")
+def test_git_stash_and_clean_status_fails(mock_run: MagicMock) -> None:
+    """Test BareGitPlugin.vcs_stash_and_clean when status check fails."""
+    mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="status error")
 
     plugin = BareGitPlugin()
-    success, error = plugin.vcs_stash_and_clean(
-        "/tmp/backup.diff", "/workspace", timeout=300
-    )
+    success, error = plugin.vcs_stash_and_clean("backup-msg", "/workspace", timeout=300)
 
     assert success is False
     assert error is not None
-    assert "diff error" in error
+    assert "git status failed" in error
 
 
-@patch("builtins.open", side_effect=OSError("permission denied"))
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_stash_and_clean_write_fails(
-    mock_run: MagicMock, mock_open_fn: MagicMock
-) -> None:
-    """Test BareGitPlugin.vcs_stash_and_clean when file write fails."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="diff content", stderr="")
+def test_git_stash_and_clean_no_changes(mock_run: MagicMock) -> None:
+    """Test BareGitPlugin.vcs_stash_and_clean with clean workspace."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
     plugin = BareGitPlugin()
-    success, error = plugin.vcs_stash_and_clean(
-        "/tmp/backup.diff", "/workspace", timeout=300
-    )
+    success, error = plugin.vcs_stash_and_clean("backup-msg", "/workspace", timeout=300)
 
-    assert success is False
-    assert error is not None
-    assert "Failed to write diff file" in error
+    assert success is True
+    assert error is None
+    assert mock_run.call_count == 1  # only status check, no stash
 
 
-@patch("builtins.open", mock_open())
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_stash_and_clean_reset_fails(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_stash_and_clean when reset step fails."""
+def test_git_stash_and_clean_stash_fails(mock_run: MagicMock) -> None:
+    """Test BareGitPlugin.vcs_stash_and_clean when stash push fails."""
     mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="diff content", stderr=""),  # diff
-        MagicMock(returncode=1, stdout="", stderr="reset error"),  # reset
+        MagicMock(returncode=0, stdout=" M file.txt\n", stderr=""),  # status
+        MagicMock(returncode=1, stdout="", stderr="stash error"),  # stash
     ]
 
     plugin = BareGitPlugin()
-    success, error = plugin.vcs_stash_and_clean(
-        "/tmp/backup.diff", "/workspace", timeout=300
-    )
+    success, error = plugin.vcs_stash_and_clean("backup-msg", "/workspace", timeout=300)
 
     assert success is False
     assert error is not None
-    assert "git reset --hard failed" in error
+    assert "git stash push failed" in error
 
 
-@patch("builtins.open", mock_open())
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_stash_and_clean_clean_fails(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_stash_and_clean when clean step fails."""
+def test_git_stash_and_clean_success(mock_run: MagicMock) -> None:
+    """Test BareGitPlugin.vcs_stash_and_clean succeeds with dirty workspace."""
     mock_run.side_effect = [
-        MagicMock(returncode=0, stdout="diff content", stderr=""),  # diff
-        MagicMock(returncode=0, stdout="", stderr=""),  # reset ok
-        MagicMock(returncode=1, stdout="", stderr="clean error"),  # clean fails
+        MagicMock(returncode=0, stdout=" M file.txt\n", stderr=""),  # status
+        MagicMock(returncode=0, stdout="", stderr=""),  # stash
     ]
 
     plugin = BareGitPlugin()
-    success, error = plugin.vcs_stash_and_clean(
-        "/tmp/backup.diff", "/workspace", timeout=300
-    )
+    success, error = plugin.vcs_stash_and_clean("backup-msg", "/workspace", timeout=300)
 
-    assert success is False
-    assert error is not None
-    assert "git clean -fd failed" in error
+    assert success is True
+    assert error is None
+    assert mock_run.call_args_list[1][0][0] == [
+        "git",
+        "stash",
+        "push",
+        "--include-untracked",
+        "-m",
+        "backup-msg",
+    ]
 
 
 # === Tests for resolve_revision ===

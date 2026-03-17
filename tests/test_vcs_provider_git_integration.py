@@ -169,33 +169,30 @@ def test_integration_apply_patch_roundtrip(git_repo: str) -> None:
 
 
 def test_integration_stash_and_clean(git_repo: str) -> None:
-    """stash_and_clean saves diff to file and cleans workspace."""
+    """stash_and_clean uses git stash and leaves workspace clean."""
     # Create a change
     with open(os.path.join(git_repo, "README.md"), "a") as f:
         f.write("stashed content\n")
 
-    # Use a path OUTSIDE the repo (clean step removes untracked files inside)
-    diff_fd, diff_file = tempfile.mkstemp(suffix=".diff")
-    os.close(diff_fd)
-    try:
-        provider = _make_git_provider()
-        success, error = provider.stash_and_clean(diff_file, git_repo)
+    provider = _make_git_provider()
+    success, error = provider.stash_and_clean("test-backup", git_repo)
 
-        assert success is True
-        assert error is None
+    assert success is True
+    assert error is None
 
-        # Diff file should exist with content
-        assert os.path.exists(diff_file)
-        with open(diff_file) as f:
-            content = f.read()
-        assert "stashed content" in content
+    # Workspace should be clean
+    has_changes_ok, changes = provider.has_local_changes(git_repo)
+    assert has_changes_ok is True
+    assert changes is None
 
-        # Workspace should be clean
-        has_changes_ok, changes = provider.has_local_changes(git_repo)
-        assert has_changes_ok is True
-        assert changes is None
-    finally:
-        os.unlink(diff_file)
+    # Stash should contain our changes
+    result = subprocess.run(
+        ["git", "stash", "list"],
+        cwd=git_repo,
+        capture_output=True,
+        text=True,
+    )
+    assert "test-backup" in result.stdout
 
 
 # === Tests for archive and prune ===
