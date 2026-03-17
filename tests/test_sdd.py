@@ -156,8 +156,12 @@ def test_init_beads_creates_sdd_git_repo() -> None:
 
         assert result == Path(tmpdir) / ".sase" / "sdd"
         assert result.is_dir()
-        # Verify BeadProject.init was called with sdd_dir and non-VC dirname
+        # Verify .gitignore was created
         sdd_dir = Path(tmpdir) / ".sase" / "sdd"
+        gitignore = sdd_dir / ".gitignore"
+        assert gitignore.exists()
+        assert "beads/beads.db" in gitignore.read_text(encoding="utf-8")
+        # Verify BeadProject.init was called with sdd_dir and non-VC dirname
         mock_bead_init.assert_called_once_with(sdd_dir, beads_dirname="beads")
 
 
@@ -170,8 +174,12 @@ def test_init_beads_idempotent() -> None:
         (sdd_dir / ".git").mkdir()
         # Simulate existing beads inside sdd_dir (non-VC uses "beads" without dot)
         (sdd_dir / "beads").mkdir()
+        # Simulate existing .gitignore
+        (sdd_dir / ".gitignore").write_text("beads/beads.db\n", encoding="utf-8")
 
-        result = init_beads(tmpdir, 1)
+        with patch("sase.sdd.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess([], 0)
+            result = init_beads(tmpdir, 1)
         assert result == sdd_dir
 
 
