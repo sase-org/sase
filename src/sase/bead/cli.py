@@ -227,8 +227,13 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         if issue.notes:
             print(f"\nNOTES\n  {issue.notes}")
         if issue.design:
-            rel = os.path.relpath(issue.design)
-            print(f"\nPLAN\n  {rel}")
+            from sase.sdd import get_sdd_config
+
+            if get_sdd_config():
+                display = os.path.relpath(issue.design)
+            else:
+                display = issue.design
+            print(f"\nPLAN\n  {display}")
 
 
 def handle_bead_ready(args: argparse.Namespace) -> None:
