@@ -60,3 +60,7 @@ CLAUDE.local.md
 
 # beads
 .beads/.beads-credential-key
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
