@@ -37,7 +37,7 @@ def _epic(id: str = "e-1", title: str = "Epic") -> Issue:
     return Issue(
         id=id,
         title=title,
-        issue_type=IssueType.EPIC,
+        issue_type=IssueType.PLAN,
         parent_id=None,
         created_at=NOW,
         updated_at=NOW,
@@ -48,7 +48,7 @@ def _child(id: str = "c-1", parent_id: str = "e-1", title: str = "Child") -> Iss
     return Issue(
         id=id,
         title=title,
-        issue_type=IssueType.CHILD,
+        issue_type=IssueType.PHASE,
         parent_id=parent_id,
         created_at=NOW,
         updated_at=NOW,
@@ -60,7 +60,7 @@ class TestCreateAndGet:
         epic = _epic()
         result = create_issue(conn, epic)
         assert result.id == "e-1"
-        assert result.issue_type == IssueType.EPIC
+        assert result.issue_type == IssueType.PLAN
 
     def test_create_child(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
@@ -84,7 +84,7 @@ class TestCreateAndGet:
         child = Issue(
             id="c-1",
             title="Orphan",
-            issue_type=IssueType.CHILD,
+            issue_type=IssueType.PHASE,
             parent_id="nonexistent",
             created_at=NOW,
             updated_at=NOW,
@@ -92,21 +92,20 @@ class TestCreateAndGet:
         with pytest.raises(sqlite3.IntegrityError):
             create_issue(conn, child)
 
-    def test_epic_with_parent_fails_check_constraint(
-        self, conn: sqlite3.Connection
-    ) -> None:
-        """Epic with parent_id violates the CHECK constraint."""
+    def test_plan_with_parent_succeeds(self, conn: sqlite3.Connection) -> None:
+        """Plan with parent_id is valid (sub-plan)."""
         create_issue(conn, _epic())
-        bad_epic = Issue(
+        sub_plan = Issue(
             id="e-2",
-            title="Bad epic",
-            issue_type=IssueType.EPIC,
+            title="Sub-plan",
+            issue_type=IssueType.PLAN,
             parent_id="e-1",
             created_at=NOW,
             updated_at=NOW,
         )
-        with pytest.raises((sqlite3.IntegrityError, ValueError)):
-            create_issue(conn, bad_epic)
+        result = create_issue(conn, sub_plan)
+        assert result.id == "e-2"
+        assert result.parent_id == "e-1"
 
 
 class TestListIssues:
@@ -125,7 +124,7 @@ class TestListIssues:
     def test_filter_by_type(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
         create_issue(conn, _child())
-        epics = list_issues(conn, issue_type=IssueType.EPIC)
+        epics = list_issues(conn, issue_type=IssueType.PLAN)
         assert len(epics) == 1
         assert epics[0].id == "e-1"
 
@@ -231,5 +230,5 @@ class TestStats:
         assert s["total"] == 3
         assert s["open"] == 2
         assert s["closed"] == 1
-        assert s["epic"] == 1
-        assert s["child"] == 2
+        assert s["plan"] == 1
+        assert s["phase"] == 2

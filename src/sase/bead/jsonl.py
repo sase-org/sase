@@ -104,8 +104,8 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
         except (json.JSONDecodeError, KeyError, ValueError):
             continue
 
-    # Sort: epics first, then children (so parent FK is satisfied)
-    issues.sort(key=lambda i: (0 if i.issue_type == IssueType.EPIC else 1, i.id))
+    # Sort: plans first, then phases (so parent FK is satisfied)
+    issues.sort(key=lambda i: (0 if i.issue_type == IssueType.PLAN else 1, i.id))
 
     # Upsert into database
     for issue in issues:

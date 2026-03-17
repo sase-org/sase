@@ -128,7 +128,7 @@ def test_rebuild_from_jsonl_creates_db(tmp_path):
         Issue(
             id="test-1",
             title="Test",
-            issue_type=IssueType.EPIC,
+            issue_type=IssueType.PLAN,
             created_at="2024-01-01",
             updated_at="2024-01-01",
         ),

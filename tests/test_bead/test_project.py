@@ -37,22 +37,22 @@ def test_constructor_raises_without_beads_dir(tmp_path):
 
 
 def test_create_epic(project):
-    issue = project.create("My Epic", IssueType.EPIC)
+    issue = project.create("My Epic", IssueType.PLAN)
     assert issue.title == "My Epic"
-    assert issue.issue_type == IssueType.EPIC
+    assert issue.issue_type == IssueType.PLAN
     assert issue.status == Status.OPEN
     assert issue.id  # has an ID
 
 
 def test_create_child(project):
-    epic = project.create("Epic", IssueType.EPIC)
-    child = project.create("Child", IssueType.CHILD, parent_id=epic.id)
+    epic = project.create("Epic", IssueType.PLAN)
+    child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
     assert child.parent_id == epic.id
-    assert child.issue_type == IssueType.CHILD
+    assert child.issue_type == IssueType.PHASE
 
 
 def test_show(project):
-    epic = project.create("Show Test", IssueType.EPIC)
+    epic = project.create("Show Test", IssueType.PLAN)
     found = project.show(epic.id)
     assert found.title == "Show Test"
 
@@ -63,32 +63,32 @@ def test_show_not_found(project):
 
 
 def test_list_all(project):
-    project.create("E1", IssueType.EPIC)
-    project.create("E2", IssueType.EPIC)
+    project.create("E1", IssueType.PLAN)
+    project.create("E2", IssueType.PLAN)
     issues = project.list_issues()
     assert len(issues) == 2
 
 
 def test_list_filter_status(project):
-    epic = project.create("E1", IssueType.EPIC)
-    project.create("E2", IssueType.EPIC)
+    epic = project.create("E1", IssueType.PLAN)
+    project.create("E2", IssueType.PLAN)
     project.close([epic.id])
     open_issues = project.list_issues(status=Status.OPEN)
     assert len(open_issues) == 1
 
 
 def test_list_filter_type(project):
-    epic = project.create("Epic", IssueType.EPIC)
-    project.create("Child", IssueType.CHILD, parent_id=epic.id)
-    epics = project.list_issues(issue_type=IssueType.EPIC)
+    epic = project.create("Epic", IssueType.PLAN)
+    project.create("Child", IssueType.PHASE, parent_id=epic.id)
+    epics = project.list_issues(issue_type=IssueType.PLAN)
     assert len(epics) == 1
-    assert epics[0].issue_type == IssueType.EPIC
+    assert epics[0].issue_type == IssueType.PLAN
 
 
 def test_ready(project):
-    epic = project.create("Epic", IssueType.EPIC)
-    child1 = project.create("C1", IssueType.CHILD, parent_id=epic.id)
-    child2 = project.create("C2", IssueType.CHILD, parent_id=epic.id)
+    epic = project.create("Epic", IssueType.PLAN)
+    child1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    child2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
     project.add_dependency(child2.id, child1.id)
 
     ready = project.ready()
@@ -99,13 +99,13 @@ def test_ready(project):
 
 
 def test_update(project):
-    epic = project.create("Original", IssueType.EPIC)
+    epic = project.create("Original", IssueType.PLAN)
     updated = project.update(epic.id, title="Updated")
     assert updated.title == "Updated"
 
 
 def test_update_status(project):
-    epic = project.create("Epic", IssueType.EPIC)
+    epic = project.create("Epic", IssueType.PLAN)
     updated = project.update(epic.id, status="in_progress")
     assert updated.status == Status.IN_PROGRESS
 
@@ -116,22 +116,22 @@ def test_update_not_found(project):
 
 
 def test_close_single(project):
-    epic = project.create("Epic", IssueType.EPIC)
+    epic = project.create("Epic", IssueType.PLAN)
     closed = project.close([epic.id])
     assert len(closed) == 1
     assert closed[0].status == Status.CLOSED
 
 
 def test_close_multiple(project):
-    e1 = project.create("E1", IssueType.EPIC)
-    e2 = project.create("E2", IssueType.EPIC)
+    e1 = project.create("E1", IssueType.PLAN)
+    e2 = project.create("E2", IssueType.PLAN)
     closed = project.close([e1.id, e2.id])
     assert len(closed) == 2
     assert all(i.status == Status.CLOSED for i in closed)
 
 
 def test_close_with_reason(project):
-    epic = project.create("Epic", IssueType.EPIC)
+    epic = project.create("Epic", IssueType.PLAN)
     closed = project.close([epic.id], reason="done")
     assert closed[0].close_reason == "done"
 
@@ -142,18 +142,18 @@ def test_close_not_found(project):
 
 
 def test_add_dependency(project):
-    epic = project.create("Epic", IssueType.EPIC)
-    c1 = project.create("C1", IssueType.CHILD, parent_id=epic.id)
-    c2 = project.create("C2", IssueType.CHILD, parent_id=epic.id)
+    epic = project.create("Epic", IssueType.PLAN)
+    c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    c2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
     dep = project.add_dependency(c2.id, c1.id)
     assert dep.issue_id == c2.id
     assert dep.depends_on_id == c1.id
 
 
 def test_blocked(project):
-    epic = project.create("Epic", IssueType.EPIC)
-    c1 = project.create("C1", IssueType.CHILD, parent_id=epic.id)
-    c2 = project.create("C2", IssueType.CHILD, parent_id=epic.id)
+    epic = project.create("Epic", IssueType.PLAN)
+    c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    c2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
     project.add_dependency(c2.id, c1.id)
 
     blocked = project.blocked()
@@ -163,16 +163,16 @@ def test_blocked(project):
 
 
 def test_stats(project):
-    epic = project.create("Epic", IssueType.EPIC)
-    project.create("C1", IssueType.CHILD, parent_id=epic.id)
+    epic = project.create("Epic", IssueType.PLAN)
+    project.create("C1", IssueType.PHASE, parent_id=epic.id)
     project.close([epic.id])
 
     s = project.stats()
     assert s["total"] == 2
     assert s.get("closed", 0) == 1
     assert s.get("open", 0) == 1
-    assert s.get("epic", 0) == 1
-    assert s.get("child", 0) == 1
+    assert s.get("plan", 0) == 1
+    assert s.get("phase", 0) == 1
 
 
 def test_doctor_clean(project):
@@ -183,8 +183,8 @@ def test_doctor_clean(project):
 def test_doctor_detects_orphan(project):
     """Create a child whose parent doesn't exist (via direct db manipulation)."""
     # Create a parent first to satisfy the constraint, then delete it
-    epic = project.create("Epic", IssueType.EPIC)
-    project.create("Child", IssueType.CHILD, parent_id=epic.id)
+    epic = project.create("Epic", IssueType.PLAN)
+    project.create("Child", IssueType.PHASE, parent_id=epic.id)
 
     # Disable FK constraints temporarily so cascade doesn't remove child
     project._conn.execute("PRAGMA foreign_keys=OFF")
@@ -197,9 +197,9 @@ def test_doctor_detects_orphan(project):
 
 
 def test_get_epic_children(project):
-    epic = project.create("Epic", IssueType.EPIC)
-    c1 = project.create("C1", IssueType.CHILD, parent_id=epic.id)
-    c2 = project.create("C2", IssueType.CHILD, parent_id=epic.id)
+    epic = project.create("Epic", IssueType.PLAN)
+    c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    c2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
 
     children = project.get_epic_children(epic.id)
     child_ids = [c.id for c in children]
@@ -208,19 +208,19 @@ def test_get_epic_children(project):
 
 
 def test_jsonl_persisted_after_create(project):
-    project.create("Epic", IssueType.EPIC)
+    project.create("Epic", IssueType.PLAN)
     jsonl = (project.beads_dir / "issues.jsonl").read_text()
     assert "Epic" in jsonl
 
 
 def test_counter_persists_across_instances(tmp_path):
     with BeadProject.init(tmp_path) as proj1:
-        proj1.create("E1", IssueType.EPIC)
-        proj1.create("E2", IssueType.EPIC)
+        proj1.create("E1", IssueType.PLAN)
+        proj1.create("E2", IssueType.PLAN)
 
     # Open a new instance
     with BeadProject(tmp_path) as proj2:
-        proj2.create("E3", IssueType.EPIC)
+        proj2.create("E3", IssueType.PLAN)
         # Should not reuse IDs
         all_ids = [i.id for i in proj2.list_issues()]
         assert len(all_ids) == len(set(all_ids))

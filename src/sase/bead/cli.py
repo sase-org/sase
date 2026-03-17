@@ -50,14 +50,44 @@ def handle_bead_init(args: argparse.Namespace) -> None:
 
 
 def handle_bead_create(args: argparse.Namespace) -> None:
+    plan_path: str | None = args.plan
+    parent_id: str | None = args.parent
+
+    if not plan_path and not parent_id:
+        print(
+            "Error: at least one of --plan or --parent is required.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Determine type: plan if --plan provided, phase otherwise
+    issue_type = IssueType.PLAN if plan_path else IssueType.PHASE
+
+    # Validate plan file exists and resolve path for the design field
+    design = ""
+    if plan_path:
+        plan_file = Path(plan_path)
+        if not plan_file.exists():
+            print(f"Error: plan file not found: {plan_path}", file=sys.stderr)
+            sys.exit(1)
+        design = str(plan_file.resolve())
+
     with _get_project() as proj:
-        issue_type = IssueType(args.type)
+        # Validate parent exists
+        if parent_id:
+            try:
+                proj.show(parent_id)
+            except KeyError:
+                print(f"Error: parent bead not found: {parent_id}", file=sys.stderr)
+                sys.exit(1)
+
         issue = proj.create(
             title=args.title,
             issue_type=issue_type,
-            parent_id=args.parent,
+            parent_id=parent_id,
             description=args.description or "",
             assignee=args.assignee or "",
+            design=design,
         )
         print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
@@ -91,8 +121,8 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"Assignee: {issue.assignee}")
         if issue.parent_id:
             print(f"\nPARENT\n  ↑ {issue.parent_id}")
-        # Show children if epic
-        if issue.issue_type == IssueType.EPIC:
+        # Show children if plan
+        if issue.issue_type == IssueType.PLAN:
             children = proj.get_epic_children(issue.id)
             if children:
                 print("\nCHILDREN")
@@ -227,8 +257,8 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Open:        {s.get('open', 0)}")
         print(f"  In Progress: {s.get('in_progress', 0)}")
         print(f"  Closed:      {s.get('closed', 0)}")
-        print(f"  Epics:       {s.get('epic', 0)}")
-        print(f"  Children:    {s.get('child', 0)}")
+        print(f"  Plans:       {s.get('plan', 0)}")
+        print(f"  Phases:      {s.get('phase', 0)}")
 
 
 def handle_bead_doctor(args: argparse.Namespace) -> None:
@@ -243,8 +273,9 @@ def handle_bead_onboard(args: argparse.Namespace) -> None:
 
 Quick Start:
   sase bead init                                 Create .beads/ in current directory
-  sase bead create --title="Fix bug" --type=child --parent=<epic-id>
-  sase bead create --title="New feature" --type=epic
+  sase bead create --title="Fix bug" --parent=<plan-id>
+  sase bead create --title="New feature" --plan=plan.md
+  sase bead create --title="Sub-plan" --plan=plan.md --parent=<plan-id>
   sase bead list                                 List all issues
   sase bead list --status=open                   List open issues
   sase bead ready                                Show issues ready to work

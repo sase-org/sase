@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS issues (
     title       TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'open'
                   CHECK(status IN ('open', 'in_progress', 'closed')),
-    issue_type  TEXT NOT NULL DEFAULT 'child'
-                  CHECK(issue_type IN ('epic', 'child')),
+    issue_type  TEXT NOT NULL DEFAULT 'phase'
+                  CHECK(issue_type IN ('plan', 'phase')),
     parent_id   TEXT
                   REFERENCES issues(id) ON DELETE CASCADE,
     owner       TEXT,
@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS issues (
     notes       TEXT,
     design      TEXT,
     CHECK(
-        (issue_type = 'child' AND parent_id IS NOT NULL) OR
-        (issue_type = 'epic' AND parent_id IS NULL)
+        (issue_type = 'phase' AND parent_id IS NOT NULL) OR
+        (issue_type = 'plan')
     )
 );
 
@@ -58,10 +58,54 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _migrate_issue_types(conn: sqlite3.Connection) -> None:
+    """Migrate from epic/child to plan/phase schema if needed."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+    ).fetchone()
+    if row is None or "'plan'" in row["sql"]:
+        return  # No table yet or already migrated
+
+    conn.execute("PRAGMA foreign_keys=OFF")
+    conn.execute(
+        "CREATE TABLE _issues_new ("
+        "  id TEXT PRIMARY KEY, title TEXT NOT NULL,"
+        "  status TEXT NOT NULL DEFAULT 'open'"
+        "    CHECK(status IN ('open','in_progress','closed')),"
+        "  issue_type TEXT NOT NULL DEFAULT 'phase'"
+        "    CHECK(issue_type IN ('plan','phase')),"
+        "  parent_id TEXT, owner TEXT, assignee TEXT,"
+        "  created_at TEXT NOT NULL, created_by TEXT,"
+        "  updated_at TEXT NOT NULL, closed_at TEXT,"
+        "  close_reason TEXT, description TEXT, notes TEXT, design TEXT,"
+        "  CHECK((issue_type='phase' AND parent_id IS NOT NULL)"
+        "    OR (issue_type='plan'))"
+        ")"
+    )
+    conn.execute(
+        "INSERT INTO _issues_new "
+        "SELECT id, title, status,"
+        "  CASE issue_type"
+        "    WHEN 'epic' THEN 'plan' WHEN 'child' THEN 'phase'"
+        "    ELSE issue_type END,"
+        "  parent_id, owner, assignee, created_at, created_by,"
+        "  updated_at, closed_at, close_reason, description, notes, design "
+        "FROM issues"
+    )
+    conn.execute("DROP TABLE issues")
+    conn.execute("ALTER TABLE _issues_new RENAME TO issues")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id)")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.commit()
+
+
 # pyvision: tests/test_bead/test_db.py
 def init_db(db_path: Path) -> sqlite3.Connection:
     """Create or open the database, ensuring schema exists."""
     conn = _connect(db_path)
+    _migrate_issue_types(conn)
     conn.executescript(_SCHEMA)
     return conn
 

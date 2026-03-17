@@ -6,51 +6,50 @@ from sase.bead.model import Dependency, Issue, IssueType, Status
 
 
 class TestIssueValidation:
-    def test_valid_child_with_parent(self) -> None:
+    def test_valid_phase_with_parent(self) -> None:
         issue = Issue(
             id="test-1",
-            title="A child",
-            issue_type=IssueType.CHILD,
+            title="A phase",
+            issue_type=IssueType.PHASE,
             parent_id="test-0",
         )
         issue.validate()  # Should not raise
 
-    def test_child_without_parent_raises(self) -> None:
+    def test_phase_without_parent_raises(self) -> None:
         issue = Issue(
             id="test-1",
-            title="A child",
-            issue_type=IssueType.CHILD,
+            title="A phase",
+            issue_type=IssueType.PHASE,
             parent_id=None,
         )
-        with pytest.raises(ValueError, match="Child issues must have a parent_id"):
+        with pytest.raises(ValueError, match="Phase issues must have a parent_id"):
             issue.validate()
 
-    def test_valid_epic_without_parent(self) -> None:
+    def test_valid_plan_without_parent(self) -> None:
         issue = Issue(
             id="test-1",
-            title="An epic",
-            issue_type=IssueType.EPIC,
+            title="A plan",
+            issue_type=IssueType.PLAN,
             parent_id=None,
         )
         issue.validate()  # Should not raise
 
-    def test_epic_with_parent_raises(self) -> None:
+    def test_plan_with_parent_is_valid(self) -> None:
         issue = Issue(
             id="test-1",
-            title="An epic",
-            issue_type=IssueType.EPIC,
+            title="A sub-plan",
+            issue_type=IssueType.PLAN,
             parent_id="test-0",
         )
-        with pytest.raises(ValueError, match="Epic issues must not have a parent_id"):
-            issue.validate()
+        issue.validate()  # Should not raise (plans can have parents)
 
     def test_default_status_is_open(self) -> None:
         issue = Issue(id="test-1", title="Test")
         assert issue.status == Status.OPEN
 
-    def test_default_type_is_child(self) -> None:
+    def test_default_type_is_phase(self) -> None:
         issue = Issue(id="test-1", title="Test")
-        assert issue.issue_type == IssueType.CHILD
+        assert issue.issue_type == IssueType.PHASE
 
 
 class TestDependency:
@@ -82,5 +81,5 @@ class TestEnums:
         assert Status.CLOSED.value == "closed"
 
     def test_issue_type_values(self) -> None:
-        assert IssueType.EPIC.value == "epic"
-        assert IssueType.CHILD.value == "child"
+        assert IssueType.PLAN.value == "plan"
+        assert IssueType.PHASE.value == "phase"

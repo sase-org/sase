@@ -215,10 +215,10 @@ def create_parser() -> argparse.ArgumentParser:
     bead_create_parser = bead_subparsers.add_parser("create", help="Create a new issue")
     bead_create_parser.add_argument("--title", required=True, help="Issue title")
     bead_create_parser.add_argument(
-        "--type", required=True, choices=["epic", "child"], help="Issue type"
+        "--plan", help="Path to plan file (creates a plan bead linked to this file)"
     )
     bead_create_parser.add_argument(
-        "--parent", help="Parent epic ID (required for children)"
+        "--parent", help="Parent bead ID (creates a phase bead as child of this parent)"
     )
     bead_create_parser.add_argument("--description", help="Issue description")
     bead_create_parser.add_argument("--assignee", help="Assignee")
@@ -231,7 +231,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Filter by status",
     )
     bead_list_parser.add_argument(
-        "--type", choices=["epic", "child"], help="Filter by type"
+        "--type", choices=["plan", "phase"], help="Filter by type"
     )
 
     # sase bead show

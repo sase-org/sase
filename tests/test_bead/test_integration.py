@@ -26,15 +26,15 @@ class TestEpicLifecycle:
         """init -> create epic -> create children -> update -> close children -> close epic."""
         # Create epic
         epic = project.create(
-            "Auth rewrite", IssueType.EPIC, description="Rewrite auth"
+            "Auth rewrite", IssueType.PLAN, description="Rewrite auth"
         )
         assert epic.status == Status.OPEN
-        assert epic.issue_type == IssueType.EPIC
+        assert epic.issue_type == IssueType.PLAN
 
         # Create children
-        c1 = project.create("Add OAuth", IssueType.CHILD, parent_id=epic.id)
-        c2 = project.create("Write tests", IssueType.CHILD, parent_id=epic.id)
-        c3 = project.create("Update docs", IssueType.CHILD, parent_id=epic.id)
+        c1 = project.create("Add OAuth", IssueType.PHASE, parent_id=epic.id)
+        c2 = project.create("Write tests", IssueType.PHASE, parent_id=epic.id)
+        c3 = project.create("Update docs", IssueType.PHASE, parent_id=epic.id)
 
         # Verify children are linked
         children = project.get_epic_children(epic.id)
@@ -79,10 +79,10 @@ class TestEpicLifecycle:
 class TestDependencyChains:
     def test_chain_a_b_c(self, project):
         """Create chain A->B->C, verify blocked/ready at each step."""
-        epic = project.create("Epic", IssueType.EPIC)
-        a = project.create("Task A", IssueType.CHILD, parent_id=epic.id)
-        b = project.create("Task B", IssueType.CHILD, parent_id=epic.id)
-        c = project.create("Task C", IssueType.CHILD, parent_id=epic.id)
+        epic = project.create("Epic", IssueType.PLAN)
+        a = project.create("Task A", IssueType.PHASE, parent_id=epic.id)
+        b = project.create("Task B", IssueType.PHASE, parent_id=epic.id)
+        c = project.create("Task C", IssueType.PHASE, parent_id=epic.id)
 
         # B depends on A, C depends on B
         project.add_dependency(b.id, a.id)
@@ -117,11 +117,11 @@ class TestDependencyChains:
 
     def test_diamond_dependency(self, project):
         """Diamond: D depends on B and C, both depend on A."""
-        epic = project.create("Epic", IssueType.EPIC)
-        a = project.create("A", IssueType.CHILD, parent_id=epic.id)
-        b = project.create("B", IssueType.CHILD, parent_id=epic.id)
-        c = project.create("C", IssueType.CHILD, parent_id=epic.id)
-        d = project.create("D", IssueType.CHILD, parent_id=epic.id)
+        epic = project.create("Epic", IssueType.PLAN)
+        a = project.create("A", IssueType.PHASE, parent_id=epic.id)
+        b = project.create("B", IssueType.PHASE, parent_id=epic.id)
+        c = project.create("C", IssueType.PHASE, parent_id=epic.id)
+        d = project.create("D", IssueType.PHASE, parent_id=epic.id)
 
         project.add_dependency(b.id, a.id)
         project.add_dependency(c.id, a.id)
@@ -156,10 +156,10 @@ class TestJsonlRoundTrip:
     def test_delete_db_reconstruct_from_jsonl(self, project):
         """Create issues, delete SQLite, reconstruct from JSONL, verify identical state."""
         epic = project.create(
-            "Round-trip epic", IssueType.EPIC, description="testing round-trip"
+            "Round-trip epic", IssueType.PLAN, description="testing round-trip"
         )
-        c1 = project.create("Child 1", IssueType.CHILD, parent_id=epic.id)
-        c2 = project.create("Child 2", IssueType.CHILD, parent_id=epic.id)
+        c1 = project.create("Child 1", IssueType.PHASE, parent_id=epic.id)
+        c2 = project.create("Child 2", IssueType.PHASE, parent_id=epic.id)
         project.add_dependency(c2.id, c1.id)
         project.update(c1.id, status="in_progress", assignee="bob")
         project.close([c1.id], reason="done")
@@ -199,8 +199,8 @@ class TestJsonlRoundTrip:
 
     def test_jsonl_format_is_valid_json(self, project):
         """Each line in issues.jsonl is valid JSON."""
-        project.create("E1", IssueType.EPIC)
-        project.create("E2", IssueType.EPIC)
+        project.create("E1", IssueType.PLAN)
+        project.create("E2", IssueType.PLAN)
 
         jsonl_path = project.beads_dir / "issues.jsonl"
         lines = jsonl_path.read_text().strip().splitlines()
@@ -214,7 +214,7 @@ class TestJsonlRoundTrip:
     def test_jsonl_sorted_by_id(self, project):
         """JSONL entries are sorted by issue ID."""
         for i in range(5):
-            project.create(f"Epic {i}", IssueType.EPIC)
+            project.create(f"Epic {i}", IssueType.PLAN)
 
         jsonl_path = project.beads_dir / "issues.jsonl"
         lines = jsonl_path.read_text().strip().splitlines()
@@ -232,11 +232,11 @@ class TestConcurrentWorkspaces:
             pass
 
         with BeadProject(tmp_path) as proj1:
-            e1 = proj1.create("From proj1", IssueType.EPIC)
+            e1 = proj1.create("From proj1", IssueType.PLAN)
 
             # Second instance loads after first created (gets updated counter)
             with BeadProject(tmp_path) as proj2:
-                e2 = proj2.create("From proj2", IssueType.EPIC)
+                e2 = proj2.create("From proj2", IssueType.PLAN)
 
                 # IDs must be different
                 assert e1.id != e2.id
@@ -254,9 +254,9 @@ class TestConcurrentWorkspaces:
     def test_counter_isolation(self, tmp_path):
         """Two instances don't produce duplicate IDs in sequence."""
         with BeadProject.init(tmp_path) as proj:
-            e1 = proj.create("E1", IssueType.EPIC)
-            e2 = proj.create("E2", IssueType.EPIC)
-            e3 = proj.create("E3", IssueType.EPIC)
+            e1 = proj.create("E1", IssueType.PLAN)
+            e2 = proj.create("E2", IssueType.PLAN)
+            e3 = proj.create("E3", IssueType.PLAN)
 
             all_ids = [e1.id, e2.id, e3.id]
             assert len(all_ids) == len(set(all_ids)), "IDs must be unique"
@@ -301,7 +301,7 @@ class TestGitSyncWorkflow:
 
     def test_sync_commits_jsonl(self, git_project):
         """Create issues, sync, verify JSONL committed."""
-        git_project.create("Test epic", IssueType.EPIC)
+        git_project.create("Test epic", IssueType.PLAN)
         git_project.sync()
 
         # Check git log for sync commit
@@ -321,7 +321,7 @@ class TestGitSyncWorkflow:
         assert git_project.sync_is_clean()
 
         # Create an issue — JSONL changes are now detectable
-        git_project.create("Epic", IssueType.EPIC)
+        git_project.create("Epic", IssueType.PLAN)
         assert not git_project.sync_is_clean()
 
         git_project.sync()
@@ -364,7 +364,7 @@ class TestEdgeCases:
 
     def test_close_already_closed(self, project):
         """Closing an already-closed issue succeeds (idempotent)."""
-        epic = project.create("Epic", IssueType.EPIC)
+        epic = project.create("Epic", IssueType.PLAN)
         project.close([epic.id])
         # Close again — should not raise
         closed = project.close([epic.id])
@@ -385,16 +385,17 @@ class TestEdgeCases:
         with pytest.raises(FileNotFoundError):
             BeadProject(tmp_path)
 
-    def test_child_requires_parent(self, project):
-        """Creating a child without parent_id raises ValueError."""
+    def test_phase_requires_parent(self, project):
+        """Creating a phase without parent_id raises ValueError."""
         with pytest.raises(ValueError):
-            project.create("Orphan child", IssueType.CHILD)
+            project.create("Orphan phase", IssueType.PHASE)
 
-    def test_epic_rejects_parent(self, project):
-        """Creating an epic with parent_id raises ValueError."""
-        e1 = project.create("E1", IssueType.EPIC)
-        with pytest.raises(ValueError):
-            project.create("E2", IssueType.EPIC, parent_id=e1.id)
+    def test_plan_with_parent_is_valid(self, project):
+        """Creating a plan with parent_id succeeds (sub-plan)."""
+        e1 = project.create("E1", IssueType.PLAN)
+        e2 = project.create("E2", IssueType.PLAN, parent_id=e1.id)
+        assert e2.parent_id == e1.id
+        assert e2.issue_type == IssueType.PLAN
 
     def test_doctor_reports_healthy(self, project):
         """Doctor on a fresh project reports OK."""
@@ -403,7 +404,7 @@ class TestEdgeCases:
 
     def test_update_multiple_fields(self, project):
         """Update multiple fields in a single call."""
-        epic = project.create("Original", IssueType.EPIC, description="old desc")
+        epic = project.create("Original", IssueType.PLAN, description="old desc")
         updated = project.update(
             epic.id,
             title="New Title",
@@ -418,14 +419,14 @@ class TestEdgeCases:
 
     def test_list_filter_combined(self, project):
         """Filter by both status and type simultaneously."""
-        epic = project.create("Epic", IssueType.EPIC)
-        c1 = project.create("C1", IssueType.CHILD, parent_id=epic.id)
-        project.create("C2", IssueType.CHILD, parent_id=epic.id)
+        epic = project.create("Epic", IssueType.PLAN)
+        c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+        project.create("C2", IssueType.PHASE, parent_id=epic.id)
         project.close([c1.id])
 
         open_children = project.list_issues(
-            status=Status.OPEN, issue_type=IssueType.CHILD
+            status=Status.OPEN, issue_type=IssueType.PHASE
         )
         assert len(open_children) == 1
-        assert open_children[0].issue_type == IssueType.CHILD
+        assert open_children[0].issue_type == IssueType.PHASE
         assert open_children[0].status == Status.OPEN

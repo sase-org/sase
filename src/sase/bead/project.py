@@ -69,11 +69,20 @@ class BeadProject:
         design: str = "",
         assignee: str = "",
     ) -> Issue:
-        """Create a new issue."""
+        """Create a new issue.
+
+        If *parent_id* is provided the new issue ID is hierarchical:
+        ``<parent_id>.<N>`` where *N* is the next available integer.
+        Otherwise the global counter-based ID generator is used.
+        """
         now = _now()
         owner = str(self._config.get("owner", ""))
+        if parent_id is not None:
+            issue_id = self._next_child_id(parent_id)
+        else:
+            issue_id = self._id_gen.next_id()
         issue = Issue(
-            id=self._id_gen.next_id(),
+            id=issue_id,
             title=title,
             status=Status.OPEN,
             issue_type=issue_type,
@@ -88,7 +97,8 @@ class BeadProject:
             design=design,
         )
         db_mod.create_issue(self._conn, issue)
-        self._save_counter()
+        if parent_id is None:
+            self._save_counter()
         self._export()
         return issue
 
@@ -176,7 +186,7 @@ class BeadProject:
             messages.append("WARNING: issues.jsonl has uncommitted changes")
         # Count orphan children (parent doesn't exist)
         orphans = self._conn.execute(
-            "SELECT id FROM issues WHERE issue_type = 'child' "
+            "SELECT id FROM issues WHERE issue_type = 'phase' "
             "AND parent_id NOT IN (SELECT id FROM issues)"
         ).fetchall()
         if orphans:
@@ -191,6 +201,24 @@ class BeadProject:
     def get_epic_children(self, epic_id: str) -> list[Issue]:
         """Get all child issues of an epic."""
         return db_mod.get_epic_children(self._conn, epic_id)
+
+    def _next_child_id(self, parent_id: str) -> str:
+        """Generate the next hierarchical child ID ``<parent_id>.<N>``."""
+        prefix = f"{parent_id}."
+        rows = self._conn.execute(
+            "SELECT id FROM issues WHERE id LIKE ?", (f"{prefix}%",)
+        ).fetchall()
+        max_n = 0
+        for row in rows:
+            suffix = row["id"][len(prefix) :]
+            # Only consider direct children (no dots in suffix)
+            if "." not in suffix:
+                try:
+                    n = int(suffix)
+                    max_n = max(max_n, n)
+                except ValueError:
+                    pass
+        return f"{prefix}{max_n + 1}"
 
     def _export(self) -> None:
         """Export current state to JSONL."""

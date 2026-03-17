@@ -13,8 +13,8 @@ class Status(Enum):
 
 
 class IssueType(Enum):
-    EPIC = "epic"
-    CHILD = "child"
+    PLAN = "plan"
+    PHASE = "phase"
 
 
 @dataclass
@@ -30,7 +30,7 @@ class Issue:
     id: str
     title: str
     status: Status = Status.OPEN
-    issue_type: IssueType = IssueType.CHILD
+    issue_type: IssueType = IssueType.PHASE
     parent_id: str | None = None
     owner: str = ""
     assignee: str = ""
@@ -48,10 +48,7 @@ class Issue:
         """Validate issue constraints.
 
         Raises ValueError if:
-        - A child issue has no parent_id
-        - An epic issue has a parent_id
+        - A phase issue has no parent_id
         """
-        if self.issue_type == IssueType.CHILD and self.parent_id is None:
-            raise ValueError("Child issues must have a parent_id")
-        if self.issue_type == IssueType.EPIC and self.parent_id is not None:
-            raise ValueError("Epic issues must not have a parent_id")
+        if self.issue_type == IssueType.PHASE and self.parent_id is None:
+            raise ValueError("Phase issues must have a parent_id")
