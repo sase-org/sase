@@ -289,6 +289,41 @@
               "description": "Model identifier for the 'small' tier"
             }
           }
+        },
+        "retry": {
+          "type": "object",
+          "description": "Per-provider retry configuration. Keys are provider names (e.g., 'gemini', 'claude').",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "max_retries": {
+                "type": "integer",
+                "description": "Maximum number of retries on matching errors",
+                "default": 0
+              },
+              "error_patterns": {
+                "type": "array",
+                "description": "Substrings to match against error output (case-insensitive)",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "wait_times": {
+                "type": "array",
+                "description": "Wait times in seconds for each retry attempt. Last value is reused if retries exceed list length.",
+                "items": {
+                  "type": "integer"
+                },
+                "default": [30]
+              },
+              "fallback_model": {
+                "type": "string",
+                "description": "Model to fall back to after all retries are exhausted"
+              }
+            }
+          }
         }
       }
     },
