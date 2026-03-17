@@ -1,3 +1,7 @@
+---
+bead_id: sase-cu8
+---
+
 # Plan: Migrate sase-beads into sase core
 
 ## Overview

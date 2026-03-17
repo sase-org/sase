@@ -12,5 +12,5 @@ to it?
 - Make sure you update all references in the chezmoi repo appropriately.
 - Don't bother deleting the ../sase-beads repo. I'll handle that.
 
-This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
-keep in mind that each phase will be completed by a distinct `claude` instance.
+This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but keep
+in mind that each phase will be completed by a distinct `claude` instance.
