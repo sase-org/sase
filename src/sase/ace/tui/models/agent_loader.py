@@ -571,6 +571,19 @@ def load_all_agents() -> list[Agent]:
                 if agent.diff_path:
                     parent.diff_path = agent.diff_path
 
+    # Override DONE → PLAN DONE for plan workflows where all follow-ups completed.
+    # If a parent still has status "DONE" at this point and has follow-ups in
+    # parents_with_followup, all follow-ups must be complete (active ones would
+    # have triggered the PLAN APPROVED override above).
+    for agent in agents:
+        if (
+            agent.agent_type == AgentType.WORKFLOW
+            and agent.role_suffix == ".plan"
+            and agent.status == "DONE"
+            and agent.raw_suffix in parents_with_followup
+        ):
+            agent.status = "PLAN DONE"
+
     # Override DONE → PLANNING for plan-only workflows (no follow-up spawned yet).
     # A workflow with role_suffix ".plan" that's still DONE means the plan was
     # submitted but no coder follow-up exists yet (awaiting user approval).
@@ -640,6 +653,33 @@ def load_all_agents() -> list[Agent]:
                     s.step_index or 0,
                 )
             )
+
+        # Set step numbering on follow-up agents (e.g., .code, .q) from their
+        # parent workflow's main prompt step so they render as "1/1.code".
+        prompt_step_by_parent: dict[str, tuple[int, int]] = {}
+        for parent_ts, steps in steps_by_parent.items():
+            for step in steps:
+                if (
+                    step.step_type == "agent"
+                    and not step.is_hidden_step
+                    and step.parent_step_index is None
+                ):
+                    prompt_step_by_parent[parent_ts] = (
+                        step.step_index or 0,
+                        step.total_steps or 1,
+                    )
+                    break
+        for agent in sorted_agents:
+            if (
+                agent.parent_timestamp
+                and not agent.parent_workflow
+                and agent.role_suffix
+                and agent.step_index is None
+            ):
+                info = prompt_step_by_parent.get(agent.parent_timestamp)
+                if info:
+                    agent.step_index = info[0]
+                    agent.total_steps = info[1]
 
         result: list[Agent] = []
         for agent in sorted_agents:

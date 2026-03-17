@@ -24,6 +24,7 @@ _DONE_ICON = "✘"
 _DISMISSIBLE_STATUSES = (
     "DONE",
     "FAILED",
+    "PLAN DONE",
 )
 
 # Icon for hidden agents (shown when visibility is toggled on)
@@ -42,6 +43,24 @@ def _short_model_name(model: str) -> str:
     # Fallback: last segment before any date suffix
     parts = model.split("-")
     return parts[0] if parts else model
+
+
+def _step_role_suffix(agent: Agent) -> str:
+    """Return role suffix to include in step number, or empty string.
+
+    Shows role_suffix (e.g., ".plan", ".code", ".q") as part of the step number
+    only for agent-type workflow steps and follow-up agents.  Other step types
+    (bash, python) and workflow parents do not display it.
+    """
+    if not agent.role_suffix:
+        return ""
+    # Follow-up agent (has parent_timestamp, no parent_workflow)
+    if not agent.parent_workflow:
+        return agent.role_suffix
+    # Agent-type step within a workflow
+    if agent.step_type == "agent":
+        return agent.role_suffix
+    return ""
 
 
 def _is_foldable_parent(agent: Agent) -> bool:
@@ -90,9 +109,10 @@ def _calculate_entry_display_width(
                 suffix = get_substep_suffix(agent.step_index)
                 parts.append(f"{parent_num}{suffix}/{agent.parent_total_steps} ")
             elif agent.total_steps is not None:
-                # Regular step: format as "1/3 "
+                # Regular step: format as "1/3 " or "1/3.plan "
                 step_num = agent.step_index + 1
-                parts.append(f"{step_num}/{agent.total_steps} ")
+                role = _step_role_suffix(agent)
+                parts.append(f"{step_num}/{agent.total_steps}{role} ")
     if agent.hidden:
         parts.append(f"{_HIDDEN_ICON} ")
     if agent.status in _DISMISSIBLE_STATUSES:
@@ -107,8 +127,6 @@ def _calculate_entry_display_width(
         if agent.using_fallback and agent.fallback_model:
             annotation += f"\u25b8{_short_model_name(agent.fallback_model)}"
         parts.append(annotation)
-    if agent.role_suffix:
-        parts.append(f" {agent.role_suffix}")
     if agent.agent_name:
         parts.append(f" @{agent.agent_name}")
     if fold_annotation:
@@ -268,9 +286,12 @@ class AgentList(OptionList):
                         style="dim #AAAAAA",
                     )
                 elif agent.total_steps is not None:
-                    # Regular step: format as "1/3"
+                    # Regular step: format as "1/3" or "1/3.plan"
                     step_num = agent.step_index + 1
-                    text.append(f"{step_num}/{agent.total_steps} ", style="dim #AAAAAA")
+                    role = _step_role_suffix(agent)
+                    text.append(
+                        f"{step_num}/{agent.total_steps}{role} ", style="dim #AAAAAA"
+                    )
 
         # Hidden icon for agents that are normally hidden
         if agent.hidden:
@@ -298,7 +319,7 @@ class AgentList(OptionList):
         text.append(" (", style="dim")
         if agent.status == "RUNNING":
             text.append(agent.status, style="bold #FFD700")  # Gold
-        elif agent.status == "DONE":
+        elif agent.status in ("DONE", "PLAN DONE"):
             text.append(agent.status, style="bold #5FD75F")  # Green
         elif agent.status == "FAILED":
             text.append(agent.status, style="bold #FF5F5F")  # Red
@@ -339,10 +360,6 @@ class AgentList(OptionList):
             else:
                 # COLLAPSED: "(N steps)" in dim cyan
                 text.append(fold_annotation, style="dim #00D7D7")
-
-        # Role suffix annotation for follow-up agents
-        if agent.role_suffix:
-            text.append(f" {agent.role_suffix}", style="dim #AF87D7")
 
         # Agent name annotation
         if agent.agent_name:
