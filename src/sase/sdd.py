@@ -105,17 +105,21 @@ def commit_sdd_files(sdd_dir: Path, message: str) -> None:
         )
 
 
-def check_epic_available(workspace_dir: str, workspace_num: int) -> bool:
-    """Check if the Epic option should be shown for plan approval.
+def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
+    """Ensure beads are initialized, calling ``init_beads`` if necessary.
 
-    Returns True when ``.beads/`` exists in the primary workspace.
-    For VC repos: ``primary/.beads/``
-    For non-VC repos: ``primary/.sase/sdd/.beads/``
+    For VC repos: initializes ``.beads/`` in the primary workspace root.
+    For non-VC repos: delegates to ``init_beads()`` for ``.sase/sdd/.beads/``.
     """
     primary = _get_primary_workspace_dir(workspace_dir, workspace_num)
     if get_sdd_config():
-        return Path(primary, ".beads").is_dir()
-    return Path(primary, ".sase", "sdd", ".beads").is_dir()
+        beads_dir = Path(primary, ".beads")
+        if not beads_dir.is_dir():
+            BeadProject.init(Path(primary))
+    else:
+        beads_dir = Path(primary, ".sase", "sdd", ".beads")
+        if not beads_dir.is_dir():
+            init_beads(workspace_dir, workspace_num)
 
 
 def write_sdd_files(

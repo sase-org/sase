@@ -47,7 +47,6 @@ def handle_plan_approval(
     session_id: str,
     *,
     killed_check: Callable[[], bool] | None = None,
-    epic_available: bool = False,
 ) -> PlanApprovalResult | None:
     """Handle plan approval flow.
 
@@ -60,7 +59,6 @@ def handle_plan_approval(
         killed_check: Optional callable that returns True if the process was
             killed (SIGTERM). When provided, the poll loop checks it each
             iteration and returns None early if killed.
-        epic_available: Whether the Epic option should be offered.
 
     Returns a ``PlanApprovalResult`` when accepted, or ``None`` if
     rejected / missing / killed.
@@ -108,7 +106,6 @@ def handle_plan_approval(
         agent_cl_name=agent_cl_name,
         agent_project_file=agent_project_file,
         agent_timestamp=agent_timestamp,
-        epic_available=epic_available,
     )
 
     # Desktop notification + tmux bell

@@ -1,69 +1,78 @@
-"""Tests for epic approval: check_epic_available, PlanApprovalResult, epic prompt construction."""
+"""Tests for epic approval: ensure_beads_initialized, PlanApprovalResult, epic prompt construction."""
 
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.llm_provider._plan_utils import PlanApprovalResult
-from sase.sdd import check_epic_available
+from sase.sdd import ensure_beads_initialized
 
 
 # ---------------------------------------------------------------------------
-# check_epic_available
+# ensure_beads_initialized
 # ---------------------------------------------------------------------------
 
 
-def test_check_epic_available_both_conditions_met() -> None:
-    """Returns True when sdd.version_controlled is enabled and .beads/ exists."""
+def test_ensure_beads_initialized_vc_already_exists() -> None:
+    """No-op when sdd.version_controlled is enabled and .beads/ already exists."""
     with tempfile.TemporaryDirectory() as tmpdir:
         (Path(tmpdir) / ".beads").mkdir()
-        with patch("sase.sdd.get_sdd_config", return_value=True):
-            assert check_epic_available(tmpdir, 1) is True
+        with (
+            patch("sase.sdd.get_sdd_config", return_value=True),
+            patch("sase.sdd.BeadProject") as mock_bp,
+        ):
+            ensure_beads_initialized(tmpdir, 1)
+            mock_bp.init.assert_not_called()
 
 
-def test_check_epic_available_no_beads_dir() -> None:
-    """Returns False when .beads/ directory doesn't exist."""
+def test_ensure_beads_initialized_vc_creates_beads() -> None:
+    """Initializes .beads/ when sdd.version_controlled is enabled and .beads/ missing."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("sase.sdd.get_sdd_config", return_value=True):
-            assert check_epic_available(tmpdir, 1) is False
+        with (
+            patch("sase.sdd.get_sdd_config", return_value=True),
+            patch("sase.sdd.BeadProject") as mock_bp,
+        ):
+            ensure_beads_initialized(tmpdir, 1)
+            mock_bp.init.assert_called_once_with(Path(tmpdir))
 
 
-def test_check_epic_available_sdd_disabled() -> None:
-    """Returns False when sdd.version_controlled is disabled and no .sase/sdd/.beads/."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        (Path(tmpdir) / ".beads").mkdir()
-        with patch("sase.sdd.get_sdd_config", return_value=False):
-            # .beads/ at project root doesn't count for non-VC repos
-            assert check_epic_available(tmpdir, 1) is False
-
-
-def test_check_epic_available_both_missing() -> None:
-    """Returns False when both conditions are missing."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("sase.sdd.get_sdd_config", return_value=False):
-            assert check_epic_available(tmpdir, 1) is False
-
-
-def test_check_epic_available_non_vc_repo() -> None:
-    """Returns True for non-VC repo with .sase/sdd/.beads/."""
+def test_ensure_beads_initialized_non_vc_already_exists() -> None:
+    """No-op when non-VC repo already has .sase/sdd/.beads/."""
     with tempfile.TemporaryDirectory() as tmpdir:
         (Path(tmpdir) / ".sase" / "sdd" / ".beads").mkdir(parents=True)
-        with patch("sase.sdd.get_sdd_config", return_value=False):
-            assert check_epic_available(tmpdir, 1) is True
+        with (
+            patch("sase.sdd.get_sdd_config", return_value=False),
+            patch("sase.sdd.init_beads") as mock_init,
+        ):
+            ensure_beads_initialized(tmpdir, 1)
+            mock_init.assert_not_called()
 
 
-def test_check_epic_available_workspace_num_2() -> None:
+def test_ensure_beads_initialized_non_vc_calls_init_beads() -> None:
+    """Calls init_beads when non-VC repo is missing .sase/sdd/.beads/."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with (
+            patch("sase.sdd.get_sdd_config", return_value=False),
+            patch("sase.sdd.init_beads") as mock_init,
+        ):
+            ensure_beads_initialized(tmpdir, 1)
+            mock_init.assert_called_once_with(tmpdir, 1)
+
+
+def test_ensure_beads_initialized_workspace_num_2() -> None:
     """For workspace_num > 1, checks .beads/ in the primary workspace."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create primary workspace (without _2 suffix) with .beads/
         primary = Path(tmpdir) / "project"
         primary.mkdir()
-        (primary / ".beads").mkdir()
         workspace_2 = Path(tmpdir) / "project_2"
         workspace_2.mkdir()
 
-        with patch("sase.sdd.get_sdd_config", return_value=True):
-            assert check_epic_available(str(workspace_2), 2) is True
+        with (
+            patch("sase.sdd.get_sdd_config", return_value=True),
+            patch("sase.sdd.BeadProject") as mock_bp,
+        ):
+            ensure_beads_initialized(str(workspace_2), 2)
+            mock_bp.init.assert_called_once_with(primary)
 
 
 # ---------------------------------------------------------------------------

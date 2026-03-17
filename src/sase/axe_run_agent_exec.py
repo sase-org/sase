@@ -259,11 +259,6 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             update_meta_suffix(current_artifacts_dir, ".plan")
             from sase.llm_provider._plan_utils import handle_plan_approval
 
-            # Check if the Epic option should be offered
-            from sase.sdd import check_epic_available
-
-            epic_available = check_epic_available(ctx.workspace_dir, ctx.workspace_num)
-
             # Clear the killed flag set by the plan command's SIGTERM
             # so the poll loop only exits on a NEW kill signal.
             reset_killed()
@@ -271,7 +266,6 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 plan_data.get("plan_file"),
                 str(uuid.uuid4()),
                 killed_check=was_killed,
-                epic_available=epic_available,
             )
             if plan_result is None and was_killed():
                 loop_outcome = "killed"
@@ -315,6 +309,11 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             vcs_prefix = ctx.vcs_tag or ""
 
             if plan_result.action == "epic":
+                # Ensure beads are initialized before spawning epic agent
+                from sase.sdd import ensure_beads_initialized
+
+                ensure_beads_initialized(ctx.workspace_dir, ctx.workspace_num)
+
                 # Commit SDD files so the #gh pre-step doesn't wipe them
                 if sdd_plan_name:
                     if version_controlled:
