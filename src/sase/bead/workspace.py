@@ -78,9 +78,16 @@ def _find_beads_dir(workspace: Path) -> Path | None:
 def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     """Enumerate beads directories across all workspaces.
 
-    Checks both VC (.sase_beads/) and non-VC (.sase/sdd/beads/) paths.
-    Scans sibling directories matching ``<primary_basename>_<N>`` pattern.
+    Non-VC mode is primary-only: if ``primary/.sase/sdd/beads`` exists,
+    return only that directory.
+
+    VC mode checks ``.sase_beads/`` in the primary workspace and sibling
+    workspace directories matching ``<primary_basename>_<N>``.
     """
+    primary_non_vc = primary_workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
+    if primary_non_vc.is_dir():
+        return [primary_non_vc]
+
     parent = primary_workspace.parent
     basename = primary_workspace.name
     pattern = re.compile(rf"^{re.escape(basename)}_\d+$")
@@ -88,16 +95,16 @@ def _enumerate_workspace_beads_dirs(primary_workspace: Path) -> list[Path]:
     beads_dirs: list[Path] = []
 
     # Primary workspace
-    primary_beads = _find_beads_dir(primary_workspace)
-    if primary_beads:
+    primary_beads = primary_workspace / BEADS_DIRNAME
+    if primary_beads.is_dir():
         beads_dirs.append(primary_beads)
 
-    # Workspace shares
+    # Workspace shares (VC mode only)
     if parent.is_dir():
         for entry in sorted(parent.iterdir()):
             if entry.is_dir() and pattern.match(entry.name):
-                beads = _find_beads_dir(entry)
-                if beads:
+                beads = entry / BEADS_DIRNAME
+                if beads.is_dir():
                     beads_dirs.append(beads)
 
     return beads_dirs

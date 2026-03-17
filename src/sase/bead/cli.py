@@ -21,24 +21,27 @@ def _find_beads_location() -> tuple[Path, str]:
     Returns (root_dir, beads_dirname) where root_dir / beads_dirname is the
     beads directory.
     """
-    cwd = Path.cwd()
-    for parent in [cwd, *cwd.parents]:
-        if (parent / BEADS_DIRNAME).is_dir():
-            return parent, BEADS_DIRNAME
-        non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
-        if non_vc.is_dir():
-            return parent / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
-
-    # Fall back to workspace provider
     from sase.bead.workspace import resolve_primary_workspace
+
+    cwd = Path.cwd()
 
     primary = resolve_primary_workspace()
     if primary:
-        if (primary / BEADS_DIRNAME).is_dir():
-            return primary, BEADS_DIRNAME
+        # Non-VC SDD data is primary-workspace scoped.
         non_vc = primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
         if non_vc.is_dir():
             return primary / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
+        if (primary / BEADS_DIRNAME).is_dir():
+            return primary, BEADS_DIRNAME
+
+    for parent in [cwd, *cwd.parents]:
+        if (parent / BEADS_DIRNAME).is_dir():
+            return parent, BEADS_DIRNAME
+        # If primary workspace couldn't be resolved, preserve legacy fallback.
+        if primary is None:
+            non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
+            if non_vc.is_dir():
+                return parent / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
 
     return cwd, BEADS_DIRNAME
 

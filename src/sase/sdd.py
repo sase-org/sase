@@ -31,9 +31,16 @@ def get_sdd_dir(
 def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     """Derive primary workspace dir from current workspace.
 
+    Prefer the project's configured WORKSPACE_DIR (source of truth).
+    Fall back to suffix-stripping based on workspace_num.
+
     For workspace_num == 1, returns workspace_dir as-is.
     For workspace_num > 1, strips the ``_{workspace_num}`` suffix.
     """
+    configured_primary = _get_primary_workspace_dir_from_project(workspace_dir)
+    if configured_primary:
+        return configured_primary
+
     if workspace_num <= 1:
         return workspace_dir
     suffix = f"_{workspace_num}"
@@ -41,6 +48,30 @@ def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     if stripped.endswith(suffix):
         return stripped[: -len(suffix)]
     return workspace_dir
+
+
+def _get_primary_workspace_dir_from_project(workspace_dir: str) -> str | None:
+    """Resolve primary workspace from the project's WORKSPACE_DIR field.
+
+    Returns ``None`` if project/workspace metadata cannot be resolved.
+    """
+    try:
+        from sase.workspace_provider import get_workspace_name
+        from sase.workspace_utils import parse_workspace_dir
+
+        project_name = get_workspace_name(workspace_dir)
+        if not project_name:
+            return None
+
+        project_file = (
+            Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"
+        )
+        primary = parse_workspace_dir(str(project_file))
+        if not primary:
+            return None
+        return primary.rstrip("/")
+    except Exception:
+        return None
 
 
 def init_beads(workspace_dir: str, workspace_num: int) -> Path:

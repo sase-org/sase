@@ -53,6 +53,19 @@ def test_primary_workspace_dir_trailing_slash() -> None:
     assert result == "/home/user/myproject"
 
 
+def test_primary_workspace_dir_prefers_project_workspace_dir() -> None:
+    with (
+        patch("sase.sdd.Path.home", return_value=Path("/home/user")),
+        patch("sase.workspace_provider.get_workspace_name", return_value="myproject"),
+        patch(
+            "sase.workspace_utils.parse_workspace_dir",
+            return_value="/home/user/myproject",
+        ),
+    ):
+        result = _get_primary_workspace_dir("/home/user/myproject_2", 1)
+    assert result == "/home/user/myproject"
+
+
 # ---------------------------------------------------------------------------
 # get_sdd_dir
 # ---------------------------------------------------------------------------
