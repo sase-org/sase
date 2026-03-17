@@ -13,10 +13,13 @@ from sase.bead.workspace import MergedBeadView, get_project_beads_dirs
 
 
 def _find_beads_location() -> tuple[Path, str]:
-    """Walk up from cwd to find a beads directory.
+    """Determine the beads root directory and subdirectory name.
 
-    Checks both VC mode (.sase_beads/) and non-VC mode (.sase/sdd/beads/).
-    Falls back to the primary workspace via the sase workspace provider.
+    Uses the primary workspace and ``sdd.version_controlled`` config to choose:
+      - Non-VC (default): ``primary/.sase/sdd/beads/``
+      - VC: ``.sase_beads/`` in CWD (or primary workspace)
+
+    Falls back to legacy walk-up-from-cwd when no primary workspace is found.
 
     Returns (root_dir, beads_dirname) where root_dir / beads_dirname is the
     beads directory.
@@ -27,18 +30,16 @@ def _find_beads_location() -> tuple[Path, str]:
 
     primary = resolve_primary_workspace()
     if primary:
-        # Non-VC SDD data is primary-workspace scoped — always check first.
-        non_vc = primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
-        if non_vc.is_dir():
-            return primary / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
-        # VC beads: prefer local workspace copy (each workspace has its own),
-        # then fall back to primary.
-        if (cwd / BEADS_DIRNAME).is_dir():
-            return cwd, BEADS_DIRNAME
-        if (primary / BEADS_DIRNAME).is_dir():
+        from sase.sdd import get_sdd_config
+
+        if get_sdd_config():
+            # VC mode: .sase_beads/ — prefer CWD copy, then primary.
+            if (cwd / BEADS_DIRNAME).is_dir():
+                return cwd, BEADS_DIRNAME
             return primary, BEADS_DIRNAME
-        # Nothing initialized yet — default to primary, not cwd.
-        return primary, BEADS_DIRNAME
+        else:
+            # Non-VC mode: always primary/.sase/sdd/beads/
+            return primary / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
 
     # No primary workspace — legacy walk-up from cwd.
     for parent in [cwd, *cwd.parents]:
@@ -83,13 +84,35 @@ def _status_icon(status: Status) -> str:
 
 
 def handle_bead_init(args: argparse.Namespace) -> None:
-    root = Path.cwd()
-    if (root / BEADS_DIRNAME).exists():
-        print(f"Already initialized: {BEADS_DIRNAME}/ exists")
+    root, beads_dirname = _find_beads_location()
+    beads_path = root / beads_dirname
+    if beads_path.exists():
+        print(f"Already initialized: {beads_path}")
         return
-    with BeadProject.init(root):
+    # Non-VC mode: bootstrap .sase/sdd/ as a standalone git repo.
+    if beads_dirname == BEADS_DIRNAME_NON_VC:
+        import subprocess
+
+        root.mkdir(parents=True, exist_ok=True)
+        if not (root / ".git").is_dir():
+            subprocess.run(
+                ["git", "init"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+            )
+        gitignore = root / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text("beads/beads.db\n", encoding="utf-8")
+    with BeadProject.init(root, beads_dirname=beads_dirname):
         pass
-    print(f"Initialized {BEADS_DIRNAME}/ in {root}")
+    # Non-VC mode: auto-commit the initial beads files.
+    if beads_dirname == BEADS_DIRNAME_NON_VC:
+        from sase.sdd import commit_sdd_files
+
+        commit_sdd_files(root, "Initialize beads")
+    print(f"Initialized {beads_dirname}/ in {root}")
 
 
 def handle_bead_create(args: argparse.Namespace) -> None:
