@@ -58,9 +58,3 @@ CLAUDE.local.md
 # Hypothesis
 .hypothesis/
 
-# beads
-.beads/.beads-credential-key
-
-# Dolt database files (added by bd init)
-.dolt/
-*.db

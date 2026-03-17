@@ -214,9 +214,8 @@ function run() {
     if echo "$CHANGED_FILES" | grep -q .; then
         # Create marker file and request commit
         touch "$STORED_DIFF_FILE"
-        echo "All checks passed. If you made any file changes (which includes changes to the .beads/issues.jsonl file)," \
-            " please use your /commit skill to commit them now. If you completed any beads by making those changes, make" \
-            " sure to close them with the \`bd close\` command." >&2
+        echo "All checks passed. If you made any file changes," \
+            " please use your /commit skill to commit them now." >&2
         return 2
     fi
 
