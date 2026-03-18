@@ -19,10 +19,26 @@ def _parse_datepoint(s: str) -> datetime:
     - ``YYmmddHHMMSS``    – e.g. ``260318143000`` → 2026-03-18 14:30:00 ET
     - ``-Nd``             – N days ago at midnight
     - ``0d``              – today at midnight
+    - ``-Nm``             – N minutes ago
+    - ``-Nh``             – N hours ago
     """
     s = s.strip()
 
-    # Relative: -Nd or 0d
+    # Relative minutes: -Nm
+    m = re.fullmatch(r"(-?\d+)m", s)
+    if m:
+        offset = int(m.group(1))
+        now = datetime.now(EASTERN_TZ)
+        return now + timedelta(minutes=offset)
+
+    # Relative hours: -Nh
+    m = re.fullmatch(r"(-?\d+)h", s)
+    if m:
+        offset = int(m.group(1))
+        now = datetime.now(EASTERN_TZ)
+        return now + timedelta(hours=offset)
+
+    # Relative days: -Nd or 0d
     m = re.fullmatch(r"(-?\d+)d", s)
     if m:
         offset = int(m.group(1))

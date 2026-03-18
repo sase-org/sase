@@ -33,6 +33,22 @@ class TestParseDatepoint:
             result = _parse_datepoint("0d")
         assert result == datetime(2026, 3, 18, 0, 0, 0, tzinfo=EASTERN_TZ)
 
+    def test_relative_minutes(self) -> None:
+        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=EASTERN_TZ)
+        with patch("sase.logs.daterange.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now
+            mock_dt.strptime = datetime.strptime
+            result = _parse_datepoint("-30m")
+        assert result == datetime(2026, 3, 18, 15, 0, 0, tzinfo=EASTERN_TZ)
+
+    def test_relative_hours(self) -> None:
+        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=EASTERN_TZ)
+        with patch("sase.logs.daterange.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now
+            mock_dt.strptime = datetime.strptime
+            result = _parse_datepoint("-2h")
+        assert result == datetime(2026, 3, 18, 13, 30, 0, tzinfo=EASTERN_TZ)
+
     def test_invalid_raises(self) -> None:
         with pytest.raises(ValueError, match="Invalid date point"):
             _parse_datepoint("foobar")
