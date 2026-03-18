@@ -16,6 +16,7 @@ from typing import Any
 from sase.axe_run_agent_helpers import (
     create_followup_artifacts,
     extract_step_output_and_diff_path,
+    find_response_path,
     format_qa_for_prompt,
     handle_questions_flow,
     normalize_handoff_interruption_state,
@@ -258,7 +259,13 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
 
         if plan_data:
             normalize_handoff_interruption_state(current_artifacts_dir)
-            update_meta_suffix(current_artifacts_dir, ".plan")
+            # Preserve existing .plan.N suffix for feedback agents
+            plan_suffix = (
+                current_role_suffix
+                if current_role_suffix.startswith(".plan")
+                else ".plan"
+            )
+            update_meta_suffix(current_artifacts_dir, plan_suffix)
             from sase.llm_provider._plan_utils import handle_plan_approval
 
             # Clear the killed flag set by the plan command's SIGTERM
@@ -278,6 +285,42 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             # Write plan_path.json so the TUI can show the plan
             # in the file panel for the .plan agent entry.
             _write_plan_path_artifact(current_artifacts_dir, plan_result.plan_file)
+
+            # Handle plan feedback: spawn a new planner agent to revise
+            if plan_result.action == "feedback":
+                chat_file = find_response_path(current_artifacts_dir)
+                # Compute next .plan.N suffix
+                if current_role_suffix.startswith(".plan."):
+                    try:
+                        plan_round = int(current_role_suffix.rsplit(".", 1)[-1]) + 1
+                    except ValueError:
+                        plan_round = 2
+                else:
+                    plan_round = 2
+                current_role_suffix = f".plan.{plan_round}"
+                current_artifacts_dir = create_followup_artifacts(
+                    ctx.project_name,
+                    ctx.agent_meta,
+                    current_role_suffix,
+                    convert_timestamp_to_artifacts_format(ctx.timestamp),
+                    workspace_num=ctx.workspace_num,
+                )
+                vcs_prefix = ctx.vcs_tag or ""
+                parts = [vcs_prefix]
+                if chat_file:
+                    parts.append(f"@{chat_file}\n\n")
+                parts.append(f"@{plan_result.plan_file}\n\n")
+                parts.append(
+                    "The above plan was proposed but the user has rejected it "
+                    "with the following feedback:\n\n"
+                    f"> {plan_result.feedback}\n\n"
+                    "Please review the plan and the feedback, then adjust the "
+                    "plan accordingly. Use your /sase_plan skill to re-submit "
+                    "the adjusted plan."
+                )
+                current_prompt = "".join(parts)
+                _allow_retry = False
+                continue
 
             # Write SDD files (spec + plan) to project
             from sase.sdd import (
