@@ -42,6 +42,22 @@ def _get_jinja_env() -> Environment:
     return _jinja_env
 
 
+def get_global_template_vars() -> dict[str, Any]:
+    """Compute global Jinja2 template variables available to all prompts.
+
+    Currently provides:
+        root: Absolute path to the primary (#1) workspace directory for the
+              current project, or omitted if the project can't be resolved.
+    """
+    from sase.bead.workspace import resolve_primary_workspace
+
+    result: dict[str, Any] = {}
+    primary = resolve_primary_workspace()
+    if primary is not None:
+        result["root"] = str(primary)
+    return result
+
+
 def validate_and_convert_args(
     xprompt: XPrompt,
     positional_args: list[str],
@@ -143,8 +159,8 @@ def _render_jinja2_template(
     """
     env = _get_jinja_env()
 
-    # Build context: scope first, then positional/named args override
-    context: dict[str, Any] = {}
+    # Build context: globals first, then scope, then positional/named args override
+    context: dict[str, Any] = get_global_template_vars()
     if scope:
         context.update(scope)
     for i, arg in enumerate(positional_args, 1):
@@ -184,7 +200,7 @@ def render_toplevel_jinja2(content: str) -> str:
     env = _get_jinja_env()
     try:
         template = env.from_string(content)
-        content = template.render()
+        content = template.render(**get_global_template_vars())
     except TemplateError as e:
         print_status(f"Jinja2 template error in prompt: {e}", "error")
         sys.exit(1)

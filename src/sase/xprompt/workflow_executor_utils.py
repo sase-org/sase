@@ -45,9 +45,12 @@ def render_template(template: str, context: dict[str, Any]) -> str:
     Returns:
         The rendered template string.
     """
+    from sase.xprompt._jinja import get_global_template_vars
+
     env = create_jinja_env()
+    merged = {**get_global_template_vars(), **context}
     jinja_template = env.from_string(template)
-    return jinja_template.render(context)
+    return jinja_template.render(merged)
 
 
 def parse_bash_output(output: str) -> dict[str, Any]:
