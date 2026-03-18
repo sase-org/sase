@@ -58,6 +58,13 @@ def handle_amend_command(args: argparse.Namespace) -> NoReturn:
         target_dir=getattr(args, "target_dir", None),
     )
     success = workflow.run()
+    if success:
+        try:
+            from sase.logs.run_log import log_event
+
+            log_event(event="amend_created", note=args.note[0])
+        except Exception:
+            pass
     sys.exit(0 if success else 1)
 
 
@@ -89,6 +96,13 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         message=args.message,
     )
     success = workflow.run()
+    if success:
+        try:
+            from sase.logs.run_log import log_event
+
+            log_event(event="commit_created", cl_name=args.cl_name)
+        except Exception:
+            pass
     sys.exit(0 if success else 1)
 
 
@@ -136,6 +150,12 @@ def handle_restore_command(args: argparse.Namespace) -> NoReturn:
         console.print(f"[red]Error: {_esc(str(error))}[/red]")
         sys.exit(1)
 
+    try:
+        from sase.logs.run_log import log_event
+
+        log_event(event="changespec_restored", cl_name=args.name)
+    except Exception:
+        pass
     console.print("[green]ChangeSpec restored successfully[/green]")
     sys.exit(0)
 
@@ -168,5 +188,11 @@ def handle_revert_command(args: argparse.Namespace) -> NoReturn:
         console.print(f"[red]Error: {_esc(str(error))}[/red]")
         sys.exit(1)
 
+    try:
+        from sase.logs.run_log import log_event
+
+        log_event(event="changespec_reverted", cl_name=args.name)
+    except Exception:
+        pass
     console.print("[green]ChangeSpec reverted successfully[/green]")
     sys.exit(0)

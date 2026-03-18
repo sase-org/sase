@@ -276,6 +276,25 @@ def main() -> None:
         # Record stop time in agent_meta.json for TUI timestamp display
         record_stop_time(artifacts_dir, current_artifacts_dir)
 
+        # Log structured agent run record
+        try:
+            from sase.logs.run_log import log_agent_run
+
+            log_agent_run(
+                workflow=workflow_name,
+                project=project_name,
+                branch_or_workspace=cl_name,
+                workspace_num=workspace_num,
+                model=agent_model,
+                llm_provider=agent_llm_provider,
+                duration_seconds=end_time - start_time,
+                status="success" if success else "failed",
+                artifacts_dir=current_artifacts_dir,
+                prompt_preview=prompt[:100] if prompt else None,
+            )
+        except Exception:
+            pass  # Best effort
+
         print()
         print(f"Agent completed with status: {'SUCCESS' if success else 'FAILED'}")
         print(f"Duration: {duration}")

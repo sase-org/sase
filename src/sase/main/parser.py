@@ -423,6 +423,17 @@ def create_parser() -> argparse.ArgumentParser:
         help="Path to an existing bare repo to register instead of creating new",
     )
 
+    # --- logs ---
+    logs_parser = top_level_subparsers.add_parser(
+        "logs",
+        help="Collect logs and runtime data for a date range into a pack directory",
+    )
+    logs_parser.add_argument(
+        "daterange",
+        help="Date range to collect. Formats: YYmmdd, YYmmddHHMMSS, -Nd, 0d, "
+        "START..END (e.g., -7d..0d, 260315..260318, -7d)",
+    )
+
     # --- notify ---
     notify_parser = top_level_subparsers.add_parser(
         "notify",

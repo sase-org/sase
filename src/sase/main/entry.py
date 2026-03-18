@@ -127,6 +127,12 @@ def main() -> NoReturn:
             print(xprompts_dir / "xprompts.schema.json")
         sys.exit(0)
 
+    # --- logs ---
+    if args.command == "logs":
+        from sase.logs.cli import handle_logs_command
+
+        handle_logs_command(args)
+
     # --- notify ---
     if args.command == "notify":
         from .notify_handler import handle_notify_command

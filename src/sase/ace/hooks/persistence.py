@@ -137,6 +137,24 @@ def merge_hook_updates(
                     merged_hooks.append(hook)
 
             write_hooks_unlocked(project_file, changespec_name, merged_hooks)
+
+            # Log hook completion events for terminal statuses
+            try:
+                from sase.logs.run_log import log_event
+
+                for cmd, entry in hook_updates.items():
+                    for sl in entry.status_lines or []:
+                        if sl.status in ("PASSED", "FAILED"):
+                            log_event(
+                                event="hook_completed",
+                                hook=cmd,
+                                cl_name=changespec_name,
+                                status=sl.status,
+                                duration=sl.duration,
+                            )
+            except Exception:
+                pass  # Best effort
+
             return True
 
     except LockTimeoutError:
