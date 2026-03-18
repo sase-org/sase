@@ -6,6 +6,7 @@ plan approval, and question-flow handling.
 
 import json
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -108,6 +109,48 @@ def _write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:
             json.dump({"plan_path": plan_path}, f)
     except OSError:
         pass
+
+
+def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
+    """Reconstruct non-VCS embedded workflow refs from artifacts metadata.
+
+    Reads embedded_workflows.json (written during workflow expansion before
+    the agent is killed) and returns a string of workflow references
+    (e.g., ``"#propose "``) to prepend to follow-up agent prompts so their
+    post-steps run after the follow-up agent completes.
+    """
+    metadata_path = os.path.join(artifacts_dir, "embedded_workflows.json")
+    try:
+        with open(metadata_path, encoding="utf-8") as f:
+            workflows = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return ""
+
+    # Extract VCS workflow name from tag (e.g., "#hg:sase " -> "hg")
+    vcs_name: str | None = None
+    if vcs_tag:
+        m = re.match(r"#(\w+)", vcs_tag)
+        if m:
+            vcs_name = m.group(1)
+
+    refs: list[str] = []
+    for wf in workflows:
+        name = wf["name"]
+        if name == vcs_name:
+            continue
+        args = wf.get("args", {})
+        if not args:
+            refs.append(f"#{name}")
+        elif len(args) == 1:
+            value = next(iter(args.values()))
+            refs.append(f"#{name}:{value}")
+        else:
+            arg_parts = [f"{k}={v}" for k, v in args.items()]
+            refs.append(f"#{name}({', '.join(arg_parts)})")
+
+    if not refs:
+        return ""
+    return " ".join(refs) + " "
 
 
 def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
@@ -345,6 +388,12 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             # VCS workflow tag prefix for follow-up agents
             vcs_prefix = ctx.vcs_tag or ""
 
+            # Reconstruct non-VCS embedded workflow refs (e.g. #propose,
+            # #commit) so their post-steps run after the follow-up agent.
+            embedded_refs = _get_embedded_workflow_refs(
+                current_artifacts_dir, ctx.vcs_tag
+            )
+
             if plan_result.action == "epic":
                 # Ensure beads are initialized before spawning epic agent
                 from sase.sdd import ensure_beads_initialized
@@ -373,7 +422,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                     if sdd_plan_name
                     else plan_data["plan_file"]
                 )
-                current_prompt = f"{vcs_prefix}#bd/new_epic:{plan_ref}"
+                current_prompt = f"{vcs_prefix}{embedded_refs}#bd/new_epic:{plan_ref}"
             else:
                 # Approve: spawn coder with plan as prompt
                 current_role_suffix = ".code"
@@ -385,7 +434,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                     workspace_num=ctx.workspace_num,
                 )
                 current_prompt = (
-                    f"{vcs_prefix}"
+                    f"{vcs_prefix}{embedded_refs}"
                     f"@{plan_data['plan_file']}\n\n"
                     "The above plan has been reviewed and approved. "
                     "Implement it now."
