@@ -223,7 +223,7 @@ class EntryPointsMixin:
         )
 
     def _clear_changespec_comments(self) -> None:
-        """Remove the COMMENTS field and any CRS proposal commits."""
+        """Remove the COMMENTS field, kill running CRS agents, and delete proposals."""
         if not self.changespecs:
             self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
             return
@@ -233,11 +233,30 @@ class EntryPointsMixin:
             self.notify("No comments to clear", severity="warning")  # type: ignore[attr-defined]
             return
 
+        # Kill any running CRS agents
+        import os
+        import signal
+
+        from sase.ace.changespec import extract_pid_from_agent_suffix
+
+        killed_agents = 0
+        for comment in changespec.comments:
+            if (
+                comment.suffix_type == "running_agent"
+                and comment.suffix
+                and comment.suffix.startswith("crs")
+            ):
+                pid = extract_pid_from_agent_suffix(comment.suffix)
+                if pid is not None:
+                    try:
+                        os.killpg(pid, signal.SIGTERM)
+                        killed_agents += 1
+                    except (ProcessLookupError, PermissionError):
+                        pass
+
         # Delete any CRS proposal commits associated with comments
         deleted_proposals = 0
         if changespec.commits:
-            import os
-
             from sase.change_actions import delete_proposal_entry
 
             crs_proposals = [
@@ -276,8 +295,13 @@ class EntryPointsMixin:
                     if not (c.is_proposed and c.note.startswith("[crs"))
                 ]
             msg = f"Cleared COMMENTS for {changespec.name}"
+            details = []
+            if killed_agents:
+                details.append(f"killed {killed_agents} CRS agent(s)")
             if deleted_proposals:
-                msg += f" (deleted {deleted_proposals} CRS proposal(s))"
+                details.append(f"deleted {deleted_proposals} CRS proposal(s)")
+            if details:
+                msg += f" ({', '.join(details)})"
             self.notify(msg)  # type: ignore[attr-defined]
         else:
             self.notify(  # type: ignore[attr-defined]
