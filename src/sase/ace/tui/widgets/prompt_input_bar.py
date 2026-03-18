@@ -543,7 +543,9 @@ class PromptInputBar(Static):
     class Cancelled(Message):
         """Message sent when input is cancelled."""
 
-        pass
+        def __init__(self, cancelled_text: str = "") -> None:
+            super().__init__()
+            self.cancelled_text = cancelled_text
 
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
@@ -686,9 +688,10 @@ class PromptInputBar(Static):
     def action_cancel(self) -> None:
         """Cancel the input bar."""
         text_area = self.query_one("#prompt-input", _PromptTextArea)
-        if text_area.text.strip():
+        stripped = text_area.text.strip()
+        if stripped:
             PromptInputBar._last_cancelled_prompt = text_area.text
-        self.post_message(self.Cancelled())
+        self.post_message(self.Cancelled(cancelled_text=stripped))
 
     def insert_snippet(self, snippet_name: str) -> None:
         """Insert a snippet reference at the cursor position.

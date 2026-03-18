@@ -21,6 +21,7 @@ class PromptEntry:
     timestamp: str
     last_used: str
     workspace: str
+    cancelled: bool = False
 
 
 def _get_current_branch_or_workspace() -> str:
@@ -71,6 +72,7 @@ def _load_prompt_history() -> list[PromptEntry]:
                 timestamp=p["timestamp"],
                 last_used=p["last_used"],
                 workspace=p["workspace"],
+                cancelled=p.get("cancelled", False),
             )
             for p in prompts
             if isinstance(p, dict)
@@ -108,6 +110,7 @@ def add_or_update_prompt(
     *,
     project_name: str | None = None,
     branch_or_workspace: str | None = None,
+    cancelled: bool = False,
 ) -> None:
     """Add a new prompt or update an existing prompt's last_used timestamp.
 
@@ -120,6 +123,8 @@ def add_or_update_prompt(
             If provided, uses this instead of detecting via shell command.
         branch_or_workspace: Optional branch/CL name to associate with this prompt.
             If provided, uses this instead of detecting via shell command.
+        cancelled: If True, mark this prompt as cancelled (unsent). An existing
+            non-cancelled prompt will not be downgraded to cancelled.
     """
     prompts = _load_prompt_history()
     current_timestamp = generate_timestamp()
@@ -135,6 +140,9 @@ def add_or_update_prompt(
         if prompt.text == text:
             # Update existing prompt's last_used timestamp
             prompt.last_used = current_timestamp
+            # Only upgrade from cancelled to non-cancelled, never downgrade
+            if not cancelled:
+                prompt.cancelled = False
             _save_prompt_history(prompts)
             return
 
@@ -145,6 +153,7 @@ def add_or_update_prompt(
         timestamp=current_timestamp,
         last_used=current_timestamp,
         workspace=current_workspace,
+        cancelled=cancelled,
     )
     prompts.append(new_entry)
     _save_prompt_history(prompts)
@@ -189,6 +198,7 @@ def _format_prompt_for_display(
 def get_prompts_for_fzf(
     current_branch: str | None = None,
     current_workspace: str | None = None,
+    include_cancelled: bool = False,
 ) -> list[tuple[str, PromptEntry]]:
     """Get prompts formatted for fzf display.
 
@@ -199,6 +209,7 @@ def get_prompts_for_fzf(
     Args:
         current_branch: The current branch/workspace name. If None, will be detected.
         current_workspace: The current workspace name. If None, will be detected.
+        include_cancelled: If True, include cancelled prompts in results.
 
     Returns:
         List of (display_string, PromptEntry) tuples sorted for fzf display.
@@ -209,6 +220,9 @@ def get_prompts_for_fzf(
         current_workspace = _get_workspace_name()
 
     prompts = _load_prompt_history()
+
+    if not include_cancelled:
+        prompts = [p for p in prompts if not p.cancelled]
 
     if not prompts:
         return []

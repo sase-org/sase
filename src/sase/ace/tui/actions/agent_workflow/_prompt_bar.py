@@ -215,6 +215,17 @@ class PromptBarMixin:
         if not isinstance(event, PromptInputBar.Cancelled):
             return
 
+        # Save cancelled prompt to history so it can be recovered via "@ " filter
+        if event.cancelled_text and self._prompt_context:
+            from sase.prompt_history import add_or_update_prompt
+
+            add_or_update_prompt(
+                event.cancelled_text,
+                project_name=self._prompt_context.project_name,
+                branch_or_workspace=self._prompt_context.history_sort_key,
+                cancelled=True,
+            )
+
         self.notify("Prompt input cancelled")  # type: ignore[attr-defined]
         self._unmount_prompt_bar()
         self._prompt_context = None
