@@ -135,6 +135,12 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
     loop_outcome = "completed"
     sdd_spec_path: str | None = None  # Track spec for Q&A updates
 
+    # Feedback tracking: accumulate feedback bullets across rounds
+    _original_prompt = prompt
+    _qa_sections: list[str] = []
+    _feedback_bullets: list[str] = []
+    _feedback_round = 0
+
     while True:
         reset_killed()
         os.environ["SASE_ARTIFACTS_DIR"] = current_artifacts_dir
@@ -258,7 +264,10 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
 
         if plan_data:
             normalize_handoff_interruption_state(current_artifacts_dir)
-            update_meta_suffix(current_artifacts_dir, ".plan")
+            # Only set the ".plan" suffix on the original workflow entry;
+            # feedback round agents (suffix ".2", ".3", …) keep theirs.
+            if _feedback_round == 0:
+                update_meta_suffix(current_artifacts_dir, ".plan")
             from sase.llm_provider._plan_utils import handle_plan_approval
 
             # Clear the killed flag set by the plan command's SIGTERM
@@ -278,6 +287,32 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             # Write plan_path.json so the TUI can show the plan
             # in the file panel for the .plan agent entry.
             _write_plan_path_artifact(current_artifacts_dir, plan_result.plan_file)
+
+            # Feedback: spawn a new agent with the original prompt +
+            # accumulated "Additional Requirements" section.
+            if plan_result.action == "feedback":
+                assert plan_result.feedback is not None
+                _feedback_round += 1
+                _feedback_bullets.append(plan_result.feedback)
+
+                suffix = f".{_feedback_round + 1}"
+                current_role_suffix = suffix
+                current_artifacts_dir = create_followup_artifacts(
+                    ctx.project_name,
+                    ctx.agent_meta,
+                    current_role_suffix,
+                    convert_timestamp_to_artifacts_format(ctx.timestamp),
+                    workspace_num=ctx.workspace_num,
+                )
+
+                # Reconstruct prompt: original + all Q&A + requirements
+                base = _original_prompt
+                for qa in _qa_sections:
+                    base += "\n\n" + qa
+                reqs = "\n".join(f"- {fb}" for fb in _feedback_bullets)
+                current_prompt = f"{base}\n\n### Additional Requirements\n\n{reqs}"
+                _allow_retry = False
+                continue
 
             # Write SDD files (spec + plan) to project
             from sase.sdd import (
@@ -383,6 +418,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 workspace_num=ctx.workspace_num,
             )
             qa_text = format_qa_for_prompt(response)
+            _qa_sections.append(qa_text)
             current_prompt = current_prompt + "\n\n" + qa_text
 
             # Update SDD spec file with Q&A answers

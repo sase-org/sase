@@ -145,6 +145,13 @@ def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
     return verified_agents
 
 
+def _is_feedback_suffix(suffix: str | None) -> bool:
+    """Check if a role suffix is a plan feedback round (e.g., ".2", ".3")."""
+    if not suffix or not suffix.startswith("."):
+        return False
+    return suffix[1:].isdigit()
+
+
 def _apply_status_overrides(agents: list[Agent]) -> None:
     """Override statuses based on workflow relationships (mutates in place).
 
@@ -164,6 +171,7 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
         if (
             agent.parent_timestamp
             and not agent.parent_workflow  # Follow-up agent, not workflow step
+            and not _is_feedback_suffix(agent.role_suffix)  # Skip feedback rounds
         ):
             parents_with_followup.add(agent.parent_timestamp)
             parent = parent_by_suffix.get(agent.parent_timestamp)
