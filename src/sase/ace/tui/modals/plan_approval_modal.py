@@ -9,6 +9,7 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
+from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
 
 
@@ -33,6 +34,7 @@ class PlanApprovalModal(
         ("f", "feedback", "Reject w/ feedback"),
         ("e", "edit", "Edit"),
         ("E", "epic", "Epic"),
+        ("y", "copy_plan", "Copy"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
@@ -55,6 +57,7 @@ class PlanApprovalModal(
             "[yellow]f[/yellow]=Reject w/ feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
+            "[cyan]y[/cyan]=Copy  "
             "[dim]q[/dim]=Cancel  |  Ctrl+D/U to scroll"
         )
 
@@ -134,6 +137,17 @@ class PlanApprovalModal(
         if self._feedback_mode:
             return
         self.dismiss(PlanApprovalResult(action="epic"))
+
+    def action_copy_plan(self) -> None:
+        """Copy the plan file contents to clipboard."""
+        content = self._read_plan_file()
+        if content.startswith("[Error"):
+            self.notify("Failed to read plan file", severity="error")
+            return
+        if copy_to_system_clipboard(content):
+            self.notify("Copied: Plan")
+        else:
+            self.notify("Failed to copy to clipboard", severity="error")
 
     def action_feedback(self) -> None:
         """Enter feedback mode to reject with feedback."""
