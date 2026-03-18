@@ -81,7 +81,7 @@ keystrokes and `--size` to control terminal dimensions.
 
 Some files associated with this project live in the ~/.local/share/chezmoi/ directory. Feel free to modify these if
 needed, but make sure to commit your changes to the chezmoi repo using your commit skill (NOT `git commit`) after making
-them.
+them. Ignore the .sase_beads/ changes in commits when composing your commit message.
 
 Chezmoi iles related to sase that I know about:
 
