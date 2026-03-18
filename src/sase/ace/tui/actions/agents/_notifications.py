@@ -23,7 +23,9 @@ class AgentNotificationMixin:
     _last_unread_count: int
     current_idx: int
     current_tab: TabName
+    hide_non_run_agents: bool
     _agents: list[Agent]
+    _hidden_count: int
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
 
@@ -262,14 +264,31 @@ class AgentNotificationMixin:
 
         Finds the PlanApproval or UserQuestion notification matching the
         currently selected agent and opens the modal with it highlighted.
+        If the target agent is hidden, auto-unhides agents first.
         """
-        if not self._agents:
-            return
-        if not (0 <= self.current_idx < len(self._agents)):  # type: ignore[operator]
-            return
+        # Try current agent first
+        agent: Agent | None = None
+        if self._agents and 0 <= self.current_idx < len(self._agents):  # type: ignore[operator]
+            candidate: Agent = self._agents[self.current_idx]  # type: ignore[assignment]
+            if candidate.status in ("PLANNING", "QUESTION"):
+                agent = candidate
 
-        agent: Agent = self._agents[self.current_idx]  # type: ignore[assignment]
-        if agent.status not in ("PLANNING", "QUESTION"):
+        # If current agent doesn't have a notification, auto-unhide hidden agents
+        # and search for one that does
+        if agent is None and self.hide_non_run_agents and self._hidden_count > 0:
+            self.hide_non_run_agents = False
+            self._load_agents()  # type: ignore[attr-defined]
+            for i, a in enumerate(self._agents):
+                if a.status in ("PLANNING", "QUESTION"):
+                    self.current_idx = i  # type: ignore[assignment]
+                    agent = a
+                    break
+            if agent is None:
+                # No hidden agent had a notification, restore hide state
+                self.hide_non_run_agents = True
+                self._load_agents()  # type: ignore[attr-defined]
+
+        if agent is None:
             return
 
         from sase.notifications import load_notifications
