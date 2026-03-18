@@ -46,10 +46,20 @@ def extract_step_output_and_diff_path(
             step_output = output
             break
 
-    # Extract diff_path: last step's first path-typed output
+    # Extract diff_path: search backward through all steps for a
+    # "diff_path" output.  This handles embedded workflows (e.g.
+    # #gh + #pr) where the diff step is not the last step.
     diff_path: str | None = None
     steps_list = data.get("steps", [])
-    if steps_list:
+    for step_data in reversed(steps_list):
+        step_out = step_data.get("output")
+        if isinstance(step_out, dict) and step_out.get("diff_path"):
+            diff_path = str(step_out["diff_path"])
+            break
+
+    # Fallback: last step's first path-typed output (for workflows
+    # that use a different field name for their diff path).
+    if not diff_path and steps_list:
         last_step = steps_list[-1]
         output_types = last_step.get("output_types") or {}
         step_out = last_step.get("output")
@@ -60,12 +70,6 @@ def extract_step_output_and_diff_path(
                     if path_value:
                         diff_path = str(path_value)
                         break
-
-    # Fallback: check for literal diff_path key in last step
-    if not diff_path and steps_list:
-        last_out = steps_list[-1].get("output")
-        if isinstance(last_out, dict) and last_out.get("diff_path"):
-            diff_path = str(last_out["diff_path"])
 
     # Expand tilde in diff_path to prevent path corruption when absolutized
     if diff_path:

@@ -159,10 +159,20 @@ def load_workflow_states(
             appears_as_agent = data.get("appears_as_agent", False)
             is_anonymous = data.get("is_anonymous", False)
 
-            # Extract diff_path from the last step's first path-typed output
+            # Extract diff_path: search backward through all steps for a
+            # "diff_path" output.  Handles embedded workflows (e.g.
+            # #gh + #pr) where the diff step is not the last step.
             diff_path = None
             steps_list = data.get("steps", [])
-            if steps_list:
+            for step_data in reversed(steps_list):
+                step_out = step_data.get("output")
+                if isinstance(step_out, dict) and step_out.get("diff_path"):
+                    diff_path = str(step_out["diff_path"])
+                    break
+
+            # Fallback: last step's first path-typed output (for
+            # workflows using a different field name for diff path).
+            if not diff_path and steps_list:
                 last_step = steps_list[-1]
                 output_types = last_step.get("output_types") or {}
                 step_output = last_step.get("output")
@@ -173,12 +183,6 @@ def load_workflow_states(
                             if path_value:
                                 diff_path = str(path_value)
                                 break
-
-            # Fallback: check for any path-looking key in last step output
-            if not diff_path and steps_list:
-                last_output = steps_list[-1].get("output")
-                if isinstance(last_output, dict) and last_output.get("diff_path"):
-                    diff_path = str(last_output["diff_path"])
 
             error_message = data.get("error")
             error_traceback = data.get("traceback")
