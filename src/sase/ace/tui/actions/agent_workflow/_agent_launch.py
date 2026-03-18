@@ -40,10 +40,16 @@ class AgentLaunchMixin:
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
 
+        # Regenerate timestamp at launch time (not when prompt bar was opened)
+        from sase.sase_utils import generate_timestamp
+
+        ctx = self._prompt_context
+        ctx.timestamp = generate_timestamp()
+        ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
+
         # Save prompt to history IMMEDIATELY (before background subprocess)
         from sase.prompt_history import add_or_update_prompt
 
-        ctx = self._prompt_context
         add_or_update_prompt(
             prompt,
             project_name=ctx.project_name,
