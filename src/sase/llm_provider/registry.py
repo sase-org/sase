@@ -28,6 +28,7 @@ _MODEL_TO_PROVIDER: dict[str, str] = {
     # Gemini models
     "gemini-2.5-pro": "gemini",
     "gemini-2.5-flash": "gemini",
+    "gemini-3.1-pro": "gemini",
     "gemini-3.1-pro-preview": "gemini",
     "gemini-3-flash-preview": "gemini",
     "gemini-2.0-flash": "gemini",

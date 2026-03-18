@@ -121,6 +121,38 @@ def is_retryable_error(error_output: str, config: ProviderRetryConfig) -> bool:
     return any(pattern.lower() in error_lower for pattern in config.error_patterns)
 
 
+def find_retry_config_for_error(error_output: str) -> ProviderRetryConfig | None:
+    """Find a retry config that matches the error from any configured provider.
+
+    When the agent's own provider has no retry config (e.g. the outer workflow
+    defaults to "claude" but an inner step uses "gemini"), this function checks
+    all providers in the ``llm_provider.retry`` section and returns the first
+    matching config.
+    """
+    try:
+        data = load_merged_config()
+        if not isinstance(data, dict):
+            return None
+
+        llm_config = data.get("llm_provider", {}) or {}
+        retry_section = llm_config.get("retry", {}) or {}
+
+        for provider_retry in retry_section.values():
+            if not provider_retry or not isinstance(provider_retry, dict):
+                continue
+            config = ProviderRetryConfig(
+                max_retries=provider_retry.get("max_retries", 0),
+                error_patterns=provider_retry.get("error_patterns", []),
+                wait_times=provider_retry.get("wait_times", [30]),
+                fallback_model=provider_retry.get("fallback_model") or None,
+            )
+            if is_retryable_error(error_output, config):
+                return config
+        return None
+    except Exception:
+        return None
+
+
 def get_wait_time(retry_count: int, config: ProviderRetryConfig) -> int:
     """Return the wait time in seconds for the Nth retry (1-indexed).
 

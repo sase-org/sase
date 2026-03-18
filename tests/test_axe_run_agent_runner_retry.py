@@ -369,6 +369,41 @@ class TestRetryLoop:
         done_data = json.loads(done_path.read_text())
         assert "retry_metadata" not in done_data
 
+    def test_cross_provider_retry_uses_fallback_config(self, tmp_path: Path) -> None:
+        """When the agent's own provider has no retry config, retries still
+        fire if another provider's error patterns match (e.g. outer workflow
+        defaults to claude but inner step uses gemini)."""
+        from sase.llm_provider.retry_config import ProviderRetryConfig
+
+        patches = _base_patches(str(tmp_path / "artifacts"))
+        # Agent's own provider (claude) has no retry config
+        patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=None)
+
+        # But gemini's config matches the error
+        gemini_cfg = ProviderRetryConfig(
+            max_retries=1,
+            error_patterns=["An unexpected critical error occurred:"],
+            wait_times=[0],
+        )
+        patches[f"{_EXEC}.find_retry_config_for_error"] = MagicMock(
+            return_value=gemini_cfg
+        )
+
+        execute_mock = MagicMock(
+            side_effect=[
+                RuntimeError(
+                    "Step 'main' failed: An unexpected critical error occurred:[object Object]"
+                ),
+                _WorkflowResult("success"),
+            ]
+        )
+        patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
+        patches[f"{_EXEC}.time.sleep"] = MagicMock()
+
+        _run_main(patches, tmp_path)
+
+        assert execute_mock.call_count == 2  # 1 initial + 1 retry
+
 
 class TestNotifyRetryFallback:
     """Test the notification helper functions."""

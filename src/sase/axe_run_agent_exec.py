@@ -29,6 +29,7 @@ from sase.chat_history import save_chat_history
 from sase.chat_history_extras import format_extra_sections
 from sase.llm_provider.retry_config import (
     RetryState,
+    find_retry_config_for_error,
     get_retry_config,
     get_wait_time,
     is_retryable_error,
@@ -201,21 +202,28 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
         except Exception as wf_exc:
             if not was_killed():
                 error_str = str(wf_exc)
-                if (
-                    _allow_retry
-                    and retry_cfg
-                    and is_retryable_error(error_str, retry_cfg)
+                # Try the agent's own provider config first; fall back to
+                # checking all configured providers (handles the case where
+                # an inner workflow step uses a different LLM provider than
+                # the outer workflow).
+                active_retry_cfg = retry_cfg
+                if not (
+                    active_retry_cfg and is_retryable_error(error_str, active_retry_cfg)
                 ):
+                    active_retry_cfg = find_retry_config_for_error(error_str)
+                if _allow_retry and active_retry_cfg:
+                    # Promote to retry_cfg so subsequent iterations use it
+                    retry_cfg = active_retry_cfg
                     snippet = truncate_error_snippet(error_str)
                     retry_errors.append(snippet)
-                    if retry_count < retry_cfg.max_retries:
+                    if retry_count < active_retry_cfg.max_retries:
                         # Retry with wait
                         retry_count += 1
-                        wait_time = get_wait_time(retry_count, retry_cfg)
+                        wait_time = get_wait_time(retry_count, active_retry_cfg)
                         RetryState(
                             status="retrying",
                             retry_count=retry_count,
-                            max_retries=retry_cfg.max_retries,
+                            max_retries=active_retry_cfg.max_retries,
                             wait_seconds=wait_time,
                             next_retry_at_epoch=time.time() + wait_time,
                             last_error_snippet=snippet,
@@ -228,7 +236,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                             "agent-retry",
                             ctx.cl_name,
                             retry_count,
-                            retry_cfg.max_retries,
+                            active_retry_cfg.max_retries,
                             wait_time,
                             snippet,
                         )
@@ -244,7 +252,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                         RetryState(
                             status="running_retry",
                             retry_count=retry_count,
-                            max_retries=retry_cfg.max_retries,
+                            max_retries=active_retry_cfg.max_retries,
                             last_error_snippet=snippet,
                         ).write_to(ctx.artifacts_dir)
                         if ctx.update_target and not ctx.is_home_mode:
@@ -257,15 +265,17 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                             )
                         os.chdir(ctx.workspace_dir)
                         continue  # Retry
-                    elif retry_cfg.fallback_model and not using_fallback:
+                    elif active_retry_cfg.fallback_model and not using_fallback:
                         # Fallback to alternate model
                         using_fallback = True
-                        os.environ["SASE_MODEL_OVERRIDE"] = retry_cfg.fallback_model
+                        os.environ["SASE_MODEL_OVERRIDE"] = (
+                            active_retry_cfg.fallback_model
+                        )
                         RetryState(
                             status="running_fallback",
                             retry_count=retry_count,
-                            max_retries=retry_cfg.max_retries,
-                            fallback_model=retry_cfg.fallback_model,
+                            max_retries=active_retry_cfg.max_retries,
+                            fallback_model=active_retry_cfg.fallback_model,
                             using_fallback=True,
                             last_error_snippet=snippet,
                         ).write_to(ctx.artifacts_dir)
@@ -276,7 +286,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                         notify_agent_fallback(
                             "agent-retry",
                             ctx.cl_name,
-                            retry_cfg.fallback_model,
+                            active_retry_cfg.fallback_model,
                             retry_count,
                         )
                         if ctx.update_target and not ctx.is_home_mode:

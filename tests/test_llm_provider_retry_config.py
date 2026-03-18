@@ -8,6 +8,7 @@ from sase.llm_provider.retry_config import (
     RETRY_STATE_FILENAME,
     ProviderRetryConfig,
     RetryState,
+    find_retry_config_for_error,
     get_retry_config,
     get_wait_time,
     is_retryable_error,
@@ -126,6 +127,75 @@ class TestGetRetryConfig:
         config = get_retry_config("gemini")
         assert config is not None
         assert config.fallback_model is None
+
+
+# --- find_retry_config_for_error tests ---
+
+
+class TestFindRetryConfigForError:
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_finds_matching_provider(self, mock_config: object) -> None:
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "gemini": {
+                        "max_retries": 3,
+                        "error_patterns": ["unexpected critical error"],
+                        "wait_times": [60],
+                    }
+                }
+            }
+        }
+        config = find_retry_config_for_error("An unexpected critical error occurred")
+        assert config is not None
+        assert config.max_retries == 3
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_returns_none_when_no_match(self, mock_config: object) -> None:
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "gemini": {
+                        "max_retries": 3,
+                        "error_patterns": ["unexpected critical error"],
+                    }
+                }
+            }
+        }
+        assert find_retry_config_for_error("authentication failed") is None
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_returns_none_with_empty_config(self, mock_config: object) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        assert find_retry_config_for_error("any error") is None
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_checks_multiple_providers(self, mock_config: object) -> None:
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "retry": {
+                    "claude": {
+                        "max_retries": 1,
+                        "error_patterns": ["overloaded"],
+                    },
+                    "gemini": {
+                        "max_retries": 3,
+                        "error_patterns": ["quota exceeded"],
+                        "fallback_model": "gemini-flash",
+                    },
+                }
+            }
+        }
+        # Should match gemini config
+        config = find_retry_config_for_error("quota exceeded for project")
+        assert config is not None
+        assert config.max_retries == 3
+        assert config.fallback_model == "gemini-flash"
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_returns_none_on_exception(self, mock_config: object) -> None:
+        mock_config.side_effect = RuntimeError("broken")  # type: ignore[union-attr]
+        assert find_retry_config_for_error("any error") is None
 
 
 # --- is_retryable_error tests ---
