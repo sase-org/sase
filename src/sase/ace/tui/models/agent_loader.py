@@ -200,23 +200,20 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
     for agent in agents:
         if (
             agent.agent_type == AgentType.WORKFLOW
-            and agent.role_suffix
-            and agent.role_suffix.startswith(".plan")
+            and agent.role_suffix == ".plan"
             and agent.status == "DONE"
             and agent.raw_suffix in parents_with_followup
         ):
             agent.status = "PLAN DONE"
 
     # Override DONE → PLANNING for plan-only workflows (no follow-up spawned yet).
-    # A workflow with role_suffix ".plan" (or ".plan.N" for feedback rounds)
-    # that's still DONE means the plan was submitted but no coder follow-up
-    # exists yet (awaiting user approval).
+    # A workflow with role_suffix ".plan" that's still DONE means the plan was
+    # submitted but no coder follow-up exists yet (awaiting user approval).
     # If a follow-up exists (even if completed), the plan was already approved.
     for agent in agents:
         if (
             agent.agent_type == AgentType.WORKFLOW
-            and agent.role_suffix
-            and agent.role_suffix.startswith(".plan")
+            and agent.role_suffix == ".plan"
             and agent.status == "DONE"
             and agent.raw_suffix not in parents_with_followup
         ):

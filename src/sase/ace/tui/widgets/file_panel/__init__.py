@@ -237,11 +237,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             # the plan file.  When a follow-up .code agent has completed
             # and propagated its diff_path, show the diff instead (index 0)
             # so the user sees the code changes by default.
-            if (
-                agent.role_suffix
-                and agent.role_suffix.startswith(".plan")
-                and not agent.diff_path
-            ):
+            if agent.role_suffix == ".plan" and not agent.diff_path:
                 self._current_file_index = 1
             self.post_message(
                 FileListChanged(

@@ -184,27 +184,6 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
             continue
 
 
-def find_response_path(artifacts_dir: str) -> str | None:
-    """Find the response_path from prompt_step markers in artifacts.
-
-    Scans prompt_step_*.json files for one with a non-null response_path
-    (the chat history file saved during workflow execution).
-
-    Returns the path string, or None if not found.
-    """
-    artifacts = Path(artifacts_dir)
-    for marker_file in sorted(artifacts.glob("prompt_step_*.json")):
-        try:
-            with open(marker_file, encoding="utf-8") as f:
-                data = json.load(f)
-            response_path = data.get("response_path")
-            if response_path:
-                return str(response_path)
-        except (json.JSONDecodeError, OSError):
-            continue
-    return None
-
-
 def create_followup_artifacts(
     project_name: str,
     base_meta: dict[str, Any],

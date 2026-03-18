@@ -16,9 +16,8 @@ _POLL_INTERVAL = 0.5
 class PlanApprovalResult:
     """Result from plan approval flow."""
 
-    action: str  # "approve", "epic", or "feedback"
+    action: str  # "approve" or "epic"
     plan_file: str
-    feedback: str | None = None
 
 
 def save_plan_to_sase(plan_file: str) -> Path:
@@ -140,17 +139,8 @@ def handle_plan_approval(
                     response_path.unlink()
                     assert plan_file is not None
                     return PlanApprovalResult(action=action, plan_file=plan_file)
-                # Rejection with feedback: return feedback for re-planning
-                feedback = response_data.get("feedback")
-                if feedback:
-                    response_path.unlink()
-                    assert plan_file is not None
-                    return PlanApprovalResult(
-                        action="feedback",
-                        plan_file=plan_file,
-                        feedback=feedback,
-                    )
-                # Plain rejection (no feedback)
+                # On rejection, do NOT delete response_path so
+                # read_plan_feedback() can read the feedback.
                 return None
             except (json.JSONDecodeError, OSError):
                 pass
