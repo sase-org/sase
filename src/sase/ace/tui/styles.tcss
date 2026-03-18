@@ -505,7 +505,6 @@ AgentList > .option-list--option-highlighted {
 /* Prompt input bar styling (for agent workflow) */
 PromptInputBar {
     height: 3;
-    max-height: 15;
     border: solid $accent;
     background: $surface;
     dock: bottom;

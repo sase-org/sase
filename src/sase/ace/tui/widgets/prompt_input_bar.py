@@ -153,8 +153,6 @@ class PromptInputBar(Static):
         ("escape", "cancel", "Cancel"),
     ]
 
-    _MAX_HEIGHT = 15
-
     def __init__(self, initial_value: str = "", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._initial_value = initial_value
@@ -228,11 +226,18 @@ class PromptInputBar(Static):
         return max(1, visual_lines)
 
     def _update_height(self) -> None:
-        """Auto-grow the bar based on content."""
+        """Auto-grow the bar based on content, up to the full screen height."""
         visual_lines = self._get_visual_line_count()
+        # Reserve a few rows for the header/tabs at minimum
+        screen_height = self.screen.size.height if self.screen else 50
+        max_height = screen_height - 2
         # +2 for border top and bottom
-        new_height = min(max(visual_lines + 2, 3), self._MAX_HEIGHT)
+        new_height = min(max(visual_lines + 2, 3), max_height)
         self.styles.height = new_height
+
+    def on_resize(self) -> None:
+        """Recalculate height when the terminal is resized."""
+        self._update_height()
 
     def _handle_text_submission(self, text: str) -> None:
         """Process text submission from the TextArea."""
