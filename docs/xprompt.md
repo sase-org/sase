@@ -369,12 +369,13 @@ Hello, {{ user }}.
 
 ### Template Context
 
-| Variable      | Description                            |
-| ------------- | -------------------------------------- |
-| `{{ name }}`  | Named argument or input mapped by name |
-| `{{ _1 }}`    | First positional argument (1-indexed)  |
-| `{{ _2 }}`    | Second positional argument, etc.       |
-| `{{ _args }}` | List of all positional arguments       |
+| Variable      | Description                                                                |
+| ------------- | -------------------------------------------------------------------------- |
+| `{{ name }}`  | Named argument or input mapped by name                                     |
+| `{{ _1 }}`    | First positional argument (1-indexed)                                      |
+| `{{ _2 }}`    | Second positional argument, etc.                                           |
+| `{{ _args }}` | List of all positional arguments                                           |
+| `{{ root }}`  | Absolute path to the primary workspace directory (omitted if unresolvable) |
 
 Named arguments and positional-to-name mappings take priority; if an xprompt is called within a workflow step, the
 workflow's execution scope is also available (xprompt args override scope values on conflict).

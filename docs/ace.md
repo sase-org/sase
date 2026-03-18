@@ -84,7 +84,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `R`             | Rewind to previous commit (non-Sub/Rev CLs only)            |
 | `s`             | Change status (opens status modal)                          |
 | `S`             | Bulk status change for all marked CLs                       |
-| `T` / `t1`-`t9` | Checkout + tmux (primary / workspace 1-9)                   |
+| `T`             | Checkout + tmux (opens workspace input modal for number)    |
 | `u`             | Clear all marks                                             |
 | `v`             | View files (hint mode)                                      |
 | `w`             | Reword CL description                                       |
@@ -132,13 +132,14 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                              |
-| ---------- | --------------------------------------------------- |
-| `,!`       | Run command using current CL context                |
-| `,h`       | Run agent (home directory)                          |
-| `,m`       | Kill running mentors                                |
-| `,r`       | Show runners info                                   |
-| `,<space>` | Run agent from current CL (skips project selection) |
+| Key        | Action                                                         |
+| ---------- | -------------------------------------------------------------- |
+| `,!`       | Run command using current CL context                           |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals) |
+| `,h`       | Run agent (home directory)                                     |
+| `,m`       | Kill running mentors                                           |
+| `,r`       | Show runners info                                              |
+| `,<space>` | Run agent from current CL (skips project selection)            |
 
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
 > [Agents Tab Leader Mode](#leader-mode--prefix-1).
@@ -182,6 +183,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)     |
 | `e`                 | Edit chat in editor                                          |
 | `E`                 | Edit panel content in editor                                 |
+| `t`                 | Open tmux window in agent workspace                          |
 | `]` / `[`           | Cycle panels: file → thinking → metadata (forward / reverse) |
 | `p`                 | Toggle file / prompt layout                                  |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                |
@@ -197,12 +199,13 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                              |
-| ---------- | --------------------------------------------------- |
-| `,h`       | Run agent (home directory)                          |
-| `,r`       | Show runners info                                   |
-| `,x`       | Kill agent & edit prompt                            |
-| `,<space>` | Run agent from current agent's CL (skips selection) |
+| Key        | Action                                                                |
+| ---------- | --------------------------------------------------------------------- |
+| `,h`       | Run agent (home directory)                                            |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed) |
+| `,r`       | Show runners info                                                     |
+| `,x`       | Kill agent & edit prompt                                              |
+| `,<space>` | Run agent from current agent's CL (skips selection)                   |
 
 ### Bang Mode (`!` prefix)
 
@@ -217,6 +220,7 @@ The modal supports live filtering as you type in the search box and displays las
 | ---- | ---------------------- |
 | `%c` | Copy chat file path    |
 | `%E` | Copy file path         |
+| `%p` | Copy agent prompt      |
 | `%s` | Copy sase ace snapshot |
 
 ## Keybindings: Axe Tab
@@ -300,6 +304,7 @@ These work on all tabs:
 | `Tab` / `Shift+Tab` | Switch between CLs, Agents, and Axe tabs                                          |
 | `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
 | `.`                 | Toggle visibility of hidden items (reverted CLs, non-run agents, or axe commands) |
+| `,i`                | Open Activity Dashboard modal                                                     |
 | `i`                 | Mark user as inactive (shows IDLE indicator; any keypress re-activates)           |
 | `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
 | `N`                 | Show notifications                                                                |
@@ -420,6 +425,25 @@ When a workflow uses the `%plan` directive, the agent enters a planning phase be
 - **PLAN APPROVED** — The plan has been approved and the follow-up agent has been spawned. Shown in cyan/turquoise.
 
 Plan files generated by the agent are displayed in the file panel alongside other agent artifacts.
+
+### Plan Approval Keybindings
+
+| Key | Action                           |
+| --- | -------------------------------- |
+| `y` | Copy plan content to clipboard   |
+| `Y` | Copy plan file path to clipboard |
+
+The question modal also supports `y` to copy questions and selected answers.
+
+## Retry/Fallback Display
+
+When an agent encounters a retryable error (configured via `llm_provider.retry`), the Agents tab shows retry state:
+
+- **RETRYING** — Shown in bold orange when waiting before the next retry attempt. Includes a countdown timer:
+  `RETRYING (45s)`.
+- **↻N** — Shown after the status for running agents that have retried. The number indicates how many retries have
+  occurred (e.g., `↻2` means two retries so far).
+- **▸Model** — Appended to the retry annotation when the agent has fallen back to an alternate model (e.g., `↻3▸flash`).
 
 ## Custom Keymaps
 

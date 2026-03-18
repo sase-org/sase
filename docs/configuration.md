@@ -145,7 +145,31 @@ llm_provider:
 | `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                      |
 | `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                      |
 
-Source: `src/sase/llm_provider/config.py`
+#### `llm_provider.retry`
+
+Per-provider retry and fallback configuration. See [docs/llms.md](llms.md#retry-and-fallback) for the full retry flow
+and TUI display.
+
+```yaml
+llm_provider:
+  retry:
+    gemini:
+      max_retries: 3
+      error_patterns:
+        - "An unexpected critical error occurred:"
+      wait_times: [60, 300, 1800]
+      fallback_model: "gemini-3-flash-preview"
+```
+
+| Field                                          | Type | Default | Description                                                              |
+| ---------------------------------------------- | ---- | ------- | ------------------------------------------------------------------------ |
+| `llm_provider.retry.<provider>`                | dict | -       | Retry config for a specific provider (e.g., `gemini`, `claude`, `codex`) |
+| `llm_provider.retry.<provider>.max_retries`    | int  | `0`     | Maximum retry attempts. `0` disables retrying.                           |
+| `llm_provider.retry.<provider>.error_patterns` | list | `[]`    | Case-insensitive substring patterns matched against error output.        |
+| `llm_provider.retry.<provider>.wait_times`     | list | `[30]`  | Per-retry wait times in seconds. Last value reused if list is shorter.   |
+| `llm_provider.retry.<provider>.fallback_model` | str  | `null`  | Alternate model to use after exhausting all retries.                     |
+
+Source: `src/sase/llm_provider/retry_config.py`, `src/sase/llm_provider/config.py`
 
 ### vcs_provider
 
@@ -580,6 +604,85 @@ No flags. Stops the running axe orchestrator.
 | `--bare-dir`   | path   | `~/.sase/repos/<name>.git` | Override bare repo path.                                |
 | `--clone-dir`  | path   | `~/projects/git/<name>/`   | Override clone path.                                    |
 | `--existing`   | path   | -                          | Register an existing bare repo instead of creating one. |
+
+### `sase bead`
+
+| Flag         | Values                                                                                                                     | Default    | Description     |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------- |
+| _subcommand_ | `init`, `create`, `list`, `show`, `ready`, `update`, `close`, `rm`, `dep`, `blocked`, `sync`, `stats`, `doctor`, `onboard` | (required) | Bead subcommand |
+
+#### `sase bead create`
+
+| Flag            | Values | Default    | Description                                      |
+| --------------- | ------ | ---------- | ------------------------------------------------ |
+| `--title`       | string | (required) | Issue title                                      |
+| `--plan`        | path   | -          | Path to plan file (creates a plan bead)          |
+| `--parent`      | string | -          | Parent bead ID (creates a phase under this plan) |
+| `--description` | string | -          | Issue description                                |
+| `--assignee`    | string | -          | Assignee name                                    |
+
+#### `sase bead list`
+
+| Flag       | Values                          | Default | Description      |
+| ---------- | ------------------------------- | ------- | ---------------- |
+| `--status` | `open`, `in_progress`, `closed` | -       | Filter by status |
+| `--type`   | `plan`, `phase`                 | -       | Filter by type   |
+
+#### `sase bead show`
+
+| Flag | Values | Default    | Description |
+| ---- | ------ | ---------- | ----------- |
+| `id` | string | (required) | Issue ID    |
+
+#### `sase bead update`
+
+| Flag            | Values                          | Default    | Description        |
+| --------------- | ------------------------------- | ---------- | ------------------ |
+| `id`            | string                          | (required) | Issue ID to update |
+| `--status`      | `open`, `in_progress`, `closed` | -          | Change status      |
+| `--title`       | string                          | -          | Change title       |
+| `--description` | string                          | -          | Change description |
+| `--notes`       | string                          | -          | Change notes       |
+| `--design`      | path                            | -          | Change plan path   |
+| `--assignee`    | string                          | -          | Change assignee    |
+
+#### `sase bead close`
+
+| Flag       | Values | Default    | Description                |
+| ---------- | ------ | ---------- | -------------------------- |
+| `ids`      | string | (required) | One or more issue IDs      |
+| `--reason` | string | -          | Optional close reason text |
+
+#### `sase bead rm`
+
+| Flag | Values | Default    | Description        |
+| ---- | ------ | ---------- | ------------------ |
+| `id` | string | (required) | Issue ID to remove |
+
+#### `sase bead dep add`
+
+| Flag         | Values | Default    | Description               |
+| ------------ | ------ | ---------- | ------------------------- |
+| `issue`      | string | (required) | Issue that depends        |
+| `depends_on` | string | (required) | Issue being depended upon |
+
+#### `sase bead sync`
+
+| Flag       | Values | Default | Description                          |
+| ---------- | ------ | ------- | ------------------------------------ |
+| `--status` | flag   | -       | Check sync status without committing |
+
+### `sase logs`
+
+| Flag        | Values | Default    | Description                                                     |
+| ----------- | ------ | ---------- | --------------------------------------------------------------- |
+| `daterange` | string | (required) | Date range to collect (e.g., `-7d`, `260318`, `260315..260318`) |
+
+Supported date range formats:
+
+- **Absolute**: `YYmmdd` or `YYmmddHHMMSS`
+- **Relative**: `-Nd` (days ago), `-Nh` (hours ago), `-Nm` (minutes ago), `0d` (today)
+- **Ranges**: `START..END` (e.g., `-7d..0d`); single point means "from that point to now"
 
 ### `sase path`
 

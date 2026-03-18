@@ -144,6 +144,8 @@ sase
 | `sase restore`         | Restore a reverted ChangeSpec by re-applying its diff                            |
 | `sase init-git`        | Initialize a new bare-repo-backed git project                                    |
 | `sase path`            | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `config-schema`) |
+| `sase bead`            | Lightweight git-native issue tracking (plans, phases, dependencies)              |
+| `sase logs`            | Collect and package agent run logs for a date range                              |
 | `sase notify`          | Create a notification (reads JSON from stdin or uses flags)                      |
 | `sase plan`            | Submit a plan for approval (used by `/sase_plan` skill)                          |
 | `sase questions`       | Ask the user questions (used by `/sase_questions` skill)                         |
@@ -235,6 +237,8 @@ src/sase/
 ├── commit_utils/          # COMMITS entry management
 ├── accept_workflow/       # Change acceptance workflows
 ├── rewind_workflow/       # Revert and restore operations
+├── bead/                  # Git-native issue tracking (plans, phases, dependencies)
+├── logs/                  # Agent run log collection and packaging
 ├── gemini_wrapper/        # Gemini-specific integration
 ├── notifications/         # Notification system and delivery
 ├── status_state_machine/  # ChangeSpec status transitions
@@ -276,6 +280,7 @@ just build         # Build wheel + sdist
 ## Documentation
 
 - [`docs/ace.md`](docs/ace.md) — ACE TUI user guide
+- [`docs/beads.md`](docs/beads.md) — Bead issue tracking system
 - [`docs/axe.md`](docs/axe.md) — Axe background automation daemon
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
 - [`docs/configuration.md`](docs/configuration.md) — Configuration reference

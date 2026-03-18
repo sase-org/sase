@@ -360,6 +360,82 @@ Complete reference of environment variables used by the LLM provider layer.
 The `ace` command wires `--model-tier` / `--model-size` into the `model_tier_override` parameter of `AceApp`. The
 `--vcs-provider` flag is wired to the `SASE_VCS_PROVIDER` environment variable for downstream resolution.
 
+## Retry and Fallback
+
+The LLM provider layer supports per-provider retry and fallback configuration. When an agent encounters a retryable
+error, it can automatically wait and retry, then optionally fall back to an alternate model.
+
+### Configuration
+
+Retry behavior is configured per provider under `llm_provider.retry` in `sase.yml`:
+
+```yaml
+llm_provider:
+  retry:
+    gemini:
+      max_retries: 3
+      error_patterns:
+        - "An unexpected critical error occurred:"
+      wait_times: [60, 300, 1800]
+      fallback_model: "gemini-3-flash-preview"
+```
+
+### Config Fields
+
+| Field            | Type      | Default | Description                                                              |
+| ---------------- | --------- | ------- | ------------------------------------------------------------------------ |
+| `max_retries`    | int       | `0`     | Maximum retry attempts. `0` disables retrying.                           |
+| `error_patterns` | list[str] | `[]`    | Case-insensitive substring patterns matched against error output.        |
+| `wait_times`     | list[int] | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short. |
+| `fallback_model` | str\|null | `null`  | Alternate model to use after exhausting all retries.                     |
+
+### Default Configuration
+
+Only Gemini has retry defaults:
+
+- **max_retries**: 3
+- **error_patterns**: `["An unexpected critical error occurred:"]`
+- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
+- **fallback_model**: `"gemini-3-flash-preview"`
+
+### Retry Flow
+
+```
+Error detected
+│
+├── Does error match error_patterns? (case-insensitive substring)
+│   ├── No  → fail immediately
+│   └── Yes → retry_count < max_retries?
+│       ├── Yes → wait (wait_times[retry_count]) → retry
+│       └── No  → fallback_model configured?
+│           ├── Yes → switch model via SASE_MODEL_OVERRIDE → retry once
+│           └── No  → fail
+```
+
+Wait periods are interruptible — if the agent is killed during a wait, it stops immediately.
+
+### TUI Display
+
+The ACE Agents tab reflects retry state (see [Retry/Fallback Display](ace.md#retryfallback-display)):
+
+- **RETRYING (Ns)** — Waiting before the next attempt (bold orange, with countdown)
+- **↻N** — Retry count annotation on running agents
+- **▸Model** — Fallback model annotation (e.g., `↻3▸flash`)
+
+### Metadata Tracking
+
+After execution completes, retry metadata is written to `done.json` in the agent's artifacts directory:
+
+```json
+{
+  "retry_count": 2,
+  "retry_errors": ["An unexpected critical error occurred: ..."],
+  "used_fallback": false
+}
+```
+
+Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe_run_agent_exec.py`
+
 ## Prompt Preprocessing Pipeline
 
 Before any prompt reaches a provider, it passes through a 6-step preprocessing pipeline defined in `preprocessing.py`.
