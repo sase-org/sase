@@ -1,5 +1,6 @@
 ---
 bead_id: sase-1
+status: done
 ---
 
 # Plan: Prompt Widget Improvements (TextArea)
