@@ -2,9 +2,11 @@
 
 from typing import TYPE_CHECKING, Any
 
+from rich.segment import Segment
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.message import Message
+from textual.strip import Strip
 from textual.widgets import Static, TextArea
 
 if TYPE_CHECKING:
@@ -26,6 +28,10 @@ class _PromptTextArea(TextArea):
         ("ctrl+g", "open_editor", "Edit in editor"),
         ("ctrl+y", "open_workflow_editor", "Workflow YAML"),
     ]
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._vim_mode: str = "insert"
 
     @property
     def _ace_app(self) -> "AceApp":
@@ -79,6 +85,88 @@ class _PromptTextArea(TextArea):
         else:
             super().action_cursor_line_end(select)
 
+    def _enter_normal_mode(self) -> None:
+        """Switch to vim NORMAL mode with relative line numbers."""
+        self._vim_mode = "normal"
+        self.read_only = True
+        self.show_line_numbers = True
+        self.highlight_cursor_line = True
+        bar = self._find_prompt_bar()
+        if bar:
+            bar.border_title = "Prompt [NORMAL]"
+            bar.border_subtitle = "[Esc] cancel  [i] insert"
+
+    def _enter_insert_mode(self) -> None:
+        """Switch to vim INSERT mode."""
+        self._vim_mode = "insert"
+        self.read_only = False
+        self.show_line_numbers = self.document.line_count > 1
+        self.highlight_cursor_line = False
+        bar = self._find_prompt_bar()
+        if bar:
+            bar.border_title = "Prompt"
+            cancelled = PromptInputBar._last_cancelled_prompt
+            if cancelled:
+                hint = cancelled[:40] + "…" if len(cancelled) > 40 else cancelled
+                bar.border_subtitle = f"[^E] {hint}"
+            else:
+                bar.border_subtitle = "[Esc] cancel"
+
+    def render_line(self, y: int) -> Strip:
+        """Bypass cache in NORMAL mode so relative line numbers stay current."""
+        if self._vim_mode == "normal" and self.show_line_numbers:
+            return self._render_line(y)
+        return super().render_line(y)
+
+    def _render_line(self, y: int) -> Strip:
+        """Show relative line numbers in NORMAL mode."""
+        strip = super()._render_line(y)
+        if self._vim_mode != "normal" or not self.show_line_numbers:
+            return strip
+
+        _scroll_x, scroll_y = self.scroll_offset
+        y_offset = y + scroll_y
+
+        if y_offset >= self.wrapped_document.height:
+            return strip
+
+        try:
+            line_info = self.wrapped_document._offset_to_line_info[y_offset]
+        except IndexError:
+            return strip
+
+        if line_info is None:
+            return strip
+
+        line_index, section_offset = line_info
+        if section_offset != 0:
+            return strip
+
+        cursor_row = self.cursor_location[0]
+        if line_index == cursor_row:
+            gutter_content = str(line_index + 1)
+        else:
+            gutter_content = str(abs(line_index - cursor_row))
+
+        gutter_width = self.gutter_width
+        gutter_width_no_margin = gutter_width - 2
+
+        theme = self._theme
+        if cursor_row == line_index and self.highlight_cursor_line:
+            gutter_style = theme.cursor_line_gutter_style
+        else:
+            gutter_style = theme.gutter_style
+
+        new_gutter = Segment(
+            f"{gutter_content:>{gutter_width_no_margin}}  ", gutter_style
+        )
+        segments = list(strip._segments)
+        if segments:
+            segments[0] = new_gutter
+            return Strip(segments, strip.cell_length)
+
+        return strip
+
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
         if event.key == "enter":
@@ -86,6 +174,31 @@ class _PromptTextArea(TextArea):
             event.prevent_default()
             self.action_submit_prompt()
             return
+
+        if self._vim_mode == "normal":
+            if event.key == "escape":
+                event.stop()
+                event.prevent_default()
+                bar = self._find_prompt_bar()
+                if bar:
+                    bar.action_cancel()
+                return
+            if event.character == "i":
+                event.stop()
+                event.prevent_default()
+                self._enter_insert_mode()
+                return
+            # In NORMAL mode, let arrow keys work via BINDINGS;
+            # read_only=True prevents character insertion.
+            return
+
+        # INSERT mode: Escape enters NORMAL mode
+        if event.key == "escape":
+            event.stop()
+            event.prevent_default()
+            self._enter_normal_mode()
+            return
+
         # Detect '##' trigger before the second '#' is inserted
         if event.character == "#":
             row, col = self.cursor_location
@@ -149,9 +262,7 @@ class PromptInputBar(Static):
 
         pass
 
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-    ]
+    BINDINGS = []  # type: ignore[assignment]
 
     def __init__(self, initial_value: str = "", **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -193,7 +304,8 @@ class PromptInputBar(Static):
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update height and line numbers when text changes."""
         text_area = self.query_one("#prompt-input", _PromptTextArea)
-        text_area.show_line_numbers = text_area.document.line_count > 1
+        if text_area._vim_mode == "insert":
+            text_area.show_line_numbers = text_area.document.line_count > 1
         self._update_height()
 
     def _get_visual_line_count(self) -> int:
