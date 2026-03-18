@@ -282,6 +282,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Kill agent & edit prompt",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'jump_to_notification'))}",
+                    "Jump to agent notification",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
                 ),

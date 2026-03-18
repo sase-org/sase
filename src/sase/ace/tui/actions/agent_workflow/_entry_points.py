@@ -149,6 +149,12 @@ class EntryPointsMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["jump_to_notification"]:
+            if self.current_tab == "agents":
+                self._jump_to_agent_notification()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
@@ -321,10 +327,18 @@ class EntryPointsMixin:
             cs = self.changespecs[self.current_idx]
             has_comments = bool(cs.comments)
 
+        has_notification = False
+        if current_tab == "agents" and self._agents:
+            if 0 <= self.current_idx < len(self._agents):
+                agent = self._agents[self.current_idx]
+                has_notification = agent.status in ("PLANNING", "QUESTION")
+
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             footer.update_leader_bindings(
-                current_tab=current_tab, has_comments=has_comments
+                current_tab=current_tab,
+                has_comments=has_comments,
+                has_notification=has_notification,
             )
         except Exception:
             pass

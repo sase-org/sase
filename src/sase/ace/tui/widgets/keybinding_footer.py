@@ -233,12 +233,14 @@ class KeybindingFooter(Horizontal):
         *,
         current_tab: str = "changespecs",
         has_comments: bool = False,
+        has_notification: bool = False,
     ) -> None:
         """Update bindings to show leader mode options.
 
         Args:
             current_tab: The currently active tab name.
             has_comments: Whether the selected ChangeSpec has a COMMENTS field.
+            has_notification: Whether the selected agent has a pending notification.
         """
         d = footer_key_display
         keys = self._registry.leader_mode.keys
@@ -261,6 +263,8 @@ class KeybindingFooter(Horizontal):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
+            if has_notification:
+                bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("activity_info"), "activity"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix

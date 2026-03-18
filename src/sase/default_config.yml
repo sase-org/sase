@@ -124,6 +124,7 @@ ace:
           kill_and_edit: "x"
           activity_info: "i"
           clear_comments: "c"
+          jump_to_notification: "n"
       bang_mode:
         prefix: "exclamation_mark"
         keys:

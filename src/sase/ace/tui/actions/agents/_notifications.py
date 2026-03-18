@@ -21,6 +21,7 @@ class AgentNotificationMixin:
     """
 
     _last_unread_count: int
+    current_idx: int
     current_tab: TabName
     _agents: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
@@ -254,6 +255,53 @@ class AgentNotificationMixin:
 
     def action_show_notifications(self) -> None:
         """Show the notification modal with unread notifications."""
+        self._show_notification_modal()
+
+    def _jump_to_agent_notification(self) -> None:
+        """Open the notification modal pre-selected to the current agent's notification.
+
+        Finds the PlanApproval or UserQuestion notification matching the
+        currently selected agent and opens the modal with it highlighted.
+        """
+        if not self._agents:
+            return
+        if not (0 <= self.current_idx < len(self._agents)):  # type: ignore[operator]
+            return
+
+        agent: Agent = self._agents[self.current_idx]  # type: ignore[assignment]
+        if agent.status not in ("PLANNING", "QUESTION"):
+            return
+
+        from sase.notifications import load_notifications
+
+        from ...models._timestamps import normalize_to_14_digit
+
+        notifications = load_notifications()
+        unread = [n for n in notifications if not n.read]
+
+        # Find the notification matching this agent
+        initial_index = 0
+        for i, notification in enumerate(unread):
+            if notification.action not in ("PlanApproval", "UserQuestion"):
+                continue
+            cl_name = notification.action_data.get("agent_cl_name")
+            if cl_name != agent.cl_name:
+                continue
+            agent_timestamp = notification.action_data.get("agent_timestamp")
+            agent_timestamp = normalize_to_14_digit(agent_timestamp)
+            if agent_timestamp and agent.raw_suffix != agent_timestamp:
+                continue
+            initial_index = i
+            break
+
+        self._show_notification_modal(initial_index=initial_index)
+
+    def _show_notification_modal(self, *, initial_index: int = 0) -> None:
+        """Show the notification modal with optional pre-selection.
+
+        Args:
+            initial_index: Index of the notification to highlight initially.
+        """
         from sase.notifications import load_notifications, mark_read
 
         from ._notification_actions import (
@@ -297,4 +345,6 @@ class AgentNotificationMixin:
             elif result.action == "UserQuestion":
                 handle_user_question(self, result)
 
-        self.push_screen(NotificationModal(unread), callback=_on_dismiss)  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            NotificationModal(unread, initial_index=initial_index), callback=_on_dismiss
+        )  # type: ignore[attr-defined]

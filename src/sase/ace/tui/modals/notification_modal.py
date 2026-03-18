@@ -58,14 +58,18 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         ("ctrl+u", "scroll_file_up", "Scroll up"),
     ]
 
-    def __init__(self, notifications: list[Notification]) -> None:
+    def __init__(
+        self, notifications: list[Notification], *, initial_index: int = 0
+    ) -> None:
         """Initialize the notification modal.
 
         Args:
             notifications: List of notifications to display.
+            initial_index: Index of the notification to highlight initially.
         """
         super().__init__()
         self._notifications = list(notifications)
+        self._initial_index = initial_index
         self._current_file_index: int = 0
         self._pending_confirm_notification_id: str | None = None
 
@@ -266,16 +270,21 @@ class NotificationModal(OptionListNavigationMixin, ModalScreen[Notification | No
         ]
 
     def on_mount(self) -> None:
-        """Focus the option list on mount and display first file."""
+        """Focus the option list on mount and display initial file."""
         try:
             option_list = self.query_one("#notification-list", OptionList)
+            if self._initial_index > 0 and self._initial_index < len(
+                self._notifications
+            ):
+                option_list.highlighted = self._initial_index
             option_list.focus()
         except Exception:
             pass  # No list if empty
 
-        # Display file for the first notification
+        # Display file for the initially selected notification
         if self._notifications:
-            self._display_file(self._notifications[0])
+            idx = min(self._initial_index, len(self._notifications) - 1)
+            self._display_file(self._notifications[max(0, idx)])
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (Enter or click)."""
