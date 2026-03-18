@@ -35,6 +35,7 @@ class PlanApprovalModal(
         ("e", "edit", "Edit"),
         ("E", "epic", "Epic"),
         ("y", "copy_plan", "Copy"),
+        ("Y", "copy_plan_path", "Copy path"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
@@ -57,7 +58,7 @@ class PlanApprovalModal(
             "[yellow]f[/yellow]=Reject w/ feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
-            "[cyan]y[/cyan]=Copy  "
+            "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
             "[dim]q[/dim]=Cancel  |  Ctrl+D/U to scroll"
         )
 
@@ -146,6 +147,17 @@ class PlanApprovalModal(
             return
         if copy_to_system_clipboard(content):
             self.notify("Copied: Plan")
+        else:
+            self.notify("Failed to copy to clipboard", severity="error")
+
+    def action_copy_plan_path(self) -> None:
+        """Copy the plan file path to clipboard (with ~ for home dir)."""
+        home = os.path.expanduser("~")
+        path = os.path.expanduser(self._plan_file)
+        if path.startswith(home):
+            path = "~" + path[len(home) :]
+        if copy_to_system_clipboard(path):
+            self.notify(f"Copied: {path}")
         else:
             self.notify("Failed to copy to clipboard", severity="error")
 
