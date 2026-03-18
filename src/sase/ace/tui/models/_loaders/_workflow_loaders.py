@@ -345,19 +345,23 @@ def load_workflow_agent_steps(
         timestamp_dirs if timestamp_dirs is not None else _get_workflow_timestamp_dirs()
     )
     for project_dir, timestamp_dir in dirs:
-        # Read parent workflow state for error propagation to child steps
+        # Read parent workflow state for status propagation to child steps
         parent_wf_error: str | None = None
         parent_wf_traceback: str | None = None
         parent_wf_failed = False
+        parent_wf_completed = False
         parent_state_file = timestamp_dir / "workflow_state.json"
         if parent_state_file.exists():
             try:
                 with open(parent_state_file, encoding="utf-8") as f:
                     parent_state = json.load(f)
-                if parent_state.get("status") == "failed":
+                parent_status = parent_state.get("status")
+                if parent_status == "failed":
                     parent_wf_failed = True
                     parent_wf_error = parent_state.get("error")
                     parent_wf_traceback = parent_state.get("traceback")
+                elif parent_status == "completed":
+                    parent_wf_completed = True
             except Exception:
                 pass
 
@@ -474,6 +478,11 @@ def load_workflow_agent_steps(
                     agent.status = "FAILED"
                     agent.error_message = parent_wf_error
                     agent.error_traceback = parent_wf_traceback
+
+                # If step is still RUNNING but parent workflow completed,
+                # mark step as DONE (e.g. planner agent killed by sase plan)
+                if parent_wf_completed and agent.status == "RUNNING":
+                    agent.status = "DONE"
 
                 enrich_agent_from_meta(agent, artifacts_dir_from_marker)
                 agents.append(agent)
