@@ -112,7 +112,7 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
     ``sase plan`` and ``sase questions`` intentionally SIGTERM the current agent
     process group so the runner can switch into approval/question mode.  The
     workflow executor may persist this as a failed step/workflow first
-    (LLMInvocationError exit code -15).  This helper rewrites that transient
+    (LLMInvocationError exit code -15 or 143).  This helper rewrites that transient
     state to completed so the TUI does not show a false failure.
     """
 
@@ -120,7 +120,14 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
         if not isinstance(error, str):
             return False
         lowered = error.lower()
-        return "exit code -15" in lowered or "sigterm" in lowered
+        # SIGTERM surfaces as exit code -15 (direct subprocess) or 143
+        # (128+15, shell-wrapped) depending on how the LLM provider is
+        # invoked.
+        return (
+            "exit code -15" in lowered
+            or "exit code 143" in lowered
+            or "sigterm" in lowered
+        )
 
     state_path = Path(artifacts_dir) / "workflow_state.json"
     saw_sigterm_failure = False

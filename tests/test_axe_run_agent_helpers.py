@@ -65,6 +65,59 @@ def test_normalize_handoff_interruption_state_rewrites_sigterm_failures(
     assert marker_data["traceback"] is None
 
 
+def test_normalize_handoff_interruption_state_rewrites_exit_code_143(
+    tmp_path,
+) -> None:
+    """Exit code 143 (128+15) is the shell-wrapped SIGTERM variant."""
+    artifacts_dir = tmp_path
+
+    state_file = artifacts_dir / "workflow_state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "error": "Step 'main' failed: LLMInvocationError: Error running LLM provider command (exit code 143)",
+                "traceback": "tb",
+                "steps": [
+                    {
+                        "name": "main",
+                        "status": "failed",
+                        "error": "LLMInvocationError: Error running LLM provider command (exit code 143)",
+                        "traceback": "tb",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    marker_file = artifacts_dir / "prompt_step_main.json"
+    marker_file.write_text(
+        json.dumps(
+            {
+                "step_name": "main",
+                "status": "failed",
+                "error": "LLMInvocationError: Error running LLM provider command (exit code 143)",
+                "traceback": "tb",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    normalize_handoff_interruption_state(str(artifacts_dir))
+
+    state_data = json.loads(state_file.read_text(encoding="utf-8"))
+    assert state_data["status"] == "completed"
+    assert state_data["error"] is None
+    assert state_data["traceback"] is None
+    assert state_data["steps"][0]["status"] == "completed"
+    assert state_data["steps"][0]["error"] is None
+
+    marker_data = json.loads(marker_file.read_text(encoding="utf-8"))
+    assert marker_data["status"] == "completed"
+    assert marker_data["error"] is None
+
+
 def test_normalize_handoff_interruption_state_keeps_real_failures(tmp_path) -> None:
     artifacts_dir = tmp_path
 
