@@ -231,7 +231,9 @@ class PromptBarMixin:
 
         # Suspend TUI and open editor with current text
         prompt = self._open_editor_for_agent_prompt(  # type: ignore[attr-defined]
-            event.current_text, cursor_position=event.cursor_position
+            event.current_text,
+            cursor_row=event.cursor_row,
+            cursor_col=event.cursor_col,
         )
         if prompt:
             PromptInputBar._last_cancelled_prompt = ""

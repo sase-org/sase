@@ -3,39 +3,28 @@
 from typing import TYPE_CHECKING, Any
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal
 from textual.events import Key
 from textual.message import Message
-from textual.suggester import Suggester
-from textual.widgets import Input, Label, Static
+from textual.widgets import Static, TextArea
 
 if TYPE_CHECKING:
     from ..app import AceApp
 
 
-class _SingleSuggester(Suggester):
-    """Suggester that returns a single fixed suggestion."""
+class _PromptTextArea(TextArea):
+    """Custom TextArea with multiline support and readline-style keybindings.
 
-    def __init__(self, suggestion: str) -> None:
-        super().__init__(use_cache=False, case_sensitive=True)
-        self._suggestion = suggestion
-
-    async def get_suggestion(self, value: str) -> str | None:
-        if self._suggestion.startswith(value):
-            return self._suggestion
-        return None
-
-
-class _PromptInput(Input):
-    """Custom Input with readline-style key bindings and special handlers."""
+    Enter submits the prompt. Ctrl+J inserts a newline.
+    Line numbers appear automatically when there's more than one line.
+    """
 
     BINDINGS = [
+        ("enter", "submit_prompt", "Submit"),
+        ("ctrl+j", "insert_newline", "New line"),
         ("ctrl+f", "cursor_right", "Forward"),
         ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+g", "open_editor", "Edit in editor"),
         ("ctrl+y", "open_workflow_editor", "Workflow YAML"),
-        ("ctrl+u", "unix_line_discard", "Clear to start"),
-        ("ctrl+e", "end_or_fill_placeholder", "End/Fill"),
     ]
 
     @property
@@ -46,55 +35,62 @@ class _PromptInput(Input):
         assert isinstance(self.app, AceApp)
         return self.app
 
-    def action_unix_line_discard(self) -> None:
-        """Clear from cursor to beginning of line."""
-        if self.cursor_position > 0:
-            self.value = self.value[self.cursor_position :]
-            self.cursor_position = 0
+    def _find_prompt_bar(self) -> "PromptInputBar | None":
+        """Walk up the widget tree to find the parent PromptInputBar."""
+        parent = self.parent
+        while parent is not None:
+            if isinstance(parent, PromptInputBar):
+                return parent
+            parent = parent.parent
+        return None
+
+    def action_submit_prompt(self) -> None:
+        """Submit the prompt text."""
+        bar = self._find_prompt_bar()
+        if bar:
+            bar._handle_text_submission(self.text)
+
+    def action_insert_newline(self) -> None:
+        """Insert a newline at the cursor position."""
+        start, end = self.selection
+        self._replace_via_keyboard("\n", start, end)
 
     def action_open_editor(self) -> None:
         """Request to open external editor."""
-        # Find parent PromptInputBar and post message
-        parent = self.parent
-        while parent is not None:
-            if isinstance(parent, PromptInputBar):
-                parent.post_message(
-                    PromptInputBar.EditorRequested(self.value, self.cursor_position)
-                )
-                return
-            parent = parent.parent
+        bar = self._find_prompt_bar()
+        if bar:
+            row, col = self.cursor_location
+            bar.post_message(PromptInputBar.EditorRequested(self.text, row, col))
 
     def action_open_workflow_editor(self) -> None:
         """Request to open workflow YAML editor."""
-        parent = self.parent
-        while parent is not None:
-            if isinstance(parent, PromptInputBar):
-                parent.post_message(PromptInputBar.WorkflowEditorRequested())
-                return
-            parent = parent.parent
+        bar = self._find_prompt_bar()
+        if bar:
+            bar.post_message(PromptInputBar.WorkflowEditorRequested())
 
-    def action_end_or_fill_placeholder(self) -> None:
-        """Accept suggestion if available, otherwise move cursor to end."""
-        if self._suggestion:
-            self.value = self._suggestion
-            self.cursor_position = len(self.value)
+    def action_cursor_line_end(self, select: bool = False) -> None:
+        """Move to end of line, or fill last cancelled prompt if empty."""
+        if not self.text and PromptInputBar._last_cancelled_prompt:
+            self.text = PromptInputBar._last_cancelled_prompt
+            doc = self.document
+            last_line = doc.line_count - 1
+            last_col = len(doc.get_line(last_line))
+            self.cursor_location = (last_line, last_col)
         else:
-            self.action_end()
+            super().action_cursor_line_end(select)
 
     def on_key(self, event: Key) -> None:
         """Handle key events for special triggers like '##' for snippets."""
         if event.character == "#":
-            # Check if the character before cursor is also '#' (making '##')
-            if self.cursor_position > 0 and self.value[self.cursor_position - 1] == "#":
-                # Find parent PromptInputBar and post message
-                parent = self.parent
-                while parent is not None:
-                    if isinstance(parent, PromptInputBar):
-                        parent.post_message(PromptInputBar.SnippetRequested())
-                        # Prevent the second '#' from being typed
+            row, col = self.cursor_location
+            if col > 0:
+                line = self.document.get_line(row)
+                if line[col - 1] == "#":
+                    bar = self._find_prompt_bar()
+                    if bar:
+                        bar.post_message(PromptInputBar.SnippetRequested())
                         event.prevent_default()
                         return
-                    parent = parent.parent
 
 
 class PromptInputBar(Static):
@@ -106,11 +102,6 @@ class PromptInputBar(Static):
         """Message sent when prompt is submitted."""
 
         def __init__(self, value: str) -> None:
-            """Initialize the message.
-
-            Args:
-                value: The prompt value
-            """
             super().__init__()
             self.value = value
 
@@ -122,27 +113,21 @@ class PromptInputBar(Static):
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
 
-        def __init__(self, current_text: str = "", cursor_position: int = 0) -> None:
-            """Initialize the message.
-
-            Args:
-                current_text: The current text in the input field.
-                cursor_position: The cursor column offset (0-indexed).
-            """
+        def __init__(
+            self,
+            current_text: str = "",
+            cursor_row: int = 0,
+            cursor_col: int = 0,
+        ) -> None:
             super().__init__()
             self.current_text = current_text
-            self.cursor_position = cursor_position
+            self.cursor_row = cursor_row
+            self.cursor_col = cursor_col
 
     class HistoryRequested(Message):
         """Message sent when user requests prompt history picker ('.')."""
 
         def __init__(self, vcs_prefix: str = "") -> None:
-            """Initialize the message.
-
-            Args:
-                vcs_prefix: VCS workflow prefix (e.g., "#gh:sase") to prepend
-                    to the selected prompt. Empty string for plain dot-prompt.
-            """
             super().__init__()
             self.vcs_prefix = vcs_prefix
 
@@ -160,44 +145,90 @@ class PromptInputBar(Static):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, initial_value: str = "", **kwargs: Any) -> None:
-        """Initialize the prompt input bar.
+    _MAX_HEIGHT = 15
 
-        Args:
-            initial_value: Pre-populated text for the input field.
-            **kwargs: Additional arguments for Static
-        """
+    def __init__(self, initial_value: str = "", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._initial_value = initial_value
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
-        cancelled = PromptInputBar._last_cancelled_prompt
         placeholder = (
-            "Type prompt, '.' for history, '##' for snippets [^G] editor [^Y] workflow"
+            "Type prompt, '.' for history, '##' for snippets  "
+            "[^G] editor  [^Y] workflow  [^J] newline"
         )
-        suggester = _SingleSuggester(cancelled) if cancelled else None
-        with Horizontal(id="prompt-input-container"):
-            yield Label("Prompt: ", id="prompt-label")
-            yield _PromptInput(
-                placeholder=placeholder,
-                suggester=suggester,
-                id="prompt-input",
-                value=self._initial_value,
-                select_on_focus=not self._initial_value,
-            )
-            yield Label("[Esc] cancel", id="prompt-escape-hint", classes="dim-label")
+        yield _PromptTextArea(
+            self._initial_value,
+            show_line_numbers=False,
+            highlight_cursor_line=False,
+            id="prompt-input",
+            placeholder=placeholder,
+        )
 
     def on_mount(self) -> None:
-        """Focus the input on mount and position cursor at end of initial text."""
-        prompt_input = self.query_one("#prompt-input", _PromptInput)
-        prompt_input.focus()
+        """Focus the TextArea on mount and position cursor at end."""
+        text_area = self.query_one("#prompt-input", _PromptTextArea)
+        text_area.focus()
         if self._initial_value:
-            prompt_input.cursor_position = len(self._initial_value)
+            doc = text_area.document
+            last_line = doc.line_count - 1
+            last_col = len(doc.get_line(last_line))
+            text_area.cursor_location = (last_line, last_col)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle Enter key in input."""
-        value = event.value.strip()
+        # Border title and subtitle
+        self.border_title = "Prompt"
+        cancelled = PromptInputBar._last_cancelled_prompt
+        if cancelled:
+            hint = cancelled[:40] + "…" if len(cancelled) > 40 else cancelled
+            self.border_subtitle = f"[^E] {hint}"
+        else:
+            self.border_subtitle = "[Esc] cancel"
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Update height and line numbers when text changes."""
+        text_area = self.query_one("#prompt-input", _PromptTextArea)
+        text_area.show_line_numbers = text_area.document.line_count > 1
+        self._update_height()
+
+    def _get_visual_line_count(self) -> int:
+        """Count visual lines accounting for soft wrap."""
+        try:
+            text_area = self.query_one("#prompt-input", _PromptTextArea)
+        except Exception:
+            return 1
+
+        doc = text_area.document
+        text_width = text_area.size.width
+
+        # Subtract gutter width when line numbers are shown
+        if text_area.show_line_numbers:
+            gutter_width = len(str(doc.line_count)) + 2
+            text_width -= gutter_width
+
+        if text_width <= 0:
+            return doc.line_count
+
+        visual_lines = 0
+        for i in range(doc.line_count):
+            line = doc.get_line(i)
+            line_len = len(line)
+            if line_len <= text_width:
+                visual_lines += 1
+            else:
+                visual_lines += -(-line_len // text_width)  # ceil division
+
+        return max(1, visual_lines)
+
+    def _update_height(self) -> None:
+        """Auto-grow the bar based on content."""
+        visual_lines = self._get_visual_line_count()
+        # +2 for border top and bottom
+        new_height = min(max(visual_lines + 2, 3), self._MAX_HEIGHT)
+        self.styles.height = new_height
+
+    def _handle_text_submission(self, text: str) -> None:
+        """Process text submission from the TextArea."""
+        value = text.strip()
 
         # Check for '.' - trigger history picker
         if value == ".":
@@ -205,8 +236,6 @@ class PromptInputBar(Static):
             return
 
         # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .")
-        # The '#' prefix indicates a workflow reference; trailing " ." means
-        # the user wants to pick from prompt history for that VCS context.
         if value.endswith(" .") and value[0] == "#":
             vcs_prefix = value[:-2].rstrip()
             self.post_message(self.HistoryRequested(vcs_prefix=vcs_prefix))
@@ -217,9 +246,9 @@ class PromptInputBar(Static):
 
     def action_cancel(self) -> None:
         """Cancel the input bar."""
-        prompt_input = self.query_one("#prompt-input", _PromptInput)
-        if prompt_input.value.strip():
-            PromptInputBar._last_cancelled_prompt = prompt_input.value
+        text_area = self.query_one("#prompt-input", _PromptTextArea)
+        if text_area.text.strip():
+            PromptInputBar._last_cancelled_prompt = text_area.text
         self.post_message(self.Cancelled())
 
     def insert_snippet(self, snippet_name: str) -> None:
@@ -231,12 +260,7 @@ class PromptInputBar(Static):
         Args:
             snippet_name: The snippet name to insert (without #)
         """
-        prompt_input = self.query_one("#prompt-input", _PromptInput)
-        current_value = prompt_input.value
-        cursor_pos = prompt_input.cursor_position
-        new_value = (
-            current_value[:cursor_pos] + snippet_name + current_value[cursor_pos:]
-        )
-        prompt_input.value = new_value
-        prompt_input.cursor_position = cursor_pos + len(snippet_name)
-        prompt_input.focus()
+        text_area = self.query_one("#prompt-input", _PromptTextArea)
+        start, end = text_area.selection
+        text_area._replace_via_keyboard(snippet_name, start, end)
+        text_area.focus()

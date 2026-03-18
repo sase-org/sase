@@ -9,13 +9,21 @@ class EditorMixin:
     """Mixin providing editor integration for agent prompts and workflows."""
 
     def _open_editor_for_agent_prompt(
-        self, initial_content: str = "", cursor_position: int = 0
+        self,
+        initial_content: str = "",
+        cursor_row: int = 0,
+        cursor_col: int = 0,
+        *,
+        cursor_position: int = 0,
     ) -> str | None:
         """Suspend TUI and open editor for prompt input.
 
         Args:
             initial_content: Initial text to populate the editor with.
-            cursor_position: Cursor column offset (0-indexed) from the input bar.
+            cursor_row: Cursor row (0-indexed).
+            cursor_col: Cursor column (0-indexed).
+            cursor_position: Legacy flat cursor offset (used when row/col
+                are both 0 but a flat offset was provided).
 
         Returns:
             The prompt content, or None if empty/cancelled.
@@ -37,9 +45,14 @@ class EditorMixin:
 
             cmd: list[str] = [editor]
             # Position cursor in nvim to match the input bar cursor position
-            if os.path.basename(editor) == "nvim" and cursor_position > 0:
-                # nvim's cursor() is 1-indexed for both line and column
-                cmd.extend(["-c", f"call cursor(1, {cursor_position + 1})"])
+            if os.path.basename(editor) == "nvim":
+                if cursor_row > 0 or cursor_col > 0:
+                    # nvim's cursor() is 1-indexed
+                    cmd.extend(
+                        ["-c", f"call cursor({cursor_row + 1}, {cursor_col + 1})"]
+                    )
+                elif cursor_position > 0:
+                    cmd.extend(["-c", f"call cursor(1, {cursor_position + 1})"])
             cmd.append(temp_path)
 
             result = subprocess.run(cmd, check=False)
