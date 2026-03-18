@@ -126,7 +126,14 @@ class GitCommon(CommandRunner):
 
     @hookimpl
     def vcs_prune(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["git", "branch", "-D", revision], cwd)
+        # resolve_revision may return a remote-tracking ref (e.g.
+        # "origin/branch") when no local branch exists.  git branch -D only
+        # deletes local branches, so strip the remote prefix first.
+        local_branch = revision.removeprefix("origin/")
+        out = self._run(["git", "branch", "-D", local_branch], cwd)
+        if not out.success and "not found" in out.stderr:
+            # No local branch to delete — nothing to prune.
+            return (True, None)
         return self._to_result(out, "git branch -D")
 
     @hookimpl
