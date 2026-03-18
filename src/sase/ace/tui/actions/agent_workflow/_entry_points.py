@@ -421,10 +421,11 @@ class EntryPointsMixin:
                 )
 
     def _kill_and_edit_agent(self) -> None:
-        """Kill the selected agent, then open prompt history for re-editing.
+        """Kill the selected agent, then open its prompt in the editor for re-launch.
 
-        Combines the kill flow (``x``) with the prompt history + editor flow
-        (``,,<space>`` → ``.`` → navigate → ``ctrl+g``).
+        Reads the agent's raw xprompt content, kills the agent (with
+        confirmation if running), opens the prompt in ``$EDITOR``, and
+        launches a new agent with the edited content.
         """
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
@@ -436,14 +437,19 @@ class EntryPointsMixin:
         agent_project_file = agent.project_file
         agent_cl_name = agent.cl_name
         agent_is_project_agent = agent.is_project_agent
+        raw_prompt = agent.get_raw_xprompt_content()
+
+        if raw_prompt is None:
+            self.notify("No prompt found for this agent", severity="warning")  # type: ignore[attr-defined]
+            return
 
         from ..agents._core import DISMISSABLE_STATUSES
 
         if agent.status in DISMISSABLE_STATUSES or agent.pid is None:
-            # No confirmation needed - dismiss and open history
+            # No confirmation needed - dismiss and open editor
             self._dismiss_done_agent(agent)  # type: ignore[attr-defined]
-            self._open_prompt_history_for_edit(
-                agent_project_file, agent_cl_name, agent_is_project_agent
+            self._edit_and_relaunch_agent(
+                raw_prompt, agent_project_file, agent_cl_name, agent_is_project_agent
             )
             return
 
@@ -460,21 +466,26 @@ class EntryPointsMixin:
         def on_dismiss(confirmed: bool | None) -> None:
             if confirmed:
                 self._do_kill_agent(agent)  # type: ignore[attr-defined]
-                self._open_prompt_history_for_edit(
-                    agent_project_file, agent_cl_name, agent_is_project_agent
+                self._edit_and_relaunch_agent(
+                    raw_prompt,
+                    agent_project_file,
+                    agent_cl_name,
+                    agent_is_project_agent,
                 )
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 
-    def _open_prompt_history_for_edit(
+    def _edit_and_relaunch_agent(
         self,
+        raw_prompt: str,
         project_file: str,
         cl_name: str,
         is_project_agent: bool,
     ) -> None:
-        """Set up prompt context and open prompt history modal after killing.
+        """Open agent prompt in editor and relaunch on save.
 
         Args:
+            raw_prompt: The agent's raw xprompt content.
             project_file: The killed agent's project file path.
             cl_name: The killed agent's CL name.
             is_project_agent: Whether the killed agent was a project-level agent.
@@ -482,18 +493,10 @@ class EntryPointsMixin:
         from pathlib import Path
 
         from sase.sase_utils import generate_timestamp
-        from sase.xprompt import strip_vcs_workflow_tag
 
-        from ...modals import (
-            PromptHistoryAction,
-            PromptHistoryModal,
-            PromptHistoryResult,
-            SelectionItem,
-        )
-        from ...widgets import PromptInputBar
+        from ...modals import SelectionItem
 
         project_name = Path(project_file).parent.name
-        vcs_prefix = _vcs_prompt_prefix(project_file, cl_name)
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
 
@@ -523,39 +526,13 @@ class EntryPointsMixin:
             is_home_mode=True,
         )
 
-        def _build_prompt(prompt_text: str) -> str:
-            if vcs_prefix:
-                prompt_text = strip_vcs_workflow_tag(prompt_text)
-                return f"{vcs_prefix}{prompt_text}"
-            return prompt_text
-
-        def on_history_select(result: PromptHistoryResult | None) -> None:
-            if result is None:
-                self.notify("No prompt from history - cancelled", severity="warning")  # type: ignore[attr-defined]
-                self._prompt_context = None
-                return
-
-            if result.action == PromptHistoryAction.SUBMIT:
-                PromptInputBar._last_cancelled_prompt = ""
-                self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
-            else:
-                # Edit first - open editor with selected prompt
-                prompt_for_editor = _build_prompt(result.prompt_text)
-                edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
-                if edited_prompt:
-                    PromptInputBar._last_cancelled_prompt = ""
-                    self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
-                else:
-                    self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
-                    self._prompt_context = None
-
-        self.push_screen(  # type: ignore[attr-defined]
-            PromptHistoryModal(
-                sort_by=cl_name,
-                workspace=project_name,
-            ),
-            on_history_select,
-        )
+        # Open editor with the agent's prompt
+        edited_prompt = self._open_editor_for_agent_prompt(raw_prompt)  # type: ignore[attr-defined]
+        if edited_prompt:
+            self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
+        else:
+            self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
+            self._prompt_context = None
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.
