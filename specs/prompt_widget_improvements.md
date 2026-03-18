@@ -1,9 +1,8 @@
 #gh:sase We recently (see 9febfa43ed7b git commit) replaced the prompt bar with a TextArea widget. Can you help me make
 some more improvements?
 
-This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
-keep in mind that each phase will be completed by a distinct `claude` instance.
-
+This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but keep
+in mind that each phase will be completed by a distinct `claude` instance.
 
 ### Requirements
 
