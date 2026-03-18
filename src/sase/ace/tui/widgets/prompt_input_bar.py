@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING, Any
 
 from rich.segment import Segment
+from rich.style import Style
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.message import Message
@@ -337,34 +338,22 @@ class _PromptTextArea(TextArea):
 
         # Word movement
         if key == "w":
-            self.cursor_location = self._find_next_word_start(
-                *self.cursor_location
-            )
+            self.cursor_location = self._find_next_word_start(*self.cursor_location)
             return True
         if key == "W":
-            self.cursor_location = self._find_next_WORD_start(
-                *self.cursor_location
-            )
+            self.cursor_location = self._find_next_WORD_start(*self.cursor_location)
             return True
         if key == "b":
-            self.cursor_location = self._find_prev_word_start(
-                *self.cursor_location
-            )
+            self.cursor_location = self._find_prev_word_start(*self.cursor_location)
             return True
         if key == "B":
-            self.cursor_location = self._find_prev_WORD_start(
-                *self.cursor_location
-            )
+            self.cursor_location = self._find_prev_WORD_start(*self.cursor_location)
             return True
         if key == "e":
-            self.cursor_location = self._find_next_word_end(
-                *self.cursor_location
-            )
+            self.cursor_location = self._find_next_word_end(*self.cursor_location)
             return True
         if key == "E":
-            self.cursor_location = self._find_next_WORD_end(
-                *self.cursor_location
-            )
+            self.cursor_location = self._find_next_WORD_end(*self.cursor_location)
             return True
 
         # Line movement
@@ -481,10 +470,17 @@ class _PromptTextArea(TextArea):
         gutter_width_no_margin = gutter_width - 2
 
         theme = self._theme
-        if cursor_row == line_index and self.highlight_cursor_line:
-            gutter_style = theme.cursor_line_gutter_style
+        if line_index == cursor_row:
+            base = (
+                (theme.cursor_line_gutter_style or Style.null())
+                if self.highlight_cursor_line
+                else Style.null()
+            )
+            gutter_style = base + Style(color="#D0A215", bold=True)
+        elif line_index < cursor_row:
+            gutter_style = (theme.gutter_style or Style.null()) + Style(color="#4385BE")
         else:
-            gutter_style = theme.gutter_style
+            gutter_style = (theme.gutter_style or Style.null()) + Style(color="#8B7EC8")
 
         new_gutter = Segment(
             f"{gutter_content:>{gutter_width_no_margin}}  ", gutter_style
