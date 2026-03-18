@@ -80,16 +80,13 @@ class _PromptTextArea(TextArea):
             super().action_cursor_line_end(select)
 
     async def _on_key(self, event: Key) -> None:
-        """Intercept Enter before TextArea's default handler inserts a newline."""
+        """Intercept keys before TextArea's default handler inserts characters."""
         if event.key == "enter":
             event.stop()
             event.prevent_default()
             self.action_submit_prompt()
             return
-        await super()._on_key(event)
-
-    def on_key(self, event: Key) -> None:
-        """Handle key events for special triggers like '##' for snippets."""
+        # Detect '##' trigger before the second '#' is inserted
         if event.character == "#":
             row, col = self.cursor_location
             if col > 0:
@@ -98,8 +95,10 @@ class _PromptTextArea(TextArea):
                     bar = self._find_prompt_bar()
                     if bar:
                         bar.post_message(PromptInputBar.SnippetRequested())
+                        event.stop()
                         event.prevent_default()
                         return
+        await super()._on_key(event)
 
 
 class PromptInputBar(Static):
