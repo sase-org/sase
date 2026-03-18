@@ -44,7 +44,7 @@ class ProposalRebaseMixin:
             update_changespec_hooks_field,
         )
 
-        if not self.changespecs:
+        if not self.changespecs or self.current_idx >= len(self.changespecs):
             return
 
         changespec = self.changespecs[self.current_idx]
@@ -199,7 +199,7 @@ class ProposalRebaseMixin:
                     return
             return
 
-        if not self.changespecs:
+        if not self.changespecs or self.current_idx >= len(self.changespecs):
             return
 
         changespec = self.changespecs[self.current_idx]
@@ -310,7 +310,7 @@ class ProposalRebaseMixin:
         from ...changespec import get_base_status, get_eligible_parents_in_project
         from ..modals import ParentSelectModal
 
-        if not self.changespecs:
+        if not self.changespecs or self.current_idx >= len(self.changespecs):
             return
 
         changespec = self.changespecs[self.current_idx]
