@@ -326,7 +326,7 @@ class AgentDetailPanelMixin(Static):
         else:
             file_scroll.border_subtitle = Text(
                 f"{self._trim_total_lines} lines",
-                style="dim green",
+                style="dim #5FAFAF",
             )
 
     def _update_panel_indicators(self) -> None:
