@@ -211,12 +211,18 @@ class Lumberjack:
         try:
             from sase.agent_launcher import launch_agent_from_cwd
 
+            # Signal the agent runner to auto-dismiss on completion so
+            # recurring run_every agents don't accumulate as "done" entries.
+            if chop.run_every is not None:
+                os.environ["SASE_AGENT_AUTO_DISMISS"] = "1"
             result = launch_agent_from_cwd(chop.agent)
+            os.environ.pop("SASE_AGENT_AUTO_DISMISS", None)
             self._agent_pids.setdefault(chop.name, set()).add(result.pid)
             self._log(f"Launched agent chop '{chop.name}' (PID {result.pid})")
             self._metrics.chops_executed += 1
             return True
         except Exception as e:
+            os.environ.pop("SASE_AGENT_AUTO_DISMISS", None)
             self._handle_error(chop.name, e)
             return False
 

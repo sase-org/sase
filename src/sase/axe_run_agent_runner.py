@@ -307,6 +307,25 @@ def main() -> None:
         except Exception as e:
             print(f"Error writing completion marker: {e}", file=sys.stderr)
 
+        # Auto-dismiss if launched by a run_every lumberjack chop, so
+        # recurring infrastructure agents don't accumulate as "done" entries.
+        if os.environ.get("SASE_AGENT_AUTO_DISMISS"):
+            try:
+                from sase.ace.dismissed_agents import (
+                    load_dismissed_agents,
+                    save_dismissed_agents,
+                )
+                from sase.ace.tui.models.agent import AgentType
+
+                dismissed = load_dismissed_agents()
+                # Dismiss both RUNNING and WORKFLOW identities — dedup may
+                # pick either depending on whether workflow_state.json exists.
+                dismissed.add((AgentType.RUNNING, cl_name, artifacts_timestamp))
+                dismissed.add((AgentType.WORKFLOW, cl_name, artifacts_timestamp))
+                save_dismissed_agents(dismissed)
+            except Exception:
+                pass  # Best effort
+
         # Skip notification if the agent was killed by the user (SIGTERM).
         # The user already knows it died because they killed it from the TUI.
         # Also skip when every step in the workflow was hidden (e.g. for-loops
