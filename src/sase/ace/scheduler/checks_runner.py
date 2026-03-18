@@ -128,6 +128,8 @@ def _start_background_check(
 exit_code=$?
 echo ""
 echo "{CHECK_COMPLETE_MARKER}EXIT_CODE: $exit_code"
+# Clean up this wrapper script since the background process is done with it
+rm -f "$0"
 exit $exit_code
 """
 

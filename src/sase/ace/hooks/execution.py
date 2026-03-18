@@ -114,6 +114,8 @@ echo "===HOOK_COMPLETE=== END_TIMESTAMP: $end_timestamp EXIT_CODE: $exit_code"
 # Ensure output is flushed to disk before exiting to prevent race condition
 # where the parent process sees the process as dead but hasn't read the marker yet
 sync
+# Clean up this wrapper script since the background process is done with it
+rm -f "$0"
 exit $exit_code
 """
     # Write wrapper script to temp file (don't delete - background process needs it)
