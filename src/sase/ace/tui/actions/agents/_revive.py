@@ -12,6 +12,19 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
+def _is_child_of(child: Agent, parent: Agent) -> bool:
+    """Check if *child* is a workflow step or follow-up agent of *parent*.
+
+    Matches both workflow step children (``parent_workflow`` set) and
+    follow-up agents like ``.code`` / ``.q`` (``parent_timestamp`` set,
+    ``parent_workflow`` is None).
+    """
+    if not child.is_workflow_child or child.parent_timestamp != parent.raw_suffix:
+        return False
+    # Workflow step children have parent_workflow set; follow-up agents don't.
+    return child.parent_workflow is None or child.parent_workflow == parent.workflow
+
+
 class AgentRevivalMixin:
     """Mixin providing agent revival (un-dismiss) functionality.
 
@@ -115,14 +128,10 @@ class AgentRevivalMixin:
 
         self._dismissed_agents.discard(agent.identity)
 
-        # Also revive child steps if this is a parent workflow
+        # Also revive child steps and follow-up agents (e.g. .code, .q)
         if not agent.is_workflow_child and agent.raw_suffix:
             for dismissed_agent in list(self._dismissed_agent_objects):
-                if (
-                    dismissed_agent.is_workflow_child
-                    and dismissed_agent.parent_timestamp == agent.raw_suffix
-                    and dismissed_agent.parent_workflow == agent.workflow
-                ):
+                if _is_child_of(dismissed_agent, agent):
                     self._dismissed_agents.discard(dismissed_agent.identity)
 
         save_dismissed_agents(self._dismissed_agents)
@@ -130,14 +139,10 @@ class AgentRevivalMixin:
         # Restore minimal artifact files so load_all_agents() rediscovers the agent
         self._restore_agent_artifacts(agent)
 
-        # Also restore child step artifacts for workflow parents
+        # Also restore child step / follow-up artifacts for workflow parents
         if not agent.is_workflow_child and agent.raw_suffix:
             for dismissed_agent in list(self._dismissed_agent_objects):
-                if (
-                    dismissed_agent.is_workflow_child
-                    and dismissed_agent.parent_timestamp == agent.raw_suffix
-                    and dismissed_agent.parent_workflow == agent.workflow
-                ):
+                if _is_child_of(dismissed_agent, agent):
                     self._restore_agent_artifacts(
                         dismissed_agent,
                         parent_artifacts_dir=agent.artifacts_dir,
@@ -175,16 +180,12 @@ class AgentRevivalMixin:
         if not valid_agents:
             return
 
-        # Phase 1: Remove all from dismissed set (including children)
+        # Phase 1: Remove all from dismissed set (including children/follow-ups)
         for agent in valid_agents:
             self._dismissed_agents.discard(agent.identity)
             if not agent.is_workflow_child and agent.raw_suffix:
                 for dismissed_agent in list(self._dismissed_agent_objects):
-                    if (
-                        dismissed_agent.is_workflow_child
-                        and dismissed_agent.parent_timestamp == agent.raw_suffix
-                        and dismissed_agent.parent_workflow == agent.workflow
-                    ):
+                    if _is_child_of(dismissed_agent, agent):
                         self._dismissed_agents.discard(dismissed_agent.identity)
 
         # Phase 2: Single disk write for dismissed set
@@ -195,11 +196,7 @@ class AgentRevivalMixin:
             self._restore_agent_artifacts(agent)
             if not agent.is_workflow_child and agent.raw_suffix:
                 for dismissed_agent in list(self._dismissed_agent_objects):
-                    if (
-                        dismissed_agent.is_workflow_child
-                        and dismissed_agent.parent_timestamp == agent.raw_suffix
-                        and dismissed_agent.parent_workflow == agent.workflow
-                    ):
+                    if _is_child_of(dismissed_agent, agent):
                         self._restore_agent_artifacts(
                             dismissed_agent,
                             parent_artifacts_dir=agent.artifacts_dir,
