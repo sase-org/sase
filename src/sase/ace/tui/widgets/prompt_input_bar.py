@@ -32,6 +32,7 @@ class _PromptTextArea(TextArea):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._vim_mode: str = "insert"
+        self._pending_keys: str = ""
 
     @property
     def _ace_app(self) -> "AceApp":
@@ -112,6 +113,334 @@ class _PromptTextArea(TextArea):
             else:
                 bar.border_subtitle = "[Esc] cancel"
 
+    # -- Vim NORMAL mode helpers --
+
+    @staticmethod
+    def _char_class(ch: str) -> str:
+        """Classify a character for vim word motions."""
+        if ch.isalnum() or ch == "_":
+            return "word"
+        if ch.isspace():
+            return "space"
+        return "punct"
+
+    def _find_next_word_start(self, row: int, col: int) -> tuple[int, int]:
+        """Find start of next word (vim 'w')."""
+        doc = self.document
+        line_count = doc.line_count
+        line = doc.get_line(row)
+
+        if col < len(line):
+            cc = self._char_class(line[col])
+            if cc != "space":
+                while col < len(line) and self._char_class(line[col]) == cc:
+                    col += 1
+
+        while True:
+            while col < len(line) and line[col].isspace():
+                col += 1
+            if col < len(line):
+                return (row, col)
+            row += 1
+            if row >= line_count:
+                last = line_count - 1
+                return (last, len(doc.get_line(last)))
+            line = doc.get_line(row)
+            col = 0
+            if len(line) == 0:
+                return (row, 0)
+
+    def _find_next_WORD_start(self, row: int, col: int) -> tuple[int, int]:
+        """Find start of next WORD (vim 'W')."""
+        doc = self.document
+        line_count = doc.line_count
+        line = doc.get_line(row)
+
+        if col < len(line) and not line[col].isspace():
+            while col < len(line) and not line[col].isspace():
+                col += 1
+
+        while True:
+            while col < len(line) and line[col].isspace():
+                col += 1
+            if col < len(line):
+                return (row, col)
+            row += 1
+            if row >= line_count:
+                last = line_count - 1
+                return (last, len(doc.get_line(last)))
+            line = doc.get_line(row)
+            col = 0
+            if len(line) == 0:
+                return (row, 0)
+
+    def _find_prev_word_start(self, row: int, col: int) -> tuple[int, int]:
+        """Find start of previous word (vim 'b')."""
+        doc = self.document
+        line = doc.get_line(row)
+
+        col -= 1
+        while col < 0:
+            row -= 1
+            if row < 0:
+                return (0, 0)
+            line = doc.get_line(row)
+            col = len(line) - 1
+            if col < 0:
+                return (row, 0)
+
+        while True:
+            while col >= 0 and line[col].isspace():
+                col -= 1
+            if col >= 0:
+                break
+            row -= 1
+            if row < 0:
+                return (0, 0)
+            line = doc.get_line(row)
+            col = len(line) - 1
+            if col < 0:
+                return (row, 0)
+
+        cc = self._char_class(line[col])
+        while col > 0 and self._char_class(line[col - 1]) == cc:
+            col -= 1
+        return (row, col)
+
+    def _find_prev_WORD_start(self, row: int, col: int) -> tuple[int, int]:
+        """Find start of previous WORD (vim 'B')."""
+        doc = self.document
+        line = doc.get_line(row)
+
+        col -= 1
+        while col < 0:
+            row -= 1
+            if row < 0:
+                return (0, 0)
+            line = doc.get_line(row)
+            col = len(line) - 1
+            if col < 0:
+                return (row, 0)
+
+        while True:
+            while col >= 0 and line[col].isspace():
+                col -= 1
+            if col >= 0:
+                break
+            row -= 1
+            if row < 0:
+                return (0, 0)
+            line = doc.get_line(row)
+            col = len(line) - 1
+            if col < 0:
+                return (row, 0)
+
+        while col > 0 and not line[col - 1].isspace():
+            col -= 1
+        return (row, col)
+
+    def _find_next_word_end(self, row: int, col: int) -> tuple[int, int]:
+        """Find end of next word (vim 'e')."""
+        doc = self.document
+        line_count = doc.line_count
+        line = doc.get_line(row)
+
+        col += 1
+        while col >= len(line):
+            row += 1
+            if row >= line_count:
+                last = line_count - 1
+                return (last, max(0, len(doc.get_line(last)) - 1))
+            line = doc.get_line(row)
+            col = 0
+
+        while True:
+            while col < len(line) and line[col].isspace():
+                col += 1
+            if col < len(line):
+                break
+            row += 1
+            if row >= line_count:
+                last = line_count - 1
+                return (last, max(0, len(doc.get_line(last)) - 1))
+            line = doc.get_line(row)
+            col = 0
+
+        cc = self._char_class(line[col])
+        while col + 1 < len(line) and self._char_class(line[col + 1]) == cc:
+            col += 1
+        return (row, col)
+
+    def _find_next_WORD_end(self, row: int, col: int) -> tuple[int, int]:
+        """Find end of next WORD (vim 'E')."""
+        doc = self.document
+        line_count = doc.line_count
+        line = doc.get_line(row)
+
+        col += 1
+        while col >= len(line):
+            row += 1
+            if row >= line_count:
+                last = line_count - 1
+                return (last, max(0, len(doc.get_line(last)) - 1))
+            line = doc.get_line(row)
+            col = 0
+
+        while True:
+            while col < len(line) and line[col].isspace():
+                col += 1
+            if col < len(line):
+                break
+            row += 1
+            if row >= line_count:
+                last = line_count - 1
+                return (last, max(0, len(doc.get_line(last)) - 1))
+            line = doc.get_line(row)
+            col = 0
+
+        while col + 1 < len(line) and not line[col + 1].isspace():
+            col += 1
+        return (row, col)
+
+    def _handle_normal_mode_key(self, event: Key) -> bool:
+        """Handle a key event in NORMAL mode. Returns True if handled."""
+        key = event.character or event.key
+
+        # Handle pending key sequences (gg)
+        if self._pending_keys:
+            pending = self._pending_keys
+            self._pending_keys = ""
+            if pending == "g" and key == "g":
+                self.cursor_location = (0, 0)
+            return True
+
+        # Escape - cancel prompt bar
+        if event.key == "escape":
+            bar = self._find_prompt_bar()
+            if bar:
+                bar.action_cancel()
+            return True
+
+        # Basic movement
+        if key == "h":
+            self.action_cursor_left()
+            return True
+        if key == "j":
+            self.action_cursor_down()
+            return True
+        if key == "k":
+            self.action_cursor_up()
+            return True
+        if key == "l":
+            self.action_cursor_right()
+            return True
+
+        # Word movement
+        if key == "w":
+            self.cursor_location = self._find_next_word_start(
+                *self.cursor_location
+            )
+            return True
+        if key == "W":
+            self.cursor_location = self._find_next_WORD_start(
+                *self.cursor_location
+            )
+            return True
+        if key == "b":
+            self.cursor_location = self._find_prev_word_start(
+                *self.cursor_location
+            )
+            return True
+        if key == "B":
+            self.cursor_location = self._find_prev_WORD_start(
+                *self.cursor_location
+            )
+            return True
+        if key == "e":
+            self.cursor_location = self._find_next_word_end(
+                *self.cursor_location
+            )
+            return True
+        if key == "E":
+            self.cursor_location = self._find_next_WORD_end(
+                *self.cursor_location
+            )
+            return True
+
+        # Line movement
+        if key == "0":
+            row = self.cursor_location[0]
+            self.cursor_location = (row, 0)
+            return True
+        if key == "$":
+            row = self.cursor_location[0]
+            line = self.document.get_line(row)
+            self.cursor_location = (row, len(line))
+            return True
+        if key == "^":
+            row = self.cursor_location[0]
+            line = self.document.get_line(row)
+            col = 0
+            while col < len(line) and line[col].isspace():
+                col += 1
+            self.cursor_location = (row, col)
+            return True
+
+        # Document movement
+        if key == "g":
+            self._pending_keys = "g"
+            return True
+        if key == "G":
+            last_row = self.document.line_count - 1
+            self.cursor_location = (last_row, 0)
+            return True
+
+        # Mode switching
+        if key == "i":
+            self._enter_insert_mode()
+            return True
+        if key == "a":
+            row, col = self.cursor_location
+            line = self.document.get_line(row)
+            self._enter_insert_mode()
+            if col < len(line):
+                self.cursor_location = (row, col + 1)
+            return True
+        if key == "A":
+            row = self.cursor_location[0]
+            line = self.document.get_line(row)
+            self._enter_insert_mode()
+            self.cursor_location = (row, len(line))
+            return True
+        if key == "I":
+            row = self.cursor_location[0]
+            line = self.document.get_line(row)
+            col = 0
+            while col < len(line) and line[col].isspace():
+                col += 1
+            self._enter_insert_mode()
+            self.cursor_location = (row, col)
+            return True
+        if key == "o":
+            row = self.cursor_location[0]
+            line = self.document.get_line(row)
+            self._enter_insert_mode()
+            self.cursor_location = (row, len(line))
+            start, end = self.selection
+            self._replace_via_keyboard("\n", start, end)
+            return True
+        if key == "O":
+            row = self.cursor_location[0]
+            self._enter_insert_mode()
+            self.cursor_location = (row, 0)
+            start, end = self.selection
+            self._replace_via_keyboard("\n", start, end)
+            self.cursor_location = (row, 0)
+            return True
+
+        # Unhandled key - let it through for arrow keys, etc.
+        return False
+
     def render_line(self, y: int) -> Strip:
         """Bypass cache in NORMAL mode so relative line numbers stay current."""
         if self._vim_mode == "normal" and self.show_line_numbers:
@@ -176,20 +505,9 @@ class _PromptTextArea(TextArea):
             return
 
         if self._vim_mode == "normal":
-            if event.key == "escape":
+            if self._handle_normal_mode_key(event):
                 event.stop()
                 event.prevent_default()
-                bar = self._find_prompt_bar()
-                if bar:
-                    bar.action_cancel()
-                return
-            if event.character == "i":
-                event.stop()
-                event.prevent_default()
-                self._enter_insert_mode()
-                return
-            # In NORMAL mode, let arrow keys work via BINDINGS;
-            # read_only=True prevents character insertion.
             return
 
         # INSERT mode: Escape enters NORMAL mode
