@@ -1,5 +1,7 @@
 """Tests for PromptTextArea NORMAL-mode J (join lines) command."""
 
+from unittest.mock import AsyncMock, patch
+
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -136,3 +138,25 @@ async def test_dot_repeats_join() -> None:
 
         await pilot.press(".")
         assert ta.text == "aaa bbb ccc\nddd"
+
+
+# =============================================================================
+# Auto-wrap integration
+# =============================================================================
+
+
+async def test_join_triggers_prettier_formatting() -> None:
+    """J triggers prettier formatting after joining lines."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "hello\nworld"
+        ta.cursor_location = (0, 0)
+        ta._enter_normal_mode()
+
+        with patch.object(
+            ta, "_format_with_prettier", new_callable=AsyncMock
+        ) as mock_fmt:
+            await pilot.press("J")
+            assert ta.text == "hello world"
+            mock_fmt.assert_called_once()
