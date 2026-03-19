@@ -16,6 +16,7 @@ from .proposal_rebase import ProposalRebaseMixin
 from .rename import RenameMixin
 from .status import StatusActionsMixin
 from .sync import SyncMixin
+from .task_actions import TaskActionsMixin
 from .workspace import WorkspaceActionsMixin
 
 __all__ = [
@@ -35,5 +36,6 @@ __all__ = [
     "RenameMixin",
     "StatusActionsMixin",
     "SyncMixin",
+    "TaskActionsMixin",
     "WorkspaceActionsMixin",
 ]

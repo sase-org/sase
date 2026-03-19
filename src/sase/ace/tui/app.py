@@ -37,6 +37,7 @@ from .actions import (
     RenameMixin,
     StatusActionsMixin,
     SyncMixin,
+    TaskActionsMixin,
     WorkspaceActionsMixin,
 )
 from .bindings import DEFAULT_BINDINGS
@@ -90,6 +91,7 @@ class AceApp(
     RenameMixin,
     StatusActionsMixin,
     SyncMixin,
+    TaskActionsMixin,
     WorkspaceActionsMixin,
     BaseActionsMixin,
     HintActionsMixin,
@@ -138,6 +140,7 @@ class AceApp(
             auto_start_axe: Whether to auto-start the axe daemon on startup
         """
         super().__init__()
+        self._init_task_queue()
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe
         self.query_string = query
