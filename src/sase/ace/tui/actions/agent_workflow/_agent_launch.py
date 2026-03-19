@@ -149,13 +149,23 @@ class AgentLaunchMixin:
                 # (with VCS refs, expansion happens in agent runner instead)
                 prompt = workflow_result
 
+        # Parse user-prompt frontmatter for local xprompts.
+        from sase.multi_prompt import parse_multi_prompt
+
+        multi = parse_multi_prompt(prompt)
+        local_xprompts = multi.local_xprompts
+
         # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
         # so multi-model directives from xprompts are detected below.
-        # Keep the raw prompt for the agent runner to save as raw_xprompt.md.
+        # Keep the raw prompt (with frontmatter) for the agent runner
+        # to parse again and expand local xprompts in the subprocess.
         from sase.xprompt.processor import process_xprompt_references
 
         raw_prompt = prompt
-        prompt = process_xprompt_references(prompt)
+        prompt = process_xprompt_references(
+            "\n---\n".join(multi.segments),
+            extra_xprompts=local_xprompts or None,
+        )
 
         self._prompt_context = None
 

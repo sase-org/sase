@@ -455,6 +455,15 @@ def run_query(
 
         add_or_update_prompt(query)
 
+    # Parse user-prompt frontmatter for local xprompts (after history save
+    # so prompt history retains the original frontmatter).
+    from sase.multi_prompt import parse_multi_prompt
+
+    multi = parse_multi_prompt(query)
+    local_xprompts = multi.local_xprompts
+    if multi.frontmatter is not None:
+        query = "\n---\n".join(multi.segments)
+
     try:
         # Build the full prompt
         if previous_history:
@@ -500,6 +509,8 @@ def run_query(
 
         # Create anonymous workflow and execute through WorkflowExecutor
         anon_workflow = create_anonymous_workflow(full_prompt)
+        if local_xprompts:
+            anon_workflow.xprompts = local_xprompts
         result = execute_workflow(
             anon_workflow.name,
             [],

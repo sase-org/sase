@@ -48,13 +48,21 @@ def extract_directives_and_write_meta(
     from sase.xprompt import process_xprompt_references
     from sase.xprompt.directives import extract_prompt_directives
 
+    # Parse user-prompt frontmatter to extract local xprompts.
+    from sase.multi_prompt import parse_multi_prompt
+
+    multi = parse_multi_prompt(prompt)
+    prompt_body = "\n---\n".join(multi.segments)
+
     # Expand xprompts before extracting directives so that
     # directives embedded in xprompts (e.g. %model:#pro inside
     # #mentor) are discovered for agent metadata.
     # Also collect hook commands from expanded xprompts.
     xprompt_hooks: list[str] = []
     expanded_for_directives = process_xprompt_references(
-        prompt, hooks_collector=xprompt_hooks
+        prompt_body,
+        extra_xprompts=multi.local_xprompts or None,
+        hooks_collector=xprompt_hooks,
     )
     _, directives = extract_prompt_directives(expanded_for_directives)
 
