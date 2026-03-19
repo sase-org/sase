@@ -661,6 +661,80 @@ async def test_operator_cleared_after_execution() -> None:
 
 
 # =============================================================================
+# Half-page scroll (ctrl+d / ctrl+u) tests
+# =============================================================================
+
+
+async def test_ctrl_d_scrolls_down_half_page() -> None:
+    """ctrl+d moves cursor down by half the visible height."""
+    app = _TestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = _lines(50)
+        ta.cursor_location = (0, 0)
+        ta._enter_normal_mode()
+
+        half = ta.size.height // 2
+        await pilot.press("ctrl+d")
+        assert ta.cursor_location[0] == half
+        assert ta._vim_mode == "normal"
+
+
+async def test_ctrl_u_scrolls_up_half_page() -> None:
+    """ctrl+u moves cursor up by half the visible height."""
+    app = _TestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = _lines(50)
+        ta.cursor_location = (40, 0)
+        ta._enter_normal_mode()
+
+        half = ta.size.height // 2
+        await pilot.press("ctrl+u")
+        assert ta.cursor_location[0] == 40 - half
+        assert ta._vim_mode == "normal"
+
+
+async def test_ctrl_d_clamps_at_bottom() -> None:
+    """ctrl+d from near the bottom clamps to the last line."""
+    app = _TestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = _lines(20)
+        ta.cursor_location = (18, 0)
+        ta._enter_normal_mode()
+
+        await pilot.press("ctrl+d")
+        assert ta.cursor_location[0] == 19
+
+
+async def test_ctrl_u_clamps_at_top() -> None:
+    """ctrl+u from near the top clamps to line 0."""
+    app = _TestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = _lines(50)
+        ta.cursor_location = (2, 0)
+        ta._enter_normal_mode()
+
+        await pilot.press("ctrl+u")
+        assert ta.cursor_location[0] == 0
+
+
+async def test_ctrl_d_preserves_column() -> None:
+    """ctrl+d preserves the cursor column."""
+    app = _TestApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = _lines(50)
+        ta.cursor_location = (0, 3)
+        ta._enter_normal_mode()
+
+        await pilot.press("ctrl+d")
+        assert ta.cursor_location[1] == 3
+
+
+# =============================================================================
 # Undo (u) tests
 # =============================================================================
 

@@ -424,6 +424,17 @@ class VimNormalModeMixin(_MixinBase):
             self._update_count_display()
             return True
 
+        # Half-page scroll (ctrl+d / ctrl+u)
+        if event.key in ("ctrl+d", "ctrl+u"):
+            half = max(1, self.size.height // 2)
+            row, col = self.cursor_location
+            if event.key == "ctrl+d":
+                target_row = min(row + half, self.document.line_count - 1)
+            else:
+                target_row = max(row - half, 0)
+            self.cursor_location = (target_row, col)
+            return True
+
         # Undo
         if key == "u":
             was_readonly = self.read_only
