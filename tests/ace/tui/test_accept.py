@@ -12,9 +12,7 @@ from sase.ace.tui.actions.proposal_rebase import _accept_task
 # ---------------------------------------------------------------------------
 
 _PATCH_WORKFLOW = "sase.accept_workflow.AcceptWorkflow"
-_PATCH_FORMAT_CONFLICT = (
-    "sase.accept_workflow.conflict_check.format_conflict_message"
-)
+_PATCH_FORMAT_CONFLICT = "sase.accept_workflow.conflict_check.format_conflict_message"
 
 
 def _make_mock_workflow(
@@ -67,9 +65,7 @@ class TestAcceptTaskSuccess:
     def test_passes_correct_args_to_workflow(self) -> None:
         wf = _make_mock_workflow(success=True)
         with patch(_PATCH_WORKFLOW, return_value=wf) as mock_cls:
-            _accept_task(
-                [("2a", "msg")], "CL-1", "/proj.gp", True, True
-            )
+            _accept_task([("2a", "msg")], "CL-1", "/proj.gp", True, True)
 
         mock_cls.assert_called_once_with(
             proposals=[("2a", "msg")],
