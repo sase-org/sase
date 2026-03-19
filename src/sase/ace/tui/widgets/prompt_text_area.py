@@ -54,6 +54,7 @@ class PromptTextArea(TextArea):
         super().__init__(*args, **kwargs)
         self._vim_mode: str = "insert"
         self._pending_keys: str = ""
+        self._count_prefix: str = ""
 
     @property
     def _ace_app(self) -> AceApp:
@@ -137,6 +138,21 @@ class PromptTextArea(TextArea):
             else:
                 bar.border_subtitle = "[Esc] cancel"
 
+    def _update_count_display(self) -> None:
+        """Update border subtitle to show the pending count prefix."""
+        bar = self._find_prompt_bar()
+        if bar:
+            if self._count_prefix:
+                bar.border_subtitle = f"[Esc] cancel  [i] insert  {self._count_prefix}"
+            else:
+                bar.border_subtitle = "[Esc] cancel  [i] insert"
+
+    def _clear_count_prefix(self) -> None:
+        """Clear count prefix and update display if needed."""
+        if self._count_prefix:
+            self._count_prefix = ""
+            self._update_count_display()
+
     def _handle_normal_mode_key(self, event: Key) -> bool:
         """Handle a key event in NORMAL mode. Returns True if handled."""
         key = event.character or event.key
@@ -145,26 +161,40 @@ class PromptTextArea(TextArea):
         if self._pending_keys:
             pending = self._pending_keys
             self._pending_keys = ""
+            self._clear_count_prefix()
             if pending == "g" and key == "g":
                 self.cursor_location = (0, 0)
             return True
 
         # Escape - cancel prompt bar
         if event.key == "escape":
+            self._clear_count_prefix()
             bar = self._find_prompt_bar()
             if bar:
                 bar.action_cancel()
             return True
 
-        # Basic movement
+        # Count prefix accumulation: 1-9 starts, 0 appends to existing
+        if key in "123456789" or (key == "0" and self._count_prefix):
+            self._count_prefix += key
+            self._update_count_display()
+            return True
+
+        # Consume count prefix
+        count = int(self._count_prefix) if self._count_prefix else 1
+        self._clear_count_prefix()
+
+        # Basic movement (j/k support count prefix)
         if key == "h":
             self.action_cursor_left()
             return True
         if key == "j":
-            self.action_cursor_down()
+            for _ in range(count):
+                self.action_cursor_down()
             return True
         if key == "k":
-            self.action_cursor_up()
+            for _ in range(count):
+                self.action_cursor_up()
             return True
         if key == "l":
             self.action_cursor_right()
