@@ -64,23 +64,23 @@ def test_sync_status_dirty_when_modified(tmp_path):
     assert sync_status(beads_dir) is False
 
 
-def test_git_sync_commits_jsonl(tmp_path):
+def test_git_sync_stages_jsonl(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / ".sase_beads"
     beads_dir.mkdir()
     jsonl = beads_dir / "issues.jsonl"
     jsonl.write_text('{"id":"test"}\n')
 
-    git_sync(beads_dir, "test sync")
+    git_sync(beads_dir)
 
-    # Verify the file was committed
+    # Verify the file was staged but not committed
     result = subprocess.run(
-        ["git", "log", "--oneline", "-1"],
+        ["git", "diff", "--cached", "--name-only"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
     )
-    assert "test sync" in result.stdout
+    assert "issues.jsonl" in result.stdout
 
 
 def test_git_sync_noop_when_clean(tmp_path):
@@ -94,21 +94,15 @@ def test_git_sync_noop_when_clean(tmp_path):
         ["git", "commit", "-m", "initial"], cwd=tmp_path, capture_output=True
     )
 
-    # Sync again with no changes — should not create new commit
-    result_before = subprocess.run(
-        ["git", "rev-list", "--count", "HEAD"],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-    )
+    # Sync again with no changes — nothing should be staged
     git_sync(beads_dir)
-    result_after = subprocess.run(
-        ["git", "rev-list", "--count", "HEAD"],
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
     )
-    assert result_before.stdout.strip() == result_after.stdout.strip()
+    assert result.stdout.strip() == ""
 
 
 def test_rebuild_from_jsonl_creates_db(tmp_path):

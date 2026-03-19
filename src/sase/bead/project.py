@@ -184,7 +184,7 @@ class BeadProject:
         return db_mod.blocked_issues(self._conn)
 
     def sync(self) -> None:
-        """Export to JSONL and commit to git."""
+        """Export to JSONL and stage in git."""
         self._export()
         git_sync(self.beads_dir)
 

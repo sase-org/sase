@@ -299,20 +299,20 @@ class TestGitSyncWorkflow:
         with BeadProject.init(tmp_path) as proj:
             yield proj
 
-    def test_sync_commits_jsonl(self, git_project):
-        """Create issues, sync, verify JSONL committed."""
+    def test_sync_stages_jsonl(self, git_project):
+        """Create issues, sync, verify JSONL staged."""
         git_project.create("Test epic", IssueType.PLAN)
         git_project.sync()
 
-        # Check git log for sync commit
+        # Check that JSONL is staged but not committed
         result = subprocess.run(
-            ["git", "log", "--oneline"],
+            ["git", "diff", "--cached", "--name-only"],
             cwd=git_project.root_dir,
             capture_output=True,
             text=True,
             check=True,
         )
-        assert "beads: sync issues" in result.stdout
+        assert "issues.jsonl" in result.stdout
 
     def test_sync_is_clean_after_sync(self, git_project):
         """After sync, sync_is_clean returns True."""

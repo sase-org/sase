@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 
-def git_sync(beads_dir: Path, message: str = "beads: sync issues") -> None:
-    """Export JSONL and commit to git."""
+def git_sync(beads_dir: Path) -> None:
+    """Export JSONL and stage in git (does not commit)."""
     jsonl_path = beads_dir / "issues.jsonl"
     if not jsonl_path.exists():
         return
@@ -21,25 +21,14 @@ def git_sync(beads_dir: Path, message: str = "beads: sync issues") -> None:
         capture_output=True,
         check=False,
     )
-    # Check if there's anything to commit
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet"],
-        cwd=repo_root,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        # There are staged changes
-        subprocess.run(
-            ["git", "commit", "-m", message],
-            cwd=repo_root,
-            capture_output=True,
-            check=False,
-        )
 
 
 def sync_status(beads_dir: Path) -> bool:
-    """Check if JSONL has uncommitted changes. Returns True if clean."""
+    """Check if JSONL has unstaged changes. Returns True if clean.
+
+    Only checks for unstaged (working-tree) changes, since staged changes
+    are expected — they will be included in the next ccommit.
+    """
     jsonl_path = beads_dir / "issues.jsonl"
     if not jsonl_path.exists():
         return True
@@ -52,13 +41,7 @@ def sync_status(beads_dir: Path) -> bool:
         capture_output=True,
         check=False,
     )
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", str(jsonl_path)],
-        cwd=repo_root,
-        capture_output=True,
-        check=False,
-    )
-    return result.returncode == 0 and staged.returncode == 0
+    return result.returncode == 0
 
 
 def rebuild_from_jsonl(beads_dir: Path) -> bool:

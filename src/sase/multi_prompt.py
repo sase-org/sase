@@ -23,6 +23,7 @@ from sase.xprompt.models import XPrompt
 _SEGMENT_SEP_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
+# pyvision: tests/test_multi_prompt.py
 @dataclass
 class MultiPrompt:
     """Result of parsing a user prompt into frontmatter and segments."""
@@ -32,10 +33,12 @@ class MultiPrompt:
     segments: list[str] = field(default_factory=list)
 
 
+# pyvision: tests/test_multi_prompt.py
 class LocalXPromptNameError(ValueError):
     """Raised when a local xprompt name does not start with ``_``."""
 
 
+# pyvision: tests/test_multi_prompt.py
 def parse_multi_prompt(text: str) -> MultiPrompt:
     """Parse a user prompt into frontmatter, local xprompts, and segments.
 
@@ -84,6 +87,7 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
     )
 
 
+# pyvision: tests/test_multi_prompt.py
 def is_multi_prompt(text: str) -> bool:
     """Quick check: does *text* contain multiple prompt segments?
 

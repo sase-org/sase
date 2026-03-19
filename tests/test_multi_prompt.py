@@ -4,6 +4,7 @@ import pytest
 
 from sase.multi_prompt import (
     LocalXPromptNameError,
+    MultiPrompt,
     is_multi_prompt,
     parse_multi_prompt,
 )
@@ -15,6 +16,7 @@ from sase.multi_prompt import (
 def test_single_segment_no_frontmatter() -> None:
     """Plain text with no --- yields one segment and no xprompts."""
     result = parse_multi_prompt("Fix the bug in parser.py")
+    assert isinstance(result, MultiPrompt)
     assert result.segments == ["Fix the bug in parser.py"]
     assert result.frontmatter is None
     assert result.local_xprompts == {}
