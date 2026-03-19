@@ -486,5 +486,13 @@ class VimNormalModeMixin(_MixinBase):
             self.cursor_location = (row, 0)
             return True
 
+        # Shortcut operators (C = c$, D = d$)
+        if key in ("C", "D"):
+            row, col = self.cursor_location
+            line = doc.get_line(row)
+            op = "c" if key == "C" else "d"
+            self._execute_charwise_operator((row, col), (row, len(line)), op)
+            return True
+
         # Unhandled key - let it through for arrow keys, etc.
         return False

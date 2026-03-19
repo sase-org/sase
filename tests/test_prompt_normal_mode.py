@@ -813,6 +813,95 @@ async def test_u_noop_when_nothing_to_undo() -> None:
         assert ta._vim_mode == "normal"
 
 
+# =============================================================================
+# D / C (delete / change to end of line) tests
+# =============================================================================
+
+
+async def test_D_deletes_to_end_of_line() -> None:
+    """D deletes from cursor to end of line."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "hello world"
+        ta.cursor_location = (0, 5)
+        ta._enter_normal_mode()
+
+        await pilot.press("D")
+        assert ta.text == "hello"
+        assert ta._vim_mode == "normal"
+
+
+async def test_D_at_start_of_line_deletes_entire_line_content() -> None:
+    """D from column 0 deletes all content on the line."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "aaa\nbbb\nccc"
+        ta.cursor_location = (1, 0)
+        ta._enter_normal_mode()
+
+        await pilot.press("D")
+        assert ta.text == "aaa\n\nccc"
+        assert ta.cursor_location == (1, 0)
+
+
+async def test_D_at_end_of_line_is_noop() -> None:
+    """D at end of line deletes nothing."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "hello"
+        ta.cursor_location = (0, 5)
+        ta._enter_normal_mode()
+
+        await pilot.press("D")
+        assert ta.text == "hello"
+        assert ta._vim_mode == "normal"
+
+
+async def test_C_changes_to_end_of_line() -> None:
+    """C deletes to end of line and enters insert mode."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "hello world"
+        ta.cursor_location = (0, 5)
+        ta._enter_normal_mode()
+
+        await pilot.press("C")
+        assert ta.text == "hello"
+        assert ta._vim_mode == "insert"
+
+
+async def test_C_at_end_of_line_enters_insert_mode() -> None:
+    """C at end of line just enters insert mode."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "hello"
+        ta.cursor_location = (0, 5)
+        ta._enter_normal_mode()
+
+        await pilot.press("C")
+        assert ta.text == "hello"
+        assert ta._vim_mode == "insert"
+
+
+async def test_C_multiline_only_affects_current_line() -> None:
+    """C only deletes to end of current line, not into next line."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "aaa\nbbb\nccc"
+        ta.cursor_location = (1, 1)
+        ta._enter_normal_mode()
+
+        await pilot.press("C")
+        assert ta.text == "aaa\nb\nccc"
+        assert ta._vim_mode == "insert"
+
+
 async def test_d_caret_deletes_to_first_nonwhitespace() -> None:
     """d^ deletes from cursor to first non-whitespace character."""
     app = _TestApp()
