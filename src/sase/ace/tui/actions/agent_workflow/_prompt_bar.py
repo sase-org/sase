@@ -298,6 +298,17 @@ class PromptBarMixin:
                 # Direct submit - skip editor
                 PromptTextArea._last_cancelled_prompt = ""
                 self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
+            elif result.action == PromptHistoryAction.LOAD:
+                # Load into prompt input widget for inline editing
+                from ...widgets import PromptInputBar
+
+                try:
+                    bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+                    text_area = bar.query_one("#prompt-input", PromptTextArea)
+                    text_area.load_text(_build_prompt(result.prompt_text))
+                    text_area.focus()
+                except Exception:
+                    pass
             else:
                 # Edit first - open editor with selected prompt
                 prompt_for_editor = _build_prompt(result.prompt_text)

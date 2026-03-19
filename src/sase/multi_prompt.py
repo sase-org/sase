@@ -38,7 +38,6 @@ class LocalXPromptNameError(ValueError):
     """Raised when a local xprompt name does not start with ``_``."""
 
 
-# pyvision: tests/test_multi_prompt.py
 def parse_multi_prompt(text: str) -> MultiPrompt:
     """Parse a user prompt into frontmatter, local xprompts, and segments.
 

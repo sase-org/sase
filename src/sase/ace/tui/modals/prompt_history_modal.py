@@ -19,6 +19,7 @@ class PromptHistoryAction(Enum):
 
     SUBMIT = auto()  # Enter - submit prompt directly
     EDIT_FIRST = auto()  # Ctrl+G - open in editor first
+    LOAD = auto()  # Ctrl+I - load into prompt input widget
 
 
 @dataclass
@@ -47,6 +48,7 @@ class PromptHistoryModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("ctrl+g", "edit_first", "Edit in editor"),
+        ("ctrl+i", "load_to_input", "Load to input"),
         ("ctrl+y", "copy_and_cancel", "Copy & cancel"),
     ]
 
@@ -131,7 +133,7 @@ class PromptHistoryModal(
                             yield Static("", id="prompt-history-preview", markup=False)
                             yield Static("", id="prompt-history-metadata")
                 yield Static(
-                    "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • ^y: copy • Esc/q: cancel",
+                    "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • ^i: load • ^y: copy • Esc/q: cancel",
                     id="prompt-history-hints",
                 )
 
@@ -298,6 +300,17 @@ class PromptHistoryModal(
             self.dismiss(
                 PromptHistoryResult(
                     action=PromptHistoryAction.EDIT_FIRST,
+                    prompt_text=prompt_text,
+                )
+            )
+
+    def action_load_to_input(self) -> None:
+        """Handle Ctrl+I - load selected prompt into prompt input widget."""
+        prompt_text = self._get_selected_prompt_text()
+        if prompt_text:
+            self.dismiss(
+                PromptHistoryResult(
+                    action=PromptHistoryAction.LOAD,
                     prompt_text=prompt_text,
                 )
             )
