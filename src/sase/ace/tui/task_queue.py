@@ -1,6 +1,6 @@
 """Background task queue for the ace TUI.
 
-Provides TaskInfo (state for a single background task), TaskQueue (thread-safe
+Provides _TaskInfo (state for a single background task), TaskQueue (thread-safe
 registry with per-CL deduplication), and a capture_output() context manager
 that redirects stdout/stderr to a StringIO buffer.
 """
@@ -18,7 +18,7 @@ from datetime import datetime
 
 
 @dataclass
-class TaskInfo:
+class _TaskInfo:
     """State for a single background task."""
 
     task_id: str
@@ -37,7 +37,7 @@ class TaskInfo:
 class TaskQueue:
     """Thread-safe registry of background tasks with per-CL deduplication."""
 
-    _tasks: dict[str, TaskInfo] = field(default_factory=dict)
+    _tasks: dict[str, _TaskInfo] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def submit(
@@ -45,14 +45,14 @@ class TaskQueue:
         task_type: str,
         cl_name: str,
         project_file: str,
-    ) -> TaskInfo:
+    ) -> _TaskInfo:
         """Create and register a new running task.
 
-        Returns the new TaskInfo. Callers should check get_running_for_cl()
+        Returns the new _TaskInfo. Callers should check get_running_for_cl()
         first to enforce deduplication.
         """
         task_id = uuid.uuid4().hex
-        info = TaskInfo(
+        info = _TaskInfo(
             task_id=task_id,
             task_type=task_type,
             cl_name=cl_name,
@@ -85,7 +85,7 @@ class TaskQueue:
             info.error = error
             info.finished_at = datetime.now()
 
-    def get_running_for_cl(self, cl_name: str) -> TaskInfo | None:
+    def get_running_for_cl(self, cl_name: str) -> _TaskInfo | None:
         """Return the running task for *cl_name*, or None."""
         with self._lock:
             for info in self._tasks.values():
@@ -93,7 +93,7 @@ class TaskQueue:
                     return info
         return None
 
-    def get_all(self) -> list[TaskInfo]:
+    def get_all(self) -> list[_TaskInfo]:
         """Return a snapshot of all tasks (newest first)."""
         with self._lock:
             return sorted(
