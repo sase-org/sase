@@ -136,12 +136,15 @@ def postprocess_success(
 
     # Save to central chat history (~/.sase/chats/) if workflow is set
     if context.workflow:
-        _save_to_chat_history(
-            prompt=prompt,
-            response=response,
-            context=context,
-            start_timestamp=start_timestamp,
-        )
+        try:
+            _save_to_chat_history(
+                prompt=prompt,
+                response=response,
+                context=context,
+                start_timestamp=start_timestamp,
+            )
+        except Exception as e:
+            print(f"Warning: Failed to save chat history: {e}")
 
 
 def postprocess_error(

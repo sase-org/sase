@@ -178,14 +178,15 @@ def build_mentors_section(
                     chat_path = get_mentor_chat_path(
                         changespec.name, msl.mentor_name, msl.timestamp
                     )
-                    hint_mappings[hint_counter] = chat_path
-                    hint_to_entry_id[hint_counter] = mentor_entry.entry_id
-                    mentor_hint_to_info[hint_counter] = (
-                        msl.mentor_name,
-                        msl.profile_name,
-                    )
-                    text.append(f"[{hint_counter}] ", style="bold #FFFF00")
-                    hint_counter += 1
+                    if os.path.exists(chat_path):
+                        hint_mappings[hint_counter] = chat_path
+                        hint_to_entry_id[hint_counter] = mentor_entry.entry_id
+                        mentor_hint_to_info[hint_counter] = (
+                            msl.mentor_name,
+                            msl.profile_name,
+                        )
+                        text.append(f"[{hint_counter}] ", style="bold #FFFF00")
+                        hint_counter += 1
 
                 # Display timestamp if present (same magenta as HOOKS)
                 if msl.timestamp:

@@ -54,10 +54,12 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
     """
     chats_dir = get_sase_directory("chats")
     # Format matches chat_history._generate_chat_filename() with:
-    # - branch_or_workspace = cl_name
+    # - branch_or_workspace = cl_name (used as-is, NOT stripped)
     # - workflow = "mentor-{mentor_name}" (normalized to "mentor_{mentor_name}")
-    base_name = strip_reverted_suffix(cl_name)
-    filename = f"{base_name}-mentor_{mentor_name}-{timestamp}.md"
+    # NOTE: Do NOT apply strip_reverted_suffix here — save_chat_history() uses
+    # the branch_or_workspace value as-is when it's explicitly provided (which
+    # MentorWorkflow always does). Stripping here would cause a naming mismatch.
+    filename = f"{cl_name}-mentor_{mentor_name}-{timestamp}.md"
     return os.path.join(chats_dir, filename)
 
 
