@@ -131,9 +131,7 @@ class AgentInteractionMixin:
                 self._apply_wait(artifacts_dir, agent, result)
 
         self.push_screen(  # type: ignore[attr-defined]
-            WaitModal(
-                current_waiting_for=agent.waiting_for, is_running=is_running
-            ),
+            WaitModal(current_waiting_for=agent.waiting_for, is_running=is_running),
             handle_wait_result,
         )
 
