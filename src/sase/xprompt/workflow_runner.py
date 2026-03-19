@@ -25,6 +25,8 @@ _REF_PATTERN = (
     r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
 )
 
+_WORKFLOW_MODEL_OVERRIDE_ARG = "__sase_workflow_model_override"
+
 
 def is_workflow_reference(name: str) -> bool:
     """Check if a name refers to a workflow.
@@ -155,10 +157,27 @@ def _flatten_anonymous_workflow(
     prompt_text = (workflow.steps[0].agent or "").strip()
 
     # Must contain at least one #reference
+    if "#" not in prompt_text:
+        return None
+
+    # Extract directives from the wrapper prompt first so syntax like
+    # "#split %model:..." can still flatten to #split while preserving
+    # the user model override for nested workflow steps.
+    from .directives import extract_prompt_directives
+
+    prompt_text, wrapper_directives = extract_prompt_directives(prompt_text)
+    prompt_text = prompt_text.strip()
     if not prompt_text.startswith("#"):
         return None
 
     prompts = get_all_prompts(project=project)
+
+    def _attach_wrapper_model(named: dict[str, str]) -> dict[str, str]:
+        if not wrapper_directives.model:
+            return named
+        updated = dict(named)
+        updated[_WORKFLOW_MODEL_OVERRIDE_ARG] = wrapper_directives.model
+        return updated
 
     # ── Fast path: entire prompt is a single #name or #name(args) ──
     ref_text = prompt_text[1:]  # Strip leading #
@@ -188,17 +207,22 @@ def _flatten_anonymous_workflow(
                 # full prompt text for a standalone workflow to flatten to.
                 standalone = _find_standalone_workflow_ref(prompt_text, prompts)
                 if standalone is not None:
-                    return standalone
+                    ref_wf, pos, named = standalone
+                    return ref_wf, pos, _attach_wrapper_model(named)
                 workflow.name = wf_name
                 return None
         else:
-            return referenced, positional_args, named_args
+            return referenced, positional_args, _attach_wrapper_model(named_args)
 
     # ── Slow path: multiple references, extract standalone workflow ──
     # The prompt may mix xprompt parts (e.g., #gh:sase) with a single
     # standalone workflow (no prompt_part). Scan for exactly one standalone
     # workflow reference and flatten to it.
-    return _find_standalone_workflow_ref(prompt_text, prompts)
+    standalone = _find_standalone_workflow_ref(prompt_text, prompts)
+    if standalone is None:
+        return None
+    ref_wf, pos, named = standalone
+    return ref_wf, pos, _attach_wrapper_model(named)
 
 
 def _write_failed_workflow_state(
@@ -381,6 +405,15 @@ def execute_workflow(
         )
         raise
 
+    # Extract wrapper-level model override (injected during anonymous
+    # workflow flattening) before building the workflow context.
+    inherited_model_override: str | None = None
+    if _WORKFLOW_MODEL_OVERRIDE_ARG in named_args:
+        inherited_model_override = str(named_args[_WORKFLOW_MODEL_OVERRIDE_ARG])
+        named_args = {
+            k: v for k, v in named_args.items() if k != _WORKFLOW_MODEL_OVERRIDE_ARG
+        }
+
     # Build args dict from positional and named args
     args: dict[str, Any] = dict(named_args)
 
@@ -438,6 +471,7 @@ def execute_workflow(
         hitl_handler=hitl_handler,
         output_handler=output_handler,
         hitl_override=hitl_override,
+        inherited_model_override=inherited_model_override,
     )
 
     success = executor.execute()

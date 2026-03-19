@@ -1,9 +1,10 @@
 """Tests for the WorkflowExecutor class."""
 
 import tempfile
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from langchain_core.messages import AIMessage
 from sase.xprompt import HITLHandler, HITLResult, WorkflowExecutor
 from sase.xprompt.models import OutputSpec
 from sase.xprompt.workflow_executor_utils import parse_bash_output
@@ -60,6 +61,34 @@ class TestShouldHitl:
                 hitl_override=False,
             )
             assert executor._should_hitl(step) is False
+
+    def test_inherited_model_override_beats_step_model_directive(self) -> None:
+        """Workflow-level model override should take precedence for all steps."""
+        step = WorkflowStep(name="s1", agent="%model:pro Respond with ok")
+        workflow = _create_test_workflow(steps=[step])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            captured: dict[str, object] = {}
+
+            def _fake_invoke_agent(prompt: str, **kwargs: object) -> AIMessage:
+                del prompt
+                captured["directives"] = kwargs.get("directives")
+                return AIMessage(content="ok")
+
+            with patch(
+                "sase.llm_provider.invoke_agent", side_effect=_fake_invoke_agent
+            ):
+                executor = WorkflowExecutor(
+                    workflow=workflow,
+                    args={},
+                    artifacts_dir=tmpdir,
+                    inherited_model_override="gemini-3-flash-preview",
+                )
+                assert executor.execute() is True
+
+            directives = captured.get("directives")
+            assert directives is not None
+            assert getattr(directives, "model", None) == "gemini-3-flash-preview"
 
 
 class TestPythonStepExecution:

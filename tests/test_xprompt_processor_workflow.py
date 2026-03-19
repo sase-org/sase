@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_runner import (
+    _WORKFLOW_MODEL_OVERRIDE_ARG,
     WorkflowResult,
     _flatten_anonymous_workflow,
 )
@@ -291,3 +292,29 @@ def test_flatten_anonymous_workflow_slow_path_with_args(
     assert ref_wf.name == "deploy"
     assert pos_args == ["prod"]
     assert named_args == {}
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+def test_flatten_anonymous_workflow_preserves_wrapper_model_directive(
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Wrapper-level %model should be forwarded when flattening."""
+    target_wf = Workflow(
+        name="split",
+        steps=[
+            WorkflowStep(name="analyze", agent="Analyze"),
+            WorkflowStep(name="execute", agent="Execute"),
+        ],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+    workflow = _make_anonymous_workflow("#split %model:gemini-3-flash-preview")
+
+    result = _flatten_anonymous_workflow(workflow)
+
+    assert result is not None
+    ref_wf, pos_args, named_args = result
+    assert ref_wf.name == "split"
+    assert pos_args == []
+    assert named_args == {
+        _WORKFLOW_MODEL_OVERRIDE_ARG: "gemini-3-flash-preview",
+    }

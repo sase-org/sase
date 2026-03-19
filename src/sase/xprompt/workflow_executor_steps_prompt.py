@@ -1,5 +1,6 @@
 """Prompt step execution mixin."""
 
+from dataclasses import replace
 import os
 from typing import TYPE_CHECKING, Any
 
@@ -139,6 +140,7 @@ class PromptStepMixin:
     hitl_handler: HITLHandler | None
     output_handler: "WorkflowOutputHandler | None"
     state: WorkflowState
+    inherited_model_override: str | None
 
     # Method type declarations for methods provided by other mixins/main class
     _save_state: Any  # () -> None
@@ -185,6 +187,12 @@ class PromptStepMixin:
             scope=self.context,
             context=self.context,
         )
+        effective_directives = early.directives
+        if self.inherited_model_override:
+            effective_directives = replace(
+                effective_directives,
+                model=self.inherited_model_override,
+            )
 
         # Then expand embedded workflows
         # This executes pre-steps and replaces workflow refs with prompt_part content
@@ -228,7 +236,7 @@ class PromptStepMixin:
             resolve_model_provider,
         )
 
-        step_model = early.directives.model
+        step_model = effective_directives.model
         if step_model:
             resolved_provider, step_model = resolve_model_provider(step_model)
             step_llm_provider = resolved_provider or get_default_provider_name()
@@ -260,7 +268,7 @@ class PromptStepMixin:
             artifacts_dir=self.artifacts_dir,
             workflow=self.workflow.name,
             skip_preprocessing=True,
-            directives=early.directives,
+            directives=effective_directives,
         )
         response_text = ensure_str_content(response.content)
 
