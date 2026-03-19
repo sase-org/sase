@@ -473,7 +473,12 @@ def format_with_prettier(text: str) -> str:
         )
         # Unescape underscores that prettier escaped for markdown safety.
         # This preserves literal underscores in filenames and identifiers.
-        return result.stdout.replace(r"\_", "_")
+        # Loop because prettier can double-escape (\_  → \\_), and a single
+        # replace only peels one layer.
+        text = result.stdout
+        while r"\_" in text:
+            text = text.replace(r"\_", "_")
+        return text
     except subprocess.CalledProcessError:
         return text
 
