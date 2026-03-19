@@ -86,6 +86,41 @@ class PromptTextArea(TextArea):
         start, end = self.selection
         self._replace_via_keyboard("\n", start, end)
 
+    def _get_wrap_width(self) -> int:
+        """Get the width at which to auto-wrap text.
+
+        Always accounts for the gutter since line numbers appear when
+        line_count > 1 (which will be the case after wrapping).
+        """
+        text_width = self.size.width
+        if text_width <= 0:
+            return 0
+        # Reserve space for the gutter that will appear after wrapping
+        gutter_width = len(str(max(self.document.line_count, 2))) + 2
+        return max(text_width - gutter_width, 1)
+
+    def _auto_wrap_line(self) -> None:
+        """Insert a newline when the cursor's line exceeds available width."""
+        wrap_width = self._get_wrap_width()
+        if wrap_width <= 0:
+            return
+
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+
+        if len(line) <= wrap_width:
+            return
+
+        # Insert newline at the wrap boundary
+        self._replace_via_keyboard("\n", (row, wrap_width), (row, wrap_width))
+
+        # _replace_via_keyboard places cursor at (row+1, 0); adjust it
+        # so it stays at the same position relative to the text.
+        if col >= wrap_width:
+            self.cursor_location = (row + 1, col - wrap_width)
+        else:
+            self.cursor_location = (row, col)
+
     def action_open_editor(self) -> None:
         """Request to open external editor."""
         PromptInputBar = _prompt_bar_class()
@@ -451,3 +486,11 @@ class PromptTextArea(TextArea):
                         event.prevent_default()
                         return
         await super()._on_key(event)
+
+        # Auto-wrap: insert newline when line exceeds available width
+        if (
+            self._vim_mode == "insert"
+            and event.character
+            and event.character.isprintable()
+        ):
+            self._auto_wrap_line()

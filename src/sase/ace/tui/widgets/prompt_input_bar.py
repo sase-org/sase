@@ -100,6 +100,7 @@ class PromptInputBar(Static):
         """Update height and line numbers when text changes."""
         text_area = self.query_one("#prompt-input", PromptTextArea)
         if text_area._vim_mode == "insert":
+            text_area._auto_wrap_line()
             text_area.show_line_numbers = text_area.document.line_count > 1
         self._update_height()
 
