@@ -202,14 +202,14 @@ class AgentInteractionMixin:
             # Kill the agent
             self._do_kill_agent(agent)  # type: ignore[attr-defined]
 
-            # Build new prompt with %w:<name> and open prompt bar
+            # Build new prompt with %w:<name> and auto-submit
             new_prompt = f"%w:{name} {raw_content}"
 
-            self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-                initial_text=new_prompt,
+            self._setup_home_prompt_context(  # type: ignore[attr-defined]
                 display_name=agent.display_name or agent.cl_name,
                 history_sort_key=agent.cl_name or "wait",
             )
+            self._finish_agent_launch(new_prompt)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillModal(agent_description), on_confirm)  # type: ignore[attr-defined]
 

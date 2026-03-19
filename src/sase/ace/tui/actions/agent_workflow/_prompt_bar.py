@@ -104,6 +104,38 @@ class PromptBarMixin:
         except Exception:
             pass  # Bar not present
 
+    def _setup_home_prompt_context(
+        self,
+        display_name: str = "~",
+        history_sort_key: str = "home",
+    ) -> None:
+        """Set up prompt context for home directory mode without showing UI.
+
+        Args:
+            display_name: Display name shown in the prompt context.
+            history_sort_key: Key used to sort/filter prompt history.
+        """
+        from pathlib import Path
+
+        from sase.sase_utils import generate_timestamp
+
+        timestamp = generate_timestamp()
+        workflow_name = f"ace(run)-{timestamp}"
+
+        self._prompt_context = PromptContext(
+            project_name="home",
+            cl_name=None,
+            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            workspace_dir=str(Path.home()),
+            workspace_num=0,
+            workflow_name=workflow_name,
+            timestamp=timestamp,
+            history_sort_key=history_sort_key,
+            display_name=display_name,
+            update_target="",
+            is_home_mode=True,
+        )
+
     def _show_prompt_input_bar_for_home(
         self,
         initial_text: str = "",
@@ -120,29 +152,11 @@ class PromptBarMixin:
             display_name: Display name shown in the prompt context.
             history_sort_key: Key used to sort/filter prompt history.
         """
-        from pathlib import Path
-
-        from sase.sase_utils import generate_timestamp
-
         from ...widgets import PromptInputBar
 
-        timestamp = generate_timestamp()
-        workflow_name = f"ace(run)-{timestamp}"
-
-        # Store context for when prompt is submitted
-        # project_file is needed for artifact path resolution in agent_loader
-        self._prompt_context = PromptContext(
-            project_name="home",
-            cl_name=None,
-            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
-            workspace_dir=str(Path.home()),
-            workspace_num=0,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            history_sort_key=history_sort_key,
+        self._setup_home_prompt_context(
             display_name=display_name,
-            update_target="",
-            is_home_mode=True,
+            history_sort_key=history_sort_key,
         )
 
         # Remove any existing prompt bar before mounting a new one
@@ -166,25 +180,9 @@ class PromptBarMixin:
             display_name: Display name shown in the prompt context.
             history_sort_key: Key used to sort/filter prompt history.
         """
-        from pathlib import Path
-
-        from sase.sase_utils import generate_timestamp
-
-        timestamp = generate_timestamp()
-        workflow_name = f"ace(run)-{timestamp}"
-
-        self._prompt_context = PromptContext(
-            project_name="home",
-            cl_name=None,
-            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
-            workspace_dir=str(Path.home()),
-            workspace_num=0,
-            workflow_name=workflow_name,
-            timestamp=timestamp,
-            history_sort_key=history_sort_key,
+        self._setup_home_prompt_context(
             display_name=display_name,
-            update_target="",
-            is_home_mode=True,
+            history_sort_key=history_sort_key,
         )
 
         prompt = self._open_editor_for_agent_prompt(initial_text)  # type: ignore[attr-defined]
