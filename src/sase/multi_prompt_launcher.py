@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import time
+from collections.abc import Callable
 
 from sase.agent_launcher import AgentLaunchResult
 from sase.xprompt.models import XPrompt
@@ -107,6 +108,7 @@ def launch_multi_prompt_agents(
     project_name: str,
     is_home_mode: bool,
     vcs_ref: tuple[str, str] | None,
+    on_agent_spawned: Callable[[], None] | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent with naming-wait between launches.
 
@@ -169,11 +171,14 @@ def launch_multi_prompt_agents(
         )
         results.append(result)
 
+        if on_agent_spawned is not None:
+            on_agent_spawned()
+
         # Wait for agent naming before launching the next segment,
         # so bare %wait in the next segment can resolve to this agent.
         if i < len(segments) - 1:
             artifacts_dir = create_artifacts_directory(
-                workflow_name,
+                "ace-run",
                 project_name=project_name,
                 timestamp=timestamp,
             )

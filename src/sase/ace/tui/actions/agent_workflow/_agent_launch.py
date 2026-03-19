@@ -323,6 +323,7 @@ class AgentLaunchMixin:
                     project_name=ctx.project_name,
                     is_home_mode=ctx.is_home_mode,
                     vcs_ref=vcs_ref,
+                    on_agent_spawned=lambda: self.call_later(self._load_agents),  # type: ignore[attr-defined]
                 )
                 self.call_later(self._load_agents)  # type: ignore[attr-defined]
                 self.notify(  # type: ignore[attr-defined]
