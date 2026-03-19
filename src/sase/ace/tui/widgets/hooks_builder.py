@@ -91,6 +91,34 @@ def _is_old_proposal(entry_id: str, changespec: ChangeSpec) -> bool:
     return base_number != max_number
 
 
+def _has_visible_status_lines(
+    hook: HookEntry,
+    changespec: ChangeSpec,
+    hooks_fold: FoldLevel,
+    hide_passed: bool,
+    current_and_proposal_ids: set[str],
+) -> bool:
+    """Check if a hook has any visible status lines given the current fold level."""
+    if not hook.status_lines:
+        return False
+
+    for sl in hook.status_lines:
+        if hooks_fold != FoldLevel.FULLY_EXPANDED:
+            if sl.status == "PASSED" and hide_passed:
+                if not _is_fix_hook_proposal_for_this_hook(
+                    hook, sl.commit_entry_num, changespec
+                ):
+                    continue
+            if sl.status in ("FAILED", "DEAD"):
+                if sl.commit_entry_num not in current_and_proposal_ids:
+                    continue
+            if sl.status == "RUNNING" and sl.suffix_type == "pending_dead_process":
+                continue
+        return True
+
+    return False
+
+
 def build_hooks_section(
     text: Text,
     changespec: ChangeSpec,
@@ -174,10 +202,25 @@ def build_hooks_section(
             dead_ids.sort(key=parse_commit_entry_id)
             pending_dead_ids.sort(key=parse_commit_entry_id)
 
-        # Hook command line with optional status summary
+        # Check if this hook has any visible status lines
+        has_visible = _has_visible_status_lines(
+            hook, changespec, hooks_fold, hide_passed, current_and_proposal_ids
+        )
+
+        # Hook command line with optional hint and status summary
         # Contract test target commands to shorthand format
         display_command = contract_test_target_command(hook.command)
-        text.append(f"  {display_command}", style="#D7D7AF")
+
+        # Show command-level hint if hints are for hooks and no visible status lines
+        if with_hints and hints_for == "hooks_latest_only" and not has_visible:
+            text.append("  ")
+            text.append(f"[{hint_counter}] ", style="bold #FFFF00")
+            hint_mappings[hint_counter] = ""
+            hook_hint_to_idx[hint_counter] = hook_idx
+            hint_counter += 1
+            text.append(display_command, style="#D7D7AF")
+        else:
+            text.append(f"  {display_command}", style="#D7D7AF")
         if passed_ids or failed_ids or dead_ids or pending_dead_ids:
             text.append("  [folded: ", style="italic #808080")  # Grey italic
             # Build sections for each status type

@@ -126,13 +126,24 @@ class HookEditingMixin(HintMixinBase):
             self, "_mentor_hint_to_info", {}
         )
 
+        # Identify command-level hook hints (no visible status lines - delete only)
+        command_level_hints = {
+            h for h in hook_hint_to_idx if h not in self._hint_to_entry_id
+        }
+
         # Separate hook hints from mentor hints
+        # Command-level hints entered without @ are treated as deletes
         hook_hints_to_rerun = [
-            h for h in result.hints_to_rerun if h in hook_hint_to_idx
+            h
+            for h in result.hints_to_rerun
+            if h in hook_hint_to_idx and h not in command_level_hints
         ]
         hook_hints_to_delete = [
             h for h in result.hints_to_delete if h in hook_hint_to_idx
         ]
+        hook_hints_to_delete.extend(
+            h for h in result.hints_to_rerun if h in command_level_hints
+        )
         mentor_hints_to_rerun = [
             h for h in result.hints_to_rerun if h in mentor_hint_to_info
         ]
