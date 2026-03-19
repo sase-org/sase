@@ -436,6 +436,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             else:
                 # Approve: spawn coder with plan as prompt
                 current_role_suffix = ".code"
+                os.environ["SASE_PLAN"] = plan_data["plan_file"]
                 current_artifacts_dir = create_followup_artifacts(
                     ctx.project_name,
                     ctx.agent_meta,
@@ -512,8 +513,9 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
         if using_fallback and retry_cfg:
             _retry_meta["fallback_model"] = retry_cfg.fallback_model
 
-    # Clean up SASE_ARTIFACTS_DIR env var
+    # Clean up SASE_ARTIFACTS_DIR and SASE_PLAN env vars
     os.environ.pop("SASE_ARTIFACTS_DIR", None)
+    os.environ.pop("SASE_PLAN", None)
 
     saved_path: str | None = None
     diff_path: str | None = None
