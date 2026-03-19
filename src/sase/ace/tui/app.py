@@ -192,9 +192,6 @@ class AceApp(
         # Custom mode state (for user-defined prefix-key modes)
         self._custom_mode_active: str | None = None
 
-        # Count prefix for <N>j/<N>k vim-style navigation
-        self._count_prefix: str = ""
-
         # Ancestor/child/sibling navigation state
         self._ancestor_mode_active: bool = False
         self._child_mode_active: bool = False

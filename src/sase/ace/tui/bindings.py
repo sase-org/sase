@@ -34,6 +34,17 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
     Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),
     Binding("ctrl+b", "scroll_prompt_up", "Scroll Prompt Up", show=False),
+    # Saved query keybindings (1-9, 0)
+    Binding("1", "load_saved_query_1", "Load Q1", show=False),
+    Binding("2", "load_saved_query_2", "Load Q2", show=False),
+    Binding("3", "load_saved_query_3", "Load Q3", show=False),
+    Binding("4", "load_saved_query_4", "Load Q4", show=False),
+    Binding("5", "load_saved_query_5", "Load Q5", show=False),
+    Binding("6", "load_saved_query_6", "Load Q6", show=False),
+    Binding("7", "load_saved_query_7", "Load Q7", show=False),
+    Binding("8", "load_saved_query_8", "Load Q8", show=False),
+    Binding("9", "load_saved_query_9", "Load Q9", show=False),
+    Binding("0", "load_saved_query_0", "Load Q0", show=False),
     # Tab switching
     Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
     Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),

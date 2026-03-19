@@ -174,9 +174,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 69 configurable bindings."""
+    """build_app_bindings produces 69 configurable + 10 digit = 79 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 69
+    assert len(bindings) == 79
 
 
 def test_build_app_bindings_priority() -> None:
@@ -196,6 +196,15 @@ def test_build_app_bindings_uses_config_keys() -> None:
     by_action = {b.action: b for b in bindings}
     assert by_action["next_changespec"].key == "n"
     assert by_action["quit"].key == "Q"
+
+
+def test_build_app_bindings_digit_keys() -> None:
+    """Digit bindings 0-9 are always appended."""
+    bindings = build_app_bindings(_default_app_keymaps())
+    digit_actions = [b for b in bindings if b.action.startswith("load_saved_query")]
+    assert len(digit_actions) == 10
+    digit_keys = {b.key for b in digit_actions}
+    assert digit_keys == {str(d) for d in range(10)}
 
 
 # --- key_display_name ---

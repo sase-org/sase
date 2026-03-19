@@ -48,7 +48,6 @@ class EventHandlersMixin:
     _accept_mode_active: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
-    _count_prefix: str
     _custom_mode_active: str | None
     _custom_mode_prefixes: dict[str, str]
     _inactive_seconds: int
@@ -219,33 +218,10 @@ class EventHandlersMixin:
                 event.prevent_default()
                 event.stop()
         elif event.key in self._custom_mode_prefixes:
-            self._count_prefix = ""
             self._custom_mode_active = self._custom_mode_prefixes[event.key]
             self._update_custom_mode_footer(self._custom_mode_active)  # type: ignore[attr-defined]
             event.prevent_default()
             event.stop()
-        # Count prefix for <N>j/<N>k vim-style navigation
-        elif event.key in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
-            self._count_prefix += event.key
-            event.prevent_default()
-            event.stop()
-        elif event.key == "0" and self._count_prefix:
-            self._count_prefix += "0"
-            event.prevent_default()
-            event.stop()
-        elif self._count_prefix:
-            count = int(self._count_prefix)
-            self._count_prefix = ""
-            if event.key == "j":
-                for _ in range(count):
-                    self.action_next_changespec()  # type: ignore[attr-defined]
-                event.prevent_default()
-                event.stop()
-            elif event.key == "k":
-                for _ in range(count):
-                    self.action_prev_changespec()  # type: ignore[attr-defined]
-                event.prevent_default()
-                event.stop()
 
     def on_input_changed(self, _event: Input.Changed) -> None:
         """Record activity when user types in a focused Input widget.
