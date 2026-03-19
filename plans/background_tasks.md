@@ -1,5 +1,6 @@
 ---
 bead_id: sase-3
+status: done
 ---
 
 # Plan: Migrate Sync, Mail, and Accept to Background Tasks
