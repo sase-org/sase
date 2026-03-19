@@ -185,6 +185,15 @@ llm_provider:
         - "An unexpected critical error occurred:"
       wait_times: [60, 300, 1800]
       fallback_model: "gemini-3-flash-preview"
+    claude:
+      max_retries: 3
+      error_patterns:
+        - "API Error: 500"
+        - "API Error: 529"
+        - "Internal server error"
+        - "overloaded_error"
+      wait_times: [60, 300, 1800]
+      fallback_model: ""
 
 vcs_provider:
   provider: "auto"
