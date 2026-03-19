@@ -93,25 +93,15 @@ class AcceptMailMixin(HintMixinBase):
             self.notify("Invalid proposal format", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Run the accept workflow (with mark_ready_to_mail flag if @ suffix was used)
+        # Run the accept workflow (with mark_ready_to_mail flag if @ suffix was used).
+        # When should_mail is True, _run_accept_workflow sets up an on_success
+        # callback that triggers action_mail() after the background task completes.
         self._run_accept_workflow(  # type: ignore[attr-defined]
             changespec,
             entries,
             mark_ready_to_mail=should_mail,
             skip_amend=skip_amend,
         )
-
-        # If should_mail is True, the workflow already marked as ready to mail.
-        # Now trigger the mail flow.
-        if should_mail:
-            self._trigger_mail_after_accept()  # type: ignore[attr-defined]
-
-    def _trigger_mail_after_accept(self) -> None:
-        """Trigger the mail flow after a successful accept with @ suffix."""
-        self._reload_and_reposition()  # type: ignore[attr-defined]
-
-        # Now call the mail action (same as pressing 'm')
-        self.action_mail()  # type: ignore[attr-defined]
 
     def _handle_at_alone_mail_flow(self, changespec: ChangeSpec) -> None:
         """Handle the full mail flow when "@" alone is input.

@@ -14,6 +14,44 @@ if TYPE_CHECKING:
 _ROOT_PARENT_SENTINEL = "__root__"
 
 
+def _accept_task(
+    entries: list[tuple[str, str | None]],
+    cl_name: str,
+    project_file: str,
+    mark_ready_to_mail: bool,
+    skip_amend: bool,
+) -> tuple[bool, str]:
+    """Execute accept workflow as a background task.
+
+    Returns:
+        Tuple of (success, message).
+    """
+    from sase.accept_workflow import AcceptWorkflow
+    from sase.accept_workflow.conflict_check import format_conflict_message
+
+    workflow = AcceptWorkflow(
+        proposals=entries,
+        cl_name=cl_name,
+        project_file=project_file,
+        mark_ready_to_mail=mark_ready_to_mail,
+        skip_amend=skip_amend,
+    )
+    success = workflow.run()
+
+    if success:
+        suffix = " (bookkeeping only)" if skip_amend else ""
+        if len(entries) == 1:
+            return (True, f"Accepted proposal {entries[0][0]}{suffix}")
+        else:
+            ids = ", ".join(e[0] for e in entries)
+            return (True, f"Accepted proposals {ids}{suffix}")
+    else:
+        conflict_result = workflow.conflict_result
+        if conflict_result is not None and not conflict_result.success:
+            return (False, format_conflict_message(conflict_result))
+        return (False, f"Accept failed for {cl_name}")
+
+
 class ProposalRebaseMixin:
     """Mixin providing proposal acceptance and rebase actions."""
 
@@ -244,64 +282,57 @@ class ProposalRebaseMixin:
         mark_ready_to_mail: bool = False,
         skip_amend: bool = False,
     ) -> None:
-        """Run the accept workflow with parsed entries.
+        """Run the accept workflow as a background task.
 
         Args:
             changespec: The ChangeSpec to accept proposals for.
             entries: List of (proposal_id, msg) tuples.
             mark_ready_to_mail: If True, also reject remaining proposals in the
-                same atomic write.
+                same atomic write. On success, triggers action_mail() via
+                on_success callback.
             skip_amend: If True, skip checkout/apply/amend steps and only do
                 bookkeeping (renumber commit entries, etc.).
         """
-        from sase.accept_workflow import AcceptWorkflow
-        from sase.accept_workflow.conflict_check import format_conflict_message
+        cl_name = changespec.name
+        project_file = changespec.file_path
 
-        workflow: AcceptWorkflow | None = None
-        success = False
-
-        def run_handler() -> None:
-            nonlocal workflow, success
-            # Build display message
-            suffix = ""
-            if skip_amend:
-                suffix = " (bookkeeping only)"
-            if len(entries) == 1:
-                proposal_id, _ = entries[0]
-                if mark_ready_to_mail:
-                    msg = f"Accepting proposal {proposal_id} and marking ready to mail{suffix}..."
-                else:
-                    msg = f"Accepting proposal {proposal_id}{suffix}..."
-                self.notify(msg)  # type: ignore[attr-defined]
+        # Build display message
+        suffix = ""
+        if skip_amend:
+            suffix = " (bookkeeping only)"
+        if len(entries) == 1:
+            proposal_id, _ = entries[0]
+            if mark_ready_to_mail:
+                msg = f"Accepting proposal {proposal_id} and marking ready to mail{suffix}..."
             else:
-                ids = ", ".join(e[0] for e in entries)
-                if mark_ready_to_mail:
-                    msg = f"Accepting proposals {ids} and marking ready to mail{suffix}..."
-                else:
-                    msg = f"Accepting proposals {ids}{suffix}..."
-                self.notify(msg)  # type: ignore[attr-defined]
+                msg = f"Accepting proposal {proposal_id}{suffix}..."
+        else:
+            ids = ", ".join(e[0] for e in entries)
+            if mark_ready_to_mail:
+                msg = f"Accepting proposals {ids} and marking ready to mail{suffix}..."
+            else:
+                msg = f"Accepting proposals {ids}{suffix}..."
 
-            # Run accept workflow
-            workflow = AcceptWorkflow(
-                proposals=entries,
-                cl_name=changespec.name,
-                project_file=changespec.file_path,
-                mark_ready_to_mail=mark_ready_to_mail,
-                skip_amend=skip_amend,
+        def task_callable() -> tuple[bool, str]:
+            return _accept_task(
+                entries, cl_name, project_file, mark_ready_to_mail, skip_amend
             )
-            success = workflow.run()
 
-        with self.suspend():  # type: ignore[attr-defined]
-            run_handler()
+        # If mark_ready_to_mail, trigger mail after accept succeeds
+        on_success = None
+        if mark_ready_to_mail:
 
-        # Check for conflict-related failure and show notification
-        if not success and workflow is not None:
-            conflict_result = workflow.conflict_result
-            if conflict_result is not None and not conflict_result.success:
-                conflict_msg = format_conflict_message(conflict_result)
-                self.notify(conflict_msg, severity="error")  # type: ignore[attr-defined]
+            def on_accept_success() -> None:
+                self.action_mail()  # type: ignore[attr-defined]
 
-        self._reload_and_reposition()  # type: ignore[attr-defined]
+            on_success = on_accept_success
+
+        submitted = self._submit_background_task(  # type: ignore[attr-defined]
+            "accept", cl_name, project_file, task_callable, on_success=on_success
+        )
+
+        if submitted:
+            self.notify(msg)  # type: ignore[attr-defined]
 
     # --- Rebase Actions ---
 
