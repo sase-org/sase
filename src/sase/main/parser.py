@@ -44,6 +44,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Override model tier for ALL LLM provider instances (large or small)",
     )
     ace_parser.add_argument(
+        "-M",
         "--model-size",
         choices=["big", "little"],
         default=None,
@@ -57,26 +58,31 @@ def create_parser() -> argparse.ArgumentParser:
         help="Auto-refresh interval in seconds (default: 10, 0 to disable)",
     )
     ace_parser.add_argument(
+        "-a",
         "--agent",
         action="store_true",
         help="Run in headless agent mode (returns JSON to stdout)",
     )
     ace_parser.add_argument(
+        "-k",
         "--keys",
         nargs="*",
         help="Key names to press in agent mode (e.g., j j Enter)",
     )
     ace_parser.add_argument(
+        "-s",
         "--size",
         default="120x40",
         help="Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40)",
     )
     ace_parser.add_argument(
+        "-x",
         "--no-axe",
         action="store_true",
         help="Disable auto-starting the axe daemon on startup",
     )
     ace_parser.add_argument(
+        "-v",
         "--vcs-provider",
         choices=["git", "hg", "auto"],
         default=None,
@@ -90,6 +96,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     # Only --vcs-provider lives on the root axe parser (applies globally)
     axe_parser.add_argument(
+        "-v",
         "--vcs-provider",
         choices=["git", "hg", "auto"],
         default=None,
@@ -106,12 +113,14 @@ def create_parser() -> argparse.ArgumentParser:
         "start", help="Start the axe orchestrator (spawns all lumberjacks)"
     )
     axe_start_parser.add_argument(
+        "-H",
         "--max-hook-runners",
         type=int,
         default=None,
         help="Maximum concurrent hook runners (default: 3)",
     )
     axe_start_parser.add_argument(
+        "-A",
         "--max-agent-runners",
         type=int,
         default=None,
@@ -125,6 +134,7 @@ def create_parser() -> argparse.ArgumentParser:
         "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
     )
     axe_start_parser.add_argument(
+        "-z",
         "--zombie-timeout",
         type=int,
         default=None,
@@ -176,18 +186,21 @@ def create_parser() -> argparse.ArgumentParser:
         help="Query string for filtering ChangeSpecs",
     )
     axe_lumberjack_run_parser.add_argument(
+        "-H",
         "--max-hook-runners",
         type=int,
         default=None,
         help="Maximum concurrent hook runners",
     )
     axe_lumberjack_run_parser.add_argument(
+        "-A",
         "--max-agent-runners",
         type=int,
         default=None,
         help="Maximum concurrent agent runners",
     )
     axe_lumberjack_run_parser.add_argument(
+        "-z",
         "--zombie-timeout",
         type=int,
         default=None,
@@ -216,19 +229,23 @@ def create_parser() -> argparse.ArgumentParser:
         "close", help="Close one or more issues"
     )
     bead_close_parser.add_argument("ids", nargs="+", help="Issue IDs to close")
-    bead_close_parser.add_argument("--reason", help="Close reason")
+    bead_close_parser.add_argument("-r", "--reason", help="Close reason")
 
     # sase bead create
     bead_create_parser = bead_subparsers.add_parser("create", help="Create a new issue")
-    bead_create_parser.add_argument("--title", required=True, help="Issue title")
+    bead_create_parser.add_argument("-t", "--title", required=True, help="Issue title")
     bead_create_parser.add_argument(
-        "--plan", help="Path to plan file (creates a plan bead linked to this file)"
+        "-p",
+        "--plan",
+        help="Path to plan file (creates a plan bead linked to this file)",
     )
     bead_create_parser.add_argument(
-        "--parent", help="Parent bead ID (creates a phase bead as child of this parent)"
+        "-P",
+        "--parent",
+        help="Parent bead ID (creates a phase bead as child of this parent)",
     )
-    bead_create_parser.add_argument("--description", help="Issue description")
-    bead_create_parser.add_argument("--assignee", help="Assignee")
+    bead_create_parser.add_argument("-d", "--description", help="Issue description")
+    bead_create_parser.add_argument("-a", "--assignee", help="Assignee")
 
     # sase bead dep
     bead_dep_parser = bead_subparsers.add_parser("dep", help="Manage dependencies")
@@ -282,7 +299,7 @@ def create_parser() -> argparse.ArgumentParser:
     # sase bead sync
     bead_sync_parser = bead_subparsers.add_parser("sync", help="Sync with git")
     bead_sync_parser.add_argument(
-        "--status", action="store_true", help="Just check sync status"
+        "-s", "--status", action="store_true", help="Just check sync status"
     )
 
     # sase bead update
@@ -318,11 +335,13 @@ def create_parser() -> argparse.ArgumentParser:
         "Examples: '2a', '2b(Add foobar field)'.",
     )
     amend_parser.add_argument(
+        "-c",
         "--chat",
         dest="chat_path",
         help="Path to the chat file associated with this amend.",
     )
     amend_parser.add_argument(
+        "-C",
         "--cl",
         dest="cl_name",
         help="CL name (defaults to current branch name). Only used with --accept.",
@@ -335,11 +354,13 @@ def create_parser() -> argparse.ArgumentParser:
         "Saves the diff, adds a proposed entry (e.g., 2a), and cleans workspace.",
     )
     amend_parser.add_argument(
+        "-t",
         "--target-dir",
         dest="target_dir",
         help="Directory to run commands in (default: current directory).",
     )
     amend_parser.add_argument(
+        "-T",
         "--timestamp",
         help="Shared timestamp for synced chat/diff files (YYmmdd_HHMMSS format).",
     )
@@ -374,6 +395,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Bug number for FIXED= tag (bug is fixed by this CL).",
     )
     commit_parser.add_argument(
+        "-c",
         "--chat",
         dest="chat_path",
         help="Path to the chat file associated with this commit (for COMMITS entry).",
@@ -394,10 +416,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Project name to prepend to the CL description. Defaults to output of 'sase_workspace_name'.",
     )
     commit_parser.add_argument(
+        "-t",
         "--timestamp",
         help="Shared timestamp for synced chat/diff files (YYmmdd_HHMMSS format).",
     )
     commit_parser.add_argument(
+        "-e",
         "--end-timestamp",
         dest="end_timestamp",
         help="End timestamp for duration calculation (YYmmdd_HHMMSS format).",
@@ -414,16 +438,19 @@ def create_parser() -> argparse.ArgumentParser:
     )
     # Options for 'init-git' (keep sorted alphabetically by long option name)
     init_git_parser.add_argument(
+        "-b",
         "--bare-dir",
         default=None,
         help="Override bare repo path (default: ~/.sase/repos/<name>.git)",
     )
     init_git_parser.add_argument(
+        "-c",
         "--clone-dir",
         default=None,
         help="Override clone path (default: ~/projects/git/<name>/)",
     )
     init_git_parser.add_argument(
+        "-e",
         "--existing",
         default=None,
         help="Path to an existing bare repo to register instead of creating new",
@@ -446,6 +473,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Create a notification (reads JSON from stdin or uses flags)",
     )
     notify_parser.add_argument(
+        "-s",
         "--sender",
         default=None,
         help="Notification sender name (overrides sender in JSON input)",
@@ -576,6 +604,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Prompt text to expand. If not provided, reads from STDIN.",
     )
     expand_parser.add_argument(
+        "-t",
         "--trace",
         action="store_true",
         help="Print expansion trace to stderr showing each resolved reference.",
@@ -592,6 +621,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Workflow name to graph. If not provided, lists all workflows.",
     )
     graph_parser.add_argument(
+        "-f",
         "--format",
         choices=["mermaid", "text"],
         default="mermaid",
@@ -613,6 +643,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Positional arguments for the workflow.",
     )
     explain_parser.add_argument(
+        "-a",
         "--arg",
         action="append",
         dest="named_args",
