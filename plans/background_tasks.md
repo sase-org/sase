@@ -1,3 +1,7 @@
+---
+bead_id: sase-3
+---
+
 # Plan: Migrate Sync, Mail, and Accept to Background Tasks
 
 ## Overview
@@ -100,8 +104,8 @@ def capture_output() -> Generator[io.StringIO, None, None]:
 ### Integration Points
 
 - Initialize `TaskQueue` in `AceApp.__init__()` (or wherever mixins are composed)
-- The mixin's `_submit_background_task` wraps the callable: captures output, runs it, calls
-  `TaskQueue.complete()`, then posts a Textual message to trigger `self.notify()` + `_reload_and_reposition()`
+- The mixin's `_submit_background_task` wraps the callable: captures output, runs it, calls `TaskQueue.complete()`, then
+  posts a Textual message to trigger `self.notify()` + `_reload_and_reposition()`
 - Worker tracking: store `{task_id: Worker}` mapping to enable future cancellation
 
 ### Key Details
@@ -151,9 +155,9 @@ completion.
 
 ### Key Details
 
-- The `execute_workflow("sync", ...)` call sets `SASE_SYNC_CWD` env var. Since this runs in a thread, use
-  thread-local or pass it directly. Safest: set/restore env var inside the task callable with a lock, or pass
-  workspace_dir through the workflow API if possible.
+- The `execute_workflow("sync", ...)` call sets `SASE_SYNC_CWD` env var. Since this runs in a thread, use thread-local
+  or pass it directly. Safest: set/restore env var inside the task callable with a lock, or pass workspace_dir through
+  the workflow API if possible.
 - `_abort_if_needed()` must still be called in error paths within the task callable.
 - The `_reload_and_reposition()` call must happen on the main thread via `call_from_thread()`.
 
@@ -213,12 +217,12 @@ Refactor `action_mail()`:
 
 ### Key Details
 
-- Workspace lifecycle spans two phases: claimed before suspend, transferred to background task, released by task.
-  The task callable must release the workspace in its finally block.
+- Workspace lifecycle spans two phases: claimed before suspend, transferred to background task, released by task. The
+  task callable must release the workspace in its finally block.
 - The `Console` object used by `execute_mail()` in background must write to the captured StringIO, not the terminal.
   Pass a `Console(file=buffer)` constructed inside the capture context.
-- The `update_changespec_cl_atomic()` call (for newly created PRs) happens inside `execute_mail()` — this is
-  thread-safe since it writes to a file atomically.
+- The `update_changespec_cl_atomic()` call (for newly created PRs) happens inside `execute_mail()` — this is thread-safe
+  since it writes to a file atomically.
 
 ### Tests
 
@@ -237,6 +241,7 @@ Refactor `action_mail()`:
 Refactor `_run_accept_workflow()`:
 
 1. **Extract `_accept_task()`** — standalone callable:
+
    ```python
    def _accept_task(
        proposals: list[tuple[str, str | None]],
@@ -266,8 +271,8 @@ Refactor `_run_accept_workflow()`:
 ### Key Details
 
 - `AcceptWorkflow` handles its own workspace management internally — verify this is thread-safe.
-- The `self.notify(msg)` calls currently inside `run_handler()` (showing "Accepting proposal X...") should move
-  to before the task submission, since they need to run on the main thread.
+- The `self.notify(msg)` calls currently inside `run_handler()` (showing "Accepting proposal X...") should move to
+  before the task submission, since they need to run on the main thread.
 - `HintInputBar` interaction (Phase 1 of accept flow) is already non-blocking — no changes needed there.
 
 ### Tests
@@ -289,12 +294,12 @@ Refactor `_run_accept_workflow()`:
 
 ### Notification Strategy
 
-| Event | Method | Severity |
-|-------|--------|----------|
-| Task started | `self.notify()` toast | info |
-| Task succeeded | `self.notify()` toast + `_reload_and_reposition()` | info |
-| Task failed | `self.notify()` toast | error |
-| Sync resolved (with notifications) | `notify_sync_result()` (existing notification system) | — |
+| Event                              | Method                                                | Severity |
+| ---------------------------------- | ----------------------------------------------------- | -------- |
+| Task started                       | `self.notify()` toast                                 | info     |
+| Task succeeded                     | `self.notify()` toast + `_reload_and_reposition()`    | info     |
+| Task failed                        | `self.notify()` toast                                 | error    |
+| Sync resolved (with notifications) | `notify_sync_result()` (existing notification system) | —        |
 
 ### Deduplication Rules
 
