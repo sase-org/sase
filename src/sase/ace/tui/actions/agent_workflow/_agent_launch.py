@@ -140,6 +140,13 @@ class AgentLaunchMixin:
                         vcs_ref = (wf_name, ref_value)
                         break
 
+        # Ensure %wait agents have a valid CWD when the VCS provider
+        # doesn't provide a primary_workspace_dir (e.g. hg).
+        if has_wait and not ctx.is_home_mode and not ctx.workspace_dir:
+            from sase.running_field import get_workspace_directory
+
+            ctx.workspace_dir = get_workspace_directory(ctx.project_name, 1)
+
         # Check for workflow reference (e.g., #test_workflow or #split(arg1, arg2))
         # When VCS refs are present, strip them to find the core workflow reference
         workflow_prompt = prompt
