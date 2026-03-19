@@ -140,6 +140,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,m`       | Kill running mentors                                           |
 | `,r`       | Show runners info                                              |
 | `,<space>` | Run agent from current CL (skips project selection)            |
+| `,.`       | Open prompt history modal for the last CL                      |
 
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
 > [Agents Tab Leader Mode](#leader-mode--prefix-1).
@@ -177,7 +178,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `n`                 | Name agent                                                   |
 | `r`                 | Resume agent (by name if running, by chat file if completed) |
 | `v`                 | View files (hint mode)                                       |
-| `w`                 | Unwait a WAITING agent (run immediately)                     |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)              |
 | `x`                 | Kill / dismiss agent                                         |
 | `X`                 | Dismiss all completed agents (with confirmation)             |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)     |
@@ -189,6 +190,16 @@ The modal supports live filtering as you type in the search box and displays las
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                |
 | `-`                 | Reset file trim to default                                   |
 | `=`                 | Show all file lines                                          |
+
+### Wait Modal
+
+Press `w` on the Agents tab to open the WaitModal. Behavior depends on the agent's status:
+
+- **WAITING agent**: Enter another agent's name to wait for, or leave empty and press Enter to run immediately (unwait).
+- **RUNNING agent**: Enter an agent name to kill the current agent and restart it with a `%w` (wait) directive. This is
+  useful for redirecting an agent to wait on a different dependency.
+
+The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
 
 ### Workflow Folding
 
@@ -206,6 +217,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,r`       | Show runners info                                                     |
 | `,x`       | Kill agent & edit prompt                                              |
 | `,<space>` | Run agent from current agent's CL (skips selection)                   |
+| `,.`       | Open prompt history modal for the last CL                             |
 
 ### Bang Mode (`!` prefix)
 
@@ -497,6 +509,100 @@ The keymap loader validates all configuration:
 - **Prefix conflicts** between custom mode prefixes and existing app bindings are warned
 
 See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` configuration reference.
+
+## Prompt Input Widget
+
+The prompt input is a multiline TextArea widget that supports two editing modes: INSERT and NORMAL.
+
+### INSERT Mode (Default)
+
+| Key      | Action                        |
+| -------- | ----------------------------- |
+| `Enter`  | Submit the prompt             |
+| `Ctrl+J` | Insert a newline              |
+| `Ctrl+G` | Open full prompt in `$EDITOR` |
+| `Ctrl+I` | Load a prompt from history    |
+| `Escape` | Switch to vim NORMAL mode     |
+
+Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
+the text exceeds one line.
+
+### NORMAL Mode
+
+Press `Escape` in INSERT mode to enter vim-style NORMAL mode. The border title shows `[NORMAL]` and line numbers switch
+to relative numbering (current line shows absolute, others show offset).
+
+#### Motions
+
+| Key               | Action                        |
+| ----------------- | ----------------------------- |
+| `h` / `l`         | Move left / right             |
+| `j` / `k`         | Move down / up (actual lines) |
+| `w` / `W`         | Next word / WORD start        |
+| `e` / `E`         | Next word / WORD end          |
+| `b` / `B`         | Previous word / WORD start    |
+| `0` / `$`         | Line start / end              |
+| `^`               | First non-blank character     |
+| `gg` / `G`        | Top / bottom of document      |
+| `Ctrl+D`/`Ctrl+U` | Half-page down / up           |
+
+All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
+
+#### Operators
+
+| Key  | Action                             |
+| ---- | ---------------------------------- |
+| `d`  | Delete (takes a motion, e.g. `dw`) |
+| `c`  | Change (takes a motion, e.g. `cw`) |
+| `D`  | Delete to end of line              |
+| `C`  | Change to end of line              |
+| `dd` | Delete entire line                 |
+| `cc` | Change entire line                 |
+
+#### Other Commands
+
+| Key | Action                |
+| --- | --------------------- |
+| `i` | Enter INSERT mode     |
+| `a` | Append after cursor   |
+| `A` | Append at end of line |
+| `I` | Insert at line start  |
+| `o` | Open line below       |
+| `O` | Open line above       |
+| `u` | Undo                  |
+| `x` | Delete character      |
+| `p` | Paste                 |
+
+The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
+
+## Prompt History Modal
+
+Press `,.` (leader + `.`) on the CLs or Agents tab to open the prompt history modal. It displays prompts previously run
+in ACE, sorted by relevance to the current CL/agent context.
+
+### Keybindings
+
+| Key      | Action                                        |
+| -------- | --------------------------------------------- |
+| `Enter`  | Submit the highlighted prompt directly        |
+| `Ctrl+G` | Edit first — load prompt into editor          |
+| `Ctrl+I` | Load prompt into the input widget for editing |
+| `Ctrl+Y` | Copy prompt to clipboard                      |
+| `Ctrl+D` | Delete highlighted entry from history         |
+| `Esc`    | Close modal                                   |
+
+### Filtering
+
+Type in the search box to filter prompts by text or branch/workspace name. The special prefix `@ ` (at-space) includes
+cancelled prompts in the results.
+
+### Visual Markers
+
+| Marker | Color   | Meaning                          |
+| ------ | ------- | -------------------------------- |
+| `*`    | Green   | Prompt matches current branch    |
+| `~`    | Yellow  | Prompt matches current workspace |
+| `✗`    | Magenta | Prompt was cancelled             |
 
 ## Auto-Refresh
 

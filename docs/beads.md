@@ -123,12 +123,12 @@ Type is determined automatically: providing `--plan` creates a plan; providing `
 
 ### `sase bead list`
 
-List issues with optional filtering.
+List issues with optional filtering. Closed beads are excluded from the default output.
 
-| Flag       | Values                          | Description      |
-| ---------- | ------------------------------- | ---------------- |
-| `--status` | `open`, `in_progress`, `closed` | Filter by status |
-| `--type`   | `plan`, `phase`                 | Filter by type   |
+| Flag           | Values                          | Description                   |
+| -------------- | ------------------------------- | ----------------------------- |
+| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable) |
+| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)   |
 
 ### `sase bead show <id>`
 
@@ -143,14 +143,14 @@ Show issues that are ready to work on: `open` status with all dependencies `clos
 
 Update one or more fields on an issue.
 
-| Flag            | Description        |
-| --------------- | ------------------ |
-| `--status`      | Change status      |
-| `--title`       | Change title       |
-| `--description` | Change description |
-| `--notes`       | Change notes       |
-| `--design`      | Change plan path   |
-| `--assignee`    | Change assignee    |
+| Flag                | Description        |
+| ------------------- | ------------------ |
+| `-s, --status`      | Change status      |
+| `-t, --title`       | Change title       |
+| `-d, --description` | Change description |
+| `-n, --notes`       | Change notes       |
+| `-D, --design`      | Change plan path   |
+| `-a, --assignee`    | Change assignee    |
 
 ### `sase bead close <id> [<id2> ...]`
 

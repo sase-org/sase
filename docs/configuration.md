@@ -623,10 +623,10 @@ No flags. Stops the running axe orchestrator.
 
 #### `sase bead list`
 
-| Flag       | Values                          | Default | Description      |
-| ---------- | ------------------------------- | ------- | ---------------- |
-| `--status` | `open`, `in_progress`, `closed` | -       | Filter by status |
-| `--type`   | `plan`, `phase`                 | -       | Filter by type   |
+| Flag           | Values                          | Default | Description                   |
+| -------------- | ------------------------------- | ------- | ----------------------------- |
+| `-s, --status` | `open`, `in_progress`, `closed` | -       | Filter by status (repeatable) |
+| `-t, --type`   | `plan`, `phase`                 | -       | Filter by type (repeatable)   |
 
 #### `sase bead show`
 
@@ -636,15 +636,15 @@ No flags. Stops the running axe orchestrator.
 
 #### `sase bead update`
 
-| Flag            | Values                          | Default    | Description        |
-| --------------- | ------------------------------- | ---------- | ------------------ |
-| `id`            | string                          | (required) | Issue ID to update |
-| `--status`      | `open`, `in_progress`, `closed` | -          | Change status      |
-| `--title`       | string                          | -          | Change title       |
-| `--description` | string                          | -          | Change description |
-| `--notes`       | string                          | -          | Change notes       |
-| `--design`      | path                            | -          | Change plan path   |
-| `--assignee`    | string                          | -          | Change assignee    |
+| Flag                | Values                          | Default    | Description        |
+| ------------------- | ------------------------------- | ---------- | ------------------ |
+| `id`                | string                          | (required) | Issue ID to update |
+| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status      |
+| `-t, --title`       | string                          | -          | Change title       |
+| `-d, --description` | string                          | -          | Change description |
+| `-n, --notes`       | string                          | -          | Change notes       |
+| `-D, --design`      | path                            | -          | Change plan path   |
+| `-a, --assignee`    | string                          | -          | Change assignee    |
 
 #### `sase bead close`
 

@@ -189,7 +189,8 @@ src/sase/
 │   │   ├── modals/        # Modal dialogs (query, status, hook history, etc.)
 │   │   └── widgets/       # TUI widget components
 │   │       ├── file_panel/   # Agent file viewer (diff, display, trimming)
-│   │       └── prompt_panel/ # Agent prompt viewer
+│   │       ├── prompt_panel/ # Agent prompt viewer
+│   │       └── prompt_text_area.py # Multiline prompt input (vim NORMAL/INSERT modes)
 │   ├── handlers/          # Event and action handlers
 │   ├── hooks/             # Lifecycle hooks (execution, formatting, persistence)
 │   ├── comments/          # Comment management
@@ -242,9 +243,12 @@ src/sase/
 ├── gemini_wrapper/        # Gemini-specific integration
 ├── notifications/         # Notification system and delivery
 ├── status_state_machine/  # ChangeSpec status transitions
+├── multi_prompt.py        # Multi-prompt parsing (frontmatter + segment splitting)
+├── multi_prompt_launcher.py # Sequential multi-agent launch orchestration
 ├── mentor_config.py       # Mentor profile configuration loading
 ├── metahook_config.py     # Metahook configuration loading
 ├── chat_history.py        # Chat history persistence
+├── prompt_history.py      # Prompt history persistence and querying
 ├── scripts/               # Extracted Python utility scripts
 tests/                     # Test suite (mirrors src/sase/ structure)
 docs/                      # Detailed documentation

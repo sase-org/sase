@@ -30,6 +30,7 @@ Use xprompts when you want to:
 - [Protected Content](#protected-content)
 - [XPrompt Aliases](#xprompt-aliases)
 - [Recursive Expansion](#recursive-expansion)
+- [Multi-Agent Prompts](#multi-agent-prompts)
 - [Relationship to Workflows](#relationship-to-workflows)
 
 ## CLI Subcommands
@@ -594,6 +595,68 @@ See [Configuration Reference: xprompt_aliases](configuration.md#xprompt_aliases)
 XPrompt bodies can reference other xprompts. Expansion is iterative: after each round of substitution, the result is
 scanned again for new `#name` references. This continues until no known references remain, up to a maximum of 100
 iterations (to guard against circular references).
+
+## Multi-Agent Prompts
+
+A single prompt can launch multiple agents sequentially by using YAML frontmatter and `---` segment separators.
+
+### Frontmatter-Defined Local XPrompts
+
+YAML frontmatter at the start of a prompt can define local xprompts under the `xprompts:` key. These are scoped to the
+current prompt and available to all segments. Local xprompt names **must** start with `_` to distinguish them from
+global xprompts.
+
+```
+---
+xprompts:
+  _review_rules: "Always check for error handling and edge cases."
+---
+#_review_rules
+Review the authentication module.
+```
+
+Local xprompts support the same structured format as config-based xprompts (typed inputs, Jinja2 content):
+
+```
+---
+xprompts:
+  _template:
+    input: { target: word }
+    content: "Review the {{ target }} module."
+---
+#_template(auth)
+```
+
+### Segment Separators
+
+After the frontmatter block is consumed, subsequent `---` lines on their own act as segment separators. Each segment
+launches a separate agent sequentially:
+
+```
+---
+xprompts:
+  _common: "Follow the project coding conventions."
+---
+%name:step1
+#_common
+Implement the new feature.
+---
+%name:step2
+%wait:step1
+#_common
+Write tests for the new feature.
+```
+
+This launches two agents: `step1` runs first, then `step2` starts after `step1` completes (via `%wait`). Both agents
+share the `_common` local xprompt.
+
+### Rules
+
+- The first `---` pair at the start of the document is treated as YAML frontmatter.
+- After frontmatter is consumed, all subsequent `---` lines are segment separators.
+- If there is no frontmatter, ALL `---` lines are segment separators.
+- A prompt with frontmatter but only one segment is a single-agent prompt with local xprompts (not multi-agent).
+- `---` inside fenced code blocks is not treated as a separator.
 
 ## Relationship to Workflows
 
