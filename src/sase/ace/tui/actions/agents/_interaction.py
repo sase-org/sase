@@ -109,8 +109,8 @@ class AgentInteractionMixin:
 
         agent = self._agents[self.current_idx]
 
-        if agent.status != "WAITING":
-            self.notify("Agent is not waiting", severity="warning")  # type: ignore[attr-defined]
+        if agent.status not in ("WAITING", "RUNNING"):
+            self.notify("Agent is not waiting or running", severity="warning")  # type: ignore[attr-defined]
             return
 
         artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
@@ -120,13 +120,20 @@ class AgentInteractionMixin:
 
         from ...modals import WaitModal
 
+        is_running = agent.status == "RUNNING"
+
         def handle_wait_result(result: str | None) -> None:
             if result is None:
                 return  # cancelled
-            self._apply_wait(artifacts_dir, agent, result)
+            if is_running:
+                self._apply_wait_running(agent, result)
+            else:
+                self._apply_wait(artifacts_dir, agent, result)
 
         self.push_screen(  # type: ignore[attr-defined]
-            WaitModal(current_waiting_for=agent.waiting_for),
+            WaitModal(
+                current_waiting_for=agent.waiting_for, is_running=is_running
+            ),
             handle_wait_result,
         )
 
@@ -168,6 +175,45 @@ class AgentInteractionMixin:
                 self.notify("Failed to write ready.json", severity="error")  # type: ignore[attr-defined]
                 return
             self.notify(f"Wait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
+
+    def _apply_wait_running(self, agent: Agent, name: str) -> None:
+        """Kill a RUNNING agent and restart with %w:<name> added to the prompt."""
+        if not name:
+            self.notify("Agent is already running", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Get the raw prompt before killing
+        raw_content = agent.get_raw_xprompt_content()
+        if not raw_content:
+            self.notify("No prompt found for agent", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...modals import ConfirmKillModal
+
+        desc_parts = [f"Kill and restart with %w:{name}"]
+        if agent.cl_name:
+            desc_parts.append(f"CL: {agent.cl_name}")
+        if agent.pid:
+            desc_parts.append(f"PID: {agent.pid}")
+        agent_description = "\n".join(desc_parts)
+
+        def on_confirm(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+
+            # Kill the agent
+            self._do_kill_agent(agent)  # type: ignore[attr-defined]
+
+            # Build new prompt with %w:<name> and open prompt bar
+            new_prompt = f"%w:{name} {raw_content}"
+
+            self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                initial_text=new_prompt,
+                display_name=agent.display_name or agent.cl_name,
+                history_sort_key=agent.cl_name or "wait",
+            )
+
+        self.push_screen(ConfirmKillModal(agent_description), on_confirm)  # type: ignore[attr-defined]
 
     def action_edit_spec(self) -> None:
         """Edit spec/chat - behavior depends on current tab."""

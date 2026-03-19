@@ -30,27 +30,36 @@ class WaitModal(ModalScreen[str | None]):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, current_waiting_for: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        current_waiting_for: list[str] | None = None,
+        is_running: bool = False,
+    ) -> None:
         """Initialize the wait modal.
 
         Args:
             current_waiting_for: Current list of agent names being waited on.
+            is_running: True if the agent is currently running (changes hint text).
         """
         super().__init__()
         self._current_waiting_for = current_waiting_for or []
+        self._is_running = is_running
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         prefill = ", ".join(self._current_waiting_for)
+        if self._is_running:
+            hint = "Enter agent name to wait for (will kill and restart)."
+            placeholder = "agent name"
+        else:
+            hint = "Enter agent name to wait for, or press Enter to run now."
+            placeholder = "leave empty to run now"
         with Container():
             yield Label("Wait Agent", id="modal-title")
-            yield Label(
-                "Enter agent name to wait for, or press Enter to run now.",
-                id="command-hint",
-            )
+            yield Label(hint, id="command-hint")
             yield _WaitInput(
                 value=prefill,
-                placeholder="leave empty to run now",
+                placeholder=placeholder,
                 id="name-input",
             )
 
