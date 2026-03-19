@@ -32,9 +32,7 @@ def _expand_with_local(text: str) -> str:
 
     multi = parse_multi_prompt(text)
     body = "\n---\n".join(multi.segments)
-    return process_xprompt_references(
-        body, extra_xprompts=multi.local_xprompts or None
-    )
+    return process_xprompt_references(body, extra_xprompts=multi.local_xprompts or None)
 
 
 # ---------------------------------------------------------------------------
@@ -85,9 +83,7 @@ def test_local_xprompts_scoped_to_extra(_xp, _al) -> None:
     body = "\n---\n".join(multi.segments)
 
     # With local xprompts — should expand.
-    expanded = process_xprompt_references(
-        body, extra_xprompts=multi.local_xprompts
-    )
+    expanded = process_xprompt_references(body, extra_xprompts=multi.local_xprompts)
     assert "classified" in expanded
 
     # Without local xprompts — should NOT expand.
@@ -141,7 +137,9 @@ def test_extract_directives_handles_frontmatter(_xp, _al, tmp_path) -> None:
     """extract_directives_and_write_meta correctly processes frontmatter prompts."""
     from sase.multi_prompt import parse_multi_prompt
 
-    prompt = '---\nxprompts:\n  _ctx: "extra context"\n---\n%name:test_agent\nDo work. #_ctx'
+    prompt = (
+        '---\nxprompts:\n  _ctx: "extra context"\n---\n%name:test_agent\nDo work. #_ctx'
+    )
     multi = parse_multi_prompt(prompt)
     body = "\n---\n".join(multi.segments)
 
