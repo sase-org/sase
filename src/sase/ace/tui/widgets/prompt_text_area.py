@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -53,6 +54,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._mutation_key_buffer: list[str] = []
         self._last_mutation_keys: list[str] = []
         self._replaying_dot: bool = False
+        self._formatting: bool = False
 
     @property
     def _ace_app(self) -> AceApp:
@@ -130,6 +132,92 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
                 self.cursor_location = (row + 1, col - wrap_width)
             else:
                 self.cursor_location = (row, col)
+
+    async def _format_with_prettier(self) -> None:
+        """Reflow prompt text using prettier when a line overflows.
+
+        Runs the full prompt through ``prettier --prose-wrap always`` to
+        produce balanced paragraph wrapping.  Falls back to the simple
+        ``_auto_wrap_line`` when prettier is unavailable or fails.
+        """
+        if self._formatting:
+            return
+
+        wrap_width = self._get_wrap_width()
+        if wrap_width <= 0:
+            return
+
+        # Only format when at least one line actually overflows
+        needs_format = any(
+            len(self.document.get_line(i)) > wrap_width
+            for i in range(self.document.line_count)
+        )
+        if not needs_format:
+            return
+
+        text = self.text
+        row, col = self.cursor_location
+
+        # Absolute cursor offset so we can restore position after reflow
+        cursor_offset = (
+            sum(len(self.document.get_line(i)) + 1 for i in range(row)) + col
+        )
+
+        self._formatting = True
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "prettier",
+                "--parser",
+                "markdown",
+                "--prose-wrap",
+                "always",
+                "--print-width",
+                str(wrap_width),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate(text.encode())
+
+            if proc.returncode != 0:
+                self._auto_wrap_line()
+                return
+
+            formatted = stdout.decode()
+            # Prettier always appends a trailing newline
+            if formatted.endswith("\n"):
+                formatted = formatted[:-1]
+
+            if formatted == text:
+                return
+
+            # If the user typed more while prettier was running, skip
+            if self.text != text:
+                return
+
+            # Replace entire content with the reflowed version
+            doc = self.document
+            last_row = doc.line_count - 1
+            last_col = len(doc.get_line(last_row))
+            self._replace_via_keyboard(formatted, (0, 0), (last_row, last_col))
+
+            # Restore cursor to the equivalent position
+            offset = min(cursor_offset, len(formatted))
+            remaining = offset
+            lines = formatted.split("\n")
+            new_row, new_col = len(lines) - 1, len(lines[-1])
+            for i, line in enumerate(lines):
+                if remaining <= len(line):
+                    new_row = i
+                    new_col = remaining
+                    break
+                remaining -= len(line) + 1
+            self.cursor_location = (new_row, new_col)
+        except FileNotFoundError:
+            # prettier not installed — fall back to simple wrap
+            self._auto_wrap_line()
+        finally:
+            self._formatting = False
 
     def action_open_editor(self) -> None:
         """Request to open external editor."""
@@ -224,10 +312,10 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
                         return
         await super()._on_key(event)
 
-        # Auto-wrap: insert newline when line exceeds available width
+        # Auto-wrap: reflow with prettier when line exceeds available width
         if (
             self._vim_mode == "insert"
             and event.character
             and event.character.isprintable()
         ):
-            self._auto_wrap_line()
+            await self._format_with_prettier()
