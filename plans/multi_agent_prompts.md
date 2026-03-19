@@ -1,3 +1,7 @@
+---
+bead_id: sase-2
+---
+
 # Multi-Agent Prompts: Implementation Plan
 
 ## Overview
@@ -31,8 +35,8 @@ xprompts:
 #gh:sase Deploy the changes
 ```
 
-This launches 3 agents sequentially. Agent 2 waits for agent 1 (`author`) to complete. Agent 3 waits for agent 2.
-All three can use the `#_review_style` local xprompt.
+This launches 3 agents sequentially. Agent 2 waits for agent 1 (`author`) to complete. Agent 3 waits for agent 2. All
+three can use the `#_review_style` local xprompt.
 
 ---
 
@@ -43,11 +47,11 @@ All three can use the `#_review_style` local xprompt.
 ### Key Design: Disambiguating `---`
 
 The first `---` pair at the very start of the document is frontmatter (YAML between the `---` delimiters). After
-frontmatter is consumed, subsequent `---` lines on their own are segment separators. If there is no frontmatter,
-ALL `---` lines are segment separators.
+frontmatter is consumed, subsequent `---` lines on their own are segment separators. If there is no frontmatter, ALL
+`---` lines are segment separators.
 
-Important: A prompt that has frontmatter but only one segment (no `---` separators after the frontmatter closing
-`---`) is a single-agent prompt with local xprompts — not a multi-agent prompt.
+Important: A prompt that has frontmatter but only one segment (no `---` separators after the frontmatter closing `---`)
+is a single-agent prompt with local xprompts — not a multi-agent prompt.
 
 ### Files to Create
 
@@ -100,8 +104,8 @@ The same mechanism is reused.
 
 - **`src/sase/main/query_handler/_query.py`** — `run_query()`
   - Before creating the anonymous workflow, parse frontmatter from the query
-  - Pass local xprompts through to the workflow execution (either via `extra_xprompts` on the anonymous workflow
-    object, or by expanding them inline before workflow creation)
+  - Pass local xprompts through to the workflow execution (either via `extra_xprompts` on the anonymous workflow object,
+    or by expanding them inline before workflow creation)
 
 - **`src/sase/ace/tui/actions/agent_workflow/_agent_launch.py`** — `_finish_agent_launch()`
   - Before xprompt expansion (line ~158), parse frontmatter and pass local xprompts
@@ -124,7 +128,8 @@ Verify this and use it. If it doesn't exist, add it (matching the workflow runne
 
 ## Phase 3: Multi-Agent Sequential Launch Orchestration
 
-**Goal**: When a prompt splits into multiple segments, launch each as a separate agent with naming-wait between launches.
+**Goal**: When a prompt splits into multiple segments, launch each as a separate agent with naming-wait between
+launches.
 
 ### Key Design: Naming Wait
 
@@ -140,11 +145,9 @@ naming-wait only ensures the agent is registered and named.
 
 - **`src/sase/multi_prompt_launcher.py`** — Sequential launch orchestration
   - `launch_multi_prompt_agents(segments: list[str], local_xprompts: dict[str, XPrompt], ...)`:
-    1. For each segment:
-       a. Inject local xprompts into the segment (either via env var or by prepending a synthetic frontmatter)
-       b. Call the appropriate single-agent launch function
-       c. Poll the launched agent's `agent_meta.json` for the `"name"` field
-       d. Store the name for potential bare `%wait` resolution in the next segment
+    1. For each segment: a. Inject local xprompts into the segment (either via env var or by prepending a synthetic
+       frontmatter) b. Call the appropriate single-agent launch function c. Poll the launched agent's `agent_meta.json`
+       for the `"name"` field d. Store the name for potential bare `%wait` resolution in the next segment
     2. Return list of launch results
   - `wait_for_agent_naming(artifacts_dir: str, timeout: float = 30) -> str | None`:
     - Poll `agent_meta.json` for `"name"` key
@@ -157,8 +160,8 @@ Two approaches:
 **Option A: Environment variable** — Serialize the local xprompts dict to a temp JSON file and pass the path via
 `SASE_AGENT_LOCAL_XPROMPTS` env var. The agent runner reads this and passes to `process_xprompt_references()`.
 
-**Option B: Inline expansion** — Before launching each segment, expand local xprompt references inline (replace
-`#_foo` with its content). This avoids the need to pass xprompts to the subprocess but loses the xprompt structure.
+**Option B: Inline expansion** — Before launching each segment, expand local xprompt references inline (replace `#_foo`
+with its content). This avoids the need to pass xprompts to the subprocess but loses the xprompt structure.
 
 **Recommended: Option A** — It preserves the xprompt semantics (inputs, hooks, etc.) and is more robust for complex
 xprompts with arguments.
@@ -205,6 +208,7 @@ xprompts with arguments.
 ### E2E Tests
 
 Using `sase ace --agent` for headless TUI testing:
+
 - Submit a multi-prompt via the TUI prompt bar
 - Verify multiple agents appear in the agents tab
 - Verify naming propagation
@@ -218,8 +222,8 @@ Using `sase ace --agent` for headless TUI testing:
   (existing behavior)
 - **Multi-model within multi-prompt**: `%m(opus,sonnet)` in a segment should still create multi-model agents for that
   segment
-- **Resume mode (`sase run -r`)**: Multi-prompt in resume mode — should we support it? Probably not initially; error
-  if resume + multi-prompt.
+- **Resume mode (`sase run -r`)**: Multi-prompt in resume mode — should we support it? Probably not initially; error if
+  resume + multi-prompt.
 - **Bulk launch**: Multi-prompt in bulk launch mode — error or expand each CS × each segment
 
 ### Files to Modify (polish)
@@ -253,16 +257,16 @@ parse_multi_prompt()  ──→  MultiPrompt(frontmatter, local_xprompts, segmen
 
 ## Key Files Reference
 
-| File | Role |
-|------|------|
-| `src/sase/multi_prompt.py` | **NEW** — Parsing module |
-| `src/sase/multi_prompt_launcher.py` | **NEW** — Sequential launch orchestration |
-| `src/sase/agent_launcher.py` | Subprocess spawning (modify for local xprompts env var) |
-| `src/sase/axe_run_agent_phases.py` | Agent lifecycle phases (modify for local xprompts) |
-| `src/sase/ace/tui/actions/agent_workflow/_agent_launch.py` | TUI agent launch (modify for multi-prompt) |
-| `src/sase/main/query_handler/_daemon.py` | Daemon launch (modify for multi-prompt) |
-| `src/sase/main/query_handler/special_cases.py` | CLI routing (modify for auto-daemon) |
-| `src/sase/main/query_handler/_query.py` | Sync query (modify for auto-daemon redirect) |
-| `src/sase/xprompt/directives.py` | Directive parsing (reference only) |
-| `src/sase/xprompt/processor.py` | XPrompt expansion (uses extra_xprompts) |
-| `src/sase/xprompt/loader_parsing.py` | Frontmatter parsing (reuse) |
+| File                                                       | Role                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------- |
+| `src/sase/multi_prompt.py`                                 | **NEW** — Parsing module                                |
+| `src/sase/multi_prompt_launcher.py`                        | **NEW** — Sequential launch orchestration               |
+| `src/sase/agent_launcher.py`                               | Subprocess spawning (modify for local xprompts env var) |
+| `src/sase/axe_run_agent_phases.py`                         | Agent lifecycle phases (modify for local xprompts)      |
+| `src/sase/ace/tui/actions/agent_workflow/_agent_launch.py` | TUI agent launch (modify for multi-prompt)              |
+| `src/sase/main/query_handler/_daemon.py`                   | Daemon launch (modify for multi-prompt)                 |
+| `src/sase/main/query_handler/special_cases.py`             | CLI routing (modify for auto-daemon)                    |
+| `src/sase/main/query_handler/_query.py`                    | Sync query (modify for auto-daemon redirect)            |
+| `src/sase/xprompt/directives.py`                           | Directive parsing (reference only)                      |
+| `src/sase/xprompt/processor.py`                            | XPrompt expansion (uses extra_xprompts)                 |
+| `src/sase/xprompt/loader_parsing.py`                       | Frontmatter parsing (reuse)                             |
