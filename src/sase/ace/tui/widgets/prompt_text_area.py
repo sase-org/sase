@@ -55,6 +55,7 @@ class PromptTextArea(TextArea):
         self._vim_mode: str = "insert"
         self._pending_keys: str = ""
         self._count_prefix: str = ""
+        self._pending_count: int | None = None
 
     @property
     def _ace_app(self) -> AceApp:
@@ -161,9 +162,17 @@ class PromptTextArea(TextArea):
         if self._pending_keys:
             pending = self._pending_keys
             self._pending_keys = ""
+            pending_count = self._pending_count
+            self._pending_count = None
             self._clear_count_prefix()
             if pending == "g" and key == "g":
-                self.cursor_location = (0, 0)
+                if pending_count is not None:
+                    target = max(
+                        0, min(pending_count - 1, self.document.line_count - 1)
+                    )
+                    self.cursor_location = (target, 0)
+                else:
+                    self.cursor_location = (0, 0)
             return True
 
         # Escape - cancel prompt bar
@@ -181,12 +190,14 @@ class PromptTextArea(TextArea):
             return True
 
         # Consume count prefix
+        has_count = bool(self._count_prefix)
         count = int(self._count_prefix) if self._count_prefix else 1
         self._clear_count_prefix()
 
         # Basic movement (j/k support count prefix)
         if key == "h":
-            self.action_cursor_left()
+            for _ in range(count):
+                self.action_cursor_left()
             return True
         if key == "j":
             for _ in range(count):
@@ -197,28 +208,35 @@ class PromptTextArea(TextArea):
                 self.action_cursor_up()
             return True
         if key == "l":
-            self.action_cursor_right()
+            for _ in range(count):
+                self.action_cursor_right()
             return True
 
         # Word movement
         doc = self.document
         if key == "w":
-            self.cursor_location = find_next_word_start(doc, *self.cursor_location)
+            for _ in range(count):
+                self.cursor_location = find_next_word_start(doc, *self.cursor_location)
             return True
         if key == "W":
-            self.cursor_location = find_next_WORD_start(doc, *self.cursor_location)
+            for _ in range(count):
+                self.cursor_location = find_next_WORD_start(doc, *self.cursor_location)
             return True
         if key == "b":
-            self.cursor_location = find_prev_word_start(doc, *self.cursor_location)
+            for _ in range(count):
+                self.cursor_location = find_prev_word_start(doc, *self.cursor_location)
             return True
         if key == "B":
-            self.cursor_location = find_prev_WORD_start(doc, *self.cursor_location)
+            for _ in range(count):
+                self.cursor_location = find_prev_WORD_start(doc, *self.cursor_location)
             return True
         if key == "e":
-            self.cursor_location = find_next_word_end(doc, *self.cursor_location)
+            for _ in range(count):
+                self.cursor_location = find_next_word_end(doc, *self.cursor_location)
             return True
         if key == "E":
-            self.cursor_location = find_next_WORD_end(doc, *self.cursor_location)
+            for _ in range(count):
+                self.cursor_location = find_next_WORD_end(doc, *self.cursor_location)
             return True
 
         # Line movement
@@ -243,10 +261,15 @@ class PromptTextArea(TextArea):
         # Document movement
         if key == "g":
             self._pending_keys = "g"
+            self._pending_count = count if has_count else None
             return True
         if key == "G":
-            last_row = self.document.line_count - 1
-            self.cursor_location = (last_row, 0)
+            if has_count:
+                target = max(0, min(count - 1, self.document.line_count - 1))
+                self.cursor_location = (target, 0)
+            else:
+                last_row = self.document.line_count - 1
+                self.cursor_location = (last_row, 0)
             return True
 
         # Mode switching
