@@ -275,18 +275,11 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 # Binding builder
 # ---------------------------------------------------------------------------
 
-# Non-configurable digit bindings for saved queries.
-_DIGIT_BINDINGS: list[Binding] = [
-    Binding(str(d), f"load_saved_query_{d}", f"Load Q{d}", show=False)
-    for d in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
-]
-
 
 def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     """Generate the Textual ``Binding`` list from an ``AppKeymaps`` instance.
 
     Preserves the original binding order, descriptions, and priority flags.
-    Appends the 10 non-configurable digit bindings for saved queries.
 
     Returns:
         List of ``Binding`` objects suitable for ``App.BINDINGS``.
@@ -295,7 +288,6 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     for action, desc, priority in _BINDING_META:
         key = getattr(app_km, action)
         bindings.append(Binding(key, action, desc, show=False, priority=priority))
-    bindings.extend(_DIGIT_BINDINGS)
     return bindings
 
 

@@ -156,7 +156,6 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
             "Queries",
             [
                 (d(a.edit_query), "Edit search query"),
-                ("0-9", "Load saved query"),
                 (d(a.prev_query), "Previous query"),
                 (d(a.next_query), "Next query"),
             ],
