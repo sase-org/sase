@@ -72,6 +72,99 @@ class EntryPointsMixin:
             return
         self._start_custom_agent_from_selection(last)
 
+    def _start_prompt_history_from_last_selection(self) -> None:
+        """Show prompt history modal for the last agent selection (bound to ,.)."""
+        from pathlib import Path
+
+        from sase.sase_utils import generate_timestamp
+
+        from ...modals import (
+            PromptHistoryAction,
+            PromptHistoryModal,
+            PromptHistoryResult,
+        )
+
+        # Load last selection (same as <space>)
+        last = self._last_custom_agent_selection
+        if last is None:
+            from sase.ace.last_agent_selection import load_last_agent_selection
+
+            last = load_last_agent_selection()
+            if last is not None:
+                self._last_custom_agent_selection = last
+        if last is None:
+            self.notify("No previous @/<space> selection", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Resolve VCS prefix
+        project_name: str = last.project_name
+        project_file = os.path.expanduser(
+            f"~/.sase/projects/{project_name}/{project_name}.gp"
+        )
+        name = last.cl_name if last.item_type == "cl" and last.cl_name else project_name
+        vcs_prefix = _vcs_prompt_prefix(project_file, name).rstrip()
+
+        # Set up prompt context (same as _show_prompt_input_bar_for_home)
+        timestamp = generate_timestamp()
+        workflow_name = f"ace(run)-{timestamp}"
+        self._prompt_context = PromptContext(
+            project_name="home",
+            cl_name=None,
+            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            workspace_dir=str(Path.home()),
+            workspace_num=0,
+            workflow_name=workflow_name,
+            timestamp=timestamp,
+            history_sort_key=name,
+            display_name=name,
+            update_target="",
+            is_home_mode=True,
+        )
+
+        def _build_prompt(prompt_text: str) -> str:
+            if vcs_prefix:
+                from sase.xprompt import strip_vcs_workflow_tag
+
+                prompt_text = strip_vcs_workflow_tag(prompt_text)
+                return f"{vcs_prefix} {prompt_text}"
+            return prompt_text
+
+        def on_history_select(result: PromptHistoryResult | None) -> None:
+            if result is None:
+                self._prompt_context = None
+                return
+
+            from ...widgets.prompt_text_area import PromptTextArea
+
+            if result.action == PromptHistoryAction.SUBMIT:
+                PromptTextArea._last_cancelled_prompt = ""
+                self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
+            elif result.action == PromptHistoryAction.LOAD:
+                # Mount prompt bar and load text into it
+                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                    initial_text=_build_prompt(result.prompt_text),
+                    display_name=name,
+                    history_sort_key=name,
+                )
+            else:
+                # Edit in external editor
+                prompt_for_editor = _build_prompt(result.prompt_text)
+                edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
+                if edited_prompt:
+                    PromptTextArea._last_cancelled_prompt = ""
+                    self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
+                else:
+                    self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
+                    self._prompt_context = None
+
+        self.push_screen(  # type: ignore[attr-defined]
+            PromptHistoryModal(
+                sort_by=self._prompt_context.history_sort_key,
+                workspace=self._prompt_context.project_name,
+            ),
+            on_history_select,
+        )
+
     def action_start_leader_mode(self) -> None:
         """Enter leader mode for quick shortcuts (bound to ,)."""
         self._leader_mode_active = True
@@ -152,6 +245,11 @@ class EntryPointsMixin:
         if key == leader_keys["jump_to_notification"]:
             if self.current_tab == "agents":
                 self._jump_to_agent_notification()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        if key == leader_keys["prompt_history"]:
+            self._start_prompt_history_from_last_selection()
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 

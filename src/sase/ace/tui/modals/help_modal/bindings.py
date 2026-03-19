@@ -147,6 +147,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Run agent from current CL",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history'))}",
+                    "Prompt history (last CL)",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
                 ),
@@ -282,6 +286,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Kill agent & edit prompt",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history'))}",
+                    "Prompt history (last CL)",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'jump_to_notification'))}",
                     "Jump to agent notification",
                 ),
@@ -381,6 +389,10 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
             [
                 (f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_home'))}", "Run agent (home)"),
                 (f"{d(lm.prefix)}{d(_sk(lm.keys, 'runners'))}", "Show runners info"),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history'))}",
+                    "Prompt history (last CL)",
+                ),
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",

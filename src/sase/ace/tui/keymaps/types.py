@@ -328,6 +328,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "kill_and_edit": "x",
             "activity_info": "i",
             "clear_comments": "c",
+            "prompt_history": "full_stop",
         }
     )
 

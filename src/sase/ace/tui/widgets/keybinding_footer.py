@@ -261,6 +261,7 @@ class KeybindingFooter(Horizontal):
         bindings.append((k("agent_home"), "agent (home)"))
         if current_tab in ("changespecs", "agents"):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
+        bindings.append((k("prompt_history"), "prompt history"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
             if has_notification:
