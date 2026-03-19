@@ -18,6 +18,7 @@ from .inactive_indicator import InactiveIndicator
 from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
 from .tab_bar import TabBar
+from .task_indicator import TaskIndicator
 
 __all__ = [
     "AgentDetail",
@@ -39,5 +40,6 @@ __all__ = [
     "PromptInputBar",
     "SearchQueryPanel",
     "TabBar",
+    "TaskIndicator",
     "ThinkingVisibilityChanged",
 ]

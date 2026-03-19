@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from textual.worker import Worker, WorkerState
 
 from ..task_queue import TaskQueue, capture_output
+from ..widgets.task_indicator import TaskIndicator
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
@@ -30,6 +31,14 @@ class TaskActionsMixin:
         """
         self._task_queue = TaskQueue()
         self._task_workers: dict[str, Worker[Any]] = {}
+
+    def _update_task_indicator(self) -> None:
+        """Update the top-bar task indicator with the current running count."""
+        try:
+            indicator = self.query_one("#task-indicator", TaskIndicator)  # type: ignore[attr-defined]
+            indicator.set_count(self._task_queue.running_count)
+        except Exception:
+            pass
 
     def _submit_background_task(
         self,
@@ -77,6 +86,7 @@ class TaskActionsMixin:
             _wrapped, thread=True
         )
         self._task_workers[task_id] = worker
+        self._update_task_indicator()
         return True
 
     def _on_task_worker_completed(
@@ -124,6 +134,8 @@ class TaskActionsMixin:
         # Clean up worker tracking
         self._task_workers.pop(task_id, None)
 
+        self._update_task_indicator()
+
     def _on_task_worker_error(
         self,
         worker: Worker[Any],
@@ -156,6 +168,7 @@ class TaskActionsMixin:
             getattr(self, "_task_success_callbacks", {}).pop(task_id, None)
 
         self._reload_and_reposition()  # type: ignore[attr-defined]
+        self._update_task_indicator()
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Route worker state changes for background tasks."""

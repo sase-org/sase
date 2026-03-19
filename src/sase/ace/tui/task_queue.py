@@ -93,6 +93,12 @@ class TaskQueue:
                     return info
         return None
 
+    @property
+    def running_count(self) -> int:
+        """Return the number of currently running tasks."""
+        with self._lock:
+            return sum(1 for t in self._tasks.values() if t.status == "running")
+
     def get_all(self) -> list[_TaskInfo]:
         """Return a snapshot of all tasks (newest first)."""
         with self._lock:

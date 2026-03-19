@@ -20,6 +20,11 @@
     background: $surface;
 }
 
+#task-indicator {
+    width: auto;
+    content-align: right middle;
+}
+
 #inactive-indicator {
     width: auto;
     content-align: right middle;

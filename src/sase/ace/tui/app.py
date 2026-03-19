@@ -59,6 +59,7 @@ from .widgets import (
     NotificationIndicator,
     SearchQueryPanel,
     TabBar,
+    TaskIndicator,
 )
 
 log = logging.getLogger(__name__)
@@ -350,6 +351,7 @@ class AceApp(
         yield Header()
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
+            yield TaskIndicator(id="task-indicator")
             yield InactiveIndicator(id="inactive-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
