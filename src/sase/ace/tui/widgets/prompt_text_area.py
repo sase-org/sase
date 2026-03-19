@@ -269,7 +269,43 @@ class PromptTextArea(TextArea):
         """Bypass cache in NORMAL mode so relative line numbers stay current."""
         if self._vim_mode == "normal" and self.show_line_numbers:
             return self._render_line(y)
+        if self._vim_mode != "normal" and self.show_line_numbers:
+            return self._render_insert_line(y)
         return super().render_line(y)
+
+    def _render_insert_line(self, y: int) -> Strip:
+        """Color absolute line numbers in INSERT mode with cyan (#3AA99F)."""
+        strip = super().render_line(y)
+        if not self.show_line_numbers:
+            return strip
+
+        _scroll_x, scroll_y = self.scroll_offset
+        y_offset = y + scroll_y
+
+        if y_offset >= self.wrapped_document.height:
+            return strip
+
+        try:
+            line_info = self.wrapped_document._offset_to_line_info[y_offset]
+        except IndexError:
+            return strip
+
+        if line_info is None:
+            return strip
+
+        _line_index, section_offset = line_info
+        if section_offset != 0:
+            return strip
+
+        gutter_style = (self._theme.gutter_style or Style.null()) + Style(
+            color="#3AA99F"
+        )
+        segments = list(strip._segments)
+        if segments:
+            segments[0] = Segment(segments[0].text, gutter_style)
+            return Strip(segments, strip.cell_length)
+
+        return strip
 
     def _render_line(self, y: int) -> Strip:
         """Show relative line numbers in NORMAL mode."""
