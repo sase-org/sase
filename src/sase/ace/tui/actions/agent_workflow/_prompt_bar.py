@@ -89,6 +89,8 @@ class PromptBarMixin:
             update_target=update_target,
         )
 
+        # Remove any existing prompt bar before mounting a new one
+        self._unmount_prompt_bar()
         # Immediately show prompt input bar (workspace prep happens in runner)
         self.mount(PromptInputBar(id="prompt-input-bar"))  # type: ignore[attr-defined]
 
@@ -143,6 +145,8 @@ class PromptBarMixin:
             is_home_mode=True,
         )
 
+        # Remove any existing prompt bar before mounting a new one
+        self._unmount_prompt_bar()
         # Show prompt input bar
         self.mount(PromptInputBar(initial_value=initial_text, id="prompt-input-bar"))  # type: ignore[attr-defined]
 
