@@ -35,6 +35,9 @@ class VimNormalModeMixin(_MixinBase):
         _pending_count: int | None
         _pending_operator: str
         _pending_operator_count: int
+        _mutation_key_buffer: list[str]
+        _last_mutation_keys: list[str]
+        _replaying_dot: bool
 
     # -- Methods defined on PromptTextArea (stubs for type checking) --
 
@@ -66,6 +69,25 @@ class VimNormalModeMixin(_MixinBase):
             self._count_prefix = ""
             self._update_count_display()
 
+    def _record_mutation(self) -> None:
+        """Record the current key buffer as the last mutation for dot-repeat."""
+        if not self._replaying_dot and self._mutation_key_buffer:
+            self._last_mutation_keys = list(self._mutation_key_buffer)
+        self._mutation_key_buffer.clear()
+
+    def _replay_dot(self, count: int) -> None:
+        """Replay the last recorded mutation *count* times."""
+        if not self._last_mutation_keys:
+            return
+        keys = list(self._last_mutation_keys)
+        self._replaying_dot = True
+        try:
+            for _ in range(count):
+                for char in keys:
+                    self._handle_normal_mode_key(Key(char, char))
+        finally:
+            self._replaying_dot = False
+
     def _consume_pending_operator(self, count: int) -> tuple[str, int] | None:
         """Consume pending operator state if present.
 
@@ -89,6 +111,7 @@ class VimNormalModeMixin(_MixinBase):
         op: str,
     ) -> None:
         """Execute a charwise ``d``/``c`` operator over *start*..*end*."""
+        self._record_mutation()
         if start > end:
             start, end = end, start
         if start == end:
@@ -111,6 +134,7 @@ class VimNormalModeMixin(_MixinBase):
         op: str,
     ) -> None:
         """Execute a linewise ``d``/``c`` operator on rows *first_row* .. *last_row*."""
+        self._record_mutation()
         doc = self.document
         first_row = max(0, first_row)
         last_row = min(last_row, doc.line_count - 1)
@@ -146,6 +170,16 @@ class VimNormalModeMixin(_MixinBase):
     def _handle_normal_mode_key(self, event: Key) -> bool:
         """Handle a key event in NORMAL mode. Returns True if handled."""
         key = event.character or event.key
+
+        # Track keys for dot-repeat
+        if not self._replaying_dot:
+            if (
+                not self._pending_operator
+                and not self._pending_keys
+                and not self._count_prefix
+            ):
+                self._mutation_key_buffer.clear()
+            self._mutation_key_buffer.append(key)
 
         # Handle pending key sequences (gg) ----------------------------------
         if self._pending_keys:
@@ -198,6 +232,16 @@ class VimNormalModeMixin(_MixinBase):
         has_count = bool(self._count_prefix)
         count = int(self._count_prefix) if self._count_prefix else 1
         self._clear_count_prefix()
+
+        # Dot-repeat
+        if key == ".":
+            if self._pending_operator:
+                self._pending_operator = ""
+                self._pending_operator_count = 1
+                self._update_count_display()
+            self._mutation_key_buffer.clear()
+            self._replay_dot(count)
+            return True
 
         # Operator doubling (dd, cc) -----------------------------------------
         if self._pending_operator and key == self._pending_operator:

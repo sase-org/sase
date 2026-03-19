@@ -50,6 +50,9 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._pending_count: int | None = None
         self._pending_operator: str = ""
         self._pending_operator_count: int = 1
+        self._mutation_key_buffer: list[str] = []
+        self._last_mutation_keys: list[str] = []
+        self._replaying_dot: bool = False
 
     @property
     def _ace_app(self) -> AceApp:
