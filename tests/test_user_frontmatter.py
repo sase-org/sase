@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.multi_prompt import LocalXPromptNameError, parse_multi_prompt
+from sase.multi_prompt import _LocalXPromptNameError, parse_multi_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ def test_local_xprompts_scoped_to_extra(_xp, _al) -> None:
 def test_underscore_prefix_required() -> None:
     """Local xprompt names must start with _."""
     text = '---\nxprompts:\n  badname: "content"\n---\nbody'
-    with pytest.raises(LocalXPromptNameError):
+    with pytest.raises(_LocalXPromptNameError):
         parse_multi_prompt(text)
 
 

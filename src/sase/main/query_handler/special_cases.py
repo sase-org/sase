@@ -180,6 +180,16 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
 
         known_prompts = set(get_all_prompts().keys())
         if potential_query not in known_prompts and " " in potential_query:
+            # Auto-switch to daemon mode for multi-prompt queries.
+            from sase.multi_prompt import is_multi_prompt
+
+            if not daemon_mode and is_multi_prompt(potential_query):
+                from sase.multi_prompt import parse_multi_prompt
+
+                n = len(parse_multi_prompt(potential_query).segments)
+                print(f"Multi-prompt detected — launching {n} agents in daemon mode")
+                run_query_daemon(potential_query)
+                sys.exit(0)
             _run_query(potential_query)
             sys.exit(0)
 

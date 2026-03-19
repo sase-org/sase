@@ -23,7 +23,6 @@ from sase.xprompt.models import XPrompt
 _SEGMENT_SEP_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 
-# pyvision: tests/test_multi_prompt.py
 @dataclass
 class MultiPrompt:
     """Result of parsing a user prompt into frontmatter and segments."""
@@ -33,8 +32,7 @@ class MultiPrompt:
     segments: list[str] = field(default_factory=list)
 
 
-# pyvision: tests/test_multi_prompt.py
-class LocalXPromptNameError(ValueError):
+class _LocalXPromptNameError(ValueError):
     """Raised when a local xprompt name does not start with ``_``."""
 
 
@@ -51,7 +49,7 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
         5. Strip empty/whitespace-only segments.
 
     Raises:
-        LocalXPromptNameError: If any xprompt name does not start with ``_``.
+        _LocalXPromptNameError: If any xprompt name does not start with ``_``.
     """
     frontmatter, body = parse_yaml_front_matter(text)
 
@@ -86,7 +84,6 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
     )
 
 
-# pyvision: tests/test_multi_prompt.py
 def is_multi_prompt(text: str) -> bool:
     """Quick check: does *text* contain multiple prompt segments?
 
@@ -108,6 +105,6 @@ def _validate_local_xprompt_names(xprompts: dict[str, XPrompt]) -> None:
     """Raise if any local xprompt name does not start with ``_``."""
     for name in xprompts:
         if not name.startswith("_"):
-            raise LocalXPromptNameError(
+            raise _LocalXPromptNameError(
                 f"Local xprompt '{name}' must start with '_' (e.g. '_{name}')"
             )

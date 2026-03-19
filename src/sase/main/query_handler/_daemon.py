@@ -10,6 +10,9 @@ def run_query_daemon(query: str) -> None:
 
     Replicates the TUI ``@`` keybinding behaviour without TUI dependencies.
     The spawned agent appears in the TUI Agents tab.
+
+    For multi-prompt queries (containing ``---`` separators), all segments
+    are launched sequentially before this function returns.
     """
     try:
         result = launch_agent_from_cwd(query)

@@ -155,6 +155,12 @@ class AgentLaunchMixin:
         multi = parse_multi_prompt(prompt)
         local_xprompts = multi.local_xprompts
 
+        # Multi-prompt: launch each segment as a separate agent.
+        if len(multi.segments) > 1:
+            self._prompt_context = None
+            self._launch_multi_prompt_agents(multi, ctx, vcs_ref)
+            return
+
         # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
         # so multi-model directives from xprompts are detected below.
         # Keep the raw prompt (with frontmatter) for the agent runner
@@ -272,6 +278,50 @@ class AgentLaunchMixin:
 
         self.call_later(self._load_agents)  # type: ignore[attr-defined]
         self.notify(f"Started {launched} agent(s) for {ctx.display_name}")  # type: ignore[attr-defined]
+
+    def _launch_multi_prompt_agents(
+        self,
+        multi: object,
+        ctx: PromptContext,
+        vcs_ref: tuple[str, str] | None,
+    ) -> None:
+        """Launch each multi-prompt segment as a separate agent.
+
+        Delegates to ``launch_multi_prompt_agents()`` in a background thread
+        to avoid blocking the TUI event loop during naming-wait polls.
+        """
+        from sase.multi_prompt import MultiPrompt
+        from sase.multi_prompt_launcher import launch_multi_prompt_agents
+
+        assert isinstance(multi, MultiPrompt)
+
+        import threading
+
+        def _run() -> None:
+            try:
+                results = launch_multi_prompt_agents(
+                    segments=multi.segments,
+                    local_xprompts=multi.local_xprompts,
+                    cl_name=ctx.display_name,
+                    project_file=ctx.project_file,
+                    project_name=ctx.project_name,
+                    is_home_mode=ctx.is_home_mode,
+                    vcs_ref=vcs_ref,
+                )
+                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                self.notify(  # type: ignore[attr-defined]
+                    f"Started {len(results)} agent(s) for {ctx.display_name}"
+                )
+            except (RuntimeError, OSError) as e:
+                self.notify(f"Multi-prompt launch failed: {e}", severity="error")  # type: ignore[attr-defined]
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+        # Immediate feedback while agents launch in background.
+        n = len(multi.segments)
+        self.call_later(self._load_agents)  # type: ignore[attr-defined]
+        self.notify(f"Launching {n} agent(s) for {ctx.display_name}...")  # type: ignore[attr-defined]
 
     def _launch_bulk_agents(self, prompt: str) -> None:
         """Launch agents for all bulk changespecs.

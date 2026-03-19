@@ -3,8 +3,8 @@
 import pytest
 
 from sase.multi_prompt import (
-    LocalXPromptNameError,
     MultiPrompt,
+    _LocalXPromptNameError,
     is_multi_prompt,
     parse_multi_prompt,
 )
@@ -79,14 +79,14 @@ def test_frontmatter_xprompts_popped_from_dict() -> None:
 def test_invalid_xprompt_name_no_underscore() -> None:
     """Local xprompt names must start with _."""
     text = '---\nxprompts:\n  badname: "content"\n---\nbody'
-    with pytest.raises(LocalXPromptNameError, match="must start with '_'"):
+    with pytest.raises(_LocalXPromptNameError, match="must start with '_'"):
         parse_multi_prompt(text)
 
 
 def test_mixed_valid_invalid_names() -> None:
     """Even one invalid name should raise."""
     text = '---\nxprompts:\n  _good: "ok"\n  bad: "nope"\n---\nbody'
-    with pytest.raises(LocalXPromptNameError, match="bad"):
+    with pytest.raises(_LocalXPromptNameError, match="bad"):
         parse_multi_prompt(text)
 
 

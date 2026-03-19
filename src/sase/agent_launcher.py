@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class _AgentLaunchResult:
+class AgentLaunchResult:
     """Result returned after successfully spawning a background agent."""
 
     pid: int
@@ -36,7 +36,8 @@ def spawn_agent_subprocess(
     is_home_mode: bool = False,
     vcs_ref: tuple[str, str] | None = None,
     deferred_workspace: bool = False,
-) -> _AgentLaunchResult:
+    local_xprompts_file: str | None = None,
+) -> AgentLaunchResult:
     """Spawn a detached background agent process.
 
     This is the low-level entry point: all parameters must already be
@@ -87,6 +88,9 @@ def spawn_agent_subprocess(
             subprocess_env[f"{prefix}_PRE_ALLOCATED"] = "1"
             subprocess_env[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
             subprocess_env[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
+
+    if local_xprompts_file:
+        subprocess_env["SASE_AGENT_LOCAL_XPROMPTS"] = local_xprompts_file
 
     # Spawn detached subprocess
     with open(output_path, "w") as output_file:
@@ -143,7 +147,7 @@ def spawn_agent_subprocess(
             with open(home_project_file, "w", encoding="utf-8") as f:
                 f.write("")
 
-    return _AgentLaunchResult(
+    return AgentLaunchResult(
         pid=process.pid,
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
@@ -151,17 +155,20 @@ def spawn_agent_subprocess(
     )
 
 
-def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
+def launch_agent_from_cwd(query: str) -> AgentLaunchResult:
     """Resolve project context from CWD and launch a background agent.
 
     This is the high-level entry point used by ``sase run --daemon``
     and xprompt chop handlers.
 
+    For multi-prompt queries (containing ``---`` separators), all segments
+    are launched sequentially and the first result is returned.
+
     Args:
         query: The prompt/xprompt string to run as an agent.
 
     Returns:
-        _AgentLaunchResult with process info.
+        AgentLaunchResult with process info (first agent for multi-prompt).
 
     Raises:
         RuntimeError: If workspace allocation or claiming fails.
@@ -191,6 +198,43 @@ def launch_agent_from_cwd(query: str) -> _AgentLaunchResult:
 
     assert project_file is not None
     assert project_name is not None
+
+    # --- Multi-prompt detection ---
+    from sase.multi_prompt import is_multi_prompt, parse_multi_prompt
+
+    if is_multi_prompt(query):
+        from sase.multi_prompt_launcher import launch_multi_prompt_agents
+
+        multi = parse_multi_prompt(query)
+        # Determine cl_name from VCS refs (lightweight pattern check).
+        from sase.workspace_provider import get_ref_patterns
+
+        mp_cl_name = project_name
+        mp_vcs_ref: tuple[str, str] | None = None
+        for wf_name, pattern in get_ref_patterns().items():
+            match = pattern.search(query)
+            if match is not None:
+                ref_value = match.group(1) or match.group(2)
+                if ref_value:
+                    mp_cl_name = ref_value
+                    mp_vcs_ref = (wf_name, ref_value)
+                    break
+
+        add_or_update_prompt(
+            query,
+            project_name=project_name,
+            branch_or_workspace=mp_cl_name if mp_cl_name != project_name else None,
+        )
+        results = launch_multi_prompt_agents(
+            segments=multi.segments,
+            local_xprompts=multi.local_xprompts,
+            cl_name=mp_cl_name,
+            project_file=project_file,
+            project_name=project_name,
+            is_home_mode=is_home_mode,
+            vcs_ref=mp_vcs_ref,
+        )
+        return results[0]
 
     # --- Detect VCS refs in prompt ---
     from sase.xprompt.directives import has_wait_directive

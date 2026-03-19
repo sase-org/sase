@@ -54,6 +54,19 @@ def extract_directives_and_write_meta(
     multi = parse_multi_prompt(prompt)
     prompt_body = "\n---\n".join(multi.segments)
 
+    # Merge env-var-delivered local xprompts (from multi-prompt launcher)
+    # with frontmatter-defined ones.  Frontmatter takes precedence.
+    env_xprompts_path = os.environ.pop("SASE_AGENT_LOCAL_XPROMPTS", None)
+    if env_xprompts_path:
+        try:
+            from sase.multi_prompt_launcher import deserialize_local_xprompts
+
+            env_xprompts = deserialize_local_xprompts(env_xprompts_path)
+            # Frontmatter xprompts take precedence over env-delivered ones.
+            multi.local_xprompts = {**env_xprompts, **multi.local_xprompts}
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+
     # Expand xprompts before extracting directives so that
     # directives embedded in xprompts (e.g. %model:#pro inside
     # #mentor) are discovered for agent metadata.
