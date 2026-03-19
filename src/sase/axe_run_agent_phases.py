@@ -66,6 +66,11 @@ def extract_directives_and_write_meta(
             multi.local_xprompts = {**env_xprompts, **multi.local_xprompts}
         except (FileNotFoundError, json.JSONDecodeError, KeyError):
             pass
+        finally:
+            try:
+                os.unlink(env_xprompts_path)
+            except OSError:
+                pass
 
     # Expand xprompts before extracting directives so that
     # directives embedded in xprompts (e.g. %model:#pro inside

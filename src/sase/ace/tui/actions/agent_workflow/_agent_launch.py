@@ -61,6 +61,15 @@ class AgentLaunchMixin:
 
         # Check if this is a bulk run
         if self._bulk_changespecs:
+            from sase.multi_prompt import is_multi_prompt
+
+            if is_multi_prompt(prompt):
+                self.notify(
+                    "Multi-prompt is not supported with bulk launch", severity="error"
+                )  # type: ignore[attr-defined]
+                self._bulk_changespecs = None
+                self._prompt_context = None
+                return
             self._launch_bulk_agents(prompt)
             return
 
