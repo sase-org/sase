@@ -58,7 +58,9 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
     if frontmatter is not None:
         xprompt_entries = frontmatter.pop("xprompts", None)
         if isinstance(xprompt_entries, dict):
-            local_xprompts = parse_xprompt_entries(xprompt_entries, source_path="user-prompt")
+            local_xprompts = parse_xprompt_entries(
+                xprompt_entries, source_path="user-prompt"
+            )
             _validate_local_xprompt_names(local_xprompts)
 
     # Protect fenced code blocks before splitting on ---.
