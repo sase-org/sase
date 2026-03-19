@@ -424,6 +424,14 @@ class VimNormalModeMixin(_MixinBase):
             self._update_count_display()
             return True
 
+        # Undo
+        if key == "u":
+            was_readonly = self.read_only
+            self.read_only = False
+            self.undo()
+            self.read_only = was_readonly
+            return True
+
         # Mode switching
         if key == "i":
             self._enter_insert_mode()

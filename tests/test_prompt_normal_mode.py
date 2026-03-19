@@ -660,6 +660,85 @@ async def test_operator_cleared_after_execution() -> None:
         assert ta.text == "two three four"
 
 
+# =============================================================================
+# Undo (u) tests
+# =============================================================================
+
+
+async def test_u_undoes_dw() -> None:
+    """u after dw restores the deleted word."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "one two three"
+        ta.cursor_location = (0, 0)
+        ta._enter_normal_mode()
+
+        await pilot.press("d", "w")
+        assert ta.text == "two three"
+
+        await pilot.press("u")
+        assert ta.text == "one two three"
+        assert ta._vim_mode == "normal"
+
+
+async def test_u_undoes_dd() -> None:
+    """u after dd restores the deleted line."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "aaa\nbbb\nccc"
+        ta.cursor_location = (1, 0)
+        ta._enter_normal_mode()
+
+        await pilot.press("d", "d")
+        assert ta.text == "aaa\nccc"
+
+        await pilot.press("u")
+        assert ta.text == "aaa\nbbb\nccc"
+
+
+async def test_u_undoes_cw() -> None:
+    """u after cw + typed text restores original content."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "one two three"
+        ta.cursor_location = (0, 0)
+        ta._enter_normal_mode()
+
+        await pilot.press("c", "w")
+        assert ta._vim_mode == "insert"
+        assert ta.text == "two three"
+
+        # Type replacement text
+        await pilot.press("X", "X", "X", " ")
+        assert ta.text == "XXX two three"
+
+        # Back to normal mode, then undo
+        await pilot.press("escape")
+        await pilot.press("u")
+        # Undo the typed text first
+        assert ta.text == "two three"
+        await pilot.press("u")
+        # Undo the deletion
+        assert ta.text == "one two three"
+
+
+async def test_u_noop_when_nothing_to_undo() -> None:
+    """u with no edit history does nothing."""
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one("#ta", PromptTextArea)
+        ta.text = "hello"
+        ta.cursor_location = (0, 0)
+        ta._enter_normal_mode()
+
+        await pilot.press("u")
+        assert ta.text == "hello"
+        assert ta._vim_mode == "normal"
+
+
 async def test_d_caret_deletes_to_first_nonwhitespace() -> None:
     """d^ deletes from cursor to first non-whitespace character."""
     app = _TestApp()
