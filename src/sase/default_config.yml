@@ -193,7 +193,7 @@ llm_provider:
         - "Internal server error"
         - "overloaded_error"
       wait_times: [60, 300, 1800]
-      fallback_model: ""
+      fallback_model: "sonnet"
 
 vcs_provider:
   provider: "auto"
