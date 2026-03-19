@@ -102,10 +102,7 @@ class AgentInteractionMixin:
             super().action_reword()  # type: ignore[misc]
 
     def _unwait_agent(self) -> None:
-        """Remove the wait directive from a WAITING agent, letting it run immediately."""
-        import json
-        from pathlib import Path
-
+        """Prompt for an agent name to wait for, or unwait immediately."""
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
@@ -121,24 +118,56 @@ class AgentInteractionMixin:
             self.notify("No artifacts directory for agent", severity="warning")  # type: ignore[attr-defined]
             return
 
-        ready_path = Path(artifacts_dir) / "ready.json"
-        if ready_path.exists():
-            self.notify("Agent already has ready.json", severity="warning")  # type: ignore[attr-defined]
-            return
+        from ...modals import UnwaitModal
 
-        # Write ready.json so the polling agent runner proceeds immediately
-        try:
-            with open(ready_path, "w", encoding="utf-8") as f:
-                json.dump(
-                    {"resolved_deps": agent.waiting_for, "unwait": True},
-                    f,
-                    indent=2,
-                )
-        except OSError:
-            self.notify("Failed to write ready.json", severity="error")  # type: ignore[attr-defined]
-            return
+        def handle_unwait_result(result: str | None) -> None:
+            if result is None:
+                return  # cancelled
+            self._apply_unwait(artifacts_dir, agent, result)
 
-        self.notify(f"Unwait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            UnwaitModal(current_waiting_for=agent.waiting_for),
+            handle_unwait_result,
+        )
+
+    def _apply_unwait(self, artifacts_dir: str, agent: Agent, name: str) -> None:
+        """Apply the unwait result: run now (empty) or wait for a new agent."""
+        import json
+        from pathlib import Path
+
+        if name:
+            # Update waiting.json to wait for the specified agent instead
+            waiting_path = Path(artifacts_dir) / "waiting.json"
+            try:
+                data: dict[str, object] = {}
+                if waiting_path.exists():
+                    with open(waiting_path, encoding="utf-8") as f:
+                        data = json.load(f)
+                data["waiting_for"] = [name]
+                with open(waiting_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+            except OSError:
+                self.notify("Failed to update waiting.json", severity="error")  # type: ignore[attr-defined]
+                return
+            agent.waiting_for = [name]
+            self.notify(f"Now waiting for: {name}")  # type: ignore[attr-defined]
+        else:
+            # Empty name → unwait now (write ready.json)
+            ready_path = Path(artifacts_dir) / "ready.json"
+            if ready_path.exists():
+                self.notify("Agent already has ready.json", severity="warning")  # type: ignore[attr-defined]
+                return
+            try:
+                with open(ready_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {"resolved_deps": agent.waiting_for, "unwait": True},
+                        f,
+                        indent=2,
+                    )
+            except OSError:
+                self.notify("Failed to write ready.json", severity="error")  # type: ignore[attr-defined]
+                return
+            self.notify(f"Unwait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
 
     def action_edit_spec(self) -> None:
         """Edit spec/chat - behavior depends on current tab."""
