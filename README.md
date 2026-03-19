@@ -315,7 +315,3 @@ This project was heavily influenced by two research papers:
   <img src="docs/images/pdl_paper.png" alt="Visual overview of the PDL paper" width="800">
 
 <sub>Images generated with [Nano Banana](https://notebooklm.google.com/) (Google's NotebookLM) via Gemini.</sub>
-
-## License
-
-MIT
