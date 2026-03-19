@@ -111,13 +111,13 @@ Initialize the beads directory in the current project.
 
 Create a new issue.
 
-| Flag            | Required | Description                                      |
-| --------------- | -------- | ------------------------------------------------ |
-| `--title`       | yes      | Issue title                                      |
-| `--plan`        | no       | Path to plan file (creates a plan bead)          |
-| `--parent`      | no       | Parent bead ID (creates a phase under this plan) |
-| `--description` | no       | Issue description                                |
-| `--assignee`    | no       | Assignee name                                    |
+| Flag                | Required | Description                                      |
+| ------------------- | -------- | ------------------------------------------------ |
+| `-t, --title`       | yes      | Issue title                                      |
+| `-p, --plan`        | no       | Path to plan file (creates a plan bead)          |
+| `-P, --parent`      | no       | Parent bead ID (creates a phase under this plan) |
+| `-d, --description` | no       | Issue description                                |
+| `-a, --assignee`    | no       | Assignee name                                    |
 
 Type is determined automatically: providing `--plan` creates a plan; providing `--parent` creates a phase.
 
@@ -156,9 +156,9 @@ Update one or more fields on an issue.
 
 Close one or more issues.
 
-| Flag       | Description                |
-| ---------- | -------------------------- |
-| `--reason` | Optional close reason text |
+| Flag           | Description                |
+| -------------- | -------------------------- |
+| `-r, --reason` | Optional close reason text |
 
 ### `sase bead rm <id>`
 
@@ -176,9 +176,9 @@ Show all issues that have at least one active (non-closed) blocker.
 
 Export the SQLite database to JSONL and commit to git.
 
-| Flag       | Description                          |
-| ---------- | ------------------------------------ |
-| `--status` | Check sync status without committing |
+| Flag           | Description                          |
+| -------------- | ------------------------------------ |
+| `-s, --status` | Check sync status without committing |
 
 ### `sase bead stats`
 

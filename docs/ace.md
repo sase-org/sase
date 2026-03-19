@@ -20,10 +20,11 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | `QUERY` (positional)       | Query string for filtering ChangeSpecs                         |
 | `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`) |
 | `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)   |
-| `--vcs-provider`           | Override VCS provider (`git`, `hg`, or `auto`)                 |
-| `--agent`                  | Run in headless agent mode (returns JSON to stdout)            |
-| `--keys`                   | Key names to press in agent mode (e.g., `j j Enter`)           |
-| `--size`                   | Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40) |
+| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                |
+| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                 |
+| `-a`, `--agent`            | Run in headless agent mode (returns JSON to stdout)            |
+| `-k`, `--keys`             | Key names to press in agent mode (e.g., `j j Enter`)           |
+| `-s`, `--size`             | Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40) |
 
 ### Examples
 

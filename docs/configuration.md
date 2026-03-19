@@ -490,27 +490,28 @@ These are set automatically by sase when launching agent subprocesses and are no
 | ------------------------ | ------------------- | ------------------------- | ---------------------------------------------- |
 | `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.        |
 | `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.   |
-| `--model-size`           | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.           |
+| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.           |
 | `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).          |
-| `--vcs-provider`         | `git`, `hg`, `auto` | -                         | Override VCS provider.                         |
-| `--agent`                | flag                | -                         | Run in headless agent mode (returns JSON).     |
-| `--keys`                 | strings             | -                         | Key names to press in agent mode.              |
-| `--size`                 | `WxH`               | `120x40`                  | Terminal size for agent mode (e.g., `200x50`). |
+| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.          |
+| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                         |
+| `-a, --agent`            | flag                | -                         | Run in headless agent mode (returns JSON).     |
+| `-k, --keys`             | strings             | -                         | Key names to press in agent mode.              |
+| `-s, --size`             | `WxH`               | `120x40`                  | Terminal size for agent mode (e.g., `200x50`). |
 
 ### `sase axe`
 
-| Flag             | Values              | Default | Description            |
-| ---------------- | ------------------- | ------- | ---------------------- |
-| `--vcs-provider` | `git`, `hg`, `auto` | -       | Override VCS provider. |
+| Flag                 | Values              | Default | Description            |
+| -------------------- | ------------------- | ------- | ---------------------- |
+| `-v, --vcs-provider` | `git`, `hg`, `auto` | -       | Override VCS provider. |
 
 ### `sase axe start`
 
-| Flag                  | Values        | Default          | Description                                         |
-| --------------------- | ------------- | ---------------- | --------------------------------------------------- |
-| `-q, --query`         | string        | `""` (all)       | Query string for filtering ChangeSpecs.             |
-| `--max-hook-runners`  | int           | config or `3`    | Maximum concurrent hook runners.                    |
-| `--max-agent-runners` | int           | config or `3`    | Maximum concurrent agent runners.                   |
-| `--zombie-timeout`    | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
+| Flag                      | Values        | Default          | Description                                         |
+| ------------------------- | ------------- | ---------------- | --------------------------------------------------- |
+| `-q, --query`             | string        | `""` (all)       | Query string for filtering ChangeSpecs.             |
+| `-H, --max-hook-runners`  | int           | config or `3`    | Maximum concurrent hook runners.                    |
+| `-A, --max-agent-runners` | int           | config or `3`    | Maximum concurrent agent runners.                   |
+| `-z, --zombie-timeout`    | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
 
 For `sase axe start`, CLI flags take precedence over values from the `axe` config section in `sase.yml`. If neither is
 set, the built-in defaults from `default_config.yml` are used.
@@ -521,30 +522,30 @@ No flags. Stops the running axe orchestrator.
 
 ### `sase commit`
 
-| Flag              | Values | Default            | Description                                                   |
-| ----------------- | ------ | ------------------ | ------------------------------------------------------------- |
-| `cl_name`         | string | (required)         | CL name for the commit.                                       |
-| `[file_path]`     | path   | -                  | File containing the CL description (opens editor if omitted). |
-| `-b, --bug`       | string | auto-detected      | Bug number for the `BUG=` tag.                                |
-| `-B, --fixed-bug` | string | -                  | Bug number for the `FIXED=` tag.                              |
-| `--chat`          | path   | -                  | Chat file path for the COMMITS entry.                         |
-| `-m, --message`   | string | -                  | Commit message (mutually exclusive with file_path).           |
-| `-n, --note`      | string | `"Initial Commit"` | Custom note for the initial COMMITS entry.                    |
-| `-p, --project`   | string | auto-detected      | Project name prefix.                                          |
-| `--timestamp`     | string | -                  | Shared timestamp (YYmmdd_HHMMSS format).                      |
-| `--end-timestamp` | string | -                  | End timestamp for duration calculation.                       |
+| Flag                  | Values | Default            | Description                                                   |
+| --------------------- | ------ | ------------------ | ------------------------------------------------------------- |
+| `cl_name`             | string | (required)         | CL name for the commit.                                       |
+| `[file_path]`         | path   | -                  | File containing the CL description (opens editor if omitted). |
+| `-b, --bug`           | string | auto-detected      | Bug number for the `BUG=` tag.                                |
+| `-B, --fixed-bug`     | string | -                  | Bug number for the `FIXED=` tag.                              |
+| `-c, --chat`          | path   | -                  | Chat file path for the COMMITS entry.                         |
+| `-m, --message`       | string | -                  | Commit message (mutually exclusive with file_path).           |
+| `-n, --note`          | string | `"Initial Commit"` | Custom note for the initial COMMITS entry.                    |
+| `-p, --project`       | string | auto-detected      | Project name prefix.                                          |
+| `-t, --timestamp`     | string | -                  | Shared timestamp (YYmmdd_HHMMSS format).                      |
+| `-e, --end-timestamp` | string | -                  | End timestamp for duration calculation.                       |
 
 ### `sase amend`
 
-| Flag            | Values | Default | Description                                                 |
-| --------------- | ------ | ------- | ----------------------------------------------------------- |
-| `[note...]`     | string | -       | Amend note (or proposal entries when using `--accept`).     |
-| `-a, --accept`  | flag   | -       | Accept proposed COMMITS entries by applying their diffs.    |
-| `--chat`        | path   | -       | Chat file path for this amend.                              |
-| `--cl`          | string | -       | CL name (defaults to current branch). Used with `--accept`. |
-| `-p, --propose` | flag   | -       | Create a proposed COMMITS entry without amending.           |
-| `--target-dir`  | path   | CWD     | Directory to run commands in.                               |
-| `--timestamp`   | string | -       | Shared timestamp (YYmmdd_HHMMSS format).                    |
+| Flag               | Values | Default | Description                                                 |
+| ------------------ | ------ | ------- | ----------------------------------------------------------- |
+| `[note...]`        | string | -       | Amend note (or proposal entries when using `--accept`).     |
+| `-a, --accept`     | flag   | -       | Accept proposed COMMITS entries by applying their diffs.    |
+| `-c, --chat`       | path   | -       | Chat file path for this amend.                              |
+| `-C, --cl`         | string | -       | CL name (defaults to current branch). Used with `--accept`. |
+| `-p, --propose`    | flag   | -       | Create a proposed COMMITS entry without amending.           |
+| `-t, --target-dir` | path   | CWD     | Directory to run commands in.                               |
+| `-T, --timestamp`  | string | -       | Shared timestamp (YYmmdd_HHMMSS format).                    |
 
 ### `sase search`
 
@@ -576,10 +577,10 @@ No flags. Stops the running axe orchestrator.
 
 ### `sase xprompt expand`
 
-| Flag       | Values | Default | Description                                                  |
-| ---------- | ------ | ------- | ------------------------------------------------------------ |
-| `[prompt]` | string | stdin   | Prompt text to expand (reads from stdin if omitted).         |
-| `--trace`  | flag   | -       | Print expansion trace to stderr showing resolved references. |
+| Flag          | Values | Default | Description                                                  |
+| ------------- | ------ | ------- | ------------------------------------------------------------ |
+| `[prompt]`    | string | stdin   | Prompt text to expand (reads from stdin if omitted).         |
+| `-t, --trace` | flag   | -       | Print expansion trace to stderr showing resolved references. |
 
 ### `sase xprompt explain`
 
@@ -587,23 +588,23 @@ No flags. Stops the running axe orchestrator.
 | --------------- | ------ | ---------- | ------------------------------------------- |
 | `workflow_name` | string | (required) | Workflow name to explain.                   |
 | `[args]`        | string | -          | Positional arguments for the workflow.      |
-| `--arg`         | string | -          | Named argument as `KEY=VALUE` (repeatable). |
+| `-a, --arg`     | string | -          | Named argument as `KEY=VALUE` (repeatable). |
 
 ### `sase xprompt graph`
 
 | Flag              | Values           | Default   | Description                                             |
 | ----------------- | ---------------- | --------- | ------------------------------------------------------- |
 | `[workflow_name]` | string           | -         | Workflow name to graph. Lists all workflows if omitted. |
-| `--format`        | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
+| `-f, --format`    | `mermaid`,`text` | `mermaid` | Output format for the DAG visualization.                |
 
 ### `sase init-git`
 
-| Flag           | Values | Default                    | Description                                             |
-| -------------- | ------ | -------------------------- | ------------------------------------------------------- |
-| `project_name` | string | (required)                 | Name of the project to initialize.                      |
-| `--bare-dir`   | path   | `~/.sase/repos/<name>.git` | Override bare repo path.                                |
-| `--clone-dir`  | path   | `~/projects/git/<name>/`   | Override clone path.                                    |
-| `--existing`   | path   | -                          | Register an existing bare repo instead of creating one. |
+| Flag              | Values | Default                    | Description                                             |
+| ----------------- | ------ | -------------------------- | ------------------------------------------------------- |
+| `project_name`    | string | (required)                 | Name of the project to initialize.                      |
+| `-b, --bare-dir`  | path   | `~/.sase/repos/<name>.git` | Override bare repo path.                                |
+| `-c, --clone-dir` | path   | `~/projects/git/<name>/`   | Override clone path.                                    |
+| `-e, --existing`  | path   | -                          | Register an existing bare repo instead of creating one. |
 
 ### `sase bead`
 
@@ -613,13 +614,13 @@ No flags. Stops the running axe orchestrator.
 
 #### `sase bead create`
 
-| Flag            | Values | Default    | Description                                      |
-| --------------- | ------ | ---------- | ------------------------------------------------ |
-| `--title`       | string | (required) | Issue title                                      |
-| `--plan`        | path   | -          | Path to plan file (creates a plan bead)          |
-| `--parent`      | string | -          | Parent bead ID (creates a phase under this plan) |
-| `--description` | string | -          | Issue description                                |
-| `--assignee`    | string | -          | Assignee name                                    |
+| Flag                | Values | Default    | Description                                      |
+| ------------------- | ------ | ---------- | ------------------------------------------------ |
+| `-t, --title`       | string | (required) | Issue title                                      |
+| `-p, --plan`        | path   | -          | Path to plan file (creates a plan bead)          |
+| `-P, --parent`      | string | -          | Parent bead ID (creates a phase under this plan) |
+| `-d, --description` | string | -          | Issue description                                |
+| `-a, --assignee`    | string | -          | Assignee name                                    |
 
 #### `sase bead list`
 
@@ -648,10 +649,10 @@ No flags. Stops the running axe orchestrator.
 
 #### `sase bead close`
 
-| Flag       | Values | Default    | Description                |
-| ---------- | ------ | ---------- | -------------------------- |
-| `ids`      | string | (required) | One or more issue IDs      |
-| `--reason` | string | -          | Optional close reason text |
+| Flag           | Values | Default    | Description                |
+| -------------- | ------ | ---------- | -------------------------- |
+| `ids`          | string | (required) | One or more issue IDs      |
+| `-r, --reason` | string | -          | Optional close reason text |
 
 #### `sase bead rm`
 
@@ -668,9 +669,9 @@ No flags. Stops the running axe orchestrator.
 
 #### `sase bead sync`
 
-| Flag       | Values | Default | Description                          |
-| ---------- | ------ | ------- | ------------------------------------ |
-| `--status` | flag   | -       | Check sync status without committing |
+| Flag           | Values | Default | Description                          |
+| -------------- | ------ | ------- | ------------------------------------ |
+| `-s, --status` | flag   | -       | Check sync status without committing |
 
 ### `sase logs`
 
@@ -692,9 +693,9 @@ Supported date range formats:
 
 ### `sase notify`
 
-| Flag       | Values | Default | Description                                               |
-| ---------- | ------ | ------- | --------------------------------------------------------- |
-| `--sender` | string | -       | Notification sender name (overrides sender in JSON input) |
+| Flag           | Values | Default | Description                                               |
+| -------------- | ------ | ------- | --------------------------------------------------------- |
+| `-s, --sender` | string | -       | Notification sender name (overrides sender in JSON input) |
 
 ### `sase plan`
 
