@@ -1,4 +1,4 @@
-"""Tests for sase.ace.handlers.mail._mail_execute_task."""
+"""Tests for sase.ace.handlers.mail.mail_execute_task."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.ace.handlers.mail import _mail_execute_task
+from sase.ace.handlers.mail import mail_execute_task
 
 
 # ---------------------------------------------------------------------------
@@ -41,9 +41,7 @@ def _patch_release():
 @pytest.fixture
 def _patch_transition():
     """Patch status transition with successful default."""
-    with patch(
-        _PATCH_TRANSITION, return_value=(True, "Ready", None, None)
-    ) as m_trans:
+    with patch(_PATCH_TRANSITION, return_value=(True, "Ready", None, None)) as m_trans:
         yield m_trans
 
 
@@ -64,7 +62,7 @@ class TestMailExecuteTaskSuccess:
         self, _patch_release, _patch_transition, _patch_execute_mail
     ) -> None:
         cs = _make_changespec()
-        success, message = _mail_execute_task(cs, "/ws/100", 100)
+        success, message = mail_execute_task(cs, "/ws/100", 100)
 
         assert success is True
         assert "Mailed CL-1" in message
@@ -79,7 +77,7 @@ class TestMailExecuteTaskSuccess:
             return_value=(False, None, "invalid transition", None),
         ):
             cs = _make_changespec()
-            success, message = _mail_execute_task(cs, "/ws/100", 100)
+            success, message = mail_execute_task(cs, "/ws/100", 100)
 
         assert success is True
         assert "status update failed" in message
@@ -88,7 +86,7 @@ class TestMailExecuteTaskSuccess:
         self, _patch_release, _patch_transition, _patch_execute_mail
     ) -> None:
         cs = _make_changespec()
-        _mail_execute_task(cs, "/ws/100", 100)
+        mail_execute_task(cs, "/ws/100", 100)
 
         _patch_execute_mail.assert_called_once()
         args = _patch_execute_mail.call_args
@@ -99,7 +97,7 @@ class TestMailExecuteTaskSuccess:
         self, _patch_release, _patch_transition, _patch_execute_mail
     ) -> None:
         cs = _make_changespec()
-        _mail_execute_task(cs, "/ws/100", 100)
+        mail_execute_task(cs, "/ws/100", 100)
 
         _patch_transition.assert_called_once_with(
             "/proj.gp", "CL-1", "Mailed", validate=True
@@ -112,25 +110,21 @@ class TestMailExecuteTaskSuccess:
 
 
 class TestMailExecuteTaskFailure:
-    def test_returns_failure_when_execute_mail_fails(
-        self, _patch_release
-    ) -> None:
+    def test_returns_failure_when_execute_mail_fails(self, _patch_release) -> None:
         with patch(_PATCH_EXECUTE_MAIL, return_value=False):
             cs = _make_changespec()
-            success, message = _mail_execute_task(cs, "/ws/100", 100)
+            success, message = mail_execute_task(cs, "/ws/100", 100)
 
         assert success is False
         assert "Mail failed for CL-1" in message
 
-    def test_does_not_transition_when_execute_mail_fails(
-        self, _patch_release
-    ) -> None:
+    def test_does_not_transition_when_execute_mail_fails(self, _patch_release) -> None:
         with (
             patch(_PATCH_EXECUTE_MAIL, return_value=False),
             patch(_PATCH_TRANSITION) as m_trans,
         ):
             cs = _make_changespec()
-            _mail_execute_task(cs, "/ws/100", 100)
+            mail_execute_task(cs, "/ws/100", 100)
 
         m_trans.assert_not_called()
 
@@ -145,25 +139,21 @@ class TestMailExecuteTaskWorkspaceLifecycle:
         self, _patch_release, _patch_transition, _patch_execute_mail
     ) -> None:
         cs = _make_changespec()
-        _mail_execute_task(cs, "/ws/100", 100)
+        mail_execute_task(cs, "/ws/100", 100)
 
         _patch_release.assert_called_once_with("/proj.gp", 100, "mail", "CL-1")
 
-    def test_workspace_released_on_execute_mail_failure(
-        self, _patch_release
-    ) -> None:
+    def test_workspace_released_on_execute_mail_failure(self, _patch_release) -> None:
         with patch(_PATCH_EXECUTE_MAIL, return_value=False):
             cs = _make_changespec()
-            _mail_execute_task(cs, "/ws/100", 100)
+            mail_execute_task(cs, "/ws/100", 100)
 
         _patch_release.assert_called_once_with("/proj.gp", 100, "mail", "CL-1")
 
-    def test_workspace_released_on_exception(
-        self, _patch_release
-    ) -> None:
+    def test_workspace_released_on_exception(self, _patch_release) -> None:
         with patch(_PATCH_EXECUTE_MAIL, side_effect=Exception("boom")):
             cs = _make_changespec()
             with pytest.raises(Exception, match="boom"):
-                _mail_execute_task(cs, "/ws/100", 100)
+                mail_execute_task(cs, "/ws/100", 100)
 
         _patch_release.assert_called_once_with("/proj.gp", 100, "mail", "CL-1")

@@ -9,9 +9,6 @@ from rich.markup import escape as _esc
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from sase.status_state_machine import (
-    transition_changespec_status,
-)
 from sase.vcs_provider import get_vcs_provider
 
 from .changespec import ChangeSpec
@@ -123,51 +120,3 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
 
     console.print("[green]Change sent for review successfully![/green]")
     return True
-
-
-def handle_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> bool:
-    """Handle mailing a CL with startblock configuration.
-
-    This is the main entry point for the "m" (mail) action. It performs
-    mail prep, executes the mail command, and updates the project file.
-
-    Args:
-        changespec: The ChangeSpec to mail
-        target_dir: The workspace directory for the CL
-        console: Rich console for output
-
-    Returns:
-        True if mailing succeeded, False otherwise
-    """
-    # Run mail prep
-    prep_result = prepare_mail(changespec, target_dir, console)
-    if prep_result is None:
-        return False
-
-    if not prep_result.should_mail:
-        return False
-
-    # Execute the mail command
-    success = execute_mail(changespec, target_dir, console)
-    if not success:
-        return False
-
-    # Update status to "Mailed"
-    console.print("[cyan]Updating status to 'Mailed'...[/cyan]")
-    status_success, old_status, status_error, _ = transition_changespec_status(
-        changespec.file_path,
-        changespec.name,
-        "Mailed",
-        validate=True,
-    )
-    if status_success:
-        console.print(
-            f"[green]Status updated: {old_status if old_status else 'Ready'} → Mailed[/green]"
-        )
-        return True
-    else:
-        console.print(
-            f"[yellow]Warning: CL was mailed but status update failed: "
-            f"{status_error if status_error else 'Unknown error'}[/yellow]"
-        )
-        return True  # Still return True since mailing succeeded

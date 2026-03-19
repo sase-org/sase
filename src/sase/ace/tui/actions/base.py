@@ -230,7 +230,7 @@ class BaseActionsMixin:
         )
 
         from ...handlers import handle_mail_prepare
-        from ...handlers.mail import _mail_execute_task
+        from ...handlers.mail import mail_execute_task
         from .._workflow_context import WorkflowContext
 
         cl_name = changespec.name
@@ -268,7 +268,7 @@ class BaseActionsMixin:
         # Non-interactive phase: submit execute_mail as background task
         # The background task owns the workspace from here and releases in finally
         def task_callable() -> tuple[bool, str]:
-            return _mail_execute_task(changespec, workspace_dir, workspace_num)
+            return mail_execute_task(changespec, workspace_dir, workspace_num)
 
         submitted = self._submit_background_task(  # type: ignore[attr-defined]
             "mail", cl_name, project_file, task_callable

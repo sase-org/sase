@@ -14,6 +14,7 @@ from sase.ace.tui.actions.sync import _sync_task
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_workflow_result(status: str = "success", message: str = "ok") -> MagicMock:
     """Create a mock WorkflowResult with JSON output."""
     import json
@@ -98,9 +99,7 @@ class TestSyncTaskSuccess:
 
         assert success is True
         assert "Synced CL-1" in message
-        m_notify.assert_called_once_with(
-            "resolved", "CL-1", "/ws/100", "/proj.gp"
-        )
+        m_notify.assert_called_once_with("resolved", "CL-1", "/ws/100", "/proj.gp")
 
 
 # ---------------------------------------------------------------------------
@@ -109,18 +108,14 @@ class TestSyncTaskSuccess:
 
 
 class TestSyncTaskFailure:
-    def test_returns_failure_on_workspace_dir_error(
-        self, _patch_running_field
-    ) -> None:
+    def test_returns_failure_on_workspace_dir_error(self, _patch_running_field) -> None:
         _patch_running_field["get_dir"].side_effect = RuntimeError("no dir")
         success, message = _sync_task("CL-1", "/proj.gp", "proj")
 
         assert success is False
         assert "Failed to get workspace directory" in message
 
-    def test_returns_failure_on_claim_failure(
-        self, _patch_running_field
-    ) -> None:
+    def test_returns_failure_on_claim_failure(self, _patch_running_field) -> None:
         _patch_running_field["claim"].return_value = False
         success, message = _sync_task("CL-1", "/proj.gp", "proj")
 
@@ -167,7 +162,10 @@ class TestSyncTaskFailure:
     ) -> None:
         result = MagicMock()
         result.output = "not json"
-        with patch(_PATCH_WORKFLOW, return_value=result):
+        with (
+            patch(_PATCH_WORKFLOW, return_value=result),
+            patch("sase.notifications.senders.notify_sync_result"),
+        ):
             success, message = _sync_task("CL-1", "/proj.gp", "proj")
 
         assert success is False
@@ -207,9 +205,7 @@ class TestSyncTaskWorkspaceLifecycle:
 
         _patch_running_field["release"].assert_called_once()
 
-    def test_workspace_not_released_on_dir_error(
-        self, _patch_running_field
-    ) -> None:
+    def test_workspace_not_released_on_dir_error(self, _patch_running_field) -> None:
         """Workspace is not claimed if get_workspace_directory_for_num fails,
         so release should not be called."""
         _patch_running_field["get_dir"].side_effect = RuntimeError("no dir")

@@ -48,7 +48,7 @@ def handle_mail_prepare(
     return prepare_mail(changespec, workspace_dir, self.console)
 
 
-def _mail_execute_task(
+def mail_execute_task(
     changespec: ChangeSpec,
     workspace_dir: str,
     workspace_num: int,
@@ -86,8 +86,7 @@ def _mail_execute_task(
         if status_success:
             return (
                 True,
-                f"Mailed {changespec.name}: "
-                f"{old_status or 'Ready'} → Mailed",
+                f"Mailed {changespec.name}: {old_status or 'Ready'} → Mailed",
             )
         else:
             # Mailing succeeded but status update failed
