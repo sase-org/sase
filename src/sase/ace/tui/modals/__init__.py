@@ -19,7 +19,7 @@ from .prompt_history_modal import (
 )
 from .query_edit_modal import QueryEditModal
 from .rename_cl_modal import RenameCLModal
-from .unwait_modal import UnwaitModal
+from .wait_modal import WaitModal
 from .revive_agent_modal import DismissedAgentSelectModal
 from .runners_modal import RunnerJumpTarget, RunnersModal, get_runner_count
 from .status_modal import StatusModal
@@ -71,7 +71,7 @@ __all__ = [
     "StatusModal",
     "TabName",
     "TagInputModal",
-    "UnwaitModal",
+    "WaitModal",
     "UserQuestionModal",
     "UserQuestionResult",
     "XPromptBrowserModal",
