@@ -94,7 +94,12 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         return max(text_width - gutter_width, 1)
 
     def _auto_wrap_line(self) -> None:
-        """Insert a newline when the cursor's line exceeds available width."""
+        """Insert a newline when the cursor's line exceeds available width.
+
+        Breaks at the last space at or before the wrap boundary so words
+        are never split.  Falls back to a hard break only when there is
+        no space to break on.
+        """
         wrap_width = self._get_wrap_width()
         if wrap_width <= 0:
             return
@@ -105,15 +110,23 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         if len(line) <= wrap_width:
             return
 
-        # Insert newline at the wrap boundary
-        self._replace_via_keyboard("\n", (row, wrap_width), (row, wrap_width))
+        # Find the last space at or before the wrap boundary
+        break_pos = line.rfind(" ", 0, wrap_width + 1)
 
-        # _replace_via_keyboard places cursor at (row+1, 0); adjust it
-        # so it stays at the same position relative to the text.
-        if col >= wrap_width:
-            self.cursor_location = (row + 1, col - wrap_width)
+        if break_pos > 0:
+            # Replace the space with a newline (consumes the space)
+            self._replace_via_keyboard("\n", (row, break_pos), (row, break_pos + 1))
+            if col > break_pos:
+                self.cursor_location = (row + 1, col - break_pos - 1)
+            else:
+                self.cursor_location = (row, col)
         else:
-            self.cursor_location = (row, col)
+            # No suitable space — hard break at the wrap boundary
+            self._replace_via_keyboard("\n", (row, wrap_width), (row, wrap_width))
+            if col >= wrap_width:
+                self.cursor_location = (row + 1, col - wrap_width)
+            else:
+                self.cursor_location = (row, col)
 
     def action_open_editor(self) -> None:
         """Request to open external editor."""
