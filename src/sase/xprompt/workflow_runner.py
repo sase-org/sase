@@ -359,6 +359,16 @@ def execute_workflow(
             xprompts=workflow.xprompts,
         )
 
+    # Extract top-level directives (e.g. %model) from the anonymous wrapper
+    # prompt *before* flattening discards it.  These are propagated to the
+    # WorkflowExecutor so agent steps inherit the user's model override.
+    top_level_model_override: str | None = None
+    if workflow.is_anonymous() and len(workflow.steps) == 1 and workflow.steps[0].agent:
+        from sase.xprompt.directives import extract_prompt_directives
+
+        _, _top_directives = extract_prompt_directives(workflow.steps[0].agent)
+        top_level_model_override = _top_directives.model
+
     # Flatten anonymous workflows that wrap a single multi-step workflow
     # reference (e.g., "sase run '#split(...)'" → execute split directly)
     if workflow.is_anonymous():
@@ -438,6 +448,7 @@ def execute_workflow(
         hitl_handler=hitl_handler,
         output_handler=output_handler,
         hitl_override=hitl_override,
+        model_override=top_level_model_override,
     )
 
     success = executor.execute()

@@ -45,6 +45,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         hitl_handler: HITLHandler | None = None,
         output_handler: "WorkflowOutputHandler | None" = None,
         hitl_override: bool | None = None,
+        model_override: str | None = None,
     ) -> None:
         """Initialize the workflow executor.
 
@@ -57,6 +58,9 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             hitl_override: Force HITL on (True) or off (False) for all steps,
                 overriding individual step ``hitl`` settings.  None preserves
                 per-step behavior.
+            model_override: Top-level ``%model`` override from the user prompt.
+                When set, agent steps that don't declare their own ``%model``
+                directive will use this model instead of the default.
         """
         self.workflow = workflow
         self.context: dict[str, Any] = dict(args)
@@ -64,6 +68,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self.hitl_handler = hitl_handler
         self.output_handler = output_handler
         self.hitl_override = hitl_override
+        self.model_override = model_override
         self._current_embedded_workflow_name: str | None = None
         self._zero_iteration_steps: set[str] = set()
         self._last_for_zero_iterations: bool = False

@@ -139,6 +139,7 @@ class PromptStepMixin:
     hitl_handler: HITLHandler | None
     output_handler: "WorkflowOutputHandler | None"
     state: WorkflowState
+    model_override: str | None = None
 
     # Method type declarations for methods provided by other mixins/main class
     _save_state: Any  # () -> None
@@ -229,6 +230,11 @@ class PromptStepMixin:
         )
 
         step_model = early.directives.model
+        # Fall back to the workflow-level %model override when the step's
+        # own prompt doesn't declare one.
+        if not step_model and self.model_override:
+            step_model = self.model_override
+            early.directives.model = step_model
         if step_model:
             resolved_provider, step_model = resolve_model_provider(step_model)
             step_llm_provider = resolved_provider or get_default_provider_name()
