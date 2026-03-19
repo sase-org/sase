@@ -56,6 +56,8 @@ class PromptTextArea(TextArea):
         self._pending_keys: str = ""
         self._count_prefix: str = ""
         self._pending_count: int | None = None
+        self._pending_operator: str = ""
+        self._pending_operator_count: int = 1
 
     @property
     def _ace_app(self) -> AceApp:
@@ -150,6 +152,8 @@ class PromptTextArea(TextArea):
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._vim_mode = "normal"
+        self._pending_operator = ""
+        self._pending_operator_count = 1
         self.read_only = True
         self.show_line_numbers = True
         self.highlight_cursor_line = True
@@ -161,6 +165,8 @@ class PromptTextArea(TextArea):
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode."""
         self._vim_mode = "insert"
+        self._pending_operator = ""
+        self._pending_operator_count = 1
         self.read_only = False
         self.show_line_numbers = self.document.line_count > 1
         self.highlight_cursor_line = False
@@ -175,11 +181,18 @@ class PromptTextArea(TextArea):
                 bar.border_subtitle = "[Esc] cancel"
 
     def _update_count_display(self) -> None:
-        """Update border subtitle to show the pending count prefix."""
+        """Update border subtitle to show the pending count/operator."""
         bar = self._find_prompt_bar()
         if bar:
+            indicator = ""
+            if self._pending_operator:
+                if self._pending_operator_count > 1:
+                    indicator += str(self._pending_operator_count)
+                indicator += self._pending_operator
             if self._count_prefix:
-                bar.border_subtitle = f"[Esc] cancel  [i] insert  {self._count_prefix}"
+                indicator += self._count_prefix
+            if indicator:
+                bar.border_subtitle = f"[Esc] cancel  [i] insert  {indicator}"
             else:
                 bar.border_subtitle = "[Esc] cancel  [i] insert"
 
@@ -189,11 +202,88 @@ class PromptTextArea(TextArea):
             self._count_prefix = ""
             self._update_count_display()
 
+    def _consume_pending_operator(self, count: int) -> tuple[str, int] | None:
+        """Consume pending operator state if present.
+
+        Returns ``(operator, effective_count)`` where *effective_count* is the
+        product of the operator's stored count and the given motion *count*, or
+        ``None`` when no operator is pending.
+        """
+        if not self._pending_operator:
+            return None
+        op = self._pending_operator
+        op_count = self._pending_operator_count
+        self._pending_operator = ""
+        self._pending_operator_count = 1
+        self._update_count_display()
+        return (op, op_count * count)
+
+    def _execute_charwise_operator(
+        self,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        op: str,
+    ) -> None:
+        """Execute a charwise ``d``/``c`` operator over *start*..*end*."""
+        if start > end:
+            start, end = end, start
+        if start == end:
+            if op == "c":
+                self._enter_insert_mode()
+            return
+        was_readonly = self.read_only
+        self.read_only = False
+        self.delete(start, end)
+        if op == "c":
+            self._enter_insert_mode()
+        else:
+            self.read_only = was_readonly
+        self.cursor_location = start
+
+    def _execute_linewise_operator(
+        self,
+        first_row: int,
+        last_row: int,
+        op: str,
+    ) -> None:
+        """Execute a linewise ``d``/``c`` operator on rows *first_row* .. *last_row*."""
+        doc = self.document
+        first_row = max(0, first_row)
+        last_row = min(last_row, doc.line_count - 1)
+
+        was_readonly = self.read_only
+        self.read_only = False
+
+        if op == "c":
+            # Change: clear line contents but keep one empty line.
+            last_line = doc.get_line(last_row)
+            self.delete((first_row, 0), (last_row, len(last_line)))
+            self._enter_insert_mode()
+            self.cursor_location = (first_row, 0)
+        else:
+            # Delete: remove lines entirely.
+            if first_row == 0 and last_row >= doc.line_count - 1:
+                last_line = doc.get_line(last_row)
+                self.delete((0, 0), (last_row, len(last_line)))
+                self.cursor_location = (0, 0)
+            elif last_row >= doc.line_count - 1:
+                prev_line = doc.get_line(first_row - 1)
+                last_line = doc.get_line(last_row)
+                self.delete(
+                    (first_row - 1, len(prev_line)),
+                    (last_row, len(last_line)),
+                )
+                self.cursor_location = (first_row - 1, 0)
+            else:
+                self.delete((first_row, 0), (last_row + 1, 0))
+                self.cursor_location = (first_row, 0)
+            self.read_only = was_readonly
+
     def _handle_normal_mode_key(self, event: Key) -> bool:
         """Handle a key event in NORMAL mode. Returns True if handled."""
         key = event.character or event.key
 
-        # Handle pending key sequences (gg)
+        # Handle pending key sequences (gg) ----------------------------------
         if self._pending_keys:
             pending = self._pending_keys
             self._pending_keys = ""
@@ -205,13 +295,29 @@ class PromptTextArea(TextArea):
                     target = max(
                         0, min(pending_count - 1, self.document.line_count - 1)
                     )
-                    self.cursor_location = (target, 0)
                 else:
-                    self.cursor_location = (0, 0)
+                    target = 0
+                if self._pending_operator:
+                    op = self._pending_operator
+                    self._pending_operator = ""
+                    self._pending_operator_count = 1
+                    cur_row = self.cursor_location[0]
+                    first = min(cur_row, target)
+                    last = max(cur_row, target)
+                    self._execute_linewise_operator(first, last, op)
+                    self._update_count_display()
+                else:
+                    self.cursor_location = (target, 0)
             return True
 
-        # Escape - cancel prompt bar
+        # Escape --------------------------------------------------------------
         if event.key == "escape":
+            if self._pending_operator:
+                self._pending_operator = ""
+                self._pending_operator_count = 1
+                self._clear_count_prefix()
+                self._update_count_display()
+                return True
             self._clear_count_prefix()
             bar = self._find_prompt_bar()
             if bar:
@@ -229,82 +335,229 @@ class PromptTextArea(TextArea):
         count = int(self._count_prefix) if self._count_prefix else 1
         self._clear_count_prefix()
 
-        # Basic movement (j/k support count prefix)
+        # Operator doubling (dd, cc) -----------------------------------------
+        if self._pending_operator and key == self._pending_operator:
+            op = self._pending_operator
+            op_count = self._pending_operator_count
+            self._pending_operator = ""
+            self._pending_operator_count = 1
+            total = op_count * count
+            cur_row = self.cursor_location[0]
+            last_row = min(cur_row + total - 1, self.document.line_count - 1)
+            self._execute_linewise_operator(cur_row, last_row, op)
+            self._update_count_display()
+            return True
+
+        # Start operator-pending mode (d, c) ---------------------------------
+        if key in ("d", "c") and not self._pending_operator:
+            self._pending_operator = key
+            self._pending_operator_count = count
+            self._update_count_display()
+            return True
+
+        # --- Motions (with optional operator application) --------------------
+
+        # Basic character movement
         if key == "h":
-            for _ in range(count):
-                self.action_cursor_left()
+            op_info = self._consume_pending_operator(count)
+            if op_info:
+                op, eff = op_info
+                row, col = self.cursor_location
+                target_col = max(0, col - eff)
+                self._execute_charwise_operator((row, target_col), (row, col), op)
+            else:
+                for _ in range(count):
+                    self.action_cursor_left()
             return True
         if key == "j":
-            for _ in range(count):
-                self.action_cursor_down()
+            op_info = self._consume_pending_operator(count)
+            if op_info:
+                op, eff = op_info
+                cur_row = self.cursor_location[0]
+                target = min(cur_row + eff, self.document.line_count - 1)
+                self._execute_linewise_operator(cur_row, target, op)
+            else:
+                for _ in range(count):
+                    self.action_cursor_down()
             return True
         if key == "k":
-            for _ in range(count):
-                self.action_cursor_up()
+            op_info = self._consume_pending_operator(count)
+            if op_info:
+                op, eff = op_info
+                cur_row = self.cursor_location[0]
+                target = max(cur_row - eff, 0)
+                self._execute_linewise_operator(target, cur_row, op)
+            else:
+                for _ in range(count):
+                    self.action_cursor_up()
             return True
         if key == "l":
-            for _ in range(count):
-                self.action_cursor_right()
+            op_info = self._consume_pending_operator(count)
+            if op_info:
+                op, eff = op_info
+                row, col = self.cursor_location
+                line = self.document.get_line(row)
+                target_col = min(len(line), col + eff)
+                self._execute_charwise_operator((row, col), (row, target_col), op)
+            else:
+                for _ in range(count):
+                    self.action_cursor_right()
             return True
 
-        # Word movement
+        # Word motions
         doc = self.document
         if key == "w":
-            for _ in range(count):
-                self.cursor_location = find_next_word_start(doc, *self.cursor_location)
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            r, c = self.cursor_location
+            for _ in range(eff):
+                r, c = find_next_word_start(doc, r, c)
+            if op_info:
+                self._execute_charwise_operator(
+                    self.cursor_location, (r, c), op_info[0]
+                )
+            else:
+                self.cursor_location = (r, c)
             return True
         if key == "W":
-            for _ in range(count):
-                self.cursor_location = find_next_WORD_start(doc, *self.cursor_location)
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            r, c = self.cursor_location
+            for _ in range(eff):
+                r, c = find_next_WORD_start(doc, r, c)
+            if op_info:
+                self._execute_charwise_operator(
+                    self.cursor_location, (r, c), op_info[0]
+                )
+            else:
+                self.cursor_location = (r, c)
             return True
         if key == "b":
-            for _ in range(count):
-                self.cursor_location = find_prev_word_start(doc, *self.cursor_location)
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            r, c = self.cursor_location
+            for _ in range(eff):
+                r, c = find_prev_word_start(doc, r, c)
+            if op_info:
+                self._execute_charwise_operator(
+                    (r, c), self.cursor_location, op_info[0]
+                )
+            else:
+                self.cursor_location = (r, c)
             return True
         if key == "B":
-            for _ in range(count):
-                self.cursor_location = find_prev_WORD_start(doc, *self.cursor_location)
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            r, c = self.cursor_location
+            for _ in range(eff):
+                r, c = find_prev_WORD_start(doc, r, c)
+            if op_info:
+                self._execute_charwise_operator(
+                    (r, c), self.cursor_location, op_info[0]
+                )
+            else:
+                self.cursor_location = (r, c)
             return True
         if key == "e":
-            for _ in range(count):
-                self.cursor_location = find_next_word_end(doc, *self.cursor_location)
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            r, c = self.cursor_location
+            for _ in range(eff):
+                r, c = find_next_word_end(doc, r, c)
+            if op_info:
+                # Inclusive: extend end past the last character
+                self._execute_charwise_operator(
+                    self.cursor_location, (r, c + 1), op_info[0]
+                )
+            else:
+                self.cursor_location = (r, c)
             return True
         if key == "E":
-            for _ in range(count):
-                self.cursor_location = find_next_WORD_end(doc, *self.cursor_location)
+            op_info = self._consume_pending_operator(count)
+            eff = op_info[1] if op_info else count
+            r, c = self.cursor_location
+            for _ in range(eff):
+                r, c = find_next_WORD_end(doc, r, c)
+            if op_info:
+                # Inclusive: extend end past the last character
+                self._execute_charwise_operator(
+                    self.cursor_location, (r, c + 1), op_info[0]
+                )
+            else:
+                self.cursor_location = (r, c)
             return True
 
-        # Line movement
+        # Line position motions
         if key == "0":
-            row = self.cursor_location[0]
-            self.cursor_location = (row, 0)
+            op_info = self._consume_pending_operator(count)
+            if op_info:
+                row, col = self.cursor_location
+                self._execute_charwise_operator((row, 0), (row, col), op_info[0])
+            else:
+                row = self.cursor_location[0]
+                self.cursor_location = (row, 0)
             return True
         if key == "$":
-            row = self.cursor_location[0]
-            line = self.document.get_line(row)
-            self.cursor_location = (row, len(line))
+            op_info = self._consume_pending_operator(count)
+            if op_info:
+                row, col = self.cursor_location
+                line = doc.get_line(row)
+                self._execute_charwise_operator(
+                    (row, col), (row, len(line)), op_info[0]
+                )
+            else:
+                row = self.cursor_location[0]
+                line = doc.get_line(row)
+                self.cursor_location = (row, len(line))
             return True
         if key == "^":
+            op_info = self._consume_pending_operator(count)
             row = self.cursor_location[0]
-            line = self.document.get_line(row)
-            col = 0
-            while col < len(line) and line[col].isspace():
-                col += 1
-            self.cursor_location = (row, col)
+            line = doc.get_line(row)
+            nws = 0
+            while nws < len(line) and line[nws].isspace():
+                nws += 1
+            if op_info:
+                col = self.cursor_location[1]
+                self._execute_charwise_operator(
+                    (row, min(col, nws)), (row, max(col, nws)), op_info[0]
+                )
+            else:
+                self.cursor_location = (row, nws)
             return True
 
-        # Document movement
+        # Document motions
         if key == "g":
             self._pending_keys = "g"
             self._pending_count = count if has_count else None
+            # Keep pending operator for gg resolution
             return True
         if key == "G":
-            if has_count:
-                target = max(0, min(count - 1, self.document.line_count - 1))
-                self.cursor_location = (target, 0)
+            op_info = self._consume_pending_operator(1)
+            if op_info:
+                op = op_info[0]
+                if has_count:
+                    target = max(0, min(count - 1, self.document.line_count - 1))
+                else:
+                    target = self.document.line_count - 1
+                cur_row = self.cursor_location[0]
+                first = min(cur_row, target)
+                last = max(cur_row, target)
+                self._execute_linewise_operator(first, last, op)
             else:
-                last_row = self.document.line_count - 1
-                self.cursor_location = (last_row, 0)
+                if has_count:
+                    target = max(0, min(count - 1, self.document.line_count - 1))
+                    self.cursor_location = (target, 0)
+                else:
+                    last_row = self.document.line_count - 1
+                    self.cursor_location = (last_row, 0)
+            return True
+
+        # Cancel pending operator on unrecognized motion key
+        if self._pending_operator:
+            self._pending_operator = ""
+            self._pending_operator_count = 1
+            self._update_count_display()
             return True
 
         # Mode switching
