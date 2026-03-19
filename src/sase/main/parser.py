@@ -289,13 +289,13 @@ def create_parser() -> argparse.ArgumentParser:
     bead_update_parser = bead_subparsers.add_parser("update", help="Update an issue")
     bead_update_parser.add_argument("id", help="Issue ID")
     bead_update_parser.add_argument(
-        "--status", choices=["open", "in_progress", "closed"]
+        "-s", "--status", choices=["open", "in_progress", "closed"]
     )
-    bead_update_parser.add_argument("--title")
-    bead_update_parser.add_argument("--description")
-    bead_update_parser.add_argument("--notes")
-    bead_update_parser.add_argument("--design")
-    bead_update_parser.add_argument("--assignee")
+    bead_update_parser.add_argument("-t", "--title")
+    bead_update_parser.add_argument("-d", "--description")
+    bead_update_parser.add_argument("-n", "--notes")
+    bead_update_parser.add_argument("-D", "--design")
+    bead_update_parser.add_argument("-a", "--assignee")
 
     # --- amend ---
     amend_parser = top_level_subparsers.add_parser(
