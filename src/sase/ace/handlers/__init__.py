@@ -1,7 +1,7 @@
 """Handler functions for the work subcommand."""
 
 from .edit_hooks import handle_edit_hooks
-from .mail import handle_mail
+from .mail import _mail_execute_task, handle_mail_prepare
 from .reword import handle_add_tag, handle_reword
 from .show_diff import handle_show_diff
 from .workflow_handlers import (
@@ -19,6 +19,7 @@ __all__ = [
     "handle_add_tag",
     "handle_show_diff",
     "handle_edit_hooks",
-    "handle_mail",
+    "_mail_execute_task",
+    "handle_mail_prepare",
     "handle_reword",
 ]

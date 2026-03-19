@@ -6,92 +6,102 @@ from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+from rich.console import Console
 from rich.markup import escape as _esc
 
 from ..changespec import ChangeSpec
-from ..mail_ops import handle_mail as mail_ops_handle_mail
+from ..mail_ops import MailPrepResult, execute_mail, prepare_mail
 from ..operations import update_to_changespec
 
 if TYPE_CHECKING:
     from ..tui._workflow_context import WorkflowContext
 
 
-def handle_mail(
+def handle_mail_prepare(
     self: "WorkflowContext",
     changespec: ChangeSpec,
-    changespecs: list[ChangeSpec],
-    current_idx: int,
-) -> tuple[list[ChangeSpec], int]:
-    """Handle 'M' (mail) action.
-
-    Claims a workspace in the 100-199 range, checks out the CL,
-    runs mail prep and execution, then releases the workspace.
+    workspace_dir: str,
+) -> MailPrepResult | None:
+    """Interactive part: checkout + prepare_mail (y/n prompt). Runs in suspend().
 
     Args:
-        self: The WorkflowContext instance
+        self: The WorkflowContext instance (provides console for terminal output)
         changespec: Current ChangeSpec
-        changespecs: List of all changespecs
-        current_idx: Current index
+        workspace_dir: The workspace directory to use
 
     Returns:
-        Tuple of (updated_changespecs, updated_index)
+        MailPrepResult if checkout succeeded and prepare completed,
+        None if checkout failed or prepare was aborted.
     """
-    from sase.running_field import (
-        claim_workspace,
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
-        release_workspace,
+    # Update to the changespec branch
+    success, error_msg = update_to_changespec(
+        changespec,
+        self.console,
+        revision=changespec.name,
+        workspace_dir=workspace_dir,
     )
+    if not success:
+        self.console.print(f"[red]Error: {_esc(str(error_msg))}[/red]")
+        return None
 
-    from ..changespec import get_base_status
+    # Run prepare_mail (interactive y/n prompt)
+    return prepare_mail(changespec, workspace_dir, self.console)
 
-    base_status = get_base_status(changespec.status)
-    if base_status != "Ready":
-        self.console.print(
-            "[yellow]mail option only available for Ready ChangeSpecs[/yellow]"
-        )
-        return changespecs, current_idx
 
-    # Claim a workspace in the 100-199 range
-    workspace_num = get_first_available_axe_workspace(changespec.file_path)
+def _mail_execute_task(
+    changespec: ChangeSpec,
+    workspace_dir: str,
+    workspace_num: int,
+) -> tuple[bool, str]:
+    """Non-interactive: execute_mail + status transition. Runs as background task.
 
-    if not claim_workspace(
-        changespec.file_path, workspace_num, "mail", os.getpid(), changespec.name
-    ):
-        self.console.print("[red]Failed to claim workspace[/red]")
-        return changespecs, current_idx
+    Releases workspace in finally block.
+
+    Args:
+        changespec: The ChangeSpec to mail
+        workspace_dir: The workspace directory
+        workspace_num: Workspace number for release
+
+    Returns:
+        Tuple of (success, message).
+    """
+    from sase.running_field import release_workspace
+    from sase.status_state_machine import transition_changespec_status
+
+    console = Console()
 
     try:
-        # Get workspace directory
-        workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-            workspace_num, changespec.project_basename
-        )
-
-        if workspace_suffix:
-            self.console.print(f"[cyan]Using workspace: {workspace_suffix}[/cyan]")
-
-        # Update to the changespec branch (NAME field) to ensure we're on the correct branch
-        success, error_msg = update_to_changespec(
-            changespec,
-            self.console,
-            revision=changespec.name,
-            workspace_dir=workspace_dir,
-        )
+        # Execute the mail command
+        success = execute_mail(changespec, workspace_dir, console)
         if not success:
-            self.console.print(f"[red]Error: {_esc(str(error_msg))}[/red]")
-            return changespecs, current_idx
+            return (False, f"Mail failed for {changespec.name}")
 
-        # Run the mail handler with the claimed workspace directory
-        success = mail_ops_handle_mail(changespec, workspace_dir, self.console)
-
-        if success:
-            # Reload changespecs to reflect the status update
-            changespecs, current_idx = self._reload_and_reposition(
-                changespecs, changespec
+        # Update status to "Mailed"
+        status_success, old_status, status_error, _ = transition_changespec_status(
+            changespec.file_path,
+            changespec.name,
+            "Mailed",
+            validate=True,
+        )
+        if status_success:
+            return (
+                True,
+                f"Mailed {changespec.name}: "
+                f"{old_status or 'Ready'} → Mailed",
+            )
+        else:
+            # Mailing succeeded but status update failed
+            return (
+                True,
+                f"Mailed {changespec.name} "
+                f"(status update failed: {status_error or 'Unknown'})",
             )
 
     finally:
         # Always release the workspace
-        release_workspace(changespec.file_path, workspace_num, "mail", changespec.name)
-
-    return changespecs, current_idx
+        release_workspace(
+            changespec.file_path,
+            workspace_num,
+            "mail",
+            changespec.name,
+        )

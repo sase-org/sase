@@ -200,7 +200,17 @@ class BaseActionsMixin:
         self.push_screen(TagInputModal(saved_tags), on_dismiss)  # type: ignore[attr-defined]
 
     def action_mail(self) -> None:
-        """Mail the current ChangeSpec."""
+        """Mail the current ChangeSpec in the background (post-confirmation).
+
+        This action:
+        1. Validates STATUS is "Ready"
+        2. Claims workspace and gets workspace directory
+        3. Runs interactive prepare_mail in suspend() (y/n prompt)
+        4. If confirmed, submits execute_mail + status transition as background task
+        5. Shows toast notifications for start/completion/failure
+        """
+        import os
+
         from ...changespec import get_base_status
 
         if not self.changespecs:
@@ -212,17 +222,63 @@ class BaseActionsMixin:
             self.notify("ChangeSpec must be Ready to mail", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ...handlers import handle_mail
+        from sase.running_field import (
+            claim_workspace,
+            get_first_available_axe_workspace,
+            get_workspace_directory_for_num,
+            release_workspace,
+        )
+
+        from ...handlers import handle_mail_prepare
+        from ...handlers.mail import _mail_execute_task
         from .._workflow_context import WorkflowContext
 
-        def run_handler() -> tuple[list[ChangeSpec], int]:
-            ctx = WorkflowContext()
-            return handle_mail(ctx, changespec, self.changespecs, self.current_idx)  # type: ignore[arg-type]
+        cl_name = changespec.name
+        project_file = changespec.file_path
 
+        # Claim workspace before suspend (needed for both prepare and execute)
+        workspace_num = get_first_available_axe_workspace(project_file)
+
+        if not claim_workspace(
+            project_file, workspace_num, "mail", os.getpid(), cl_name
+        ):
+            self.notify("Failed to claim workspace", severity="error")  # type: ignore[attr-defined]
+            return
+
+        try:
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, changespec.project_basename
+            )
+        except RuntimeError as e:
+            release_workspace(project_file, workspace_num, "mail", cl_name)
+            self.notify(f"Failed to get workspace directory: {e}", severity="error")  # type: ignore[attr-defined]
+            return
+
+        # Interactive phase: checkout + prepare_mail (y/n prompt) in suspend()
+        prep_result = None
         with self.suspend():  # type: ignore[attr-defined]
-            run_handler()
+            ctx = WorkflowContext()
+            prep_result = handle_mail_prepare(ctx, changespec, workspace_dir)
 
-        self._reload_and_reposition()  # type: ignore[attr-defined]
+        # If user declined or prepare failed, release workspace and return
+        if prep_result is None or not prep_result.should_mail:
+            release_workspace(project_file, workspace_num, "mail", cl_name)
+            return
+
+        # Non-interactive phase: submit execute_mail as background task
+        # The background task owns the workspace from here and releases in finally
+        def task_callable() -> tuple[bool, str]:
+            return _mail_execute_task(changespec, workspace_dir, workspace_num)
+
+        submitted = self._submit_background_task(  # type: ignore[attr-defined]
+            "mail", cl_name, project_file, task_callable
+        )
+
+        if submitted:
+            self.notify(f"Mailing {cl_name}...")  # type: ignore[attr-defined]
+        else:
+            # Dedup rejected — release workspace since task won't run
+            release_workspace(project_file, workspace_num, "mail", cl_name)
 
     # --- Refresh & Query Actions ---
 
