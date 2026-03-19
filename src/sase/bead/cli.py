@@ -162,9 +162,9 @@ def handle_bead_create(args: argparse.Namespace) -> None:
 
 def handle_bead_list(args: argparse.Namespace) -> None:
     with _get_read_view() as view:
-        status = Status(args.status) if args.status else None
-        issue_type = IssueType(args.type) if args.type else None
-        issues = view.list_issues(status=status, issue_type=issue_type)
+        statuses = [Status(s) for s in args.status] if args.status else None
+        issue_types = [IssueType(t) for t in args.type] if args.type else None
+        issues = view.list_issues(statuses=statuses, issue_types=issue_types)
         if not issues:
             print("No issues found.")
             return

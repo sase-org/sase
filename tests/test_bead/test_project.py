@@ -73,14 +73,14 @@ def test_list_filter_status(project):
     epic = project.create("E1", IssueType.PLAN)
     project.create("E2", IssueType.PLAN)
     project.close([epic.id])
-    open_issues = project.list_issues(status=Status.OPEN)
+    open_issues = project.list_issues(statuses=[Status.OPEN])
     assert len(open_issues) == 1
 
 
 def test_list_filter_type(project):
     epic = project.create("Epic", IssueType.PLAN)
     project.create("Child", IssueType.PHASE, parent_id=epic.id)
-    epics = project.list_issues(issue_type=IssueType.PLAN)
+    epics = project.list_issues(issue_types=[IssueType.PLAN])
     assert len(epics) == 1
     assert epics[0].issue_type == IssueType.PLAN
 

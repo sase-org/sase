@@ -203,18 +203,20 @@ def get_issue(conn: sqlite3.Connection, issue_id: str) -> Issue | None:
 # pyvision: tests/test_bead/test_db.py
 def list_issues(
     conn: sqlite3.Connection,
-    status: Status | None = None,
-    issue_type: IssueType | None = None,
+    statuses: list[Status] | None = None,
+    issue_types: list[IssueType] | None = None,
 ) -> list[Issue]:
     """List issues with optional status/type filters."""
     query = "SELECT * FROM issues WHERE 1=1"
     params: list[str] = []
-    if status is not None:
-        query += " AND status = ?"
-        params.append(status.value)
-    if issue_type is not None:
-        query += " AND issue_type = ?"
-        params.append(issue_type.value)
+    if statuses is not None:
+        placeholders = ",".join("?" for _ in statuses)
+        query += f" AND status IN ({placeholders})"
+        params.extend(s.value for s in statuses)
+    if issue_types is not None:
+        placeholders = ",".join("?" for _ in issue_types)
+        query += f" AND issue_type IN ({placeholders})"
+        params.extend(t.value for t in issue_types)
     query += " ORDER BY created_at ASC"
     rows = conn.execute(query, params).fetchall()
     issues = []

@@ -182,11 +182,13 @@ class MergedBeadView:
 
     def list_issues(
         self,
-        status: Status | None = None,
-        issue_type: IssueType | None = None,
+        statuses: list[Status] | None = None,
+        issue_types: list[IssueType] | None = None,
     ) -> list[Issue]:
         """List issues with optional filters."""
-        return db_mod.list_issues(self._conn, status=status, issue_type=issue_type)
+        return db_mod.list_issues(
+            self._conn, statuses=statuses, issue_types=issue_types
+        )
 
     def ready(self) -> list[Issue]:
         """Return open issues with no active blockers."""

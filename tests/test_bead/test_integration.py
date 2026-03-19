@@ -425,7 +425,7 @@ class TestEdgeCases:
         project.close([c1.id])
 
         open_children = project.list_issues(
-            status=Status.OPEN, issue_type=IssueType.PHASE
+            statuses=[Status.OPEN], issue_types=[IssueType.PHASE]
         )
         assert len(open_children) == 1
         assert open_children[0].issue_type == IssueType.PHASE

@@ -246,12 +246,18 @@ def create_parser() -> argparse.ArgumentParser:
     # sase bead list
     bead_list_parser = bead_subparsers.add_parser("list", help="List issues")
     bead_list_parser.add_argument(
+        "-s",
         "--status",
         choices=["open", "in_progress", "closed"],
-        help="Filter by status",
+        action="append",
+        help="Filter by status (repeatable)",
     )
     bead_list_parser.add_argument(
-        "--type", choices=["plan", "phase"], help="Filter by type"
+        "-t",
+        "--type",
+        choices=["plan", "phase"],
+        action="append",
+        help="Filter by type (repeatable)",
     )
 
     # sase bead onboard

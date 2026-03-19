@@ -118,14 +118,14 @@ class TestListIssues:
 
     def test_filter_by_status(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
-        issues = list_issues(conn, status=Status.OPEN)
+        issues = list_issues(conn, statuses=[Status.OPEN])
         assert len(issues) == 1
-        assert list_issues(conn, status=Status.CLOSED) == []
+        assert list_issues(conn, statuses=[Status.CLOSED]) == []
 
     def test_filter_by_type(self, conn: sqlite3.Connection) -> None:
         create_issue(conn, _epic())
         create_issue(conn, _child())
-        epics = list_issues(conn, issue_type=IssueType.PLAN)
+        epics = list_issues(conn, issue_types=[IssueType.PLAN])
         assert len(epics) == 1
         assert epics[0].id == "e-1"
 
