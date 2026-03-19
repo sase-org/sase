@@ -5,6 +5,7 @@ from enum import Enum, auto
 
 from sase.prompt_history import PromptEntry, get_prompts_for_fzf
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
@@ -48,7 +49,6 @@ class PromptHistoryModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("ctrl+g", "edit_first", "Edit in editor"),
-        ("ctrl+i", "load_to_input", "Load to input"),
         ("ctrl+y", "copy_and_cancel", "Copy & cancel"),
     ]
 
@@ -228,6 +228,18 @@ class PromptHistoryModal(
         if highlighted is not None and 0 <= highlighted < len(self._filtered_items):
             return self._filtered_items[highlighted].entry.text
         return self._filtered_items[0].entry.text
+
+    def on_key(self, event: events.Key) -> None:
+        """Intercept Tab key to trigger load action.
+
+        Ctrl+I and Tab produce the same keycode (ASCII 9) in terminals.
+        Textual's focus cycling intercepts Tab before bindings, so we
+        handle it here directly.
+        """
+        if event.key == "tab":
+            event.prevent_default()
+            event.stop()
+            self.action_load_to_input()
 
     def on_mount(self) -> None:
         """Focus the input and show initial preview on mount."""
