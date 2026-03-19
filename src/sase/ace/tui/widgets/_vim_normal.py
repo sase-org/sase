@@ -241,8 +241,9 @@ class VimNormalModeMixin(_MixinBase):
                 target = min(cur_row + eff, self.document.line_count - 1)
                 self._execute_linewise_operator(cur_row, target, op)
             else:
-                for _ in range(count):
-                    self.action_cursor_down()
+                row, col = self.cursor_location
+                target = min(row + count, self.document.line_count - 1)
+                self.cursor_location = (target, col)
             return True
         if key == "k":
             op_info = self._consume_pending_operator(count)
@@ -252,8 +253,9 @@ class VimNormalModeMixin(_MixinBase):
                 target = max(cur_row - eff, 0)
                 self._execute_linewise_operator(target, cur_row, op)
             else:
-                for _ in range(count):
-                    self.action_cursor_up()
+                row, col = self.cursor_location
+                target = max(row - count, 0)
+                self.cursor_location = (target, col)
             return True
         if key == "l":
             op_info = self._consume_pending_operator(count)
