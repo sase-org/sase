@@ -253,6 +253,7 @@ class PromptStepMixin:
             if "/" in self.workflow.name
             else self.workflow.name
         )
+        self._agents_launched += 1  # type: ignore[attr-defined]
         response = invoke_agent(
             expanded_prompt,
             agent_type=f"workflow-{base_name}-{step.name}",

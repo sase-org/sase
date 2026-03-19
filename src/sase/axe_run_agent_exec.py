@@ -19,6 +19,7 @@ from sase.axe_run_agent_helpers import (
     extract_step_output_and_diff_path,
     format_qa_for_prompt,
     handle_questions_flow,
+    is_workflow_noop,
     normalize_handoff_interruption_state,
     read_and_delete_marker,
     update_meta_suffix,
@@ -550,6 +551,11 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             current_artifacts_dir
         )
 
+        # Detect noop: workflow completed but launched zero agents
+        completed_outcome = (
+            "noop" if is_workflow_noop(current_artifacts_dir) else "completed"
+        )
+
         # Write done marker
         done_marker = build_done_marker(
             ctx.cl_name,
@@ -558,7 +564,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             ctx.artifacts_timestamp,
             ctx.workspace_num,
             ctx.output_path,
-            "completed",
+            completed_outcome,
             agent_name=ctx.agent_name,
             agent_model=ctx.agent_model,
             agent_llm_provider=ctx.agent_llm_provider,

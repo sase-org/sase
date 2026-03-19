@@ -67,6 +67,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self._current_embedded_workflow_name: str | None = None
         self._zero_iteration_steps: set[str] = set()
         self._last_for_zero_iterations: bool = False
+        self._agents_launched: int = 0
 
         # Detect step inputs - args that match step names with output schemas
         # These are used to skip steps and use pre-provided outputs
@@ -141,6 +142,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "pid": os.getpid(),
             "appears_as_agent": self.workflow.appears_as_agent(),
             "is_anonymous": self.workflow.is_anonymous(),
+            "agents_launched": self._agents_launched,
         }
         os.makedirs(self.artifacts_dir, exist_ok=True)
         with open(state_path, "w", encoding="utf-8") as f:

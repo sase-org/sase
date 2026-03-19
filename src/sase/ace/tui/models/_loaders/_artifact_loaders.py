@@ -281,6 +281,8 @@ def load_done_agents(
 
                     cl_name = data.get("cl_name", "unknown")
                     outcome = data.get("outcome", "completed")
+                    if outcome == "noop":
+                        continue
                     if outcome == "failed":
                         status = "FAILED"
                         error_message = data.get("error")

@@ -15,6 +15,28 @@ from sase.axe_runner_utils import was_killed
 from sase.shared_utils import create_artifacts_directory
 
 
+def is_workflow_noop(artifacts_dir: str) -> bool:
+    """Check if a completed workflow launched zero agents.
+
+    Reads agents_launched from workflow_state.json. A workflow that completed
+    successfully but never invoked an LLM agent (e.g. a for-loop with an empty
+    list) is considered a noop.
+
+    Args:
+        artifacts_dir: Path to the artifacts directory containing workflow_state.json.
+
+    Returns:
+        True if the workflow launched zero agents, False otherwise.
+    """
+    state_path = os.path.join(artifacts_dir, "workflow_state.json")
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    return data.get("agents_launched", -1) == 0
+
+
 def extract_step_output_and_diff_path(
     artifacts_dir: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
