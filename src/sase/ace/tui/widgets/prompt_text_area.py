@@ -241,7 +241,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._pending_operator = ""
         self._pending_operator_count = 1
         self.read_only = True
-        self.show_line_numbers = True
+        self.show_line_numbers = self.document.line_count > 1
         self.highlight_cursor_line = True
         bar = self._find_prompt_bar()
         if bar:
