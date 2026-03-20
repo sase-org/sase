@@ -31,17 +31,14 @@ steps:
   - name: write_response
     hidden: true
     python: |
-      import tempfile
       response = {{ _response | tojson }}
-      with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-          f.write(response)
-          print(f"response_file={f.name}")
-    output: { response_file: path }
+      print(response)
+    artifact: stdout
 
   - name: validate
     hidden: true
     bash: |
       sase_json_workflow --validate \
         --schema '{{ setup.schema_json }}' \
-        --response-file '{{ write_response.response_file }}'
+        --response-file '{{ write_response._artifact }}'
     output: { validated: word, data: text }

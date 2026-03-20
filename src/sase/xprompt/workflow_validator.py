@@ -481,6 +481,10 @@ def _validate_cross_step_field_refs(workflow: Workflow) -> list[str]:
                 props = step.output.schema.get("properties", {})
                 step_fields[step.name] = set(props.keys())
 
+        # Steps with artifact: stdout auto-inject _artifact into output
+        if step.artifact:
+            step_fields.setdefault(step.name, set()).add("_artifact")
+
         if step.parallel_config:
             join = step.join
             skip_nested = (

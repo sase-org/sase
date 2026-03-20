@@ -84,6 +84,7 @@ class WorkflowStep:
     parallel_config: ParallelConfig | None = None
     join: str | None = None
     finally_: bool = False
+    artifact: str | None = None
 
     def is_agent_step(self) -> bool:
         """Return True if this is an agent step."""

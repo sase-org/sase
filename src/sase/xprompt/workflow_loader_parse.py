@@ -118,6 +118,30 @@ def _parse_workflow_step(
     hitl = bool(step_data.get("hitl", False))
     hidden = bool(step_data.get("hidden", False))
     finally_ = bool(step_data.get("finally", False))
+    artifact = step_data.get("artifact")
+
+    # Validate artifact field
+    if artifact is not None:
+        if str(artifact) != "stdout":
+            raise WorkflowValidationError(
+                f"Step '{name}' 'artifact' must be 'stdout', got '{artifact}'"
+            )
+        if prompt_part is not None:
+            raise WorkflowValidationError(
+                f"Step '{name}' with 'prompt_part' cannot have 'artifact'"
+            )
+        if agent is not None:
+            raise WorkflowValidationError(
+                f"Step '{name}' with 'agent' cannot have 'artifact'"
+            )
+        if parallel_data is not None:
+            raise WorkflowValidationError(
+                f"Step '{name}' with 'parallel' cannot have 'artifact'"
+            )
+        if is_nested:
+            raise WorkflowValidationError(
+                f"Nested step '{name}' cannot have 'artifact'"
+            )
 
     # Validate mutual exclusivity of loop types (for, repeat, while)
     loop_types = [for_loop, repeat_data, while_data]
@@ -276,6 +300,7 @@ def _parse_workflow_step(
         parallel_config=parallel_config,
         join=str(join) if join else None,
         finally_=finally_,
+        artifact=str(artifact) if artifact else None,
     )
 
 

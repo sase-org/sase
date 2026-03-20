@@ -127,6 +127,13 @@ class ScriptStepMixin:
             )
             raise WorkflowExecutionError(f"Bash step '{step.name}' failed: {error_msg}")
 
+        # Save stdout artifact before parsing key=value output
+        artifact_path: str | None = None
+        if step.artifact == "stdout" and result.stdout.strip():
+            artifact_path = os.path.join(self.artifacts_dir, f"{step.name}.stdout")
+            with open(artifact_path, "w") as f:
+                f.write(result.stdout)
+
         # Parse output
         output = parse_bash_output(result.stdout)
 
@@ -215,6 +222,10 @@ class ScriptStepMixin:
                 chdir_path = os.path.abspath(chdir_path)
             os.chdir(chdir_path)
 
+        # Add artifact path to output if created
+        if artifact_path is not None:
+            output["_artifact"] = artifact_path
+
         # Store output in context under step name
         step_state.output = output
         self.context[step.name] = output
@@ -289,6 +300,13 @@ class ScriptStepMixin:
             raise WorkflowExecutionError(
                 f"Python step '{step.name}' failed: {error_msg}"
             )
+
+        # Save stdout artifact before parsing key=value output
+        artifact_path: str | None = None
+        if step.artifact == "stdout" and stdout.strip():
+            artifact_path = os.path.join(self.artifacts_dir, f"{step.name}.stdout")
+            with open(artifact_path, "w") as f:
+                f.write(stdout)
 
         # Parse output (same formats as bash: JSON, key=value, plain text)
         output = parse_bash_output(stdout)
@@ -378,6 +396,10 @@ class ScriptStepMixin:
             if not os.path.isabs(chdir_path):
                 chdir_path = os.path.abspath(chdir_path)
             os.chdir(chdir_path)
+
+        # Add artifact path to output if created
+        if artifact_path is not None:
+            output["_artifact"] = artifact_path
 
         # Store output in context under step name
         step_state.output = output
