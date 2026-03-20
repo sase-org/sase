@@ -1,4 +1,4 @@
-"""Tests for handle_reword and its helpers in the reword module."""
+"""Tests for handle_reword_prepare, reword_execute_task, and helpers."""
 
 import os
 from unittest.mock import MagicMock, patch
@@ -7,7 +7,8 @@ from sase.ace.handlers.reword import (
     _add_prettier_ignore_before_tags,
     _fetch_cl_description,
     _open_editor_with_content,
-    handle_reword,
+    handle_reword_prepare,
+    reword_execute_task,
 )
 
 # === Tests for _add_prettier_ignore_before_tags ===
@@ -114,7 +115,7 @@ def test_open_editor_with_content_cleans_up_temp_file(
     assert not os.path.exists(temp_paths[0])
 
 
-# === Tests for handle_reword ===
+# === Tests for handle_reword_prepare ===
 
 
 def _make_context_and_changespec(
@@ -134,63 +135,73 @@ def _make_context_and_changespec(
     return ctx, cs
 
 
-@patch("sase.ace.changespec.get_base_status")
-def test_handle_reword_invalid_status(mock_base: MagicMock) -> None:
-    """Test reword rejected for invalid status."""
-    mock_base.return_value = "Submitted"
-    ctx, cs = _make_context_and_changespec(status="Submitted")
-
-    handle_reword(ctx, cs)
-
-    ctx.console.print.assert_called_once()
-    assert "only available for" in ctx.console.print.call_args[0][0]
-
-
-@patch("sase.ace.changespec.get_base_status")
-def test_handle_reword_no_cl(mock_base: MagicMock) -> None:
-    """Test reword rejected when CL is not set."""
-    mock_base.return_value = "Draft"
-    ctx, cs = _make_context_and_changespec(cl=None)
-
-    handle_reword(ctx, cs)
-
-    assert "requires a CL" in ctx.console.print.call_args[0][0]
-
-
 @patch("sase.ace.handlers.reword._open_editor_with_content", return_value=None)
 @patch(
     "sase.ace.handlers.reword._fetch_cl_description",
     return_value="Original desc\n",
 )
-@patch("sase.ace.changespec.get_base_status", return_value="Draft")
-def test_handle_reword_editor_returns_none(
-    _mock_base: MagicMock, _mock_fetch: MagicMock, _mock_editor: MagicMock
+def test_handle_reword_prepare_editor_returns_none(
+    _mock_fetch: MagicMock, _mock_editor: MagicMock
 ) -> None:
-    """Test reword cancelled when editor returns None."""
+    """Test prepare returns None when editor returns None."""
     ctx, cs = _make_context_and_changespec()
 
-    handle_reword(ctx, cs)
+    result = handle_reword_prepare(ctx, cs)
 
+    assert result is None
     assert "cancelled" in ctx.console.print.call_args[0][0].lower()
 
 
 @patch("sase.ace.handlers.reword._open_editor_with_content")
 @patch("sase.ace.handlers.reword._fetch_cl_description")
-@patch("sase.ace.changespec.get_base_status", return_value="Ready")
-def test_handle_reword_trailing_newline_no_false_diff(
-    _mock_base: MagicMock, mock_fetch: MagicMock, mock_editor: MagicMock
+def test_handle_reword_prepare_trailing_newline_no_false_diff(
+    mock_fetch: MagicMock, mock_editor: MagicMock
 ) -> None:
     """Test trailing newline differences don't trigger a reword."""
     mock_fetch.return_value = "Same description\n"
     mock_editor.return_value = "Same description"  # no trailing newline
     ctx, cs = _make_context_and_changespec(status="Ready")
 
-    with patch("sase.running_field.claim_workspace") as mock_claim:
-        handle_reword(ctx, cs)
-        mock_claim.assert_not_called()
+    result = handle_reword_prepare(ctx, cs)
+
+    assert result is None
 
 
-@patch("sase.ace.handlers.reword._sync_description_after_reword")
+@patch("sase.ace.handlers.reword._fetch_cl_description", return_value=None)
+def test_handle_reword_prepare_fetch_fails(
+    _mock_fetch: MagicMock,
+) -> None:
+    """Test prepare returns None when description fetch fails."""
+    ctx, cs = _make_context_and_changespec()
+
+    result = handle_reword_prepare(ctx, cs)
+
+    assert result is None
+
+
+@patch(
+    "sase.ace.handlers.reword._open_editor_with_content",
+    return_value="New description\n",
+)
+@patch(
+    "sase.ace.handlers.reword._fetch_cl_description",
+    return_value="Old description\n",
+)
+def test_handle_reword_prepare_returns_edited_description(
+    _mock_fetch: MagicMock, _mock_editor: MagicMock
+) -> None:
+    """Test prepare returns edited description when changed."""
+    ctx, cs = _make_context_and_changespec()
+
+    result = handle_reword_prepare(ctx, cs)
+
+    assert result == "New description\n"
+
+
+# === Tests for reword_execute_task ===
+
+
+@patch("sase.ace.handlers.reword._sync_description_bg")
 @patch("sase.ace.handlers.reword.get_vcs_provider")
 @patch("sase.ace.handlers.reword.run_sase_hg_clean", return_value=(True, None))
 @patch(
@@ -200,19 +211,7 @@ def test_handle_reword_trailing_newline_no_false_diff(
 @patch("sase.running_field.claim_workspace", return_value=True)
 @patch("sase.running_field.get_first_available_axe_workspace", return_value=101)
 @patch("sase.running_field.release_workspace")
-@patch(
-    "sase.ace.handlers.reword._open_editor_with_content",
-    return_value="New description\n",
-)
-@patch(
-    "sase.ace.handlers.reword._fetch_cl_description",
-    return_value="Old description\n",
-)
-@patch("sase.ace.changespec.get_base_status", return_value="Draft")
-def test_handle_reword_changed_runs_full_flow(
-    _mock_base: MagicMock,
-    _mock_fetch: MagicMock,
-    _mock_editor: MagicMock,
+def test_reword_execute_task_full_flow(
     mock_release: MagicMock,
     _mock_first_ws: MagicMock,
     mock_claim: MagicMock,
@@ -221,36 +220,74 @@ def test_handle_reword_changed_runs_full_flow(
     mock_get_provider: MagicMock,
     mock_sync: MagicMock,
 ) -> None:
-    """Test full reword flow when description is changed."""
+    """Test full reword execute task flow."""
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
     mock_provider.reword.return_value = (True, None)
-    # prepare_description_for_reword passes description through (mock returns input)
     mock_provider.prepare_description_for_reword.side_effect = lambda d: d
     mock_get_provider.return_value = mock_provider
-    ctx, cs = _make_context_and_changespec()
 
-    handle_reword(ctx, cs)
+    success, message = reword_execute_task(
+        "cl/test", "/path/to/project.gp", "project", "New description\n"
+    )
 
+    assert success is True
+    assert "cl/test" in message
     mock_claim.assert_called_once()
-    # Verify prepare_description_for_reword was called with the edited description
     mock_provider.prepare_description_for_reword.assert_called_once_with(
         "New description\n"
     )
-    # Verify provider.reword was called with the prepared description
     mock_provider.reword.assert_called_once_with("New description\n", "/ws")
-    mock_sync.assert_called_once()
+    mock_sync.assert_called_once_with("/ws", "/path/to/project.gp", "cl/test")
     mock_release.assert_called_once()
 
 
-@patch("sase.ace.handlers.reword._fetch_cl_description", return_value=None)
-@patch("sase.ace.changespec.get_base_status", return_value="Draft")
-def test_handle_reword_fetch_fails_returns_early(
-    _mock_base: MagicMock, _mock_fetch: MagicMock
+@patch("sase.ace.handlers.reword.get_vcs_provider")
+@patch("sase.ace.handlers.reword.run_sase_hg_clean", return_value=(True, None))
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/ws", "fig_101"),
+)
+@patch("sase.running_field.claim_workspace", return_value=True)
+@patch("sase.running_field.get_first_available_axe_workspace", return_value=101)
+@patch("sase.running_field.release_workspace")
+def test_reword_execute_task_checkout_fails(
+    mock_release: MagicMock,
+    _mock_first_ws: MagicMock,
+    _mock_claim: MagicMock,
+    _mock_get_ws_dir: MagicMock,
+    _mock_clean: MagicMock,
+    mock_get_provider: MagicMock,
 ) -> None:
-    """Test early return when description fetch fails."""
-    ctx, cs = _make_context_and_changespec()
+    """Test execute task returns failure when checkout fails."""
+    mock_provider = MagicMock()
+    mock_provider.checkout.return_value = (False, "branch not found")
+    mock_get_provider.return_value = mock_provider
 
-    with patch("sase.ace.handlers.reword._open_editor_with_content") as mock_editor:
-        handle_reword(ctx, cs)
-        mock_editor.assert_not_called()
+    success, message = reword_execute_task(
+        "cl/test", "/path/to/project.gp", "project", "New description\n"
+    )
+
+    assert success is False
+    assert "checkout failed" in message
+    mock_release.assert_called_once()
+
+
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/ws", "fig_101"),
+)
+@patch("sase.running_field.claim_workspace", return_value=False)
+@patch("sase.running_field.get_first_available_axe_workspace", return_value=101)
+def test_reword_execute_task_workspace_claim_fails(
+    _mock_first_ws: MagicMock,
+    _mock_claim: MagicMock,
+    _mock_get_ws_dir: MagicMock,
+) -> None:
+    """Test execute task returns failure when workspace claim fails."""
+    success, message = reword_execute_task(
+        "cl/test", "/path/to/project.gp", "project", "New description\n"
+    )
+
+    assert success is False
+    assert "Failed to claim" in message

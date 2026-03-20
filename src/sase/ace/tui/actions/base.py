@@ -117,7 +117,12 @@ class BaseActionsMixin:
             run_handler()
 
     def action_reword(self) -> None:
-        """Reword (change CL description) for the current ChangeSpec."""
+        """Reword (change CL description) for the current ChangeSpec.
+
+        Two-phase approach:
+        1. Interactive: fetch description and open editor in suspend()
+        2. Background: claim workspace, checkout CL, apply reword
+        """
         from ...changespec import get_base_status
 
         if not self.changespecs:
@@ -139,17 +144,43 @@ class BaseActionsMixin:
             )
             return
 
-        from ...handlers import handle_reword
+        from ...handlers import handle_reword_prepare
+        from ...handlers.reword import reword_execute_task
         from .._workflow_context import WorkflowContext
 
-        def run_handler() -> None:
-            ctx = WorkflowContext()
-            handle_reword(ctx, changespec)  # type: ignore[arg-type]
-
+        # Interactive phase: fetch description and open editor in suspend()
+        edited_description = None
         with self.suspend():  # type: ignore[attr-defined]
-            run_handler()
+            ctx = WorkflowContext()
+            edited_description = handle_reword_prepare(ctx, changespec)  # type: ignore[arg-type]
 
-        self._reload_and_reposition()  # type: ignore[attr-defined]
+        # If user cancelled or description unchanged, nothing to do
+        if edited_description is None:
+            return
+
+        # Non-interactive phase: submit reword as background task
+        cl_name = changespec.name
+        project_file = changespec.file_path
+
+        def task_callable() -> tuple[bool, str]:
+            return reword_execute_task(
+                cl_name,
+                project_file,
+                changespec.project_basename,
+                edited_description,
+            )
+
+        def on_success() -> None:
+            from ...hooks import reset_dollar_hooks
+
+            reset_dollar_hooks(project_file, cl_name)
+
+        submitted = self._submit_background_task(  # type: ignore[attr-defined]
+            "reword", cl_name, project_file, task_callable, on_success=on_success
+        )
+
+        if submitted:
+            self.notify(f"Rewording {cl_name}...")  # type: ignore[attr-defined]
 
     def action_add_tag(self) -> None:
         """Add a tag to the current ChangeSpec's CL description in the background.

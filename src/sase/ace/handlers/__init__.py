@@ -2,7 +2,7 @@
 
 from .edit_hooks import handle_edit_hooks
 from .mail import handle_mail_prepare, mail_execute_task
-from .reword import add_tag_task, handle_reword
+from .reword import add_tag_task, handle_reword_prepare, reword_execute_task
 from .show_diff import handle_show_diff
 from .workflow_handlers import (
     handle_run_crs_workflow,
@@ -21,5 +21,6 @@ __all__ = [
     "handle_edit_hooks",
     "mail_execute_task",
     "handle_mail_prepare",
-    "handle_reword",
+    "handle_reword_prepare",
+    "reword_execute_task",
 ]

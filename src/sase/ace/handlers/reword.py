@@ -23,47 +23,36 @@ if TYPE_CHECKING:
     from ..tui._workflow_context import WorkflowContext
 
 
-def _sync_description_after_reword(
-    workspace_dir: str, changespec: ChangeSpec, console: "Console"
-) -> None:
+def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
     """Sync the ChangeSpec DESCRIPTION field after a successful reword.
 
-    Runs ``cl_desc -s`` to get the clean description from the commit message
-    and writes it back to the ``.gp`` file.  Errors are non-fatal (warnings
-    only) since the reword itself already succeeded.
+    Runs ``get_description`` to get the clean description from the commit
+    message and writes it back to the ``.gp`` file.  Uses ``print()`` instead
+    of Rich console since this runs in a background task with captured stdout.
 
     Args:
         workspace_dir: Path to the workspace directory.
-        changespec: The ChangeSpec whose description should be updated.
-        console: Rich console for output.
+        file_path: Path to the project file.
+        name: The ChangeSpec name.
     """
     from sase.status_state_machine import update_changespec_description_atomic
 
     provider = get_vcs_provider(workspace_dir)
     success, desc_output = provider.get_description("", workspace_dir, short=True)
     if not success:
-        console.print(
-            f"[yellow]Warning: could not read updated description: {_esc(str(desc_output))}[/yellow]"
-        )
+        print(f"Warning: could not read updated description: {desc_output}")
         return
 
     new_description = desc_output.strip() if desc_output else ""
     if not new_description:
-        console.print(
-            "[yellow]Warning: cl_desc -s returned empty output, "
-            "skipping DESCRIPTION sync[/yellow]"
-        )
+        print("Warning: cl_desc -s returned empty output, skipping DESCRIPTION sync")
         return
 
-    success = update_changespec_description_atomic(
-        changespec.file_path, changespec.name, new_description
-    )
+    success = update_changespec_description_atomic(file_path, name, new_description)
     if success:
-        console.print("[green]Synced DESCRIPTION to project file[/green]")
+        print("Synced DESCRIPTION to project file")
     else:
-        console.print(
-            "[yellow]Warning: failed to sync DESCRIPTION to project file[/yellow]"
-        )
+        print("Warning: failed to sync DESCRIPTION to project file")
 
 
 def _fetch_cl_description(
@@ -256,16 +245,57 @@ def add_tag_task(
         )
 
 
-def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
-    """Handle 'w' (reword) action to change CL description.
+def handle_reword_prepare(
+    self: "WorkflowContext", changespec: ChangeSpec
+) -> str | None:
+    """Interactive part of reword: fetch description and open editor.
 
-    Fetches the current description and opens an editor immediately (fast),
-    then only claims a workspace and runs sase_hg_reword if the description
-    was actually changed.
+    Runs inside ``suspend()`` so the editor can take over the terminal.
 
     Args:
-        self: The WorkflowContext instance
+        self: The WorkflowContext instance (provides console for terminal output)
         changespec: Current ChangeSpec
+
+    Returns:
+        The edited description if changed, or None if cancelled/unchanged.
+    """
+    original = _fetch_cl_description(
+        changespec.project_basename, changespec.name, self.console
+    )
+    if original is None:
+        return None
+
+    content_for_editor = _add_prettier_ignore_before_tags(original)
+    edited = _open_editor_with_content(content_for_editor, self.console)
+    if edited is None:
+        self.console.print("[yellow]Reword cancelled.[/yellow]")
+        return None
+
+    # Strip prettier-ignore immediately after editor returns
+    edited = _strip_prettier_ignore(edited)
+
+    # Compare (ignore trailing newline differences)
+    if original.rstrip("\n") == edited.rstrip("\n"):
+        self.console.print("[yellow]Description unchanged, nothing to do.[/yellow]")
+        return None
+
+    return edited
+
+
+def reword_execute_task(
+    changespec_name: str,
+    changespec_file_path: str,
+    project_basename: str,
+    edited_description: str,
+) -> tuple[bool, str]:
+    """Non-interactive: claim workspace, checkout CL, apply reword. Background task.
+
+    Claims a workspace, checks out the CL, runs the reword with the edited
+    description, syncs the description back to the project file, and releases
+    the workspace in a finally block.
+
+    Returns:
+        Tuple of (success, message).
     """
     from sase.running_field import (
         claim_workspace,
@@ -274,102 +304,56 @@ def handle_reword(self: "WorkflowContext", changespec: ChangeSpec) -> None:
         release_workspace,
     )
 
-    from ..changespec import get_base_status
-
-    # Validate status
-    base_status = get_base_status(changespec.status)
-    if base_status not in ("WIP", "Draft", "Ready", "Mailed"):
-        self.console.print(
-            "[yellow]reword option only available for WIP, Draft, Ready, or Mailed ChangeSpecs[/yellow]"
-        )
-        return
-
-    # Validate CL is set
-    if changespec.cl is None:
-        self.console.print("[yellow]reword option requires a CL to be set[/yellow]")
-        return
-
-    # --- Fast path: fetch description and open editor immediately ---
-    original = _fetch_cl_description(
-        changespec.project_basename, changespec.name, self.console
-    )
-    if original is None:
-        return
-
-    content_for_editor = _add_prettier_ignore_before_tags(original)
-    edited = _open_editor_with_content(content_for_editor, self.console)
-    if edited is None:
-        self.console.print("[yellow]Reword cancelled.[/yellow]")
-        return
-
-    # Strip prettier-ignore immediately after editor returns
-    edited = _strip_prettier_ignore(edited)
-
-    # Compare (ignore trailing newline differences)
-    if original.rstrip("\n") == edited.rstrip("\n"):
-        self.console.print("[yellow]Description unchanged, nothing to do.[/yellow]")
-        return
-
-    # --- Slow path: description changed, claim workspace and apply ---
-    workspace_num = get_first_available_axe_workspace(changespec.file_path)
-
-    if not claim_workspace(
-        changespec.file_path, workspace_num, "reword", os.getpid(), changespec.name
-    ):
-        self.console.print("[red]Failed to claim workspace[/red]")
-        return
+    workspace_num = get_first_available_axe_workspace(changespec_file_path)
+    workflow_name = "reword"
 
     try:
         workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-            workspace_num, changespec.project_basename
+            workspace_num, project_basename
         )
+    except RuntimeError as e:
+        return (False, f"Failed to get workspace directory: {e}")
 
+    pid = os.getpid()
+    if not claim_workspace(
+        changespec_file_path, workspace_num, workflow_name, pid, changespec_name
+    ):
+        return (False, "Failed to claim workspace")
+
+    try:
         if workspace_suffix:
-            self.console.print(f"[cyan]Using workspace: {workspace_suffix}[/cyan]")
+            print(f"Using workspace: {workspace_suffix}")
 
         # Clean workspace before switching branches
         clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec.name}-reword"
+            workspace_dir, f"{changespec_name}-reword"
         )
         if not clean_success:
-            self.console.print(
-                f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]"
-            )
+            print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Update to the changespec (checkout the CL)
+        # Checkout the CL
+        print(f"Checking out {changespec_name}...")
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
-            changespec.name, changespec.project_basename, workspace_dir
+            changespec_name, project_basename, workspace_dir
         )
-        self.console.print(f"[cyan]Checking out {_esc(changespec.name)}...[/cyan]")
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
-            self.console.print(
-                f"[red]Error checking out CL: {_esc(str(checkout_err))}[/red]"
-            )
-            return
+            return (False, f"checkout failed: {checkout_err}")
 
-        # Run reword with the edited description (non-interactive)
-        self.console.print("[cyan]Rewording CL description...[/cyan]")
-        escaped_desc = provider.prepare_description_for_reword(edited)
+        # Run reword with the edited description
+        print("Rewording CL description...")
+        escaped_desc = provider.prepare_description_for_reword(edited_description)
         reword_ok, reword_err = provider.reword(escaped_desc, workspace_dir)
-        if reword_ok:
-            self.console.print("[green]CL description updated successfully[/green]")
-            _sync_description_after_reword(workspace_dir, changespec, self.console)
-            from ..hooks import reset_dollar_hooks
+        if not reword_ok:
+            return (False, f"sase_hg_reword failed: {reword_err}")
 
-            reset_dollar_hooks(
-                changespec.file_path,
-                changespec.name,
-                log_fn=lambda msg: self.console.print(f"[cyan]{_esc(msg)}[/cyan]"),
-            )
-        else:
-            self.console.print(
-                f"[yellow]sase_hg_reword failed: {_esc(str(reword_err))}[/yellow]"
-            )
+        # Sync description to project file
+        _sync_description_bg(workspace_dir, changespec_file_path, changespec_name)
+
+        return (True, f"Reworded {changespec_name}")
 
     finally:
-        # Always release the workspace
         release_workspace(
-            changespec.file_path, workspace_num, "reword", changespec.name
+            changespec_file_path, workspace_num, workflow_name, changespec_name
         )
