@@ -1,5 +1,6 @@
 ---
 bead_id: sase-5
+status: done
 ---
 
 # Plan: Improve XPrompt Add/Edit UX in `sase ace` TUI
