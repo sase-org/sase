@@ -413,9 +413,9 @@ class KeybindingFooter(Horizontal):
             else:
                 bindings.append((x, "kill"))
             if agent.status in ("WAITING", "RUNNING"):
-                bindings.append((self._kd("reword"), "wait"))
+                bindings.append((self._kd("reword"), "edit wait"))
             if agent.agent_name:
-                bindings.append((self._kd("add_tag"), "wait for"))
+                bindings.append((self._kd("add_tag"), "new w/ wait"))
             _APPROVE_ELIGIBLE = {
                 "RUNNING",
                 "PLANNING",
