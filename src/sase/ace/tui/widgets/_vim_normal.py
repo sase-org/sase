@@ -41,6 +41,7 @@ class VimNormalModeMixin(_MixinBase):
         _mutation_key_buffer: list[str]
         _last_mutation_keys: list[str]
         _replaying_dot: bool
+        _last_char_search: tuple[str, str] | None
 
     # -- Methods defined on PromptTextArea (stubs for type checking) --
 
@@ -231,6 +232,57 @@ class VimNormalModeMixin(_MixinBase):
         self.read_only = was_readonly
         self._record_mutation()
 
+    def _execute_char_search(
+        self,
+        motion: str,
+        target_char: str,
+        count: int,
+        op_info: tuple[str, int] | None,
+        *,
+        col_offset: int = 0,
+    ) -> bool:
+        """Execute a character search motion (f/F/t/T).
+
+        *col_offset* shifts the search start column without changing the
+        operator anchor.  This is used by ``;``/``,`` to avoid the "stuck
+        cursor" problem when repeating ``t``/``T`` motions.
+
+        Returns ``True`` if the character was found and the motion executed.
+        """
+        eff = op_info[1] if op_info else count
+        row, col = self.cursor_location
+        search_col = col + col_offset
+        line = self.document.get_line(row)
+        if motion in "ft":
+            tc = find_char_forward(line, search_col, target_char, eff)
+        else:
+            tc = find_char_backward(line, search_col, target_char, eff)
+        if tc is None:
+            return False
+        if motion == "f":
+            if op_info:
+                self._execute_charwise_operator((row, col), (row, tc + 1), op_info[0])
+            else:
+                self.cursor_location = (row, tc)
+        elif motion == "t":
+            if op_info:
+                self._execute_charwise_operator((row, col), (row, tc), op_info[0])
+            else:
+                self.cursor_location = (row, tc - 1)
+        elif motion == "F":
+            if op_info:
+                self._execute_charwise_operator((row, tc), (row, col + 1), op_info[0])
+            else:
+                self.cursor_location = (row, tc)
+        elif motion == "T":
+            if op_info:
+                self._execute_charwise_operator(
+                    (row, tc + 1), (row, col + 1), op_info[0]
+                )
+            else:
+                self.cursor_location = (row, tc + 1)
+        return True
+
     def _handle_normal_mode_key(self, event: Key) -> bool:
         """Handle a key event in NORMAL mode. Returns True if handled."""
         key = event.character or event.key
@@ -275,42 +327,8 @@ class VimNormalModeMixin(_MixinBase):
                 target_char = key
                 motion_count = pending_count if pending_count is not None else 1
                 op_info = self._consume_pending_operator(motion_count)
-                eff = op_info[1] if op_info else motion_count
-                row, col = self.cursor_location
-                line = self.document.get_line(row)
-                if pending in "ft":
-                    tc = find_char_forward(line, col, target_char, eff)
-                else:
-                    tc = find_char_backward(line, col, target_char, eff)
-                if tc is not None:
-                    if pending == "f":
-                        if op_info:
-                            self._execute_charwise_operator(
-                                (row, col), (row, tc + 1), op_info[0]
-                            )
-                        else:
-                            self.cursor_location = (row, tc)
-                    elif pending == "t":
-                        if op_info:
-                            self._execute_charwise_operator(
-                                (row, col), (row, tc), op_info[0]
-                            )
-                        else:
-                            self.cursor_location = (row, tc - 1)
-                    elif pending == "F":
-                        if op_info:
-                            self._execute_charwise_operator(
-                                (row, tc), (row, col + 1), op_info[0]
-                            )
-                        else:
-                            self.cursor_location = (row, tc)
-                    elif pending == "T":
-                        if op_info:
-                            self._execute_charwise_operator(
-                                (row, tc + 1), (row, col + 1), op_info[0]
-                            )
-                        else:
-                            self.cursor_location = (row, tc + 1)
+                self._last_char_search = (pending, target_char)
+                self._execute_char_search(pending, target_char, motion_count, op_info)
             elif pending == "a" and key == "e":
                 # "ae" text object: entire buffer
                 if self._pending_operator:
@@ -582,6 +600,25 @@ class VimNormalModeMixin(_MixinBase):
             self._pending_keys = key
             self._pending_count = count if has_count else None
             # Keep pending operator for resolution
+            return True
+
+        # Repeat last character search (; = same direction, , = reverse)
+        if key in ";," and self._last_char_search:
+            motion, target_char = self._last_char_search
+            if key == ",":
+                motion = motion.swapcase()
+            op_info = self._consume_pending_operator(count)
+            # t/T leave the cursor one position away from the target,
+            # so repeating would find the same character again.  Shift
+            # the search start to skip past it.
+            col_offset = 0
+            if motion == "t":
+                col_offset = 1
+            elif motion == "T":
+                col_offset = -1
+            self._execute_char_search(
+                motion, target_char, count, op_info, col_offset=col_offset
+            )
             return True
 
         # Text object prefix (ae = entire buffer)

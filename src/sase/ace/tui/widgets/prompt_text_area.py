@@ -51,6 +51,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._mutation_key_buffer: list[str] = []
         self._last_mutation_keys: list[str] = []
         self._replaying_dot: bool = False
+        self._last_char_search: tuple[str, str] | None = None
         self._formatting: bool = False
 
     @property
