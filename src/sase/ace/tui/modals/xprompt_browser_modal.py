@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import os
 import subprocess
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
+from sase.plugin_discovery import discover_plugin_resources
 from sase.xprompt import get_all_prompts
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.models import UNSET, InputArg
@@ -63,7 +65,7 @@ class _BrowserItem:
 def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
     """Classify a source path into (category_label, display_path, is_editable)."""
     if source_path is None:
-        return "Built-in", "", False
+        return "Built-in", "", True
 
     home = str(Path.home())
     cwd = str(Path.cwd())
@@ -80,11 +82,11 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
                 module_part.split("/")[0] if "/" in module_part else module_part
             )
         short_name = module_name.replace("_", "-")
-        return f"Plugin ({short_name})", source_path, False
+        return f"Plugin ({short_name})", source_path, True
 
     # Built-in default config xprompts
     if source_path == "default_config":
-        return "Built-in", "sase default_config.yml", False
+        return "Built-in", "sase default_config.yml", True
 
     # Config sources: user sase.yml
     if source_path == "config":
@@ -101,7 +103,7 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     # Inside sase package (built-in)
     if source_path.startswith(sase_pkg_dir):
-        return "Built-in", source_path.replace(home, "~"), False
+        return "Built-in", source_path.replace(home, "~"), True
 
     # Project-specific: ~/.config/sase/xprompts/{proj}/
     project_prefix = os.path.join(home, ".config", "sase", "xprompts")
@@ -128,6 +130,71 @@ def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     # Fallback
     return "Other", source_path.replace(home, "~"), True
+
+
+def _resolve_source_to_file_path(source_path: str | None) -> str | None:
+    """Resolve a source path identifier to an actual filesystem path.
+
+    Handles plugin, config, and built-in source path formats used by the
+    xprompt loader, returning the real file path that can be opened in an editor.
+    """
+    if source_path is None:
+        return None
+
+    # plugin:module_name/filename → resolve xprompts dir via importlib.resources
+    if source_path.startswith("plugin:"):
+        remainder = source_path.removeprefix("plugin:")
+        if "/" in remainder:
+            module_name, filename = remainder.split("/", 1)
+        else:
+            return None
+        for module in discover_plugin_resources("sase_xprompts"):
+            if module.__name__ == module_name:
+                try:
+                    xprompts_dir = importlib.resources.files(module).joinpath(
+                        "xprompts"
+                    )
+                    return str(Path(str(xprompts_dir)) / filename)
+                except (TypeError, AttributeError):
+                    pass
+        return None
+
+    # plugin_config:module_name → resolve default_config.yml via importlib.resources
+    if source_path.startswith("plugin_config:"):
+        module_name = source_path.removeprefix("plugin_config:")
+        for module in discover_plugin_resources("sase_config"):
+            if module.__name__ == module_name:
+                try:
+                    ref = importlib.resources.files(module).joinpath(
+                        "default_config.yml"
+                    )
+                    return str(ref)
+                except (TypeError, AttributeError):
+                    pass
+        return None
+
+    # default_config → sase's bundled default_config.yml
+    if source_path == "default_config":
+        try:
+            return str(importlib.resources.files("sase").joinpath("default_config.yml"))
+        except Exception:
+            return None
+
+    # local_config → ./sase.yml in CWD
+    if source_path == "local_config":
+        return str(Path.cwd() / "sase.yml")
+
+    # config → user sase.yml
+    if source_path == "config":
+        return str(Path.home() / ".config" / "sase" / "sase.yml")
+
+    # config_overlay:filename → user sase config overlay
+    if source_path.startswith("config_overlay:"):
+        filename = source_path.removeprefix("config_overlay:")
+        return str(Path.home() / ".config" / "sase" / filename)
+
+    # Regular filesystem path — return as-is
+    return source_path
 
 
 class _BrowserFilterInput(Input):
@@ -441,26 +508,10 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             self.notify("This xprompt is read-only", severity="warning")
             return
 
-        if item.source_path is None:
-            self.notify("No source file available", severity="warning")
+        file_path = _resolve_source_to_file_path(item.source_path)
+        if file_path is None:
+            self.notify("Could not resolve source file path", severity="error")
             return
-
-        # For config-based xprompts, open the config file
-        if item.source_path == "config":
-            config_path = Path.home() / ".config" / "sase" / "sase.yml"
-            if not config_path.exists():
-                self.notify("Config file not found", severity="error")
-                return
-            file_path = str(config_path)
-        elif item.source_path and item.source_path.startswith("config_overlay:"):
-            filename = item.source_path.removeprefix("config_overlay:")
-            config_path = Path.home() / ".config" / "sase" / filename
-            if not config_path.exists():
-                self.notify("Config file not found", severity="error")
-                return
-            file_path = str(config_path)
-        else:
-            file_path = item.source_path
 
         editor = os.environ.get("EDITOR") or "nvim"
         editor_args = build_editor_args(editor, [file_path])
