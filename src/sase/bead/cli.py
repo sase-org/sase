@@ -100,6 +100,37 @@ def _get_read_view() -> MergedBeadView | BeadProject:
     return _get_project()
 
 
+def _normalize_workspace_path(resolved: Path) -> Path:
+    """Normalize a path from an ephemeral workspace to the primary workspace.
+
+    If ``resolved`` is inside a sibling workspace (same parent directory as the
+    primary workspace), rewrite it to be rooted at the primary workspace instead.
+    This prevents ephemeral ``sase_<N>`` prefixes from leaking into stored paths.
+    """
+    from sase.bead.workspace import resolve_primary_workspace
+
+    primary = resolve_primary_workspace()
+    if not primary:
+        return resolved
+
+    try:
+        resolved.relative_to(primary)
+        return resolved  # already inside primary
+    except ValueError:
+        pass
+
+    # Check if inside a sibling workspace (same parent directory)
+    try:
+        rel_to_parent = resolved.relative_to(primary.parent)
+    except ValueError:
+        return resolved  # not in a sibling workspace
+
+    parts = rel_to_parent.parts
+    if len(parts) > 1:
+        return primary / Path(*parts[1:])
+    return resolved
+
+
 def _status_icon(status: Status) -> str:
     return {"open": "○", "in_progress": "◐", "closed": "✓"}[status.value]
 
@@ -138,7 +169,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         if not plan_file.exists():
             print(f"Error: plan file not found: {plan_path}", file=sys.stderr)
             sys.exit(1)
-        design = str(plan_file.resolve())
+        design = str(_normalize_workspace_path(plan_file.resolve()))
 
     with _get_project() as proj:
         # Validate parent exists
