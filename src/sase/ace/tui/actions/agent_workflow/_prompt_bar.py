@@ -332,7 +332,7 @@ class PromptBarMixin:
         )
 
     def on_prompt_input_bar_snippet_requested(self, event: object) -> None:
-        """Handle request to show snippet modal ('#')."""
+        """Handle request to show snippet modal ('#@')."""
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.SnippetRequested):

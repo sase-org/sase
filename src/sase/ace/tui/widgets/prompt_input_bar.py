@@ -48,7 +48,7 @@ class PromptInputBar(Static):
             self.vcs_prefix = vcs_prefix
 
     class SnippetRequested(Message):
-        """Message sent when user requests snippet modal ('##')."""
+        """Message sent when user requests snippet modal ('#@')."""
 
         pass
 
@@ -66,7 +66,7 @@ class PromptInputBar(Static):
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
         placeholder = (
-            "Type prompt, '.' for history, '##' for snippets  "
+            "Type prompt, '.' for history, '#@' for snippets  "
             "[^G] editor  [^Y] workflow  [^J] newline"
         )
         yield PromptTextArea(
@@ -175,8 +175,8 @@ class PromptInputBar(Static):
     def insert_snippet(self, snippet_name: str) -> None:
         """Insert a snippet reference at the cursor position.
 
-        The first '#' from the '##' trigger is already in the input
-        (second '#' was prevented), so we just append the snippet name.
+        The '#' from the '#@' trigger is already in the input
+        ('@' was prevented), so we just append the snippet name.
 
         Args:
             snippet_name: The snippet name to insert (without #)

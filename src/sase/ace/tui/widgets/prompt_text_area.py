@@ -298,8 +298,8 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self._enter_normal_mode()
             return
 
-        # Detect '##' trigger before the second '#' is inserted
-        if event.character == "#":
+        # Detect '#@' trigger before the '@' is inserted
+        if event.character == "@":
             PromptInputBar = _prompt_bar_class()
             row, col = self.cursor_location
             if col > 0:
