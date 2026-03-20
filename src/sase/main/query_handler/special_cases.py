@@ -12,6 +12,26 @@ from ._query import run_query
 from ._resume import handle_run_with_resume
 
 
+def _maybe_launch_multi_prompt(prompt: str, daemon_mode: bool) -> bool:
+    """Detect multi-prompt and launch agents in daemon mode.
+
+    Returns True if a multi-prompt was detected and agents were launched.
+    """
+    if daemon_mode:
+        # In daemon mode, run_query_daemon already handles multi-prompt.
+        return False
+    from sase.multi_prompt import is_multi_prompt
+
+    if not is_multi_prompt(prompt):
+        return False
+    from sase.multi_prompt import parse_multi_prompt
+
+    n = len(parse_multi_prompt(prompt).segments)
+    print(f"Multi-prompt detected — launching {n} agents in daemon mode")
+    run_query_daemon(prompt)
+    return True
+
+
 def handle_run_special_cases(args_after_run: list[str]) -> bool:
     """Handle special cases for 'sase run' before argparse processes it.
 
@@ -88,6 +108,8 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if prompt is None:
             print("No prompt selected. Aborting.")
             sys.exit(1)
+        if _maybe_launch_multi_prompt(prompt, daemon_mode):
+            sys.exit(0)
         _run_query(prompt)
         sys.exit(0)
 
@@ -97,6 +119,8 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if prompt is None:
             print("No prompt provided. Aborting.")
             sys.exit(1)
+        if _maybe_launch_multi_prompt(prompt, daemon_mode):
+            sys.exit(0)
         _run_query(prompt)
         sys.exit(0)
 
@@ -180,15 +204,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
 
         known_prompts = set(get_all_prompts().keys())
         if potential_query not in known_prompts and " " in potential_query:
-            # Auto-switch to daemon mode for multi-prompt queries.
-            from sase.multi_prompt import is_multi_prompt
-
-            if not daemon_mode and is_multi_prompt(potential_query):
-                from sase.multi_prompt import parse_multi_prompt
-
-                n = len(parse_multi_prompt(potential_query).segments)
-                print(f"Multi-prompt detected — launching {n} agents in daemon mode")
-                run_query_daemon(potential_query)
+            if _maybe_launch_multi_prompt(potential_query, daemon_mode):
                 sys.exit(0)
             _run_query(potential_query)
             sys.exit(0)

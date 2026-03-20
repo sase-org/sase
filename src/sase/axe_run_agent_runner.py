@@ -130,12 +130,26 @@ def main() -> None:
     with open(raw_xprompt_path, "w", encoding="utf-8") as f:
         f.write(prompt)
 
+    # Load local xprompts from env var (set by multi-prompt launcher)
+    # before expanding, so local xprompts like #_docs:telegram are expanded.
+    from sase.xprompt.models import XPrompt
+
+    local_xprompts: dict[str, XPrompt] = {}
+    env_xprompts_path = os.environ.pop("SASE_AGENT_LOCAL_XPROMPTS", None)
+    if env_xprompts_path:
+        try:
+            from sase.multi_prompt_launcher import deserialize_local_xprompts
+
+            local_xprompts = deserialize_local_xprompts(env_xprompts_path)
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+
     # Expand xprompt references so directives from xprompts (e.g.,
     # #swarm expanding to %model:opus) are available for extraction.
     # This must happen after saving raw_xprompt.md above.
     from sase.xprompt.processor import process_xprompt_references
 
-    prompt = process_xprompt_references(prompt)
+    prompt = process_xprompt_references(prompt, extra_xprompts=local_xprompts or None)
 
     # Defaults for agent metadata (populated later, but needed by error handler)
     agent_name: str | None = None
