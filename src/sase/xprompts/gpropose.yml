@@ -5,9 +5,6 @@ input:
   - name: note
     type: line
     default: ""
-  - name: branch
-    type: word
-    default: ""
 
 steps:
   - name: inject

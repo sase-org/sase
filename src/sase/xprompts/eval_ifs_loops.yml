@@ -135,7 +135,12 @@ steps:
     bash: |
       echo "all_tests_completed=true"
       echo "conditional_true_ran={{ conditional_true.value }}"
+      echo "conditional_false_ran={{ conditional_false.value | default('skipped') }}"
       echo "items_processed={{ process_items | length }}"
+      echo "parallel_name={{ process_parallel | length }}"
+      echo "join_text_result={{ join_text }}"
+      echo "join_lastof_result={{ join_lastof.final }}"
       echo "retry_attempts={{ retry_operation.attempts }}"
       echo "poll_count={{ poll_status.polls }}"
+      echo "conditional_loop_count={{ conditional_loop | length }}"
     output: {all_tests_completed: bool}

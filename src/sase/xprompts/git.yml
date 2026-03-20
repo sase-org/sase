@@ -38,13 +38,8 @@ steps:
       # Stash any uncommitted changes (including untracked files)
       if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then
         git stash push --include-untracked -m "git-workflow-$(date +%s)" --quiet
-        echo "stashed=true"
-      else
-        echo "stashed=false"
       fi
       git fetch --quiet
-      echo "success=true"
-    output: { success: bool, stashed: bool }
 
   - name: checkout
     python: |

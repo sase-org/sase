@@ -22,18 +22,44 @@ _XPROMPT_PATTERN = (
     r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
 )
 
-# Pattern to find {{ ... }} blocks (may contain multiple variable references)
-_JINJA_BLOCK_PATTERN = re.compile(r"\{\{(.*?)\}\}", re.DOTALL)
+# Pattern to find {{ ... }} and {% ... %} blocks (variable references)
+_JINJA_BLOCK_PATTERN = re.compile(r"\{\{(.*?)\}\}|\{%(.*?)%\}", re.DOTALL)
 
 # Pattern to find dotted identifiers within a Jinja2 block
 _IDENT_PATTERN = re.compile(r"\b([a-zA-Z_]\w*(?:\.\w+)*)\b")
 
+# Jinja2 keywords that appear in {% %} blocks but are not variable references
+_JINJA_KEYWORDS = frozenset(
+    {
+        "if",
+        "elif",
+        "else",
+        "endif",
+        "for",
+        "endfor",
+        "in",
+        "set",
+        "block",
+        "endblock",
+        "macro",
+        "endmacro",
+        "not",
+        "and",
+        "or",
+        "is",
+        "true",
+        "false",
+        "none",
+    }
+)
+
 
 def _extract_template_refs(content: str) -> list[str]:
-    """Extract all dotted identifier references from {{ ... }} blocks.
+    """Extract all dotted identifier references from ``{{ }}`` and ``{% %}`` blocks.
 
     Handles compound expressions like ``{{ a.valid and b.valid }}``
-    by scanning each block for all dotted identifiers.
+    by scanning each block for all dotted identifiers.  Jinja2 keywords
+    (``if``, ``for``, ``not``, etc.) are excluded from ``{% %}`` results.
 
     Args:
         content: Template content string to scan.
@@ -43,9 +69,13 @@ def _extract_template_refs(content: str) -> list[str]:
     """
     refs: list[str] = []
     for block_match in _JINJA_BLOCK_PATTERN.finditer(content):
-        block_text = block_match.group(1)
+        block_text = block_match.group(1) or block_match.group(2)
+        is_statement = block_match.group(2) is not None
         for ident_match in _IDENT_PATTERN.finditer(block_text):
-            refs.append(ident_match.group(1))
+            ident = ident_match.group(1)
+            if is_statement and ident in _JINJA_KEYWORDS:
+                continue
+            refs.append(ident)
     return refs
 
 
@@ -421,6 +451,110 @@ def _detect_unused_outputs(workflow: Workflow) -> list[str]:
     return errors
 
 
+def _validate_cross_step_field_refs(workflow: Workflow) -> list[str]:
+    """Validate that field references in templates match step output schemas.
+
+    For each ``{{ step_name.field }}`` reference, verifies that *field* exists
+    in *step_name*'s output schema properties.  Catches typos like
+    ``{{ build.atrifact_path }}`` when the output defines ``artifact_path``.
+
+    Args:
+        workflow: The workflow to validate.
+
+    Returns:
+        List of error messages for invalid field references.
+    """
+    errors: list[str] = []
+
+    # Build map: step_name → set of field names from output schema
+    step_fields: dict[str, set[str]] = {}
+    # Build map: "parent.nested" → set of field names for parallel substeps
+    nested_fields: dict[str, set[str]] = {}
+    # Track parallel steps → their substep names (for object-joined access)
+    parallel_substep_names: dict[str, set[str]] = {}
+
+    for step in workflow.steps:
+        if step.output:
+            # Field access works for steps without a for-loop, or with join=lastOf
+            has_for = step.for_loop is not None
+            if not has_for or step.join == "lastOf":
+                props = step.output.schema.get("properties", {})
+                step_fields[step.name] = set(props.keys())
+
+        if step.parallel_config:
+            join = step.join
+            skip_nested = (
+                join in ("array", "text", "lastOf") or step.for_loop is not None
+            )
+            if not skip_nested:
+                substeps: set[str] = set()
+                for nested in step.parallel_config.steps:
+                    substeps.add(nested.name)
+                    if nested.output:
+                        key = f"{step.name}.{nested.name}"
+                        props = nested.output.schema.get("properties", {})
+                        nested_fields[key] = set(props.keys())
+                parallel_substep_names[step.name] = substeps
+
+    def _check_refs(refs: list[str], source_label: str, for_vars: set[str]) -> None:
+        for ref in refs:
+            parts = ref.split(".")
+            if len(parts) < 2:
+                continue
+
+            ref_name = parts[0]
+
+            # Skip for-loop iteration variables
+            if ref_name in for_vars:
+                continue
+
+            # Case 1: {{ step.field }} for a step with output schema
+            if ref_name in step_fields:
+                field = parts[1]
+                known = step_fields[ref_name]
+                if field not in known:
+                    available = sorted(known)
+                    errors.append(
+                        f"{source_label}: references '{ref_name}.{field}' "
+                        f"but '{ref_name}' output has no field '{field}'. "
+                        f"Available: {available}"
+                    )
+
+            # Case 2: {{ parallel.nested.field }} for object-joined parallel
+            elif ref_name in parallel_substep_names and len(parts) >= 3:
+                nested_name = parts[1]
+                field = parts[2]
+                key = f"{ref_name}.{nested_name}"
+                if key in nested_fields:
+                    known = nested_fields[key]
+                    if field not in known:
+                        available = sorted(known)
+                        errors.append(
+                            f"{source_label}: references "
+                            f"'{ref_name}.{nested_name}.{field}' "
+                            f"but '{key}' output has no field '{field}'. "
+                            f"Available: {available}"
+                        )
+
+    # Scan all step content
+    for step in workflow.steps:
+        for_vars = set(step.for_loop.keys()) if step.for_loop else set()
+        label = f"Step '{step.name}'"
+
+        for content in _collect_step_content(step):
+            _check_refs(_extract_template_refs(content), label, for_vars)
+
+    # Scan workflow-local xprompt content
+    for xp_name, xp in workflow.xprompts.items():
+        _check_refs(
+            _extract_template_refs(xp.content),
+            f"Xprompt '{xp_name}'",
+            set(),
+        )
+
+    return errors
+
+
 def _detect_unused_xprompts(
     workflow: Workflow, xprompts: dict[str, XPrompt]
 ) -> list[str]:
@@ -553,6 +687,9 @@ def validate_workflow(workflow: Workflow) -> None:
     # Check for unused outputs
     unused_output_errors = _detect_unused_outputs(workflow)
     errors.extend(unused_output_errors)
+
+    # Check cross-step field references against output schemas
+    errors.extend(_validate_cross_step_field_refs(workflow))
 
     # Check for unused workflow-local xprompts
     errors.extend(_detect_unused_xprompts(workflow, xprompts))
