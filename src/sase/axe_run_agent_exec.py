@@ -445,7 +445,21 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             else:
                 # Approve: spawn coder with plan as prompt
                 current_role_suffix = ".code"
-                os.environ["SASE_PLAN"] = plan_data["plan_file"]
+
+                # Commit SDD files so the #gh pre-step doesn't wipe them
+                if sdd_plan_name:
+                    if version_controlled:
+                        _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
+
+                # Point SASE_PLAN at the committed in-repo plan file so
+                # ccommit can update its frontmatter without copying.
+                if sdd_plan_name:
+                    os.environ["SASE_PLAN"] = str(
+                        sdd_dir / "plans" / f"{sdd_plan_name}.md"
+                    )
+                else:
+                    os.environ["SASE_PLAN"] = plan_data["plan_file"]
+
                 current_artifacts_dir = create_followup_artifacts(
                     ctx.project_name,
                     ctx.agent_meta,
