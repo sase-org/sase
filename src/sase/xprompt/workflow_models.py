@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any
 
 from sase.xprompt.models import InputArg, OutputSpec, XPrompt
+from sase.xprompt.tags import XPromptTag
 
 
 class StepStatus(Enum):
@@ -128,6 +129,11 @@ class Workflow:
     source_path: str | None = None
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
     wraps_all: bool = False
+    tags: set[XPromptTag] = field(default_factory=set)
+
+    def has_tag(self, tag: XPromptTag) -> bool:
+        """Check if this workflow has the given tag."""
+        return tag in self.tags
 
     def get_input_by_name(self, name: str) -> InputArg | None:
         """Get an input argument definition by name.

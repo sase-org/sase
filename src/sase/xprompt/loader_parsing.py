@@ -6,6 +6,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from .models import UNSET, InputArg, InputType, OutputSpec, XPrompt
+from .tags import parse_tags
 
 
 def parse_yaml_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
@@ -346,6 +347,7 @@ def parse_xprompt_entries(
             content = value
             inputs: list[InputArg] = []
             hooks: list[str] = []
+            tags = set()
         elif isinstance(value, dict):
             # Structured xprompt with input/content
             content = value.get("content", "")
@@ -354,6 +356,7 @@ def parse_xprompt_entries(
             inputs = parse_inputs_from_front_matter(value.get("input"))
             raw_hooks = value.get("hooks")
             hooks = [str(h) for h in raw_hooks] if isinstance(raw_hooks, list) else []
+            tags = parse_tags(value.get("tags"))
         else:
             continue
 
@@ -363,6 +366,7 @@ def parse_xprompt_entries(
             inputs=inputs,
             source_path=source_path,
             hooks=hooks,
+            tags=tags,
         )
 
     return xprompts

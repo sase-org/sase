@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from sase.xprompt.tags import XPromptTag
+
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
 
@@ -159,6 +161,11 @@ class XPrompt:
     inputs: list[InputArg] = field(default_factory=list)
     source_path: str | None = None
     hooks: list[str] = field(default_factory=list)
+    tags: set[XPromptTag] = field(default_factory=set)
+
+    def has_tag(self, tag: XPromptTag) -> bool:
+        """Check if this xprompt has the given tag."""
+        return tag in self.tags
 
     def get_input_by_name(self, name: str) -> InputArg | None:
         """Get an input argument definition by name.
@@ -212,6 +219,7 @@ def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
             )
         ],
         source_path=xprompt.source_path,
+        tags=xprompt.tags,
     )
 
 

@@ -15,6 +15,7 @@ from .loader_parsing import (
     parse_yaml_front_matter,
 )
 from .models import InputArg, XPrompt
+from .tags import parse_tags
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ def _namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         inputs=xp.inputs,
         source_path=xp.source_path,
         hooks=xp.hooks,
+        tags=xp.tags,
     )
 
 
@@ -104,12 +106,16 @@ def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
         if isinstance(raw_hooks, list):
             hooks = [str(h) for h in raw_hooks]
 
+    # Parse tags if present
+    tags = parse_tags(front_matter.get("tags")) if front_matter else set()
+
     return XPrompt(
         name=name,
         content=body,
         inputs=inputs,
         source_path=str(file_path),
         hooks=hooks,
+        tags=tags,
     )
 
 
@@ -279,6 +285,8 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 if isinstance(raw_hooks, list):
                     hooks = [str(h) for h in raw_hooks]
 
+            tags = parse_tags(front_matter.get("tags")) if front_matter else set()
+
             source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
             xprompts[name] = XPrompt(
                 name=name,
@@ -286,6 +294,7 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 inputs=inputs,
                 source_path=source,
                 hooks=hooks,
+                tags=tags,
             )
 
     return xprompts

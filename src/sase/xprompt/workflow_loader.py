@@ -15,6 +15,7 @@ from sase.xprompt.loader import (
 )
 from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import UNSET, InputArg, InputType
+from sase.xprompt.tags import parse_tags
 from sase.xprompt.workflow_loader_parse import (
     _parse_workflow_step as _parse_workflow_step,
     parse_workflow_inputs,
@@ -117,6 +118,7 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         source_path=wf.source_path,
         xprompts=wf.xprompts,
         wraps_all=wf.wraps_all,
+        tags=wf.tags,
     )
 
 
@@ -143,6 +145,9 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
 
     # Parse wraps_all
     wraps_all = bool(data.get("wraps_all", False))
+
+    # Parse tags
+    tags = parse_tags(data.get("tags"))
 
     # Parse inputs
     inputs = parse_workflow_inputs(data.get("input"))
@@ -208,6 +213,7 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
         source_path=str(file_path),
         xprompts=parsed_xprompts,
         wraps_all=wraps_all,
+        tags=tags,
     )
 
     # Validate variable usage
@@ -357,6 +363,7 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         source_path=source,
                         xprompts=workflow.xprompts,
                         wraps_all=workflow.wraps_all,
+                        tags=workflow.tags,
                     )
             finally:
                 tmp_path.unlink(missing_ok=True)
