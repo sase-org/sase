@@ -117,6 +117,7 @@ def _parse_workflow_step(
     join = step_data.get("join")
     hitl = bool(step_data.get("hitl", False))
     hidden = bool(step_data.get("hidden", False))
+    finally_ = bool(step_data.get("finally", False))
 
     # Validate mutual exclusivity of loop types (for, repeat, while)
     loop_types = [for_loop, repeat_data, while_data]
@@ -151,6 +152,10 @@ def _parse_workflow_step(
             raise WorkflowValidationError(
                 f"Step '{name}' with 'prompt_part' cannot have 'hitl: true'"
             )
+        if finally_:
+            raise WorkflowValidationError(
+                f"Step '{name}' with 'prompt_part' cannot have 'finally: true'"
+            )
 
     # Validate nested step restrictions
     if is_nested:
@@ -162,6 +167,10 @@ def _parse_workflow_step(
         if hitl:
             raise WorkflowValidationError(
                 f"Nested step '{name}' cannot have 'hitl: true'"
+            )
+        if finally_:
+            raise WorkflowValidationError(
+                f"Nested step '{name}' cannot have 'finally: true'"
             )
 
     # Parse for: loop (dict of {var: expression})
@@ -266,6 +275,7 @@ def _parse_workflow_step(
         while_config=while_config,
         parallel_config=parallel_config,
         join=str(join) if join else None,
+        finally_=finally_,
     )
 
 

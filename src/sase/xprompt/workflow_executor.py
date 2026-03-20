@@ -170,11 +170,16 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
     def execute(self) -> bool:
         """Execute all workflow steps sequentially.
 
+        Steps marked with ``finally_=True`` run even when a prior step has
+        failed.  Non-finally steps are skipped after a failure.  If no
+        ``finally`` steps exist the behavior is identical to before.
+
         Returns:
             True if workflow completed successfully, False otherwise.
         """
         self._save_state()
         total_steps = len(self.workflow.steps)
+        has_finally_steps = any(s.finally_ for s in self.workflow.steps)
 
         # Notify workflow start
         if self.output_handler:
@@ -184,6 +189,10 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                 total_steps,
             )
 
+        # Track failure info so finally steps can still run
+        failure_exception: WorkflowExecutionError | None = None
+        failure_returned_false: bool = False
+
         for i, step in enumerate(self.workflow.steps):
             self.state.current_step_index = i
             step_state = self.state.steps[i]
@@ -191,6 +200,21 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
 
             # Determine step type for display
             step_type = self._get_step_type(step)
+
+            # After a failure, skip non-finally steps
+            hit_failure = failure_exception is not None or failure_returned_false
+            if hit_failure and not step.finally_:
+                step_state.status = StepStatus.SKIPPED
+                self.context[step.name] = {}
+                self._save_state()
+                if self.output_handler:
+                    self.output_handler.on_step_start(
+                        step.name, step_type, i, total_steps
+                    )
+                    self.output_handler.on_step_skip(
+                        step.name, reason="prior step failed"
+                    )
+                continue
 
             # Check if step should be skipped due to provided step input
             if step.name in self._step_inputs:
@@ -288,7 +312,10 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                         self.output_handler.on_workflow_failed(
                             f"Step '{step.name}' failed"
                         )
-                    return False
+                    if not has_finally_steps:
+                        return False
+                    failure_returned_false = True
+                    continue
 
                 step_state.status = StepStatus.COMPLETED
                 self._save_state()
@@ -330,7 +357,21 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
                 self._save_state()
                 if self.output_handler:
                     self.output_handler.on_workflow_failed(str(e))
-                raise WorkflowExecutionError(f"Step '{step.name}' failed: {e}") from e
+                if not has_finally_steps:
+                    raise WorkflowExecutionError(
+                        f"Step '{step.name}' failed: {e}"
+                    ) from e
+                failure_exception = WorkflowExecutionError(
+                    f"Step '{step.name}' failed: {e}"
+                )
+                failure_exception.__cause__ = e
+                continue
+
+        # If a step failed but we continued for finally steps, propagate now
+        if failure_exception is not None:
+            raise failure_exception
+        if failure_returned_false:
+            return False
 
         self.state.status = "completed"
         self._save_state()

@@ -65,6 +65,8 @@ class WorkflowStep:
         while_config: while: loop config with condition: to check before iterations.
         parallel_config: parallel: config for running nested steps concurrently.
         join: How to collect iteration results (array, text, object, lastOf).
+        finally_: If true, this step runs even when a prior step has failed.
+            Maps to ``finally: true`` in YAML. Used for cleanup/teardown steps.
     """
 
     name: str
@@ -81,6 +83,7 @@ class WorkflowStep:
     while_config: LoopConfig | None = None
     parallel_config: ParallelConfig | None = None
     join: str | None = None
+    finally_: bool = False
 
     def is_agent_step(self) -> bool:
         """Return True if this is an agent step."""

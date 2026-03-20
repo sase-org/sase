@@ -95,6 +95,7 @@ steps:
     prompt_part: ""
 
   - name: release
+    finally: true
     if: "{{ setup.should_release }}"
     python: |
       from sase.running_field import release_workspace
@@ -109,6 +110,7 @@ steps:
     output: { released: bool }
 
   - name: diff
+    finally: true
     bash: |
       head_before="{{ checkout.head_before }}"
       if [ -z "$head_before" ]; then

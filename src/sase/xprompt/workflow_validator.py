@@ -651,6 +651,32 @@ def _validate_xprompt_names(workflow: Workflow) -> list[str]:
     return errors
 
 
+def _validate_finally_steps(workflow: Workflow) -> list[str]:
+    """Validate that finally steps are correctly positioned.
+
+    All ``finally: true`` steps must come after all non-finally steps.
+    This ensures a clean separation between the main workflow body and
+    cleanup/teardown steps.
+
+    Args:
+        workflow: The workflow to check.
+
+    Returns:
+        List of error messages (empty if valid).
+    """
+    errors: list[str] = []
+    seen_finally = False
+    for step in workflow.steps:
+        if step.finally_:
+            seen_finally = True
+        elif seen_finally:
+            errors.append(
+                f"Step '{step.name}' is a non-finally step after finally step(s). "
+                "All 'finally: true' steps must be at the end of the workflow"
+            )
+    return errors
+
+
 def validate_workflow(workflow: Workflow) -> None:
     """Validate a workflow before execution.
 
@@ -659,6 +685,7 @@ def validate_workflow(workflow: Workflow) -> None:
     - Detects unused inputs (defined but never referenced)
     - Validates xprompt calls (required args, named arg names, positional counts)
     - Validates prompt_part steps (at most one, no control flow, no output, no hitl)
+    - Validates finally steps are at the end of the workflow
 
     Args:
         workflow: The workflow to validate.
@@ -670,6 +697,9 @@ def validate_workflow(workflow: Workflow) -> None:
 
     # Validate xprompt names early (before other xprompt checks)
     errors.extend(_validate_xprompt_names(workflow))
+
+    # Validate finally step ordering
+    errors.extend(_validate_finally_steps(workflow))
 
     xprompts = get_all_xprompts()
     xprompts.update(workflow.xprompts)  # workflow-local takes priority

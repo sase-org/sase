@@ -254,6 +254,15 @@ class PromptStepMixin:
             llm_provider=step_llm_provider,
         )
 
+        # Check if any embedded workflow has finally-marked post-steps.
+        # When present, those steps must run even if the agent invocation or
+        # a non-finally post-step fails.
+        _has_finally_post = any(
+            any(s.finally_ for s in info.post_steps)
+            for info in embedded_workflows
+            if info.post_steps
+        )
+
         # Invoke agent (skip preprocessing — we already did early+late)
         # Extract base workflow name (without project prefix) to avoid slashes in filenames
         base_name = (
@@ -261,155 +270,201 @@ class PromptStepMixin:
             if "/" in self.workflow.name
             else self.workflow.name
         )
-        self._agents_launched += 1  # type: ignore[attr-defined]
-        response = invoke_agent(
-            expanded_prompt,
-            agent_type=f"workflow-{base_name}-{step.name}",
-            artifacts_dir=self.artifacts_dir,
-            workflow=self.workflow.name,
-            skip_preprocessing=True,
-            directives=effective_directives,
-        )
-        response_text = ensure_str_content(response.content)
 
-        # Save chat history for TUI display
+        # -- Agent invocation + post-step section -------------------------
+        # Wrapped so that finally-marked post-steps run on failure.
+        _deferred_error: Exception | None = None
+        _deferred_reject: bool = False
         response_path: str | None = None
-        try:
-            from sase.chat_history import save_chat_history
-
-            response_path = save_chat_history(
-                prompt=expanded_prompt,
-                response=response_text,
-                workflow=self.workflow.name,
-                agent=step.name,
-            )
-        except Exception:
-            pass
-
-        # Parse and validate output
-        output: dict[str, Any] = {}
-
-        if step.output:
-            try:
-                data, _ = extract_structured_content(response_text)
-                if isinstance(data, dict):
-                    output = data
-                else:
-                    output = {"_data": data}
-            except Exception:
-                output = {"_raw": response_text}
-        else:
-            output = {"_raw": response_text}
-
-        # Resolve path fields from embedded contexts before HITL
-        if self._should_hitl(step) and embedded_workflows:
-            _resolve_embedded_path_fields(output, step, embedded_workflows)
-
-        # Make path fields absolute for cross-process HITL communication
-        step_output_types = output_types_from_step(step)
-        if step_output_types:
-            for field_name, field_type in step_output_types.items():
-                if field_type == "path" and field_name in output:
-                    path_val = os.path.expanduser(str(output[field_name]))
-                    if not os.path.isabs(path_val):
-                        path_val = os.path.abspath(path_val)
-                    output[field_name] = path_val
-
-        # HITL review if required
-        if self._should_hitl(step) and self.hitl_handler:
-            step_state.status = StepStatus.WAITING_HITL
-            self.state.status = "waiting_hitl"
-            self._save_state()
-            self._save_prompt_step_marker(
-                step.name,
-                step_state,
-                hidden=step.hidden,
-                response_path=response_path,
-            )
-
-            result = self.hitl_handler.prompt(
-                step.name,
-                "agent",
-                output,
-                has_output=step.output is not None,
-                output_types=output_types_from_step(step),
-            )
-
-            if result.action == "reject":
-                return False
-            elif result.action == "accept":
-                pass  # Continue with output as-is
-            elif result.action == "edit":
-                if result.edited_output is not None:
-                    output = result.edited_output
-                # Continue with edited output
-            # Future: handle feedback for regeneration
-
-            # Resume running status after HITL acceptance
-            self.state.status = "running"
-            self._save_state()
-
-        # Mark step completed after HITL (prompt work is done)
-        step_state.status = StepStatus.COMPLETED
-
-        # Merge pre-step meta back into output (preserving prompt output priority)
-        if pre_step_meta:
-            for k, v in pre_step_meta.items():
-                if k not in output:
-                    output[k] = v
-
-        # Store output in context under step name
-        step_state.output = output
-        self.context[step.name] = output
-        self.state.context = dict(self.context)
-
-        # Capture git diff if changes were made
-        diff_content = capture_vcs_diff()
         diff_path: str | None = None
-        if diff_content:
-            diff_path = os.path.join(self.artifacts_dir, f"{step.name}_diff.txt")
+
+        try:
+            self._agents_launched += 1  # type: ignore[attr-defined]
+            response = invoke_agent(
+                expanded_prompt,
+                agent_type=f"workflow-{base_name}-{step.name}",
+                artifacts_dir=self.artifacts_dir,
+                workflow=self.workflow.name,
+                skip_preprocessing=True,
+                directives=effective_directives,
+            )
+            response_text = ensure_str_content(response.content)
+
+            # Save chat history for TUI display
             try:
-                with open(diff_path, "w", encoding="utf-8") as f:
-                    f.write(diff_content)
+                from sase.chat_history import save_chat_history
+
+                response_path = save_chat_history(
+                    prompt=expanded_prompt,
+                    response=response_text,
+                    workflow=self.workflow.name,
+                    agent=step.name,
+                )
             except Exception:
+                pass
+
+            # Parse and validate output
+            output: dict[str, Any] = {}
+
+            if step.output:
+                try:
+                    data, _ = extract_structured_content(response_text)
+                    if isinstance(data, dict):
+                        output = data
+                    else:
+                        output = {"_data": data}
+                except Exception:
+                    output = {"_raw": response_text}
+            else:
+                output = {"_raw": response_text}
+
+            # Resolve path fields from embedded contexts before HITL
+            if self._should_hitl(step) and embedded_workflows:
+                _resolve_embedded_path_fields(output, step, embedded_workflows)
+
+            # Make path fields absolute for cross-process HITL communication
+            step_output_types = output_types_from_step(step)
+            if step_output_types:
+                for field_name, field_type in step_output_types.items():
+                    if field_type == "path" and field_name in output:
+                        path_val = os.path.expanduser(str(output[field_name]))
+                        if not os.path.isabs(path_val):
+                            path_val = os.path.abspath(path_val)
+                        output[field_name] = path_val
+
+            # HITL review if required
+            if self._should_hitl(step) and self.hitl_handler:
+                step_state.status = StepStatus.WAITING_HITL
+                self.state.status = "waiting_hitl"
+                self._save_state()
+                self._save_prompt_step_marker(
+                    step.name,
+                    step_state,
+                    hidden=step.hidden,
+                    response_path=response_path,
+                )
+
+                result = self.hitl_handler.prompt(
+                    step.name,
+                    "agent",
+                    output,
+                    has_output=step.output is not None,
+                    output_types=output_types_from_step(step),
+                )
+
+                if result.action == "reject":
+                    _deferred_reject = True
+                elif result.action == "edit":
+                    if result.edited_output is not None:
+                        output = result.edited_output
+
+                if not _deferred_reject:
+                    # Resume running status after HITL acceptance
+                    self.state.status = "running"
+                    self._save_state()
+
+            if not _deferred_reject:
+                # Mark step completed after HITL (prompt work is done)
+                step_state.status = StepStatus.COMPLETED
+
+                # Merge pre-step meta back into output (preserving prompt output priority)
+                if pre_step_meta:
+                    for k, v in pre_step_meta.items():
+                        if k not in output:
+                            output[k] = v
+
+                # Store output in context under step name
+                step_state.output = output
+                self.context[step.name] = output
+                self.state.context = dict(self.context)
+
+                # Capture git diff if changes were made
+                diff_content = capture_vcs_diff()
                 diff_path = None
-
-        # Save prompt step marker for TUI visibility
-        self._save_prompt_step_marker(
-            step.name,
-            step_state,
-            diff_path=diff_path,
-            hidden=step.hidden,
-            response_path=response_path,
-        )
-
-        # Execute post-steps from embedded workflows
-        # Start offset after pre-steps so step indices don't collide
-        cumulative_post_offset = pre_step_count
-        for info in embedded_workflows:
-            if info.post_steps:
-                from sase.xprompt.workflow_output import ParentStepContext
-
-                # Make agent prompt and response available to post-steps
-                info.context["_prompt"] = expanded_prompt
-                info.context["_response"] = response_text
-                parent_ctx = ParentStepContext(
-                    step_index=self.state.current_step_index,
-                    total_steps=len(self.workflow.steps),
-                )
-                success = self._execute_embedded_workflow_steps(
-                    info.post_steps,
-                    info.context,
-                    f"embedded:post:{step.name}",
-                    parent_step_context=parent_ctx,
-                    step_index_offset=cumulative_post_offset,
-                    embedded_workflow_name=info.workflow_name,
-                )
-                if not success:
-                    raise WorkflowExecutionError(
-                        f"Post-steps for embedded workflow in step '{step.name}' failed"
+                if diff_content:
+                    diff_path = os.path.join(
+                        self.artifacts_dir, f"{step.name}_diff.txt"
                     )
+                    try:
+                        with open(diff_path, "w", encoding="utf-8") as f:
+                            f.write(diff_content)
+                    except Exception:
+                        diff_path = None
+
+                # Save prompt step marker for TUI visibility
+                self._save_prompt_step_marker(
+                    step.name,
+                    step_state,
+                    diff_path=diff_path,
+                    hidden=step.hidden,
+                    response_path=response_path,
+                )
+
+                # Execute post-steps from embedded workflows
+                # Start offset after pre-steps so step indices don't collide
+                cumulative_post_offset = pre_step_count
+                for info in embedded_workflows:
+                    if info.post_steps:
+                        from sase.xprompt.workflow_output import ParentStepContext
+
+                        # Make agent prompt and response available to post-steps
+                        info.context["_prompt"] = expanded_prompt
+                        info.context["_response"] = response_text
+                        parent_ctx = ParentStepContext(
+                            step_index=self.state.current_step_index,
+                            total_steps=len(self.workflow.steps),
+                        )
+                        success = self._execute_embedded_workflow_steps(
+                            info.post_steps,
+                            info.context,
+                            f"embedded:post:{step.name}",
+                            parent_step_context=parent_ctx,
+                            step_index_offset=cumulative_post_offset,
+                            embedded_workflow_name=info.workflow_name,
+                        )
+                        if not success:
+                            raise WorkflowExecutionError(
+                                f"Post-steps for embedded workflow in step "
+                                f"'{step.name}' failed"
+                            )
+                        cumulative_post_offset += len(info.post_steps)
+
+        except Exception as exc:
+            if not _has_finally_post:
+                raise
+            _deferred_error = exc
+
+        # -- Finally post-steps: run even after agent/post-step failure ----
+        if (_deferred_error is not None or _deferred_reject) and _has_finally_post:
+            cumulative_post_offset = pre_step_count
+            for info in embedded_workflows:
+                finally_steps = [s for s in info.post_steps if s.finally_]
+                if finally_steps:
+                    from sase.xprompt.workflow_output import ParentStepContext
+
+                    parent_ctx = ParentStepContext(
+                        step_index=self.state.current_step_index,
+                        total_steps=len(self.workflow.steps),
+                    )
+                    # Best-effort cleanup; ignore failures in finally steps
+                    try:
+                        self._execute_embedded_workflow_steps(
+                            finally_steps,
+                            info.context,
+                            f"embedded:finally:{step.name}",
+                            parent_step_context=parent_ctx,
+                            step_index_offset=cumulative_post_offset,
+                            embedded_workflow_name=info.workflow_name,
+                        )
+                    except Exception:
+                        pass  # Don't mask the original error
                 cumulative_post_offset += len(info.post_steps)
+
+        # Propagate deferred failures now that cleanup has run
+        if _deferred_error is not None:
+            raise _deferred_error
+        if _deferred_reject:
+            return False
 
         # Propagate output from last embedded workflow's last post-step
         self._propagate_last_embedded_output(embedded_workflows, step, step_state)

@@ -201,6 +201,9 @@ class EmbeddedWorkflowMixin:
         Runs steps inline as part of the containing workflow execution,
         accumulating outputs into the embedded workflow's context.
 
+        Steps marked with ``finally_=True`` run even when a prior step has
+        failed, mirroring the behavior of :meth:`WorkflowExecutor.execute`.
+
         Args:
             steps: List of workflow steps to execute.
             embedded_context: Context for the embedded workflow (args + outputs).
@@ -214,8 +217,15 @@ class EmbeddedWorkflowMixin:
         """
         del parent_step_name  # Unused but kept for API consistency
         total_steps = len(steps)
+        has_finally_steps = any(s.finally_ for s in steps)
+        hit_failure = False
 
         for i, step in enumerate(steps):
+            # After a failure, skip non-finally steps
+            if hit_failure and not step.finally_:
+                embedded_context[step.name] = {}
+                continue
+
             # Create a temporary step state for execution
             temp_state = StepState(name=step.name, status=StepStatus.PENDING)
 
@@ -275,7 +285,10 @@ class EmbeddedWorkflowMixin:
                     )
 
                 if not success:
-                    return False
+                    if not has_finally_steps:
+                        return False
+                    hit_failure = True
+                    continue
 
                 # Save marker for embedded step with parent context
                 step_source = (
@@ -314,7 +327,7 @@ class EmbeddedWorkflowMixin:
                 self.context = original_context
                 self._current_embedded_workflow_name = None
 
-        return True
+        return not hit_failure
 
     def _expand_embedded_workflows_in_prompt(
         self,
