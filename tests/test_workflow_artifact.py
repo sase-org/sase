@@ -11,7 +11,7 @@ from sase.xprompt.workflow_models import (
     WorkflowStep,
     WorkflowValidationError,
 )
-from sase.xprompt.workflow_validator import _validate_cross_step_field_refs
+from sase.xprompt.workflow_validator_checks import validate_cross_step_field_refs
 from sase.xprompt.workflow_executor import WorkflowExecutor
 
 
@@ -223,7 +223,7 @@ class TestArtifactValidation:
                 ),
             ],
         )
-        errors = _validate_cross_step_field_refs(workflow)
+        errors = validate_cross_step_field_refs(workflow)
         assert errors == []
 
     def test_artifact_with_output_ref_passes(self) -> None:
@@ -246,7 +246,7 @@ class TestArtifactValidation:
                 ),
             ],
         )
-        errors = _validate_cross_step_field_refs(workflow)
+        errors = validate_cross_step_field_refs(workflow)
         assert errors == []
 
     def test_artifact_typo_caught(self) -> None:
@@ -269,6 +269,6 @@ class TestArtifactValidation:
                 ),
             ],
         )
-        errors = _validate_cross_step_field_refs(workflow)
+        errors = validate_cross_step_field_refs(workflow)
         assert len(errors) == 1
         assert "_atrifact" in errors[0]

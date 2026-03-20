@@ -9,9 +9,9 @@ from sase.xprompt.workflow_models import (
     WorkflowStep,
     WorkflowValidationError,
 )
-from sase.xprompt.workflow_validator import (
-    _detect_unused_outputs,
-    _validate_cross_step_field_refs,
+from sase.xprompt.workflow_validator_checks import (
+    detect_unused_outputs,
+    validate_cross_step_field_refs,
 )
 
 
@@ -23,7 +23,7 @@ def _make_output() -> OutputSpec:
     )
 
 
-def test_detect_unused_outputs_used_no_error() -> None:
+def testdetect_unused_outputs_used_no_error() -> None:
     """Step output referenced by next step → no error."""
     workflow = Workflow(
         name="test",
@@ -32,11 +32,11 @@ def test_detect_unused_outputs_used_no_error() -> None:
             WorkflowStep(name="consumer", bash="echo {{ producer.result }}"),
         ],
     )
-    errors = _detect_unused_outputs(workflow)
+    errors = detect_unused_outputs(workflow)
     assert errors == []
 
 
-def test_detect_unused_outputs_prompt_part_last_post_step_exempt() -> None:
+def testdetect_unused_outputs_prompt_part_last_post_step_exempt() -> None:
     """prompt_part workflow, last post-step exempt."""
     workflow = Workflow(
         name="test",
@@ -46,11 +46,11 @@ def test_detect_unused_outputs_prompt_part_last_post_step_exempt() -> None:
             WorkflowStep(name="post_last", bash="echo post", output=_make_output()),
         ],
     )
-    errors = _detect_unused_outputs(workflow)
+    errors = detect_unused_outputs(workflow)
     assert errors == []
 
 
-def test_detect_unused_outputs_parallel_nested_unused() -> None:
+def testdetect_unused_outputs_parallel_nested_unused() -> None:
     """Nested step output never referenced → error."""
     workflow = Workflow(
         name="test",
@@ -78,12 +78,12 @@ def test_detect_unused_outputs_parallel_nested_unused() -> None:
             ),
         ],
     )
-    errors = _detect_unused_outputs(workflow)
+    errors = detect_unused_outputs(workflow)
     assert len(errors) == 1
     assert "research.task_b" in errors[0]
 
 
-def test_detect_unused_outputs_parallel_join_array_skips_nested() -> None:
+def testdetect_unused_outputs_parallel_join_array_skips_nested() -> None:
     """join: array → nested outputs not tracked individually."""
     workflow = Workflow(
         name="test",
@@ -112,11 +112,11 @@ def test_detect_unused_outputs_parallel_join_array_skips_nested() -> None:
             ),
         ],
     )
-    errors = _detect_unused_outputs(workflow)
+    errors = detect_unused_outputs(workflow)
     assert errors == []
 
 
-def test_detect_unused_outputs_whole_step_ref() -> None:
+def testdetect_unused_outputs_whole_step_ref() -> None:
     """{{ step | tojson }} (no dot) → marks step used."""
     workflow = Workflow(
         name="test",
@@ -125,7 +125,7 @@ def test_detect_unused_outputs_whole_step_ref() -> None:
             WorkflowStep(name="use_it", bash="echo {{ data | tojson }}"),
         ],
     )
-    errors = _detect_unused_outputs(workflow)
+    errors = detect_unused_outputs(workflow)
     assert errors == []
 
 
@@ -166,7 +166,7 @@ def test_cross_step_valid_field_ref() -> None:
             WorkflowStep(name="deploy", bash="deploy {{ build.artifact_path }}"),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert errors == []
 
 
@@ -183,7 +183,7 @@ def test_cross_step_typo_field_ref() -> None:
             WorkflowStep(name="deploy", bash="deploy {{ build.atrifact_path }}"),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert len(errors) == 1
     assert "atrifact_path" in errors[0]
     assert "artifact_path" in errors[0]
@@ -202,7 +202,7 @@ def test_cross_step_no_dot_ref_skipped() -> None:
             WorkflowStep(name="use", bash="echo {{ data | tojson }}"),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert errors == []
 
 
@@ -221,7 +221,7 @@ def test_cross_step_self_ref_in_repeat() -> None:
             ),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert errors == []
 
 
@@ -240,7 +240,7 @@ def test_cross_step_self_ref_typo_in_repeat() -> None:
             ),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert len(errors) == 1
     assert "sucess" in errors[0]
 
@@ -259,7 +259,7 @@ def test_cross_step_for_loop_var_not_checked() -> None:
             ),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert errors == []
 
 
@@ -280,7 +280,7 @@ def test_cross_step_for_loop_array_join_skips_field_check() -> None:
     )
     # "process" has for+array join, so it's not in step_fields.
     # Referencing process.bogus should NOT trigger an error.
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert errors == []
 
 
@@ -304,7 +304,7 @@ def test_cross_step_parallel_nested_valid() -> None:
             WorkflowStep(name="verify", bash="echo {{ research.task_a.val }}"),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert errors == []
 
 
@@ -328,7 +328,7 @@ def test_cross_step_parallel_nested_typo() -> None:
             WorkflowStep(name="verify", bash="echo {{ research.task_a.value }}"),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert len(errors) == 1
     assert "value" in errors[0]
     assert "val" in errors[0]
@@ -355,7 +355,7 @@ def test_cross_step_compound_expression() -> None:
             ),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert len(errors) == 1
     assert "b" in errors[0] and "nope" in errors[0]
 
@@ -377,7 +377,7 @@ def test_cross_step_condition_field_ref() -> None:
             ),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert len(errors) == 1
     assert "redy" in errors[0]
 
@@ -401,7 +401,7 @@ def test_cross_step_xprompt_content_validated() -> None:
             ),
         },
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert len(errors) == 1
     assert "pth" in errors[0]
     assert "Xprompt '_helper'" in errors[0]
@@ -416,5 +416,5 @@ def test_cross_step_step_without_output_skipped() -> None:
             WorkflowStep(name="use", bash="echo {{ setup.anything }}"),
         ],
     )
-    errors = _validate_cross_step_field_refs(workflow)
+    errors = validate_cross_step_field_refs(workflow)
     assert errors == []

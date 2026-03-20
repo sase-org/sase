@@ -11,7 +11,7 @@ from sase.xprompt.workflow_models import (
     WorkflowValidationError,
 )
 from sase.xprompt.workflow_loader_parse import _parse_workflow_step
-from sase.xprompt.workflow_validator import _validate_finally_steps
+from sase.xprompt.workflow_validator_checks import validate_finally_steps
 
 
 class TestFinallyStepExecution:
@@ -270,7 +270,7 @@ class TestFinallyStepValidation:
                 WorkflowStep(name="cleanup", bash="echo cleanup", finally_=True),
             ],
         )
-        errors = _validate_finally_steps(workflow)
+        errors = validate_finally_steps(workflow)
         assert errors == []
 
     def test_non_finally_after_finally_is_invalid(self) -> None:
@@ -282,7 +282,7 @@ class TestFinallyStepValidation:
                 WorkflowStep(name="work", bash="echo work"),
             ],
         )
-        errors = _validate_finally_steps(workflow)
+        errors = validate_finally_steps(workflow)
         assert len(errors) == 1
         assert "work" in errors[0]
         assert "finally" in errors[0]
@@ -296,7 +296,7 @@ class TestFinallyStepValidation:
                 WorkflowStep(name="b", bash="echo b"),
             ],
         )
-        errors = _validate_finally_steps(workflow)
+        errors = validate_finally_steps(workflow)
         assert errors == []
 
     def test_multiple_finally_steps_at_end(self) -> None:
@@ -309,5 +309,5 @@ class TestFinallyStepValidation:
                 WorkflowStep(name="diff", bash="echo diff", finally_=True),
             ],
         )
-        errors = _validate_finally_steps(workflow)
+        errors = validate_finally_steps(workflow)
         assert errors == []

@@ -2,13 +2,11 @@
 
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
-from sase.xprompt.workflow_validator import (
-    _collect_used_variables,
-    _detect_unused_inputs,
-)
+from sase.xprompt.workflow_validator_checks import detect_unused_inputs
+from sase.xprompt.workflow_validator_extract import collect_used_variables
 
 
-def test_collect_used_variables_multiple_sources() -> None:
+def testcollect_used_variables_multiple_sources() -> None:
     """Test collecting variables from multiple step types."""
     workflow = Workflow(
         name="test",
@@ -23,13 +21,13 @@ def test_collect_used_variables_multiple_sources() -> None:
             WorkflowStep(name="s3", python="print({{ python_var }})"),
         ],
     )
-    used = _collect_used_variables(workflow)
+    used = collect_used_variables(workflow)
     assert "bash_var" in used
     assert "prompt_var" in used
     assert "python_var" in used
 
 
-def test_collect_used_variables_from_condition() -> None:
+def testcollect_used_variables_from_condition() -> None:
     """Test that variables in if: conditions are collected."""
     workflow = Workflow(
         name="test",
@@ -42,11 +40,11 @@ def test_collect_used_variables_from_condition() -> None:
             )
         ],
     )
-    used = _collect_used_variables(workflow)
+    used = collect_used_variables(workflow)
     assert "flag" in used
 
 
-def test_collect_used_variables_from_for_loop() -> None:
+def testcollect_used_variables_from_for_loop() -> None:
     """Test that variables in for: expressions are collected."""
     workflow = Workflow(
         name="test",
@@ -59,11 +57,11 @@ def test_collect_used_variables_from_for_loop() -> None:
             )
         ],
     )
-    used = _collect_used_variables(workflow)
+    used = collect_used_variables(workflow)
     assert "items_list" in used
 
 
-def test_detect_unused_inputs_finds_unused() -> None:
+def testdetect_unused_inputs_finds_unused() -> None:
     """Test detection of unused inputs."""
     workflow = Workflow(
         name="test",
@@ -73,13 +71,13 @@ def test_detect_unused_inputs_finds_unused() -> None:
         ],
         steps=[WorkflowStep(name="step1", bash="echo {{ used_input }}")],
     )
-    used_vars = _collect_used_variables(workflow)
-    unused = _detect_unused_inputs(workflow, used_vars)
+    used_vars = collect_used_variables(workflow)
+    unused = detect_unused_inputs(workflow, used_vars)
     assert "unused_input" in unused
     assert "used_input" not in unused
 
 
-def test_detect_unused_inputs_ignores_step_inputs() -> None:
+def testdetect_unused_inputs_ignores_step_inputs() -> None:
     """Test that step inputs (auto-generated) are not flagged as unused."""
     workflow = Workflow(
         name="test",
@@ -89,8 +87,8 @@ def test_detect_unused_inputs_ignores_step_inputs() -> None:
         ],
         steps=[WorkflowStep(name="step1", bash="echo hi")],
     )
-    used_vars = _collect_used_variables(workflow)
-    unused = _detect_unused_inputs(workflow, used_vars)
+    used_vars = collect_used_variables(workflow)
+    unused = detect_unused_inputs(workflow, used_vars)
     # step_input should not be in unused even though not referenced
     assert "step_input" not in unused
     # regular_input is unused and should be detected

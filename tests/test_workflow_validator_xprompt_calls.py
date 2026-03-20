@@ -5,44 +5,46 @@ from sase.xprompt.workflow_models import (
     Workflow,
     WorkflowStep,
 )
-from sase.xprompt.workflow_validator import (
-    _detect_unused_xprompt_inputs,
-    _detect_unused_xprompts,
-    _extract_xprompt_calls,
-    _validate_xprompt_call,
-    _validate_xprompt_names,
+from sase.xprompt.workflow_validator_checks import (
+    detect_unused_xprompt_inputs,
+    detect_unused_xprompts,
+    validate_xprompt_names,
+)
+from sase.xprompt.workflow_validator_extract import (
     _XPromptCall,
+    extract_xprompt_calls,
+    validate_xprompt_call,
 )
 
 
-def test_extract_xprompt_calls_with_args() -> None:
+def testextract_xprompt_calls_with_args() -> None:
     """Test extracting xprompt with parenthesis args."""
-    calls = _extract_xprompt_calls('#bar(arg1, name="value")')
+    calls = extract_xprompt_calls('#bar(arg1, name="value")')
     assert len(calls) == 1
     assert calls[0].name == "bar"
     assert calls[0].positional_args == ["arg1"]
     assert calls[0].named_args == {"name": "value"}
 
 
-def test_extract_xprompt_calls_colon_syntax() -> None:
+def testextract_xprompt_calls_colon_syntax() -> None:
     """Test extracting xprompt with colon syntax."""
-    calls = _extract_xprompt_calls("#foo:myvalue")
+    calls = extract_xprompt_calls("#foo:myvalue")
     assert len(calls) == 1
     assert calls[0].name == "foo"
     assert calls[0].positional_args == ["myvalue"]
     assert calls[0].named_args == {}
 
 
-def test_extract_xprompt_calls_plus_syntax() -> None:
+def testextract_xprompt_calls_plus_syntax() -> None:
     """Test extracting xprompt with plus syntax."""
-    calls = _extract_xprompt_calls("#foo+")
+    calls = extract_xprompt_calls("#foo+")
     assert len(calls) == 1
     assert calls[0].name == "foo"
     assert calls[0].positional_args == ["true"]
     assert calls[0].named_args == {}
 
 
-def test_validate_xprompt_call_missing_required_arg() -> None:
+def testvalidate_xprompt_call_missing_required_arg() -> None:
     """Test validation detects missing required argument."""
     xprompt = XPrompt(
         name="test",
@@ -55,13 +57,13 @@ def test_validate_xprompt_call_missing_required_arg() -> None:
         named_args={},
         raw_match="#test",
     )
-    errors = _validate_xprompt_call(call, xprompt, "step1")
+    errors = validate_xprompt_call(call, xprompt, "step1")
     assert len(errors) == 1
     assert "missing required args" in errors[0]
     assert "required_arg" in errors[0]
 
 
-def test_validate_xprompt_call_unknown_named_arg() -> None:
+def testvalidate_xprompt_call_unknown_named_arg() -> None:
     """Test validation detects unknown named argument."""
     xprompt = XPrompt(
         name="test",
@@ -74,13 +76,13 @@ def test_validate_xprompt_call_unknown_named_arg() -> None:
         named_args={"unknown_arg": "value"},
         raw_match='#test(unknown_arg="value")',
     )
-    errors = _validate_xprompt_call(call, xprompt, "step1")
+    errors = validate_xprompt_call(call, xprompt, "step1")
     assert len(errors) == 1
     assert "has no input named 'unknown_arg'" in errors[0]
     assert "Available:" in errors[0]
 
 
-def test_validate_xprompt_call_too_many_positional_args() -> None:
+def testvalidate_xprompt_call_too_many_positional_args() -> None:
     """Test validation detects too many positional arguments."""
     xprompt = XPrompt(
         name="test",
@@ -93,12 +95,12 @@ def test_validate_xprompt_call_too_many_positional_args() -> None:
         named_args={},
         raw_match="#test(first, second, third)",
     )
-    errors = _validate_xprompt_call(call, xprompt, "step1")
+    errors = validate_xprompt_call(call, xprompt, "step1")
     assert len(errors) >= 1
     assert "3 positional args but only 1 inputs defined" in errors[0]
 
 
-def test_detect_unused_xprompts_finds_unused() -> None:
+def testdetect_unused_xprompts_finds_unused() -> None:
     """Workflow-local xprompt never referenced → error."""
     workflow = Workflow(
         name="test",
@@ -108,12 +110,12 @@ def test_detect_unused_xprompts_finds_unused() -> None:
         },
     )
     xprompts = dict(workflow.xprompts)
-    errors = _detect_unused_xprompts(workflow, xprompts)
+    errors = detect_unused_xprompts(workflow, xprompts)
     assert len(errors) == 1
     assert "_unused" in errors[0]
 
 
-def test_detect_unused_xprompts_used_by_other_xprompt() -> None:
+def testdetect_unused_xprompts_used_by_other_xprompt() -> None:
     """Xprompt referenced by another xprompt → no error."""
     workflow = Workflow(
         name="test",
@@ -124,11 +126,11 @@ def test_detect_unused_xprompts_used_by_other_xprompt() -> None:
         },
     )
     xprompts = dict(workflow.xprompts)
-    errors = _detect_unused_xprompts(workflow, xprompts)
+    errors = detect_unused_xprompts(workflow, xprompts)
     assert errors == []
 
 
-def test_detect_unused_xprompt_inputs_finds_unused() -> None:
+def testdetect_unused_xprompt_inputs_finds_unused() -> None:
     """Xprompt input not in content → error."""
     workflow = Workflow(
         name="test",
@@ -141,13 +143,13 @@ def test_detect_unused_xprompt_inputs_finds_unused() -> None:
             ),
         },
     )
-    errors = _detect_unused_xprompt_inputs(workflow)
+    errors = detect_unused_xprompt_inputs(workflow)
     assert len(errors) == 1
     assert "unused_arg" in errors[0]
     assert "_helper" in errors[0]
 
 
-def test_detect_unused_xprompt_inputs_used() -> None:
+def testdetect_unused_xprompt_inputs_used() -> None:
     """Xprompt input referenced in content → no error."""
     workflow = Workflow(
         name="test",
@@ -160,11 +162,11 @@ def test_detect_unused_xprompt_inputs_used() -> None:
             ),
         },
     )
-    errors = _detect_unused_xprompt_inputs(workflow)
+    errors = detect_unused_xprompt_inputs(workflow)
     assert errors == []
 
 
-def test_validate_xprompt_names_missing_underscore() -> None:
+def testvalidate_xprompt_names_missing_underscore() -> None:
     """Xprompt name without '_' prefix → error."""
     workflow = Workflow(
         name="test",
@@ -173,7 +175,7 @@ def test_validate_xprompt_names_missing_underscore() -> None:
             "foo": XPrompt(name="foo", content="some content"),
         },
     )
-    errors = _validate_xprompt_names(workflow)
+    errors = validate_xprompt_names(workflow)
     assert len(errors) == 1
     assert "foo" in errors[0]
     assert "must start with '_'" in errors[0]
