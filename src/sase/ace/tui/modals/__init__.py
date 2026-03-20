@@ -33,6 +33,7 @@ from .activity_modal import ActivityModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
 from .xprompt_browser_modal import XPromptBrowserModal
+from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
 from .xprompt_select_modal import XPromptSelectModal
 
 __all__ = [
@@ -75,6 +76,8 @@ __all__ = [
     "UserQuestionModal",
     "UserQuestionResult",
     "XPromptBrowserModal",
+    "XPromptLocation",
+    "XPromptLocationModal",
     "XPromptSelectModal",
     "WorkflowHITLInput",
     "WorkflowHITLModal",

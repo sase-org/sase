@@ -1517,3 +1517,37 @@ AddXPromptModal #add-xprompt-hint {
 AddXPromptModal #add-xprompt-input {
     width: 100%;
 }
+
+/* XPrompt location selector modal styling */
+XPromptLocationModal {
+    align: center middle;
+}
+
+XPromptLocationModal > Container {
+    width: 80;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+XPromptLocationModal #location-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+XPromptLocationModal #location-hint {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+XPromptLocationModal #location-filter-input {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+XPromptLocationModal #location-list {
+    height: auto;
+    max-height: 24;
+}

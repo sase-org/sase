@@ -24,6 +24,10 @@ class AddXPromptModal(ModalScreen[str | None]):
         ("escape", "cancel", "Cancel"),
     ]
 
+    def __init__(self, default_path: str = ".xprompts/") -> None:
+        super().__init__()
+        self._default_path = default_path
+
     def compose(self) -> ComposeResult:
         with Container(id="add-xprompt-container"):
             yield Label("Add New XPrompt", id="modal-title")
@@ -32,8 +36,8 @@ class AddXPromptModal(ModalScreen[str | None]):
                 id="add-xprompt-hint",
             )
             yield _AddXPromptInput(
-                value=".xprompts/",
-                placeholder=".xprompts/my_prompt.md",
+                value=self._default_path,
+                placeholder=f"{self._default_path}my_prompt.md",
                 id="add-xprompt-input",
             )
 

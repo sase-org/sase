@@ -471,15 +471,41 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
         self._reload_xprompts()
 
     def action_add_xprompt(self) -> None:
-        """Add a new xprompt via input modal."""
+        """Add a new xprompt via location selector then filename input."""
         from .add_xprompt_modal import AddXPromptModal
+        from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
 
-        def _on_add(path: str | None) -> None:
-            if path is None:
+        def _on_location(location: XPromptLocation | None) -> None:
+            if location is None:
                 return
-            self._create_and_edit_xprompt(path)
+            if location.location_type == "config":
+                # Open config file directly in editor
+                file_path = location.path
+                if not Path(file_path).exists():
+                    self.notify("Config file not found", severity="error")
+                    return
+                editor = os.environ.get("EDITOR") or "nvim"
+                editor_args = build_editor_args(editor, [file_path])
+                with self.app.suspend():  # type: ignore[attr-defined]
+                    subprocess.run(editor_args, check=False)
+                self._reload_xprompts()
+            else:
+                # Directory location — ask for filename
+                default_path = location.path.replace(str(Path.cwd()), ".")
+                default_path = default_path.replace(str(Path.home()), "~")
+                if not default_path.endswith("/"):
+                    default_path += "/"
 
-        self.app.push_screen(AddXPromptModal(), _on_add)
+                def _on_add(path: str | None) -> None:
+                    if path is None:
+                        return
+                    self._create_and_edit_xprompt(path)
+
+                self.app.push_screen(
+                    AddXPromptModal(default_path=default_path), _on_add
+                )
+
+        self.app.push_screen(XPromptLocationModal(project=self._project), _on_location)
 
     def _create_and_edit_xprompt(self, path: str) -> None:
         """Create a skeleton xprompt file and open in editor."""
