@@ -78,6 +78,29 @@ class AgentLaunchMixin:
 
         has_wait = has_wait_directive(prompt)
 
+        # --- Early multi-prompt detection ---
+        # Detect multi-prompts BEFORE VCS resolution to match the CLI
+        # (sase run) behavior: each segment handles its own VCS resolution
+        # in the agent runner, avoiding per-segment workspace allocation
+        # at the TUI level.
+        from sase.multi_prompt import parse_multi_prompt
+
+        multi = parse_multi_prompt(prompt)
+        if len(multi.segments) > 1:
+            mp_vcs_ref: tuple[str, str] | None = None
+            ref_patterns = get_ref_patterns()
+            for wf_name, pattern in ref_patterns.items():
+                match = pattern.search(prompt)
+                if match is not None:
+                    ref_value = match.group(1) or match.group(2)
+                    if ref_value:
+                        mp_vcs_ref = (wf_name, ref_value)
+                        ctx.display_name = ref_value
+                        break
+            self._prompt_context = None
+            self._launch_multi_prompt_agents(multi, ctx, mp_vcs_ref)
+            return
+
         # Detect workspace-managing embedded workflows in home mode
         vcs_ref: tuple[str, str] | None = None  # (workflow_type, ref)
         if ctx.is_home_mode:
@@ -166,16 +189,11 @@ class AgentLaunchMixin:
                 prompt = workflow_result
 
         # Parse user-prompt frontmatter for local xprompts.
-        from sase.multi_prompt import parse_multi_prompt
-
+        # (Multi-prompts were already caught by early detection above;
+        # this re-parse handles single prompts whose text may have been
+        # modified by the workflow check.)
         multi = parse_multi_prompt(prompt)
         local_xprompts = multi.local_xprompts
-
-        # Multi-prompt: launch each segment as a separate agent.
-        if len(multi.segments) > 1:
-            self._prompt_context = None
-            self._launch_multi_prompt_agents(multi, ctx, vcs_ref)
-            return
 
         # Expand inline xprompt references (e.g., #swarm → %m(opus,sonnet))
         # so multi-model directives from xprompts are detected below.
@@ -329,7 +347,10 @@ class AgentLaunchMixin:
                 self.notify(  # type: ignore[attr-defined]
                     f"Started {len(results)} agent(s) for {ctx.display_name}"
                 )
-            except (RuntimeError, OSError) as e:
+            except Exception as e:
+                import logging
+
+                logging.error("Multi-prompt launch failed: %s", e)
                 self.notify(f"Multi-prompt launch failed: {e}", severity="error")  # type: ignore[attr-defined]
 
         thread = threading.Thread(target=_run, daemon=True)
