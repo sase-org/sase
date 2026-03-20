@@ -156,6 +156,7 @@ class AgentInteractionMixin:
                 return
             agent.waiting_for = [name]
             self.notify(f"Now waiting for: {name}")  # type: ignore[attr-defined]
+            self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
         else:
             # Empty name → run now (write ready.json)
             ready_path = Path(artifacts_dir) / "ready.json"
