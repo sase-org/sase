@@ -302,6 +302,37 @@ just build         # Build wheel + sdist
 
 ## Acknowledgements
 
+### Boris' Method
+
+Before sase existed, [Boris Cherny](https://borischerny.com/) — the inventor of
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) — pioneered a practical workflow for parallel agentic
+development: five git checkouts, each in its own tmux tab, each running Claude Code in plan mode. This was one of the
+first demonstrations that a single developer could effectively supervise multiple agents working on different tasks
+simultaneously, and it proved that the bottleneck in agentic software engineering isn't the agent — it's the
+coordination layer around it.
+
+sase builds directly on this insight. Where Boris' method relies on the developer to manually manage the parallelism —
+switching between tmux tabs, keeping track of which checkout is doing what, copy-pasting prompts, and mentally tracking
+the state of five concurrent workstreams — sase replaces that manual overhead with structured infrastructure:
+
+- **Workspaces instead of manual checkouts** — sase's workspace provider system creates and manages isolated working
+  copies programmatically, eliminating the need to manually set up and maintain parallel git checkouts.
+- **ChangeSpecs instead of mental bookkeeping** — Each unit of work gets a tracked lifecycle with status, metadata, and
+  history, replacing the cognitive load of remembering what's happening in each tmux tab.
+- **XPrompts instead of ad-hoc prompts** — Reusable, composable prompt templates with YAML front matter replace the
+  prompt fragments scattered across shell history and scratch files.
+- **Workflows instead of plan mode** — Declarative YAML pipelines with control flow, parallel execution, and
+  human-in-the-loop checkpoints replace the back-and-forth of plan mode in individual agent sessions.
+- **ACE instead of tmux** — A single TUI provides unified navigation, filtering, and management across all active
+  workstreams, replacing the manual tab-switching workflow.
+- **AXE instead of manual supervision** — A background daemon handles scheduling, monitoring, and lifecycle management
+  of agent runs, so the developer doesn't need to babysit each session.
+
+The core idea — that one developer can multiply their output by running several agents in parallel — was right. sase
+just replaces the duct tape with a proper framework.
+
+### Research Papers
+
 This project was heavily influenced by two research papers:
 
 - **[Agentic Software Engineering: Foundational Pillars and a Research Roadmap](https://arxiv.org/abs/2509.06216)**
