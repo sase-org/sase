@@ -1,5 +1,8 @@
 """Tests for the xprompt tag system."""
 
+import json
+import os
+import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -248,7 +251,6 @@ def test_namespace_workflow_preserves_tags() -> None:
 
 
 def test_serialize_deserialize_preserves_tags(tmp_path: object) -> None:
-    import json
     from pathlib import Path
 
     from sase.multi_prompt_launcher import deserialize_local_xprompts
@@ -277,48 +279,114 @@ def test_serialize_deserialize_preserves_tags(tmp_path: object) -> None:
 # ── Rollover filtering in _get_embedded_workflow_refs ───────────────────
 
 
-def test_rollover_filtering() -> None:
-    """Only rollover-tagged workflows appear in embedded refs."""
-    import json
-    import os
-
+def test_rollover_tagged_workflows_included_in_refs() -> None:
+    """Only rollover-tagged workflows appear in follow-up agent prompts."""
     from sase.axe_run_agent_exec import _get_embedded_workflow_refs
 
-    with patch("builtins.open") as mock_open:
-        mock_open.return_value.__enter__ = lambda s: s
-        mock_open.return_value.__exit__ = lambda s, *a: None
+    with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
-            {"name": "git", "args": {}, "tags": ["vcs"]},
-            {"name": "propose", "args": {}, "tags": ["rollover"]},
+            {"name": "gcommit", "args": {}, "tags": ["rollover"]},
+            {"name": "summarize", "args": {}, "tags": []},
+        ]
+        metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f)
+
+        result = _get_embedded_workflow_refs(tmpdir, None)
+        assert "#gcommit" in result
+        assert "#summarize" not in result
+
+
+def test_non_tagged_workflows_excluded_from_rollover() -> None:
+    """Workflows without the rollover tag are excluded from follow-up refs."""
+    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        metadata = [
             {"name": "sync", "args": {}, "tags": []},
         ]
-        mock_open.return_value.read = lambda: json.dumps(metadata)
+        metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f)
 
-        with patch("json.load", return_value=metadata):
-            result = _get_embedded_workflow_refs("/tmp/artifacts", "#git:main ")
-    # Only #propose should appear (vcs excluded, sync has no rollover tag)
-    assert "#propose" in result
-    assert "#sync" not in result
-    assert "#git" not in result
+        result = _get_embedded_workflow_refs(tmpdir, None)
+        assert result == ""
 
 
 def test_rollover_backward_compat_no_tags() -> None:
     """When no entry has tags key, all non-VCS workflows roll over (legacy)."""
-    import json
-
     from sase.axe_run_agent_exec import _get_embedded_workflow_refs
 
-    with patch("builtins.open") as mock_open:
-        mock_open.return_value.__enter__ = lambda s: s
-        mock_open.return_value.__exit__ = lambda s, *a: None
+    with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
             {"name": "propose", "args": {}},
             {"name": "sync", "args": {}},
         ]
-        mock_open.return_value.read = lambda: json.dumps(metadata)
+        metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f)
 
-        with patch("json.load", return_value=metadata):
-            result = _get_embedded_workflow_refs("/tmp/artifacts", None)
-    # Both should appear (no tags key means legacy behavior)
-    assert "#propose" in result
-    assert "#sync" in result
+        result = _get_embedded_workflow_refs(tmpdir, None)
+        # Both should appear (no tags key means legacy behavior)
+        assert "#propose" in result
+        assert "#sync" in result
+
+
+def test_rollover_with_vcs_excluded() -> None:
+    """VCS workflows are still excluded even if they have rollover tag."""
+    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        metadata = [
+            {"name": "git", "args": {}, "tags": ["vcs", "rollover"]},
+            {"name": "gcommit", "args": {}, "tags": ["rollover"]},
+        ]
+        metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f)
+
+        result = _get_embedded_workflow_refs(tmpdir, "#git:sase ")
+        assert "#git" not in result
+        assert "#gcommit" in result
+
+
+def test_rollover_with_args_preserved() -> None:
+    """Rollover-tagged workflow args are preserved in reconstructed refs."""
+    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        metadata = [
+            {"name": "gcommit", "args": {"who": "bot"}, "tags": ["rollover"]},
+            {
+                "name": "gchange",
+                "args": {"name": "feat", "who": "bot"},
+                "tags": ["rollover"],
+            },
+        ]
+        metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f)
+
+        result = _get_embedded_workflow_refs(tmpdir, None)
+        assert "#gcommit:bot" in result
+        assert "#gchange(name=feat, who=bot)" in result
+
+
+def test_embedded_workflows_json_includes_tags() -> None:
+    """embedded_workflows.json metadata includes tags for each workflow."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        metadata = [
+            {"name": "gcommit", "args": {}, "tags": ["rollover"]},
+            {"name": "git", "args": {}, "tags": ["vcs"]},
+            {"name": "sync", "args": {}, "tags": []},
+        ]
+        metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f)
+
+        with open(metadata_path) as f:
+            loaded = json.load(f)
+
+        assert loaded[0]["tags"] == ["rollover"]
+        assert loaded[1]["tags"] == ["vcs"]
+        assert loaded[2]["tags"] == []

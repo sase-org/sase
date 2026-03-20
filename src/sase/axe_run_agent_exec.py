@@ -148,6 +148,10 @@ def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
             continue
         if has_any_tags and "rollover" not in wf_tags:
             continue
+        # Only roll over workflows tagged with 'rollover'
+        wf_tags = wf.get("tags", [])
+        if "rollover" not in wf_tags:
+            continue
         args = wf.get("args", {})
         if not args:
             refs.append(f"#{name}")

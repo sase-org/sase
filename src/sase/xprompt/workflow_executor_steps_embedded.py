@@ -569,7 +569,7 @@ class EmbeddedWorkflowMixin:
                 {
                     "name": p.name,
                     "args": p.explicit_args,
-                    "tags": [t.value for t in p.workflow.tags],
+                    "tags": sorted(t.value for t in p.workflow.tags),
                 }
                 for p in pending
             ]
