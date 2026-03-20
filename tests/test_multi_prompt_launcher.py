@@ -231,14 +231,14 @@ def test_launch_multi_prompt_each_gets_own_timestamp(
 
 @patch("sase.agent_launcher.spawn_agent_subprocess")
 @patch("sase.multi_prompt_launcher._wait_for_agent_naming")
-@patch("sase.sase_utils.generate_timestamp", return_value="ts1")
+@patch("sase.sase_utils.generate_timestamp", side_effect=["ts1", "ts2"])
 @patch("sase.shared_utils.create_artifacts_directory", return_value="/a")
-@patch("sase.running_field.get_first_available_axe_workspace", return_value=100)
+@patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
 @patch(
     "sase.running_field.get_workspace_directory_for_num",
-    return_value=("/ws", None),
+    side_effect=[("/ws1", None), ("/ws2", None)],
 )
-def test_launch_multi_prompt_passes_local_xprompts_file(
+def test_launch_multi_prompt_passes_segment_local_xprompts_file(
     mock_ws_dir: MagicMock,
     mock_first_ws: MagicMock,
     mock_create_artifacts: MagicMock,
@@ -246,7 +246,7 @@ def test_launch_multi_prompt_passes_local_xprompts_file(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
 ) -> None:
-    """Local xprompts file path is passed to spawn_agent_subprocess."""
+    """Only segments that reference local xprompts get a temp xprompt file."""
     mock_spawn.return_value = MagicMock(pid=1)
     mock_wait.return_value = "alpha"
 
@@ -255,7 +255,7 @@ def test_launch_multi_prompt_passes_local_xprompts_file(
     }
 
     launch_multi_prompt_agents(
-        segments=["seg1", "seg2"],
+        segments=["seg1", "seg2 #_review"],
         local_xprompts=xprompts,
         cl_name="test",
         project_file="/test.gp",
@@ -264,10 +264,60 @@ def test_launch_multi_prompt_passes_local_xprompts_file(
         vcs_ref=None,
     )
 
-    # Both calls should have a local_xprompts_file set.
-    for call in mock_spawn.call_args_list:
-        assert call.kwargs["local_xprompts_file"] is not None
-        # Clean up temp file if it exists.
-        path = call.kwargs["local_xprompts_file"]
+    first_path = mock_spawn.call_args_list[0].kwargs["local_xprompts_file"]
+    second_path = mock_spawn.call_args_list[1].kwargs["local_xprompts_file"]
+
+    assert first_path is None
+    assert second_path is not None
+    try:
+        loaded = deserialize_local_xprompts(second_path)
+        assert set(loaded) == {"_review"}
+    finally:
+        if os.path.exists(second_path):
+            os.unlink(second_path)
+
+
+@patch("sase.agent_launcher.spawn_agent_subprocess")
+@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.sase_utils.generate_timestamp", return_value="ts1")
+@patch("sase.shared_utils.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace", return_value=100)
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    return_value=("/ws", None),
+)
+def test_launch_multi_prompt_includes_transitive_local_xprompts(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Segment-local xprompts include transitive local-xprompt dependencies."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+
+    xprompts = {
+        "_inner": XPrompt(name="_inner", content="inner"),
+        "_outer": XPrompt(name="_outer", content="use #_inner"),
+    }
+
+    launch_multi_prompt_agents(
+        segments=["work #_outer"],
+        local_xprompts=xprompts,
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    path = mock_spawn.call_args.kwargs["local_xprompts_file"]
+    assert path is not None
+    try:
+        loaded = deserialize_local_xprompts(path)
+        assert set(loaded) == {"_inner", "_outer"}
+    finally:
         if os.path.exists(path):
             os.unlink(path)
