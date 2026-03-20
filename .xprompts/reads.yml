@@ -1,0 +1,73 @@
+steps:
+  - name: research
+    parallel:
+      - name: gemini_research
+        agent: |
+          %model:gemini/gemini-2.5-pro
+          %name:gemini-reads
+
+          Find recent (2024-2026), medium-to-long articles or research papers that will help me
+          continue developing **sase** (Structured Agentic Software Engineering) — a Python toolkit
+          for building and orchestrating AI agents.
+
+          Relevant topics include: AI agent orchestration, tool-use patterns, multi-agent systems,
+          LLM workflow engines, prompt engineering for agents, structured output from LLMs, and
+          developer tooling for AI-assisted software engineering.
+
+          For each recommendation, provide: title, author(s), date, URL (if available), and a brief
+          explanation of why it's relevant to sase development.
+
+      - name: claude_research
+        agent: |
+          %model:claude/sonnet
+          %name:claude-reads
+
+          Find recent (2024-2026), medium-to-long articles or research papers that will help me
+          continue developing **sase** (Structured Agentic Software Engineering) — a Python toolkit
+          for building and orchestrating AI agents.
+
+          Relevant topics include: AI agent orchestration, tool-use patterns, multi-agent systems,
+          LLM workflow engines, prompt engineering for agents, structured output from LLMs, and
+          developer tooling for AI-assisted software engineering.
+
+          For each recommendation, provide: title, author(s), date, URL (if available), and a brief
+          explanation of why it's relevant to sase development.
+
+      - name: codex_research
+        agent: |
+          %model:codex/o3
+          %name:codex-reads
+
+          Find recent (2024-2026), medium-to-long articles or research papers that will help me
+          continue developing **sase** (Structured Agentic Software Engineering) — a Python toolkit
+          for building and orchestrating AI agents.
+
+          Relevant topics include: AI agent orchestration, tool-use patterns, multi-agent systems,
+          LLM workflow engines, prompt engineering for agents, structured output from LLMs, and
+          developer tooling for AI-assisted software engineering.
+
+          For each recommendation, provide: title, author(s), date, URL (if available), and a brief
+          explanation of why it's relevant to sase development.
+
+  - name: consolidate
+    agent: |
+      %name:reads-consolidator
+
+      You are consolidating research reading recommendations from three AI agents. Each searched for
+      recent articles and papers relevant to developing **sase** — a Python toolkit for building and
+      orchestrating AI agents.
+
+      ## Gemini's recommendations
+      {{ research.gemini_research._raw }}
+
+      ## Claude's recommendations
+      {{ research.claude_research._raw }}
+
+      ## Codex's recommendations
+      {{ research.codex_research._raw }}
+
+      ## Your task
+      1. Merge and de-duplicate the lists above (same article from multiple agents = one entry)
+      2. Produce a single consolidated list, ordered by relevance to sase development
+      3. For each entry: title, author(s), date, URL, and a one-line relevance note
+      4. At the end, select **one "best next read"** and explain why it should be read first
