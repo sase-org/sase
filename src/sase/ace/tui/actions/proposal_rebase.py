@@ -14,6 +14,97 @@ if TYPE_CHECKING:
 _ROOT_PARENT_SENTINEL = "__root__"
 
 
+def _rebase_task(
+    changespec_name: str,
+    changespec_file_path: str,
+    project_basename: str,
+    new_parent_name: str,
+) -> tuple[bool, str]:
+    """Execute rebase as a background task.
+
+    Returns:
+        Tuple of (success, message).
+    """
+    import os
+
+    from sase.commit_utils import run_sase_hg_clean
+    from sase.running_field import (
+        claim_workspace,
+        get_first_available_axe_workspace,
+        get_workspace_directory_for_num,
+        release_workspace,
+    )
+    from sase.status_state_machine import update_changespec_parent_atomic
+    from sase.vcs_provider import get_vcs_provider
+
+    workspace_num = get_first_available_axe_workspace(changespec_file_path)
+    workflow_name = f"rebase-{changespec_name}"
+
+    try:
+        workspace_dir, _ = get_workspace_directory_for_num(
+            workspace_num, project_basename
+        )
+    except RuntimeError as e:
+        return (False, f"Failed to get workspace directory: {e}")
+
+    pid = os.getpid()
+    if not claim_workspace(
+        changespec_file_path, workspace_num, workflow_name, pid, changespec_name
+    ):
+        return (False, "Failed to claim workspace")
+
+    try:
+        # Clean workspace before switching branches
+        clean_success, clean_error = run_sase_hg_clean(
+            workspace_dir, f"{changespec_name}-rebase"
+        )
+        if not clean_success:
+            print(f"Warning: sase_hg_clean failed: {clean_error}")
+
+        # Checkout the CL being rebased
+        provider = get_vcs_provider(workspace_dir)
+        resolved = provider.resolve_revision(
+            changespec_name, project_basename, workspace_dir
+        )
+        checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
+        if not checkout_ok:
+            return (False, f"sase_hg_update failed: {checkout_err}")
+
+        # Resolve sentinel to real VCS default for the rebase call
+        rebase_parent = new_parent_name
+        if new_parent_name == _ROOT_PARENT_SENTINEL:
+            rebase_parent = provider.get_default_parent_revision(workspace_dir)
+
+        # Run sase_hg_rebase
+        rebase_ok, rebase_err = provider.rebase(
+            changespec_name, rebase_parent, workspace_dir
+        )
+        if not rebase_ok:
+            return (False, f"sase_hg_rebase failed: {rebase_err}")
+
+        # Update PARENT field on success
+        # If root sentinel was selected, delete the PARENT field (pass None)
+        try:
+            parent_value = (
+                None if new_parent_name == _ROOT_PARENT_SENTINEL else new_parent_name
+            )
+            update_changespec_parent_atomic(
+                changespec_file_path, changespec_name, parent_value
+            )
+        except Exception as e:
+            return (False, f"Failed to update PARENT field: {e}")
+
+        return (True, f"Rebased onto {new_parent_name}")
+
+    finally:
+        release_workspace(
+            changespec_file_path,
+            workspace_num,
+            workflow_name,
+            changespec_name,
+        )
+
+
 def _accept_task(
     entries: list[tuple[str, str | None]],
     cl_name: str,
@@ -379,7 +470,7 @@ class ProposalRebaseMixin:
     def _run_rebase_workflow(
         self, changespec: ChangeSpec, new_parent_name: str
     ) -> None:
-        """Run the rebase workflow.
+        """Run the rebase workflow as a background task.
 
         Args:
             changespec: The ChangeSpec being rebased
@@ -387,113 +478,18 @@ class ProposalRebaseMixin:
         """
         import os
 
-        from sase.commit_utils import run_sase_hg_clean
-        from sase.running_field import (
-            claim_workspace,
-            get_first_available_axe_workspace,
-            get_workspace_directory_for_num,
-            release_workspace,
-        )
-        from sase.status_state_machine import update_changespec_parent_atomic
-
         project_basename = os.path.basename(changespec.file_path).replace(".gp", "")
-        workspace_num: int | None = None
+        cl_name = changespec.name
+        project_file = changespec.file_path
 
-        def run_handler() -> tuple[bool, str]:
-            """Execute rebase in suspended TUI context.
+        def task_callable() -> tuple[bool, str]:
+            return _rebase_task(
+                cl_name, project_file, project_basename, new_parent_name
+            )
 
-            Returns:
-                Tuple of (success, message)
-            """
-            nonlocal workspace_num
+        submitted = self._submit_background_task(  # type: ignore[attr-defined]
+            "rebase", cl_name, project_file, task_callable
+        )
 
-            # Get workspace info
-            workspace_num = get_first_available_axe_workspace(changespec.file_path)
-            workflow_name = f"rebase-{changespec.name}"
-
-            try:
-                workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, project_basename
-                )
-            except RuntimeError as e:
-                return (False, f"Failed to get workspace directory: {e}")
-
-            # Claim workspace (use our process ID since this is synchronous)
-            pid = os.getpid()
-            if not claim_workspace(
-                changespec.file_path, workspace_num, workflow_name, pid, changespec.name
-            ):
-                return (False, "Failed to claim workspace")
-
-            try:
-                # Clean workspace before switching branches
-                clean_success, clean_error = run_sase_hg_clean(
-                    workspace_dir, f"{changespec.name}-rebase"
-                )
-                if not clean_success:
-                    print(f"Warning: sase_hg_clean failed: {clean_error}")
-
-                # Checkout the CL being rebased
-                from sase.vcs_provider import get_vcs_provider
-
-                provider = get_vcs_provider(workspace_dir)
-                resolved = provider.resolve_revision(
-                    changespec.name, project_basename, workspace_dir
-                )
-                checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
-                if not checkout_ok:
-                    return (
-                        False,
-                        f"sase_hg_update failed: {checkout_err}",
-                    )
-
-                # Resolve sentinel to real VCS default for the rebase call
-                rebase_parent = new_parent_name
-                if new_parent_name == _ROOT_PARENT_SENTINEL:
-                    rebase_parent = provider.get_default_parent_revision(workspace_dir)
-
-                # Run sase_hg_rebase
-                rebase_ok, rebase_err = provider.rebase(
-                    changespec.name, rebase_parent, workspace_dir
-                )
-                if not rebase_ok:
-                    return (
-                        False,
-                        f"sase_hg_rebase failed: {rebase_err}",
-                    )
-
-                # Update PARENT field on success
-                # If root sentinel was selected, delete the PARENT field (pass None)
-                try:
-                    parent_value = (
-                        None
-                        if new_parent_name == _ROOT_PARENT_SENTINEL
-                        else new_parent_name
-                    )
-                    update_changespec_parent_atomic(
-                        changespec.file_path, changespec.name, parent_value
-                    )
-                except Exception as e:
-                    return (False, f"Failed to update PARENT field: {e}")
-
-                return (True, f"Rebased onto {new_parent_name}")
-
-            finally:
-                # Always release workspace
-                if workspace_num is not None:
-                    release_workspace(
-                        changespec.file_path,
-                        workspace_num,
-                        workflow_name,
-                        changespec.name,
-                    )
-
-        with self.suspend():  # type: ignore[attr-defined]
-            success, message = run_handler()
-
-        if success:
-            self.notify(message)  # type: ignore[attr-defined]
-        else:
-            self.notify(f"Rebase failed: {message}", severity="error")  # type: ignore[attr-defined]
-
-        self._reload_and_reposition()  # type: ignore[attr-defined]
+        if submitted:
+            self.notify(f"Rebase onto {new_parent_name} started for {cl_name}")  # type: ignore[attr-defined]
