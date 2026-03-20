@@ -628,6 +628,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Output format (default: mermaid)",
     )
 
+    # xprompt list
+    xprompt_subparsers.add_parser(
+        "list",
+        help="List all available xprompts and workflows as JSON",
+    )
+
     # xprompt explain
     explain_parser = xprompt_subparsers.add_parser(
         "explain",

@@ -492,6 +492,76 @@ def main() -> NoReturn:
                 print_trace(trace)
             sys.exit(0)
 
+        elif subcommand == "list":
+            import json
+
+            from sase.xprompt.loader import get_all_prompts
+
+            prompts = get_all_prompts()
+            items = []
+            for name, wf in sorted(prompts.items()):
+                is_simple = wf.is_simple_xprompt()
+                user_inputs = [inp for inp in wf.inputs if not inp.is_step_input]
+                inputs_json = []
+                for inp in user_inputs:
+                    from sase.xprompt.models import UNSET
+
+                    required = inp.default is UNSET
+                    inputs_json.append(
+                        {
+                            "name": inp.name,
+                            "type": inp.type.value,
+                            "required": required,
+                            "default": (
+                                None
+                                if required
+                                else str(inp.default)
+                                if inp.default is not None
+                                else None
+                            ),
+                        }
+                    )
+                if is_simple:
+                    preview = wf.get_prompt_part_content()
+                else:
+                    lines: list[str] = [f"# Workflow: {name}", ""]
+                    if user_inputs:
+                        lines.append("## Inputs")
+                        for inp in user_inputs:
+                            default_str = (
+                                f" (default: {inp.default})" if inp.default else ""
+                            )
+                            lines.append(f"- {inp.name}: {inp.type.value}{default_str}")
+                        lines.append("")
+                    lines.append("## Steps")
+                    for i, step in enumerate(wf.steps, 1):
+                        if step.agent:
+                            stype, label = "agent", step.agent.split("\n")[0][:50]
+                        elif step.bash:
+                            stype, label = "bash", step.bash
+                        elif step.python:
+                            stype, label = "python", step.python
+                        elif step.prompt_part:
+                            stype, label = (
+                                "prompt_part",
+                                step.prompt_part.split("\n")[0][:50],
+                            )
+                        else:
+                            stype, label = "unknown", "?"
+                        lines.append(f"{i}. [{stype}] {step.name}: {label}")
+                    preview = "\n".join(lines)
+                items.append(
+                    {
+                        "name": name,
+                        "type": "xprompt" if is_simple else "workflow",
+                        "source": wf.source_path,
+                        "inputs": inputs_json,
+                        "preview": preview,
+                    }
+                )
+            print(json.dumps(items))
+            sys.exit(0)
+
         elif subcommand == "graph":
             from sase.xprompt.graph import (
                 list_workflows,
@@ -540,7 +610,7 @@ def main() -> NoReturn:
             sys.exit(0)
 
         else:
-            print("Usage: sase xprompt {expand,graph,explain}")
+            print("Usage: sase xprompt {expand,list,graph,explain}")
             sys.exit(1)
 
     print(f"Unknown command: {args.command}")
