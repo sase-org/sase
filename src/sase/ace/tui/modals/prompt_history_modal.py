@@ -224,16 +224,19 @@ class PromptHistoryModal(
         return self._filtered_items[0].entry.text
 
     def on_key(self, event: events.Key) -> None:
-        """Intercept Tab key to trigger load action.
+        """Intercept keys that focused widgets consume before bindings.
 
-        Ctrl+I and Tab produce the same keycode (ASCII 9) in terminals.
-        Textual's focus cycling intercepts Tab before bindings, so we
-        handle it here directly.
+        - Tab/Ctrl+I: Textual's focus cycling intercepts Tab before bindings.
+        - Ctrl+X: Input widget's built-in "cut" binding consumes it.
         """
         if event.key == "tab":
             event.prevent_default()
             event.stop()
             self.action_load_to_input()
+        elif event.key == "ctrl+x":
+            event.prevent_default()
+            event.stop()
+            self.action_toggle_cancelled()
 
     def on_mount(self) -> None:
         """Focus the input and show initial preview on mount."""
