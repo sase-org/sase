@@ -12,6 +12,7 @@ from ._parsing import (
     escape_for_xprompt,
     extract_vcs_workflow_tag,
     parse_workflow_reference,
+    replace_vcs_workflow_tags,
     strip_hitl_suffix,
     strip_vcs_workflow_tag,
 )
@@ -91,6 +92,7 @@ __all__ = [
     "escape_for_xprompt",
     "extract_vcs_workflow_tag",
     "parse_workflow_reference",
+    "replace_vcs_workflow_tags",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",
     # Directives

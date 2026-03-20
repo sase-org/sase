@@ -404,6 +404,44 @@ def strip_vcs_workflow_tag(prompt: str) -> str:
     return _get_vcs_tag_pattern().sub("", prompt)
 
 
+_VCS_REPLACE_PATTERN: re.Pattern[str] | None = None
+
+
+def _get_vcs_replace_pattern() -> re.Pattern[str]:
+    """Build a regex matching VCS workflow tags at the start of any line.
+
+    Unlike :func:`_get_vcs_tag_pattern` (which is ``^``-anchored and matches
+    only at the very start of the string), this pattern uses ``re.MULTILINE``
+    so ``^`` matches at every line start.  Leading ``%directive`` tokens are
+    captured in group 1 to be preserved during replacement.
+    """
+    global _VCS_REPLACE_PATTERN  # noqa: PLW0603
+    if _VCS_REPLACE_PATTERN is None:
+        from sase.workspace_provider import get_workflow_names
+
+        names = "|".join(re.escape(n) for n in sorted(get_workflow_names()))
+        _VCS_REPLACE_PATTERN = re.compile(
+            rf"^((?:%\S+[\s]+)*)#(?:{names})(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s",
+            re.MULTILINE,
+        )
+    return _VCS_REPLACE_PATTERN
+
+
+def replace_vcs_workflow_tags(prompt: str, new_vcs_prefix: str) -> str:
+    """Replace all VCS workflow tags in *prompt* with *new_vcs_prefix*.
+
+    Handles multi-prompt segments (``---`` separated), directives before
+    VCS tags, and VCS tags that appear at the start of any line.
+
+    If no VCS tags are found, prepends *new_vcs_prefix* to the prompt.
+    """
+    pattern = _get_vcs_replace_pattern()
+    result, count = pattern.subn(lambda m: f"{m.group(1)}{new_vcs_prefix} ", prompt)
+    if count == 0:
+        return f"{new_vcs_prefix} {prompt}"
+    return result
+
+
 def parse_workflow_reference(
     workflow_ref: str,
 ) -> tuple[str, list[str], dict[str, str]]:

@@ -278,18 +278,17 @@ class PromptBarMixin:
         vcs_prefix = event.vcs_prefix
 
         def _build_prompt(prompt_text: str) -> str:
-            """Prepend VCS prefix to the selected prompt if present.
+            """Replace embedded VCS workflow tags with the current VCS prefix.
 
-            Strips any existing VCS workflow tag from the prompt text
-            first to avoid doubling (e.g., "#gh:sase #gh:sase Do the
-            thing") and to handle cross-VCS reuse (e.g., a prompt
-            originally used with ``#git`` being reused via ``#gh``).
+            Finds all VCS workflow tags in the prompt (including in
+            multi-prompt segments and after ``%directive`` tokens) and
+            replaces each with *vcs_prefix*.  This handles cross-VCS
+            reuse and avoids tag doubling.
             """
             if vcs_prefix:
-                from sase.xprompt import strip_vcs_workflow_tag
+                from sase.xprompt import replace_vcs_workflow_tags
 
-                prompt_text = strip_vcs_workflow_tag(prompt_text)
-                return f"{vcs_prefix} {prompt_text}"
+                return replace_vcs_workflow_tags(prompt_text, vcs_prefix)
             return prompt_text
 
         def on_history_select(result: PromptHistoryResult | None) -> None:

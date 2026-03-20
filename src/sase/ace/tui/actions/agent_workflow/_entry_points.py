@@ -123,10 +123,9 @@ class EntryPointsMixin:
 
         def _build_prompt(prompt_text: str) -> str:
             if vcs_prefix:
-                from sase.xprompt import strip_vcs_workflow_tag
+                from sase.xprompt import replace_vcs_workflow_tags
 
-                prompt_text = strip_vcs_workflow_tag(prompt_text)
-                return f"{vcs_prefix} {prompt_text}"
+                return replace_vcs_workflow_tags(prompt_text, vcs_prefix)
             return prompt_text
 
         def on_history_select(result: PromptHistoryResult | None) -> None:

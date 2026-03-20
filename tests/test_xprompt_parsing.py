@@ -10,6 +10,7 @@ from sase.xprompt._parsing import (
     normalize_vcs_underscore_refs,
     parse_workflow_reference,
     preprocess_shorthand_syntax,
+    replace_vcs_workflow_tags,
     strip_hitl_suffix,
 )
 
@@ -297,3 +298,93 @@ def test_normalize_vcs_underscore_mid_line() -> None:
 
 
 # Tests for strip_vcs_workflow_tag
+
+
+# Tests for replace_vcs_workflow_tags
+
+_TEST_VCS_REPLACE_PATTERN = re.compile(
+    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s",
+    re.MULTILINE,
+)
+
+
+def _patch_vcs_replace_pattern():
+    """Patch _get_vcs_replace_pattern to use the test pattern."""
+    return patch(
+        "sase.xprompt._parsing._get_vcs_replace_pattern",
+        return_value=_TEST_VCS_REPLACE_PATTERN,
+    )
+
+
+def test_replace_vcs_tags_single_prompt() -> None:
+    """Replace the VCS tag in a simple single-segment prompt."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#gh:sase Fix the bug", "#gh:other")
+        assert result == "#gh:other Fix the bug"
+
+
+def test_replace_vcs_tags_multi_prompt() -> None:
+    """Replace VCS tags in each segment of a multi-prompt."""
+    prompt = "#gh:sase Fix A\n---\n#gh:sase Fix B"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "#gh:other Fix A\n---\n#gh:other Fix B"
+
+
+def test_replace_vcs_tags_cross_vcs() -> None:
+    """Replace a #git tag with a #gh tag (cross-VCS reuse)."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#git:repo Fix bug", "#gh:sase")
+        assert result == "#gh:sase Fix bug"
+
+
+def test_replace_vcs_tags_with_directive_same_line() -> None:
+    """Preserve %directive prefix when replacing VCS tag."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("%n:a #gh:sase Fix bug", "#gh:other")
+        assert result == "%n:a #gh:other Fix bug"
+
+
+def test_replace_vcs_tags_with_directives_multi_line() -> None:
+    """Preserve multi-line directives before VCS tag."""
+    prompt = "%plan\n%n:a #gh:sase Fix bug"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "%plan\n%n:a #gh:other Fix bug"
+
+
+def test_replace_vcs_tags_multi_prompt_with_directives() -> None:
+    """Replace VCS tags in multi-prompt where segments have directives."""
+    prompt = "%n:a #gh:sase Fix A\n---\n%n:b #gh:sase Fix B"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "%n:a #gh:other Fix A\n---\n%n:b #gh:other Fix B"
+
+
+def test_replace_vcs_tags_no_existing_tag() -> None:
+    """Prepend VCS prefix when prompt has no existing VCS tag."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("Fix the bug", "#gh:sase")
+        assert result == "#gh:sase Fix the bug"
+
+
+def test_replace_vcs_tags_hitl_modifier() -> None:
+    """Replace a VCS tag that has !! (HITL) modifier."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#hg!!:cl Fix it", "#gh:sase")
+        assert result == "#gh:sase Fix it"
+
+
+def test_replace_vcs_tags_paren_args() -> None:
+    """Replace a VCS tag that uses parenthesis args."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#git(repo) Do stuff", "#gh:sase")
+        assert result == "#gh:sase Do stuff"
+
+
+def test_replace_vcs_tags_mixed_vcs_multi_prompt() -> None:
+    """Replace different VCS tags across multi-prompt segments."""
+    prompt = "#gh:sase Fix A\n---\n#git:repo Fix B"
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags(prompt, "#gh:other")
+        assert result == "#gh:other Fix A\n---\n#gh:other Fix B"
