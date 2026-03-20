@@ -24,6 +24,7 @@ from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
+from .confirm_action_modal import ConfirmActionModal
 
 
 def _append_input_args(text: Text, inputs: list[InputArg]) -> None:
@@ -195,6 +196,37 @@ def _resolve_source_to_file_path(source_path: str | None) -> str | None:
 
     # Regular filesystem path — return as-is
     return source_path
+
+
+def _get_git_root(file_path: str) -> str | None:
+    """Return the git repo root for the given file, or None if not in a repo."""
+    directory = str(Path(file_path).parent)
+    try:
+        result = subprocess.run(
+            ["git", "-C", directory, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except OSError:
+        pass
+    return None
+
+
+def _has_git_changes(git_root: str, file_path: str) -> bool:
+    """Check if the file has uncommitted changes (staged or unstaged)."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", git_root, "status", "--porcelain", "--", file_path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return bool(result.stdout.strip())
+    except OSError:
+        return False
 
 
 class _BrowserFilterInput(Input):
@@ -520,6 +552,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             subprocess.run(editor_args, check=False)
 
         self._reload_xprompts()
+        self._offer_git_commit(file_path, is_new=False, xprompt_name=item.name)
 
     def action_add_xprompt(self) -> None:
         """Add a new xprompt via location selector then filename input."""
@@ -583,6 +616,73 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             subprocess.run(editor_args, check=False)
 
         self._reload_xprompts()
+        xprompt_name = file_path.stem
+        self._offer_git_commit(str(file_path), is_new=True, xprompt_name=xprompt_name)
+
+    def _offer_git_commit(
+        self, file_path: str, *, is_new: bool, xprompt_name: str
+    ) -> None:
+        """If the file is in a git repo and has changes, offer to commit and push."""
+        git_root = _get_git_root(file_path)
+        if git_root is None:
+            return
+        if not _has_git_changes(git_root, file_path):
+            return
+
+        rel_path = os.path.relpath(file_path, git_root)
+        verb = "Add" if is_new else "Update"
+
+        def _on_commit_answer(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            # Stage and commit
+            subprocess.run(
+                ["git", "-C", git_root, "add", "--", file_path],
+                capture_output=True,
+                check=False,
+            )
+            message = f"chore: {verb} xprompt {xprompt_name}"
+            result = subprocess.run(
+                ["git", "-C", git_root, "commit", "-m", message],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                self.notify(f"Commit failed: {result.stderr.strip()}", severity="error")
+                return
+            self.notify(f"Committed: {message}")
+
+            # Offer to push
+            def _on_push_answer(push_confirmed: bool | None) -> None:
+                if not push_confirmed:
+                    return
+                push_result = subprocess.run(
+                    ["git", "-C", git_root, "push"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if push_result.returncode == 0:
+                    self.notify("Pushed to remote")
+                else:
+                    self.notify(
+                        f"Push failed: {push_result.stderr.strip()}",
+                        severity="error",
+                    )
+
+            self.app.push_screen(
+                ConfirmActionModal("Push to Remote", "Push changes to remote?"),
+                _on_push_answer,
+            )
+
+        self.app.push_screen(
+            ConfirmActionModal(
+                "Commit Changes",
+                f"Commit changes to '{rel_path}'?",
+            ),
+            _on_commit_answer,
+        )
 
     def _reload_xprompts(self) -> None:
         """Reload all xprompts and rebuild the list."""

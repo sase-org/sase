@@ -4,6 +4,7 @@ from .agent_interrupt_modal import AgentInterruptModal
 from .agent_name_modal import AgentNameModal
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
+from .confirm_action_modal import ConfirmActionModal
 from .confirm_delete_modal import ConfirmDeleteModal
 from .confirm_kill_modal import ConfirmDismissAllModal, ConfirmKillModal
 from .help_modal import HelpModal, TabName
@@ -44,6 +45,7 @@ __all__ = [
     "AgentNameModal",
     "AgentRunLogModal",
     "CommandHistoryModal",
+    "ConfirmActionModal",
     "CommandInputModal",
     "ConfirmDeleteModal",
     "ConfirmDismissAllModal",
