@@ -49,6 +49,7 @@ class PromptHistoryModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("ctrl+g", "edit_first", "Edit in editor"),
+        ("ctrl+x", "toggle_cancelled", "Toggle cancelled"),
         ("ctrl+y", "copy_and_cancel", "Copy & cancel"),
     ]
 
@@ -68,10 +69,11 @@ class PromptHistoryModal(
         self._workspace = workspace
         self._all_items: list[_PromptDisplayItem] = []
         self._filtered_items: list[_PromptDisplayItem] = []
+        self._show_cancelled = False
         self._load_items()
 
     def _load_items(self) -> None:
-        """Load prompt history items (including cancelled for @ filtering)."""
+        """Load prompt history items (including cancelled for toggle filtering)."""
         items = get_prompts_for_fzf(
             current_branch=self._sort_by,
             current_workspace=self._workspace,
@@ -117,7 +119,7 @@ class PromptHistoryModal(
                 yield Static(header_text, id="prompt-history-header")
 
                 yield FilterInput(
-                    placeholder='Type to filter ("@ " to include cancelled)...',
+                    placeholder="Type to filter...",
                     id="prompt-history-filter-input",
                 )
                 with Horizontal(id="prompt-history-panels"):
@@ -133,7 +135,7 @@ class PromptHistoryModal(
                             yield Static("", id="prompt-history-preview", markup=False)
                             yield Static("", id="prompt-history-metadata")
                 yield Static(
-                    "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • ^i: load • ^y: copy • Esc/q: cancel",
+                    "j/k ↑/↓ ^n/^p: navigate • Enter: submit • ^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel",
                     id="prompt-history-hints",
                 )
 
@@ -194,17 +196,9 @@ class PromptHistoryModal(
         ]
 
     def _get_filtered_items(self, filter_text: str) -> list[_PromptDisplayItem]:
-        """Get items that match the filter text.
-
-        When filter_text starts with "@ ", cancelled prompts are included
-        and the search query is the text after "@ ".
-        """
-        include_cancelled = filter_text.startswith("@ ")
-        if include_cancelled:
-            filter_text = filter_text[2:]
-
+        """Get items that match the filter text."""
         if not filter_text:
-            if include_cancelled:
+            if self._show_cancelled:
                 return self._all_items.copy()
             return [item for item in self._all_items if not item.entry.cancelled]
 
@@ -212,7 +206,7 @@ class PromptHistoryModal(
         return [
             item
             for item in self._all_items
-            if (include_cancelled or not item.entry.cancelled)
+            if (self._show_cancelled or not item.entry.cancelled)
             and (
                 filter_lower in item.entry.text.lower()
                 or filter_lower in item.entry.branch_or_workspace.lower()
@@ -262,8 +256,6 @@ class PromptHistoryModal(
             self._update_preview(self._filtered_items[0])
         else:
             self._clear_preview()
-        # Update header to show/hide cancelled legend
-        self._update_header(include_cancelled=event.value.startswith("@ "))
 
     def _update_header(self, include_cancelled: bool = False) -> None:
         """Update the header to reflect current filter mode."""
@@ -315,6 +307,21 @@ class PromptHistoryModal(
                     prompt_text=prompt_text,
                 )
             )
+
+    def action_toggle_cancelled(self) -> None:
+        """Handle Ctrl+X - toggle visibility of cancelled prompts."""
+        self._show_cancelled = not self._show_cancelled
+        filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
+        self._filtered_items = self._get_filtered_items(filter_input.value)
+        option_list = self.query_one("#prompt-history-list", OptionList)
+        option_list.clear_options()
+        for option in self._create_options(self._filtered_items):
+            option_list.add_option(option)
+        if self._filtered_items:
+            self._update_preview(self._filtered_items[0])
+        else:
+            self._clear_preview()
+        self._update_header(include_cancelled=self._show_cancelled)
 
     def action_load_to_input(self) -> None:
         """Handle Ctrl+I - load selected prompt into prompt input widget."""
