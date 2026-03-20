@@ -191,3 +191,16 @@ class TestGetNextAutoName:
         _make_agent(tmp_path, "proj", "run2", "b", done=True, appears_as_agent=True)
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
+
+    def test_dismissed_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
+        """Dismissed agent suffixes are excluded from auto-name reservation."""
+        _make_agent(tmp_path, "proj", "run1", "a", pid=os.getpid())
+        _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
+        dismissed_file = tmp_path / ".sase" / "dismissed_agents.json"
+        dismissed_file.parent.mkdir(parents=True, exist_ok=True)
+        dismissed_file.write_text('[["run", "proj", "run1"]]')
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", dismissed_file),
+        ):
+            assert get_next_auto_name() == "a"
