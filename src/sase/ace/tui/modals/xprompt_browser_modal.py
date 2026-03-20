@@ -472,7 +472,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def action_add_xprompt(self) -> None:
         """Add a new xprompt via location selector then filename input."""
-        from .add_xprompt_modal import AddXPromptModal
+        from .xprompt_filename_modal import XPromptFilenameModal
         from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
 
         def _on_location(location: XPromptLocation | None) -> None:
@@ -491,18 +491,13 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
                 self._reload_xprompts()
             else:
                 # Directory location — ask for filename
-                default_path = location.path.replace(str(Path.cwd()), ".")
-                default_path = default_path.replace(str(Path.home()), "~")
-                if not default_path.endswith("/"):
-                    default_path += "/"
-
-                def _on_add(path: str | None) -> None:
+                def _on_filename(path: str | None) -> None:
                     if path is None:
                         return
                     self._create_and_edit_xprompt(path)
 
                 self.app.push_screen(
-                    AddXPromptModal(default_path=default_path), _on_add
+                    XPromptFilenameModal(directory=location.path), _on_filename
                 )
 
         self.app.push_screen(XPromptLocationModal(project=self._project), _on_location)
@@ -516,7 +511,18 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
 
         if not file_path.exists():
             name = file_path.stem
-            skeleton = f"# {name}\n\nYour xprompt content here.\n"
+            if file_path.suffix == ".yml":
+                schema_path = get_sase_package_xprompts_dir() / "workflow.schema.json"
+                skeleton = (
+                    "# yaml-language-server: $schema=" + str(schema_path) + "\n"
+                    "\n"
+                    "steps:\n"
+                    "  - name: main\n"
+                    "    prompt: |\n"
+                    "      <your prompt here>\n"
+                )
+            else:
+                skeleton = f"# {name}\n\nYour xprompt content here.\n"
             file_path.write_text(skeleton, encoding="utf-8")
 
         editor = os.environ.get("EDITOR") or "nvim"

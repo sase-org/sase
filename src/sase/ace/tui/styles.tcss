@@ -1518,6 +1518,43 @@ AddXPromptModal #add-xprompt-input {
     width: 100%;
 }
 
+/* XPrompt filename input modal styling */
+XPromptFilenameModal {
+    align: center middle;
+}
+
+XPromptFilenameModal > Container {
+    width: 60;
+    height: auto;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+XPromptFilenameModal #modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+XPromptFilenameModal #filename-dir-label {
+    color: #87D7FF;
+    margin-bottom: 0;
+}
+
+XPromptFilenameModal #filename-hint {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+XPromptFilenameModal #filename-input {
+    width: 100%;
+}
+
+XPromptFilenameModal #filename-error {
+    color: $error;
+    margin-top: 1;
+}
+
 /* XPrompt location selector modal styling */
 XPromptLocationModal {
     align: center middle;
