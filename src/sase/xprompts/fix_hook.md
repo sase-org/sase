@@ -1,5 +1,6 @@
 ---
 name: fix_hook
+tags: fix_hook
 input:
   - name: hook_command
     type: line

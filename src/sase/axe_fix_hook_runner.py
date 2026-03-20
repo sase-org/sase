@@ -32,6 +32,7 @@ from sase.main.query_handler import (
 )
 from sase.shared_utils import create_artifacts_directory, ensure_str_content
 from sase.xprompt import escape_for_xprompt, process_xprompt_references
+from sase.xprompt.tags import XPromptTag, get_by_tag
 
 
 def _update_hook_suffix(
@@ -133,12 +134,16 @@ def main() -> int:
         print(f"Hook output: {hook_output_path}")
         print()
 
+        # Look up the fix_hook xprompt by tag, fall back to hardcoded name
+        fix_hook_workflow = get_by_tag(XPromptTag.FIX_HOOK)
+        xprompt_name = fix_hook_workflow.name if fix_hook_workflow else "fix_hook"
+
         # Build the prompt using xprompt reference
         escaped_cmd = escape_for_xprompt(run_hook_command)
         escaped_output = escape_for_xprompt(hook_output_path)
         escaped_cl = escape_for_xprompt(changespec_name)
         prompt_ref = (
-            f'#fix_hook(hook_command="{escaped_cmd}", '
+            f'#{xprompt_name}(hook_command="{escaped_cmd}", '
             f'output_file="{escaped_output}", '
             f'cl_name="{escaped_cl}", vcs_type="{vcs_type}")'
         )
