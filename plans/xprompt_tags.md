@@ -1,5 +1,6 @@
 ---
 bead_id: sase-4
+status: done
 ---
 
 # Plan: XPrompt Tags
