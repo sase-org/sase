@@ -382,6 +382,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             # Write SDD files (spec + plan) to project
             from sase.sdd import (
                 commit_sdd_files,
+                expand_prompt_for_spec,
                 get_sdd_config,
                 get_sdd_dir,
                 write_sdd_files,
@@ -398,8 +399,9 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 sdd_plan_name = os.path.splitext(
                     os.path.basename(plan_result.plan_file)
                 )[0]
+                expanded = expand_prompt_for_spec(prompt)
                 sdd_spec_path_obj, _ = write_sdd_files(
-                    sdd_dir, sdd_plan_name, prompt, plan_result.plan_file
+                    sdd_dir, sdd_plan_name, expanded, plan_result.plan_file
                 )
                 sdd_spec_path = str(sdd_spec_path_obj)
                 if not version_controlled:
