@@ -65,10 +65,13 @@ def spawn_agent_subprocess(
     safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in cl_name)
     output_path = os.path.join(workflows_dir, f"{safe_name}_ace-run-{timestamp}.txt")
 
-    # Resolve runner script path
-    import sase.axe_run_agent_runner as runner_mod
+    # Resolve runner script path without importing the module (its top-level
+    # code calls signal.signal() which fails from non-main threads).
+    import importlib.util
 
-    runner_script = os.path.abspath(runner_mod.__file__)
+    _spec = importlib.util.find_spec("sase.axe_run_agent_runner")
+    assert _spec is not None and _spec.origin is not None
+    runner_script = os.path.abspath(_spec.origin)
 
     # Build subprocess environment (copy to avoid mutating os.environ)
     subprocess_env = dict(os.environ)
