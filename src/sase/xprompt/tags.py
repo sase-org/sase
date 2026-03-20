@@ -1,4 +1,4 @@
-"""XPrompt tag system for semantic role-based lookup."""
+"""XPrompt tag system for semantic role tagging."""
 
 from __future__ import annotations
 
@@ -10,66 +10,53 @@ if TYPE_CHECKING:
 
 
 class XPromptTag(Enum):
-    """Semantic tags for xprompts and workflows."""
+    """Semantic role tags for xprompts and workflows."""
 
-    VCS = "vcs"
-    CRS = "crs"
-    FIX_HOOK = "fix_hook"
-    ROLLOVER = "rollover"
+    vcs = "vcs"
+    crs = "crs"
+    fix_hook = "fix_hook"
+    rollover = "rollover"
 
 
-def parse_tags(raw: str | list[str] | None) -> set[XPromptTag]:
-    """Parse raw tag data into a set of XPromptTag values.
+def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:
+    """Parse tags from YAML data into a frozenset of XPromptTag.
 
-    Accepts a comma-separated string, a list of strings, or None.
-
-    Args:
-        raw: Tag data from YAML — comma-separated string, list, or None.
-
-    Returns:
-        Set of parsed XPromptTag values.
+    Accepts comma-separated string (``tags: vcs, rollover``),
+    list (``tags: [vcs, rollover]``), or None.
 
     Raises:
         ValueError: If an unknown tag name is encountered.
     """
     if raw is None:
-        return set()
+        return frozenset()
 
     if isinstance(raw, str):
-        names = [t.strip() for t in raw.split(",") if t.strip()]
-    elif isinstance(raw, list):
-        names = [str(t).strip() for t in raw if str(t).strip()]
+        names = [s.strip() for s in raw.split(",") if s.strip()]
     else:
-        return set()
+        names = [str(s).strip() for s in raw if str(s).strip()]
 
     valid = {t.value for t in XPromptTag}
-    tags: set[XPromptTag] = set()
+    tags: list[XPromptTag] = []
     for name in names:
         if name not in valid:
             raise ValueError(
-                f"Unknown xprompt tag '{name}'. Valid tags: {sorted(valid)}"
+                f"Unknown xprompt tag {name!r}. Valid tags: {sorted(valid)}"
             )
-        tags.add(XPromptTag(name))
-    return tags
+        tags.append(XPromptTag(name))
+    return frozenset(tags)
 
 
 def get_by_tag(tag: XPromptTag, project: str | None = None) -> Workflow | None:
-    """Find the highest-priority workflow with the given tag.
+    """Find the highest-priority xprompt/workflow with the given tag.
 
-    Uses the standard loader precedence (local > user > plugin > builtin).
-    For singleton tags (crs, fix_hook), returns the first match.
+    Uses ``get_all_prompts()`` so the loader's existing precedence
+    (local > user > plugin > builtin) naturally handles override order.
 
-    Args:
-        tag: The tag to search for.
-        project: Optional project name for scoped lookups.
-
-    Returns:
-        The highest-priority Workflow with the tag, or None.
+    Returns the first matching Workflow, or None.
     """
     from sase.xprompt.loader import get_all_prompts
 
-    all_prompts = get_all_prompts(project=project)
-    for workflow in all_prompts.values():
-        if workflow.has_tag(tag):
-            return workflow
+    for wf in get_all_prompts(project=project).values():
+        if tag in wf.tags:
+            return wf
     return None

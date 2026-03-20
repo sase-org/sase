@@ -38,6 +38,7 @@ def _serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
             ],
             "source_path": xp.source_path,
             "hooks": xp.hooks,
+            "tags": [t.value for t in xp.tags],
         }
 
     fd, path = tempfile.mkstemp(
@@ -51,6 +52,7 @@ def _serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
 def deserialize_local_xprompts(path: str) -> dict[str, XPrompt]:
     """Read a local-xprompts JSON file and reconstruct XPrompt objects."""
     from sase.xprompt.models import InputArg, InputType
+    from sase.xprompt.tags import parse_tags
 
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -76,6 +78,7 @@ def deserialize_local_xprompts(path: str) -> dict[str, XPrompt]:
             inputs=inputs,
             source_path=entry.get("source_path"),
             hooks=entry.get("hooks", []),
+            tags=parse_tags(entry.get("tags")),
         )
     return result
 

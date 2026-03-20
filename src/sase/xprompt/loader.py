@@ -107,7 +107,7 @@ def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
             hooks = [str(h) for h in raw_hooks]
 
     # Parse tags if present
-    tags = parse_tags(front_matter.get("tags")) if front_matter else set()
+    tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
 
     return XPrompt(
         name=name,
@@ -285,7 +285,7 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 if isinstance(raw_hooks, list):
                     hooks = [str(h) for h in raw_hooks]
 
-            tags = parse_tags(front_matter.get("tags")) if front_matter else set()
+            tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
 
             source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
             xprompts[name] = XPrompt(

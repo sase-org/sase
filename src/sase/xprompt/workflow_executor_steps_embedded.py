@@ -16,7 +16,6 @@ from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_
 from sase.xprompt.models import UNSET, OutputSpec
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
 from sase.xprompt.workflow_executor_utils import render_template
-from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_models import (
     StepState,
     StepStatus,
@@ -445,24 +444,22 @@ class EmbeddedWorkflowMixin:
             return prompt, [], 0
 
         # ── Phase 2: Validation ──────────────────────────────────────────
-        wraps_all_entries = [
-            p for p in pending if p.workflow.has_tag(XPromptTag.VCS)
-        ]
-        if len(wraps_all_entries) > 1:
-            names = ", ".join(f"#{p.name}" for p in wraps_all_entries)
+        from sase.xprompt.tags import XPromptTag
+
+        vcs_entries = [p for p in pending if p.workflow.has_tag(XPromptTag.vcs)]
+        if len(vcs_entries) > 1:
+            names = ", ".join(f"#{p.name}" for p in vcs_entries)
             raise WorkflowExecutionError(
-                f"Multiple vcs-tagged workflows in one prompt: {names}. "
-                "At most one vcs-tagged workflow is allowed per prompt."
+                f"Multiple VCS-tagged workflows in one prompt: {names}. "
+                "At most one VCS workflow is allowed per prompt."
             )
 
         # ── Phase 3: Pre-step execution ──────────────────────────────────
-        # Execute in priority order: vcs-tagged first, then remaining in
+        # Execute in priority order: VCS workflow first, then remaining in
         # reversed (right-to-left) order to preserve current behavior.
-        wraps_all_pending = [
-            p for p in pending if p.workflow.has_tag(XPromptTag.VCS)
-        ]
+        wraps_all_pending = [p for p in pending if p.workflow.has_tag(XPromptTag.vcs)]
         non_wraps_all_pending = [
-            p for p in pending if not p.workflow.has_tag(XPromptTag.VCS)
+            p for p in pending if not p.workflow.has_tag(XPromptTag.vcs)
         ]
         execution_order = wraps_all_pending + list(reversed(non_wraps_all_pending))
 
@@ -538,8 +535,8 @@ class EmbeddedWorkflowMixin:
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
         # ── Phase 5: Post-step list ──────────────────────────────────────
-        # Build embedded_workflows: non-vcs-tagged in right-to-left order, then
-        # vcs-tagged at END so its post-steps run last (teardown after everything).
+        # Build embedded_workflows: non-VCS in right-to-left order, then
+        # VCS at END so its post-steps run last (teardown after everything).
         embedded_workflows: list[EmbeddedWorkflowInfo] = []
 
         for p in reversed(non_wraps_all_pending):
@@ -569,7 +566,12 @@ class EmbeddedWorkflowMixin:
         # Save embedded workflow metadata (pending is already left-to-right)
         if pending and os.path.isdir(self.artifacts_dir):
             ordered_metadata = [
-                {"name": p.name, "args": p.explicit_args} for p in pending
+                {
+                    "name": p.name,
+                    "args": p.explicit_args,
+                    "tags": [t.value for t in p.workflow.tags],
+                }
+                for p in pending
             ]
             # Write shared file (backward compat for sase run agents)
             metadata_path = os.path.join(self.artifacts_dir, "embedded_workflows.json")

@@ -1,3 +1,5 @@
+tags: rollover
+
 input:
   - name: name
     type: word

@@ -1,11 +1,15 @@
 """Workflow data models for multi-step agent workflows."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.models import InputArg, OutputSpec, XPrompt
-from sase.xprompt.tags import XPromptTag
+
+if TYPE_CHECKING:
+    from sase.xprompt.tags import XPromptTag
 
 
 class StepStatus(Enum):
@@ -41,7 +45,7 @@ class ParallelConfig:
         fail_fast: If True, cancel remaining steps on first failure.
     """
 
-    steps: list["WorkflowStep"]
+    steps: list[WorkflowStep]
     fail_fast: bool = True
 
 
@@ -118,10 +122,9 @@ class Workflow:
         steps: Ordered list of workflow steps to execute.
         source_path: File path where workflow was loaded from.
         xprompts: Workflow-local xprompt definitions (highest priority within this workflow).
-        wraps_all: DEPRECATED — use ``tags: vcs`` instead. If True, this workflow's
-            pre-steps run before all other embedded workflows' pre-steps and its
-            post-steps run after all others. Used for workspace setup/teardown
-            workflows like #git, #gh, #hg.
+        wraps_all: If True, this workflow's pre-steps run before all other embedded
+            workflows' pre-steps and its post-steps run after all others. Used for
+            workspace setup/teardown workflows like #git, #gh, #hg.
     """
 
     name: str
@@ -129,15 +132,8 @@ class Workflow:
     steps: list[WorkflowStep] = field(default_factory=list)
     source_path: str | None = None
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
-    wraps_all: bool = False
-    tags: set[XPromptTag] = field(default_factory=set)
-
-    def __post_init__(self) -> None:
-        """Sync wraps_all and vcs tag for backward compatibility."""
-        if self.wraps_all:
-            self.tags = self.tags | {XPromptTag.VCS}
-        if XPromptTag.VCS in self.tags:
-            self.wraps_all = True
+    wraps_all: bool = False  # Deprecated: use tags: vcs instead
+    tags: frozenset[XPromptTag] = field(default_factory=frozenset)
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""

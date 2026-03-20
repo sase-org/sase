@@ -1,7 +1,10 @@
 """XPrompt parsing utilities for inputs, outputs, and front matter."""
 
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .tags import XPromptTag
 
 import yaml  # type: ignore[import-untyped]
 
@@ -347,7 +350,7 @@ def parse_xprompt_entries(
             content = value
             inputs: list[InputArg] = []
             hooks: list[str] = []
-            tags = set()
+            tags: frozenset[XPromptTag] = frozenset()
         elif isinstance(value, dict):
             # Structured xprompt with input/content
             content = value.get("content", "")

@@ -135,10 +135,18 @@ def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
         if m:
             vcs_name = m.group(1)
 
+    # Only roll over workflows tagged with "rollover".
+    # Backward compat: if no entry has a "tags" key at all, roll over
+    # all non-VCS workflows (legacy behavior).
+    has_any_tags = any("tags" in w for w in workflows)
+
     refs: list[str] = []
     for wf in workflows:
         name = wf["name"]
-        if name == vcs_name:
+        wf_tags = wf.get("tags", [])
+        if name == vcs_name or "vcs" in wf_tags:
+            continue
+        if has_any_tags and "rollover" not in wf_tags:
             continue
         args = wf.get("args", {})
         if not args:

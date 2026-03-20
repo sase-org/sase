@@ -25,7 +25,6 @@ from sase.shared_utils import (
 )
 from sase.workflow_base import BaseWorkflow
 from sase.xprompt import escape_for_xprompt, process_xprompt_references
-from sase.xprompt.tags import XPromptTag, get_by_tag
 
 
 def _create_critique_comments_artifact(
@@ -77,18 +76,19 @@ def _build_crs_prompt(
     Returns:
         The formatted prompt string
     """
-    # Look up the crs xprompt by tag, fall back to hardcoded name
-    crs_workflow = get_by_tag(XPromptTag.CRS)
-    xprompt_name = crs_workflow.name if crs_workflow else "crs"
+    from sase.xprompt.tags import XPromptTag, get_by_tag
+
+    crs_wf = get_by_tag(XPromptTag.crs)
+    crs_name = crs_wf.name if crs_wf else "crs"
 
     escaped_path = escape_for_xprompt(critique_comments_path)
     if cl_name:
         prompt_text = (
-            f'#{xprompt_name}(critique_comments_path="{escaped_path}", '
+            f'#{crs_name}(critique_comments_path="{escaped_path}", '
             f'cl_name="{cl_name}", vcs_type="{vcs_type}")'
         )
     else:
-        prompt_text = f'#{xprompt_name}(critique_comments_path="{escaped_path}")'
+        prompt_text = f'#{crs_name}(critique_comments_path="{escaped_path}")'
     return process_xprompt_references(prompt_text)
 
 

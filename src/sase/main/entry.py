@@ -556,6 +556,7 @@ def main() -> NoReturn:
                         "type": "xprompt" if is_simple else "workflow",
                         "source": wf.source_path,
                         "inputs": inputs_json,
+                        "tags": [t.value for t in wf.tags],
                         "preview": preview,
                     }
                 )
