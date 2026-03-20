@@ -511,6 +511,13 @@ def _get_active_agent_names() -> set[str]:
             if not name:
                 continue
 
+            # Follow-up agents (coder/epic steps spawned after plan
+            # approval) share their parent's name and are sub-steps of
+            # the parent workflow — they should not independently
+            # reserve names.
+            if data.get("parent_timestamp"):
+                continue
+
             # Workflow agents with appears_as_agent=False are multi-step
             # workflows that never show on the Agents tab — their names
             # should not be reserved.
