@@ -22,6 +22,25 @@ from sase.xprompt.loader import detect_project, get_sase_package_xprompts_dir
 from .base import FilterInput, OptionListNavigationMixin
 
 
+def _shorten_display_path(path: str, cwd: str, home: str) -> str:
+    """Shorten a path for display in the location selector.
+
+    Paths under CWD become ``./relative``.  Other home-relative paths use
+    ``~/…/last/segments`` when they exceed the column budget.
+    """
+    if path.startswith(cwd + "/"):
+        return "./" + path[len(cwd) + 1 :]
+    if path.startswith(home + "/") or path == home:
+        display = "~" + path[len(home) :]
+        if len(display) <= 42:
+            return display
+        parts = display.split("/")
+        if len(parts) > 3:
+            return parts[0] + "/…/" + "/".join(parts[-2:])
+        return display
+    return path
+
+
 @dataclass
 class XPromptLocation:
     """A location where xprompts can be created or edited."""
@@ -286,6 +305,7 @@ class XPromptLocationModal(
     def _create_options(self, filter_text: str = "") -> list[Option]:
         filter_lower = filter_text.lower()
         home = str(Path.home())
+        cwd = str(Path.cwd())
         options: list[Option] = []
         for group_label, locations in self._groups:
             filtered = (
@@ -305,7 +325,7 @@ class XPromptLocationModal(
             options.append(Option(header, id=f"__header__{group_label}", disabled=True))
             for loc in filtered:
                 text = Text()
-                display_path = loc.path.replace(home, "~")
+                display_path = _shorten_display_path(loc.path, cwd, home)
                 exists = Path(loc.path).exists()
                 if loc.location_type == "directory":
                     text.append("  📁 ", style="bold")

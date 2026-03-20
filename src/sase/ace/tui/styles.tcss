@@ -1589,7 +1589,7 @@ XPromptLocationModal #location-panels {
 }
 
 XPromptLocationModal #location-list-panel {
-    width: 45;
+    width: 52;
     height: 100%;
 }
 
