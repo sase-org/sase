@@ -100,9 +100,15 @@ class PromptBarMixin:
 
         try:
             bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-            bar.remove()
         except Exception:
-            pass  # Bar not present
+            return  # Bar not present
+        # Synchronously detach from parent's node list so the ID is freed
+        # immediately. Without this, bar.remove() only schedules async
+        # removal and a subsequent mount() would hit DuplicateIds.
+        parent = bar._parent
+        if parent is not None:
+            parent._nodes._remove(bar)
+        bar.remove()
 
     def _setup_home_prompt_context(
         self,
