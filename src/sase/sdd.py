@@ -186,9 +186,11 @@ def write_sdd_files(
     plan_path = plans_dir / f"{plan_name}.md"
     plan_source = Path(plan_file)
     if plan_source.exists():
+        from sase.gemini_wrapper.file_references import format_with_prettier
         from sase.llm_provider._plan_utils import add_created_frontmatter
 
         content = plan_source.read_text(encoding="utf-8")
+        content = format_with_prettier(content)
         plan_path.write_text(add_created_frontmatter(content), encoding="utf-8")
 
     return spec_path, plan_path

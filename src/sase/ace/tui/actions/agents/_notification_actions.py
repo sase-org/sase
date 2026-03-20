@@ -533,6 +533,9 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
 
                 project_basename = os.path.basename(project_dir)
                 try:
+                    from sase.gemini_wrapper.file_references import (
+                        format_with_prettier,
+                    )
                     from sase.llm_provider._plan_utils import add_created_frontmatter
                     from sase.running_field import get_workspace_directory
 
@@ -542,6 +545,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
                     src_plan = Path(notification.files[0])
                     dest_plan = plans_dir / src_plan.name
                     content = src_plan.read_text(encoding="utf-8")
+                    content = format_with_prettier(content)
                     dest_plan.write_text(
                         add_created_frontmatter(content), encoding="utf-8"
                     )
