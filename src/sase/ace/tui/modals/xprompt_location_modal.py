@@ -48,14 +48,16 @@ def _get_all_xprompt_locations(
     builtin: list[XPromptLocation] = []
 
     # --- 1. xprompts directories ---
-    # .xprompts/ (CWD) — always show
-    directories.append(
-        XPromptLocation(
-            label="CWD .xprompts/",
-            path=str(cwd / ".xprompts"),
-            location_type="directory",
+    # .xprompts/ (CWD) — only if exists
+    cwd_dot_xprompts = cwd / ".xprompts"
+    if cwd_dot_xprompts.is_dir():
+        directories.append(
+            XPromptLocation(
+                label="CWD .xprompts/",
+                path=str(cwd_dot_xprompts),
+                location_type="directory",
+            )
         )
-    )
     # xprompts/ (CWD) — only if exists
     cwd_visible = cwd / "xprompts"
     if cwd_visible.is_dir():
@@ -66,15 +68,16 @@ def _get_all_xprompt_locations(
                 location_type="directory",
             )
         )
-    # ~/.xprompts/ — always show (remapped when chezmoi enabled)
+    # ~/.xprompts/ — only if exists (remapped when chezmoi enabled)
     home_dot_xprompts = CHEZMOI_HOME / "dot_xprompts" if chezmoi else home / ".xprompts"
-    directories.append(
-        XPromptLocation(
-            label="Home ~/.xprompts/",
-            path=str(home_dot_xprompts),
-            location_type="directory",
+    if home_dot_xprompts.is_dir():
+        directories.append(
+            XPromptLocation(
+                label="Home ~/.xprompts/",
+                path=str(home_dot_xprompts),
+                location_type="directory",
+            )
         )
-    )
     # ~/xprompts/ — only if exists (remapped when chezmoi enabled)
     home_visible = CHEZMOI_HOME / "xprompts" if chezmoi else home / "xprompts"
     if home_visible.is_dir():
@@ -85,16 +88,17 @@ def _get_all_xprompt_locations(
                 location_type="directory",
             )
         )
-    # ~/.config/sase/xprompts/{project}/ — only if project detected
+    # ~/.config/sase/xprompts/{project}/ — only if project detected and exists
     if effective_project:
         project_dir = home / ".config" / "sase" / "xprompts" / effective_project
-        directories.append(
-            XPromptLocation(
-                label=f"Project ({effective_project})",
-                path=str(project_dir),
-                location_type="directory",
+        if project_dir.is_dir():
+            directories.append(
+                XPromptLocation(
+                    label=f"Project ({effective_project})",
+                    path=str(project_dir),
+                    location_type="directory",
+                )
             )
-        )
 
     # --- 2. Config files ---
     # ~/.config/sase/sase.yml — always show (remapped when chezmoi enabled)
