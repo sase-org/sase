@@ -1588,3 +1588,61 @@ XPromptLocationModal #location-list {
     height: auto;
     max-height: 24;
 }
+
+/* XPrompt config entry modal styling */
+XPromptConfigEntryModal {
+    align: center middle;
+}
+
+XPromptConfigEntryModal > Container {
+    width: 70;
+    height: auto;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+XPromptConfigEntryModal #modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+XPromptConfigEntryModal #config-entry-file-label {
+    color: #87D7FF;
+    margin-bottom: 0;
+}
+
+XPromptConfigEntryModal #config-entry-name-label {
+    color: $text-muted;
+    margin-bottom: 0;
+}
+
+XPromptConfigEntryModal #config-entry-name-input {
+    width: 100%;
+}
+
+XPromptConfigEntryModal #config-entry-phase-label {
+    color: $text-muted;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+
+XPromptConfigEntryModal #config-entry-input-input {
+    width: 100%;
+}
+
+XPromptConfigEntryModal #config-entry-inputs-display {
+    margin-top: 1;
+}
+
+XPromptConfigEntryModal #config-entry-error {
+    color: $error;
+    margin-top: 1;
+}
+
+XPromptConfigEntryModal #config-entry-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}

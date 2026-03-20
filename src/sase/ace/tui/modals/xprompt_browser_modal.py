@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.resources
 import os
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
 from .confirm_action_modal import ConfirmActionModal
+from .xprompt_config_yaml import insert_xprompt_into_config
 
 
 def _append_input_args(text: Text, inputs: list[InputArg]) -> None:
@@ -556,6 +558,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def action_add_xprompt(self) -> None:
         """Add a new xprompt via location selector then filename input."""
+        from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
         from .xprompt_filename_modal import XPromptFilenameModal
         from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
 
@@ -563,16 +566,16 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             if location is None:
                 return
             if location.location_type == "config":
-                # Open config file directly in editor
-                file_path = location.path
-                if not Path(file_path).exists():
-                    self.notify("Config file not found", severity="error")
-                    return
-                editor = os.environ.get("EDITOR") or "nvim"
-                editor_args = build_editor_args(editor, [file_path])
-                with self.app.suspend():  # type: ignore[attr-defined]
-                    subprocess.run(editor_args, check=False)
-                self._reload_xprompts()
+                # Config file — collect name + inputs via modal, then content
+                def _on_config_entry(entry: XPromptConfigEntry | None) -> None:
+                    if entry is None:
+                        return
+                    self._create_config_xprompt(location.path, entry)
+
+                self.app.push_screen(
+                    XPromptConfigEntryModal(config_path=location.path),
+                    _on_config_entry,
+                )
             else:
                 # Directory location — ask for filename
                 def _on_filename(path: str | None) -> None:
@@ -618,6 +621,58 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
         self._reload_xprompts()
         xprompt_name = file_path.stem
         self._offer_git_commit(str(file_path), is_new=True, xprompt_name=xprompt_name)
+
+    def _create_config_xprompt(
+        self,
+        config_path: str,
+        entry: object,
+    ) -> None:
+        """Open $EDITOR for content, then insert the xprompt into a config file."""
+        from .xprompt_config_modal import XPromptConfigEntry
+
+        assert isinstance(entry, XPromptConfigEntry)
+
+        # Build a helpful template for the editor
+        if entry.inputs:
+            input_vars = ", ".join(f"{{{{ {n} }}}}" for n, _ in entry.inputs)
+            template = f"Your xprompt content here.\n\nAvailable inputs: {input_vars}\n"
+        else:
+            template = "Your xprompt content here.\n"
+
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            suffix=".md", prefix=f"xprompt_{entry.name}_"
+        )
+        try:
+            os.write(tmp_fd, template.encode("utf-8"))
+            os.close(tmp_fd)
+
+            editor = os.environ.get("EDITOR") or "nvim"
+            editor_args = build_editor_args(editor, [tmp_path])
+
+            with self.app.suspend():  # type: ignore[attr-defined]
+                subprocess.run(editor_args, check=False)
+
+            content = Path(tmp_path).read_text(encoding="utf-8")
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+        if not content.strip():
+            self.notify("Empty content, xprompt not created", severity="warning")
+            return
+
+        success = insert_xprompt_into_config(
+            config_path, entry.name, entry.inputs, content
+        )
+
+        if success:
+            self.notify(f"Added xprompt '{entry.name}' to config")
+            self._reload_xprompts()
+            self._offer_git_commit(config_path, is_new=True, xprompt_name=entry.name)
+        else:
+            self.notify("Failed to insert xprompt into config", severity="error")
 
     def _offer_git_commit(
         self, file_path: str, *, is_new: bool, xprompt_name: str
