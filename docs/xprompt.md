@@ -680,9 +680,9 @@ A single prompt can launch multiple agents sequentially by using YAML frontmatte
 
 ### Frontmatter-Defined Local XPrompts
 
-YAML frontmatter at the start of a prompt can define local xprompts under the `xprompts:` key. These are scoped to the
-current prompt and available to all segments. Local xprompt names **must** start with `_` to distinguish them from
-global xprompts.
+YAML frontmatter at the start of a prompt can define local xprompts under the `xprompts:` key. These are defined once in
+the frontmatter and each segment receives only the local xprompts it actually references (including transitive
+dependencies). Local xprompt names **must** start with `_` to distinguish them from global xprompts.
 
 ```
 ---

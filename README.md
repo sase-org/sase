@@ -134,7 +134,7 @@ sase
 | `sase axe chop`        | List or run individual chop scripts                                              |
 | `sase axe lumberjack`  | List, run, or check status of lumberjacks                                        |
 | `sase search`          | Search and filter ChangeSpecs with query expressions                             |
-| `sase run`             | Execute workflows, resume agents by name, or run a query directly                |
+| `sase run`             | Execute workflows, resume agents, run queries, or open editor/history picker     |
 | `sase xprompt expand`  | Expand prompt templates with sase references (supports `--trace`)                |
 | `sase xprompt explain` | Dry-run visualization of a workflow's execution plan                             |
 | `sase xprompt graph`   | Generate a DAG visualization of a workflow (Mermaid or text)                     |

@@ -180,6 +180,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `r`                 | Resume agent (by name if running, by chat file if completed) |
 | `v`                 | View files (hint mode)                                       |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)              |
+| `W`                 | New agent waiting for current (populate prompt with `%w`)    |
 | `x`                 | Kill / dismiss agent                                         |
 | `X`                 | Dismiss all completed agents (with confirmation)             |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)     |
@@ -349,6 +350,23 @@ icon.
 
 Type in the filter input to narrow the list in real time.
 
+### Editing XPrompts
+
+Press `Enter` on any xprompt to edit it in `$EDITOR`. All xprompts are editable, including plugin and built-in sources —
+these are copied to the highest-priority user directory (`~/.xprompts/`) before opening, so edits create an override
+rather than modifying the original. After saving, the browser offers to commit and push changes to git if applicable.
+
+### Creating XPrompts
+
+Press `Ctrl+O` to start the guided creation flow:
+
+1. **Location modal** — Choose where to save the new xprompt (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`,
+   Home `~/xprompts/`, or a config file).
+2. **Filename modal** — Enter a filename (`.md` for prompt parts, `.yml` for workflows). Workflow files are pre-filled
+   with a YAML template containing the workflow scaffold.
+3. **Editor** — The file opens in `$EDITOR` for editing.
+4. **Git commit** — After saving, the browser offers to commit and push changes.
+
 ## Idle Detection
 
 ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
@@ -394,6 +412,12 @@ Examples:
 
 A gear icon (⚙) with a count appears in the top bar when background tasks are running (e.g., sync, mail, accept
 operations). The indicator automatically hides when all background tasks complete.
+
+### Runners Modal
+
+Press `,r` (leader + `r`) to open the runners modal. It shows concurrency information including hook runners, agent
+runners, and a **Background Tasks** section listing active and recently completed background tasks (sync, rebase,
+accept, mail, add-tag). Each task entry shows its type, CL name, status, and timestamps.
 
 ## File Panel Trimming
 
@@ -522,13 +546,14 @@ The prompt input is a multiline TextArea widget that supports two editing modes:
 
 ### INSERT Mode (Default)
 
-| Key      | Action                        |
-| -------- | ----------------------------- |
-| `Enter`  | Submit the prompt             |
-| `Ctrl+J` | Insert a newline              |
-| `Ctrl+G` | Open full prompt in `$EDITOR` |
-| `Ctrl+I` | Load a prompt from history    |
-| `Escape` | Switch to vim NORMAL mode     |
+| Key      | Action                                          |
+| -------- | ----------------------------------------------- |
+| `Enter`  | Submit the prompt                               |
+| `Ctrl+J` | Insert a newline                                |
+| `Ctrl+G` | Open full prompt in `$EDITOR`                   |
+| `Ctrl+I` | Load a prompt from history                      |
+| `#@`     | Open XPrompt snippet picker (type `#` then `@`) |
+| `Escape` | Switch to vim NORMAL mode                       |
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
@@ -556,14 +581,16 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 
 #### Operators
 
-| Key  | Action                             |
-| ---- | ---------------------------------- |
-| `d`  | Delete (takes a motion, e.g. `dw`) |
-| `c`  | Change (takes a motion, e.g. `cw`) |
-| `D`  | Delete to end of line              |
-| `C`  | Change to end of line              |
-| `dd` | Delete entire line                 |
-| `cc` | Change entire line                 |
+| Key   | Action                                                  |
+| ----- | ------------------------------------------------------- |
+| `d`   | Delete (takes a motion, e.g. `dw`); copies to clipboard |
+| `c`   | Change (takes a motion, e.g. `cw`); copies to clipboard |
+| `D`   | Delete to end of line                                   |
+| `C`   | Change to end of line                                   |
+| `dd`  | Delete entire line                                      |
+| `cc`  | Change entire line                                      |
+| `dae` | Delete entire buffer (copies to clipboard)              |
+| `cae` | Change entire buffer (copies to clipboard)              |
 
 #### Other Commands
 
