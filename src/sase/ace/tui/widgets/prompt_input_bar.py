@@ -71,6 +71,7 @@ class PromptInputBar(Static):
         )
         yield PromptTextArea(
             self._initial_value,
+            language="markdown",
             show_line_numbers=False,
             highlight_cursor_line=False,
             id="prompt-input",
