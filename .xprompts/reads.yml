@@ -1,0 +1,71 @@
+steps:
+  - name: research
+    parallel:
+      - name: gemini_research
+        agent: |
+          %model:gemini
+          Find recent, medium-to-long articles or research papers that will help me continue
+          developing sase (Structured Agentic Software Engineering) — a Python toolkit for building
+          and orchestrating AI agents. sase features a TUI, xprompt workflow system, multi-provider
+          LLM integration (Claude, Gemini, Codex), and a bead-based task management system.
+
+          Focus on topics like: AI agent orchestration, LLM tool use, agentic coding workflows,
+          multi-agent coordination, developer tooling for AI, and structured software engineering
+          with AI.
+
+          For each article/paper, provide: title, author(s), URL or DOI, publication date, and a
+          brief note on why it's relevant.
+        output: { articles: text }
+
+      - name: claude_research
+        agent: |
+          %model:claude
+          Find recent, medium-to-long articles or research papers that will help me continue
+          developing sase (Structured Agentic Software Engineering) — a Python toolkit for building
+          and orchestrating AI agents. sase features a TUI, xprompt workflow system, multi-provider
+          LLM integration (Claude, Gemini, Codex), and a bead-based task management system.
+
+          Focus on topics like: AI agent orchestration, LLM tool use, agentic coding workflows,
+          multi-agent coordination, developer tooling for AI, and structured software engineering
+          with AI.
+
+          For each article/paper, provide: title, author(s), URL or DOI, publication date, and a
+          brief note on why it's relevant.
+        output: { articles: text }
+
+      - name: codex_research
+        agent: |
+          %model:codex
+          Find recent, medium-to-long articles or research papers that will help me continue
+          developing sase (Structured Agentic Software Engineering) — a Python toolkit for building
+          and orchestrating AI agents. sase features a TUI, xprompt workflow system, multi-provider
+          LLM integration (Claude, Gemini, Codex), and a bead-based task management system.
+
+          Focus on topics like: AI agent orchestration, LLM tool use, agentic coding workflows,
+          multi-agent coordination, developer tooling for AI, and structured software engineering
+          with AI.
+
+          For each article/paper, provide: title, author(s), URL or DOI, publication date, and a
+          brief note on why it's relevant.
+        output: { articles: text }
+
+  - name: consolidate
+    agent: |
+      Below are three independently-generated lists of recommended articles and research papers
+      for continuing development of sase (Structured Agentic Software Engineering).
+
+      ## Gemini's recommendations
+      {{ research.gemini_research.articles }}
+
+      ## Claude's recommendations
+      {{ research.claude_research.articles }}
+
+      ## Codex's recommendations
+      {{ research.codex_research.articles }}
+
+      Please:
+      1. Merge and de-duplicate these lists (same article found by multiple agents should appear once).
+      2. Provide a single consolidated list, ordered by relevance. For each entry include: title,
+         author(s), URL/DOI, date, and why it's relevant to sase development.
+      3. At the end, give a single **"Best Next Read"** recommendation — the one article or paper
+         that would be most valuable to read first, with a brief justification.
