@@ -1,4 +1,4 @@
-tags: vcs rollover
+tags: vcs, rollover
 
 input:
   - name: git_ref
