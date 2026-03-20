@@ -118,9 +118,10 @@ class Workflow:
         steps: Ordered list of workflow steps to execute.
         source_path: File path where workflow was loaded from.
         xprompts: Workflow-local xprompt definitions (highest priority within this workflow).
-        wraps_all: If True, this workflow's pre-steps run before all other embedded
-            workflows' pre-steps and its post-steps run after all others. Used for
-            workspace setup/teardown workflows like #git, #gh, #hg.
+        wraps_all: DEPRECATED — use ``tags: vcs`` instead. If True, this workflow's
+            pre-steps run before all other embedded workflows' pre-steps and its
+            post-steps run after all others. Used for workspace setup/teardown
+            workflows like #git, #gh, #hg.
     """
 
     name: str
@@ -130,6 +131,13 @@ class Workflow:
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
     wraps_all: bool = False
     tags: set[XPromptTag] = field(default_factory=set)
+
+    def __post_init__(self) -> None:
+        """Sync wraps_all and vcs tag for backward compatibility."""
+        if self.wraps_all:
+            self.tags = self.tags | {XPromptTag.VCS}
+        if XPromptTag.VCS in self.tags:
+            self.wraps_all = True
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""

@@ -16,6 +16,7 @@ from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_
 from sase.xprompt.models import UNSET, OutputSpec
 from sase.xprompt.workflow_executor_types import HITLHandler, output_types_from_step
 from sase.xprompt.workflow_executor_utils import render_template
+from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_models import (
     StepState,
     StepStatus,
@@ -444,19 +445,25 @@ class EmbeddedWorkflowMixin:
             return prompt, [], 0
 
         # ── Phase 2: Validation ──────────────────────────────────────────
-        wraps_all_entries = [p for p in pending if p.workflow.wraps_all]
+        wraps_all_entries = [
+            p for p in pending if p.workflow.has_tag(XPromptTag.VCS)
+        ]
         if len(wraps_all_entries) > 1:
             names = ", ".join(f"#{p.name}" for p in wraps_all_entries)
             raise WorkflowExecutionError(
-                f"Multiple wraps_all workflows in one prompt: {names}. "
-                "At most one wraps_all workflow is allowed per prompt."
+                f"Multiple vcs-tagged workflows in one prompt: {names}. "
+                "At most one vcs-tagged workflow is allowed per prompt."
             )
 
         # ── Phase 3: Pre-step execution ──────────────────────────────────
-        # Execute in priority order: wraps_all first, then remaining in
+        # Execute in priority order: vcs-tagged first, then remaining in
         # reversed (right-to-left) order to preserve current behavior.
-        wraps_all_pending = [p for p in pending if p.workflow.wraps_all]
-        non_wraps_all_pending = [p for p in pending if not p.workflow.wraps_all]
+        wraps_all_pending = [
+            p for p in pending if p.workflow.has_tag(XPromptTag.VCS)
+        ]
+        non_wraps_all_pending = [
+            p for p in pending if not p.workflow.has_tag(XPromptTag.VCS)
+        ]
         execution_order = wraps_all_pending + list(reversed(non_wraps_all_pending))
 
         for p in execution_order:
@@ -531,8 +538,8 @@ class EmbeddedWorkflowMixin:
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
         # ── Phase 5: Post-step list ──────────────────────────────────────
-        # Build embedded_workflows: non-wraps_all in right-to-left order, then
-        # wraps_all at END so its post-steps run last (teardown after everything).
+        # Build embedded_workflows: non-vcs-tagged in right-to-left order, then
+        # vcs-tagged at END so its post-steps run last (teardown after everything).
         embedded_workflows: list[EmbeddedWorkflowInfo] = []
 
         for p in reversed(non_wraps_all_pending):

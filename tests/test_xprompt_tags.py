@@ -289,3 +289,73 @@ def test_xprompt_tag_values() -> None:
     assert XPromptTag.CRS.value == "crs"
     assert XPromptTag.FIX_HOOK.value == "fix_hook"
     assert XPromptTag.ROLLOVER.value == "rollover"
+
+
+# --- Phase 2: VCS tag backward compatibility ---
+
+
+def test_wraps_all_yaml_auto_adds_vcs_tag(tmp_path: Path) -> None:
+    """wraps_all: true in YAML auto-adds the vcs tag."""
+    from sase.xprompt.workflow_loader import _load_workflow_from_file
+
+    yml = tmp_path / "git.yml"
+    yml.write_text("wraps_all: true\nsteps:\n  - prompt_part: content\n")
+    wf = _load_workflow_from_file(yml)
+    assert wf is not None
+    assert wf.has_tag(XPromptTag.VCS)
+    assert wf.wraps_all is True
+
+
+def test_vcs_tag_yaml_sets_wraps_all(tmp_path: Path) -> None:
+    """tags: vcs in YAML sets wraps_all = True for backward compat."""
+    from sase.xprompt.workflow_loader import _load_workflow_from_file
+
+    yml = tmp_path / "myvcs.yml"
+    yml.write_text("tags: vcs\nsteps:\n  - prompt_part: content\n")
+    wf = _load_workflow_from_file(yml)
+    assert wf is not None
+    assert wf.wraps_all is True
+    assert wf.has_tag(XPromptTag.VCS)
+
+
+def test_wraps_all_and_tags_vcs_together(tmp_path: Path) -> None:
+    """Both wraps_all: true and tags: vcs in YAML works correctly."""
+    from sase.xprompt.workflow_loader import _load_workflow_from_file
+
+    yml = tmp_path / "both.yml"
+    yml.write_text("wraps_all: true\ntags: vcs\nsteps:\n  - prompt_part: content\n")
+    wf = _load_workflow_from_file(yml)
+    assert wf is not None
+    assert wf.wraps_all is True
+    assert wf.has_tag(XPromptTag.VCS)
+
+
+def test_workflow_wraps_all_constructor_syncs_vcs_tag() -> None:
+    """Workflow(wraps_all=True) auto-adds VCS tag via __post_init__."""
+    wf = Workflow(
+        name="test",
+        steps=[WorkflowStep(name="s", prompt_part="x")],
+        wraps_all=True,
+    )
+    assert wf.has_tag(XPromptTag.VCS)
+
+
+def test_workflow_vcs_tag_constructor_syncs_wraps_all() -> None:
+    """Workflow(tags={VCS}) auto-sets wraps_all via __post_init__."""
+    wf = Workflow(
+        name="test",
+        steps=[WorkflowStep(name="s", prompt_part="x")],
+        tags={XPromptTag.VCS},
+    )
+    assert wf.wraps_all is True
+
+
+def test_workflow_no_vcs_tag_no_wraps_all() -> None:
+    """Workflow without vcs tag or wraps_all stays unset."""
+    wf = Workflow(
+        name="test",
+        steps=[WorkflowStep(name="s", prompt_part="x")],
+        tags={XPromptTag.CRS},
+    )
+    assert wf.wraps_all is False
+    assert not wf.has_tag(XPromptTag.VCS)

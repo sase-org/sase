@@ -101,7 +101,7 @@ def test_multiple_wraps_all_raises_error() -> None:
         "sase.xprompt.loader.get_all_workflows",
         return_value={"git": wf_git, "hg": wf_hg},
     ):
-        with pytest.raises(WorkflowExecutionError, match="Multiple wraps_all"):
+        with pytest.raises(WorkflowExecutionError, match="Multiple vcs-tagged"):
             executor._expand_embedded_workflows_in_prompt(
                 "#git:main #hg:cl123 Do something"
             )

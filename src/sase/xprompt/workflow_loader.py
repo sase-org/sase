@@ -15,7 +15,7 @@ from sase.xprompt.loader import (
 )
 from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import UNSET, InputArg, InputType
-from sase.xprompt.tags import parse_tags
+from sase.xprompt.tags import XPromptTag, parse_tags
 from sase.xprompt.workflow_loader_parse import (
     _parse_workflow_step as _parse_workflow_step,
     parse_workflow_inputs,
@@ -148,6 +148,12 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
 
     # Parse tags
     tags = parse_tags(data.get("tags"))
+
+    # Backward compat: wraps_all: true auto-adds vcs tag, and vice versa
+    if wraps_all:
+        tags.add(XPromptTag.VCS)
+    if XPromptTag.VCS in tags:
+        wraps_all = True
 
     # Parse inputs
     inputs = parse_workflow_inputs(data.get("input"))

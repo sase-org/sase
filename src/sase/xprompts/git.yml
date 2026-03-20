@@ -1,4 +1,5 @@
 wraps_all: true
+tags: vcs
 
 input:
   - name: git_ref
