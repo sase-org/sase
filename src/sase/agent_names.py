@@ -478,6 +478,7 @@ def _get_active_agent_names() -> set[str]:
     if not projects_dir.exists():
         return set()
 
+    dismissed_suffixes = _load_dismissed_suffixes()
     names: set[str] = set()
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -489,6 +490,8 @@ def _get_active_agent_names() -> set[str]:
 
         for artifact_dir in ace_run_dir.iterdir():
             if not artifact_dir.is_dir():
+                continue
+            if artifact_dir.name in dismissed_suffixes:
                 continue
 
             meta_path = artifact_dir / "agent_meta.json"
@@ -537,6 +540,18 @@ def _get_active_agent_names() -> set[str]:
                 names.add(name)
 
     return names
+
+
+def _load_dismissed_suffixes() -> set[str]:
+    """Return dismissed raw suffixes, ignoring load/import errors."""
+    try:
+        from sase.ace.dismissed_agents import load_dismissed_agents
+
+        dismissed = load_dismissed_agents()
+    except Exception:
+        return set()
+
+    return {raw_suffix for _, _, raw_suffix in dismissed if raw_suffix is not None}
 
 
 def _is_process_alive(meta: dict[str, object], artifact_dir: Path) -> bool:
