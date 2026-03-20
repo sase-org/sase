@@ -313,6 +313,17 @@ class AgentLaunchMixin:
 
         import threading
 
+        def _call_ui_safe(func: object, *args: object, **kwargs: object) -> None:
+            """Run a UI callback from worker threads safely."""
+            # textual App methods must be marshalled back to the UI thread.
+            call_from_thread = getattr(self, "call_from_thread", None)
+            if callable(call_from_thread):
+                call_from_thread(func, *args, **kwargs)
+                return
+            # Fallback for tests/mocks without call_from_thread.
+            if callable(func):
+                func(*args, **kwargs)  # type: ignore[misc]
+
         def _run() -> None:
             try:
                 results = launch_multi_prompt_agents(
@@ -323,14 +334,21 @@ class AgentLaunchMixin:
                     project_name=ctx.project_name,
                     is_home_mode=ctx.is_home_mode,
                     vcs_ref=vcs_ref,
-                    on_agent_spawned=lambda: self.call_later(self._load_agents),  # type: ignore[attr-defined]
+                    on_agent_spawned=lambda: _call_ui_safe(
+                        self._load_agents  # type: ignore[attr-defined]
+                    ),
                 )
-                self.call_later(self._load_agents)  # type: ignore[attr-defined]
-                self.notify(  # type: ignore[attr-defined]
-                    f"Started {len(results)} agent(s) for {ctx.display_name}"
+                _call_ui_safe(self._load_agents)  # type: ignore[attr-defined]
+                _call_ui_safe(
+                    self.notify,  # type: ignore[attr-defined]
+                    f"Started {len(results)} agent(s) for {ctx.display_name}",
                 )
-            except (RuntimeError, OSError) as e:
-                self.notify(f"Multi-prompt launch failed: {e}", severity="error")  # type: ignore[attr-defined]
+            except Exception as e:
+                _call_ui_safe(
+                    self.notify,  # type: ignore[attr-defined]
+                    f"Multi-prompt launch failed: {e}",
+                    severity="error",
+                )
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
