@@ -6,6 +6,10 @@
   "required": ["steps"],
   "additionalProperties": false,
   "properties": {
+    "tags": {
+      "type": "string",
+      "description": "Comma-separated tags for the workflow (e.g., 'rollover', 'vcs, rollover')"
+    },
     "xprompts": {
       "type": "object",
       "description": "Workflow-local xprompt definitions (highest priority within this workflow). Names must start with '_'.",
