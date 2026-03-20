@@ -15,6 +15,51 @@ from sase.agent_launcher import AgentLaunchResult
 from sase.xprompt.models import XPrompt
 
 
+def _extract_called_xprompt_names(text: str, available_xprompts: set[str]) -> set[str]:
+    """Extract xprompt names called in *text*.
+
+    Supports shorthand syntaxes by preprocessing before extraction.
+    """
+    from sase.xprompt._parsing import preprocess_shorthand_syntax
+    from sase.xprompt.workflow_validator_extract import extract_xprompt_calls
+
+    preprocessed = preprocess_shorthand_syntax(text, available_xprompts)
+    return {
+        call.name
+        for call in extract_xprompt_calls(preprocessed)
+        if call.name in available_xprompts
+    }
+
+
+def _local_xprompts_for_segment(
+    segment: str, local_xprompts: dict[str, XPrompt]
+) -> dict[str, XPrompt]:
+    """Return only local xprompts referenced by this segment.
+
+    Includes transitive references between local xprompts so a called xprompt
+    can depend on other local xprompts.
+    """
+    if not local_xprompts:
+        return {}
+
+    available = set(local_xprompts.keys())
+    needed = _extract_called_xprompt_names(segment, available)
+    queue = list(needed)
+
+    while queue:
+        name = queue.pop()
+        xp = local_xprompts.get(name)
+        if xp is None:
+            continue
+        for called in _extract_called_xprompt_names(xp.content, available):
+            if called not in needed:
+                needed.add(called)
+                queue.append(called)
+
+    # Preserve original definition order for deterministic serialization.
+    return {name: xp for name, xp in local_xprompts.items() if name in needed}
+
+
 def _serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
     """Serialize local xprompts to a temp JSON file.
 
@@ -116,7 +161,7 @@ def launch_multi_prompt_agents(
     """Launch each segment as a separate agent with naming-wait between launches.
 
     For each segment:
-    1. Serialize local xprompts (if any) to a temp JSON file.
+    1. Serialize only segment-referenced local xprompts (if any) to a temp JSON file.
     2. Allocate a workspace and timestamp.
     3. Spawn the agent subprocess.
     4. Wait for the agent to write its name to ``agent_meta.json``.
@@ -133,17 +178,18 @@ def launch_multi_prompt_agents(
     from sase.shared_utils import create_artifacts_directory
     from sase.xprompt.directives import has_wait_directive
 
-    # Serialize local xprompts once (shared across all segments).
-    local_xprompts_file: str | None = None
-    if local_xprompts:
-        local_xprompts_file = _serialize_local_xprompts(local_xprompts)
-
     results: list[AgentLaunchResult] = []
 
     for i, segment in enumerate(segments):
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
         has_wait = has_wait_directive(segment)
+        segment_local_xprompts = _local_xprompts_for_segment(segment, local_xprompts)
+        local_xprompts_file = (
+            _serialize_local_xprompts(segment_local_xprompts)
+            if segment_local_xprompts
+            else None
+        )
 
         # Allocate workspace for this segment.
         if is_home_mode:
