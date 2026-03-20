@@ -234,7 +234,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     def action_show_runners(self) -> None:
         """Show the runners modal with all current runners."""
         from ..modals import RunnersModal
-        from ..modals.runners_modal import RunnerJumpTarget
+        from ..modals.runners_modal import BackgroundTaskEntry, RunnerJumpTarget
 
         def on_dismiss(result: RunnerJumpTarget | None) -> None:
             if result is None:
@@ -249,4 +249,18 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
 
                 navigate_to_agent_tab(self, result.cl_name, result.pid)
 
-        self.push_screen(RunnersModal(), on_dismiss)  # type: ignore[attr-defined]
+        # Collect background tasks for the modal
+        bg_tasks = [
+            BackgroundTaskEntry(
+                task_type=t.task_type,
+                cl_name=t.cl_name,
+                project_file=t.project_file,
+                status=t.status,
+                message=t.message,
+                started_at=t.started_at,
+                finished_at=t.finished_at,
+            )
+            for t in self._task_queue.get_all()  # type: ignore[attr-defined]
+        ]
+
+        self.push_screen(RunnersModal(background_tasks=bg_tasks), on_dismiss)  # type: ignore[attr-defined]

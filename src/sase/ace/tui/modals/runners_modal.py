@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from rich.text import Text
 from textual import events
@@ -15,7 +15,26 @@ from ._runners_data import RunnerInfo, collect_runners, get_runner_count
 from .base import CopyModeForwardingMixin
 
 # Re-export for public API
-__all__ = ["RunnersModal", "RunnerJumpTarget", "get_runner_count"]
+__all__ = [
+    "BackgroundTaskEntry",
+    "RunnersModal",
+    "RunnerJumpTarget",
+    "get_runner_count",
+]
+
+
+@dataclass
+class BackgroundTaskEntry:
+    """Background task info for display in the runners modal."""
+
+    task_type: str
+    cl_name: str
+    project_file: str
+    status: str  # "running", "success", "error"
+    message: str
+    started_at: datetime
+    finished_at: datetime | None = None
+
 
 # Dynamic box sizing constants
 _CSS_MAX_WIDTH = 200  # Must match max-width in styles.tcss for RunnersModal
@@ -46,7 +65,7 @@ class _JumpableRunner:
     """Internal: a runner entry with its section category."""
 
     runner: RunnerInfo
-    section: Literal["manual", "axe", "process"]
+    section: Literal["manual", "axe", "process", "task"]
 
 
 def _abbreviate_agent_type(agent_type: str) -> str:
@@ -115,6 +134,14 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
+
+    def __init__(
+        self,
+        background_tasks: list[BackgroundTaskEntry] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._background_tasks = background_tasks or []
 
     def _compute_box_width(self) -> int:
         """Compute box width dynamically based on terminal size.
@@ -251,6 +278,30 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         else:
             self._add_empty_row(text, "No running processes", "#FFD700")
         self._add_section_footer(text, "#FFD700")
+
+        text.append("\n")
+
+        # Background Tasks section (teal) - TUI background operations
+        self._add_section_header(text, "Background Tasks", "#48CAE4")
+        if self._background_tasks:
+            for task in self._background_tasks:
+                dummy = RunnerInfo(
+                    runner_type="agent",
+                    cl_name=task.cl_name,
+                    project_name="",
+                    project_file=task.project_file,
+                    hook_command=None,
+                    agent_type=None,
+                    pid=None,
+                    start_time=task.started_at,
+                    reviewer=None,
+                    raw_suffix=None,
+                )
+                self._jumpable_runners.append(_JumpableRunner(dummy, "task"))
+                self._add_task_entry(text, task, "#48CAE4", hint_char=_next_hint())
+        else:
+            self._add_empty_row(text, "No background tasks", "#48CAE4")
+        self._add_section_footer(text, "#48CAE4")
 
         return text
 
@@ -429,6 +480,100 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
             text.append(" " * padding, style="")
         text.append(" \u2502", style=f"dim {color}")
         text.append("\n")
+
+    def _add_task_entry(
+        self,
+        text: Text,
+        task: BackgroundTaskEntry,
+        color: str,
+        *,
+        hint_char: str | None = None,
+    ) -> None:
+        """Add a single background task entry.
+
+        Args:
+            text: The Text object to append to.
+            task: The background task info to display.
+            color: The color for the box drawing border.
+            hint_char: Optional hint character to display for jump mode.
+        """
+        parts: list[tuple[str, str]] = []
+        content_len = 0
+
+        # Hint character (if in jump mode)
+        if hint_char is not None:
+            hint_str = f"[{hint_char}] "
+            parts.append((hint_str, "bold #FFFF00"))
+            content_len += len(hint_str)
+
+        # CL name
+        parts.append((task.cl_name, "bold #87D7FF"))
+        parts.append((" ", ""))
+        content_len += len(task.cl_name) + 1
+
+        # Type badge with status-dependent background color
+        match task.status:
+            case "running":
+                badge_style = "bold #1a1a1a on #48CAE4"
+                badge_text = f"(bg:{task.task_type})"
+            case "success":
+                badge_style = "bold #1a1a1a on #2ECC71"
+                badge_text = f"(bg:{task.task_type} \u2713)"
+            case _:  # error
+                badge_style = "bold #FFFFFF on #E74C3C"
+                badge_text = f"(bg:{task.task_type} \u2717)"
+        parts.append((badge_text, badge_style))
+        content_len += len(badge_text)
+
+        # Duration (elapsed for running, total for completed)
+        if task.status == "running":
+            duration = _format_duration(task.started_at)
+        elif task.finished_at:
+            delta = task.finished_at - task.started_at
+            total_seconds = int(delta.total_seconds())
+            if total_seconds < 60:
+                duration = f"{total_seconds}s"
+            else:
+                minutes = total_seconds // 60
+                seconds = total_seconds % 60
+                duration = f"{minutes}m{seconds}s"
+        else:
+            duration = "?"
+        duration_str = f" ({duration})"
+        parts.append((duration_str, "dim"))
+        content_len += len(duration_str)
+
+        # Truncate content if it exceeds the available width
+        if content_len > self._content_width:
+            max_len = self._content_width - 3
+            truncated_parts: list[tuple[str, str]] = []
+            running_len = 0
+            for part_text, part_style in parts:
+                if running_len >= max_len:
+                    break
+                remaining = max_len - running_len
+                if len(part_text) <= remaining:
+                    truncated_parts.append((part_text, part_style))
+                    running_len += len(part_text)
+                else:
+                    truncated_parts.append((part_text[:remaining], part_style))
+                    running_len += remaining
+            truncated_parts.append(("...", "dim"))
+            parts = truncated_parts
+            content_len = self._content_width
+
+        # Write row with proper borders
+        text.append("  \u2502  ", style=f"dim {color}")
+        for part_text, part_style in parts:
+            text.append(part_text, style=part_style)
+        if content_len < self._content_width:
+            text.append(" " * (self._content_width - content_len), style="")
+        text.append(" \u2502", style=f"dim {color}")
+        text.append("\n")
+
+        # Show error message on second line for failed tasks
+        if task.status == "error" and task.message:
+            self._add_prompt_preview_row(text, task.message, color)
 
     def _refresh_content(self, *, show_hints: bool = False) -> None:
         """Refresh the content display.

@@ -22,7 +22,12 @@ from .query_edit_modal import QueryEditModal
 from .rename_cl_modal import RenameCLModal
 from .wait_modal import WaitModal
 from .revive_agent_modal import DismissedAgentSelectModal
-from .runners_modal import RunnerJumpTarget, RunnersModal, get_runner_count
+from .runners_modal import (
+    BackgroundTaskEntry,
+    RunnerJumpTarget,
+    RunnersModal,
+    get_runner_count,
+)
 from .status_modal import StatusModal
 from .tag_input_modal import TagInputModal
 from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
@@ -69,6 +74,7 @@ __all__ = [
     "PromptHistoryResult",
     "QueryEditModal",
     "RenameCLModal",
+    "BackgroundTaskEntry",
     "RunnerJumpTarget",
     "RunnersModal",
     "get_runner_count",
