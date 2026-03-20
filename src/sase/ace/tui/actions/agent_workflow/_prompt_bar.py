@@ -193,7 +193,6 @@ class PromptBarMixin:
 
         prompt = self._open_editor_for_agent_prompt(initial_text)  # type: ignore[attr-defined]
         if prompt:
-            PromptTextArea._last_cancelled_prompt = ""
             self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
@@ -213,7 +212,6 @@ class PromptBarMixin:
             self._prompt_context = None
             return
 
-        PromptTextArea._last_cancelled_prompt = ""
         self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
 
     def on_prompt_input_bar_cancelled(self, event: object) -> None:
@@ -255,7 +253,6 @@ class PromptBarMixin:
             cursor_col=event.cursor_col,
         )
         if prompt:
-            PromptTextArea._last_cancelled_prompt = ""
             self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
@@ -304,7 +301,6 @@ class PromptBarMixin:
 
             if result.action == PromptHistoryAction.SUBMIT:
                 # Direct submit - skip editor
-                PromptTextArea._last_cancelled_prompt = ""
                 self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
             elif result.action == PromptHistoryAction.LOAD:
                 # Load into prompt input widget for inline editing
@@ -322,7 +318,6 @@ class PromptBarMixin:
                 prompt_for_editor = _build_prompt(result.prompt_text)
                 edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
                 if edited_prompt:
-                    PromptTextArea._last_cancelled_prompt = ""
                     self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
                 else:
                     self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
@@ -378,7 +373,6 @@ class PromptBarMixin:
         result = self._open_workflow_yaml_editor()  # type: ignore[attr-defined]
         if result:
             workflow_name, _file_path = result
-            PromptTextArea._last_cancelled_prompt = ""
             self._finish_agent_launch(f"#{workflow_name}")  # type: ignore[attr-defined]
         else:
             self.notify("No workflow from editor - cancelled", severity="warning")  # type: ignore[attr-defined]

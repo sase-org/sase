@@ -89,13 +89,7 @@ class PromptInputBar(Static):
 
         # Border title and subtitle
         self.border_title = "Prompt"
-        cancelled = PromptTextArea._last_cancelled_prompt
-        if cancelled:
-            text_area.placeholder = cancelled
-            hint = cancelled[:40] + "…" if len(cancelled) > 40 else cancelled
-            self.border_subtitle = f"[^E] {hint}"
-        else:
-            self.border_subtitle = "[Esc] cancel"
+        self.border_subtitle = "[Esc] cancel"
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update height and line numbers when text changes."""
@@ -169,8 +163,6 @@ class PromptInputBar(Static):
         """Cancel the input bar."""
         text_area = self.query_one("#prompt-input", PromptTextArea)
         stripped = text_area.text.strip()
-        if stripped:
-            PromptTextArea._last_cancelled_prompt = text_area.text
         self.post_message(self.Cancelled(cancelled_text=stripped))
 
     def insert_snippet(self, snippet_name: str) -> None:

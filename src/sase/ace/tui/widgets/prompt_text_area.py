@@ -31,13 +31,9 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     Line numbers appear automatically when there's more than one line.
     """
 
-    # Shared state: last cancelled prompt text (also accessed by PromptInputBar)
-    _last_cancelled_prompt: str = ""
-
     BINDINGS = [
         ("enter", "submit_prompt", "Submit"),
         ("ctrl+j", "insert_newline", "New line"),
-        ("ctrl+e", "cursor_line_end", "End/Fill"),
         ("ctrl+f", "cursor_right", "Forward"),
         ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+g", "open_editor", "Edit in editor"),
@@ -239,17 +235,6 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         if bar:
             bar.post_message(PromptInputBar.WorkflowEditorRequested())
 
-    def action_cursor_line_end(self, select: bool = False) -> None:
-        """Move to end of line, or fill last cancelled prompt if empty."""
-        if not self.text and PromptTextArea._last_cancelled_prompt:
-            self.text = PromptTextArea._last_cancelled_prompt
-            doc = self.document
-            last_line = doc.line_count - 1
-            last_col = len(doc.get_line(last_line))
-            self.cursor_location = (last_line, last_col)
-        else:
-            super().action_cursor_line_end(select)
-
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._vim_mode = "normal"
@@ -274,12 +259,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         bar = self._find_prompt_bar()
         if bar:
             bar.border_title = "Prompt"
-            cancelled = PromptTextArea._last_cancelled_prompt
-            if cancelled:
-                hint = cancelled[:40] + "…" if len(cancelled) > 40 else cancelled
-                bar.border_subtitle = f"[^E] {hint}"
-            else:
-                bar.border_subtitle = "[Esc] cancel"
+            bar.border_subtitle = "[Esc] cancel"
 
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""

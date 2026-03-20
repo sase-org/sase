@@ -134,10 +134,7 @@ class EntryPointsMixin:
                 self._prompt_context = None
                 return
 
-            from ...widgets.prompt_text_area import PromptTextArea
-
             if result.action == PromptHistoryAction.SUBMIT:
-                PromptTextArea._last_cancelled_prompt = ""
                 self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
             elif result.action == PromptHistoryAction.LOAD:
                 # Mount prompt bar and load text into it
@@ -151,7 +148,6 @@ class EntryPointsMixin:
                 prompt_for_editor = _build_prompt(result.prompt_text)
                 edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
                 if edited_prompt:
-                    PromptTextArea._last_cancelled_prompt = ""
                     self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
                 else:
                     self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
