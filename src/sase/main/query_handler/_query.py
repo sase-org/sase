@@ -183,11 +183,13 @@ def expand_embedded_workflows_in_query(
 
         # Capture explicit args before applying defaults
         explicit_args = dict(args)
-        expanded_metadata.append({
-            "name": name,
-            "args": explicit_args,
-            "tags": sorted(t.value for t in workflow.tags),
-        })
+        expanded_metadata.append(
+            {
+                "name": name,
+                "args": explicit_args,
+                "tags": sorted(t.value for t in workflow.tags),
+            }
+        )
 
         # Apply defaults
         for input_arg in workflow.inputs:
