@@ -37,7 +37,10 @@ def test_add_approved_at_frontmatter_no_existing() -> None:
     """Prepends frontmatter when the content has none."""
     dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=UTC)
     result = add_approved_at_frontmatter("# My Plan\nDetails", dt)
-    assert result == "---\napproved_at: '2026-03-20 14:30:00'\n---\n# My Plan\nDetails"
+    assert (
+        result
+        == "---\napproved_at: '2026-03-20 14:30:00'\nstatus: wip\n---\n# My Plan\nDetails"
+    )
 
 
 def test_add_approved_at_frontmatter_existing_frontmatter() -> None:
@@ -45,7 +48,10 @@ def test_add_approved_at_frontmatter_existing_frontmatter() -> None:
     content = "---\ntitle: foo\n---\n# Plan"
     dt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
     result = add_approved_at_frontmatter(content, dt)
-    assert result == "---\ntitle: foo\napproved_at: '2026-01-01 00:00:00'\n---\n# Plan"
+    assert (
+        result
+        == "---\ntitle: foo\napproved_at: '2026-01-01 00:00:00'\nstatus: wip\n---\n# Plan"
+    )
 
 
 def test_add_approved_at_frontmatter_already_has_field() -> None:

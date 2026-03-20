@@ -37,7 +37,7 @@ def add_approved_at_frontmatter(
     if approved_at is None:
         approved_at = datetime.now(UTC)
     ts = approved_at.strftime("%Y-%m-%d %H:%M:%S")
-    field = f"approved_at: '{ts}'"
+    fields = f"approved_at: '{ts}'\nstatus: wip"
 
     # Already has frontmatter?
     if content.startswith("---\n"):
@@ -47,11 +47,11 @@ def add_approved_at_frontmatter(
             # Already has an approved_at field — leave it alone.
             if re.search(r"^approved_at:", fm_body, re.MULTILINE):
                 return content
-            # Insert the field at the end of the frontmatter block.
-            return f"---\n{fm_body}{field}\n---\n{content[end + 5 :]}"
+            # Insert the fields at the end of the frontmatter block.
+            return f"---\n{fm_body}{fields}\n---\n{content[end + 5 :]}"
 
     # No frontmatter — prepend a new block.
-    return f"---\n{field}\n---\n{content}"
+    return f"---\n{fields}\n---\n{content}"
 
 
 def save_plan_to_sase(plan_file: str) -> Path:
