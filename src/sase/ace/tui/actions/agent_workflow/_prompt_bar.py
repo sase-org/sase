@@ -327,6 +327,7 @@ class PromptBarMixin:
             PromptHistoryModal(
                 sort_by=self._prompt_context.history_sort_key,
                 workspace=self._prompt_context.project_name,
+                show_cancelled=event.show_cancelled,
             ),
             on_history_select,
         )

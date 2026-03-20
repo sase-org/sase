@@ -57,19 +57,21 @@ class PromptHistoryModal(
         self,
         sort_by: str | None = None,
         workspace: str | None = None,
+        show_cancelled: bool = False,
     ) -> None:
         """Initialize the prompt history modal.
 
         Args:
             sort_by: Branch/CL name to prioritize in sorting.
             workspace: Workspace/project name for secondary sorting.
+            show_cancelled: Whether to show cancelled prompts by default.
         """
         super().__init__()
         self._sort_by = sort_by
         self._workspace = workspace
         self._all_items: list[_PromptDisplayItem] = []
         self._filtered_items: list[_PromptDisplayItem] = []
-        self._show_cancelled = False
+        self._show_cancelled = show_cancelled
         self._load_items()
 
     def _load_items(self) -> None:
@@ -102,9 +104,11 @@ class PromptHistoryModal(
                 )
             )
 
-        # Default view: only non-cancelled items
+        # Filter based on initial show_cancelled setting
         self._filtered_items = [
-            item for item in self._all_items if not item.entry.cancelled
+            item
+            for item in self._all_items
+            if self._show_cancelled or not item.entry.cancelled
         ]
 
     def compose(self) -> ComposeResult:

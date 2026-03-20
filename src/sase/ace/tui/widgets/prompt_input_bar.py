@@ -43,9 +43,10 @@ class PromptInputBar(Static):
     class HistoryRequested(Message):
         """Message sent when user requests prompt history picker ('.')."""
 
-        def __init__(self, vcs_prefix: str = "") -> None:
+        def __init__(self, vcs_prefix: str = "", show_cancelled: bool = False) -> None:
             super().__init__()
             self.vcs_prefix = vcs_prefix
+            self.show_cancelled = show_cancelled
 
     class SnippetRequested(Message):
         """Message sent when user requests snippet modal ('#@')."""
@@ -145,15 +146,20 @@ class PromptInputBar(Static):
         """Process text submission from the TextArea."""
         value = text.strip()
 
-        # Check for '.' - trigger history picker
-        if value == ".":
-            self.post_message(self.HistoryRequested())
+        # Check for '.' or '.x' - trigger history picker
+        if value in (".", ".x"):
+            self.post_message(self.HistoryRequested(show_cancelled=value == ".x"))
             return
 
-        # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .")
-        if value.endswith(" .") and value[0] == "#":
-            vcs_prefix = value[:-2].rstrip()
-            self.post_message(self.HistoryRequested(vcs_prefix=vcs_prefix))
+        # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .x")
+        if value.endswith((" .", " .x")) and value[0] == "#":
+            show_cancelled = value.endswith(" .x")
+            vcs_prefix = value.rsplit(" ", 1)[0].rstrip()
+            self.post_message(
+                self.HistoryRequested(
+                    vcs_prefix=vcs_prefix, show_cancelled=show_cancelled
+                )
+            )
             return
 
         # Normal submission
