@@ -190,3 +190,31 @@ def find_next_WORD_end(doc: Any, row: int, col: int) -> tuple[int, int]:
     while col + 1 < len(line) and not line[col + 1].isspace():
         col += 1
     return (row, col)
+
+
+def find_char_forward(line: str, col: int, char: str, count: int = 1) -> int | None:
+    """Find the *count*-th occurrence of *char* forward from *col* (exclusive).
+
+    Returns the column index, or ``None`` if not found.
+    """
+    found = 0
+    for i in range(col + 1, len(line)):
+        if line[i] == char:
+            found += 1
+            if found == count:
+                return i
+    return None
+
+
+def find_char_backward(line: str, col: int, char: str, count: int = 1) -> int | None:
+    """Find the *count*-th occurrence of *char* backward from *col* (exclusive).
+
+    Returns the column index, or ``None`` if not found.
+    """
+    found = 0
+    for i in range(col - 1, -1, -1):
+        if line[i] == char:
+            found += 1
+            if found == count:
+                return i
+    return None

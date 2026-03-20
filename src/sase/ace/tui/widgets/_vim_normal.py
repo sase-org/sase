@@ -8,6 +8,8 @@ from textual.events import Key
 
 from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
 from sase.ace.tui.widgets._vim_motions import (
+    find_char_backward,
+    find_char_forward,
     find_next_word_end,
     find_next_word_start,
     find_next_WORD_end,
@@ -268,6 +270,47 @@ class VimNormalModeMixin(_MixinBase):
                     self._update_count_display()
                 else:
                     self.cursor_location = (target, 0)
+            elif pending in "fFtT":
+                # Character search: key is the target character.
+                target_char = key
+                motion_count = pending_count if pending_count is not None else 1
+                op_info = self._consume_pending_operator(motion_count)
+                eff = op_info[1] if op_info else motion_count
+                row, col = self.cursor_location
+                line = self.document.get_line(row)
+                if pending in "ft":
+                    tc = find_char_forward(line, col, target_char, eff)
+                else:
+                    tc = find_char_backward(line, col, target_char, eff)
+                if tc is not None:
+                    if pending == "f":
+                        if op_info:
+                            self._execute_charwise_operator(
+                                (row, col), (row, tc + 1), op_info[0]
+                            )
+                        else:
+                            self.cursor_location = (row, tc)
+                    elif pending == "t":
+                        if op_info:
+                            self._execute_charwise_operator(
+                                (row, col), (row, tc), op_info[0]
+                            )
+                        else:
+                            self.cursor_location = (row, tc - 1)
+                    elif pending == "F":
+                        if op_info:
+                            self._execute_charwise_operator(
+                                (row, tc), (row, col + 1), op_info[0]
+                            )
+                        else:
+                            self.cursor_location = (row, tc)
+                    elif pending == "T":
+                        if op_info:
+                            self._execute_charwise_operator(
+                                (row, tc + 1), (row, col + 1), op_info[0]
+                            )
+                        else:
+                            self.cursor_location = (row, tc + 1)
             elif pending == "a" and key == "e":
                 # "ae" text object: entire buffer
                 if self._pending_operator:
@@ -532,6 +575,13 @@ class VimNormalModeMixin(_MixinBase):
                 else:
                     last_row = self.document.line_count - 1
                     self.cursor_location = (last_row, 0)
+            return True
+
+        # Character search motions (f/F/t/T)
+        if key in "fFtT":
+            self._pending_keys = key
+            self._pending_count = count if has_count else None
+            # Keep pending operator for resolution
             return True
 
         # Text object prefix (ae = entire buffer)
