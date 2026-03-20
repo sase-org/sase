@@ -183,19 +183,20 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
             os.unlink(temp_path)
 
 
-def handle_add_tag(
-    self: "WorkflowContext", changespec: ChangeSpec, tag_name: str, tag_value: str
-) -> None:
-    """Handle 'W' (add tag) action to append a tag to the CL description.
+def add_tag_task(
+    changespec_name: str,
+    changespec_file_path: str,
+    project_basename: str,
+    tag_name: str,
+    tag_value: str,
+) -> tuple[bool, str]:
+    """Execute add-tag as a background task.
 
     Claims a workspace, checks out the CL, runs sase_hg_reword --add-tag,
-    and syncs the description back to the project file.
+    and releases the workspace in a finally block.
 
-    Args:
-        self: The WorkflowContext instance
-        changespec: Current ChangeSpec
-        tag_name: The tag name (e.g. "BUG")
-        tag_value: The tag value (e.g. "12345")
+    Returns:
+        Tuple of (success, message).
     """
     from sase.running_field import (
         claim_workspace,
@@ -204,66 +205,54 @@ def handle_add_tag(
         release_workspace,
     )
 
-    workspace_num = get_first_available_axe_workspace(changespec.file_path)
-
-    if not claim_workspace(
-        changespec.file_path, workspace_num, "add_tag", os.getpid(), changespec.name
-    ):
-        self.console.print("[red]Failed to claim workspace[/red]")
-        return
+    workspace_num = get_first_available_axe_workspace(changespec_file_path)
+    workflow_name = f"add_tag-{changespec_name}"
 
     try:
         workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-            workspace_num, changespec.project_basename
+            workspace_num, project_basename
         )
+    except RuntimeError as e:
+        return (False, f"Failed to get workspace directory: {e}")
 
+    pid = os.getpid()
+    if not claim_workspace(
+        changespec_file_path, workspace_num, workflow_name, pid, changespec_name
+    ):
+        return (False, "Failed to claim workspace")
+
+    try:
         if workspace_suffix:
-            self.console.print(f"[cyan]Using workspace: {workspace_suffix}[/cyan]")
+            print(f"Using workspace: {workspace_suffix}")
 
         # Clean workspace before switching branches
         clean_success, clean_error = run_sase_hg_clean(
-            workspace_dir, f"{changespec.name}-add_tag"
+            workspace_dir, f"{changespec_name}-add_tag"
         )
         if not clean_success:
-            self.console.print(
-                f"[yellow]Warning: sase_hg_clean failed: {clean_error}[/yellow]"
-            )
+            print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Update to the changespec (checkout the CL)
+        # Checkout the CL
+        print(f"Checking out {changespec_name}...")
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
-            changespec.name, changespec.project_basename, workspace_dir
+            changespec_name, project_basename, workspace_dir
         )
-        self.console.print(f"[cyan]Checking out {_esc(changespec.name)}...[/cyan]")
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
-            self.console.print(
-                f"[red]Error checking out CL: {_esc(str(checkout_err))}[/red]"
-            )
-            return
+            return (False, f"checkout failed: {checkout_err}")
 
         # Run sase_hg_reword --add-tag
-        self.console.print(f"[cyan]Adding tag {tag_name}={tag_value}...[/cyan]")
+        print(f"Adding tag {tag_name}={tag_value}...")
         tag_ok, tag_err = provider.reword_add_tag(tag_name, tag_value, workspace_dir)
         if tag_ok:
-            self.console.print(
-                f"[green]Tag {tag_name}={tag_value} added successfully[/green]"
-            )
-            from ..hooks import reset_dollar_hooks
-
-            reset_dollar_hooks(
-                changespec.file_path,
-                changespec.name,
-                log_fn=lambda msg: self.console.print(f"[cyan]{_esc(msg)}[/cyan]"),
-            )
+            return (True, f"Tag {tag_name}={tag_value} added to {changespec_name}")
         else:
-            self.console.print(
-                f"[yellow]sase_hg_reword --add-tag failed: {tag_err}[/yellow]"
-            )
+            return (False, f"sase_hg_reword --add-tag failed: {tag_err}")
 
     finally:
         release_workspace(
-            changespec.file_path, workspace_num, "add_tag", changespec.name
+            changespec_file_path, workspace_num, workflow_name, changespec_name
         )
 
 

@@ -152,7 +152,14 @@ class BaseActionsMixin:
         self._reload_and_reposition()  # type: ignore[attr-defined]
 
     def action_add_tag(self) -> None:
-        """Add a tag to the current ChangeSpec's CL description."""
+        """Add a tag to the current ChangeSpec's CL description in the background.
+
+        This action:
+        1. Validates CL is set and STATUS is editable
+        2. Shows TagInputModal for tag name/value input
+        3. Submits background task that claims workspace, checks out CL, adds tag
+        4. Shows toast notifications for start/completion/failure
+        """
         from ...changespec import get_base_status
         from ...saved_tag_names import load_saved_tags, save_tag
         from ..modals import TagInputModal
@@ -185,17 +192,33 @@ class BaseActionsMixin:
             tag_name, tag_value = result
             save_tag(tag_name, tag_value)
 
-            from ...handlers import handle_add_tag
-            from .._workflow_context import WorkflowContext
+            from ...handlers.reword import add_tag_task
 
-            def run_handler() -> None:
-                ctx = WorkflowContext()
-                handle_add_tag(ctx, changespec, tag_name, tag_value)  # type: ignore[arg-type]
+            cl_name = changespec.name
+            project_file = changespec.file_path
 
-            with self.suspend():  # type: ignore[attr-defined]
-                run_handler()
+            def task_callable() -> tuple[bool, str]:
+                return add_tag_task(
+                    cl_name,
+                    project_file,
+                    changespec.project_basename,
+                    tag_name,
+                    tag_value,
+                )
 
-            self._reload_and_reposition()  # type: ignore[attr-defined]
+            def on_success() -> None:
+                from ...hooks import reset_dollar_hooks
+
+                reset_dollar_hooks(project_file, cl_name)
+
+            submitted = self._submit_background_task(  # type: ignore[attr-defined]
+                "add_tag", cl_name, project_file, task_callable, on_success=on_success
+            )
+
+            if submitted:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Adding tag {tag_name}={tag_value} to {cl_name}..."
+                )
 
         self.push_screen(TagInputModal(saved_tags), on_dismiss)  # type: ignore[attr-defined]
 
