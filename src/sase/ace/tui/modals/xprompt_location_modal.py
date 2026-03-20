@@ -14,7 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList
 from textual.widgets.option_list import Option
 
-from sase.config import CONFIG_DIR
+from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import detect_project, get_sase_package_xprompts_dir
 
@@ -40,6 +40,7 @@ def _get_all_xprompt_locations(
     effective_project = project if project is not None else detect_project()
     cwd = Path.cwd()
     home = Path.home()
+    chezmoi = get_use_chezmoi()
 
     directories: list[XPromptLocation] = []
     configs: list[XPromptLocation] = []
@@ -65,16 +66,17 @@ def _get_all_xprompt_locations(
                 location_type="directory",
             )
         )
-    # ~/.xprompts/ — always show
+    # ~/.xprompts/ — always show (remapped when chezmoi enabled)
+    home_dot_xprompts = CHEZMOI_HOME / "dot_xprompts" if chezmoi else home / ".xprompts"
     directories.append(
         XPromptLocation(
             label="Home ~/.xprompts/",
-            path=str(home / ".xprompts"),
+            path=str(home_dot_xprompts),
             location_type="directory",
         )
     )
-    # ~/xprompts/ — only if exists
-    home_visible = home / "xprompts"
+    # ~/xprompts/ — only if exists (remapped when chezmoi enabled)
+    home_visible = CHEZMOI_HOME / "xprompts" if chezmoi else home / "xprompts"
     if home_visible.is_dir():
         directories.append(
             XPromptLocation(
@@ -95,17 +97,22 @@ def _get_all_xprompt_locations(
         )
 
     # --- 2. Config files ---
-    # ~/.config/sase/sase.yml — always show
+    # ~/.config/sase/sase.yml — always show (remapped when chezmoi enabled)
+    chezmoi_config_dir = CHEZMOI_HOME / "dot_config" / "sase"
+    user_sase_yml = (
+        chezmoi_config_dir / "sase.yml" if chezmoi else CONFIG_DIR / "sase.yml"
+    )
     configs.append(
         XPromptLocation(
             label="User sase.yml",
-            path=str(CONFIG_DIR / "sase.yml"),
+            path=str(user_sase_yml),
             location_type="config",
         )
     )
-    # Each ~/.config/sase/sase_*.yml overlay — only existing ones
-    if CONFIG_DIR.is_dir():
-        for overlay_path in sorted(CONFIG_DIR.glob("sase_*.yml")):
+    # Each sase_*.yml overlay — only existing ones (remapped when chezmoi enabled)
+    overlay_glob_dir = chezmoi_config_dir if chezmoi else CONFIG_DIR
+    if overlay_glob_dir.is_dir():
+        for overlay_path in sorted(overlay_glob_dir.glob("sase_*.yml")):
             configs.append(
                 XPromptLocation(
                     label=f"User {overlay_path.name}",

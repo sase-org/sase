@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from sase.ace.hints import build_editor_args
+from sase.config import get_use_chezmoi
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 
 from .confirm_action_modal import ConfirmActionModal
@@ -174,6 +175,28 @@ class XPromptBrowserActionsMixin:
         else:
             self.notify("Failed to insert xprompt into config", severity="error")  # type: ignore[attr-defined]
 
+    def _run_chezmoi_apply(self) -> None:
+        """Run ``chezmoi apply`` if use_chezmoi is enabled."""
+        if not get_use_chezmoi():
+            return
+        try:
+            result = subprocess.run(
+                ["chezmoi", "apply"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            self.notify("chezmoi not found on PATH", severity="warning")  # type: ignore[attr-defined]
+            return
+        if result.returncode != 0:
+            self.notify(  # type: ignore[attr-defined]
+                f"chezmoi apply failed: {result.stderr.strip()}",
+                severity="error",
+            )
+        else:
+            self.notify("Applied chezmoi changes")  # type: ignore[attr-defined]
+
     def _offer_git_commit(
         self, file_path: str, *, is_new: bool, xprompt_name: str
     ) -> None:
@@ -220,6 +243,7 @@ class XPromptBrowserActionsMixin:
                 )
                 if push_result.returncode == 0:
                     self.notify("Pushed to remote")  # type: ignore[attr-defined]
+                    self._run_chezmoi_apply()  # type: ignore[attr-defined]
                 else:
                     self.notify(  # type: ignore[attr-defined]
                         f"Push failed: {push_result.stderr.strip()}",

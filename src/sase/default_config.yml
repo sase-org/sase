@@ -1,3 +1,5 @@
+use_chezmoi: false
+
 ace:
   inactive_seconds: 600
   keymaps:

@@ -20,6 +20,13 @@ from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 log = logging.getLogger(__name__)
 
 CONFIG_DIR = Path("~/.config/sase").expanduser()
+CHEZMOI_HOME = Path("~/.local/share/chezmoi/home").expanduser()
+
+
+def get_use_chezmoi() -> bool:
+    """Return whether chezmoi path remapping is enabled."""
+    data = load_merged_config()
+    return bool(data.get("use_chezmoi", False))
 
 
 def _deep_merge(
