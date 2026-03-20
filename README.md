@@ -1,7 +1,5 @@
 # sase — Structured Agentic Software Engineering
 
-_Pronounced "sassy."_
-
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![mypy](https://img.shields.io/badge/type_checker-mypy-blue.svg)](https://mypy-lang.org/)
 [![pytest](https://img.shields.io/badge/tests-pytest-blue.svg)](https://docs.pytest.org/)
@@ -9,9 +7,9 @@ _Pronounced "sassy."_
 
 ## Overview
 
-**sase** is a Python toolkit for AI-powered software engineering workflows. It combines an interactive TUI, a scheduling
-daemon, a YAML workflow engine, and pluggable LLM/VCS abstractions into a cohesive system for managing code changes at
-scale.
+**sase** (pronounced "sassy") is a Python toolkit for AI-powered software engineering workflows. It combines an
+interactive TUI, a scheduling daemon, a YAML workflow engine, and pluggable LLM/VCS abstractions into a cohesive system
+for managing code changes at scale.
 
 <img src="docs/images/sase_overview.jpg" alt="Visual overview of sase" width="800">
 
