@@ -23,11 +23,13 @@ class PlanApprovalResult:
     feedback: str | None = None
 
 
-def add_approved_frontmatter(content: str, approved_at: datetime | None = None) -> str:
-    """Add an ``approved`` field in YAML frontmatter to plan content.
+def add_approved_at_frontmatter(
+    content: str, approved_at: datetime | None = None
+) -> str:
+    """Add an ``approved_at`` field in YAML frontmatter to plan content.
 
     If the content already has frontmatter (delimited by ``---``), the
-    ``approved`` field is inserted into the existing block (unless it already
+    ``approved_at`` field is inserted into the existing block (unless it already
     contains one).  Otherwise a new frontmatter section is prepended.
 
     The datetime is formatted as ``yyyy-mm-dd HH:MM:SS`` (UTC).
@@ -35,15 +37,15 @@ def add_approved_frontmatter(content: str, approved_at: datetime | None = None) 
     if approved_at is None:
         approved_at = datetime.now(UTC)
     ts = approved_at.strftime("%Y-%m-%d %H:%M:%S")
-    field = f"approved: '{ts}'"
+    field = f"approved_at: '{ts}'"
 
     # Already has frontmatter?
     if content.startswith("---\n"):
         end = content.find("\n---\n", 4)
         if end != -1:
             fm_body = content[4 : end + 1]  # includes trailing \n
-            # Already has an approved field — leave it alone.
-            if re.search(r"^approved:", fm_body, re.MULTILINE):
+            # Already has an approved_at field — leave it alone.
+            if re.search(r"^approved_at:", fm_body, re.MULTILINE):
                 return content
             # Insert the field at the end of the frontmatter block.
             return f"---\n{fm_body}{field}\n---\n{content[end + 5 :]}"

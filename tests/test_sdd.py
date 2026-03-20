@@ -105,7 +105,7 @@ def test_write_sdd_files() -> None:
         assert plan_path.exists()
         assert spec_path.read_text(encoding="utf-8") == "# My Spec\nDetails here"
         plan_text = plan_path.read_text(encoding="utf-8")
-        assert plan_text.startswith("---\napproved:")
+        assert plan_text.startswith("---\napproved_at:")
         assert "steps:" in plan_text
 
 

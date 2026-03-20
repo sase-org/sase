@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from sase.llm_provider._plan_utils import (
     PlanApprovalResult,
-    add_approved_frontmatter,
+    add_approved_at_frontmatter,
     handle_plan_approval,
     save_plan_to_sase,
 )
@@ -33,25 +33,25 @@ def test_save_plan_to_sase(tmp_path: Path) -> None:
     assert dest2.name == "source_plan_1.md"
 
 
-def test_add_approved_frontmatter_no_existing() -> None:
+def test_add_approved_at_frontmatter_no_existing() -> None:
     """Prepends frontmatter when the content has none."""
     dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=UTC)
-    result = add_approved_frontmatter("# My Plan\nDetails", dt)
-    assert result == "---\napproved: '2026-03-20 14:30:00'\n---\n# My Plan\nDetails"
+    result = add_approved_at_frontmatter("# My Plan\nDetails", dt)
+    assert result == "---\napproved_at: '2026-03-20 14:30:00'\n---\n# My Plan\nDetails"
 
 
-def test_add_approved_frontmatter_existing_frontmatter() -> None:
-    """Inserts approved into existing frontmatter."""
+def test_add_approved_at_frontmatter_existing_frontmatter() -> None:
+    """Inserts approved_at into existing frontmatter."""
     content = "---\ntitle: foo\n---\n# Plan"
     dt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
-    result = add_approved_frontmatter(content, dt)
-    assert result == "---\ntitle: foo\napproved: '2026-01-01 00:00:00'\n---\n# Plan"
+    result = add_approved_at_frontmatter(content, dt)
+    assert result == "---\ntitle: foo\napproved_at: '2026-01-01 00:00:00'\n---\n# Plan"
 
 
-def test_add_approved_frontmatter_already_has_approved() -> None:
-    """Leaves content unchanged if approved field already exists."""
-    content = "---\napproved: '2025-01-01 00:00:00'\n---\n# Plan"
-    result = add_approved_frontmatter(content)
+def test_add_approved_at_frontmatter_already_has_field() -> None:
+    """Leaves content unchanged if approved_at field already exists."""
+    content = "---\napproved_at: '2025-01-01 00:00:00'\n---\n# Plan"
+    result = add_approved_at_frontmatter(content)
     assert result == content
 
 
