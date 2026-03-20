@@ -3,6 +3,7 @@
 import importlib.resources
 import logging
 from pathlib import Path
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
@@ -26,6 +27,84 @@ from sase.xprompt.workflow_models import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _get_step_search_dirs() -> list[Path]:
+    """Get directories to search for step definition files.
+
+    Returns ``steps/`` subdirectories of each xprompt search path, plus the
+    internal package ``steps/`` directory.  Order matches the xprompt priority
+    (CWD dirs first, internal last).
+    """
+    dirs = [p / "steps" for p in get_xprompt_search_paths()]
+    dirs.append(get_sase_package_xprompts_dir() / "steps")
+    return dirs
+
+
+def _load_step_definition(use_ref: str) -> dict[str, Any] | None:
+    """Load a step definition file referenced by a ``use:`` field.
+
+    Args:
+        use_ref: Slash-separated path relative to a ``steps/`` directory
+            (e.g. ``shared/check_changes``).
+
+    Returns:
+        Parsed YAML dict for the step, or ``None`` if not found.
+    """
+    # Reject suspicious paths
+    if ".." in use_ref or use_ref.startswith("/"):
+        log.warning("Rejecting step import with unsafe path: %s", use_ref)
+        return None
+
+    for search_dir in _get_step_search_dirs():
+        for ext in (".yml", ".yaml"):
+            candidate = search_dir / f"{use_ref}{ext}"
+            if candidate.is_file():
+                try:
+                    content = candidate.read_text(encoding="utf-8")
+                    data = yaml.safe_load(content)
+                    if isinstance(data, dict):
+                        return data
+                except (OSError, yaml.YAMLError):
+                    continue
+    return None
+
+
+def _resolve_step_imports(step_data: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve ``use:`` imports in *step_data*, including nested parallel steps.
+
+    Local fields in *step_data* override fields from the imported definition.
+
+    Returns:
+        The resolved step data dict, or ``None`` if resolution failed.
+    """
+    use_ref = step_data.get("use")
+    if use_ref:
+        base = _load_step_definition(str(use_ref))
+        if base is None:
+            log.warning("Step import '%s' not found", use_ref)
+            return None
+        merged = dict(base)
+        for key, value in step_data.items():
+            if key != "use":
+                merged[key] = value
+        step_data = merged
+
+    # Recursively resolve nested parallel steps
+    parallel_data = step_data.get("parallel")
+    if isinstance(parallel_data, list):
+        resolved_parallel: list[Any] = []
+        for nested in parallel_data:
+            if isinstance(nested, dict):
+                resolved = _resolve_step_imports(nested)
+                if resolved is None:
+                    return None
+                resolved_parallel.append(resolved)
+            else:
+                resolved_parallel.append(nested)
+        step_data = dict(step_data, parallel=resolved_parallel)
+
+    return step_data
 
 
 def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
@@ -86,6 +165,12 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
         for step_index, step_data in enumerate(steps_data):
             if not isinstance(step_data, dict):
                 continue
+            # Resolve step imports (use: field) before parsing
+            if "use" in step_data:
+                resolved = _resolve_step_imports(step_data)
+                if resolved is None:
+                    continue
+                step_data = resolved
             step = _parse_workflow_step(step_data, step_index)
             steps.append(step)
 
