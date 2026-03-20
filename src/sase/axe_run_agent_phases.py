@@ -25,6 +25,7 @@ class _AgentInfo(NamedTuple):
     approve: bool
     plan: bool
     meta: dict[str, Any]
+    local_xprompts: dict[str, Any]
 
 
 def extract_directives_and_write_meta(
@@ -160,6 +161,7 @@ def extract_directives_and_write_meta(
         approve=bool(directives.approve),
         plan=bool(directives.plan),
         meta=agent_meta,
+        local_xprompts=multi.local_xprompts,
     )
 
 

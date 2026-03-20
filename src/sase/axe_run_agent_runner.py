@@ -232,6 +232,7 @@ def main() -> None:
                 agent_vcs_provider=agent_vcs_provider,
                 agent_hidden=agent_hidden,
                 agent_meta=agent_meta,
+                local_xprompts=info.local_xprompts,
             )
             exec_result = run_execution_loop(ctx, prompt)
             success = exec_result.success

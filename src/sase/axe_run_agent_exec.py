@@ -61,6 +61,7 @@ class AgentExecContext:
     agent_vcs_provider: str | None
     agent_hidden: bool
     agent_meta: dict[str, Any]
+    local_xprompts: dict[str, Any]
 
 
 @dataclass
@@ -198,6 +199,8 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
         reset_killed()
         os.environ["SASE_ARTIFACTS_DIR"] = current_artifacts_dir
         anon_workflow = create_anonymous_workflow(current_prompt)
+        if ctx.local_xprompts:
+            anon_workflow.xprompts = ctx.local_xprompts
 
         try:
             result = execute_workflow(

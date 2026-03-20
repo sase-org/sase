@@ -481,10 +481,20 @@ def main() -> NoReturn:
             from sase.xprompt._trace import ExpansionTrace, print_trace
 
             from sase.main.query_handler import expand_embedded_workflows_in_query
+            from sase.multi_prompt import parse_multi_prompt
 
             prompt = args.prompt if args.prompt else sys.stdin.read()
+
+            # Parse frontmatter for local xprompt definitions so that
+            # references like #_docs:telegram are expanded correctly.
+            multi = parse_multi_prompt(prompt)
+            local_xprompts = multi.local_xprompts or None
+            prompt_body = "\n---\n".join(multi.segments)
+
             trace = ExpansionTrace() if args.trace else None
-            early = preprocess_prompt_early(prompt, trace=trace)
+            early = preprocess_prompt_early(
+                prompt_body, extra_xprompts=local_xprompts, trace=trace
+            )
             expanded, _post_workflows = expand_embedded_workflows_in_query(early.prompt)
             processed = preprocess_prompt_late(expanded, file_ref_mode="validate")
             print(processed, end="")
