@@ -329,7 +329,7 @@ class AgentLaunchMixin:
                 self.notify(  # type: ignore[attr-defined]
                     f"Started {len(results)} agent(s) for {ctx.display_name}"
                 )
-            except (RuntimeError, OSError) as e:
+            except Exception as e:
                 self.notify(f"Multi-prompt launch failed: {e}", severity="error")  # type: ignore[attr-defined]
 
         thread = threading.Thread(target=_run, daemon=True)

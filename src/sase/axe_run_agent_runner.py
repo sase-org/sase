@@ -34,11 +34,15 @@ from sase.shared_utils import (
     create_artifacts_directory,
 )
 
-install_sigterm_handler("agent", soft=True)
-
 
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
+    # Install signal handler inside main() rather than at module level,
+    # because signal.signal() can only be called from the main thread.
+    # This module is imported by spawn_agent_subprocess() (to resolve the
+    # runner script path) which can happen from a background thread (e.g.
+    # the multi-prompt launcher).
+    install_sigterm_handler("agent", soft=True)
     # Accept 13 args: cl_name, project_file, workspace_dir, output_path,
     # workspace_num, workflow_name, prompt_file, timestamp,
     # update_target, project_name, cl_name_for_history, is_home_mode
