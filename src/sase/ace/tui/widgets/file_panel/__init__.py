@@ -97,9 +97,15 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._current_file_index = 0
         self._current_agent = agent
 
-        # Populate file list with live diff sentinel + extra files
+        # Populate file list with live diff sentinel + extra files.
+        # Only include the diff sentinel when we already have cached diff
+        # content — otherwise the plan file alone should show as [1/1].
         if agent.extra_files:
-            self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
+            has_cached_diff = cache_entry is not None and bool(cache_entry.diff_output)
+            if has_cached_diff:
+                self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
+            else:
+                self._file_list = list(agent.extra_files)
             self.post_message(
                 FileListChanged(
                     file_count=len(self._file_list),
@@ -111,7 +117,10 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
 
         # If starting on a static extra file, display it immediately
         # and fetch the diff in the background.
-        if self._current_file_index != 0 and self._file_list:
+        if (
+            self._file_list
+            and self._file_list[self._current_file_index] != _LIVE_DIFF_SENTINEL
+        ):
             self._display_file_at_current_index()
             self._start_background_fetch(agent)
             return
@@ -232,13 +241,24 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
     def _pick_up_extra_files(self, agent: Agent) -> None:
         """Populate the file list when extra_files first appear on a same-agent refresh."""
         if agent.extra_files and not self._file_list:
-            self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
-            # For .plan agents without a code diff, default to showing
-            # the plan file.  When a follow-up .code agent has completed
-            # and propagated its diff_path, show the diff instead (index 0)
-            # so the user sees the code changes by default.
-            if agent.role_suffix == ".plan" and not agent.diff_path:
-                self._current_file_index = 1
+            # Only include the diff sentinel when we already have cached
+            # diff content so the counter reads [1/1] until a real diff exists.
+            cache_key = get_cache_key(agent)
+            cache_entry = file_cache.get(cache_key)
+            has_diff = cache_entry is not None and bool(cache_entry.diff_output)
+
+            if has_diff:
+                self._file_list = [_LIVE_DIFF_SENTINEL] + list(agent.extra_files)
+                # For .plan agents without a code diff, default to showing
+                # the plan file.  When a follow-up .code agent has completed
+                # and propagated its diff_path, show the diff instead (index 0)
+                # so the user sees the code changes by default.
+                if agent.role_suffix == ".plan" and not agent.diff_path:
+                    self._current_file_index = 1
+            else:
+                self._file_list = list(agent.extra_files)
+                self._current_file_index = 0
+
             self.post_message(
                 FileListChanged(
                     file_count=len(self._file_list),
@@ -248,7 +268,10 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             # Display the extra file immediately so the parent receives
             # FileVisibilityChanged(has_file=True) and can switch from
             # auto-shown thinking to the file panel.
-            if self._current_file_index != 0:
+            if (
+                self._file_list
+                and self._file_list[self._current_file_index] != _LIVE_DIFF_SENTINEL
+            ):
                 self._display_file_at_current_index()
 
     def _post_file_visibility(self, has_file: bool) -> None:
@@ -336,9 +359,33 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         self._is_background_refreshing = False
 
         if event.state == WorkerState.SUCCESS:
+            # If diff content just arrived and extra files exist but the
+            # sentinel slot hasn't been added yet, insert it now and bump
+            # the current index so the user stays on the same file.
+            if self._current_agent and self._file_list:
+                ck = get_cache_key(self._current_agent)
+                ce = file_cache.get(ck)
+                if (
+                    ce is not None
+                    and ce.diff_output
+                    and _LIVE_DIFF_SENTINEL not in self._file_list
+                ):
+                    self._file_list.insert(0, _LIVE_DIFF_SENTINEL)
+                    self._current_file_index += 1
+                    self.post_message(
+                        FileListChanged(
+                            file_count=len(self._file_list),
+                            file_index=self._current_file_index,
+                        )
+                    )
+                    return  # Don't overwrite the static file display
+
             # If the user is viewing a static extra file (not the live diff),
             # don't overwrite it with the refreshed diff content.
-            if self._file_list and self._current_file_index != 0:
+            if self._file_list and (
+                self._current_file_index >= len(self._file_list)
+                or self._file_list[self._current_file_index] != _LIVE_DIFF_SENTINEL
+            ):
                 return
 
             # Worker completed - display result from cache
