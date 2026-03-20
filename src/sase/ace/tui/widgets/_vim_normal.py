@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 
+from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
 from sase.ace.tui.widgets._vim_motions import (
     find_next_word_end,
     find_next_word_start,
@@ -104,6 +105,21 @@ class VimNormalModeMixin(_MixinBase):
         self._update_count_display()
         return (op, op_count * count)
 
+    def _get_text_in_range(
+        self,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> str:
+        """Extract text between two ``(row, col)`` positions."""
+        doc = self.document
+        if start[0] == end[0]:
+            return doc.get_line(start[0])[start[1] : end[1]]
+        parts = [doc.get_line(start[0])[start[1] :]]
+        for row in range(start[0] + 1, end[0]):
+            parts.append(doc.get_line(row))
+        parts.append(doc.get_line(end[0])[: end[1]])
+        return "\n".join(parts)
+
     def _execute_charwise_operator(
         self,
         start: tuple[int, int],
@@ -118,6 +134,9 @@ class VimNormalModeMixin(_MixinBase):
             if op == "c":
                 self._enter_insert_mode()
             return
+        deleted = self._get_text_in_range(start, end)
+        if deleted:
+            copy_to_system_clipboard(deleted)
         was_readonly = self.read_only
         self.read_only = False
         self.delete(start, end)
@@ -138,6 +157,10 @@ class VimNormalModeMixin(_MixinBase):
         doc = self.document
         first_row = max(0, first_row)
         last_row = min(last_row, doc.line_count - 1)
+
+        lines = [doc.get_line(row) for row in range(first_row, last_row + 1)]
+        if lines:
+            copy_to_system_clipboard("\n".join(lines))
 
         was_readonly = self.read_only
         self.read_only = False
@@ -245,6 +268,15 @@ class VimNormalModeMixin(_MixinBase):
                     self._update_count_display()
                 else:
                     self.cursor_location = (target, 0)
+            elif pending == "a" and key == "e":
+                # "ae" text object: entire buffer
+                if self._pending_operator:
+                    op = self._pending_operator
+                    self._pending_operator = ""
+                    self._pending_operator_count = 1
+                    last_row = self.document.line_count - 1
+                    self._execute_linewise_operator(0, last_row, op)
+                    self._update_count_display()
             return True
 
         # Escape --------------------------------------------------------------
@@ -500,6 +532,11 @@ class VimNormalModeMixin(_MixinBase):
                 else:
                     last_row = self.document.line_count - 1
                     self.cursor_location = (last_row, 0)
+            return True
+
+        # Text object prefix (ae = entire buffer)
+        if key == "a" and self._pending_operator:
+            self._pending_keys = "a"
             return True
 
         # Cancel pending operator on unrecognized motion key
