@@ -391,12 +391,21 @@ llm_provider:
 
 ### Default Configuration
 
-Only Gemini has retry defaults:
+Both Gemini and Claude have retry defaults (defined in `default_config.yml`):
+
+**Gemini:**
 
 - **max_retries**: 3
 - **error_patterns**: `["An unexpected critical error occurred:"]`
 - **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
 - **fallback_model**: `"gemini-3-flash-preview"`
+
+**Claude:**
+
+- **max_retries**: 3
+- **error_patterns**: `["API Error: 500", "API Error: 529", "Internal server error", "overloaded_error"]`
+- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
+- **fallback_model**: `"sonnet"`
 
 ### Retry Flow
 

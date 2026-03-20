@@ -8,12 +8,16 @@ with control flow, parallel execution, and human-in-the-loop approval.
 - [Top-Level Structure](#top-level-structure)
 - [Input Parameters](#input-parameters)
 - [Step Types](#step-types)
+- [Step Imports](#step-imports)
 - [Output Specification](#output-specification)
+- [Artifact Passing](#artifact-passing)
 - [Control Flow](#control-flow)
 - [Parallel Execution](#parallel-execution)
 - [Join Modes](#join-modes)
 - [Template Syntax](#template-syntax)
+- [Cross-Step Field Type Checking](#cross-step-field-type-checking)
 - [Human-in-the-Loop](#human-in-the-loop)
+- [Cleanup Steps](#cleanup-steps)
 - [Examples](#examples)
 
 ## Top-Level Structure
@@ -198,6 +202,53 @@ Execute multiple nested steps concurrently:
 
 See [Parallel Execution](#parallel-execution) for details.
 
+## Step Imports
+
+The `use` field allows reusing step definitions from shared `.yml` files in `steps/` directories. This enables
+extracting common step patterns into reusable libraries.
+
+### Syntax
+
+```yaml
+- name: my_step
+  use: shared/check_changes
+  output: { status: text } # Local fields override base definition
+```
+
+The `use` value is a slash-separated path relative to a `steps/` directory, without the file extension.
+
+### Search Paths
+
+Step definitions are resolved from the following `steps/` directories (in priority order):
+
+1. `.xprompts/steps/` (CWD, hidden)
+2. `xprompts/steps/` (CWD, non-hidden)
+3. `~/.xprompts/steps/` (home, hidden)
+4. `~/xprompts/steps/` (home, non-hidden)
+5. `<sase-package>/xprompts/steps/` (built-in)
+
+Both `.yml` and `.yaml` extensions are checked.
+
+### Override Behavior
+
+Local step fields override any fields from the base definition. The `use` field itself is stripped from the merged
+result:
+
+```yaml
+# In steps/shared/lint.yml:
+bash: ruff check .
+output: { errors: text }
+
+# In your workflow:
+- name: lint_project
+  use: shared/lint
+  output: { errors: text, warnings: text }  # Overrides base output
+```
+
+### Security
+
+Paths containing `..` or starting with `/` are rejected.
+
 ## Output Specification
 
 Steps can declare an output schema for structured output parsing.
@@ -258,6 +309,50 @@ echo "success=true"
 echo "count=42"
 echo "message=Operation completed"
 ```
+
+## Artifact Passing
+
+The `artifact` field captures a step's stdout to a file, making it available to downstream steps as a file path.
+
+### Syntax
+
+```yaml
+- name: generate_report
+  bash: |
+    echo "Full report content here..."
+  artifact: stdout
+  output: { summary: text }
+```
+
+### Behavior
+
+When `artifact: stdout` is set:
+
+1. The step's stdout is saved to `{artifacts_dir}/{step_name}.stdout`
+2. The file path is injected as the `_artifact` field in the step's output context
+3. Downstream steps can reference it via `{{ step_name._artifact }}`
+
+### Example
+
+```yaml
+steps:
+  - name: build
+    bash: |
+      make all 2>&1
+      echo "status=success"
+    artifact: stdout
+    output: { status: word }
+
+  - name: review
+    agent: |
+      Review the build output at {{ build._artifact }}
+      Build status: {{ build.status }}
+```
+
+### Restrictions
+
+Only `bash` and `python` steps can use `artifact`. It is **not** allowed on `agent`, `prompt_part`, `parallel`, or
+nested (parallel substep) steps. The only valid value is `"stdout"`.
 
 ## Control Flow
 
@@ -501,6 +596,24 @@ agent: |
   {{ "yes" if flag else "no" }}
 ```
 
+## Cross-Step Field Type Checking
+
+The workflow validator checks `{{ step_name.field }}` template references against each step's declared output schema at
+load time. This catches field name typos before the workflow runs.
+
+### What It Checks
+
+- `{{ build.atrifact_path }}` produces an error if `build` only defines `artifact_path` in its output
+- Works with parallel step nesting: `{{ parallel.nested.field }}`
+- Recognizes the special `_artifact` field on steps with `artifact: stdout`
+- Skips for-loop iteration variables (e.g., `item`)
+
+### Error Format
+
+```
+Step 'deploy': references 'build.atrifact_path' but 'build' output has no field 'atrifact_path'. Available: ['artifact_path', 'status']
+```
+
 ## Human-in-the-Loop
 
 The `hitl: true` directive pauses execution for user approval.
@@ -545,6 +658,41 @@ After a HITL step, `step.approved` indicates whether the user accepted:
 
 - HITL steps cannot be nested within `parallel` blocks
 - HITL works with `agent`, `bash`, and `python` step types
+
+## Cleanup Steps
+
+Steps marked with `finally: true` run even when prior steps fail or are HITL-rejected. This is useful for cleanup and
+teardown operations.
+
+### Syntax
+
+```yaml
+steps:
+  - name: setup
+    bash: mkdir -p /tmp/workdir
+    output: { dir: text }
+
+  - name: main_work
+    agent: Do the main work in {{ setup.dir }}
+    output: { result: text }
+
+  - name: cleanup
+    finally: true
+    bash: rm -rf /tmp/workdir
+```
+
+### Rules
+
+- All `finally: true` steps must be at the **end** of the workflow, after all non-finally steps
+- Cannot be used on `prompt_part` or nested (parallel substep) steps
+- Can be combined with `if:` for conditional cleanup:
+
+```yaml
+- name: conditional_cleanup
+  finally: true
+  if: "{{ setup.dir }}"
+  bash: rm -rf {{ setup.dir }}
+```
 
 ## Examples
 

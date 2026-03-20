@@ -215,7 +215,8 @@ src/sase/
 │   ├── graph.py           # DAG visualization (xprompt graph)
 │   ├── _trace.py          # Expansion trace for --trace flag
 │   ├── workflow_executor*.py # Workflow execution (steps, loops, parallel)
-│   └── workflow_loader*.py   # Workflow YAML parsing and validation
+│   ├── workflow_loader*.py   # Workflow YAML parsing and validation
+│   └── workflow_validator.py # Cross-step validation (field refs, finally, artifacts)
 ├── llm_provider/          # Pluggable LLM abstraction (Claude, Gemini)
 ├── vcs_provider/          # VCS abstraction (pluggy-based plugin system)
 │   ├── _hookspec.py       # Pluggy hook specifications (VCSHookSpec)

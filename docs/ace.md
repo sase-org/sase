@@ -390,6 +390,11 @@ Examples:
 - **AXE tab**: `AXE (3)` for 3 running lumberjacks, `AXE (3x2.1)` for 3 lumberjacks + 2 done bgcmds + 1 hidden command
   visible
 
+### Background Task Indicator
+
+A gear icon (⚙) with a count appears in the top bar when background tasks are running (e.g., sync, mail, accept
+operations). The indicator automatically hides when all background tasks complete.
+
 ## File Panel Trimming
 
 When viewing agent files on the Agents tab, large files are automatically trimmed to fit the visible viewport. A blue
@@ -562,17 +567,19 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 
 #### Other Commands
 
-| Key | Action                |
-| --- | --------------------- |
-| `i` | Enter INSERT mode     |
-| `a` | Append after cursor   |
-| `A` | Append at end of line |
-| `I` | Insert at line start  |
-| `o` | Open line below       |
-| `O` | Open line above       |
-| `u` | Undo                  |
-| `x` | Delete character      |
-| `p` | Paste                 |
+| Key | Action                                             |
+| --- | -------------------------------------------------- |
+| `i` | Enter INSERT mode                                  |
+| `a` | Append after cursor                                |
+| `A` | Append at end of line                              |
+| `I` | Insert at line start                               |
+| `o` | Open line below                                    |
+| `O` | Open line above                                    |
+| `u` | Undo                                               |
+| `x` | Delete character                                   |
+| `p` | Paste                                              |
+| `.` | Repeat last mutation (supports count: `3.`)        |
+| `J` | Join current line with next (supports count: `5J`) |
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
 
