@@ -331,6 +331,36 @@ the state of five concurrent workstreams — sase replaces that manual overhead 
 The core idea — that one developer can multiply their output by running several agents in parallel — was right. sase
 just replaces the duct tape with a proper framework.
 
+### Beads
+
+[Steve Yegge's](https://steve-yegge.medium.com/) [beads](https://github.com/steveyegge/beads) (`bd`) introduced a
+critical insight: AI coding agents suffer from a "50 First Dates" problem — every new session starts from scratch with
+no memory of prior work. His solution was a dependency-aware graph issue tracker designed specifically for agents,
+backed by [Dolt](https://github.com/dolthub/dolt) (a version-controlled SQL database), with hash-based IDs for
+collision-free multi-agent writes, hierarchical epics-to-subtasks via dotted IDs, atomic `--claim` operations for agent
+coordination, and semantic memory compaction to keep the working set small. The key idea was that agents don't need TODO
+files or markdown plans — they need a structured, persistent memory layer they can query and update across sessions, so
+that multi-session and multi-agent workflows stay coherent.
+
+The `sase bead` command is a from-scratch reimplementation that carries this idea into sase's architecture while
+drastically simplifying the surface area:
+
+- **SQLite + JSONL instead of Dolt** — sase stores issues in SQLite for fast local queries and exports to a sorted JSONL
+  file for git portability. Fresh clones rebuild the database automatically from JSONL, giving version-controlled
+  persistence without an external database engine.
+- **Two-tier hierarchy instead of arbitrary nesting** — sase uses a flat plans-and-phases model (plans are epics, phases
+  are their children) rather than deeply nested dotted-ID trees. This maps cleanly to how agents actually break down
+  work: a plan file with numbered phases.
+- **Multi-workspace aggregation** — Because sase already manages multiple parallel workspaces, `sase bead` can read
+  issues across all workspace clones through a merged in-memory view, giving every agent visibility into the full
+  project state without Dolt's sync machinery.
+- **No external binary** — beads ships as a ~37MB Go binary with its own daemon process; `sase bead` is pure Python,
+  installed as part of sase, with zero additional dependencies.
+
+The philosophical debt is real: beads proved that giving agents structured issue tracking — not just chat history —
+fundamentally changes what's possible in multi-session agentic workflows. `sase bead` takes the ~5% of that system that
+matters for sase's orchestration model and integrates it natively.
+
 ### Research Papers
 
 This project was heavily influenced by two research papers:
