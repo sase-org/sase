@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from typing import TYPE_CHECKING
 
 from ._types import PromptContext
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     pass
@@ -150,17 +153,21 @@ class WorkflowExecMixin:
                         project=project,
                         hitl_override=hitl_override,
                     )
-                except Exception as e:
-                    # Can't easily notify from background thread, so just log
-                    import logging
-
-                    logging.error(f"Workflow '{workflow_name}' failed: {e}")
+                except Exception:
+                    log.exception("Workflow '%s' failed", workflow_name)
+                    self.call_later(  # type: ignore[attr-defined]
+                        lambda: self.notify(  # type: ignore[attr-defined]
+                            f"Workflow '{workflow_name}' failed (see log)",
+                            severity="error",
+                        )
+                    )
 
             thread = threading.Thread(target=run_workflow, daemon=True)
             thread.start()
             self.notify(f"Workflow '{workflow_name}' started")  # type: ignore[attr-defined]
             return True
         except Exception as e:
+            log.exception("Workflow '%s' failed to start", workflow_name)
             self.notify(f"Workflow error: {e}", severity="error")  # type: ignore[attr-defined]
             return False
 
@@ -253,6 +260,7 @@ class WorkflowExecMixin:
                     env=os.environ,
                 )
         except Exception as e:
+            log.exception("Failed to start workflow subprocess for '%s'", workflow_name)
             self.notify(f"Failed to start workflow: {e}", severity="error")  # type: ignore[attr-defined]
             return False
 

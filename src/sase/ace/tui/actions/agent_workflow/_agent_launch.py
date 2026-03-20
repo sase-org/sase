@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from typing import TYPE_CHECKING
 
 from ._ref_resolution import strip_all_vcs_refs
 from ._types import PromptContext
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sase.ace.changespec import ChangeSpec
@@ -344,14 +347,15 @@ class AgentLaunchMixin:
                     on_agent_spawned=lambda: self.call_later(self._load_agents),  # type: ignore[attr-defined]
                 )
                 self.call_later(self._load_agents)  # type: ignore[attr-defined]
-                self.notify(  # type: ignore[attr-defined]
-                    f"Started {len(results)} agent(s) for {ctx.display_name}"
+                msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
+                self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+            except Exception:
+                log.exception("Multi-prompt launch failed")
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(  # type: ignore[attr-defined]
+                        "Multi-prompt launch failed (see log)", severity="error"
+                    )
                 )
-            except Exception as e:
-                import logging
-
-                logging.error("Multi-prompt launch failed: %s", e)
-                self.notify(f"Multi-prompt launch failed: {e}", severity="error")  # type: ignore[attr-defined]
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
@@ -498,5 +502,6 @@ class AgentLaunchMixin:
                 vcs_ref=vcs_ref,
                 deferred_workspace=deferred_workspace,
             )
-        except (RuntimeError, OSError) as e:
+        except Exception as e:
+            log.exception("Failed to start agent for %s", cl_name)
             self.notify(f"Failed to start agent: {e}", severity="error")  # type: ignore[attr-defined]
