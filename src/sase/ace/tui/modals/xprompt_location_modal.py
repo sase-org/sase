@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, OptionList
+from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
@@ -210,6 +211,8 @@ class _LocationFilterInput(FilterInput):
 
     BINDINGS = [
         *FilterInput.BINDINGS,
+        ("ctrl+d", "scroll_preview_down", "Scroll Down"),
+        ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
         ("ctrl+n", "forward('next_option')", "Next"),
         ("ctrl+p", "forward('prev_option')", "Prev"),
         ("enter", "forward('select_location')", "Select"),
@@ -219,6 +222,21 @@ class _LocationFilterInput(FilterInput):
         modal = self.screen
         if isinstance(modal, XPromptLocationModal):
             getattr(modal, f"action_{action_name}")()
+
+    def action_scroll_preview_down(self) -> None:
+        modal = self.screen
+        if isinstance(modal, XPromptLocationModal):
+            modal.scroll_preview_down()
+
+    def action_scroll_preview_up_or_clear(self) -> None:
+        modal = self.screen
+        if isinstance(modal, XPromptLocationModal):
+            scroll = modal.query_one("#location-preview-scroll", VerticalScroll)
+            if scroll.scroll_y > 0:
+                modal.scroll_preview_up()
+            elif self.cursor_position > 0:
+                self.value = self.value[self.cursor_position :]
+                self.cursor_position = 0
 
 
 class XPromptLocationModal(
@@ -251,9 +269,18 @@ class XPromptLocationModal(
                 placeholder="Type to filter...",
                 id="location-filter-input",
             )
-            yield OptionList(
-                *self._create_options(),
-                id="location-list",
+            with Horizontal(id="location-panels"):
+                with Vertical(id="location-list-panel"):
+                    yield OptionList(
+                        *self._create_options(),
+                        id="location-list",
+                    )
+                with Vertical(id="location-preview-panel"):
+                    with VerticalScroll(id="location-preview-scroll"):
+                        yield Static("", id="location-preview")
+            yield Static(
+                "^n/^p: navigate  enter: select  ^d/^u: scroll  Esc: cancel",
+                id="location-hints",
             )
 
     def _create_options(self, filter_text: str = "") -> list[Option]:
@@ -306,6 +333,8 @@ class XPromptLocationModal(
         inp.focus()
         option_list = self.query_one("#location-list", OptionList)
         self._skip_to_first_item(option_list)
+        if self._flat:
+            self._update_preview(self._flat[0])
 
     def _skip_to_first_item(self, option_list: OptionList) -> None:
         for i in range(option_list.option_count):
@@ -322,7 +351,12 @@ class XPromptLocationModal(
         option_list.clear_options()
         for opt in self._create_options(event.value):
             option_list.add_option(opt)
-        self._skip_to_first_item(option_list)
+        filtered = self._get_filtered_flat(event.value)
+        if filtered:
+            self._skip_to_first_item(option_list)
+            self._update_preview(filtered[0])
+        else:
+            self._clear_preview()
 
     def action_next_option(self) -> None:
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
@@ -384,7 +418,114 @@ class XPromptLocationModal(
         if loc is not None:
             self.dismiss(loc)
 
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        loc = self._get_highlighted_location()
+        if loc is not None:
+            self._update_preview(loc)
+
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         loc = self._get_highlighted_location()
         if loc is not None:
             self.dismiss(loc)
+
+    # -- Preview rendering ---------------------------------------------------
+
+    def _update_preview(self, loc: XPromptLocation) -> None:
+        """Update the preview panel for the given location."""
+        try:
+            preview = self.query_one("#location-preview", Static)
+        except Exception:
+            return
+
+        p = Path(loc.path)
+        if not p.exists():
+            preview.update(Text("(path does not exist yet)", style="italic dim"))
+            return
+
+        if loc.location_type == "directory":
+            preview.update(self._render_directory_tree(p))
+        else:
+            preview.update(self._render_file_preview(p))
+
+    def _render_directory_tree(self, directory: Path) -> Syntax | Text:
+        """Render a pretty tree of directory contents."""
+        try:
+            entries = sorted(
+                directory.iterdir(), key=lambda e: (not e.is_dir(), e.name)
+            )
+        except PermissionError:
+            return Text("(permission denied)", style="italic dim")
+
+        if not entries:
+            return Text("(empty directory)", style="italic dim")
+
+        lines: list[str] = [f"{directory.name}/"]
+        self._build_tree_lines(entries, "", lines)
+        return Syntax("\n".join(lines), "text", theme="monokai", word_wrap=True)
+
+    def _build_tree_lines(
+        self,
+        entries: list[Path],
+        prefix: str,
+        lines: list[str],
+        *,
+        max_depth: int = 2,
+        _depth: int = 0,
+    ) -> None:
+        """Recursively build tree lines up to *max_depth*."""
+        for i, entry in enumerate(entries):
+            is_last = i == len(entries) - 1
+            connector = "└── " if is_last else "├── "
+            suffix = "/" if entry.is_dir() else ""
+            lines.append(f"{prefix}{connector}{entry.name}{suffix}")
+
+            if entry.is_dir() and _depth < max_depth:
+                try:
+                    children = sorted(
+                        entry.iterdir(), key=lambda e: (not e.is_dir(), e.name)
+                    )
+                except PermissionError:
+                    children = []
+                extension = "    " if is_last else "│   "
+                self._build_tree_lines(
+                    children,
+                    prefix + extension,
+                    lines,
+                    max_depth=max_depth,
+                    _depth=_depth + 1,
+                )
+
+    def _render_file_preview(self, filepath: Path) -> Syntax | Text:
+        """Render syntax-highlighted file contents."""
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except PermissionError:
+            return Text("(permission denied)", style="italic dim")
+        except Exception:
+            return Text("(unable to read file)", style="italic dim")
+
+        lexer = "yaml" if filepath.suffix in (".yml", ".yaml") else "text"
+        return Syntax(
+            content, lexer, theme="monokai", word_wrap=True, line_numbers=True
+        )
+
+    def _clear_preview(self) -> None:
+        """Clear the preview panel."""
+        try:
+            self.query_one("#location-preview", Static).update("")
+        except Exception:
+            pass
+
+    # -- Preview scrolling ---------------------------------------------------
+
+    def scroll_preview_down(self) -> None:
+        scroll = self.query_one("#location-preview-scroll", VerticalScroll)
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=height // 2, animate=False)
+
+    def scroll_preview_up(self) -> None:
+        scroll = self.query_one("#location-preview-scroll", VerticalScroll)
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=-(height // 2), animate=False)

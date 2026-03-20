@@ -1561,9 +1561,8 @@ XPromptLocationModal {
 }
 
 XPromptLocationModal > Container {
-    width: 80;
-    height: auto;
-    max-height: 80%;
+    width: 92%;
+    height: 80%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
@@ -1584,9 +1583,42 @@ XPromptLocationModal #location-filter-input {
     margin-bottom: 1;
 }
 
+XPromptLocationModal #location-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+XPromptLocationModal #location-list-panel {
+    width: 45;
+    height: 100%;
+}
+
 XPromptLocationModal #location-list {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+XPromptLocationModal #location-preview-panel {
+    width: 1fr;
+    height: 100%;
+    margin-left: 1;
+}
+
+XPromptLocationModal #location-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+XPromptLocationModal #location-preview {
     height: auto;
-    max-height: 24;
+}
+
+XPromptLocationModal #location-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
 }
 
 /* XPrompt config entry modal styling */
