@@ -23,6 +23,7 @@ Use xprompts when you want to:
 - [Output Specification](#output-specification)
 - [Jinja2 Integration](#jinja2-integration)
 - [Legacy Placeholders](#legacy-placeholders)
+- [Tags](#tags)
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
@@ -61,6 +62,16 @@ rendered step bodies, and output schemas.
 sase xprompt explain my_workflow                    # Explain with no args
 sase xprompt explain my_workflow arg1 arg2          # With positional args
 sase xprompt explain my_workflow --arg key=value    # With named args
+```
+
+### `sase xprompt list`
+
+Lists all available xprompts and workflows as a JSON array. Each entry includes the name, type (`"xprompt"` or
+`"workflow"`), source file path, input definitions, tags, and a content preview.
+
+```bash
+sase xprompt list                   # JSON array to stdout
+sase xprompt list | jq '.[].name'  # Extract just names
 ```
 
 ### `sase xprompt graph`
@@ -394,6 +405,73 @@ Review the {1} module and check for {2:correctness}.
 - `{2:correctness}` -- second positional argument with default `correctness`.
 
 Legacy mode is auto-detected: if the body contains no Jinja2 markers, legacy substitution is used.
+
+## Tags
+
+XPrompts and workflows can be annotated with semantic role tags. Tags enable lookup-by-role instead of lookup-by-name,
+making the system extensible — a plugin or user can override the CRS workflow simply by defining a new xprompt with
+`tags: crs`.
+
+### Available Tags
+
+| Tag        | Description                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| `vcs`      | VCS workflow xprompt — wraps other embedded workflows, running its setup/teardown around them |
+| `crs`      | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)          |
+| `fix_hook` | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                        |
+| `rollover` | Marks workflows whose embedded references carry forward to follow-up agent steps              |
+
+### Defining Tags
+
+Tags can be defined in three places:
+
+**YAML workflow files** (`.yml`):
+
+```yaml
+tags: vcs, rollover       # comma-separated string
+# or
+tags: [vcs, rollover]     # list format
+```
+
+**Markdown front matter** (`.md`):
+
+```markdown
+---
+name: fix_hook
+tags: fix_hook
+---
+
+Fix the failing hook...
+```
+
+**Config-based xprompts** (`sase.yml`):
+
+```yaml
+xprompts:
+  my_crs:
+    content: "Review the code..."
+    tags: [crs]
+```
+
+### Tag-Based Lookup
+
+The `get_by_tag()` function returns the first xprompt/workflow matching a tag, respecting the standard
+[discovery order](#discovery-order). This means higher-priority sources (e.g., project-local) can override built-in
+tagged xprompts.
+
+```python
+from sase.xprompt.tags import XPromptTag, get_by_tag
+
+crs_wf = get_by_tag(XPromptTag.crs)
+fh_wf = get_by_tag(XPromptTag.fix_hook)
+```
+
+### Backward Compatibility
+
+The legacy `wraps_all: true` field on workflows is still supported — it automatically adds the `vcs` tag. New workflows
+should use `tags: vcs` instead.
+
+Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
 
 ## Config-Based XPrompts
 

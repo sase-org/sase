@@ -22,10 +22,11 @@ with control flow, parallel execution, and human-in-the-loop approval.
 
 ## Top-Level Structure
 
-A workflow YAML file has three top-level fields:
+A workflow YAML file has four top-level fields:
 
 ```yaml
 name: my_workflow # Workflow identifier (optional, defaults to filename)
+tags: vcs, rollover # Semantic role tags (optional)
 input: # Input parameter definitions (optional)
   ...
 steps: # Ordered list of steps (required)
@@ -37,6 +38,7 @@ steps: # Ordered list of steps (required)
 | Field   | Required | Description                                                                               |
 | ------- | -------- | ----------------------------------------------------------------------------------------- |
 | `name`  | No       | Workflow identifier used in `#name(args)` syntax. Defaults to filename without extension. |
+| `tags`  | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.               |
 | `input` | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                   |
 | `steps` | Yes      | Ordered list of workflow steps to execute.                                                |
 

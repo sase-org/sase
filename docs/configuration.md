@@ -385,6 +385,11 @@ xprompts:
       language: word
       strict: { type: bool, default: false }
     content: "Review this {{ language }} code.{{ ' Be strict.' if strict }}"
+
+  # With tags for semantic role lookup
+  my_crs:
+    content: "Summarize the code review..."
+    tags: [crs]
 ```
 
 Xprompts defined in `sase.yml` are priority 6 out of 8 in the resolution order:
@@ -589,6 +594,10 @@ No flags. Stops the running axe orchestrator.
 | `workflow_name` | string | (required) | Workflow name to explain.                   |
 | `[args]`        | string | -          | Positional arguments for the workflow.      |
 | `-a, --arg`     | string | -          | Named argument as `KEY=VALUE` (repeatable). |
+
+### `sase xprompt list`
+
+No flags. Outputs a JSON array of all available xprompts with name, type, source, inputs, tags, and preview.
 
 ### `sase xprompt graph`
 

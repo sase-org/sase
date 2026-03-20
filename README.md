@@ -72,8 +72,8 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 
 - **ACE** — Interactive TUI for navigating, filtering, and managing ChangeSpecs
 - **AXE** — Lumberjack-based daemon for continuous automation via configurable chop scripts
-- **XPrompt** — Typed prompt templates with reference expansion, YAML front matter, and CLI tools for expansion,
-  workflow visualization, and DAG graphing
+- **XPrompt** — Typed prompt templates with reference expansion, YAML front matter, semantic tags, and CLI tools for
+  expansion, listing, workflow visualization, and DAG graphing
 - **Workflows** — YAML-defined multi-step pipelines with agent, bash, and python steps, control flow, parallel
   execution, and human-in-the-loop support
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
@@ -138,6 +138,7 @@ sase
 | `sase xprompt expand`  | Expand prompt templates with sase references (supports `--trace`)                |
 | `sase xprompt explain` | Dry-run visualization of a workflow's execution plan                             |
 | `sase xprompt graph`   | Generate a DAG visualization of a workflow (Mermaid or text)                     |
+| `sase xprompt list`    | List all available xprompts with metadata, inputs, tags, and preview (JSON)      |
 | `sase commit`          | Create a commit with formatted CL description and metadata                       |
 | `sase amend`           | Amend a commit with COMMITS tracking                                             |
 | `sase revert`          | Revert a ChangeSpec by pruning its CL and archiving its diff                     |
@@ -167,10 +168,11 @@ They support control flow (conditionals, loops), parallel execution, and human-i
 ### XPrompt
 
 XPrompt is the prompt template system. Templates use YAML front matter for metadata and Jinja2 for rendering. References
-like `#name(args)` are expanded from multiple discovery locations (project, user, built-in). XPrompt powers both
-standalone prompt expansion and the prompt steps within workflows. The `sase xprompt` CLI provides subcommands for
-expanding prompts (`expand --trace`), visualizing workflow execution plans (`explain`), and generating workflow DAGs
-(`graph`).
+like `#name(args)` are expanded from multiple discovery locations (project, user, built-in). XPrompts can be annotated
+with semantic role tags (`vcs`, `crs`, `fix_hook`, `rollover`) for lookup-by-role. XPrompt powers both standalone prompt
+expansion and the prompt steps within workflows. The `sase xprompt` CLI provides subcommands for expanding prompts
+(`expand --trace`), listing all available xprompts (`list`), visualizing workflow execution plans (`explain`), and
+generating workflow DAGs (`graph`).
 
 ## Project Structure
 

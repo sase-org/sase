@@ -595,14 +595,15 @@ in ACE, sorted by relevance to the current CL/agent context.
 | `Enter`  | Submit the highlighted prompt directly        |
 | `Ctrl+G` | Edit first — load prompt into editor          |
 | `Ctrl+I` | Load prompt into the input widget for editing |
+| `Ctrl+X` | Toggle visibility of cancelled prompts        |
 | `Ctrl+Y` | Copy prompt to clipboard                      |
 | `Ctrl+D` | Delete highlighted entry from history         |
 | `Esc`    | Close modal                                   |
 
 ### Filtering
 
-Type in the search box to filter prompts by text or branch/workspace name. The special prefix `@ ` (at-space) includes
-cancelled prompts in the results.
+Type in the search box to filter prompts by text or branch/workspace name. Press `Ctrl+X` to toggle cancelled prompts on
+or off — when enabled, cancelled prompts appear in the results with a `✗` marker.
 
 ### Visual Markers
 
