@@ -29,7 +29,21 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         args_after_run = [a for a in args_after_run if a not in ("-d", "--daemon")]
         daemon_mode = True
 
-    _run_query = run_query_daemon if daemon_mode else run_query
+    def _run_query(prompt: str) -> None:
+        """Run a query, auto-routing multi-prompts through daemon mode."""
+        if daemon_mode:
+            run_query_daemon(prompt)
+            return
+        from sase.multi_prompt import is_multi_prompt
+
+        if is_multi_prompt(prompt):
+            from sase.multi_prompt import parse_multi_prompt
+
+            n = len(parse_multi_prompt(prompt).segments)
+            print(f"Multi-prompt detected — launching {n} agents in daemon mode")
+            run_query_daemon(prompt)
+            return
+        run_query(prompt)
 
     # Handle -l/--list flag (incompatible with daemon)
     if args_after_run and args_after_run[0] in ("-l", "--list"):
@@ -180,16 +194,6 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
 
         known_prompts = set(get_all_prompts().keys())
         if potential_query not in known_prompts and " " in potential_query:
-            # Auto-switch to daemon mode for multi-prompt queries.
-            from sase.multi_prompt import is_multi_prompt
-
-            if not daemon_mode and is_multi_prompt(potential_query):
-                from sase.multi_prompt import parse_multi_prompt
-
-                n = len(parse_multi_prompt(potential_query).segments)
-                print(f"Multi-prompt detected — launching {n} agents in daemon mode")
-                run_query_daemon(potential_query)
-                sys.exit(0)
             _run_query(potential_query)
             sys.exit(0)
 

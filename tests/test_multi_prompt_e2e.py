@@ -35,6 +35,25 @@ def test_cli_multi_prompt_auto_daemon_redirect() -> None:
         mock_daemon.assert_called_once_with(query)
 
 
+def test_editor_multi_prompt_auto_daemon_redirect() -> None:
+    """Editor returning a multi-prompt auto-switches to daemon mode."""
+    query = "#gh:sase fix bug\n---\n#gh:sase add tests"
+
+    with (
+        patch(
+            "sase.main.query_handler.special_cases.open_editor_for_prompt",
+            return_value=query,
+        ),
+        patch("sase.main.query_handler.special_cases.run_query_daemon") as mock_daemon,
+    ):
+        from sase.main.query_handler.special_cases import handle_run_special_cases
+
+        with pytest.raises(SystemExit) as exc_info:
+            handle_run_special_cases([])
+        assert exc_info.value.code == 0
+        mock_daemon.assert_called_once_with(query)
+
+
 def test_cli_single_prompt_no_daemon_redirect() -> None:
     """sase run with a single prompt does NOT redirect to daemon."""
     query = "Just a single prompt"
