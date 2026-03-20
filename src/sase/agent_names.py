@@ -523,16 +523,9 @@ def _get_active_agent_names() -> set[str]:
                 except (json.JSONDecodeError, OSError):
                     pass
 
-            # Done agents still hold their name until dismissed
-            # (dismissal deletes the artifact directory).
-            done_path = artifact_dir / "done.json"
-            if done_path.exists():
-                names.add(name)
-                continue
-
-            # Verify the agent process is actually alive — orphaned agents
-            # (killed via SIGKILL, system crash, etc.) may lack done.json
-            # but their process is long dead.
+            # Only running agents hold their name.  Done agents (with or
+            # without done.json) release their name immediately so the
+            # auto-name sequence doesn't accumulate gaps over time.
             if _is_process_alive(data, artifact_dir):
                 names.add(name)
 

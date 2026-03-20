@@ -133,23 +133,10 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "c"
 
-    def test_done_agent_holds_name(self, tmp_path: Path) -> None:
-        """Done but not-dismissed agent keeps its name reserved."""
+    def test_done_agent_releases_name(self, tmp_path: Path) -> None:
+        """Done agent releases its name immediately."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True)
         _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "c"
-
-    def test_reuses_dismissed_agent_name(self, tmp_path: Path) -> None:
-        """Name is freed once artifacts are deleted (dismissed)."""
-        agent_dir = _make_agent(tmp_path, "proj", "run1", "a", done=True)
-        _make_agent(tmp_path, "proj", "run2", "b", pid=os.getpid())
-
-        # Simulate dismissal by removing the artifact directory
-        import shutil
-
-        shutil.rmtree(agent_dir)
-
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
 
@@ -177,17 +164,25 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
 
-    def test_workflow_with_appears_as_agent_holds_name(self, tmp_path: Path) -> None:
-        """Workflows with appears_as_agent=True hold names normally."""
-        _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=True)
+    def test_running_workflow_with_appears_as_agent_holds_name(
+        self, tmp_path: Path
+    ) -> None:
+        """Running workflows with appears_as_agent=True hold names."""
+        _make_agent(
+            tmp_path, "proj", "run1", "a", pid=os.getpid(), appears_as_agent=True
+        )
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "b"
 
     def test_mixed_workflow_and_agent_names(self, tmp_path: Path) -> None:
-        """Only agents visible on Agents tab hold names."""
-        # Workflow (not shown) — name "a" should be free
-        _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=False)
-        # Real agent (shown) — name "b" should be held
-        _make_agent(tmp_path, "proj", "run2", "b", done=True, appears_as_agent=True)
+        """Only running agents visible on Agents tab hold names."""
+        # Running workflow (not shown) — name "a" should be free
+        _make_agent(
+            tmp_path, "proj", "run1", "a", pid=os.getpid(), appears_as_agent=False
+        )
+        # Running agent (shown) — name "b" should be held
+        _make_agent(
+            tmp_path, "proj", "run2", "b", pid=os.getpid(), appears_as_agent=True
+        )
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
