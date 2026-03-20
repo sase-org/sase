@@ -2,10 +2,12 @@
 
 import json
 import os
+import re
 import shutil
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 # Poll interval for plan approval responses (seconds)
@@ -19,6 +21,35 @@ class PlanApprovalResult:
     action: str  # "approve", "epic", or "feedback"
     plan_file: str
     feedback: str | None = None
+
+
+def add_created_frontmatter(content: str, created_at: datetime | None = None) -> str:
+    """Add a ``create`` field in YAML frontmatter to plan content.
+
+    If the content already has frontmatter (delimited by ``---``), the
+    ``create`` field is inserted into the existing block (unless it already
+    contains one).  Otherwise a new frontmatter section is prepended.
+
+    The datetime is formatted as ``yyyy-mm-dd HH:MM:SS`` (UTC).
+    """
+    if created_at is None:
+        created_at = datetime.now(UTC)
+    ts = created_at.strftime("%Y-%m-%d %H:%M:%S")
+    field = f"create: '{ts}'"
+
+    # Already has frontmatter?
+    if content.startswith("---\n"):
+        end = content.find("\n---\n", 4)
+        if end != -1:
+            fm_body = content[4 : end + 1]  # includes trailing \n
+            # Already has a create field — leave it alone.
+            if re.search(r"^create:", fm_body, re.MULTILINE):
+                return content
+            # Insert the field at the end of the frontmatter block.
+            return f"---\n{fm_body}{field}\n---\n{content[end + 5 :]}"
+
+    # No frontmatter — prepend a new block.
+    return f"---\n{field}\n---\n{content}"
 
 
 def save_plan_to_sase(plan_file: str) -> Path:

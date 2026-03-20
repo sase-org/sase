@@ -104,7 +104,9 @@ def test_write_sdd_files() -> None:
         assert spec_path.exists()
         assert plan_path.exists()
         assert spec_path.read_text(encoding="utf-8") == "# My Spec\nDetails here"
-        assert "steps:" in plan_path.read_text(encoding="utf-8")
+        plan_text = plan_path.read_text(encoding="utf-8")
+        assert plan_text.startswith("---\ncreate:")
+        assert "steps:" in plan_text
 
 
 def test_write_sdd_files_missing_plan() -> None:

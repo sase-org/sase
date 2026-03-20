@@ -1,10 +1,12 @@
 """Tests for shared plan utilities (_plan_utils.py)."""
 
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.llm_provider._plan_utils import (
     PlanApprovalResult,
+    add_created_frontmatter,
     handle_plan_approval,
     save_plan_to_sase,
 )
@@ -29,6 +31,28 @@ def test_save_plan_to_sase(tmp_path: Path) -> None:
 
     assert dest2.exists()
     assert dest2.name == "source_plan_1.md"
+
+
+def test_add_created_frontmatter_no_existing() -> None:
+    """Prepends frontmatter when the content has none."""
+    dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=UTC)
+    result = add_created_frontmatter("# My Plan\nDetails", dt)
+    assert result == "---\ncreate: '2026-03-20 14:30:00'\n---\n# My Plan\nDetails"
+
+
+def test_add_created_frontmatter_existing_frontmatter() -> None:
+    """Inserts create into existing frontmatter."""
+    content = "---\ntitle: foo\n---\n# Plan"
+    dt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+    result = add_created_frontmatter(content, dt)
+    assert result == "---\ntitle: foo\ncreate: '2026-01-01 00:00:00'\n---\n# Plan"
+
+
+def test_add_created_frontmatter_already_has_create() -> None:
+    """Leaves content unchanged if create field already exists."""
+    content = "---\ncreate: '2025-01-01 00:00:00'\n---\n# Plan"
+    result = add_created_frontmatter(content)
+    assert result == content
 
 
 def test_handle_plan_approval_auto_approve() -> None:
