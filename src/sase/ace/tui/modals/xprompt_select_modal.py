@@ -10,33 +10,10 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
-from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
-
-
-def _append_input_args(text: Text, inputs: list[InputArg]) -> None:
-    """Append styled input arg signatures to a Rich Text label.
-
-    Renders user-facing inputs on a new indented line below the xprompt name.
-    Required args appear bright; optional args are dimmed with defaults or ``?``.
-    """
-    user_inputs = [inp for inp in inputs if not inp.is_step_input]
-    if not user_inputs:
-        return
-    for inp in user_inputs:
-        text.append("\n     ")  # new line + 5-space indent
-        required = inp.default is UNSET
-        if required:
-            text.append(inp.name, style="#D7AF87")
-        else:
-            text.append(inp.name, style="dim #D7AF87")
-            has_default = inp.default is not None and str(inp.default) != ""
-            if has_default:
-                text.append(f"={inp.default}", style="dim #888888")
-            else:
-                text.append("?", style="dim #888888")
+from .xprompt_browser_helpers import append_input_args
 
 
 class _XPromptFilterInput(Input):
@@ -179,7 +156,7 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
         # Append input arg signatures
         workflow = self._prompts.get(name)
         if workflow:
-            _append_input_args(text, workflow.inputs)
+            append_input_args(text, workflow.inputs)
         return text
 
     def _create_options(self, names: list[str]) -> list[Option]:

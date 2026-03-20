@@ -2,13 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.resources
-import os
-import subprocess
-import tempfile
-from dataclasses import dataclass
-from pathlib import Path
-
 from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
@@ -17,218 +10,12 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.ace.hints import build_editor_args
-from sase.plugin_discovery import discover_plugin_resources
 from sase.xprompt import get_all_prompts
-from sase.xprompt.loader import get_sase_package_xprompts_dir
-from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.workflow_models import Workflow
 
 from .base import OptionListNavigationMixin
-from .confirm_action_modal import ConfirmActionModal
-from .xprompt_config_yaml import insert_xprompt_into_config
-
-
-def _append_input_args(text: Text, inputs: list[InputArg]) -> None:
-    """Append styled input arg signatures to a Rich Text label.
-
-    Renders user-facing inputs on a new indented line below the xprompt name.
-    Required args appear bright; optional args are dimmed with defaults or ``?``.
-    """
-    user_inputs = [inp for inp in inputs if not inp.is_step_input]
-    if not user_inputs:
-        return
-    for inp in user_inputs:
-        text.append("\n     ")  # new line + 5-space indent
-        required = inp.default is UNSET
-        if required:
-            text.append(inp.name, style="#D7AF87")
-        else:
-            text.append(inp.name, style="dim #D7AF87")
-            has_default = inp.default is not None and str(inp.default) != ""
-            if has_default:
-                text.append(f"={inp.default}", style="dim #888888")
-            else:
-                text.append("?", style="dim #888888")
-
-
-@dataclass
-class _BrowserItem:
-    """An xprompt item in the browser list."""
-
-    name: str
-    workflow: Workflow
-    source_category: str
-    source_path: str | None
-    display_path: str
-    is_editable: bool
-    item_type: str  # "xprompt" or "workflow"
-
-
-def _classify_source(source_path: str | None) -> tuple[str, str, bool]:
-    """Classify a source path into (category_label, display_path, is_editable)."""
-    if source_path is None:
-        return "Built-in", "", True
-
-    home = str(Path.home())
-    cwd = str(Path.cwd())
-    sase_pkg_dir = str(get_sase_package_xprompts_dir())
-
-    # Plugin sources: "plugin:module_name/filename.md" (xprompts/ dirs)
-    # or "plugin_config:module_name" (default_config.yml)
-    if source_path.startswith("plugin:") or source_path.startswith("plugin_config:"):
-        if source_path.startswith("plugin_config:"):
-            module_name = source_path.removeprefix("plugin_config:")
-        else:
-            module_part = source_path.removeprefix("plugin:")
-            module_name = (
-                module_part.split("/")[0] if "/" in module_part else module_part
-            )
-        short_name = module_name.replace("_", "-")
-        return f"Plugin ({short_name})", source_path, True
-
-    # Built-in default config xprompts
-    if source_path == "default_config":
-        return "Built-in", "sase default_config.yml", True
-
-    # Config sources: user sase.yml
-    if source_path == "config":
-        return "User sase.yml", "~/.config/sase/sase.yml", True
-
-    # Config overlay sources: sase_*.yml files
-    if source_path.startswith("config_overlay:"):
-        filename = source_path.removeprefix("config_overlay:")
-        return "User sase.yml", f"~/.config/sase/{filename}", True
-
-    # Local sase.yml in CWD
-    if source_path == "local_config":
-        return "Local sase.yml", "./sase.yml", True
-
-    # Inside sase package (built-in)
-    if source_path.startswith(sase_pkg_dir):
-        return "Built-in", source_path.replace(home, "~"), True
-
-    # Project-specific: ~/.config/sase/xprompts/{proj}/
-    project_prefix = os.path.join(home, ".config", "sase", "xprompts")
-    if source_path.startswith(project_prefix + "/"):
-        remainder = source_path[len(project_prefix) + 1 :]
-        proj = remainder.split("/")[0]
-        return f"Project ({proj})", source_path.replace(home, "~"), True
-
-    # CWD directories
-    cwd_hidden = os.path.join(cwd, ".xprompts")
-    cwd_visible = os.path.join(cwd, "xprompts")
-    if source_path.startswith(cwd_hidden + "/"):
-        return "CWD .xprompts/", source_path.replace(cwd, "."), True
-    if source_path.startswith(cwd_visible + "/"):
-        return "CWD xprompts/", source_path.replace(cwd, "."), True
-
-    # Home directories
-    home_hidden = os.path.join(home, ".xprompts")
-    home_visible = os.path.join(home, "xprompts")
-    if source_path.startswith(home_hidden + "/"):
-        return "Home ~/.xprompts/", source_path.replace(home, "~"), True
-    if source_path.startswith(home_visible + "/"):
-        return "Home ~/xprompts/", source_path.replace(home, "~"), True
-
-    # Fallback
-    return "Other", source_path.replace(home, "~"), True
-
-
-def _resolve_source_to_file_path(source_path: str | None) -> str | None:
-    """Resolve a source path identifier to an actual filesystem path.
-
-    Handles plugin, config, and built-in source path formats used by the
-    xprompt loader, returning the real file path that can be opened in an editor.
-    """
-    if source_path is None:
-        return None
-
-    # plugin:module_name/filename → resolve xprompts dir via importlib.resources
-    if source_path.startswith("plugin:"):
-        remainder = source_path.removeprefix("plugin:")
-        if "/" in remainder:
-            module_name, filename = remainder.split("/", 1)
-        else:
-            return None
-        for module in discover_plugin_resources("sase_xprompts"):
-            if module.__name__ == module_name:
-                try:
-                    xprompts_dir = importlib.resources.files(module).joinpath(
-                        "xprompts"
-                    )
-                    return str(Path(str(xprompts_dir)) / filename)
-                except (TypeError, AttributeError):
-                    pass
-        return None
-
-    # plugin_config:module_name → resolve default_config.yml via importlib.resources
-    if source_path.startswith("plugin_config:"):
-        module_name = source_path.removeprefix("plugin_config:")
-        for module in discover_plugin_resources("sase_config"):
-            if module.__name__ == module_name:
-                try:
-                    ref = importlib.resources.files(module).joinpath(
-                        "default_config.yml"
-                    )
-                    return str(ref)
-                except (TypeError, AttributeError):
-                    pass
-        return None
-
-    # default_config → sase's bundled default_config.yml
-    if source_path == "default_config":
-        try:
-            return str(importlib.resources.files("sase").joinpath("default_config.yml"))
-        except Exception:
-            return None
-
-    # local_config → ./sase.yml in CWD
-    if source_path == "local_config":
-        return str(Path.cwd() / "sase.yml")
-
-    # config → user sase.yml
-    if source_path == "config":
-        return str(Path.home() / ".config" / "sase" / "sase.yml")
-
-    # config_overlay:filename → user sase config overlay
-    if source_path.startswith("config_overlay:"):
-        filename = source_path.removeprefix("config_overlay:")
-        return str(Path.home() / ".config" / "sase" / filename)
-
-    # Regular filesystem path — return as-is
-    return source_path
-
-
-def _get_git_root(file_path: str) -> str | None:
-    """Return the git repo root for the given file, or None if not in a repo."""
-    directory = str(Path(file_path).parent)
-    try:
-        result = subprocess.run(
-            ["git", "-C", directory, "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except OSError:
-        pass
-    return None
-
-
-def _has_git_changes(git_root: str, file_path: str) -> bool:
-    """Check if the file has uncommitted changes (staged or unstaged)."""
-    try:
-        result = subprocess.run(
-            ["git", "-C", git_root, "status", "--porcelain", "--", file_path],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return bool(result.stdout.strip())
-    except OSError:
-        return False
+from .xprompt_browser_actions import XPromptBrowserActionsMixin
+from .xprompt_browser_helpers import BrowserItem, append_input_args, classify_source
 
 
 class _BrowserFilterInput(Input):
@@ -273,7 +60,9 @@ class _BrowserFilterInput(Input):
                 self.cursor_position = 0
 
 
-class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
+class XPromptBrowserModal(
+    XPromptBrowserActionsMixin, OptionListNavigationMixin, ModalScreen[None]
+):
     """Modal for browsing, inspecting, and managing xprompts."""
 
     _option_list_id = "browser-list"
@@ -285,21 +74,21 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
     def __init__(self, project: str | None = None) -> None:
         super().__init__()
         self._project = project
-        self._all_items: list[_BrowserItem] = []
-        self._grouped: list[tuple[str, list[_BrowserItem]]] = []
+        self._all_items: list[BrowserItem] = []
+        self._grouped: list[tuple[str, list[BrowserItem]]] = []
         self._load_xprompts()
 
     def _load_xprompts(self) -> None:
         """Load all xprompts and organize into groups."""
         prompts = get_all_prompts(project=self._project)
-        items: list[_BrowserItem] = []
+        items: list[BrowserItem] = []
 
         for name, workflow in prompts.items():
             source_path = workflow.source_path
-            category, display_path, is_editable = _classify_source(source_path)
+            category, display_path, is_editable = classify_source(source_path)
             item_type = "xprompt" if workflow.is_simple_xprompt() else "workflow"
             items.append(
-                _BrowserItem(
+                BrowserItem(
                     name=name,
                     workflow=workflow,
                     source_category=category,
@@ -324,7 +113,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
         )
 
         # Group by category
-        groups: dict[str, list[_BrowserItem]] = {}
+        groups: dict[str, list[BrowserItem]] = {}
         for item in filtered:
             groups.setdefault(item.source_category, []).append(item)
 
@@ -339,7 +128,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             "Home ~/xprompts/",
         ]
 
-        ordered: list[tuple[str, list[_BrowserItem]]] = []
+        ordered: list[tuple[str, list[BrowserItem]]] = []
         seen: set[str] = set()
 
         for cat in known_order:
@@ -374,9 +163,9 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
 
         self._grouped = ordered
 
-    def _get_flat_items(self) -> list[_BrowserItem]:
+    def _get_flat_items(self) -> list[BrowserItem]:
         """Get flat list of items from grouped data (for index lookups)."""
-        result: list[_BrowserItem] = []
+        result: list[BrowserItem] = []
         for _, items in self._grouped:
             result.extend(items)
         return result
@@ -424,7 +213,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
                 )
         return options
 
-    def _create_item_label(self, item: _BrowserItem) -> Text:
+    def _create_item_label(self, item: BrowserItem) -> Text:
         """Create styled label for an xprompt item."""
         text = Text()
         if item.item_type == "workflow":
@@ -434,7 +223,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append("  #", style="bold #87D7FF")
         text.append(item.name)
         # Append input arg signatures
-        _append_input_args(text, item.workflow.inputs)
+        append_input_args(text, item.workflow.inputs)
         return text
 
     def on_mount(self) -> None:
@@ -515,7 +304,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             except Exception:
                 continue
 
-    def _get_highlighted_item(self) -> _BrowserItem | None:
+    def _get_highlighted_item(self) -> BrowserItem | None:
         """Get the currently highlighted browser item."""
         option_list = self.query_one("#browser-list", OptionList)
         highlighted = option_list.highlighted
@@ -531,213 +320,6 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
         except Exception:
             pass
         return None
-
-    def action_edit_xprompt(self) -> None:
-        """Open highlighted xprompt in $EDITOR."""
-        item = self._get_highlighted_item()
-        if item is None:
-            return
-
-        if not item.is_editable:
-            self.notify("This xprompt is read-only", severity="warning")
-            return
-
-        file_path = _resolve_source_to_file_path(item.source_path)
-        if file_path is None:
-            self.notify("Could not resolve source file path", severity="error")
-            return
-
-        editor = os.environ.get("EDITOR") or "nvim"
-        editor_args = build_editor_args(editor, [file_path])
-
-        with self.app.suspend():  # type: ignore[attr-defined]
-            subprocess.run(editor_args, check=False)
-
-        self._reload_xprompts()
-        self._offer_git_commit(file_path, is_new=False, xprompt_name=item.name)
-
-    def action_add_xprompt(self) -> None:
-        """Add a new xprompt via location selector then filename input."""
-        from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
-        from .xprompt_filename_modal import XPromptFilenameModal
-        from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
-
-        def _on_location(location: XPromptLocation | None) -> None:
-            if location is None:
-                return
-            if location.location_type == "config":
-                # Config file — collect name + inputs via modal, then content
-                def _on_config_entry(entry: XPromptConfigEntry | None) -> None:
-                    if entry is None:
-                        return
-                    self._create_config_xprompt(location.path, entry)
-
-                self.app.push_screen(
-                    XPromptConfigEntryModal(config_path=location.path),
-                    _on_config_entry,
-                )
-            else:
-                # Directory location — ask for filename
-                def _on_filename(path: str | None) -> None:
-                    if path is None:
-                        return
-                    self._create_and_edit_xprompt(path)
-
-                self.app.push_screen(
-                    XPromptFilenameModal(directory=location.path), _on_filename
-                )
-
-        self.app.push_screen(XPromptLocationModal(project=self._project), _on_location)
-
-    def _create_and_edit_xprompt(self, path: str) -> None:
-        """Create a skeleton xprompt file and open in editor."""
-        expanded = os.path.expanduser(path)
-        file_path = Path(expanded)
-
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if not file_path.exists():
-            name = file_path.stem
-            if file_path.suffix == ".yml":
-                schema_path = get_sase_package_xprompts_dir() / "workflow.schema.json"
-                skeleton = (
-                    "# yaml-language-server: $schema=" + str(schema_path) + "\n"
-                    "\n"
-                    "steps:\n"
-                    "  - name: main\n"
-                    "    prompt: |\n"
-                    "      <your prompt here>\n"
-                )
-            else:
-                skeleton = f"# {name}\n\nYour xprompt content here.\n"
-            file_path.write_text(skeleton, encoding="utf-8")
-
-        editor = os.environ.get("EDITOR") or "nvim"
-        editor_args = build_editor_args(editor, [str(file_path)])
-
-        with self.app.suspend():  # type: ignore[attr-defined]
-            subprocess.run(editor_args, check=False)
-
-        self._reload_xprompts()
-        xprompt_name = file_path.stem
-        self._offer_git_commit(str(file_path), is_new=True, xprompt_name=xprompt_name)
-
-    def _create_config_xprompt(
-        self,
-        config_path: str,
-        entry: object,
-    ) -> None:
-        """Open $EDITOR for content, then insert the xprompt into a config file."""
-        from .xprompt_config_modal import XPromptConfigEntry
-
-        assert isinstance(entry, XPromptConfigEntry)
-
-        # Build a helpful template for the editor
-        if entry.inputs:
-            input_vars = ", ".join(f"{{{{ {n} }}}}" for n, _ in entry.inputs)
-            template = f"Your xprompt content here.\n\nAvailable inputs: {input_vars}\n"
-        else:
-            template = "Your xprompt content here.\n"
-
-        tmp_fd, tmp_path = tempfile.mkstemp(
-            suffix=".md", prefix=f"xprompt_{entry.name}_"
-        )
-        try:
-            os.write(tmp_fd, template.encode("utf-8"))
-            os.close(tmp_fd)
-
-            editor = os.environ.get("EDITOR") or "nvim"
-            editor_args = build_editor_args(editor, [tmp_path])
-
-            with self.app.suspend():  # type: ignore[attr-defined]
-                subprocess.run(editor_args, check=False)
-
-            content = Path(tmp_path).read_text(encoding="utf-8")
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-
-        if not content.strip():
-            self.notify("Empty content, xprompt not created", severity="warning")
-            return
-
-        success = insert_xprompt_into_config(
-            config_path, entry.name, entry.inputs, content
-        )
-
-        if success:
-            self.notify(f"Added xprompt '{entry.name}' to config")
-            self._reload_xprompts()
-            self._offer_git_commit(config_path, is_new=True, xprompt_name=entry.name)
-        else:
-            self.notify("Failed to insert xprompt into config", severity="error")
-
-    def _offer_git_commit(
-        self, file_path: str, *, is_new: bool, xprompt_name: str
-    ) -> None:
-        """If the file is in a git repo and has changes, offer to commit and push."""
-        git_root = _get_git_root(file_path)
-        if git_root is None:
-            return
-        if not _has_git_changes(git_root, file_path):
-            return
-
-        rel_path = os.path.relpath(file_path, git_root)
-        verb = "Add" if is_new else "Update"
-
-        def _on_commit_answer(confirmed: bool | None) -> None:
-            if not confirmed:
-                return
-            # Stage and commit
-            subprocess.run(
-                ["git", "-C", git_root, "add", "--", file_path],
-                capture_output=True,
-                check=False,
-            )
-            message = f"chore: {verb} xprompt {xprompt_name}"
-            result = subprocess.run(
-                ["git", "-C", git_root, "commit", "-m", message],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode != 0:
-                self.notify(f"Commit failed: {result.stderr.strip()}", severity="error")
-                return
-            self.notify(f"Committed: {message}")
-
-            # Offer to push
-            def _on_push_answer(push_confirmed: bool | None) -> None:
-                if not push_confirmed:
-                    return
-                push_result = subprocess.run(
-                    ["git", "-C", git_root, "push"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                if push_result.returncode == 0:
-                    self.notify("Pushed to remote")
-                else:
-                    self.notify(
-                        f"Push failed: {push_result.stderr.strip()}",
-                        severity="error",
-                    )
-
-            self.app.push_screen(
-                ConfirmActionModal("Push to Remote", "Push changes to remote?"),
-                _on_push_answer,
-            )
-
-        self.app.push_screen(
-            ConfirmActionModal(
-                "Commit Changes",
-                f"Commit changes to '{rel_path}'?",
-            ),
-            _on_commit_answer,
-        )
 
     def _reload_xprompts(self) -> None:
         """Reload all xprompts and rebuild the list."""
@@ -785,7 +367,7 @@ class XPromptBrowserModal(OptionListNavigationMixin, ModalScreen[None]):
             self._skip_to_first_item(option_list)
             self._update_preview(flat_items[0])
 
-    def _update_preview(self, item: _BrowserItem) -> None:
+    def _update_preview(self, item: BrowserItem) -> None:
         """Update the preview panel for an item."""
         try:
             preview = self.query_one("#browser-preview", Static)
