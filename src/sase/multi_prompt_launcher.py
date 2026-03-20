@@ -172,7 +172,11 @@ def launch_multi_prompt_agents(
         results.append(result)
 
         if on_agent_spawned is not None:
-            on_agent_spawned()
+            try:
+                on_agent_spawned()
+            except Exception as e:  # pragma: no cover - defensive callback guard
+                # UI callbacks should never prevent later segment launches.
+                print(f"  Agent {i + 1}/{len(segments)} spawn callback failed: {e}")
 
         # Wait for agent naming before launching the next segment,
         # so bare %wait in the next segment can resolve to this agent.

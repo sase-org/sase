@@ -271,3 +271,43 @@ def test_launch_multi_prompt_passes_local_xprompts_file(
         path = call.kwargs["local_xprompts_file"]
         if os.path.exists(path):
             os.unlink(path)
+
+
+@patch("sase.agent_launcher.spawn_agent_subprocess")
+@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.sase_utils.generate_timestamp")
+@patch("sase.shared_utils.create_artifacts_directory")
+@patch("sase.running_field.get_first_available_axe_workspace")
+@patch("sase.running_field.get_workspace_directory_for_num")
+def test_launch_multi_prompt_callback_failure_does_not_abort(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """A failing on_agent_spawned callback does not stop later launches."""
+    mock_first_ws.side_effect = [100, 101]
+    mock_ws_dir.side_effect = [("/ws/100", None), ("/ws/101", None)]
+    mock_timestamp.side_effect = ["ts_a", "ts_b"]
+    mock_wait.return_value = "alpha"
+    mock_create_artifacts.return_value = "/artifacts/dir"
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    def _failing_callback() -> None:
+        raise RuntimeError("ui callback failed")
+
+    results = launch_multi_prompt_agents(
+        segments=["seg1", "seg2"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+        on_agent_spawned=_failing_callback,
+    )
+
+    assert len(results) == 2
+    assert mock_spawn.call_count == 2
