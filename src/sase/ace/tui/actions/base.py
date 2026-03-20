@@ -160,6 +160,11 @@ class BaseActionsMixin:
         3. Submits background task that claims workspace, checks out CL, adds tag
         4. Shows toast notifications for start/completion/failure
         """
+        # On agents tab, dispatch to wait-for action
+        if self.current_tab == "agents":
+            self.action_wait_for_agent()  # type: ignore[attr-defined]
+            return
+
         from ...changespec import get_base_status
         from ...saved_tag_names import load_saved_tags, save_tag
         from ..modals import TagInputModal
