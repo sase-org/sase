@@ -91,6 +91,7 @@ class PromptInputBar(Static):
         self.border_title = "Prompt"
         cancelled = PromptTextArea._last_cancelled_prompt
         if cancelled:
+            text_area.placeholder = cancelled
             hint = cancelled[:40] + "…" if len(cancelled) > 40 else cancelled
             self.border_subtitle = f"[^E] {hint}"
         else:

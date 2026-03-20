@@ -37,6 +37,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     BINDINGS = [
         ("enter", "submit_prompt", "Submit"),
         ("ctrl+j", "insert_newline", "New line"),
+        ("ctrl+e", "cursor_line_end", "End/Fill"),
         ("ctrl+f", "cursor_right", "Forward"),
         ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+g", "open_editor", "Edit in editor"),
