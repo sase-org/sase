@@ -1,6 +1,6 @@
 ---
 approved_at: "2026-03-21 01:17:04"
-status: wip
+status: done
 ---
 
 # Plan: sase-6.5 — Config grouping + final loose file cleanup
