@@ -322,6 +322,7 @@ class MentorStatusLine:
     Format in file:
       | [YYmmdd_HHMMSS] <profile>:<mentor> - RUNNING - (@: mentor_<name>-<PID>-YYmmdd_HHMMSS)
       | [YYmmdd_HHMMSS] <profile>:<mentor> - PASSED - (XhYmZs)
+      | [YYmmdd_HHMMSS] <profile>:<mentor> - COMMENTED - (XhYmZs)
       | [YYmmdd_HHMMSS] <profile>:<mentor> - FAILED - (XhYmZs)
 
     The timestamp prefix links to the chat file at ~/.sase/chats/*.md.
@@ -330,9 +331,11 @@ class MentorStatusLine:
       - suffix format: mentor_<name>-<PID>-YYmmdd_HHMMSS
       - suffix_type: "running_agent"
 
-    When complete (PASSED/FAILED):
+    When complete (PASSED/COMMENTED/FAILED):
       - suffix format: duration (e.g., "0h2m15s")
       - suffix_type: "plain" or None
+      - COMMENTED = mentor produced one or more review comments
+      - PASSED = mentor found no issues
 
     Suffix type markers:
     - "@:" = running_agent
@@ -341,7 +344,7 @@ class MentorStatusLine:
 
     profile_name: str  # The mentor profile name
     mentor_name: str  # The mentor name within the profile
-    status: str  # RUNNING, PASSED, FAILED
+    status: str  # RUNNING, PASSED, FAILED, COMMENTED
     timestamp: str  # YYmmdd_HHMMSS format, for linking to chat files
     duration: str | None = None  # e.g., "0h2m15s" when complete
     suffix: str | None = (

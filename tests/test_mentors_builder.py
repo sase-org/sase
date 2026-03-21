@@ -46,6 +46,87 @@ def _make_hint_tracker(counter: int = 0) -> HintTracker:
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
+def test_commented_status_displayed(_mock_fmt: object, _mock_exists: object) -> None:
+    """Test that COMMENTED status is displayed with proper styling."""
+    msl = MentorStatusLine(
+        profile_name="prof",
+        mentor_name="code_quality",
+        status="COMMENTED",
+        timestamp="260321_120000",
+        duration="3m15s",
+    )
+    mentor_entry = MentorEntry(
+        entry_id="1",
+        profiles=["prof"],
+        status_lines=[msl],
+    )
+    changespec = _make_changespec(
+        commits=[CommitEntry(number=1, note="initial")],
+        mentors=[mentor_entry],
+    )
+
+    text = Text()
+    tracker = build_mentors_section(
+        text,
+        changespec,
+        mentors_fold=FoldLevel.EXPANDED,
+        with_hints=True,
+        hint_tracker=_make_hint_tracker(counter=0),
+    )
+
+    plain = text.plain
+    assert "COMMENTED" in plain
+    assert "3m15s" in plain
+    # COMMENTED should get a hint (like PASSED/FAILED)
+    assert tracker.counter == 1
+
+
+@patch("sase.ace.tui.widgets.mentors_builder.os.path.exists", return_value=True)
+@patch(
+    "sase.ace.display_helpers.format_profile_with_count",
+    return_value="prof[1/1]",
+)
+def test_commented_folded_in_collapsed_mode(
+    _mock_fmt: object, _mock_exists: object
+) -> None:
+    """Test that COMMENTED is folded in COLLAPSED mode like PASSED."""
+    msl = MentorStatusLine(
+        profile_name="prof",
+        mentor_name="code_quality",
+        status="COMMENTED",
+        timestamp="260321_120000",
+        duration="3m15s",
+    )
+    mentor_entry = MentorEntry(
+        entry_id="1",
+        profiles=["prof"],
+        status_lines=[msl],
+    )
+    changespec = _make_changespec(
+        commits=[CommitEntry(number=1, note="initial")],
+        mentors=[mentor_entry],
+    )
+
+    text = Text()
+    build_mentors_section(
+        text,
+        changespec,
+        mentors_fold=FoldLevel.COLLAPSED,
+        with_hints=False,
+        hint_tracker=_make_hint_tracker(),
+    )
+
+    plain = text.plain
+    # COMMENTED should be folded in COLLAPSED mode
+    assert "folded" in plain
+    assert "COMMENTED: 1" in plain
+
+
+@patch("sase.ace.tui.widgets.mentors_builder.os.path.exists", return_value=True)
+@patch(
+    "sase.ace.display_helpers.format_profile_with_count",
+    return_value="prof[1/1]",
+)
 def test_error_non_path_suffix_no_hint(_mock_fmt: object, _mock_exists: object) -> None:
     """Error suffix that is NOT a file path does not get a hint."""
     msl = MentorStatusLine(

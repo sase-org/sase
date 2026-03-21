@@ -1,0 +1,46 @@
+tags: mentor
+
+input:
+  role: text
+  focus_areas_json: text
+  cl_name: { type: word, default: "null" }
+  vcs_type: { type: word, default: "hg" }
+  schema: text
+
+steps:
+  - name: render_focus_areas
+    hidden: true
+    python: |
+      import json
+      areas = json.loads("{{ focus_areas_json }}")
+      formatted = "\n".join(
+          f"### {a['focus_name']}\n{a['description']}" for a in areas
+      )
+      output = {"rendered_focus_areas": formatted}
+    output: { rendered_focus_areas: text }
+
+  - name: review
+    prompt_part: |
+      %model:#pro
+      {% if cl_name != "null" %}#{{ vcs_type }}:{{ cl_name }}
+
+      {% endif %}### Role
+
+      You are a {{ role }}.
+
+      You will review a CL and provide structured feedback on specific focus areas.
+      You must NOT make any file changes. Instead, produce structured JSON output
+      describing any issues you find.
+
+      IMPORTANT:
+      - DO NOT make any changes outside the scope of the focus areas below.
+      - Do NOT comment on code that was not modified / added by this CL.
+      - Every comment MUST be actionable: include the file path, line number, and
+        a clear description of what should be changed.
+      - If you find no issues for a focus area, omit it from your output.
+
+      ### Focus Areas
+
+      {{ rendered_focus_areas }}
+
+      #json:`{{ schema }}`

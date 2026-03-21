@@ -67,62 +67,49 @@ def main() -> None:
 
     try:
         try:
-            # Build who identifier for proposal
-            who = f"mentor:{mentor_name}"
-
             # Run the mentor workflow (#hg handles workspace management)
             workflow = MentorWorkflow(
                 profile_name=profile_name,
                 mentor_name=mentor_name,
                 cl_name=cl_name,
                 timestamp=timestamp,
-                who=who,
             )
             success = workflow.run()
             response_path = workflow.response_path
-
-            # Get proposal_id from workflow
-            proposal_id: str | None = workflow.proposal_id
+            comment_count = workflow.comment_count
         except Exception as e:
             print(f"Error running mentor workflow: {e}", file=sys.stderr)
             success = False
-            proposal_id = None
+            comment_count = 0
 
         end_time = time.time()
         elapsed_seconds = int(end_time - start_time)
         duration = format_duration(elapsed_seconds)
 
-        # Determine final status
-        # PASSED = mentor ran successfully and made no changes
-        # FAILED = mentor ran and made changes (created a proposal)
-        # Note: Currently, we mark as PASSED if the workflow succeeded
-        # The mentor workflow itself handles creating proposals for changes
-        final_status = "PASSED" if success else "FAILED"
+        # Determine final status:
+        # - COMMENTED: mentor ran successfully and produced review comments
+        # - PASSED: mentor ran successfully with no comments (no issues found)
+        # - FAILED: mentor errored or produced invalid JSON
+        if success and comment_count > 0:
+            final_status = "COMMENTED"
+        elif success:
+            final_status = "PASSED"
+        else:
+            final_status = "FAILED"
 
         print()
         print(f"Mentor workflow completed with status: {final_status}")
         print(f"Duration: {duration}")
-
-        if proposal_id:
-            print(f"Associated proposal: {proposal_id}")
-
-        # Determine final status:
-        # - FAILED if a proposal was created (regardless of workflow success)
-        # - PASSED if workflow succeeded with no proposal
-        # - FAILED if workflow errored (no proposal, already set above)
-        if proposal_id:
-            final_status = "FAILED"
+        if comment_count > 0:
+            print(f"Comments: {comment_count}")
 
         # Update MENTORS field with result
-        # When FAILED without a proposal, include the output file path for debugging
-        if final_status == "FAILED" and not proposal_id:
+        # When FAILED, include the output file path for debugging
+        if final_status == "FAILED":
             # Shorten home directory to ~ for readability
             display_path = output_path.replace(os.path.expanduser("~"), "~")
             suffix = display_path
             suffix_type = "error"
-        elif proposal_id:
-            suffix = proposal_id
-            suffix_type = "entry_ref"
         else:
             suffix = None
             suffix_type = None
@@ -141,7 +128,7 @@ def main() -> None:
                     mentor_name,
                     status=final_status,
                     timestamp=timestamp,
-                    duration=duration if final_status == "PASSED" else None,
+                    duration=duration if final_status != "FAILED" else None,
                     suffix=suffix,
                     suffix_type=suffix_type,
                 )

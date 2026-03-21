@@ -83,6 +83,7 @@ def build_mentors_section(
         #   folded for non-latest
         # - FULLY_EXPANDED: nothing folded
         passed_count = 0
+        commented_count = 0
         failed_count = 0
         dead_count = 0
         if mentors_fold != FoldLevel.FULLY_EXPANDED and mentor_entry.status_lines:
@@ -94,6 +95,13 @@ def build_mentors_section(
                     elif not is_latest_entry:
                         # EXPANDED: only non-latest PASSED are folded
                         passed_count += 1
+                elif msl.status == "COMMENTED":
+                    if mentors_fold == FoldLevel.COLLAPSED:
+                        # COLLAPSED: all COMMENTED are folded
+                        commented_count += 1
+                    elif not is_latest_entry:
+                        # EXPANDED: only non-latest COMMENTED are folded
+                        commented_count += 1
                 elif msl.status == "FAILED":
                     if not is_latest_entry:
                         failed_count += 1
@@ -117,11 +125,13 @@ def build_mentors_section(
             text.append(" #Draft", style="bold #FFD700")
 
         # Add folded suffix if has folded statuses
-        if passed_count or failed_count or dead_count:
+        if passed_count or commented_count or failed_count or dead_count:
             text.append("  [folded: ", style="italic #808080")
             parts: list[tuple[str, int, str]] = []
             if passed_count:
                 parts.append(("PASSED", passed_count, "#00AF00"))
+            if commented_count:
+                parts.append(("COMMENTED", commented_count, "#5FAFFF"))
             if failed_count:
                 parts.append(("FAILED", failed_count, "#FF5F5F"))
             if dead_count:
@@ -152,6 +162,7 @@ def build_mentors_section(
                             continue
                         if mentors_fold == FoldLevel.COLLAPSED and msl.status in (
                             "PASSED",
+                            "COMMENTED",
                             "DEAD",
                         ):
                             continue
@@ -173,7 +184,9 @@ def build_mentors_section(
                         text.append(f"[{hint_counter}] ", style="bold #FF5F5F")
                         hint_counter += 1
                 elif (
-                    with_hints and msl.timestamp and msl.status in ("PASSED", "FAILED")
+                    with_hints
+                    and msl.timestamp
+                    and msl.status in ("PASSED", "COMMENTED", "FAILED")
                 ):
                     chat_path = get_mentor_chat_path(
                         changespec.name, msl.mentor_name, msl.timestamp
@@ -202,6 +215,8 @@ def build_mentors_section(
                 # Color based on status
                 if msl.status == "PASSED":
                     text.append(msl.status, style="bold #00AF00")
+                elif msl.status == "COMMENTED":
+                    text.append(msl.status, style="bold #5FAFFF")
                 elif msl.status == "FAILED":
                     text.append(msl.status, style="bold #FF5F5F")
                 elif msl.status == "RUNNING":

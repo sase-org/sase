@@ -1,26 +1,35 @@
 """Workflow for running mentor agents on CLs."""
 
+import json
+import logging
 import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from typing import NoReturn
 
+from rich.console import Console
 from rich.markup import escape as _esc
 
 from sase.ace.changespec import find_all_changespecs
-from sase.sase_utils import generate_timestamp
-from sase.llm_provider import LLMInvocationError, invoke_agent
-from sase.main.query_handler import (
-    execute_standalone_steps,
-    expand_embedded_workflows_in_query,
+from sase.ace.mentor_output import (
+    MENTOR_OUTPUT_JSON_SCHEMA,
+    MentorComment,
+    MentorOutput,
+    save_mentor_output,
 )
 from sase.config.mentor import (
     MentorConfig,
     get_mentor_from_profile,
     get_mentor_profile_by_name,
 )
-from rich.console import Console
+from sase.llm_provider import LLMInvocationError, invoke_agent
+from sase.main.query_handler import (
+    execute_standalone_steps,
+    expand_embedded_workflows_in_query,
+)
 from sase.rich_utils import print_artifact_created, print_status, print_workflow_header
+from sase.sase_utils import generate_timestamp
 from sase.shared_utils import (
     create_artifacts_directory,
     ensure_str_content,
@@ -30,37 +39,118 @@ from sase.shared_utils import (
 )
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import get_cl_name_from_branch
+from sase.xprompt.output_validation import extract_structured_content
+from sase.xprompt.tags import XPromptTag, get_by_tag_strict
+from sase.xprompt.workflow_executor_utils import render_template
+
+log = logging.getLogger(__name__)
 
 
 def _build_mentor_prompt(
     mentor: MentorConfig,
     cl_name: str,
-    mentor_name: str,
     vcs_type: str = "hg",
+    project: str | None = None,
 ) -> str:
-    """Build the mentor prompt with VCS workspace management prepended.
+    """Build the mentor prompt by resolving the #mentor xprompt workflow.
 
-    Constructs a review prompt from the mentor's role and focus areas.
+    Resolves the ``#mentor`` tagged xprompt, executes its pre-steps
+    (focus area rendering), and returns the rendered prompt_part.
+    The result contains embedded workflow references (``#hg``, ``#json``)
+    that must be expanded by ``expand_embedded_workflows_in_query``.
 
     Args:
         mentor: The mentor configuration.
         cl_name: CL name passed to the embedded workflow.
-        mentor_name: Name of the specific mentor (used in workflow label).
         vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
+        project: Optional project name for xprompt resolution.
 
     Returns:
-        The complete prompt with ``#<vcs_type>:<cl_name>`` prepended.
+        The rendered prompt with embedded workflow references.
     """
-    focus_sections = "\n".join(
-        f"### {fa.focus_name}\n{fa.description}" for fa in mentor.focus_areas
+    mentor_wf = get_by_tag_strict(XPromptTag.mentor, project=project)
+    if mentor_wf is None:
+        raise RuntimeError(
+            "No xprompt with tag 'mentor' found. "
+            "Ensure src/sase/xprompts/mentor.yml is installed."
+        )
+
+    # Build input context
+    focus_areas_json = json.dumps(
+        [asdict(fa) for fa in mentor.focus_areas], ensure_ascii=False
     )
-    review_prompt = (
-        f"### Role\n\nYou are a {mentor.role}.\n\n"
-        f"You will review a CL and provide feedback on specific focus areas.\n\n"
-        f"### Focus Areas\n\n{focus_sections}"
-    )
-    label = f"mentor({mentor_name})"
-    return f'#{vcs_type}({cl_name}, workflow_label="{label}")\n\n{review_prompt}'
+    schema = json.dumps(MENTOR_OUTPUT_JSON_SCHEMA, ensure_ascii=False)
+    context: dict[str, str] = {
+        "role": mentor.role,
+        "focus_areas_json": focus_areas_json,
+        "schema": schema,
+        "cl_name": cl_name,
+        "vcs_type": vcs_type,
+    }
+
+    # Execute pre-prompt steps (render_focus_areas python step)
+    pre_steps = mentor_wf.get_pre_prompt_steps()
+    if pre_steps:
+        context = execute_standalone_steps(pre_steps, context, "mentor", None)
+
+    # Render prompt_part with context
+    prompt_part_content = mentor_wf.get_prompt_part_content()
+    if not prompt_part_content:
+        raise RuntimeError(
+            "The #mentor xprompt has no prompt_part step. "
+            "Check src/sase/xprompts/mentor.yml."
+        )
+    return render_template(prompt_part_content, context)
+
+
+def _parse_mentor_json(
+    response_content: str,
+    profile_name: str,
+    mentor_name: str,
+) -> MentorOutput | None:
+    """Parse the mentor's JSON response into a MentorOutput.
+
+    Extracts JSON from code fences in the response and validates
+    the required fields.
+
+    Args:
+        response_content: The raw LLM response text.
+        profile_name: Profile name for the output metadata.
+        mentor_name: Mentor name for the output metadata.
+
+    Returns:
+        Parsed MentorOutput, or None if parsing fails.
+    """
+    try:
+        data, _ = extract_structured_content(response_content)
+    except Exception:
+        log.warning("Failed to extract JSON from mentor response")
+        return None
+
+    if not isinstance(data, dict):
+        log.warning("Mentor response is not a JSON object")
+        return None
+
+    try:
+        comments = [
+            MentorComment(
+                focus_name=c["focus_name"],
+                file_path=c["file_path"],
+                line_number=c["line_number"],
+                description=c["description"],
+                severity=c["severity"],
+            )
+            for c in data.get("comments", [])
+        ]
+        return MentorOutput(
+            mentor_name=data.get("mentor_name", mentor_name),
+            profile_name=data.get("profile_name", profile_name),
+            role=data.get("role", ""),
+            comments=comments,
+        )
+    except (KeyError, TypeError) as e:
+        log.warning("Failed to parse mentor JSON: %s", e)
+        return None
 
 
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
@@ -100,7 +190,7 @@ class MentorWorkflow(BaseWorkflow):
             mentor_name: Name of the mentor to use.
             cl_name: CL name to work on (defaults to current branch name).
             timestamp: Timestamp for chat file naming (YYmmdd_HHMMSS format).
-            who: Optional identifier for who is creating the proposal (e.g., "mentor:name").
+            who: Optional identifier for the mentor run.
         """
         self.profile_name = profile_name
         self.mentor_name = mentor_name
@@ -108,7 +198,7 @@ class MentorWorkflow(BaseWorkflow):
         self._timestamp = timestamp
         self._who = who
         self.response_path: str | None = None
-        self.proposal_id: str | None = None
+        self.comment_count: int = 0
         self._mentor: MentorConfig | None = None
         self._console = Console()
 
@@ -192,13 +282,13 @@ class MentorWorkflow(BaseWorkflow):
                 artifacts_dir, f"mentor-{self.mentor_name}", workflow_tag
             )
 
-            # Build and run prompt
+            # Build prompt via #mentor xprompt workflow
             print_status("Building mentor prompt...", "progress")
             prompt = _build_mentor_prompt(
-                self._mentor, resolved_cl_name, self.mentor_name, vcs_type
+                self._mentor, resolved_cl_name, vcs_type, project=project
             )
 
-            # Expand embedded workflows (like #propose from #p expansion)
+            # Expand embedded workflows (#hg for VCS context, #json for output format)
             expanded_prompt, post_workflows = expand_embedded_workflows_in_query(
                 prompt, artifacts_dir
             )
@@ -222,15 +312,11 @@ class MentorWorkflow(BaseWorkflow):
                 response = AIMessage(content=str(e))
             response_content = ensure_str_content(response.content)
 
-            # Execute post-steps from embedded workflows
+            # Execute post-steps from embedded workflows (#json validation)
             for ewf_result in post_workflows:
                 ewf_result.context["_prompt"] = expanded_prompt
                 ewf_result.context["_response"] = response_content
-                if self._who:
-                    ewf_result.context["who"] = self._who
                 ewf_result.context["_start_timestamp"] = self._timestamp
-                # Propagate cl_name so #propose targets the correct ChangeSpec
-                # even if the workspace branch was renamed (split/revert).
                 ewf_result.context["cl_name"] = resolved_cl_name
                 try:
                     execute_standalone_steps(
@@ -244,15 +330,6 @@ class MentorWorkflow(BaseWorkflow):
                     import traceback
 
                     traceback.print_exc()
-
-                # Extract proposal_id from propose step output
-                # (runs even if later steps like 'report' failed)
-                create_result = ewf_result.context.get("propose", {})
-                if isinstance(create_result, dict) and create_result.get("success") in (
-                    True,
-                    "true",
-                ):
-                    self.proposal_id = create_result.get("proposal_id")
 
             # Check for empty response (indicates silent failure like permission issues)
             response_text = response.content
@@ -271,6 +348,29 @@ class MentorWorkflow(BaseWorkflow):
             with open(self.response_path, "w") as f:
                 f.write(response_content)
             print_artifact_created(self.response_path)
+
+            # Parse structured JSON output and save
+            mentor_output = _parse_mentor_json(
+                response_content, self.profile_name, self.mentor_name
+            )
+            if mentor_output is not None:
+                self.comment_count = len(mentor_output.comments)
+                save_mentor_output(
+                    resolved_cl_name,
+                    self.profile_name,
+                    self.mentor_name,
+                    self._timestamp,
+                    mentor_output,
+                )
+                print_status(
+                    f"Mentor produced {self.comment_count} comment(s)", "success"
+                )
+            else:
+                log.warning(
+                    "Could not parse structured JSON from mentor response; "
+                    "raw response saved to %s",
+                    self.response_path,
+                )
 
             print_status("Mentor workflow complete!", "success")
             finalize_sase_log(

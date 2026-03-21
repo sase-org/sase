@@ -393,7 +393,9 @@ def set_mentor_status(
         return False
 
 
-_TERMINAL_MENTOR_STATUSES = frozenset({"PASSED", "FAILED", "DEAD", "KILLED"})
+_TERMINAL_MENTOR_STATUSES = frozenset(
+    {"PASSED", "COMMENTED", "FAILED", "DEAD", "KILLED"}
+)
 
 
 def _merge_mentor_status_lines(

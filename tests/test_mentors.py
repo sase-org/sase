@@ -160,6 +160,107 @@ MENTORS:
     Path(file_path).unlink()
 
 
+def test_format_mentors_field_commented_shows_timestamp_prefix() -> None:
+    """Test that COMMENTED status lines show timestamp prefix like PASSED."""
+    entry = MentorEntry(
+        entry_id="1",
+        profiles=["code"],
+        status_lines=[
+            MentorStatusLine(
+                timestamp="260321_120000",
+                profile_name="code",
+                mentor_name="quality",
+                status="COMMENTED",
+                duration="3m15s",
+            ),
+        ],
+    )
+    lines = _format_mentors_field([entry])
+    content = "".join(lines)
+
+    # COMMENTED should show timestamp prefix (like PASSED)
+    assert "[260321_120000] code:quality - COMMENTED" in content
+    assert "3m15s" in content
+
+
+def test_set_mentor_status_commented() -> None:
+    """Test setting COMMENTED status."""
+    content = """NAME: test-cl
+STATUS: Ready
+MENTORS:
+  (1) feature
+      | feature:complete - RUNNING - (@: mentor_complete-123)
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+        f.write(content)
+        file_path = f.name
+
+    result = set_mentor_status(
+        file_path,
+        "test-cl",
+        "1",
+        "feature",
+        "complete",
+        status="COMMENTED",
+        duration="2m30s",
+    )
+
+    assert result is True
+
+    with open(file_path) as f:
+        updated_content = f.read()
+
+    assert "COMMENTED" in updated_content
+    assert "2m30s" in updated_content
+
+    Path(file_path).unlink()
+
+
+def test_merge_preserves_commented_status_from_disk() -> None:
+    """Test that merge preserves disk's COMMENTED status over stale RUNNING."""
+    from sase.ace.mentors import _merge_mentor_status_lines
+
+    disk_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="COMMENTED",
+                    timestamp="260321_120000",
+                    duration="3m15s",
+                ),
+            ],
+        )
+    ]
+
+    caller_mentors = [
+        MentorEntry(
+            entry_id="1",
+            profiles=["code"],
+            status_lines=[
+                MentorStatusLine(
+                    profile_name="code",
+                    mentor_name="quality",
+                    status="RUNNING",
+                    timestamp="260321_120000",
+                    suffix="mentor_quality-12345-260321_120000",
+                    suffix_type="running_agent",
+                ),
+            ],
+        )
+    ]
+
+    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+
+    assert result[0].status_lines is not None
+    sl = result[0].status_lines[0]
+    assert sl.status == "COMMENTED"
+    assert sl.duration == "3m15s"
+
+
 def test_format_mentors_field_with_plain_suffix() -> None:
     """Test formatting with plain suffix (no type)."""
     entry = MentorEntry(

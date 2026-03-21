@@ -103,7 +103,7 @@ def _all_non_skip_hooks_ready(changespec: ChangeSpec, entry_id: str) -> bool:
                 return False  # fix-hook hasn't started yet
             # Has entry_ref suffix - ready
 
-        # PASSED, KILLED, DEAD, or FAILED with entry_ref - considered ready
+        # PASSED, COMMENTED, KILLED, DEAD, or FAILED with entry_ref - considered ready
 
     if not checked_any:
         return False  # All hooks were !-prefixed, wait for non-! hooks

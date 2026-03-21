@@ -566,6 +566,8 @@ def display_changespec(
                     # Color based on status
                     if msl.status == "PASSED":
                         text.append(msl.status, style="bold #00AF00")
+                    elif msl.status == "COMMENTED":
+                        text.append(msl.status, style="bold #5FAFFF")
                     elif msl.status == "FAILED":
                         text.append(msl.status, style="bold #FF5F5F")
                     elif msl.status == "RUNNING":
