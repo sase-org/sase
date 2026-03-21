@@ -11,10 +11,10 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.sase_utils import (
-    EASTERN_TZ,
     ensure_sase_directory,
     generate_timestamp,
     get_sase_directory,
+    get_timezone,
     strip_reverted_suffix,
 )
 from sase.shared_utils import run_shell_command
@@ -112,7 +112,7 @@ def save_chat_history(
     )
     file_path = _get_chat_file_path(basename)
 
-    display_timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S EST")
+    display_timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S %Z")
 
     # Build content
     content_parts = []

@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 from typing import Any
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 LOGS_DIR = os.path.expanduser("~/.sase/logs")
 RUNS_FILE = os.path.join(LOGS_DIR, "runs.jsonl")
@@ -44,7 +44,7 @@ def log_agent_run(
     prompt_preview: str | None = None,
 ) -> None:
     """Append an agent run record to ``~/.sase/logs/runs.jsonl``."""
-    now = datetime.now(EASTERN_TZ)
+    now = datetime.now(get_timezone())
     record: dict[str, Any] = {
         "timestamp": now.strftime("%y%m%d_%H%M%S"),
         "event": "agent_run",
@@ -78,7 +78,7 @@ def log_event(
     Common events: ``hook_completed``, ``commit_created``, ``amend_created``,
     ``changespec_reverted``, ``changespec_restored``.
     """
-    now = datetime.now(EASTERN_TZ)
+    now = datetime.now(get_timezone())
     record: dict[str, Any] = {
         "timestamp": now.strftime("%y%m%d_%H%M%S"),
         "event": event,

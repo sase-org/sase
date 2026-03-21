@@ -3,7 +3,7 @@
 import os
 import tempfile
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from sase.sase_utils import get_timezone
 
 from sase.workflows.commit_utils import (
     add_commit_entry,
@@ -40,7 +40,7 @@ def testformat_chat_line_with_duration_no_extension() -> None:
 def test_add_commit_entry_with_chat_duration() -> None:
     """Test that add_commit_entry includes duration suffix for chat path."""
     # Create a chat path with a recent timestamp
-    eastern = ZoneInfo("America/New_York")
+    eastern = get_timezone()
     past_time = datetime.now(eastern) - timedelta(minutes=2)
     past_timestamp = past_time.strftime("%y%m%d_%H%M%S")
     chat_path = f"~/.sase/chats/test-run-{past_timestamp}.md"

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sase.axe.state import AxeStatus, LumberjackStatus
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
@@ -567,7 +567,7 @@ def _format_runtime(started_at: str) -> str:
     """
     try:
         start_time = datetime.fromisoformat(started_at)
-        now = datetime.now(EASTERN_TZ)
+        now = datetime.now(get_timezone())
         elapsed = now - start_time
         return _format_uptime(int(elapsed.total_seconds()))
     except (ValueError, TypeError):
@@ -606,7 +606,7 @@ def _format_relative_time(iso_timestamp: str) -> str:
     """
     try:
         ts = datetime.fromisoformat(iso_timestamp)
-        now = datetime.now(EASTERN_TZ)
+        now = datetime.now(get_timezone())
         elapsed = int((now - ts).total_seconds())
         if elapsed < 0:
             return "just now"

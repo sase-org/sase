@@ -15,7 +15,7 @@ from sase.ace.tui.thinking.parser import (
     read_gemini_log,
 )
 from sase.ace.tui.widgets.thinking_panel import _format_timestamp
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 # --- helpers ---
@@ -336,7 +336,7 @@ def test_parse_gemini_log_timestamp() -> None:
     assert result.day == 25
     assert result.hour == 14
     assert result.minute == 0
-    assert result.tzinfo == EASTERN_TZ
+    assert result.tzinfo == get_timezone()
 
 
 def test_parse_gemini_log_timestamp_invalid() -> None:
@@ -361,7 +361,7 @@ def test_read_gemini_log_multi_files_with_since(
     new_file = tmp_path / "gemini_api_proxy.par.host.user.log.INFO.20260225-110000.222"
     new_file.write_text(_gemini_log_line("new thought", time="11:00:00"))
 
-    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=EASTERN_TZ)
+    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=get_timezone())
     result = read_gemini_log(since=since)
     assert result is not None
     assert len(result) == 2
@@ -384,7 +384,7 @@ def test_read_gemini_log_since_filters_old_files(
     new_file = tmp_path / "gemini_api_proxy.par.host.user.log.INFO.20260225-120000.222"
     new_file.write_text(_gemini_log_line("recent", time="12:00:00"))
 
-    since = datetime(2026, 2, 25, 10, 0, 0, tzinfo=EASTERN_TZ)
+    since = datetime(2026, 2, 25, 10, 0, 0, tzinfo=get_timezone())
     result = read_gemini_log(since=since)
     assert result is not None
     assert len(result) == 1
@@ -403,7 +403,7 @@ def test_read_gemini_log_since_includes_symlink(
     symlink = tmp_path / "gemini_api_proxy.par.INFO"
     symlink.symlink_to(actual_log)
 
-    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=EASTERN_TZ)
+    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=get_timezone())
     result = read_gemini_log(since=since)
     assert result is not None
     assert len(result) == 1
@@ -415,7 +415,7 @@ def test_read_gemini_log_since_no_files_returns_none(
 ) -> None:
     """No files or symlink → None."""
     monkeypatch.setenv("SASE_GEMINI_CLI_TMP", str(tmp_path))
-    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=EASTERN_TZ)
+    since = datetime(2026, 2, 25, 9, 0, 0, tzinfo=get_timezone())
     result = read_gemini_log(since=since)
     assert result is None
 

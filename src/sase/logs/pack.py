@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 from sase.logs.collectors import (
     collect_artifacts,
@@ -27,7 +27,7 @@ def build_pack(start: datetime, end: datetime, range_spec: str) -> str:
 
     Returns the absolute path to the pack directory.
     """
-    now = datetime.now(EASTERN_TZ)
+    now = datetime.now(get_timezone())
     pack_name = now.strftime("%y%m%d_%H%M%S")
     pack_dir = Path("~/.sase/logs/pack").expanduser() / pack_name
     pack_dir.mkdir(parents=True, exist_ok=True)

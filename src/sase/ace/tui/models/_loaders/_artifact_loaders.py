@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.running_field import get_claimed_workspaces
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 from ....hooks.processes import is_process_running
 from .._timestamps import (
@@ -19,7 +19,7 @@ from ..agent import Agent, AgentType
 def _parse_utc_to_eastern(iso_str: str) -> datetime:
     """Parse a UTC ISO 8601 timestamp and convert to Eastern time (naive)."""
     dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-    return dt.astimezone(EASTERN_TZ).replace(tzinfo=None)
+    return dt.astimezone(get_timezone()).replace(tzinfo=None)
 
 
 def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:

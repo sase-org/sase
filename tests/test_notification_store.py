@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
-from zoneinfo import ZoneInfo
+from sase.sase_utils import get_timezone
 
 import pytest
 
@@ -34,7 +34,7 @@ def _make_notification(
     """Factory for creating test notifications with sensible defaults."""
     return Notification(
         id=id or str(uuid.uuid4()),
-        timestamp=datetime.now(ZoneInfo("America/New_York")).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
         notes=notes or [],
         files=files or [],

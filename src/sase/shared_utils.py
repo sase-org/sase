@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
-from sase.sase_utils import EASTERN_TZ, get_vendored_tool, run_shell_command
+from sase.sase_utils import get_timezone, get_vendored_tool, run_shell_command
 from sase.rich_utils import (
     print_file_operation,
     print_status,
@@ -163,7 +163,7 @@ def create_artifacts_directory(
     if timestamp is not None:
         artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
     else:
-        artifacts_timestamp = datetime.now(EASTERN_TZ).strftime("%Y%m%d%H%M%S")
+        artifacts_timestamp = datetime.now(get_timezone()).strftime("%Y%m%d%H%M%S")
 
     # Get project name from workspace provider if not provided
     if project_name is None:
@@ -275,7 +275,7 @@ def initialize_sase_log(
         workflow_tag: Unique workflow tag
     """
     log_file = get_sase_log_file(artifacts_dir)
-    timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S EST")
+    timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S %Z")
 
     content = f"""# SASE Workflow Log - {workflow_name} ({workflow_tag})
 
@@ -298,7 +298,7 @@ def finalize_sase_log(
         success: Whether the workflow completed successfully
     """
     log_file = get_sase_log_file(artifacts_dir)
-    timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S EST")
+    timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S %Z")
     status = "SUCCESS" if success else "FAILED"
 
     content = f"""

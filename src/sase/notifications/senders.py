@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 def notify_workflow_complete(
@@ -22,7 +22,7 @@ def notify_workflow_complete(
     files = list(extra_files or [])
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
         notes=notes,
         files=files,
@@ -41,7 +41,7 @@ def notify_sync_result(
     """Send a notification after a sync action completes."""
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender="sync",
         notes=[f"Sync {status} for {cl_name}"],
         files=[project_file],
@@ -58,7 +58,8 @@ def notify_axe_error_digest(
     digest_dir = Path.home() / ".sase" / "axe" / "error_digests"
     digest_dir.mkdir(parents=True, exist_ok=True)
     digest_file = (
-        digest_dir / f"digest_{datetime.now(EASTERN_TZ).strftime('%Y%m%d_%H%M%S')}.txt"
+        digest_dir
+        / f"digest_{datetime.now(get_timezone()).strftime('%Y%m%d_%H%M%S')}.txt"
     )
     lines: list[str] = []
     for i, err in enumerate(errors, 1):
@@ -78,7 +79,7 @@ def notify_axe_error_digest(
 
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender="axe",
         notes=[f"{len(errors)} error(s) in the last hour"],
         files=[str(digest_file)],
@@ -96,7 +97,7 @@ def notify_hitl_request(
     """Send a notification when a HITL prompt is waiting for user input."""
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender="hitl",
         notes=[f"HITL waiting: step '{step_name}' in {workflow_name}"],
         action="HITL",
@@ -126,7 +127,7 @@ def notify_user_question(
         action_data["agent_timestamp"] = agent_timestamp
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender="question",
         notes=[notes] if notes else ["Claude is asking a question"],
         files=[],
@@ -147,7 +148,7 @@ def notify_agent_retry(
     """Send a notification when an agent is retrying after an error."""
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
         notes=[
             f"Retrying {cl_name} ({attempt}/{max_retries}), "
@@ -168,7 +169,7 @@ def notify_agent_fallback(
     """Send a notification when an agent falls back to an alternate model."""
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
         notes=[
             f"Falling back to {fallback_model} for {cl_name} "
@@ -205,7 +206,7 @@ def notify_plan_approval(
         action_data["agent_timestamp"] = agent_timestamp
     n = Notification(
         id=str(uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender="plan",
         notes=[f"Plan ready for review: {plan_name}"],
         files=[plan_file],

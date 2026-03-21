@@ -15,7 +15,7 @@ from datetime import datetime
 
 from pathlib import Path
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 @dataclass
@@ -66,7 +66,7 @@ def list_running_agents() -> list[_RunningAgentInfo]:
         return []
 
     agents: list[tuple[str, _RunningAgentInfo]] = []  # (timestamp, info)
-    now = datetime.now(EASTERN_TZ)
+    now = datetime.now(get_timezone())
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -108,7 +108,7 @@ def list_running_agents() -> list[_RunningAgentInfo]:
             duration = "?"
             try:
                 start = datetime.strptime(ts_str, "%Y%m%d%H%M%S").replace(
-                    tzinfo=EASTERN_TZ
+                    tzinfo=get_timezone()
                 )
                 delta = now - start
                 total_seconds = int(delta.total_seconds())

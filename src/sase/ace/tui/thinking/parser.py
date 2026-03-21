@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 # Files larger than this use tail-seeking optimization
 _TAIL_THRESHOLD = 500 * 1024  # 500 KB
@@ -55,7 +55,9 @@ def _parse_gemini_log_timestamp(filename: str) -> datetime | None:
     if not m:
         return None
     try:
-        return datetime.strptime(m.group(1), "%Y%m%d-%H%M%S").replace(tzinfo=EASTERN_TZ)
+        return datetime.strptime(m.group(1), "%Y%m%d-%H%M%S").replace(
+            tzinfo=get_timezone()
+        )
     except ValueError:
         return None
 
@@ -68,7 +70,7 @@ def _find_gemini_log_files(tmp_dir: Path, since: datetime) -> list[Path]:
     """
     # Ensure since is timezone-aware for comparison with tz-aware file timestamps
     if since.tzinfo is None:
-        since = since.replace(tzinfo=EASTERN_TZ)
+        since = since.replace(tzinfo=get_timezone())
 
     timestamped: list[tuple[datetime, Path]] = []
     for p in tmp_dir.glob("gemini_api_proxy.par.*.log.INFO.*"):
@@ -169,9 +171,9 @@ def _extract_gemini_thoughts(
         if not m:
             continue
         month, day, time_str = m.group(1), m.group(2), m.group(3)
-        year = datetime.now(tz=EASTERN_TZ).year
+        year = datetime.now(tz=get_timezone()).year
         h, mn, s = (int(x) for x in time_str.split(":"))
-        dt_obj = datetime(year, int(month), int(day), h, mn, s, tzinfo=EASTERN_TZ)
+        dt_obj = datetime(year, int(month), int(day), h, mn, s, tzinfo=get_timezone())
         timestamp = dt_obj.isoformat()
 
         # Decode byte literal → bytes → JSON

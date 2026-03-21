@@ -23,7 +23,7 @@ from sase.ace.scheduler.workflows_runner import (
     check_and_complete_workflows,
     start_stale_workflows,
 )
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 from .state import AxeMetrics
 
@@ -204,7 +204,7 @@ class HookJobRunner:
             for update in updates:
                 self._log(f"* {changespec.name}: {update}", "green bold")
 
-        return datetime.now(EASTERN_TZ)
+        return datetime.now(get_timezone())
 
     def run_orphan_cleanup(self, all_changespecs: list[ChangeSpec]) -> None:
         """Clean up orphaned workspace claims for reverted CLs.

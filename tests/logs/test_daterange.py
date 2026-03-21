@@ -5,49 +5,49 @@ from unittest.mock import patch
 
 import pytest
 from sase.logs.daterange import _parse_datepoint, parse_daterange
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 class TestParseDatepoint:
     def test_yymmdd(self) -> None:
         result = _parse_datepoint("260318")
-        assert result == datetime(2026, 3, 18, 0, 0, 0, tzinfo=EASTERN_TZ)
+        assert result == datetime(2026, 3, 18, 0, 0, 0, tzinfo=get_timezone())
 
     def test_yymmddhhmmss(self) -> None:
         result = _parse_datepoint("260318143000")
-        assert result == datetime(2026, 3, 18, 14, 30, 0, tzinfo=EASTERN_TZ)
+        assert result == datetime(2026, 3, 18, 14, 30, 0, tzinfo=get_timezone())
 
     def test_relative_negative(self) -> None:
-        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=EASTERN_TZ)
+        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=get_timezone())
         with patch("sase.logs.daterange.datetime") as mock_dt:
             mock_dt.now.return_value = fake_now
             mock_dt.strptime = datetime.strptime
             result = _parse_datepoint("-7d")
-        assert result == datetime(2026, 3, 11, 0, 0, 0, tzinfo=EASTERN_TZ)
+        assert result == datetime(2026, 3, 11, 0, 0, 0, tzinfo=get_timezone())
 
     def test_relative_zero(self) -> None:
-        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=EASTERN_TZ)
+        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=get_timezone())
         with patch("sase.logs.daterange.datetime") as mock_dt:
             mock_dt.now.return_value = fake_now
             mock_dt.strptime = datetime.strptime
             result = _parse_datepoint("0d")
-        assert result == datetime(2026, 3, 18, 0, 0, 0, tzinfo=EASTERN_TZ)
+        assert result == datetime(2026, 3, 18, 0, 0, 0, tzinfo=get_timezone())
 
     def test_relative_minutes(self) -> None:
-        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=EASTERN_TZ)
+        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=get_timezone())
         with patch("sase.logs.daterange.datetime") as mock_dt:
             mock_dt.now.return_value = fake_now
             mock_dt.strptime = datetime.strptime
             result = _parse_datepoint("-30m")
-        assert result == datetime(2026, 3, 18, 15, 0, 0, tzinfo=EASTERN_TZ)
+        assert result == datetime(2026, 3, 18, 15, 0, 0, tzinfo=get_timezone())
 
     def test_relative_hours(self) -> None:
-        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=EASTERN_TZ)
+        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=get_timezone())
         with patch("sase.logs.daterange.datetime") as mock_dt:
             mock_dt.now.return_value = fake_now
             mock_dt.strptime = datetime.strptime
             result = _parse_datepoint("-2h")
-        assert result == datetime(2026, 3, 18, 13, 30, 0, tzinfo=EASTERN_TZ)
+        assert result == datetime(2026, 3, 18, 13, 30, 0, tzinfo=get_timezone())
 
     def test_invalid_raises(self) -> None:
         with pytest.raises(ValueError, match="Invalid date point"):
@@ -55,22 +55,22 @@ class TestParseDatepoint:
 
     def test_whitespace_stripped(self) -> None:
         result = _parse_datepoint("  260318  ")
-        assert result == datetime(2026, 3, 18, 0, 0, 0, tzinfo=EASTERN_TZ)
+        assert result == datetime(2026, 3, 18, 0, 0, 0, tzinfo=get_timezone())
 
 
 class TestParseDaterange:
     def test_range_with_dots(self) -> None:
         start, end = parse_daterange("260315..260318")
-        assert start == datetime(2026, 3, 15, 0, 0, 0, tzinfo=EASTERN_TZ)
-        assert end == datetime(2026, 3, 18, 23, 59, 59, tzinfo=EASTERN_TZ)
+        assert start == datetime(2026, 3, 15, 0, 0, 0, tzinfo=get_timezone())
+        assert end == datetime(2026, 3, 18, 23, 59, 59, tzinfo=get_timezone())
 
     def test_single_value_means_start_to_now(self) -> None:
-        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=EASTERN_TZ)
+        fake_now = datetime(2026, 3, 18, 15, 30, 0, tzinfo=get_timezone())
         with patch("sase.logs.daterange.datetime") as mock_dt:
             mock_dt.now.return_value = fake_now
             mock_dt.strptime = datetime.strptime
             start, end = parse_daterange("-7d")
-        assert start == datetime(2026, 3, 11, 0, 0, 0, tzinfo=EASTERN_TZ)
+        assert start == datetime(2026, 3, 11, 0, 0, 0, tzinfo=get_timezone())
         assert end == fake_now
 
     def test_reversed_range_raises(self) -> None:

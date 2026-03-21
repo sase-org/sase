@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 # State directory location
 BGCMD_STATE_DIR = Path.home() / ".sase" / "axe" / "bgcmd"
@@ -189,7 +189,7 @@ def mark_slot_finished(slot: int) -> None:
     """
     info = get_slot_info(slot)
     if info is not None and info.finished_at is None:
-        info.finished_at = datetime.now(EASTERN_TZ).isoformat()
+        info.finished_at = datetime.now(get_timezone()).isoformat()
         _write_info(slot, info)
 
 
@@ -304,7 +304,7 @@ def start_background_command(
         project=project,
         workspace_num=workspace_num,
         workspace_dir=workspace_dir,
-        started_at=datetime.now(EASTERN_TZ).isoformat(),
+        started_at=datetime.now(get_timezone()).isoformat(),
     )
 
     try:

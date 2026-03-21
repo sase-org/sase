@@ -24,7 +24,7 @@ from sase.ace.scheduler.checks_runner import (
     start_reviewer_comments_check,
 )
 from sase.ace.sync_cache import should_check, update_last_checked
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 from sase.running_field import get_workspace_directory
 
 from .state import CycleResult, write_cycle_result
@@ -134,7 +134,7 @@ class CheckCycleRunner:
                 updates.append({"changespec": changespec.name, "message": update})
                 self._log(f"* {changespec.name}: {update}", "green bold")
 
-        cycle_timestamp = datetime.now(EASTERN_TZ)
+        cycle_timestamp = datetime.now(get_timezone())
         self._first_cycle = False
 
         # Write cycle result
@@ -172,7 +172,7 @@ class CheckCycleRunner:
                 updates.append({"changespec": changespec.name, "message": update})
                 self._log(f"* {changespec.name}: {update}", "green bold")
 
-        cycle_timestamp = datetime.now(EASTERN_TZ)
+        cycle_timestamp = datetime.now(get_timezone())
 
         # Write cycle result
         duration_ms = int((time.time() - start) * 1000)

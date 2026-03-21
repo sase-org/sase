@@ -11,8 +11,23 @@ from zoneinfo import ZoneInfo
 if TYPE_CHECKING:
     from sase.ace.changespec import ChangeSpec
 
-# Standard timezone used throughout the codebase
-EASTERN_TZ = ZoneInfo("America/New_York")
+_cached_timezone: ZoneInfo | None = None
+
+
+def get_timezone() -> ZoneInfo:
+    """Get the configured timezone, cached after first call.
+
+    Reads the ``timezone`` key from the merged sase config.
+    Falls back to ``America/New_York`` if not configured.
+    """
+    global _cached_timezone
+    if _cached_timezone is None:
+        from sase.config.core import load_merged_config
+
+        config = load_merged_config()
+        tz_name = config.get("timezone", "America/New_York")
+        _cached_timezone = ZoneInfo(tz_name)
+    return _cached_timezone
 
 
 def get_sase_tmpdir() -> str | None:
@@ -57,12 +72,12 @@ def run_shell_command(
 
 
 def generate_timestamp() -> str:
-    """Generate a timestamp in YYmmdd_HHMMSS format (Eastern timezone).
+    """Generate a timestamp in YYmmdd_HHMMSS format using the configured timezone.
 
     Returns:
         Timestamp string like "251227_143052"
     """
-    return datetime.now(EASTERN_TZ).strftime("%y%m%d_%H%M%S")
+    return datetime.now(get_timezone()).strftime("%y%m%d_%H%M%S")
 
 
 def get_sase_directory(subdir: str) -> str:

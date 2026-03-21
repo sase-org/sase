@@ -17,7 +17,7 @@ import schedule
 from rich.console import Console
 
 from sase.ace.query import QueryExpr, parse_query
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 from .check_cycles import CheckCycleRunner
 from .chop_script_context import (
@@ -73,7 +73,7 @@ class Lumberjack:
 
         self._state_dir = ensure_lumberjack_dirs(name)
         self._log_file_path = lumberjack_log_path(name)
-        self._start_time = datetime.now(EASTERN_TZ)
+        self._start_time = datetime.now(get_timezone())
         self._running = True
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
@@ -89,7 +89,7 @@ class Lumberjack:
                 pass
 
     def _log(self, message: str, style: str | None = None) -> None:
-        timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S")
         full_message = f"[{timestamp}] [{self.name}] {message}"
         self.console.print(full_message, style=style, markup=False)
         self._flush_log_to_file()
@@ -132,7 +132,7 @@ class Lumberjack:
         )
         write_chop_context(ctx, context_file)
 
-        now = datetime.now(EASTERN_TZ)
+        now = datetime.now(get_timezone())
         timestamps_dirty = False
 
         for chop in self.config.chops:
@@ -239,7 +239,7 @@ class Lumberjack:
         append_error(error_info)
 
     def _update_status(self) -> None:
-        now = datetime.now(EASTERN_TZ)
+        now = datetime.now(get_timezone())
         uptime = int((now - self._start_time).total_seconds())
         status = LumberjackStatus(
             name=self.name,

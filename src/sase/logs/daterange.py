@@ -8,7 +8,7 @@ timezone (consistent with the rest of the codebase).
 import re
 from datetime import datetime, timedelta
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 def _parse_datepoint(s: str) -> datetime:
@@ -28,32 +28,32 @@ def _parse_datepoint(s: str) -> datetime:
     m = re.fullmatch(r"(-?\d+)m", s)
     if m:
         offset = int(m.group(1))
-        now = datetime.now(EASTERN_TZ)
+        now = datetime.now(get_timezone())
         return now + timedelta(minutes=offset)
 
     # Relative hours: -Nh
     m = re.fullmatch(r"(-?\d+)h", s)
     if m:
         offset = int(m.group(1))
-        now = datetime.now(EASTERN_TZ)
+        now = datetime.now(get_timezone())
         return now + timedelta(hours=offset)
 
     # Relative days: -Nd or 0d
     m = re.fullmatch(r"(-?\d+)d", s)
     if m:
         offset = int(m.group(1))
-        today = datetime.now(EASTERN_TZ).replace(
+        today = datetime.now(get_timezone()).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         return today + timedelta(days=offset)
 
     # Absolute: YYmmddHHMMSS (12 digits)
     if re.fullmatch(r"\d{12}", s):
-        return datetime.strptime(s, "%y%m%d%H%M%S").replace(tzinfo=EASTERN_TZ)
+        return datetime.strptime(s, "%y%m%d%H%M%S").replace(tzinfo=get_timezone())
 
     # Absolute: YYmmdd (6 digits)
     if re.fullmatch(r"\d{6}", s):
-        return datetime.strptime(s, "%y%m%d").replace(tzinfo=EASTERN_TZ)
+        return datetime.strptime(s, "%y%m%d").replace(tzinfo=get_timezone())
 
     raise ValueError(f"Invalid date point: {s!r}")
 
@@ -75,7 +75,7 @@ def parse_daterange(s: str) -> tuple[datetime, datetime]:
         end = _parse_datepoint(right)
     else:
         start = _parse_datepoint(s)
-        end = datetime.now(EASTERN_TZ)
+        end = datetime.now(get_timezone())
 
     # For date-only endpoints, set end to end-of-day
     if end.hour == 0 and end.minute == 0 and end.second == 0:

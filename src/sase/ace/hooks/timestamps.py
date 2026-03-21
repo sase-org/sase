@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 from ..changespec import HookEntry, is_error_suffix
 from ..constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
@@ -35,7 +35,7 @@ def get_current_timestamp() -> str:
     Returns:
         Timestamp string (e.g., "251231_143022").
     """
-    now = datetime.now(EASTERN_TZ)
+    now = datetime.now(get_timezone())
     return now.strftime("%y%m%d_%H%M%S")
 
 
@@ -50,8 +50,8 @@ def get_hook_file_age_seconds_from_timestamp(timestamp: str) -> float | None:
     """
     try:
         hook_time = datetime.strptime(timestamp, "%y%m%d_%H%M%S")
-        hook_time = hook_time.replace(tzinfo=EASTERN_TZ)
-        now = datetime.now(EASTERN_TZ)
+        hook_time = hook_time.replace(tzinfo=get_timezone())
+        now = datetime.now(get_timezone())
         return (now - hook_time).total_seconds()
     except (ValueError, TypeError):
         return None
@@ -89,9 +89,9 @@ def calculate_duration_from_timestamps(
     """
     try:
         start_time = datetime.strptime(start_timestamp, "%y%m%d_%H%M%S")
-        start_time = start_time.replace(tzinfo=EASTERN_TZ)
+        start_time = start_time.replace(tzinfo=get_timezone())
         end_time = datetime.strptime(end_timestamp, "%y%m%d_%H%M%S")
-        end_time = end_time.replace(tzinfo=EASTERN_TZ)
+        end_time = end_time.replace(tzinfo=get_timezone())
         return (end_time - start_time).total_seconds()
     except (ValueError, TypeError):
         return None

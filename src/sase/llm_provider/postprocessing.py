@@ -9,7 +9,7 @@ from datetime import datetime
 
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 from sase.rich_utils import print_prompt_and_response
 from sase.shared_utils import get_sase_log_file, run_bam_command
 
@@ -36,7 +36,7 @@ def log_prompt_and_response(
     """
     try:
         log_file = get_sase_log_file(artifacts_dir)
-        timestamp = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S EST")
+        timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S %Z")
 
         # Create header for this entry
         header_parts = [agent_type]

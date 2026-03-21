@@ -171,9 +171,9 @@ def test_run_every_skips_when_not_enough_time_elapsed(
     assert mock_run.call_count == 1
 
     # Simulate enough time having passed
-    from sase.sase_utils import EASTERN_TZ
+    from sase.sase_utils import get_timezone
 
-    lumberjack._chop_timestamps["slow_chop"] = datetime.now(EASTERN_TZ) - timedelta(
+    lumberjack._chop_timestamps["slow_chop"] = datetime.now(get_timezone()) - timedelta(
         seconds=3601
     )
     lumberjack._run_tick()

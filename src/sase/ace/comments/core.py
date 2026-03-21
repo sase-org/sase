@@ -4,8 +4,8 @@ import os
 from datetime import datetime
 
 from sase.sase_utils import (
-    EASTERN_TZ,
     ensure_sase_directory,
+    get_timezone,
     make_safe_filename,
     strip_reverted_suffix,
 )
@@ -72,8 +72,8 @@ def _get_suffix_age_seconds(suffix: str) -> float | None:
         # Remove underscore if present for parsing
         clean_suffix = suffix.replace("_", "")
         suffix_time = datetime.strptime(clean_suffix, "%y%m%d%H%M%S")
-        suffix_time = suffix_time.replace(tzinfo=EASTERN_TZ)
-        now = datetime.now(EASTERN_TZ)
+        suffix_time = suffix_time.replace(tzinfo=get_timezone())
+        now = datetime.now(get_timezone())
         return (now - suffix_time).total_seconds()
     except (ValueError, TypeError):
         return None

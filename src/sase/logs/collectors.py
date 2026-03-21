@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 # ---------------------------------------------------------------------------
@@ -25,7 +25,9 @@ def _ts_from_filename_suffix(name: str) -> datetime | None:
     if not m:
         return None
     try:
-        return datetime.strptime(m.group(1), "%y%m%d_%H%M%S").replace(tzinfo=EASTERN_TZ)
+        return datetime.strptime(m.group(1), "%y%m%d_%H%M%S").replace(
+            tzinfo=get_timezone()
+        )
     except ValueError:
         return None
 
@@ -36,14 +38,16 @@ def _ts_from_artifacts_dir(name: str) -> datetime | None:
     if not m:
         return None
     try:
-        return datetime.strptime(m.group(1), "%Y%m%d%H%M%S").replace(tzinfo=EASTERN_TZ)
+        return datetime.strptime(m.group(1), "%Y%m%d%H%M%S").replace(
+            tzinfo=get_timezone()
+        )
     except ValueError:
         return None
 
 
 def _ts_from_mtime(path: Path) -> datetime:
     """Get a timezone-aware datetime from a file's mtime."""
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=EASTERN_TZ)
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=get_timezone())
 
 
 def _in_range(ts: datetime, start: datetime, end: datetime) -> bool:
@@ -145,7 +149,7 @@ def collect_notifications(start: datetime, end: datetime) -> list[str]:
         try:
             ts = datetime.fromisoformat(ts_str)
             if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=EASTERN_TZ)
+                ts = ts.replace(tzinfo=get_timezone())
         except (ValueError, TypeError):
             continue
         if _in_range(ts, start, end):
@@ -181,7 +185,9 @@ def _collect_jsonl_by_timestamp(path: str, start: datetime, end: datetime) -> li
             continue
         ts_str = data.get("timestamp", "")
         try:
-            ts = datetime.strptime(ts_str, "%y%m%d_%H%M%S").replace(tzinfo=EASTERN_TZ)
+            ts = datetime.strptime(ts_str, "%y%m%d_%H%M%S").replace(
+                tzinfo=get_timezone()
+            )
         except (ValueError, TypeError):
             continue
         if _in_range(ts, start, end):

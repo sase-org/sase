@@ -9,7 +9,7 @@ from typing import NoReturn
 
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 def handle_notify_command(args: argparse.Namespace) -> NoReturn:
@@ -36,7 +36,7 @@ def handle_notify_command(args: argparse.Namespace) -> NoReturn:
 
     notification = Notification(
         id=str(uuid.uuid4()),
-        timestamp=datetime.now(EASTERN_TZ).isoformat(),
+        timestamp=datetime.now(get_timezone()).isoformat(),
         sender=data["sender"],
         notes=data.get("notes", []),
         files=data.get("files", []),

@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 # State directory location
 AXE_STATE_DIR = Path.home() / ".sase" / "axe"
@@ -334,7 +334,7 @@ def get_timestamp() -> str:
     Returns:
         ISO formatted timestamp string.
     """
-    return datetime.now(EASTERN_TZ).isoformat()
+    return datetime.now(get_timezone()).isoformat()
 
 
 # ---------------------------------------------------------------------------

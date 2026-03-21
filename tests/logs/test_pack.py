@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.logs.pack import build_pack
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 
 class TestBuildPack:
@@ -24,8 +24,8 @@ class TestBuildPack:
         hooks_dir.mkdir()
         (hooks_dir / "feat-260315_100000.txt").write_text("hook output")
 
-        start = datetime(2026, 3, 14, 0, 0, 0, tzinfo=EASTERN_TZ)
-        end = datetime(2026, 3, 16, 23, 59, 59, tzinfo=EASTERN_TZ)
+        start = datetime(2026, 3, 14, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2026, 3, 16, 23, 59, 59, tzinfo=get_timezone())
 
         original_expanduser = Path.expanduser
 
@@ -57,8 +57,8 @@ class TestBuildPack:
         sase_dir.mkdir()
         pack_base = tmp_path / "pack_output"
 
-        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=EASTERN_TZ)
-        end = datetime(2020, 1, 2, 23, 59, 59, tzinfo=EASTERN_TZ)
+        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2020, 1, 2, 23, 59, 59, tzinfo=get_timezone())
 
         original_expanduser = Path.expanduser
 

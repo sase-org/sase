@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sase.sase_utils import EASTERN_TZ
+from sase.sase_utils import get_timezone
 
 from rich.text import Text
 from textual.containers import VerticalScroll
@@ -76,7 +76,7 @@ def _format_timestamp(iso_str: str) -> str:
         # Handle Z suffix (UTC indicator)
         cleaned = iso_str.replace("Z", "+00:00")
         dt = datetime.fromisoformat(cleaned)
-        dt = dt.astimezone(EASTERN_TZ)
+        dt = dt.astimezone(get_timezone())
         return dt.strftime("%H:%M:%S")
     except (ValueError, AttributeError):
         return "??:??:??"
