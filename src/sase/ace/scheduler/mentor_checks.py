@@ -394,7 +394,14 @@ def check_mentors(
     mentors_started = 0
 
     # Don't check mentors for non-review statuses
-    if changespec.status in ("Draft", "WIP", "Reverted", "Submitted", "Archived"):
+    if changespec.status in (
+        "Draft",
+        "WIP",
+        "Mailed",
+        "Reverted",
+        "Submitted",
+        "Archived",
+    ):
         return updates, mentors_started
 
     # Phase 1: Check completion of running mentors

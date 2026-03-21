@@ -254,7 +254,14 @@ def add_matching_profiles_upfront(
     updates: list[str] = []
 
     # Don't add profiles for non-review statuses
-    if changespec.status in ("Draft", "WIP", "Reverted", "Submitted", "Archived"):
+    if changespec.status in (
+        "Draft",
+        "WIP",
+        "Mailed",
+        "Reverted",
+        "Submitted",
+        "Archived",
+    ):
         return updates
 
     matching_profiles = _get_matching_profiles_for_entry(changespec)
