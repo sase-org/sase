@@ -91,7 +91,7 @@ These files touch beads and would need updating during migration:
 | `src/sase/ace/tui/actions/agents/_notification_actions.py` | Passes `beads_supported`                                                       |
 | `tools/pyvision-260225`                                    | `bd show` for epic symbol validation                                           |
 | `Justfile`                                                 | Sets `BD_COMMAND=tools/sase_bd`                                                |
-| `src/sase/sase.yml`                                        | `bd/next`, `bd/new_epic`, `bd/land_epic` xprompts                              |
+| `src/sase/default_config.yml`                              | `bd/next`, `bd/new_epic`, `bd/land_epic` xprompts                              |
 | `.beads/`                                                  | Config, metadata, JSONL data                                                   |
 
 ---

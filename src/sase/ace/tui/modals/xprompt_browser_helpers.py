@@ -62,7 +62,7 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     sase_pkg_dir = str(get_sase_package_xprompts_dir())
 
     # Plugin sources: "plugin:module_name/filename.md" (xprompts/ dirs)
-    # or "plugin_config:module_name" (plugin sase.yml)
+    # or "plugin_config:module_name" (default_config.yml)
     if source_path.startswith("plugin:") or source_path.startswith("plugin_config:"):
         if source_path.startswith("plugin_config:"):
             module_name = source_path.removeprefix("plugin_config:")
@@ -76,7 +76,7 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     # Built-in default config xprompts
     if source_path == "default_config":
-        return "Built-in", "sase sase.yml", True
+        return "Built-in", "sase default_config.yml", True
 
     # Config sources: user sase.yml
     if source_path == "config":
@@ -149,22 +149,24 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
                     pass
         return None
 
-    # plugin_config:module_name → resolve sase.yml via importlib.resources
+    # plugin_config:module_name → resolve default_config.yml via importlib.resources
     if source_path.startswith("plugin_config:"):
         module_name = source_path.removeprefix("plugin_config:")
         for module in discover_plugin_resources("sase_config"):
             if module.__name__ == module_name:
                 try:
-                    ref = importlib.resources.files(module).joinpath("sase.yml")
+                    ref = importlib.resources.files(module).joinpath(
+                        "default_config.yml"
+                    )
                     return str(ref)
                 except (TypeError, AttributeError):
                     pass
         return None
 
-    # default_config → sase's bundled sase.yml
+    # default_config → sase's bundled default_config.yml
     if source_path == "default_config":
         try:
-            return str(importlib.resources.files("sase").joinpath("sase.yml"))
+            return str(importlib.resources.files("sase").joinpath("default_config.yml"))
         except Exception:
             return None
 

@@ -8,7 +8,7 @@ def get_required_changespec_hooks() -> tuple[str, ...]:
 
     Reads ``vcs_provider.default_hooks`` from the merged config (sase.yml +
     plugin defaults).  VCS-specific defaults are provided by plugins (e.g.
-    sase-google supplies its hooks via ``sase.yml``).
+    sase-google supplies its hooks via ``default_config.yml``).
 
     Returns:
         Tuple of hook command strings, or empty tuple if none configured.

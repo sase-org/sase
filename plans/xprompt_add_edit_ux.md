@@ -30,7 +30,7 @@ return a list of location entries, each with:
 - `label`: Human-readable name (e.g., "CWD .xprompts/", "User sase.yml")
 - `path`: Absolute path to the directory or file
 - `location_type`: Either `"directory"` (xprompts dir — user will create .md/.yml files) or `"config"` (sase.yml/
-  sase.yml — user will edit inline xprompts)
+  default_config.yml — user will edit inline xprompts)
 
 **Locations to enumerate** (in display order):
 
@@ -53,8 +53,8 @@ return a list of location entries, each with:
 
 4. **Built-in locations** (type: `"directory"` and `"config"`):
    - `src/sase/xprompts/` (the package xprompts dir) — resolved via `get_sase_package_xprompts_dir()`
-   - `src/sase/sase.yml` — resolved via `importlib.resources`
-   - Plugin `sase.yml` files — for each plugin via `discover_plugin_resources("sase_config")`
+   - `src/sase/default_config.yml` — resolved via `importlib.resources`
+   - Plugin `default_config.yml` files — for each plugin via `discover_plugin_resources("sase_config")`
 
 **Modal behavior**:
 
@@ -149,9 +149,9 @@ Update the edit action to resolve ALL source paths to actual file paths:
 - **`"plugin:module_name/filename"`**: Resolve the plugin module's xprompts directory using
   `importlib.resources.files(module).joinpath("xprompts")` and `as_file()` to get the real filesystem path. Then append
   the filename portion.
-- **`"plugin_config:module_name"`**: Resolve the plugin module's `sase.yml` using
-  `importlib.resources.files(module).joinpath("sase.yml")` and `as_file()`.
-- **`"default_config"`**: Resolve via `importlib.resources.files("sase").joinpath("sase.yml")`.
+- **`"plugin_config:module_name"`**: Resolve the plugin module's `default_config.yml` using
+  `importlib.resources.files(module).joinpath("default_config.yml")` and `as_file()`.
+- **`"default_config"`**: Resolve via `importlib.resources.files("sase").joinpath("default_config.yml")`.
 - **`"local_config"`**: Resolve to `./sase.yml`.
 - **`"config"` and `"config_overlay:*"`**: Already handled.
 - **Regular file paths**: Already handled.

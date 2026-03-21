@@ -11,7 +11,7 @@ used, instead of spawning a `.code` agent, spawn an `.epic` agent that runs
 
 Also fix a related bug: the VCS xprompt (e.g. `#git:sase`) is NOT prepended to the `.code` agent's prompt.
 
-## Phase 1: Foundation — bd xprompts in sase.yml + beads detection helper
+## Phase 1: Foundation — bd xprompts in default_config.yml + beads detection helper
 
 ### Goal
 
@@ -19,7 +19,7 @@ Move bd xprompt definitions into sase core and add a helper to detect beads supp
 
 ### Changes
 
-**`src/sase/sase.yml`** — Add bd xprompts to the `xprompts:` section:
+**`src/sase/default_config.yml`** — Add bd xprompts to the `xprompts:` section:
 
 ```yaml
 xprompts:
@@ -319,7 +319,7 @@ elif cb.choice == "epic":
 
 | File                                                       | Phase | Change                                                   |
 | ---------------------------------------------------------- | ----- | -------------------------------------------------------- |
-| `src/sase/sase.yml`                                        | 1     | Add bd/new_epic, bd/next, bd/land_epic xprompts          |
+| `src/sase/default_config.yml`                              | 1     | Add bd/new_epic, bd/next, bd/land_epic xprompts          |
 | `src/sase/sdd.py`                                          | 1     | Add `has_beads_support()`                                |
 | `src/sase/notifications/senders.py`                        | 1     | Add beads_supported + workflow_name to plan notification |
 | `src/sase/llm_provider/_plan_utils.py`                     | 1,2   | Add params (P1), change return type (P2)                 |

@@ -1,8 +1,8 @@
 """Configuration for the lumberjack-based axe architecture.
 
 Loads lumberjack definitions from the ``axe:`` section of the merged
-config (built-in sase.yml → sase.yml → overlays).  Defaults are now
-guaranteed by the base config layer in the built-in ``sase.yml``.
+config (default_config.yml → sase.yml → overlays).  Defaults are now
+guaranteed by the base config layer in ``default_config.yml``.
 """
 
 import re
@@ -111,7 +111,7 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
 def load_axe_config() -> AxeConfig:
     """Load axe config from the merged config layers.
 
-    Defaults are provided by the built-in ``sase.yml``, so the ``axe``
+    Defaults are provided by ``default_config.yml``, so the ``axe``
     section is always present.  Inline ``.get()`` calls remain as
     safety nets.
 

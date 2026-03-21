@@ -84,8 +84,8 @@ Update all sase-internal code that references `sbd`, `.sbd/`, `sase_beads`, or `
 - `src/sase/ace/tui/modals/plan_approval_modal.py` — Rename `sbd_available` → `bead_available` (or keep, less critical)
 - `src/sase/llm_provider/_plan_utils.py` — Same rename
 - `src/sase/notifications/senders.py` — Same rename
-- `src/sase/sase.yml` — Update xprompt workflows (`sbd/next`, `sbd/new_epic`, `sbd/land_epic`, `sbd/review/*`) to use
-  `sase bead` instead of `tools/sase_sbd`; rename xprompt keys from `sbd/` to `bead/`
+- `src/sase/default_config.yml` — Update xprompt workflows (`sbd/next`, `sbd/new_epic`, `sbd/land_epic`, `sbd/review/*`)
+  to use `sase bead` instead of `tools/sase_sbd`; rename xprompt keys from `sbd/` to `bead/`
 - `tests/test_sdd.py` — Update tests for new paths and function signatures
 - `tests/test_epic_approval.py` — Update tests
 - `AGENTS.md` — Update issue tracking section to reference `sase bead` instead of `tools/sase_sbd`

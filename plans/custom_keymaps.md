@@ -9,7 +9,7 @@ bead_id: sase-gjad
 
 All keymaps in the `sase ace` TUI are currently hardcoded across multiple files (67 app-level bindings + ~25 mode
 sub-keys). Users cannot customize them. This plan makes ALL keymaps configurable via `ace.keymaps` in the deep-merge
-config system (`sase.yml` → plugins → `sase.yml` → overlays).
+config system (`default_config.yml` → plugins → `sase.yml` → overlays).
 
 Key requirements:
 
@@ -218,7 +218,7 @@ populated but not consumed.
    (`"full_stop"` → `"."`, `"exclamation_mark"` → `"!"`, `"right_square_bracket"` → `"]"`, `"ctrl+d"` → `"Ctrl+D"`,
    single chars pass through).
 
-### Modify: `src/sase/sase.yml`
+### Modify: `src/sase/default_config.yml`
 
 Add `ace.keymaps` section with all defaults matching current hardcoded values (copy the complete structure from the
 Config Structure section above).
@@ -416,7 +416,7 @@ Test with `sase ace --agent` using a config overlay that remaps a key, verify na
 
 - Verify ALL hardcoded key strings have been replaced (grep for remaining `key ==` patterns)
 - Verify help modal content is complete and matches actual bindings
-- Ensure `sase.yml` keymaps section exactly matches the pre-change behavior
+- Ensure `default_config.yml` keymaps section exactly matches the pre-change behavior
 
 ### Verification
 
@@ -507,7 +507,7 @@ just check
 | File                                                       | Phase   | Change                                            |
 | ---------------------------------------------------------- | ------- | ------------------------------------------------- |
 | `src/sase/ace/tui/keymaps.py` (new)                        | 1, 4, 5 | Registry dataclasses, loader, helpers, validation |
-| `src/sase/sase.yml`                                        | 1       | Add `ace.keymaps` section                         |
+| `src/sase/default_config.yml`                              | 1       | Add `ace.keymaps` section                         |
 | `src/sase/ace/tui/app.py`                                  | 1, 2, 5 | Store registry, replace BINDINGS, custom modes    |
 | `src/sase/ace/tui/actions/navigation/_advanced.py`         | 2       | Fold mode sub-keys                                |
 | `src/sase/ace/tui/actions/clipboard.py`                    | 2, 3    | Copy mode sub-keys + error msgs                   |

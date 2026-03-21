@@ -2,7 +2,7 @@
 
 - We will improve the `<c-o>` xprompt widget keymap (see the `sase ace` snapshot below) so it asks the user to select
   from a list of known xprompt locations (this should include EVERY `sase.yml` file (or variants with underscores),
-  `sase.yml` file, `xprompts/*.md` file, `xprompts/*.yml` workflow files, etc...
+  `default_config.yml` file, `xprompts/*.md` file, `xprompts/*.yml` workflow files, etc...
 - If the user selects an xprompts directory, we should prompt for a file basename (ex: foobar.md or foobar.yml). The
   user MUST give a .md or .yml extension.
 - If the user gives a markdown file path, we should open that markdown file, which should contain no contents, in their

@@ -294,7 +294,7 @@ notifications to forward, provider choice).
 Should outbound SMS respect quiet hours (e.g., no texts between 11pm–7am)? Should there be a max messages/hour cap to
 prevent runaway costs from a bug?
 
-**Recommendation**: Yes to both. Defaults in `sase.yml`, overridable in user config.
+**Recommendation**: Yes to both. Defaults in `default_config.yml`, overridable in user config.
 
 ---
 

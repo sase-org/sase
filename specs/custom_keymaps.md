@@ -1,6 +1,7 @@
 Can you help me make ALL keymaps in the `sase ace` TUI configurable via sase's deep-merge configuration system?
 
-- All keymaps defaults (the ones that are hard-coded currently) should be defined in the src/sase/sase.yml file.
+- All keymaps defaults (the ones that are hard-coded currently) should be defined in the src/sase/default_config.yml
+  file.
 - For the new (see related git commits from the last few days) `(MxN.H)` tab title syntax, the `x` and `.` correspond
   with the keymaps that dismiss the `N` entries or show/hide the `H` entries, respectively. So make sure that these
   symbols in the tab title are also configured via the corresponding keymaps configuration.

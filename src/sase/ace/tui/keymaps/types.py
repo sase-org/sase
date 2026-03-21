@@ -168,8 +168,8 @@ class AppKeymaps:
     """One field per configurable app-level action.
 
     No defaults -- all values must come from configuration files
-    (``sase.yml`` or user/plugin overrides).  This ensures
-    ``sase.yml`` is the single source of truth for default
+    (``default_config.yml`` or user/plugin overrides).  This ensures
+    ``default_config.yml`` is the single source of truth for default
     keybindings and that adding a new field without a config entry is
     caught immediately at startup.
     """

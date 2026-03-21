@@ -1,7 +1,7 @@
 """Centralized configuration loading with multi-file merge support.
 
-Loads ``sase.yml`` (bundled in the package) as the base layer,
-then deep-merges plugin ``sase.yml`` files, then
+Loads ``default_config.yml`` (bundled in the package) as the base layer,
+then deep-merges plugin ``default_config.yml`` files, then
 ``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
 alphabetically, with list concatenation) on top, then finally any local
@@ -66,18 +66,18 @@ def _deep_merge(
 
 
 def _load_default_config() -> dict[str, Any]:
-    """Load the bundled ``sase.yml`` from the sase package.
+    """Load the bundled ``default_config.yml`` from the sase package.
 
     Returns the parsed YAML as a dict, or an empty dict on any error.
     """
     try:
-        ref = importlib.resources.files("sase").joinpath("sase.yml")
+        ref = importlib.resources.files("sase").joinpath("default_config.yml")
         text = ref.read_text(encoding="utf-8")
         data = yaml.safe_load(text)
         if isinstance(data, dict):
             return data
     except Exception:
-        log.debug("Failed to load sase.yml", exc_info=True)
+        log.debug("Failed to load default_config.yml", exc_info=True)
     return {}
 
 
@@ -109,7 +109,7 @@ def _get_local_config_path() -> Path | None:
 
 
 def _load_plugin_configs() -> list[dict[str, Any]]:
-    """Load ``sase.yml`` from each plugin in the ``sase_config`` group.
+    """Load ``default_config.yml`` from each plugin in the ``sase_config`` group.
 
     Returns config dicts sorted by entry-point name for determinism.
     """
@@ -121,7 +121,7 @@ def _load_plugin_configs() -> list[dict[str, Any]]:
     configs: list[dict[str, Any]] = []
     for module in discover_plugin_resources("sase_config"):
         try:
-            ref = importlib.resources.files(module).joinpath("sase.yml")
+            ref = importlib.resources.files(module).joinpath("default_config.yml")
             text = ref.read_text(encoding="utf-8")
             data = yaml.safe_load(text)
             if isinstance(data, dict):
@@ -164,7 +164,7 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
     if not is_plugin_disabled("CONFIG"):
         for module in discover_plugin_resources("sase_config"):
             try:
-                ref = importlib.resources.files(module).joinpath("sase.yml")
+                ref = importlib.resources.files(module).joinpath("default_config.yml")
                 text = ref.read_text(encoding="utf-8")
                 data = yaml.safe_load(text)
                 if isinstance(data, dict) and isinstance(data.get("xprompts"), dict):
@@ -202,8 +202,8 @@ def load_merged_config() -> dict[str, Any]:
     """Load and merge all sase config files.
 
     Merge chain (each layer merges on top of the previous):
-    1. ``sase.yml`` (bundled package defaults)
-    2. Plugin ``sase.yml`` files (sorted by EP name, lists concatenate)
+    1. ``default_config.yml`` (bundled package defaults)
+    2. Plugin ``default_config.yml`` files (sorted by EP name, lists concatenate)
     3. ``sase.yml`` (user config — lists **replace** defaults)
     4. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
     5. ``./sase.yml`` (local CWD config — lists **replace**, highest priority)

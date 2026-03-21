@@ -1,4 +1,4 @@
-"""Modal for creating xprompts in config files (sase.yml, built-in sase.yml)."""
+"""Modal for creating xprompts in config files (sase.yml, default_config.yml)."""
 
 from __future__ import annotations
 

@@ -182,28 +182,30 @@ def _get_all_xprompt_locations(
             location_type="directory",
         )
     )
-    # sase built-in sase.yml
+    # sase default_config.yml
     try:
-        default_cfg = str(importlib.resources.files("sase").joinpath("sase.yml"))
+        default_cfg = str(
+            importlib.resources.files("sase").joinpath("default_config.yml")
+        )
         builtin.append(
             XPromptLocation(
-                label="Built-in sase.yml",
+                label="Built-in default_config.yml",
                 path=default_cfg,
                 location_type="config",
             )
         )
     except Exception:
         pass
-    # Plugin sase.yml files
+    # Plugin default_config.yml files
     if not is_plugin_disabled("CONFIG"):
         for module in discover_plugin_resources("sase_config"):
             try:
-                ref = importlib.resources.files(module).joinpath("sase.yml")
+                ref = importlib.resources.files(module).joinpath("default_config.yml")
                 plugin_cfg_path = str(ref)
                 short_name = getattr(module, "__name__", str(module)).replace("_", "-")
                 builtin.append(
                     XPromptLocation(
-                        label=f"Plugin ({short_name}) sase.yml",
+                        label=f"Plugin ({short_name}) default_config.yml",
                         path=plugin_cfg_path,
                         location_type="config",
                     )

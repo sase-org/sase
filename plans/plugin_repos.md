@@ -81,15 +81,15 @@ New priority order:
 
 **Modify `src/sase/config.py`**:
 
-- Add `_load_plugin_configs() -> list[dict[str, Any]]` — scans `sase_config` entry point group, loads `sase.yml` from
-  each plugin package
+- Add `_load_plugin_configs() -> list[dict[str, Any]]` — scans `sase_config` entry point group, loads
+  `default_config.yml` from each plugin package
 - Insert into `load_merged_config()` merge chain between sase defaults and user config (list concatenation semantics)
 
 New merge chain:
 
 ```
-1. sase sase.yml (bundled)
-2. Plugin sase.yml files (sorted by EP name) — NEW
+1. sase default_config.yml (bundled)
+2. Plugin default_config.yml files (sorted by EP name) — NEW
 3. ~/.config/sase/sase.yml (user, lists replace)
 4. ~/.config/sase/sase_*.yml overlays (lists concatenate)
 ```
@@ -260,7 +260,7 @@ sase-google/
   src/sase_hg/
     __init__.py
     plugin.py              # HgPlugin (moved from core)
-    sase.yml     # Hg-specific config (metahook definitions)
+    default_config.yml     # Hg-specific config (metahook definitions)
     xprompts/
       hg.yml               # moved
       cl.yml               # moved

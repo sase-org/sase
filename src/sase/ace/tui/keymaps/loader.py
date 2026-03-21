@@ -1,7 +1,7 @@
 """Keymap loading, binding construction, and display helpers.
 
 Provides the loader that reads from the merged config system
-(``sase.yml`` -> plugins -> ``sase.yml`` -> overlays),
+(``default_config.yml`` -> plugins -> ``sase.yml`` -> overlays),
 the Textual ``Binding`` builder, and key display name utilities.
 """
 
@@ -34,21 +34,21 @@ log = logging.getLogger(__name__)
 
 
 def load_builtin_app_defaults() -> dict[str, str]:
-    """Load app-level keymap defaults from the bundled ``sase.yml``.
+    """Load app-level keymap defaults from the bundled ``default_config.yml``.
 
     This file is the **single source of truth** for default keybindings.
     Adding a new field to ``AppKeymaps`` without a corresponding entry in
-    ``sase.yml`` will cause startup to fail.
+    ``default_config.yml`` will cause startup to fail.
     """
-    ref = importlib.resources.files("sase").joinpath("sase.yml")
+    ref = importlib.resources.files("sase").joinpath("default_config.yml")
     text = ref.read_text(encoding="utf-8")
     data = yaml.safe_load(text)
     if not isinstance(data, dict):
-        msg = "sase.yml is not a valid YAML mapping"
+        msg = "default_config.yml is not a valid YAML mapping"
         raise RuntimeError(msg)
     app = data.get("ace", {}).get("keymaps", {}).get("app", {})
     if not isinstance(app, dict):
-        msg = "sase.yml missing ace.keymaps.app section"
+        msg = "default_config.yml missing ace.keymaps.app section"
         raise RuntimeError(msg)
     return {k: str(v) for k, v in app.items()}
 
@@ -78,8 +78,8 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     """Build a ``KeymapRegistry`` from the ``ace`` config section.
 
     All app-level keybindings must be defined in configuration files
-    (starting from ``sase.yml``).  Missing bindings cause a
-    ``ValueError`` at startup -- this ensures ``sase.yml``
+    (starting from ``default_config.yml``).  Missing bindings cause a
+    ``ValueError`` at startup -- this ensures ``default_config.yml``
     stays in sync with ``AppKeymaps``.
 
     Args:
@@ -88,15 +88,15 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     Returns:
         Fully populated registry with defaults for any missing overrides.
     """
-    # Load defaults from sase.yml (single source of truth).
+    # Load defaults from default_config.yml (single source of truth).
     builtin_defaults = load_builtin_app_defaults()
     app_field_names = {f.name for f in fields(AppKeymaps)}
 
-    # Fail loudly if sase.yml doesn't cover every field.
+    # Fail loudly if default_config.yml doesn't cover every field.
     missing_from_defaults = sorted(app_field_names - set(builtin_defaults.keys()))
     if missing_from_defaults:
         raise ValueError(
-            f"sase.yml missing app keymaps: "
+            f"default_config.yml missing app keymaps: "
             f"{', '.join(missing_from_defaults)}. "
             f"Add these under ace.keymaps.app."
         )

@@ -2,7 +2,7 @@
 
 Defines dataclasses for all configurable keymaps (app-level bindings and
 prefix-key modes) and provides a loader that reads from the merged config
-system (``sase.yml`` -> plugins -> ``sase.yml`` -> overlays).
+system (``default_config.yml`` -> plugins -> ``sase.yml`` -> overlays).
 """
 
 from sase.ace.tui.keymaps.loader import (

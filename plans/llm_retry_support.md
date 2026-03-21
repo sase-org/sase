@@ -123,7 +123,7 @@ Add optional retry metadata to the done marker:
 
 ### Files to Create/Modify
 
-1. **`src/sase/sase.yml`** — Add empty `retry: {}` under `llm_provider` section
+1. **`src/sase/default_config.yml`** — Add empty `retry: {}` under `llm_provider` section
 2. **`src/sase/llm_provider/retry_config.py`** (new) — Dataclasses and loader:
    - `ProviderRetryConfig` dataclass: `max_retries`, `error_patterns`, `wait_times`, `fallback_model`
    - `RetryState` dataclass: Fields matching `retry_state.json` schema, plus `write_to(artifacts_dir)` and
