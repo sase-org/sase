@@ -384,6 +384,11 @@
         "type": "string"
       }
     },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone name used for all dates/datetimes (e.g., 'America/New_York', 'US/Pacific')",
+      "default": "America/New_York"
+    },
     "use_chezmoi": {
       "type": "boolean",
       "description": "Remap home xprompt paths to chezmoi-managed equivalents under ~/.local/share/chezmoi/home/",
