@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-21 17:53:35
-status: wip
+status: done
 bead_id: sase-7
 ---
 

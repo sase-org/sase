@@ -1,14 +1,14 @@
 """Tests for MentorConfig role and focus_areas field functionality."""
 
 import pytest
-from sase.config.mentor import MentorFocusArea, _load_mentor_profiles
+from sase.config.mentor import _MentorFocusArea, _load_mentor_profiles
 from test_utils import make_mentor_config, mentor_config_from_yaml
 
 
 def test_mentor_config_with_role_and_focus_areas() -> None:
     """Test MentorConfig with role and focus_areas fields."""
     focus_areas = [
-        MentorFocusArea(focus_name="comments", description="Check doc comments"),
+        _MentorFocusArea(focus_name="comments", description="Check doc comments"),
     ]
     config = make_mentor_config(
         mentor_name="aaa",

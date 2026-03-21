@@ -96,7 +96,7 @@ def save_mentor_output(
     return path
 
 
-def load_mentor_output(path: Path) -> MentorOutput:
+def _load_mentor_output(path: Path) -> MentorOutput:
     """Load a single mentor output from a JSON file.
 
     Raises:
@@ -113,7 +113,7 @@ def load_mentor_output(path: Path) -> MentorOutput:
     )
 
 
-def load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
+def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
     """Load all mentor outputs for a given CL.
 
     Returns:
@@ -128,7 +128,7 @@ def load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
         if path.name.endswith("-acceptance.json"):
             continue
         try:
-            results.append((path, load_mentor_output(path)))
+            results.append((path, _load_mentor_output(path)))
         except (json.JSONDecodeError, KeyError, TypeError):
             log.warning("Skipping malformed mentor output: %s", path)
     return results
@@ -145,7 +145,7 @@ def load_mentor_outputs_for_commit(
     Returns:
         List of (path, MentorOutput) tuples for the matching commit.
     """
-    all_outputs = load_all_mentor_outputs(cl_name)
+    all_outputs = _load_all_mentor_outputs(cl_name)
     return [(p, o) for p, o in all_outputs if entry_id in p.stem]
 
 

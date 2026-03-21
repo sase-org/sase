@@ -9,8 +9,8 @@ from sase.ace.mentor_output import (
     MentorComment,
     MentorOutput,
     load_acceptance_state,
-    load_all_mentor_outputs,
-    load_mentor_output,
+    _load_all_mentor_outputs,
+    _load_mentor_output,
     save_acceptance_state,
     save_mentor_output,
 )
@@ -121,7 +121,7 @@ def test_save_and_load_mentor_output(tmp_path: Path, monkeypatch: object) -> Non
     path = save_mentor_output("my-cl", "code", "code_quality", "260321_120000", output)
 
     assert path.exists()
-    loaded = load_mentor_output(path)
+    loaded = _load_mentor_output(path)
     assert loaded.mentor_name == "code_quality"
     assert loaded.profile_name == "code"
     assert loaded.role == "senior reviewer"
@@ -144,7 +144,7 @@ def test_load_all_mentor_outputs(tmp_path: Path, monkeypatch: object) -> None:
     save_mentor_output("my-cl", "code", "code_quality", "260321_120000", output1)
     save_mentor_output("my-cl", "code", "tests", "260321_120001", output2)
 
-    results = load_all_mentor_outputs("my-cl")
+    results = _load_all_mentor_outputs("my-cl")
     assert len(results) == 2
     names = [o.mentor_name for _, o in results]
     assert "code_quality" in names
@@ -156,7 +156,7 @@ def test_load_all_mentor_outputs_empty_dir(tmp_path: Path, monkeypatch: object) 
     monkeypatch.setattr(  # type: ignore[attr-defined]
         "sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path / "nonexistent"
     )
-    assert load_all_mentor_outputs("my-cl") == []
+    assert _load_all_mentor_outputs("my-cl") == []
 
 
 def test_load_all_skips_malformed(tmp_path: Path, monkeypatch: object) -> None:
@@ -170,7 +170,7 @@ def test_load_all_skips_malformed(tmp_path: Path, monkeypatch: object) -> None:
     bad = tmp_path / "cl-p-bad-ts2.json"
     bad.write_text("{invalid json", encoding="utf-8")
 
-    results = load_all_mentor_outputs("cl")
+    results = _load_all_mentor_outputs("cl")
     assert len(results) == 1
 
 
@@ -184,7 +184,7 @@ def test_load_all_skips_acceptance_files(tmp_path: Path, monkeypatch: object) ->
     acceptance = tmp_path / "cl-1-acceptance.json"
     acceptance.write_text("{}", encoding="utf-8")
 
-    results = load_all_mentor_outputs("cl")
+    results = _load_all_mentor_outputs("cl")
     assert len(results) == 1
 
 
@@ -196,7 +196,7 @@ def test_cl_name_with_slash(tmp_path: Path, monkeypatch: object) -> None:
     path = save_mentor_output("feat/branch", "code", "m", "ts", output)
 
     assert "feat_branch" in path.name
-    loaded = load_mentor_output(path)
+    loaded = _load_mentor_output(path)
     assert loaded.mentor_name == output.mentor_name
 
 

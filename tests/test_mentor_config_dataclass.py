@@ -1,7 +1,7 @@
 """Tests for MentorConfig and MentorProfileConfig dataclass validation."""
 
 import pytest
-from sase.config.mentor import MentorFocusArea, MentorProfileConfig
+from sase.config.mentor import _MentorFocusArea, MentorProfileConfig
 from test_utils import make_mentor_config
 
 
@@ -17,8 +17,8 @@ def test_mentor_config_dataclass() -> None:
 def test_mentor_config_focus_areas() -> None:
     """Test MentorConfig with explicit focus areas."""
     focus_areas = [
-        MentorFocusArea(focus_name="comments", description="Check comments"),
-        MentorFocusArea(focus_name="style", description="Check style"),
+        _MentorFocusArea(focus_name="comments", description="Check comments"),
+        _MentorFocusArea(focus_name="style", description="Check style"),
     ]
     config = make_mentor_config(
         mentor_name="quality",

@@ -6,7 +6,7 @@ from sase.config.core import load_merged_config
 
 
 @dataclass
-class MentorFocusArea:
+class _MentorFocusArea:
     """Represents a single focus area for a mentor's review."""
 
     focus_name: str
@@ -19,7 +19,7 @@ class MentorConfig:
 
     mentor_name: str
     role: str
-    focus_areas: list[MentorFocusArea]
+    focus_areas: list[_MentorFocusArea]
 
 
 @dataclass
@@ -135,7 +135,7 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
                         "'focus_name' and 'description' fields"
                     )
                 focus_areas.append(
-                    MentorFocusArea(
+                    _MentorFocusArea(
                         focus_name=fa_item["focus_name"],
                         description=fa_item["description"],
                     )

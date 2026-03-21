@@ -11,21 +11,21 @@ from sase.ace.mentor_output import (
 from sase.ace.changespec.models import MentorEntry, MentorStatusLine
 from sase.ace.tui.modals.mentor_review_modal import (
     MentorApplyResult,
-    MentorInfo,
-    MentorReviewData,
+    _MentorInfo,
+    _MentorReviewData,
     MentorReviewModal,
     build_mentor_review_data,
 )
 
 
-# ── MentorReviewData ──────────────────────────────────────────────────────
+# ── _MentorReviewData ──────────────────────────────────────────────────────
 
 
 def test_mentor_review_data_total_comments() -> None:
     """Total comments is the sum across all mentors."""
-    data = MentorReviewData(
+    data = _MentorReviewData(
         mentors=[
-            MentorInfo(
+            _MentorInfo(
                 mentor_name="a",
                 profile_name="p",
                 status="COMMENTED",
@@ -39,7 +39,7 @@ def test_mentor_review_data_total_comments() -> None:
                     }
                 ],
             ),
-            MentorInfo(
+            _MentorInfo(
                 mentor_name="b",
                 profile_name="p",
                 status="COMMENTED",
@@ -70,9 +70,11 @@ def test_mentor_review_data_total_comments() -> None:
 
 def test_mentor_review_data_zero_comments() -> None:
     """No comments when all mentors passed."""
-    data = MentorReviewData(
+    data = _MentorReviewData(
         mentors=[
-            MentorInfo(mentor_name="a", profile_name="p", status="PASSED", comments=[]),
+            _MentorInfo(
+                mentor_name="a", profile_name="p", status="PASSED", comments=[]
+            ),
         ],
         acceptance=MentorAcceptanceState(),
         cl_name="test-cl",
@@ -204,8 +206,8 @@ def test_build_review_data_running_mentor(tmp_path: Path, monkeypatch: object) -
 def _make_modal_data(
     mentor_comments: list[int],
     accepted: dict[str, bool] | None = None,
-) -> MentorReviewData:
-    """Create MentorReviewData with N mentors, each having the given comment counts."""
+) -> _MentorReviewData:
+    """Create _MentorReviewData with N mentors, each having the given comment counts."""
     mentors = []
     for i, count in enumerate(mentor_comments):
         comments: list[dict[str, str | int]] = [
@@ -219,7 +221,7 @@ def _make_modal_data(
             for j in range(count)
         ]
         mentors.append(
-            MentorInfo(
+            _MentorInfo(
                 mentor_name=f"mentor_{i}",
                 profile_name="code",
                 status="COMMENTED" if count > 0 else "PASSED",
@@ -227,7 +229,7 @@ def _make_modal_data(
             )
         )
     acceptance = MentorAcceptanceState(accepted=accepted or {})
-    return MentorReviewData(
+    return _MentorReviewData(
         mentors=mentors,
         acceptance=acceptance,
         cl_name="test-cl",

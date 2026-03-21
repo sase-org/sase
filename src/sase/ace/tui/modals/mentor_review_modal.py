@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class MentorInfo:
+class _MentorInfo:
     """Aggregated info for a single mentor in the side panel."""
 
     mentor_name: str
@@ -41,10 +41,10 @@ class MentorInfo:
 
 
 @dataclass
-class MentorReviewData:
+class _MentorReviewData:
     """Data passed to the MentorReviewModal."""
 
-    mentors: list[MentorInfo]
+    mentors: list[_MentorInfo]
     acceptance: MentorAcceptanceState
     cl_name: str
     entry_id: str
@@ -65,8 +65,8 @@ class MentorApplyResult:
 def build_mentor_review_data(
     mentor_entry: MentorEntry,
     cl_name: str,
-) -> MentorReviewData | None:
-    """Build MentorReviewData from a MentorEntry.
+) -> _MentorReviewData | None:
+    """Build _MentorReviewData from a MentorEntry.
 
     Returns None if there are no mentors with comments or actionable status.
     """
@@ -79,7 +79,7 @@ def build_mentor_review_data(
         output_map[(mo.profile_name, mo.mentor_name)] = mo
 
     # Build mentor info list from status lines
-    mentors: list[MentorInfo] = []
+    mentors: list[_MentorInfo] = []
     seen: set[tuple[str, str]] = set()
 
     if mentor_entry.status_lines:
@@ -104,7 +104,7 @@ def build_mentor_review_data(
                     )
 
             mentors.append(
-                MentorInfo(
+                _MentorInfo(
                     mentor_name=sl.mentor_name,
                     profile_name=sl.profile_name,
                     status=sl.status,
@@ -117,7 +117,7 @@ def build_mentor_review_data(
         return None
 
     acceptance = load_acceptance_state(cl_name, entry_id)
-    return MentorReviewData(
+    return _MentorReviewData(
         mentors=mentors,
         acceptance=acceptance,
         cl_name=cl_name,
@@ -142,7 +142,7 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[MentorApplyResult |
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
 
-    def __init__(self, data: MentorReviewData) -> None:
+    def __init__(self, data: _MentorReviewData) -> None:
         super().__init__()
         self._data = data
         self._mentor_idx = 0
@@ -174,7 +174,7 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[MentorApplyResult |
         text.append(" Mentor Review", style="bold white")
         return text
 
-    def _current_mentor(self) -> MentorInfo | None:
+    def _current_mentor(self) -> _MentorInfo | None:
         if not self._data.mentors:
             return None
         return self._data.mentors[self._mentor_idx]
@@ -454,7 +454,7 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[MentorApplyResult |
 
     # -- Helpers --
 
-    def _all_comments_accepted(self, mentor: MentorInfo) -> bool:
+    def _all_comments_accepted(self, mentor: _MentorInfo) -> bool:
         if not mentor.comments:
             return False
         return all(
@@ -464,7 +464,7 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[MentorApplyResult |
             for i in range(len(mentor.comments))
         )
 
-    def _accepted_count_for_mentor(self, mentor: MentorInfo) -> int:
+    def _accepted_count_for_mentor(self, mentor: _MentorInfo) -> int:
         return sum(
             1
             for i in range(len(mentor.comments))
