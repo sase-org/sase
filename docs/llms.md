@@ -443,7 +443,7 @@ After execution completes, retry metadata is written to `done.json` in the agent
 }
 ```
 
-Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe_run_agent_exec.py`
+Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe/run_agent_exec.py`
 
 ## Prompt Preprocessing Pipeline
 

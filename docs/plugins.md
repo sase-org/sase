@@ -42,7 +42,7 @@ pip install sase-google
 ## How Plugins Are Discovered
 
 Plugin discovery uses `importlib.metadata.entry_points()` to find installed packages that declare entry points in one of
-sase's plugin groups. The shared discovery logic lives in `src/sase/plugin_discovery.py`.
+sase's plugin groups. The shared discovery logic lives in `src/sase/main/plugin_discovery.py`.
 
 For each group:
 

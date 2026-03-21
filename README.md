@@ -179,6 +179,7 @@ generating workflow DAGs (`graph`).
 ```
 src/sase/
 ├── main/                  # CLI entry point and argument parsing
+│   ├── plugin_discovery.py # Entry-point-based plugin discovery
 │   └── query_handler/     # Query execution handler
 ├── ace/                   # Interactive TUI and ChangeSpec engine
 │   ├── changespec/        # ChangeSpec data model and parsing
@@ -198,16 +199,32 @@ src/sase/
 │   ├── comments/          # Comment management
 │   ├── scheduler/         # Task scheduling within ACE
 │   └── workflows/         # ACE-specific workflow integrations
-├── axe/                   # Lumberjack-based daemon (orchestrator, chops, runner pool)
+├── axe/                   # Lumberjack-based daemon and agent runners
 │   ├── orchestrator.py    # Multi-lumberjack supervisor
 │   ├── lumberjack.py      # Single-lumberjack scheduler loop
 │   ├── chop_script_runner.py # External chop script discovery and execution
 │   ├── config.py          # Lumberjack and chop configuration
 │   ├── runner_pool.py     # Shared concurrent runner pool
 │   ├── hook_jobs.py       # 1-second interval hook/mentor/workflow jobs
+│   ├── run_agent_runner.py # Agent run orchestration
+│   ├── run_workflow_runner.py # Workflow run orchestration
 │   ├── state.py           # Lumberjack state persistence
 │   ├── process.py         # Process management utilities
 │   └── cli.py             # Axe CLI argument parsing
+├── config/                # Configuration loading and management
+│   ├── core.py            # Config file discovery, deep-merge, and loading
+│   ├── mentor.py          # Mentor profile configuration
+│   └── metahook.py        # Metahook configuration
+├── history/               # History persistence
+│   ├── chat.py            # Chat history persistence
+│   ├── command.py         # Command history persistence
+│   ├── hook.py            # Hook history persistence
+│   └── prompt.py          # Prompt history persistence and querying
+├── workflows/             # All change-lifecycle workflows
+│   ├── accept/            # Change acceptance workflows
+│   ├── commit/            # Commit creation workflows
+│   ├── commit_utils/      # COMMITS entry management
+│   └── rewind/            # Revert and restore operations
 ├── xprompts/              # Built-in xprompt workflows and schema
 ├── xprompt/               # Prompt templates and workflow execution
 │   ├── processor.py       # XPrompt expansion engine
@@ -219,7 +236,7 @@ src/sase/
 │   ├── workflow_executor*.py # Workflow execution (steps, loops, parallel)
 │   ├── workflow_loader*.py   # Workflow YAML parsing and validation
 │   └── workflow_validator.py # Cross-step validation (field refs, finally, artifacts)
-├── llm_provider/          # Pluggable LLM abstraction (Claude, Gemini)
+├── llm_provider/          # Pluggable LLM abstraction (Claude, Codex, Gemini)
 ├── vcs_provider/          # VCS abstraction (pluggy-based plugin system)
 │   ├── _hookspec.py       # Pluggy hook specifications (VCSHookSpec)
 │   ├── _plugin_manager.py # Plugin manager wrapping pluggy
@@ -235,23 +252,14 @@ src/sase/
 │   ├── _registry.py       # Workspace detection and metadata registry
 │   └── plugins/           # Built-in workspace plugins
 │       └── bare_git_*.py  # BareGitWorkspacePlugin (ref resolution, submit, mail)
-├── plugin_discovery.py    # Entry-point-based plugin discovery (shared)
 ├── agent_launcher.py      # Agent subprocess launcher
-├── commit_workflow/       # Commit creation workflows
-├── commit_utils/          # COMMITS entry management
-├── accept_workflow/       # Change acceptance workflows
-├── rewind_workflow/       # Revert and restore operations
+├── multi_prompt.py        # Multi-prompt parsing (frontmatter + segment splitting)
+├── multi_prompt_launcher.py # Sequential multi-agent launch orchestration
 ├── bead/                  # Git-native issue tracking (plans, phases, dependencies)
 ├── logs/                  # Agent run log collection and packaging
 ├── gemini_wrapper/        # Gemini-specific integration
 ├── notifications/         # Notification system and delivery
 ├── status_state_machine/  # ChangeSpec status transitions
-├── multi_prompt.py        # Multi-prompt parsing (frontmatter + segment splitting)
-├── multi_prompt_launcher.py # Sequential multi-agent launch orchestration
-├── mentor_config.py       # Mentor profile configuration loading
-├── metahook_config.py     # Metahook configuration loading
-├── chat_history.py        # Chat history persistence
-├── prompt_history.py      # Prompt history persistence and querying
 ├── scripts/               # Extracted Python utility scripts
 tests/                     # Test suite (mirrors src/sase/ structure)
 docs/                      # Detailed documentation

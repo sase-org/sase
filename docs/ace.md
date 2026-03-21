@@ -542,7 +542,8 @@ See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` confi
 
 ## Prompt Input Widget
 
-The prompt input is a multiline TextArea widget that supports two editing modes: INSERT and NORMAL.
+The prompt input is a multiline TextArea widget that supports two editing modes: INSERT and NORMAL. The widget provides
+markdown syntax highlighting for prompt content (headings, bold, italic, code blocks, lists, etc.).
 
 ### INSERT Mode (Default)
 
@@ -558,6 +559,13 @@ The prompt input is a multiline TextArea widget that supports two editing modes:
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
 
+### Special Prompt Shortcuts
+
+| Input | Action                                                            |
+| ----- | ----------------------------------------------------------------- |
+| `.`   | Open prompt history modal for the current CL                      |
+| `.x`  | Open prompt history modal with cancelled prompts shown by default |
+
 ### NORMAL Mode
 
 Press `Escape` in INSERT mode to enter vim-style NORMAL mode. The border title shows `[NORMAL]` and line numbers switch
@@ -572,6 +580,9 @@ to relative numbering (current line shows absolute, others show offset).
 | `w` / `W`         | Next word / WORD start        |
 | `e` / `E`         | Next word / WORD end          |
 | `b` / `B`         | Previous word / WORD start    |
+| `f{c}` / `F{c}`   | Find char forward / backward  |
+| `t{c}` / `T{c}`   | Till char forward / backward  |
+| `;` / `,`         | Repeat / reverse last f/F/t/T |
 | `0` / `$`         | Line start / end              |
 | `^`               | First non-blank character     |
 | `gg` / `G`        | Top / bottom of document      |

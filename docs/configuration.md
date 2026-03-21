@@ -16,6 +16,7 @@ and CLI flags.
   - [metahooks](#metahooks)
   - [xprompts](#xprompts)
   - [xprompt_aliases](#xprompt_aliases)
+  - [use_chezmoi](#use_chezmoi)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 
@@ -56,7 +57,7 @@ Merge semantics:
 For example, given a base file with two mentor profiles and an overlay that adds a third, the merged result contains all
 three profiles. If both files define the same scalar key (e.g., `axe.max_hook_runners`), the overlay wins.
 
-Source: `src/sase/config.py`
+Source: `src/sase/config/core.py`
 
 ## Configuration Sections
 
@@ -342,7 +343,7 @@ mentor_profiles:
 
 Mentors run automatically on ChangeSpecs with Draft or Mailed status when their matching criteria are met.
 
-Source: `src/sase/mentor_config.py`
+Source: `src/sase/config/mentor.py`
 
 ### metahooks
 
@@ -367,7 +368,7 @@ metahooks:
 | `hook_command` | string | yes      | Substring matched against the executed hook command.   |
 | `output_regex` | string | yes      | Regex pattern matched against hook output (multiline). |
 
-Source: `src/sase/metahook_config.py`
+Source: `src/sase/config/metahook.py`
 
 ### xprompts
 
@@ -429,6 +430,23 @@ it with `#target` before any other xprompt resolution occurs. Only `#`-prefixed 
 name must match `[a-zA-Z_][a-zA-Z0-9_]*`.
 
 Source: `src/sase/xprompt/processor.py`
+
+### use_chezmoi
+
+Enables chezmoi path remapping for xprompt file operations. When set to `true`, home-directory xprompt paths
+(`~/.xprompts/`, `~/xprompts/`) are remapped to their chezmoi-managed equivalents under `~/.local/share/chezmoi/home/`
+(e.g., `~/.xprompts/` becomes `~/.local/share/chezmoi/home/dot_xprompts/`). This ensures that xprompt edits and
+creations go through chezmoi's dotfile management rather than modifying the symlinked targets directly.
+
+```yaml
+use_chezmoi: true # default: false
+```
+
+| Field         | Type | Default | Description                                              |
+| ------------- | ---- | ------- | -------------------------------------------------------- |
+| `use_chezmoi` | bool | `false` | Remap home xprompt paths to chezmoi-managed equivalents. |
+
+Source: `src/sase/config/core.py`
 
 ## Environment Variables
 
