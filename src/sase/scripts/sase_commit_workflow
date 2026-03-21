@@ -82,7 +82,7 @@ def _amend_cl_git(
     On master/main: commit directly and auto-push.
     On PR branch: commit, push, and add HISTORY entry to ChangeSpec.
     """
-    from sase.chat_history import save_chat_history
+    from sase.history.chat import save_chat_history
     from sase.commit_utils.workspace import save_diff
     from sase.sase_utils import generate_timestamp
 

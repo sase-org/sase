@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from sase.prompt_history import PromptEntry, get_prompts_for_fzf
+from sase.history.prompt import PromptEntry, get_prompts_for_fzf
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult

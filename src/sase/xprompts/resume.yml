@@ -25,7 +25,7 @@ steps:
     hidden: true
     python: |
       import json
-      from sase.chat_history import load_chat_for_resume
+      from sase.history.chat import load_chat_for_resume
       history = load_chat_for_resume({{ resolve.path | tojson }})
       print(json.dumps({"previous_history": history}))
     output: { previous_history: text }

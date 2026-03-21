@@ -225,7 +225,7 @@ def main() -> None:
         # Also skip when every step in the workflow was hidden (e.g. for-loops
         # over empty lists) — there's nothing useful to report.
         if not was_killed() and not all_steps_hidden(artifacts_dir):
-            from sase.chat_history import list_chat_histories
+            from sase.history.chat import list_chat_histories
             from sase.notifications.senders import notify_workflow_complete
             from sase.sase_utils import get_sase_directory
 

@@ -51,7 +51,7 @@ class AgentLaunchMixin:
         ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
 
         # Save prompt to history IMMEDIATELY (before background subprocess)
-        from sase.prompt_history import add_or_update_prompt
+        from sase.history.prompt import add_or_update_prompt
 
         add_or_update_prompt(
             prompt,

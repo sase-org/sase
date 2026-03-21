@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from sase.chat_history import list_chat_histories
+from sase.history.chat import list_chat_histories
 from sase.shared_utils import create_artifacts_directory
 
 from ._daemon import run_query_daemon

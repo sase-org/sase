@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.command_history import (
+from sase.history.command import (
     CommandEntry,
     _format_command_for_display,
     _load_command_history,
@@ -16,7 +16,7 @@ from sase.command_history import (
 def test_same_command_different_project_not_deduplicated(tmp_path: Path) -> None:
     """Test that same command on different project is not deduplicated."""
     test_file = tmp_path / "command_history.json"
-    with patch("sase.command_history._COMMAND_HISTORY_FILE", test_file):
+    with patch("sase.history.command._COMMAND_HISTORY_FILE", test_file):
         # Add initial command
         initial_entry = CommandEntry(
             command="make test",
@@ -29,7 +29,7 @@ def test_same_command_different_project_not_deduplicated(tmp_path: Path) -> None
 
         # Add same command for different project
         with patch(
-            "sase.command_history.generate_timestamp", return_value="251231_200000"
+            "sase.history.command.generate_timestamp", return_value="251231_200000"
         ):
             add_or_update_command("make test", "project2", None)
 
@@ -56,7 +56,7 @@ def test_format_command_truncates_long_commands() -> None:
 def test_get_commands_for_display_empty(tmp_path: Path) -> None:
     """Test get_commands_for_display returns empty list when no history."""
     test_file = tmp_path / "command_history.json"
-    with patch("sase.command_history._COMMAND_HISTORY_FILE", test_file):
+    with patch("sase.history.command._COMMAND_HISTORY_FILE", test_file):
         result = get_commands_for_display("feature", "myproject")
         assert result == []
 
@@ -64,7 +64,7 @@ def test_get_commands_for_display_empty(tmp_path: Path) -> None:
 def test_get_commands_for_display_sorts_project_second(tmp_path: Path) -> None:
     """Test that commands from same project but different CL are sorted second."""
     test_file = tmp_path / "command_history.json"
-    with patch("sase.command_history._COMMAND_HISTORY_FILE", test_file):
+    with patch("sase.history.command._COMMAND_HISTORY_FILE", test_file):
         entries = [
             CommandEntry(
                 command="other project command",
@@ -102,7 +102,7 @@ def test_handles_corrupt_json(tmp_path: Path) -> None:
     """Test that corrupt JSON files are handled gracefully."""
     test_file = tmp_path / "command_history.json"
     test_file.write_text("not valid json {")
-    with patch("sase.command_history._COMMAND_HISTORY_FILE", test_file):
+    with patch("sase.history.command._COMMAND_HISTORY_FILE", test_file):
         result = _load_command_history()
         assert result == []
 
@@ -115,7 +115,7 @@ def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
         '"timestamp": "251231_143052", "last_used": "251231_143052"}, '
         '{"command": "missing_fields"}]}'
     )
-    with patch("sase.command_history._COMMAND_HISTORY_FILE", test_file):
+    with patch("sase.history.command._COMMAND_HISTORY_FILE", test_file):
         result = _load_command_history()
         assert len(result) == 1
         assert result[0].command == "valid"

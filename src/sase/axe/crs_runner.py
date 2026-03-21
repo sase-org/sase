@@ -23,7 +23,7 @@ from sase.axe.runner_utils import (
     finalize_axe_runner,
     write_done_marker,
 )
-from sase.chat_history import find_chat_by_timestamp
+from sase.history.chat import find_chat_by_timestamp
 from sase.crs_workflow import CrsWorkflow
 from sase.sase_utils import shorten_path
 from sase.shared_utils import create_artifacts_directory

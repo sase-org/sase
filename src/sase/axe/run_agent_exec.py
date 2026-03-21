@@ -26,8 +26,8 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.runner_utils import prepare_workspace, reset_killed, was_killed
-from sase.chat_history import save_chat_history
-from sase.chat_history_extras import format_extra_sections
+from sase.history.chat import save_chat_history
+from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import (
     RetryState,
     find_retry_config_for_error,

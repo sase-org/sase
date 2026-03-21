@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.prompt_history import (
+from sase.history.prompt import (
     PromptEntry,
     _format_prompt_for_display,
     _load_prompt_history,
@@ -17,12 +17,12 @@ def test_add_new_prompt(tmp_path: Path) -> None:
     """Test adding a new prompt to history."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file),
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
         patch(
-            "sase.prompt_history._get_current_branch_or_workspace", return_value="main"
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
         ),
-        patch("sase.prompt_history._get_workspace_name", return_value="myproject"),
-        patch("sase.prompt_history.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         add_or_update_prompt("test prompt")
         result = _load_prompt_history()
@@ -37,7 +37,7 @@ def test_add_new_prompt(tmp_path: Path) -> None:
 def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
     """Test that adding a duplicate prompt updates its last_used timestamp."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         # Add initial prompt
         initial_entry = PromptEntry(
             text="test prompt",
@@ -51,12 +51,12 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
         # Add the same prompt again
         with (
             patch(
-                "sase.prompt_history._get_current_branch_or_workspace",
+                "sase.history.prompt._get_current_branch_or_workspace",
                 return_value="main",
             ),
-            patch("sase.prompt_history._get_workspace_name", return_value="myproject"),
+            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
             patch(
-                "sase.prompt_history.generate_timestamp", return_value="251231_200000"
+                "sase.history.prompt.generate_timestamp", return_value="251231_200000"
             ),
         ):
             add_or_update_prompt("test prompt")
@@ -89,7 +89,7 @@ def test_format_prompt_truncates_long_prompts() -> None:
 def test_get_prompts_for_fzf_empty(tmp_path: Path) -> None:
     """Test get_prompts_for_fzf returns empty list when no history."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         result = get_prompts_for_fzf("main", "myproject")
         assert result == []
 
@@ -97,7 +97,7 @@ def test_get_prompts_for_fzf_empty(tmp_path: Path) -> None:
 def test_get_prompts_for_fzf_sorts_workspace_second(tmp_path: Path) -> None:
     """Test that prompts from same workspace but different branch are sorted second."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         entries = [
             PromptEntry(
                 text="other workspace prompt",
@@ -135,7 +135,7 @@ def test_handles_corrupt_json(tmp_path: Path) -> None:
     """Test that corrupt JSON files are handled gracefully."""
     test_file = tmp_path / "prompt_history.json"
     test_file.write_text("not valid json {")
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         result = _load_prompt_history()
         assert result == []
 
@@ -144,12 +144,12 @@ def test_add_cancelled_prompt(tmp_path: Path) -> None:
     """Test adding a cancelled prompt to history."""
     test_file = tmp_path / "prompt_history.json"
     with (
-        patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file),
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
         patch(
-            "sase.prompt_history._get_current_branch_or_workspace", return_value="main"
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
         ),
-        patch("sase.prompt_history._get_workspace_name", return_value="myproject"),
-        patch("sase.prompt_history.generate_timestamp", return_value="251231_143052"),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
     ):
         add_or_update_prompt("draft prompt", cancelled=True)
         result = _load_prompt_history()
@@ -161,7 +161,7 @@ def test_add_cancelled_prompt(tmp_path: Path) -> None:
 def test_cancelled_prompt_not_downgraded(tmp_path: Path) -> None:
     """Test that a non-cancelled prompt is not downgraded to cancelled."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         # Add a non-cancelled prompt
         entry = PromptEntry(
             text="test prompt",
@@ -176,12 +176,12 @@ def test_cancelled_prompt_not_downgraded(tmp_path: Path) -> None:
         # Try to add the same prompt as cancelled
         with (
             patch(
-                "sase.prompt_history._get_current_branch_or_workspace",
+                "sase.history.prompt._get_current_branch_or_workspace",
                 return_value="main",
             ),
-            patch("sase.prompt_history._get_workspace_name", return_value="myproject"),
+            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
             patch(
-                "sase.prompt_history.generate_timestamp", return_value="251231_200000"
+                "sase.history.prompt.generate_timestamp", return_value="251231_200000"
             ),
         ):
             add_or_update_prompt("test prompt", cancelled=True)
@@ -197,7 +197,7 @@ def test_cancelled_prompt_not_downgraded(tmp_path: Path) -> None:
 def test_cancelled_prompt_upgraded_on_launch(tmp_path: Path) -> None:
     """Test that a cancelled prompt is upgraded to non-cancelled when launched."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         # Add a cancelled prompt
         entry = PromptEntry(
             text="draft prompt",
@@ -212,12 +212,12 @@ def test_cancelled_prompt_upgraded_on_launch(tmp_path: Path) -> None:
         # Add the same prompt as non-cancelled (simulating a launch)
         with (
             patch(
-                "sase.prompt_history._get_current_branch_or_workspace",
+                "sase.history.prompt._get_current_branch_or_workspace",
                 return_value="main",
             ),
-            patch("sase.prompt_history._get_workspace_name", return_value="myproject"),
+            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
             patch(
-                "sase.prompt_history.generate_timestamp", return_value="251231_200000"
+                "sase.history.prompt.generate_timestamp", return_value="251231_200000"
             ),
         ):
             add_or_update_prompt("draft prompt")
@@ -231,7 +231,7 @@ def test_cancelled_prompt_upgraded_on_launch(tmp_path: Path) -> None:
 def test_get_prompts_for_fzf_excludes_cancelled_by_default(tmp_path: Path) -> None:
     """Test that cancelled prompts are excluded from fzf results by default."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         entries = [
             PromptEntry(
                 text="regular prompt",
@@ -261,7 +261,7 @@ def test_get_prompts_for_fzf_includes_cancelled_when_requested(
 ) -> None:
     """Test that cancelled prompts are included when include_cancelled=True."""
     test_file = tmp_path / "prompt_history.json"
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         entries = [
             PromptEntry(
                 text="regular prompt",
@@ -296,7 +296,7 @@ def test_cancelled_field_backward_compat(tmp_path: Path) -> None:
         '"timestamp": "251231_143052", "last_used": "251231_143052", '
         '"workspace": "myproject"}]}'
     )
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         result = _load_prompt_history()
         assert len(result) == 1
         assert result[0].cancelled is False
@@ -311,7 +311,7 @@ def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
         '"timestamp": "251231_143052", "last_used": "251231_143052"}, '
         '{"text": "missing_fields"}]}'
     )
-    with patch("sase.prompt_history._PROMPT_HISTORY_FILE", test_file):
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
         result = _load_prompt_history()
         # Both entries are missing required workspace field
         assert len(result) == 0

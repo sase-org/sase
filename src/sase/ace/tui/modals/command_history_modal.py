@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from sase.command_history import CommandEntry, get_commands_for_display
+from sase.history.command import CommandEntry, get_commands_for_display
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll

@@ -166,7 +166,7 @@ class InputProcessingMixin(HintMixinBase):
 
     def _show_hook_history_modal(self) -> None:
         """Show the hook history modal for selecting a previously used hook."""
-        from sase.hook_history import add_or_update_hook
+        from sase.history.hook import add_or_update_hook
 
         from ....hooks import add_hook_to_changespec
         from ...modals import HookHistoryAction, HookHistoryModal, HookHistoryResult

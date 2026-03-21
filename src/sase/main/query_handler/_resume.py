@@ -2,7 +2,7 @@
 
 import sys
 
-from sase.chat_history import list_chat_histories, load_chat_for_resume
+from sase.history.chat import list_chat_histories, load_chat_for_resume
 
 from ._query import run_query
 

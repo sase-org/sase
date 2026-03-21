@@ -5,7 +5,7 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sase.chat_history import (
+from sase.history.chat import (
     _generate_chat_filename,
     _get_branch_or_workspace_name,
     _get_chat_file_path,
@@ -22,7 +22,7 @@ def test_get_branch_or_workspace_name_strips_reverted_suffix() -> None:
     mock_result.returncode = 0
     mock_result.stdout = "feature_branch__3\n"
 
-    with patch("sase.chat_history.run_shell_command", return_value=mock_result):
+    with patch("sase.history.chat.run_shell_command", return_value=mock_result):
         result = _get_branch_or_workspace_name()
         assert result == "feature_branch"  # suffix stripped
 
@@ -33,7 +33,7 @@ def test_get_branch_or_workspace_name_failure() -> None:
     mock_result.returncode = 1
     mock_result.stderr = "command not found"
 
-    with patch("sase.chat_history.run_shell_command", return_value=mock_result):
+    with patch("sase.history.chat.run_shell_command", return_value=mock_result):
         with pytest.raises(
             RuntimeError, match="Failed to get branch_or_workspace_name"
         ):
@@ -44,9 +44,9 @@ def test_generate_chat_filename_with_agent() -> None:
     """Test _generate_chat_filename with agent name."""
     with (
         patch(
-            "sase.chat_history._get_branch_or_workspace_name", return_value="my-branch"
+            "sase.history.chat._get_branch_or_workspace_name", return_value="my-branch"
         ),
-        patch("sase.chat_history.generate_timestamp", return_value="251128_120000"),
+        patch("sase.history.chat.generate_timestamp", return_value="251128_120000"),
     ):
         # Workflow dashes are normalized to underscores in filename
         result = _generate_chat_filename("crs", agent="planner")
@@ -75,13 +75,13 @@ def test_save_chat_history_basic() -> None:
         test_chats_dir = os.path.join(tmpdir, "chats")
         os.makedirs(test_chats_dir)
 
-        with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
+        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
             with patch(
-                "sase.chat_history._get_branch_or_workspace_name",
+                "sase.history.chat._get_branch_or_workspace_name",
                 return_value="test-branch",
             ):
                 with patch(
-                    "sase.chat_history.generate_timestamp", return_value="251128120000"
+                    "sase.history.chat.generate_timestamp", return_value="251128120000"
                 ):
                     result = save_chat_history(
                         prompt="Hello, how are you?",
@@ -103,13 +103,13 @@ def test_save_chat_history_with_previous_history() -> None:
         test_chats_dir = os.path.join(tmpdir, "chats")
         os.makedirs(test_chats_dir)
 
-        with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
+        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
             with patch(
-                "sase.chat_history._get_branch_or_workspace_name",
+                "sase.history.chat._get_branch_or_workspace_name",
                 return_value="test-branch",
             ):
                 with patch(
-                    "sase.chat_history.generate_timestamp", return_value="251128120000"
+                    "sase.history.chat.generate_timestamp", return_value="251128120000"
                 ):
                     result = save_chat_history(
                         prompt="Follow up question",
@@ -131,7 +131,7 @@ def test__load_chat_history_not_found() -> None:
         test_chats_dir = os.path.join(tmpdir, "chats")
         os.makedirs(test_chats_dir)
 
-        with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
+        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
             with pytest.raises(FileNotFoundError):
                 _load_chat_history("nonexistent-run-251128120000")
 
@@ -142,7 +142,7 @@ def test_list_chat_histories_nonexistent_dir() -> None:
         nonexistent_dir = os.path.join(tmpdir, "nonexistent")
 
         with patch(
-            "sase.chat_history.get_sase_directory", return_value=nonexistent_dir
+            "sase.history.chat.get_sase_directory", return_value=nonexistent_dir
         ):
             result = list_chat_histories()
             assert result == []
@@ -161,7 +161,7 @@ def test_list_chat_histories_with_files() -> None:
             with open(filepath, "w") as f:
                 f.write("content")
 
-        with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
+        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
             result = list_chat_histories()
             assert len(result) == 2
             assert "test-run-251128120000" in result
@@ -262,13 +262,13 @@ def test_save_chat_history_with_extra_sections() -> None:
         test_chats_dir = os.path.join(tmpdir, "chats")
         os.makedirs(test_chats_dir)
 
-        with patch("sase.chat_history.get_sase_directory", return_value=test_chats_dir):
+        with patch("sase.history.chat.get_sase_directory", return_value=test_chats_dir):
             with patch(
-                "sase.chat_history._get_branch_or_workspace_name",
+                "sase.history.chat._get_branch_or_workspace_name",
                 return_value="test-branch",
             ):
                 with patch(
-                    "sase.chat_history.generate_timestamp", return_value="251128120000"
+                    "sase.history.chat.generate_timestamp", return_value="251128120000"
                 ):
                     extra = "## Plan Feedback\n\n### Round 1\n> Fix the bug\n"
                     result = save_chat_history(
@@ -293,7 +293,7 @@ def test_save_chat_history_with_extra_sections() -> None:
 
 def test_parse_chat_turns_with_extra_sections() -> None:
     """Test _parse_chat_turns still works when extra sections are present."""
-    from sase.chat_history import _parse_chat_turns
+    from sase.history.chat import _parse_chat_turns
 
     content = """\
 # Chat History - run

@@ -23,7 +23,7 @@ from sase.axe.runner_utils import (
     finalize_axe_runner,
     write_done_marker,
 )
-from sase.chat_history import find_chat_by_timestamp
+from sase.history.chat import find_chat_by_timestamp
 from sase.sase_utils import shorten_path, strip_hook_prefix
 from sase.llm_provider import LLMInvocationError, invoke_agent
 from sase.main.query_handler import (

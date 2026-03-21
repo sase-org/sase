@@ -194,7 +194,7 @@ class AxeBgCmdMixin:
             return
 
         # Save to command history
-        from sase.command_history import add_or_update_command
+        from sase.history.command import add_or_update_command
 
         add_or_update_command(command, project, cl_name)
 

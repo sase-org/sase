@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from sase.hook_history import HookHistoryEntry, delete_hook, get_hooks_for_display
+from sase.history.hook import HookHistoryEntry, delete_hook, get_hooks_for_display
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding

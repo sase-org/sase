@@ -292,7 +292,7 @@ class PromptStepMixin:
 
             # Save chat history for TUI display
             try:
-                from sase.chat_history import save_chat_history
+                from sase.history.chat import save_chat_history
 
                 response_path = save_chat_history(
                     prompt=expanded_prompt,

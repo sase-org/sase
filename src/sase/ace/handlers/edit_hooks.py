@@ -165,7 +165,7 @@ def handle_edit_hooks(
             self.console.print("[red]Error adding hook[/red]")
             return changespecs, current_idx
 
-        from sase.hook_history import add_or_update_hook
+        from sase.history.hook import add_or_update_hook
 
         add_or_update_hook(user_input)
         self.console.print(f"[green]Added hook: {_esc(user_input)}[/green]")

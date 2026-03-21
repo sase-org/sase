@@ -223,7 +223,7 @@ class PromptBarMixin:
 
         # Save cancelled prompt to history so it can be recovered via "@ " filter
         if event.cancelled_text and self._prompt_context:
-            from sase.prompt_history import add_or_update_prompt
+            from sase.history.prompt import add_or_update_prompt
 
             add_or_update_prompt(
                 event.cancelled_text,

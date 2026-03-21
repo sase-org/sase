@@ -289,7 +289,7 @@ class HookEditingMixin(HintMixinBase):
         )
 
         if success:
-            from sase.hook_history import add_or_update_hook
+            from sase.history.hook import add_or_update_hook
 
             add_or_update_hook(hook_command)
             self.notify(f"Added hook: {hook_command}")  # type: ignore[attr-defined]

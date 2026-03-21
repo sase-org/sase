@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.hook_history import (
+from sase.history.hook import (
     HookHistoryEntry,
     _load_hook_history,
     _save_hook_history,
@@ -16,7 +16,7 @@ from sase.hook_history import (
 def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
     """Test that adding same command replaces the entry."""
     test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+    with patch("sase.history.hook._HOOK_HISTORY_FILE", test_file):
         # Add initial hook
         initial_entry = HookHistoryEntry(
             command="make test",
@@ -27,7 +27,7 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
 
         # Add the same hook again
         with patch(
-            "sase.hook_history.generate_timestamp", return_value="251231_200000"
+            "sase.history.hook.generate_timestamp", return_value="251231_200000"
         ):
             add_or_update_hook("make test")
 
@@ -43,7 +43,7 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
 def test_get_hooks_for_display_empty(tmp_path: Path) -> None:
     """Test get_hooks_for_display returns empty list when no history."""
     test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+    with patch("sase.history.hook._HOOK_HISTORY_FILE", test_file):
         result = get_hooks_for_display()
         assert result == []
 
@@ -51,7 +51,7 @@ def test_get_hooks_for_display_empty(tmp_path: Path) -> None:
 def test_get_hooks_for_display_sorted_by_recency(tmp_path: Path) -> None:
     """Test that hooks are sorted by last_used descending."""
     test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+    with patch("sase.history.hook._HOOK_HISTORY_FILE", test_file):
         entries = [
             HookHistoryEntry(
                 command="older command",
@@ -77,7 +77,7 @@ def test_handles_corrupt_json(tmp_path: Path) -> None:
     """Test that corrupt JSON files are handled gracefully."""
     test_file = tmp_path / "hook_history.json"
     test_file.write_text("not valid json {")
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+    with patch("sase.history.hook._HOOK_HISTORY_FILE", test_file):
         result = _load_hook_history()
         assert result == []
 
@@ -90,7 +90,7 @@ def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
         '"timestamp": "251231_143052", "last_used": "251231_143052"}, '
         '{"command": "missing_fields"}]}'
     )
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+    with patch("sase.history.hook._HOOK_HISTORY_FILE", test_file):
         result = _load_hook_history()
         assert len(result) == 1
         assert result[0].command == "valid"
@@ -99,7 +99,7 @@ def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
 def test_delete_hook_removes_entry(tmp_path: Path) -> None:
     """Test that delete_hook removes the matching entry."""
     test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+    with patch("sase.history.hook._HOOK_HISTORY_FILE", test_file):
         entries = [
             HookHistoryEntry(
                 command="make test",
@@ -125,7 +125,7 @@ def test_delete_hook_removes_entry(tmp_path: Path) -> None:
 def test_delete_hook_nonexistent_returns_true(tmp_path: Path) -> None:
     """Test that deleting a nonexistent command returns True (no-op)."""
     test_file = tmp_path / "hook_history.json"
-    with patch("sase.hook_history._HOOK_HISTORY_FILE", test_file):
+    with patch("sase.history.hook._HOOK_HISTORY_FILE", test_file):
         entries = [
             HookHistoryEntry(
                 command="make test",

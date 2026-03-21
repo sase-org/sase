@@ -7,8 +7,8 @@ after an LLM invocation completes (success or error).
 import os
 from datetime import datetime
 
-from sase.chat_history import save_chat_history
-from sase.chat_history_extras import format_extra_sections
+from sase.history.chat import save_chat_history
+from sase.history.chat_extras import format_extra_sections
 from sase.sase_utils import EASTERN_TZ
 from sase.rich_utils import print_prompt_and_response
 from sase.shared_utils import get_sase_log_file, run_bam_command

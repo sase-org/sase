@@ -7,7 +7,7 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.chat_history import save_chat_history
+from sase.history.chat import save_chat_history
 from sase.running_field import claim_workspace, release_workspace
 from sase.shared_utils import (
     apply_section_marker_handling,
@@ -457,7 +457,7 @@ def run_query(
     # Save prompt to history immediately (only for new queries, not resume)
     # This ensures the prompt is visible in `sase run .` from other terminals
     if previous_history is None:
-        from sase.prompt_history import add_or_update_prompt
+        from sase.history.prompt import add_or_update_prompt
 
         add_or_update_prompt(query)
 

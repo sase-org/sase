@@ -12,7 +12,7 @@ from sase.change_actions import (
     execute_change_action,
     prompt_for_change_action,
 )
-from sase.chat_history import save_chat_history
+from sase.history.chat import save_chat_history
 from sase.commit_utils import run_sase_hg_clean
 from sase.crs_workflow import CrsWorkflow
 from sase.sase_utils import generate_timestamp, shorten_path

@@ -180,7 +180,7 @@ def launch_agent_from_cwd(query: str) -> AgentLaunchResult:
         resolve_ref_from_prompt,
     )
     from sase.main.utils import ensure_project_file_and_get_workspace_num
-    from sase.prompt_history import add_or_update_prompt
+    from sase.history.prompt import add_or_update_prompt
     from sase.running_field import (
         get_first_available_axe_workspace,
         get_workspace_directory,

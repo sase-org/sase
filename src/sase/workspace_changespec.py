@@ -3,7 +3,7 @@
 import re
 import subprocess
 
-from sase.chat_history import save_chat_history
+from sase.history.chat import save_chat_history
 from sase.commit_workflow.changespec_operations import add_changespec_to_project_file
 from sase.workspace_provider import get_change_label
 from sase.sase_utils import (

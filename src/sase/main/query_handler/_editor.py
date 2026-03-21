@@ -147,7 +147,7 @@ def _show_prompt_history_picker_for_branch(
     Returns:
         The edited prompt content, or None if cancelled or no history.
     """
-    from sase.prompt_history import get_prompts_for_fzf
+    from sase.history.prompt import get_prompts_for_fzf
 
     # Pass sort_by as current_branch and workspace for sorting
     items = get_prompts_for_fzf(current_branch=sort_by, current_workspace=workspace)

@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 
-from sase.chat_history_extras import (
+from sase.history.chat_extras import (
     _format_plan_feedback,
     _format_plan_link,
     _format_qa_log,
