@@ -84,14 +84,104 @@ class EntryPointsMixin:
             self.notify("No mentor results to review", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ...modals import MentorReviewModal, build_mentor_review_data
+        from ...modals import (
+            MentorApplyResult,
+            MentorReviewModal,
+            build_mentor_review_data,
+        )
 
         data = build_mentor_review_data(latest_entry, changespec.name)
         if data is None:
             self.notify("No mentor data available", severity="warning")  # type: ignore[attr-defined]
             return
 
-        self.push_screen(MentorReviewModal(data))  # type: ignore[attr-defined]
+        # Capture changespec info for the callback closure
+        project_file = changespec.file_path
+
+        def on_mentor_review_dismiss(result: MentorApplyResult | None) -> None:
+            if result is None:
+                return
+            self._launch_mentor_apply_agent(
+                result.accepted_comments,
+                result.cl_name,
+                project_file,
+            )
+
+        self.push_screen(MentorReviewModal(data), on_mentor_review_dismiss)  # type: ignore[attr-defined]
+
+    def _launch_mentor_apply_agent(
+        self,
+        accepted_comments: list[dict[str, str | int]],
+        cl_name: str,
+        project_file: str,
+    ) -> None:
+        """Build and launch the apply agent for accepted mentor comments.
+
+        Args:
+            accepted_comments: The accepted mentor comment dicts.
+            cl_name: The CL name.
+            project_file: Path to the project ``.gp`` file.
+        """
+        import json
+        from pathlib import Path
+
+        from sase.sase_utils import generate_timestamp
+        from sase.workspace_provider import detect_workflow_type
+        from sase.xprompt.tags import XPromptTag, get_by_tag
+
+        vcs_type = detect_workflow_type(project_file)
+
+        # Render accepted comments into prompt text
+        rendered_changes = "\n\n".join(
+            f"### Change {i + 1}: {c['focus_name']} ({c['severity']})\n"
+            f"**File**: `{c['file_path']}:{c['line_number']}`\n"
+            f"{c['description']}"
+            for i, c in enumerate(accepted_comments)
+        )
+
+        prompt = (
+            f"#{vcs_type}:{cl_name}\n\n"
+            "### Task\n\n"
+            "Apply the following code review changes to the codebase. "
+            "Make each change as described, run any relevant tests, "
+            "and commit your changes.\n\n"
+            f"{rendered_changes}"
+        )
+
+        # Append commit-tagged xprompt if one exists
+        commit_wf = get_by_tag(XPromptTag.commit)
+        if commit_wf is not None:
+            prompt += f"\n\n#{commit_wf.name}"
+
+        # Set up prompt context in home mode (VCS resolution happens
+        # in _finish_agent_launch from the #vcs:cl_name prefix)
+        timestamp = generate_timestamp()
+        workflow_name = f"ace(run)-{timestamp}"
+        self._prompt_context = PromptContext(
+            project_name="home",
+            cl_name=None,
+            project_file=os.path.expanduser("~/.sase/projects/home/home.gp"),
+            workspace_dir=str(Path.home()),
+            workspace_num=0,
+            workflow_name=workflow_name,
+            timestamp=timestamp,
+            history_sort_key=cl_name,
+            display_name=cl_name,
+            update_target="",
+            is_home_mode=True,
+        )
+
+        # Save accepted comments as JSON artifact for traceability
+        artifacts_dir = Path.home() / ".sase" / "mentors"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        artifact_path = (
+            artifacts_dir / f"{cl_name.replace('/', '_')}-apply-{timestamp}.json"
+        )
+        artifact_path.write_text(
+            json.dumps(accepted_comments, indent=2), encoding="utf-8"
+        )
+
+        self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
 
     def action_start_agent_from_changespec(self) -> None:
         """Repeat last @/<space> agent selection (bound to space)."""

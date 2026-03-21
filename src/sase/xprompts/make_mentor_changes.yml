@@ -1,0 +1,32 @@
+tags: make_mentor_changes
+
+input:
+  accepted_comments_json: text
+  cl_name: word
+  vcs_type: { type: word, default: "hg" }
+
+steps:
+  - name: render_changes
+    hidden: true
+    python: |
+      import json
+      comments = json.loads("{{ accepted_comments_json }}")
+      formatted = "\n\n".join(
+          f"### Change {i+1}: {c['focus_name']} ({c['severity']})\n"
+          f"**File**: `{c['file_path']}:{c['line_number']}`\n"
+          f"{c['description']}"
+          for i, c in enumerate(comments)
+      )
+      output = {"rendered_changes": formatted}
+    output: { rendered_changes: text }
+
+  - name: apply
+    prompt_part: |
+      #{{ vcs_type }}:{{ cl_name }}
+
+      ### Task
+
+      Apply the following code review changes to the codebase. Make each change as described,
+      run any relevant tests, and commit your changes.
+
+      {{ rendered_changes }}

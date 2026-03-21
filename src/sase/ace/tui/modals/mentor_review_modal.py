@@ -54,6 +54,14 @@ class MentorReviewData:
         self.total_comments = sum(len(m.comments) for m in self.mentors)
 
 
+@dataclass
+class MentorApplyResult:
+    """Result returned when user presses <enter> to apply accepted comments."""
+
+    accepted_comments: list[dict[str, str | int]]
+    cl_name: str
+
+
 def build_mentor_review_data(
     mentor_entry: MentorEntry,
     cl_name: str,
@@ -117,7 +125,7 @@ def build_mentor_review_data(
     )
 
 
-class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[None]):
+class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[MentorApplyResult | None]):
     """Modal for reviewing mentor comments with navigation and acceptance."""
 
     BINDINGS = [
@@ -128,6 +136,7 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[None]):
         ("n", "next_comment", "Next comment"),
         ("p", "prev_comment", "Prev comment"),
         ("space", "toggle_accept", "Toggle accept"),
+        ("enter", "apply", "Apply accepted"),
         ("shift+k", "kill_mentor", "Kill mentor"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
@@ -308,6 +317,7 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[None]):
             ("n/p", "comments"),
             ("j/k", "mentors"),
             ("\u2423", "toggle"),
+            ("<enter>", "apply"),
             ("K", "kill"),
             ("q", "close"),
         ]
@@ -384,6 +394,27 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[None]):
             self._data.cl_name, self._data.entry_id, self._data.acceptance
         )
         self._refresh_all()
+
+    # -- Apply --
+
+    def action_apply(self) -> None:
+        """Collect accepted comments and dismiss with apply result."""
+        accepted: list[dict[str, str | int]] = []
+        for m in self._data.mentors:
+            for i, comment in enumerate(m.comments):
+                if self._data.acceptance.is_accepted(m.profile_name, m.mentor_name, i):
+                    accepted.append(comment)
+
+        if not accepted:
+            self.app.notify("No comments accepted", severity="warning")
+            return
+
+        self.dismiss(
+            MentorApplyResult(
+                accepted_comments=accepted,
+                cl_name=self._data.cl_name,
+            )
+        )
 
     # -- Kill --
 

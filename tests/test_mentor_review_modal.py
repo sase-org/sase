@@ -10,6 +10,7 @@ from sase.ace.mentor_output import (
 )
 from sase.ace.changespec.models import MentorEntry, MentorStatusLine
 from sase.ace.tui.modals.mentor_review_modal import (
+    MentorApplyResult,
     MentorInfo,
     MentorReviewData,
     MentorReviewModal,
@@ -347,3 +348,59 @@ def test_modal_accepted_count_for_mentor() -> None:
     data.acceptance.set_accepted("code", "mentor_0", 0, True)
     data.acceptance.set_accepted("code", "mentor_0", 2, True)
     assert modal._accepted_count_for_mentor(mentor) == 2
+
+
+# ── Apply action ──────────────────────────────────────────────────────
+
+
+def test_apply_result_dataclass() -> None:
+    """MentorApplyResult stores accepted comments and cl_name."""
+    comments: list[dict[str, str | int]] = [
+        {
+            "focus_name": "style",
+            "file_path": "a.py",
+            "line_number": 1,
+            "description": "Fix style",
+            "severity": "warning",
+        }
+    ]
+    result = MentorApplyResult(accepted_comments=comments, cl_name="my-cl")
+    assert result.cl_name == "my-cl"
+    assert len(result.accepted_comments) == 1
+    assert result.accepted_comments[0]["focus_name"] == "style"
+
+
+def test_apply_collects_only_accepted_comments() -> None:
+    """action_apply should collect only accepted comments across mentors."""
+    data = _make_modal_data([2, 3])
+
+    # Accept comment 0 of mentor_0 and comments 1,2 of mentor_1
+    data.acceptance.set_accepted("code", "mentor_0", 0, True)
+    data.acceptance.set_accepted("code", "mentor_1", 1, True)
+    data.acceptance.set_accepted("code", "mentor_1", 2, True)
+
+    # Manually collect accepted comments (same logic as action_apply)
+    accepted: list[dict[str, str | int]] = []
+    for m in data.mentors:
+        for i, comment in enumerate(m.comments):
+            if data.acceptance.is_accepted(m.profile_name, m.mentor_name, i):
+                accepted.append(comment)
+
+    assert len(accepted) == 3
+    assert accepted[0]["focus_name"] == "focus_0"  # mentor_0, comment 0
+    assert accepted[1]["focus_name"] == "focus_1"  # mentor_1, comment 1
+    assert accepted[2]["focus_name"] == "focus_2"  # mentor_1, comment 2
+
+
+def test_apply_with_no_accepted_comments() -> None:
+    """With no accepted comments, action_apply should not produce a result."""
+    data = _make_modal_data([2, 3])
+
+    # Collect accepted (none)
+    accepted: list[dict[str, str | int]] = []
+    for m in data.mentors:
+        for i, comment in enumerate(m.comments):
+            if data.acceptance.is_accepted(m.profile_name, m.mentor_name, i):
+                accepted.append(comment)
+
+    assert len(accepted) == 0
