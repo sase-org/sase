@@ -18,3 +18,6 @@ xprompts:
     - Review git commits since the last documentation update to identify any important changes worth documenting.
 
     When you have completed the review, please improve the documentation as needed.
+
+  remember: |
+    Can you update / create the appropriate AGENTS.md file so you never forget about this again?
