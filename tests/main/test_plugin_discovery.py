@@ -122,13 +122,13 @@ def test_config_plugin_user_overrides_plugin(tmp_path: Path) -> None:
     user_config.write_text(yaml.dump({"axe": {"max_hook_runners": 3}}))
 
     with (
-        patch("sase.config.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch(
             "sase.main.plugin_discovery.discover_plugin_resources",
             return_value=[fake_module],
         ),
         patch(
-            "sase.config.importlib.resources.files",
+            "sase.config.core.importlib.resources.files",
             side_effect=lambda mod: (
                 mock_files if mod == fake_module else _original_files(mod)
             ),
@@ -144,7 +144,7 @@ def test_config_plugin_user_overrides_plugin(tmp_path: Path) -> None:
 def test_config_plugin_disabled_returns_defaults(tmp_path: Path) -> None:
     """Disabled config plugins fall back to just defaults."""
     with (
-        patch("sase.config.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch("sase.main.plugin_discovery.is_plugin_disabled", return_value=True),
     ):
         result = load_merged_config()

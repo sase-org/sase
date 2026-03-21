@@ -5,7 +5,7 @@ import os
 import re
 from collections.abc import Callable
 
-from sase.mentor_config import (
+from sase.config.mentor import (
     MentorProfileConfig,
     get_all_mentor_profiles,
 )

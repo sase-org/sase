@@ -28,7 +28,7 @@ def _format_profile_with_count(
     Returns:
         Formatted string like "profile[2/3]".
     """
-    from sase.mentor_config import get_mentor_profile_by_name
+    from sase.config.mentor import get_mentor_profile_by_name
 
     profile_config = get_mentor_profile_by_name(profile_name)
     if profile_config is None:
@@ -539,7 +539,7 @@ def clear_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
     Returns:
         True if successful (or no Draft mentors to update), False on error.
     """
-    from sase.mentor_config import get_all_mentor_profiles
+    from sase.config.mentor import get_all_mentor_profiles
 
     from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
 

@@ -127,7 +127,7 @@ def format_profile_with_count(
     Returns:
         Formatted string like "profile[2/3]".
     """
-    from sase.mentor_config import get_mentor_profile_by_name
+    from sase.config.mentor import get_mentor_profile_by_name
 
     profile_config = get_mentor_profile_by_name(profile_name)
     if profile_config is None:

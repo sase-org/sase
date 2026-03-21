@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from sase.metahook_config import (
+from sase.config.metahook import (
     MetahookConfig,
     _get_all_metahooks,
     _load_metahooks,
@@ -32,7 +32,7 @@ def test_load_metahooks_missing_key_returns_empty() -> None:
 snippets:
   foo: "bar"
 """)
-    with patch("sase.metahook_config.load_merged_config", return_value=data):
+    with patch("sase.config.metahook.load_merged_config", return_value=data):
         metahooks = _load_metahooks()
 
     assert metahooks == []
@@ -44,7 +44,7 @@ def test_load_metahooks_invalid_not_list_raises_error() -> None:
 metahooks:
   scuba: "value"
 """)
-    with patch("sase.metahook_config.load_merged_config", return_value=data):
+    with patch("sase.config.metahook.load_merged_config", return_value=data):
         with pytest.raises(ValueError, match="must be a list"):
             _load_metahooks()
 
@@ -55,7 +55,7 @@ def test_load_metahooks_item_not_dict_raises_error() -> None:
 metahooks:
   - "just_a_string"
 """)
-    with patch("sase.metahook_config.load_merged_config", return_value=data):
+    with patch("sase.config.metahook.load_merged_config", return_value=data):
         with pytest.raises(ValueError, match="must be a dictionary"):
             _load_metahooks()
 
@@ -67,14 +67,14 @@ metahooks:
   - hook_command: bb_rabbit_test
     output_regex: "test"
 """)
-    with patch("sase.metahook_config.load_merged_config", return_value=data):
+    with patch("sase.config.metahook.load_merged_config", return_value=data):
         with pytest.raises(ValueError, match="missing required field: name"):
             _load_metahooks()
 
 
 def test__get_all_metahooks_config_error() -> None:
     """Test that get_all_metahooks returns empty list on config errors."""
-    with patch("sase.metahook_config.load_merged_config", return_value={}):
+    with patch("sase.config.metahook.load_merged_config", return_value={}):
         metahooks = _get_all_metahooks()
 
     assert metahooks == []
@@ -88,7 +88,7 @@ metahooks:
     hook_command: bb_rabbit_test
     output_regex: "Expected: Scuba"
 """)
-    with patch("sase.metahook_config.load_merged_config", return_value=data):
+    with patch("sase.config.metahook.load_merged_config", return_value=data):
         result = find_matching_metahook(
             "different_command",
             "Output: Expected: Scuba Result PASSED",
@@ -105,7 +105,7 @@ metahooks:
     hook_command: bb_rabbit_test
     output_regex: "Expected: Scuba"
 """)
-    with patch("sase.metahook_config.load_merged_config", return_value=data):
+    with patch("sase.config.metahook.load_merged_config", return_value=data):
         result = find_matching_metahook(
             "bb_rabbit_test",
             "Some different output without the expected pattern",
@@ -125,7 +125,7 @@ metahooks:
     hook_command: bb_rabbit
     output_regex: "test"
 """)
-    with patch("sase.metahook_config.load_merged_config", return_value=data):
+    with patch("sase.config.metahook.load_merged_config", return_value=data):
         result = find_matching_metahook(
             "bb_rabbit_test",
             "some test output",

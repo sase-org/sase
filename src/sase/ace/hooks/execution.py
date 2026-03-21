@@ -263,7 +263,7 @@ def check_hook_completion(
     # BUT only if no metahook matches - let metahook workflow handle those
     auto_skip_suffix = None
     if completed_status == "FAILED" and hook.skip_fix_hook:
-        from sase.metahook_config import find_matching_metahook
+        from sase.config.metahook import find_matching_metahook
 
         # Read hook output to check for metahook match
         hook_output_content = ""

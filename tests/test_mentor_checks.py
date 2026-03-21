@@ -18,7 +18,7 @@ from sase.ace.scheduler.mentor_profile_matching import (
     _extract_changed_files_from_diff,
     _get_commits_since_last_mentors,
 )
-from sase.mentor_config import MentorConfig
+from sase.config.mentor import MentorConfig
 
 
 def _make_changespec(**kwargs: Any) -> ChangeSpec:
@@ -421,7 +421,7 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
 def test_first_commit_matches_on_commit_1() -> None:
     """Test that first_commit profile matches when commit 1 is in the list."""
     from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
-    from sase.mentor_config import MentorProfileConfig
+    from sase.config.mentor import MentorProfileConfig
 
     profile = MentorProfileConfig(
         profile_name="complete",
@@ -436,7 +436,7 @@ def test_first_commit_matches_on_commit_1() -> None:
 def test_first_commit_does_not_match_on_later_commits() -> None:
     """Test that first_commit profile does NOT match when commit 1 is filtered out."""
     from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
-    from sase.mentor_config import MentorProfileConfig
+    from sase.config.mentor import MentorProfileConfig
 
     profile = MentorProfileConfig(
         profile_name="complete",
@@ -455,7 +455,7 @@ def test_first_commit_does_not_match_on_later_commits() -> None:
 def test_first_commit_matches_later_via_amend_note_regexes() -> None:
     """Test that first_commit profile matches later commits via amend_note_regexes."""
     from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
-    from sase.mentor_config import MentorProfileConfig
+    from sase.config.mentor import MentorProfileConfig
 
     profile = MentorProfileConfig(
         profile_name="complete",

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from sase.config import load_merged_config
+from sase.config.core import load_merged_config
 
 
 @dataclass

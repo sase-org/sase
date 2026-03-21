@@ -1,7 +1,7 @@
 """Tests for MentorConfig and MentorProfileConfig dataclass validation."""
 
 import pytest
-from sase.mentor_config import MentorConfig, MentorProfileConfig
+from sase.config.mentor import MentorConfig, MentorProfileConfig
 
 
 def test_mentor_config_dataclass() -> None:

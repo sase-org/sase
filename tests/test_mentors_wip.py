@@ -11,7 +11,7 @@ from sase.ace.mentors import (
     clear_mentor_draft_flags,
     set_mentor_draft_flags,
 )
-from sase.mentor_config import MentorConfig, MentorProfileConfig
+from sase.config.mentor import MentorConfig, MentorProfileConfig
 
 
 def test_format_profile_with_count_counts_all_mentors() -> None:
@@ -47,7 +47,7 @@ def test_format_profile_with_count_counts_all_mentors() -> None:
     ]
 
     with patch(
-        "sase.mentor_config.get_mentor_profile_by_name",
+        "sase.config.mentor.get_mentor_profile_by_name",
         side_effect=mock_get_profile,
     ):
         result = _format_profile_with_count("test_profile", status_lines)
@@ -80,7 +80,7 @@ def test_format_mentors_field_shows_all_profiles() -> None:
     )
 
     with patch(
-        "sase.mentor_config.get_mentor_profile_by_name",
+        "sase.config.mentor.get_mentor_profile_by_name",
         side_effect=mock_get_profile,
     ):
         lines = _format_mentors_field([entry])
@@ -113,7 +113,7 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
+    with patch("sase.config.mentor.get_mentor_profile_by_name", return_value=None):
         result = clear_mentor_draft_flags(file_path, "test-cl")
         assert result is True
 
@@ -142,7 +142,7 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
+    with patch("sase.config.mentor.get_mentor_profile_by_name", return_value=None):
         result = clear_mentor_draft_flags(file_path, "test-cl")
         assert result is True
 
@@ -172,7 +172,7 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
+    with patch("sase.config.mentor.get_mentor_profile_by_name", return_value=None):
         result = clear_mentor_draft_flags(file_path, "test-cl")
         assert result is True
 
@@ -237,7 +237,7 @@ MENTORS:
         f.write(content)
         file_path = f.name
 
-    with patch("sase.mentor_config.get_mentor_profile_by_name", return_value=None):
+    with patch("sase.config.mentor.get_mentor_profile_by_name", return_value=None):
         result = set_mentor_draft_flags(file_path, "test-cl")
         assert result is True
 

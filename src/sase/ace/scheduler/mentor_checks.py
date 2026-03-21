@@ -1,6 +1,6 @@
 """Mentor lifecycle management and orchestration for the axe scheduler."""
 
-from sase.mentor_config import (
+from sase.config.mentor import (
     MentorProfileConfig,
     get_all_mentor_profiles,
 )

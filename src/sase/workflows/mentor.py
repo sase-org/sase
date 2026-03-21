@@ -14,7 +14,7 @@ from sase.main.query_handler import (
     execute_standalone_steps,
     expand_embedded_workflows_in_query,
 )
-from sase.mentor_config import (
+from sase.config.mentor import (
     MentorConfig,
     get_mentor_from_profile,
     get_mentor_profile_by_name,

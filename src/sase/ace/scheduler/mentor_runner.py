@@ -12,7 +12,7 @@ from sase.sase_utils import (
     make_safe_filename,
     strip_reverted_suffix,
 )
-from sase.mentor_config import MentorProfileConfig
+from sase.config.mentor import MentorProfileConfig
 
 from ..changespec import ChangeSpec
 from ..hooks import generate_timestamp

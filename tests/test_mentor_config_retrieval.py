@@ -1,6 +1,6 @@
 """Tests for mentor profile and mentor retrieval functions."""
 
-from sase.mentor_config import (
+from sase.config.mentor import (
     MentorConfig,
     MentorProfileConfig,
     get_mentor_from_profile,

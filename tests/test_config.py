@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import yaml
 
-from sase.config import (
+from sase.config.core import (
     CONFIG_DIR,
     _deep_merge,
     _get_local_config_path,
@@ -50,7 +50,7 @@ def test_load_merged_config_invalid_yaml_skipped(tmp_path: Path) -> None:
     good_overlay = tmp_path / "sase_good.yml"
     good_overlay.write_text(yaml.dump({"extra": "value"}))
 
-    with patch("sase.config.CONFIG_DIR", tmp_path):
+    with patch("sase.config.core.CONFIG_DIR", tmp_path):
         result = load_merged_config()
 
     assert result["key"] == "base"
@@ -65,7 +65,7 @@ def test_load_merged_config_non_dict_yaml_skipped(tmp_path: Path) -> None:
     list_overlay = tmp_path / "sase_list.yml"
     list_overlay.write_text(yaml.dump(["just", "a", "list"]))
 
-    with patch("sase.config.CONFIG_DIR", tmp_path):
+    with patch("sase.config.core.CONFIG_DIR", tmp_path):
         result = load_merged_config()
 
     assert result["key"] == "base"
@@ -84,7 +84,7 @@ def test_get_local_config_path_returns_path_when_exists(tmp_path: Path) -> None:
     local_config = tmp_path / "sase.yml"
     local_config.write_text(yaml.dump({"key": "local"}))
 
-    with patch("sase.config.Path.cwd", return_value=tmp_path):
+    with patch("sase.config.core.Path.cwd", return_value=tmp_path):
         result = _get_local_config_path()
 
     assert result == local_config
@@ -92,7 +92,7 @@ def test_get_local_config_path_returns_path_when_exists(tmp_path: Path) -> None:
 
 def test_get_local_config_path_returns_none_when_missing(tmp_path: Path) -> None:
     """Returns None when no sase.yml in CWD."""
-    with patch("sase.config.Path.cwd", return_value=tmp_path):
+    with patch("sase.config.core.Path.cwd", return_value=tmp_path):
         result = _get_local_config_path()
 
     assert result is None
@@ -109,8 +109,8 @@ def test_load_merged_config_local_overrides_global(tmp_path: Path) -> None:
     (local_dir / "sase.yml").write_text(yaml.dump({"key": "local"}))
 
     with (
-        patch("sase.config.CONFIG_DIR", global_config),
-        patch("sase.config.Path.cwd", return_value=local_dir),
+        patch("sase.config.core.CONFIG_DIR", global_config),
+        patch("sase.config.core.Path.cwd", return_value=local_dir),
     ):
         result = load_merged_config()
 
@@ -129,8 +129,8 @@ def test_load_merged_config_local_replaces_lists(tmp_path: Path) -> None:
     (local_dir / "sase.yml").write_text(yaml.dump({"items": [3]}))
 
     with (
-        patch("sase.config.CONFIG_DIR", global_config),
-        patch("sase.config.Path.cwd", return_value=local_dir),
+        patch("sase.config.core.CONFIG_DIR", global_config),
+        patch("sase.config.core.Path.cwd", return_value=local_dir),
     ):
         result = load_merged_config()
 
@@ -146,8 +146,8 @@ def test_load_xprompts_by_source_includes_local_config(tmp_path: Path) -> None:
     )
 
     with (
-        patch("sase.config.CONFIG_DIR", tmp_path / "empty"),
-        patch("sase.config.Path.cwd", return_value=local_dir),
+        patch("sase.config.core.CONFIG_DIR", tmp_path / "empty"),
+        patch("sase.config.core.Path.cwd", return_value=local_dir),
     ):
         results = load_xprompts_by_source()
 

@@ -1,7 +1,7 @@
 """Tests for _load_mentor_profiles() function including error cases."""
 
 import pytest
-from sase.mentor_config import _load_mentor_profiles
+from sase.config.mentor import _load_mentor_profiles
 from test_utils import mentor_config_from_yaml
 
 
