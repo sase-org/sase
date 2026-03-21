@@ -30,7 +30,6 @@ from sase.shared_utils import (
 )
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import get_cl_name_from_branch
-from sase.xprompt import process_xprompt_references
 
 
 def _build_mentor_prompt(
@@ -41,6 +40,8 @@ def _build_mentor_prompt(
 ) -> str:
     """Build the mentor prompt with VCS workspace management prepended.
 
+    Constructs a review prompt from the mentor's role and focus areas.
+
     Args:
         mentor: The mentor configuration.
         cl_name: CL name passed to the embedded workflow.
@@ -48,12 +49,18 @@ def _build_mentor_prompt(
         vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
 
     Returns:
-        The complete prompt with ``#<vcs_type>:<cl_name>`` prepended and
-        xprompt references expanded.
+        The complete prompt with ``#<vcs_type>:<cl_name>`` prepended.
     """
-    expanded = process_xprompt_references(mentor.prompt)
+    focus_sections = "\n".join(
+        f"### {fa.focus_name}\n{fa.description}" for fa in mentor.focus_areas
+    )
+    review_prompt = (
+        f"### Role\n\nYou are a {mentor.role}.\n\n"
+        f"You will review a CL and provide feedback on specific focus areas.\n\n"
+        f"### Focus Areas\n\n{focus_sections}"
+    )
     label = f"mentor({mentor_name})"
-    return f'#{vcs_type}({cl_name}, workflow_label="{label}")\n\n{expanded}'
+    return f'#{vcs_type}({cl_name}, workflow_label="{label}")\n\n{review_prompt}'
 
 
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:

@@ -16,6 +16,9 @@ class XPromptTag(Enum):
     crs = "crs"
     fix_hook = "fix_hook"
     rollover = "rollover"
+    mentor = "mentor"
+    commit = "commit"
+    make_mentor_changes = "make_mentor_changes"
 
 
 def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:
@@ -60,3 +63,31 @@ def get_by_tag(tag: XPromptTag, project: str | None = None) -> Workflow | None:
         if tag in wf.tags:
             return wf
     return None
+
+
+def get_by_tag_strict(tag: XPromptTag, project: str | None = None) -> Workflow | None:
+    """Find the xprompt/workflow with the given tag, enforcing uniqueness.
+
+    Like :func:`get_by_tag`, but raises :class:`ValueError` if multiple
+    xprompts share the same tag. When only one match exists, returns it.
+
+    Returns:
+        The matching Workflow, or ``None`` if no match.
+
+    Raises:
+        ValueError: If more than one xprompt/workflow has the tag.
+    """
+    from sase.xprompt.loader import get_all_prompts
+
+    matches: list[Workflow] = []
+    for wf in get_all_prompts(project=project).values():
+        if tag in wf.tags:
+            matches.append(wf)
+
+    if len(matches) > 1:
+        names = [m.name for m in matches]
+        raise ValueError(
+            f"Multiple xprompts found with tag {tag.value!r}: {names}. "
+            f"Only one is allowed."
+        )
+    return matches[0] if matches else None

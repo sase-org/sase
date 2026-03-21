@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.xprompt.models import XPrompt, xprompt_to_workflow
-from sase.xprompt.tags import XPromptTag, get_by_tag, parse_tags
+from sase.xprompt.tags import XPromptTag, get_by_tag, get_by_tag_strict, parse_tags
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
@@ -43,7 +43,17 @@ def test_parse_tags_invalid_raises() -> None:
 
 
 def test_parse_tags_all_values() -> None:
-    result = parse_tags(["vcs", "crs", "fix_hook", "rollover"])
+    result = parse_tags(
+        [
+            "vcs",
+            "crs",
+            "fix_hook",
+            "rollover",
+            "mentor",
+            "commit",
+            "make_mentor_changes",
+        ]
+    )
     assert result == frozenset(XPromptTag)
 
 
@@ -390,3 +400,60 @@ def test_embedded_workflows_json_includes_tags() -> None:
         assert loaded[0]["tags"] == ["rollover"]
         assert loaded[1]["tags"] == ["vcs"]
         assert loaded[2]["tags"] == []
+
+
+# ── New mentor-related tags ──────────────────────────────────────────────
+
+
+def test_parse_mentor_tag() -> None:
+    assert parse_tags("mentor") == frozenset({XPromptTag.mentor})
+
+
+def test_parse_commit_tag() -> None:
+    assert parse_tags("commit") == frozenset({XPromptTag.commit})
+
+
+def test_parse_make_mentor_changes_tag() -> None:
+    assert parse_tags("make_mentor_changes") == frozenset(
+        {XPromptTag.make_mentor_changes}
+    )
+
+
+# ── get_by_tag_strict ────────────────────────────────────────────────────
+
+
+def test_get_by_tag_strict_single_match() -> None:
+    """get_by_tag_strict returns the single match."""
+    wf = Workflow(
+        name="mentor",
+        steps=[WorkflowStep(name="main", prompt_part="body")],
+        tags=frozenset({XPromptTag.mentor}),
+    )
+    with patch("sase.xprompt.loader.get_all_prompts", return_value={"mentor": wf}):
+        result = get_by_tag_strict(XPromptTag.mentor)
+    assert result is wf
+
+
+def test_get_by_tag_strict_no_match() -> None:
+    """get_by_tag_strict returns None when no match."""
+    with patch("sase.xprompt.loader.get_all_prompts", return_value={}):
+        result = get_by_tag_strict(XPromptTag.mentor)
+    assert result is None
+
+
+def test_get_by_tag_strict_multiple_raises() -> None:
+    """get_by_tag_strict raises ValueError on multiple matches."""
+    wf1 = Workflow(
+        name="mentor1",
+        steps=[WorkflowStep(name="main", prompt_part="body1")],
+        tags=frozenset({XPromptTag.mentor}),
+    )
+    wf2 = Workflow(
+        name="mentor2",
+        steps=[WorkflowStep(name="main", prompt_part="body2")],
+        tags=frozenset({XPromptTag.mentor}),
+    )
+    mock_prompts = {"mentor1": wf1, "mentor2": wf2}
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        with pytest.raises(ValueError, match="Multiple xprompts found with tag"):
+            get_by_tag_strict(XPromptTag.mentor)

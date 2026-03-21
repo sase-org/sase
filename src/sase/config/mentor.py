@@ -6,11 +6,20 @@ from sase.config.core import load_merged_config
 
 
 @dataclass
+class MentorFocusArea:
+    """Represents a single focus area for a mentor's review."""
+
+    focus_name: str
+    description: str
+
+
+@dataclass
 class MentorConfig:
     """Represents a mentor configuration."""
 
     mentor_name: str
-    prompt: str
+    role: str
+    focus_areas: list[MentorFocusArea]
 
 
 @dataclass
@@ -83,29 +92,52 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
                     f"Each mentor in profile '{item['profile_name']}' must be a dictionary"
                 )
 
-            if "prompt" not in mentor_item:
+            if "mentor_name" not in mentor_item:
                 raise ValueError(
                     f"Each mentor in profile '{item['profile_name']}' must have "
-                    "'prompt' field"
+                    "'mentor_name' field"
+                )
+            if "role" not in mentor_item:
+                raise ValueError(
+                    f"Each mentor in profile '{item['profile_name']}' must have "
+                    "'role' field"
+                )
+            if "focus_areas" not in mentor_item:
+                raise ValueError(
+                    f"Each mentor in profile '{item['profile_name']}' must have "
+                    "'focus_areas' field"
+                )
+            if not isinstance(mentor_item["focus_areas"], list):
+                raise ValueError(
+                    f"'focus_areas' field in mentor '{mentor_item['mentor_name']}' "
+                    f"of profile '{item['profile_name']}' must be a list"
                 )
 
-            # Derive mentor_name from prompt if not provided
-            # e.g., "#mentor/aaa" -> "aaa"
-            if "mentor_name" not in mentor_item:
-                prompt_ref = mentor_item["prompt"]
-                # Extract the last segment after the final /
-                if "/" in prompt_ref:
-                    mentor_name = prompt_ref.split("/")[-1]
-                else:
-                    # Remove leading # for simple prompts like "#foo"
-                    mentor_name = prompt_ref.lstrip("#")
-            else:
-                mentor_name = mentor_item["mentor_name"]
+            focus_areas = []
+            for fa_item in mentor_item["focus_areas"]:
+                if not isinstance(fa_item, dict):
+                    raise ValueError(
+                        f"Each focus area in mentor '{mentor_item['mentor_name']}' "
+                        f"of profile '{item['profile_name']}' must be a dictionary"
+                    )
+                if "focus_name" not in fa_item or "description" not in fa_item:
+                    raise ValueError(
+                        f"Each focus area in mentor '{mentor_item['mentor_name']}' "
+                        f"of profile '{item['profile_name']}' must have "
+                        "'focus_name' and 'description' fields"
+                    )
+                focus_areas.append(
+                    MentorFocusArea(
+                        focus_name=fa_item["focus_name"],
+                        description=fa_item["description"],
+                    )
+                )
 
             mentors.append(
                 MentorConfig(
-                    mentor_name=mentor_name,
-                    prompt=mentor_item["prompt"],
+                    mentor_name=mentor_item["mentor_name"],
+                    role=mentor_item["role"],
+                    focus_areas=focus_areas,
                 )
             )
 

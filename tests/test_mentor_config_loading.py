@@ -83,22 +83,34 @@ mentor_profiles:
             _load_mentor_profiles()
 
 
-def test_load_mentor_profiles_simple_prompt_name_derivation() -> None:
-    """Test that simple prompt (no namespace) derives name correctly."""
+def test_load_mentor_profiles_valid_new_schema() -> None:
+    """Test loading valid mentor profiles with the new schema."""
     yaml_content = """
 mentor_profiles:
-  - profile_name: test_profile
+  - profile_name: code
     mentors:
-      - prompt: "#foo"
+      - mentor_name: code_quality
+        role: "senior code quality reviewer"
+        focus_areas:
+          - focus_name: comments
+            description: "Ensure all public APIs have clear doc comments"
+          - focus_name: shared_code
+            description: "Identify duplicated code across files"
     file_globs:
-      - "*.py"
+      - "**/*.py"
 """
     with mentor_config_from_yaml(yaml_content):
         profiles = _load_mentor_profiles()
 
-    # Should derive name from #foo -> foo
-    assert profiles[0].mentors[0].mentor_name == "foo"
-    assert profiles[0].mentors[0].prompt == "#foo"
+    assert len(profiles) == 1
+    assert profiles[0].profile_name == "code"
+    assert len(profiles[0].mentors) == 1
+    mentor = profiles[0].mentors[0]
+    assert mentor.mentor_name == "code_quality"
+    assert mentor.role == "senior code quality reviewer"
+    assert len(mentor.focus_areas) == 2
+    assert mentor.focus_areas[0].focus_name == "comments"
+    assert mentor.focus_areas[1].focus_name == "shared_code"
 
 
 def test_load_mentor_profiles_parses_first_commit() -> None:
@@ -107,7 +119,11 @@ def test_load_mentor_profiles_parses_first_commit() -> None:
 mentor_profiles:
   - profile_name: complete_profile
     mentors:
-      - prompt: "#mentor/complete"
+      - mentor_name: complete
+        role: "completeness reviewer"
+        focus_areas:
+          - focus_name: coverage
+            description: "Check coverage"
     first_commit: true
     amend_note_regexes:
       - "\\\\[mentor:complete\\\\]"
@@ -125,7 +141,11 @@ def test_load_mentor_profiles_first_commit_defaults_to_false() -> None:
 mentor_profiles:
   - profile_name: test_profile
     mentors:
-      - prompt: "#foo"
+      - mentor_name: quality
+        role: "code reviewer"
+        focus_areas:
+          - focus_name: style
+            description: "Check code style"
     file_globs:
       - "*.py"
 """
@@ -133,3 +153,58 @@ mentor_profiles:
         profiles = _load_mentor_profiles()
 
     assert profiles[0].first_commit is False
+
+
+def test_load_mentor_profiles_focus_areas_not_list_raises() -> None:
+    """Test loading raises ValueError when focus_areas is not a list."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: test_profile
+    mentors:
+      - mentor_name: quality
+        role: "code reviewer"
+        focus_areas: "not_a_list"
+    file_globs:
+      - "*.py"
+"""
+    with mentor_config_from_yaml(yaml_content):
+        with pytest.raises(ValueError, match="must be a list"):
+            _load_mentor_profiles()
+
+
+def test_load_mentor_profiles_focus_area_not_dict_raises() -> None:
+    """Test loading raises ValueError when a focus area is not a dict."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: test_profile
+    mentors:
+      - mentor_name: quality
+        role: "code reviewer"
+        focus_areas:
+          - "not_a_dict"
+    file_globs:
+      - "*.py"
+"""
+    with mentor_config_from_yaml(yaml_content):
+        with pytest.raises(ValueError, match="must be a dictionary"):
+            _load_mentor_profiles()
+
+
+def test_load_mentor_profiles_focus_area_missing_fields_raises() -> None:
+    """Test loading raises ValueError when focus area lacks required fields."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: test_profile
+    mentors:
+      - mentor_name: quality
+        role: "code reviewer"
+        focus_areas:
+          - focus_name: style
+    file_globs:
+      - "*.py"
+"""
+    with mentor_config_from_yaml(yaml_content):
+        with pytest.raises(
+            ValueError, match="must have 'focus_name' and 'description' fields"
+        ):
+            _load_mentor_profiles()

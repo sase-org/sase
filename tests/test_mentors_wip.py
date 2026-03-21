@@ -11,7 +11,8 @@ from sase.ace.mentors import (
     clear_mentor_draft_flags,
     set_mentor_draft_flags,
 )
-from sase.config.mentor import MentorConfig, MentorProfileConfig
+from sase.config.mentor import MentorProfileConfig
+from test_utils import make_mentor_config
 
 
 def test_format_profile_with_count_counts_all_mentors() -> None:
@@ -19,9 +20,9 @@ def test_format_profile_with_count_counts_all_mentors() -> None:
     mock_profile = MentorProfileConfig(
         profile_name="test_profile",
         mentors=[
-            MentorConfig(mentor_name="quick", prompt="p1"),
-            MentorConfig(mentor_name="full", prompt="p2"),
-            MentorConfig(mentor_name="detailed", prompt="p3"),
+            make_mentor_config(mentor_name="quick"),
+            make_mentor_config(mentor_name="full"),
+            make_mentor_config(mentor_name="detailed"),
         ],
         file_globs=["*.py"],
     )
@@ -59,12 +60,12 @@ def test_format_mentors_field_shows_all_profiles() -> None:
     profiles = {
         "profile_a": MentorProfileConfig(
             profile_name="profile_a",
-            mentors=[MentorConfig(mentor_name="m1", prompt="p1")],
+            mentors=[make_mentor_config(mentor_name="m1")],
             file_globs=["*.py"],
         ),
         "profile_b": MentorProfileConfig(
             profile_name="profile_b",
-            mentors=[MentorConfig(mentor_name="m2", prompt="p2")],
+            mentors=[make_mentor_config(mentor_name="m2")],
             file_globs=["*.js"],
         ),
     }

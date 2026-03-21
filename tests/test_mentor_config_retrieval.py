@@ -1,18 +1,18 @@
 """Tests for mentor profile and mentor retrieval functions."""
 
 from sase.config.mentor import (
-    MentorConfig,
     MentorProfileConfig,
     get_mentor_from_profile,
 )
+from test_utils import make_mentor_config
 
 
 def test_get_mentor_from_profile_found() -> None:
     """Test getting a mentor from a profile when it exists."""
     mentors = [
-        MentorConfig(mentor_name="mentor1", prompt="Prompt 1"),
-        MentorConfig(mentor_name="mentor2", prompt="Prompt 2"),
-        MentorConfig(mentor_name="mentor3", prompt="Prompt 3"),
+        make_mentor_config(mentor_name="mentor1"),
+        make_mentor_config(mentor_name="mentor2"),
+        make_mentor_config(mentor_name="mentor3"),
     ]
     profile = MentorProfileConfig(
         profile_name="test_profile",
@@ -24,14 +24,14 @@ def test_get_mentor_from_profile_found() -> None:
 
     assert mentor is not None
     assert mentor.mentor_name == "mentor2"
-    assert mentor.prompt == "Prompt 2"
+    assert mentor.role == "test reviewer"
 
 
 def test_get_mentor_from_profile_not_found() -> None:
     """Test getting a mentor from a profile when it doesn't exist."""
     mentors = [
-        MentorConfig(mentor_name="mentor1", prompt="Prompt 1"),
-        MentorConfig(mentor_name="mentor2", prompt="Prompt 2"),
+        make_mentor_config(mentor_name="mentor1"),
+        make_mentor_config(mentor_name="mentor2"),
     ]
     profile = MentorProfileConfig(
         profile_name="test_profile",

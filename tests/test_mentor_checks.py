@@ -18,7 +18,7 @@ from sase.ace.scheduler.mentor_profile_matching import (
     _extract_changed_files_from_diff,
     _get_commits_since_last_mentors,
 )
-from sase.config.mentor import MentorConfig
+from test_utils import make_mentor_config
 
 
 def _make_changespec(**kwargs: Any) -> ChangeSpec:
@@ -323,7 +323,7 @@ def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
     # Create a mock profile that matches "[mentor:complete]" in amend note
     mock_profile = MagicMock()
     mock_profile.profile_name = "feature"
-    mock_profile.mentors = [MentorConfig(mentor_name="complete", prompt="Test prompt")]
+    mock_profile.mentors = [make_mentor_config(mentor_name="complete")]
     mock_profile.file_globs = []
     mock_profile.diff_regexes = []
     mock_profile.amend_note_regexes = [r"\[mentor:complete\]"]
@@ -374,18 +374,14 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     # Create two mock profiles
     mock_profile_code = MagicMock()
     mock_profile_code.profile_name = "code"
-    mock_profile_code.mentors = [
-        MentorConfig(mentor_name="vision", prompt="Test prompt")
-    ]
+    mock_profile_code.mentors = [make_mentor_config(mentor_name="vision")]
     mock_profile_code.file_globs = []
     mock_profile_code.diff_regexes = []
     mock_profile_code.amend_note_regexes = [r"Initial Commit"]
 
     mock_profile_feature = MagicMock()
     mock_profile_feature.profile_name = "feature"
-    mock_profile_feature.mentors = [
-        MentorConfig(mentor_name="complete", prompt="Test prompt")
-    ]
+    mock_profile_feature.mentors = [make_mentor_config(mentor_name="complete")]
     mock_profile_feature.file_globs = []
     mock_profile_feature.diff_regexes = []
     mock_profile_feature.amend_note_regexes = [r"Initial Commit"]
@@ -425,7 +421,7 @@ def test_first_commit_matches_on_commit_1() -> None:
 
     profile = MentorProfileConfig(
         profile_name="complete",
-        mentors=[MentorConfig(mentor_name="complete", prompt="#mentor/complete")],
+        mentors=[make_mentor_config(mentor_name="complete")],
         first_commit=True,
         amend_note_regexes=[r"\[mentor:complete\]"],
     )
@@ -440,7 +436,7 @@ def test_first_commit_does_not_match_on_later_commits() -> None:
 
     profile = MentorProfileConfig(
         profile_name="complete",
-        mentors=[MentorConfig(mentor_name="complete", prompt="#mentor/complete")],
+        mentors=[make_mentor_config(mentor_name="complete")],
         first_commit=True,
         amend_note_regexes=[r"\[mentor:complete\]"],
     )
@@ -459,7 +455,7 @@ def test_first_commit_matches_later_via_amend_note_regexes() -> None:
 
     profile = MentorProfileConfig(
         profile_name="complete",
-        mentors=[MentorConfig(mentor_name="complete", prompt="#mentor/complete")],
+        mentors=[make_mentor_config(mentor_name="complete")],
         first_commit=True,
         amend_note_regexes=[r"\[mentor:complete\]"],
     )
