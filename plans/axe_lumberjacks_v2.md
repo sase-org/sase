@@ -11,18 +11,17 @@ The `sase axe` lumberjack/chops system currently uses Python functions decorated
 with hardcoded default lumberjack configuration in `src/sase/axe/config.py`. This refactoring:
 
 1. **Converts chops to executable scripts** - Each chop becomes a subprocess-invoked script that can be defined anywhere
-2. **Creates `default_config.yml`** - ALL hardcoded defaults move to a single YAML file, merged as the base layer before
-   user config
+2. **Creates `sase.yml`** - ALL hardcoded defaults move to a single YAML file, merged as the base layer before user
+   config
 3. **Removes `--exclude-decorator`** from the pyvision Justfile target
 
 ---
 
 ## Phase 1: Default Config File + Config Loading Infrastructure
 
-**Goal**: Create `src/sase/default_config.yml` with all project defaults, and update config loading to use it as the
-base layer.
+**Goal**: Create `src/sase/sase.yml` with all project defaults, and update config loading to use it as the base layer.
 
-### Create `src/sase/default_config.yml`
+### Create `src/sase/sase.yml`
 
 Consolidate all scattered defaults:
 
@@ -66,10 +65,10 @@ vcs_provider:
 
 ### Modify `src/sase/config.py`
 
-- Add `load_default_config()` that loads `default_config.yml` via `importlib.resources.files("sase")`
+- Add `load_default_config()` that loads `sase.yml` via `importlib.resources.files("sase")`
 - Add `list_strategy` parameter to `_deep_merge()`: `"concatenate"` (default, current behavior for overlay merges) or
   `"replace"` (for default→user merge, so user's chop lists replace defaults rather than appending)
-- Update `load_merged_config()` merge chain: `default_config.yml` → `sase.yml` (replace lists) → `sase_*.yml` overlays
+- Update `load_merged_config()` merge chain: `sase.yml` → `sase.yml` (replace lists) → `sase_*.yml` overlays
   (concatenate lists)
 
 ### Modify `src/sase/axe/config.py`
@@ -127,7 +126,7 @@ Script discovery and execution:
 ### Add `chop_script_dirs` to config
 
 - `src/sase/axe/config.py` — add `chop_script_dirs: list[str]` field to `AxeConfig`, parse from config
-- `src/sase/default_config.yml` — add empty `chop_script_dirs: []` to axe section
+- `src/sase/sase.yml` — add empty `chop_script_dirs: []` to axe section
 
 ### Create tests
 
@@ -275,8 +274,8 @@ just check            # fmt-check + lint + test
 3. **Script discovery**: Search configured `chop_script_dirs` first, then `shutil.which("sase_chop_<name>")` for
    PATH-installed scripts.
 
-4. **`default_config.yml` location**: Lives at `src/sase/default_config.yml` (inside the package, accessible via
-   `importlib.resources`). It's inside the source tree so it's automatically included in the wheel.
+4. **`sase.yml` location**: Lives at `src/sase/sase.yml` (inside the package, accessible via `importlib.resources`).
+   It's inside the source tree so it's automatically included in the wheel.
 
 5. **Non-serializable context**: Scripts construct their own `RunnerPool`, `AxeMetrics`, and log callback. Lumberjack
    tracks metrics externally via exit codes.

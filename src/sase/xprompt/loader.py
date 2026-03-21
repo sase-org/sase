@@ -194,8 +194,8 @@ def _load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]
     (``local_config`` source) are namespaced with ``{project}/``.
 
     Priority order (within config sources, later overrides earlier):
-    1. Built-in ``default_config.yml``
-    2. Plugin ``default_config.yml`` files
+    1. Built-in ``sase.yml``
+    2. Plugin ``sase.yml`` files
     3. User ``sase.yml``
     4. Overlay ``sase_*.yml`` files
     5. Local ``./sase.yml``

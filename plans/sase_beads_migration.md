@@ -224,7 +224,7 @@ published/installable) **Goal**: Migrate sase from steveyegge/beads (`bd`) to sa
 - `src/sase/ace/tui/actions/agents/_notification_actions.py` — match the key name
 - `src/sase/notifications/senders.py` — fix `action_data` key to match what TUI reads
 
-### 4.6 Update xprompts (`src/sase/default_config.yml`)
+### 4.6 Update xprompts (`src/sase/sase.yml`)
 
 - `bd/next` → `sbd/next` — update to use `sbd` commands
 - `bd/new_epic` → `sbd/new_epic` — update to use `sbd create --type=epic`

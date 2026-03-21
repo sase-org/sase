@@ -49,7 +49,7 @@ user manually symlinks or copies files into one of the search paths.
 
 Three-layer merge:
 
-1. `default_config.yml` (bundled in `sase` package via `importlib.resources`)
+1. `sase.yml` (bundled in `sase` package via `importlib.resources`)
 2. `~/.config/sase/sase.yml` (user config -- lists **replace**)
 3. `~/.config/sase/sase_*.yml` overlays (sorted alphabetically -- lists **concatenate**)
 
@@ -136,7 +136,7 @@ filesystem-based loaders pick them up:
 my_plugin = "sase_some_user_plugin:xprompts"  # points to a package directory
 
 [project.entry-points."sase_config"]
-my_plugin = "sase_some_user_plugin:default_config.yml"  # points to a YAML resource
+my_plugin = "sase_some_user_plugin:sase.yml"  # points to a YAML resource
 ```
 
 **Pros**: Plugin authors just ship files in their package (`.md`, `.yml`). No Python code needed for pure resource
@@ -250,7 +250,7 @@ Add a new entry point group `"sase_config"` for packages that contribute config 
 my_plugin = "sase_some_user_plugin"
 ```
 
-The loader uses `importlib.resources` to find a `default_config.yml` within the plugin package.
+The loader uses `importlib.resources` to find a `sase.yml` within the plugin package.
 
 **Plugin package layout**:
 
@@ -258,7 +258,7 @@ The loader uses `importlib.resources` to find a `default_config.yml` within the 
 sase-some-user-plugin/
   src/sase_some_user_plugin/
     __init__.py
-    default_config.yml      # plugin's config defaults
+    sase.yml      # plugin's config defaults
     xprompts/
       ...
 ```
@@ -266,8 +266,8 @@ sase-some-user-plugin/
 **Config merge chain** (extended):
 
 ```
-1. sase default_config.yml (bundled package defaults)
-2. ** NEW: Plugin default_config.yml files (via sase_config entry points, sorted by EP name) **
+1. sase sase.yml (bundled package defaults)
+2. ** NEW: Plugin sase.yml files (via sase_config entry points, sorted by EP name) **
 3. ~/.config/sase/sase.yml (user config -- lists replace)
 4. ~/.config/sase/sase_*.yml overlays (sorted -- lists concatenate)
 ```
@@ -278,7 +278,7 @@ sorted order for determinism. User config always wins because it comes later in 
 This lets a plugin define:
 
 ```yaml
-# sase_some_user_plugin/default_config.yml
+# sase_some_user_plugin/sase.yml
 axe:
   lumberjacks:
     my_custom_scheduler:
@@ -307,7 +307,7 @@ def _load_plugin_configs() -> list[dict[str, Any]]:
     for ep in sorted(entry_points(group="sase_config"), key=lambda e: e.name):
         try:
             module = ep.load()
-            ref = importlib.resources.files(module).joinpath("default_config.yml")
+            ref = importlib.resources.files(module).joinpath("sase.yml")
             text = ref.read_text(encoding="utf-8")
             data = yaml.safe_load(text)
             if isinstance(data, dict):
@@ -361,7 +361,7 @@ lumberjack or metahook rule, making the chop/metahook fully functional on instal
 | --------------- | ---------------------- | ----------------- | --------------------------------- |
 | `sase_vcs`      | VCS provider plugins   | Plugin class      | Pluggy hookimpl (behavioral)      |
 | `sase_xprompts` | XPrompts and workflows | Python package    | `xprompts/*.md`, `xprompts/*.yml` |
-| `sase_config`   | Config defaults        | Python package    | `default_config.yml`              |
+| `sase_config`   | Config defaults        | Python package    | `sase.yml`                        |
 
 Scripts (`sase_chop_*`, `sase_metahook_*`) use standard `[project.scripts]` -- no custom entry point group needed.
 
@@ -383,7 +383,7 @@ sase-my-tools/
   pyproject.toml
   src/sase_my_tools/
     __init__.py
-    default_config.yml
+    sase.yml
     xprompts/
       review.md             # adds #review xprompt
       deploy.yml            # adds #deploy workflow
@@ -410,7 +410,7 @@ my_tools = "sase_my_tools"
 After `pip install sase-my-tools`:
 
 - `#review` and `#deploy` are available in agent prompts
-- The `deploy_check` chop runs on the schedule defined in `default_config.yml`
+- The `deploy_check` chop runs on the schedule defined in `sase.yml`
 - The `deploy` metahook intercepts matching failing hooks
 - The user can override `#review` by placing their own `review.md` in `.xprompts/`
 - The user can override config by setting values in `~/.config/sase/sase.yml`

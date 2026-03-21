@@ -12,4 +12,4 @@ Can you help me add support for a new `E` (epic) option on the TUI plan approval
   - RELATED BUG: I don't think `#<vcs>:<name> ` is prepended to the coder (`.code`) agent's prompt is it? If not, can
     you fix that too!
 - Since we will be using the `#bd/*` xprompts in sase's core now, we should move their definitions from the local
-  sase.yml file to the src/sase/default_config.yml file (this is also required so the `#sase/` prefix isn't auto-added).
+  sase.yml file to the src/sase/sase.yml file (this is also required so the `#sase/` prefix isn't auto-added).

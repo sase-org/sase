@@ -35,9 +35,9 @@ Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of
 
 Sase builds a merged configuration through five layers, each merged on top of the previous:
 
-1. **`default_config.yml`** — bundled package defaults
-2. **Plugin `default_config.yml` files** — from installed plugin packages (via `sase_config` entry points), sorted by
-   entry-point name; lists concatenate
+1. **`sase.yml`** — bundled package defaults
+2. **Plugin `sase.yml` files** — from installed plugin packages (via `sase_config` entry points), sorted by entry-point
+   name; lists concatenate
 3. **`sase.yml`** — user config (`~/.config/sase/sase.yml`); lists **replace** defaults (not concatenate)
 4. **`sase_*.yml` overlays** — sorted alphabetically; lists **concatenate**
 5. **Local `sase.yml`** — project-level config in the current working directory; lists **replace** (highest priority)
@@ -63,7 +63,7 @@ Source: `src/sase/config/core.py`
 
 ### ace
 
-Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_config.yml`.
+Configures the ACE TUI behavior. Defaults are provided by `src/sase/sase.yml`.
 
 ```yaml
 ace:
@@ -101,8 +101,8 @@ The IDLE indicator can also be triggered manually via the `i` keybinding. Extern
 
 All TUI keybindings are configurable. The `keymaps` section has two sub-sections:
 
-**`app`** — App-level keybindings. Each key is an action name mapped to a key string. See `src/sase/default_config.yml`
-for the full list of configurable actions and their defaults.
+**`app`** — App-level keybindings. Each key is an action name mapped to a key string. See `src/sase/sase.yml` for the
+full list of configurable actions and their defaults.
 
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`, `leader_mode`, `bang_mode`) can be
 reconfigured, and custom modes can be added. Each mode has:
@@ -125,7 +125,7 @@ Custom mode key fields:
 The keymap loader validates configuration: invalid keys are reverted to defaults, duplicate bindings are warned, and
 prefix conflicts between custom modes and app bindings are detected.
 
-Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps/`
+Source: `src/sase/sase.yml`, `src/sase/ace/tui/keymaps/`
 
 ### llm_provider
 
@@ -192,15 +192,15 @@ vcs_provider:
 | `vcs_provider.workspace_root` | string       | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
 | `vcs_provider.default_hooks`  | list[string] | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
 
-When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (e.g., the
-`sase-google` plugin supplies Mercurial-specific hooks). The core `sase` package has no built-in default hooks.
+When `default_hooks` is not set, plugins may provide their own defaults via `sase.yml` (e.g., the `sase-google` plugin
+supplies Mercurial-specific hooks). The core `sase` package has no built-in default hooks.
 
 Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
 ### axe
 
 Configures the `sase axe` lumberjack-based daemon. The axe architecture uses an orchestrator that spawns multiple
-lumberjacks, each running a set of chops on a fixed interval. Defaults are provided by `src/sase/default_config.yml`.
+lumberjacks, each running a set of chops on a fixed interval. Defaults are provided by `src/sase/sase.yml`.
 
 ```yaml
 axe:
@@ -296,7 +296,7 @@ chops:
 CLI flags on `sase axe start` override `max_hook_runners`, `max_agent_runners`, `zombie_timeout_seconds`, and `query`
 for a single run (see [CLI Flags](#cli-flags)).
 
-Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
+Source: `src/sase/axe/config.py`, `src/sase/sase.yml`
 
 ### mentor_profiles
 
@@ -537,7 +537,7 @@ These are set automatically by sase when launching agent subprocesses and are no
 | `-z, --zombie-timeout`    | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
 
 For `sase axe start`, CLI flags take precedence over values from the `axe` config section in `sase.yml`. If neither is
-set, the built-in defaults from `default_config.yml` are used.
+set, the built-in defaults from `sase.yml` are used.
 
 ### `sase axe stop`
 

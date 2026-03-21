@@ -391,7 +391,7 @@ llm_provider:
 
 ### Default Configuration
 
-Both Gemini and Claude have retry defaults (defined in `default_config.yml`):
+Both Gemini and Claude have retry defaults (defined in `sase.yml`):
 
 **Gemini:**
 

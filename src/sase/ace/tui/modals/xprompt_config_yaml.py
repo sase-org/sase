@@ -1,7 +1,7 @@
 """YAML config xprompt insertion helpers.
 
 Provides functions to generate and insert xprompt definitions into sase
-YAML config files (sase.yml, default_config.yml, etc.) with automatic
+YAML config files (sase.yml, etc.) with automatic
 alphabetical ordering.
 """
 

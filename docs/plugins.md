@@ -14,7 +14,7 @@ Sase defines four entry point groups for plugin discovery:
 | `sase_vcs`        | VCS provider plugins (git, hg, etc.)                | `sase-github`                |
 | `sase_workspace`  | Workspace provider plugins (ref resolution, submit) | `sase-github`                |
 | `sase_xprompts`   | XPrompt templates and workflows                     | `sase-google`                |
-| `sase_config`     | Default configuration (`default_config.yml`)        | `sase-google`, `sase-github` |
+| `sase_config`     | Default configuration (`sase.yml`)                  | `sase-google`, `sase-github` |
 
 ## Available Plugin Packages
 
@@ -85,8 +85,8 @@ the [discovery order](xprompt.md#discovery-order) (above built-in, below config-
 ### Config Plugins
 
 Plugin packages can provide default configuration by declaring a `sase_config` entry point. The referenced module's
-package must contain a `default_config.yml` file. Plugin configs are merged between the bundled package defaults and the
-user's `sase.yml`. See the [Deep-Merge System](configuration.md#deep-merge-system) for details on the merge chain.
+package must contain a `sase.yml` file. Plugin configs are merged between the bundled package defaults and the user's
+`sase.yml`. See the [Deep-Merge System](configuration.md#deep-merge-system) for details on the merge chain.
 
 ## Disabling Plugins
 
@@ -185,7 +185,7 @@ my_sase_plugin/
 
 ### Example: Config Plugin
 
-Place a `default_config.yml` alongside your module and register it:
+Place a `sase.yml` alongside your module and register it:
 
 ```toml
 [project.entry-points."sase_config"]
@@ -195,7 +195,7 @@ my_plugin = "my_sase_plugin"
 ```
 my_sase_plugin/
 ├── __init__.py
-└── default_config.yml
+└── sase.yml
 ```
 
 Plugin configs are merged using the [deep-merge system](configuration.md#deep-merge-system). User config in `sase.yml`

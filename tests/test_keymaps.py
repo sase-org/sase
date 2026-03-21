@@ -29,7 +29,7 @@ def _default_app_keymaps(**overrides: str) -> AppKeymaps:
 
 
 def test_empty_config_uses_builtin_defaults() -> None:
-    """Empty config uses defaults from default_config.yml."""
+    """Empty config uses defaults from built-in sase.yml."""
     reg = load_keymap_registry({})
     assert reg.app.next_changespec == "j"
     assert reg.app.quit == "q"
@@ -255,11 +255,11 @@ def test_registry_default_modes_always_present() -> None:
 
 
 def test_default_config_covers_all_app_keymaps() -> None:
-    """default_config.yml must define every AppKeymaps field."""
+    """Built-in sase.yml must define every AppKeymaps field."""
     defaults = load_builtin_app_defaults()
     field_names = {f.name for f in fields(AppKeymaps)}
     missing = field_names - set(defaults.keys())
-    assert not missing, f"default_config.yml missing: {sorted(missing)}"
+    assert not missing, f"Built-in sase.yml missing: {sorted(missing)}"
 
 
 def test_binding_meta_matches_app_keymaps() -> None:
