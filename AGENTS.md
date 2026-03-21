@@ -102,8 +102,8 @@ repo using your commit skill (NOT `git commit`) after making them.
 
 ## Config Changes
 
-When changing keymaps, leader mode keys, or any configuration values, always update **all** relevant config files
-consistently — especially `src/sase/sase.yml` (the default config) and any chezmoi sase.yml files.
+When changing keymaps, leader mode keys, or any configuration values, don't forget to update the keymap configuration in
+the `src/sase/default_config.yml` file if necessary.
 
 ## Plan Mode and Questions
 
