@@ -322,7 +322,7 @@ class LeaderModeKeymaps(ModeKeymaps):
         default_factory=lambda: {
             "run_cmd": "exclamation_mark",
             "runners": "r",
-            "kill_mentors": "m",
+            "kill_mentors": "M",
             "agent_home": "h",
             "agent_from_cl": "space",
             "kill_and_edit": "x",

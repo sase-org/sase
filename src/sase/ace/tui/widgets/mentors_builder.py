@@ -160,7 +160,7 @@ def build_mentors_section(
                 text.append("| ", style="#808080")
 
                 # Show hints based on mode:
-                # - mentors_running: hints for RUNNING mentors (for ,m kill mode)
+                # - mentors_running: hints for RUNNING mentors (for ,M kill mode)
                 # - default: hints for PASSED/FAILED mentors (for view mode)
                 if with_hints and hints_for == "mentors_running":
                     if msl.suffix_type == "running_agent":
