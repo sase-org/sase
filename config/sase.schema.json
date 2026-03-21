@@ -384,6 +384,11 @@
         "type": "string"
       }
     },
+    "use_chezmoi": {
+      "type": "boolean",
+      "description": "Remap home xprompt paths to chezmoi-managed equivalents under ~/.local/share/chezmoi/home/",
+      "default": false
+    },
     "xprompts": {
       "type": "object",
       "description": "Reusable text templates that can be referenced in prompts",
