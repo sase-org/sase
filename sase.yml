@@ -21,3 +21,43 @@ xprompts:
 
   remember: |
     Can you update / create the appropriate AGENTS.md file so you never forget about this again?
+
+mentor_profiles:
+  - profile_name: gotchas
+    mentors:
+      - mentor_name: gotchas
+        role: "repo-specific gotcha detector that catches commonly forgotten follow-up changes"
+        focus_areas:
+          - focus_name: config_schema_sync
+            description: >
+              When new config fields are added or changed (in default_config.yml, sase.yml, or code),
+              check that config/sase.schema.json is updated to match. Missing schema updates break
+              yaml-language-server LSP validation in editors. This is the single most common gotcha
+              in this repo.
+          - focus_name: workflow_schema_sync
+            description: >
+              When xprompt workflow step types or their fields are added or changed, check that
+              src/sase/xprompts/workflow.schema.json is updated accordingly.
+          - focus_name: nvim_syntax_sync
+            description: >
+              When ChangeSpec display format, status names, tag names, or other TUI-visible tokens
+              change, check whether ../sase-nvim syntax highlighting files need a corresponding
+              update.
+          - focus_name: keymap_config_sync
+            description: >
+              When keymaps or leader mode keys are changed in code (e.g. in
+              src/sase/ace/tui/keymaps/), check that src/sase/default_config.yml is updated to
+              reflect the new defaults. Hardcoded defaults in code and the config file must stay
+              in sync.
+          - focus_name: cross_repo_impact
+            description: >
+              When renaming files, changing config structure, or modifying shared interfaces, check
+              whether plugin repos (../sase-github, ../sase-google, ../sase-telegram, ../sase-nvim)
+              or chezmoi configs (~/.local/share/chezmoi/home/dot_config/sase/) need corresponding
+              updates. Also check importlib.resources paths, error messages, docstrings, and docs/
+              for stale references.
+    file_globs:
+      - "**/*.py"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - "**/*.json"
