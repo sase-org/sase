@@ -210,7 +210,7 @@ class XPromptBrowserActionsMixin:
         rel_path = os.path.relpath(file_path, git_root)
         verb = "Add" if is_new else "Update"
 
-        def _on_commit_answer(confirmed: bool | None) -> None:
+        def _on_commit_push_answer(confirmed: bool | None) -> None:
             if not confirmed:
                 return
             # Stage and commit
@@ -231,34 +231,38 @@ class XPromptBrowserActionsMixin:
                 return
             self.notify(f"Committed: {message}")  # type: ignore[attr-defined]
 
-            # Offer to push
-            def _on_push_answer(push_confirmed: bool | None) -> None:
-                if not push_confirmed:
-                    return
-                push_result = subprocess.run(
-                    ["git", "-C", git_root, "push"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                if push_result.returncode == 0:
-                    self.notify("Pushed to remote")  # type: ignore[attr-defined]
-                    self._run_chezmoi_apply()  # type: ignore[attr-defined]
-                else:
-                    self.notify(  # type: ignore[attr-defined]
-                        f"Push failed: {push_result.stderr.strip()}",
-                        severity="error",
-                    )
-
-            self.app.push_screen(  # type: ignore[attr-defined]
-                ConfirmActionModal("Push to Remote", "Push changes to remote?"),
-                _on_push_answer,
+            # Pull then push
+            pull_result = subprocess.run(
+                ["git", "-C", git_root, "pull", "--rebase"],
+                capture_output=True,
+                text=True,
+                check=False,
             )
+            if pull_result.returncode != 0:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Pull failed: {pull_result.stderr.strip()}",
+                    severity="error",
+                )
+                return
+            push_result = subprocess.run(
+                ["git", "-C", git_root, "push"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if push_result.returncode == 0:
+                self.notify("Pushed to remote")  # type: ignore[attr-defined]
+                self._run_chezmoi_apply()  # type: ignore[attr-defined]
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Push failed: {push_result.stderr.strip()}",
+                    severity="error",
+                )
 
         self.app.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
-                "Commit Changes",
-                f"Commit changes to '{rel_path}'?",
+                "Commit & Push",
+                f"Commit and push changes to '{rel_path}'?",
             ),
-            _on_commit_answer,
+            _on_commit_push_answer,
         )
