@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-21 17:53:35
 status: wip
+bead_id: sase-7
 ---
 
 # Mentor Redesign - Implementation Plan
