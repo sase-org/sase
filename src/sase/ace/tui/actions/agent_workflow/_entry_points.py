@@ -58,6 +58,41 @@ class EntryPointsMixin:
 
         self.push_screen(ActivityModal(self._activity_log, self._inactive_seconds))  # type: ignore[attr-defined]
 
+    def _open_mentor_review(self) -> None:
+        """Open the Mentor Review popup for the latest commit's mentors."""
+        if not self.changespecs:
+            self.notify("No ChangeSpecs available", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        changespec = self.changespecs[self.current_idx]
+        if not changespec.mentors:
+            self.notify("No mentors for this CL", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Find the latest mentor entry (highest entry_id)
+        latest_entry = max(changespec.mentors, key=lambda e: e.entry_id)
+
+        # Check if any mentor has COMMENTED or FAILED status
+        has_reviewable = False
+        if latest_entry.status_lines:
+            for sl in latest_entry.status_lines:
+                if sl.status in ("COMMENTED", "FAILED", "RUNNING", "PASSED"):
+                    has_reviewable = True
+                    break
+
+        if not has_reviewable:
+            self.notify("No mentor results to review", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...modals import MentorReviewModal, build_mentor_review_data
+
+        data = build_mentor_review_data(latest_entry, changespec.name)
+        if data is None:
+            self.notify("No mentor data available", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        self.push_screen(MentorReviewModal(data))  # type: ignore[attr-defined]
+
     def action_start_agent_from_changespec(self) -> None:
         """Repeat last @/<space> agent selection (bound to space)."""
         last = self._last_custom_agent_selection
@@ -200,6 +235,12 @@ class EntryPointsMixin:
         if key == leader_keys["kill_mentors"]:
             if self.current_tab == "changespecs":
                 self.action_kill_mentors()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        if key == leader_keys["review_mentors"]:
+            if self.current_tab == "changespecs":
+                self._open_mentor_review()
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -416,9 +457,19 @@ class EntryPointsMixin:
         from ...widgets import KeybindingFooter
 
         has_comments = False
+        has_mentor_results = False
         if current_tab == "changespecs" and self.changespecs:
             cs = self.changespecs[self.current_idx]
             has_comments = bool(cs.comments)
+            if cs.mentors:
+                for entry in cs.mentors:
+                    if entry.status_lines:
+                        for sl in entry.status_lines:
+                            if sl.status in ("COMMENTED", "FAILED"):
+                                has_mentor_results = True
+                                break
+                    if has_mentor_results:
+                        break
 
         has_notification = False
         if current_tab == "agents" and self._agents:
@@ -432,6 +483,7 @@ class EntryPointsMixin:
                 current_tab=current_tab,
                 has_comments=has_comments,
                 has_notification=has_notification,
+                has_mentor_results=has_mentor_results,
             )
         except Exception:
             pass

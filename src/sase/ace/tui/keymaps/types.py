@@ -323,6 +323,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "run_cmd": "exclamation_mark",
             "runners": "r",
             "kill_mentors": "M",
+            "review_mentors": "m",
             "agent_home": "h",
             "agent_from_cl": "space",
             "kill_and_edit": "x",

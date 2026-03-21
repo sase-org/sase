@@ -141,6 +141,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'kill_mentors'))}",
                     "Kill running mentors",
                 ),
+                (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'review_mentors'))}",
+                    "Review mentor comments",
+                ),
                 (f"{d(lm.prefix)}{d(_sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'agent_from_cl'))}",

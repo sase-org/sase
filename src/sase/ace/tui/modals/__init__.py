@@ -36,6 +36,7 @@ from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
+from .mentor_review_modal import MentorReviewModal, build_mentor_review_data
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
 from .xprompt_browser_modal import XPromptBrowserModal
@@ -46,6 +47,8 @@ from .xprompt_select_modal import XPromptSelectModal
 
 __all__ = [
     "ActivityModal",
+    "MentorReviewModal",
+    "build_mentor_review_data",
     "AddXPromptModal",
     "AgentInterruptModal",
     "AgentNameModal",

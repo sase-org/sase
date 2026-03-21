@@ -230,6 +230,53 @@ PlanApprovalModal {
     margin-top: 1;
 }
 
+/* Mentor Review Modal styling */
+MentorReviewModal {
+    align: center middle;
+}
+
+#mentor-review-container {
+    width: 90%;
+    max-width: 120;
+    height: 80%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#mentor-review-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#mentor-review-panels {
+    height: 1fr;
+}
+
+#mentor-side-panel {
+    width: 25;
+    min-width: 20;
+    height: 100%;
+    border-right: solid $secondary;
+    padding: 0 1;
+}
+
+#mentor-main-panel {
+    width: 1fr;
+    height: 100%;
+    padding: 0 1;
+    overflow-y: auto;
+}
+
+#mentor-review-footer {
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* Confirm Kill / Dismiss All Modal styling */
 ConfirmKillModal #confirm-message,
 ConfirmDismissAllModal #confirm-message {
