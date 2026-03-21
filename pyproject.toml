@@ -16,7 +16,7 @@ dependencies = [
     "pyyaml",
     "rich",
     "schedule",
-    "textual>=0.45.0",
+    "textual[syntax]>=0.45.0",
 ]
 
 [project.optional-dependencies]
