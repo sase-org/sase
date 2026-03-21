@@ -1,7 +1,7 @@
 """Pytest configuration for sase tests."""
 
 import tempfile
-from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from sase.ace.changespec import (
@@ -10,6 +10,13 @@ from sase.ace.changespec import (
     CommitEntry,
     HookEntry,
 )
+
+
+@pytest.fixture(autouse=True)
+def _mock_system_clipboard():
+    """Prevent tests from touching the real system clipboard."""
+    with patch("sase.ace.tui.widgets._vim_normal_ops.copy_to_system_clipboard"):
+        yield
 
 
 @pytest.fixture
