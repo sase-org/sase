@@ -321,3 +321,50 @@ def test_launch_multi_prompt_includes_transitive_local_xprompts(
     finally:
         if os.path.exists(path):
             os.unlink(path)
+
+
+@patch("sase.agent_launcher.spawn_agent_subprocess")
+@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.shared_utils.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.get_first_available_axe_workspace")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+)
+def test_launch_multi_prompt_with_multi_model_segment(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """A segment with %model(a,b) spawns one agent per model."""
+    mock_first_ws.side_effect = [100, 101, 102]
+    mock_ws_dir.side_effect = [
+        ("/ws/100", None),
+        ("/ws/101", None),
+        ("/ws/102", None),
+    ]
+    mock_wait.return_value = "alpha"
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    results = launch_multi_prompt_agents(
+        segments=["%model(opus,sonnet) Do the work", "Review the output"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.gp",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    # Segment 1 produces 2 agents (one per model), segment 2 produces 1.
+    assert len(results) == 3
+    assert mock_spawn.call_count == 3
+
+    prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
+    assert "%model:opus" in prompts[0]
+    assert "%model:sonnet" in prompts[1]
+    assert prompts[2] == "Review the output"
+
+    # Naming-wait should fire between segments (not between model variants).
+    assert mock_wait.call_count == 1

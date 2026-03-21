@@ -176,60 +176,87 @@ def launch_multi_prompt_agents(
     )
     from sase.sase_utils import generate_timestamp
     from sase.shared_utils import create_artifacts_directory
-    from sase.xprompt.directives import has_wait_directive
+    from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
 
     results: list[AgentLaunchResult] = []
 
     for i, segment in enumerate(segments):
-        timestamp = generate_timestamp()
-        workflow_name = f"ace(run)-{timestamp}"
         has_wait = has_wait_directive(segment)
         segment_local_xprompts = _local_xprompts_for_segment(segment, local_xprompts)
-        local_xprompts_file = (
-            _serialize_local_xprompts(segment_local_xprompts)
-            if segment_local_xprompts
-            else None
-        )
 
-        # Allocate workspace for this segment.
-        if is_home_mode:
-            workspace_dir = os.path.expanduser("~")
-            workspace_num = 0
-        elif has_wait:
-            workspace_num = 0
-            workspace_dir = get_workspace_directory(project_name, 1)
-        else:
-            workspace_num = get_first_available_axe_workspace(project_file)
-            workspace_dir, _ = get_workspace_directory_for_num(
-                workspace_num, project_name
+        # Check for multi-model directive (e.g., %m(opus,sonnet)).
+        # Try the raw segment first; if no match and the segment contains
+        # xprompt references, expand them and re-check (a referenced xprompt
+        # may inject a multi-model directive).
+        model_prompts = split_prompt_for_models(segment)
+        if model_prompts is None and "#" in segment:
+            from sase.xprompt.processor import process_xprompt_references
+
+            expanded = process_xprompt_references(
+                segment,
+                extra_xprompts=segment_local_xprompts or None,
+            )
+            model_prompts = split_prompt_for_models(expanded)
+
+        sub_prompts = model_prompts if model_prompts is not None else [segment]
+
+        last_timestamp: str | None = None
+        for j, sub_prompt in enumerate(sub_prompts):
+            if j > 0:
+                time.sleep(1)
+
+            timestamp = generate_timestamp()
+            last_timestamp = timestamp
+            workflow_name = f"ace(run)-{timestamp}"
+
+            # Each sub-prompt gets its own copy of the local xprompts file
+            # (the agent runner deletes it after reading).
+            local_xprompts_file = (
+                _serialize_local_xprompts(segment_local_xprompts)
+                if segment_local_xprompts
+                else None
             )
 
-        result = spawn_agent_subprocess(
-            cl_name=cl_name,
-            project_file=project_file,
-            workspace_dir=workspace_dir,
-            workspace_num=workspace_num,
-            workflow_name=workflow_name,
-            prompt=segment,
-            timestamp=timestamp,
-            project_name=project_name,
-            is_home_mode=is_home_mode,
-            vcs_ref=vcs_ref,
-            deferred_workspace=has_wait,
-            local_xprompts_file=local_xprompts_file,
-        )
-        results.append(result)
+            # Allocate workspace for this sub-prompt.
+            if is_home_mode:
+                workspace_dir = os.path.expanduser("~")
+                workspace_num = 0
+            elif has_wait:
+                workspace_num = 0
+                workspace_dir = get_workspace_directory(project_name, 1)
+            else:
+                workspace_num = get_first_available_axe_workspace(project_file)
+                workspace_dir, _ = get_workspace_directory_for_num(
+                    workspace_num, project_name
+                )
 
-        if on_agent_spawned is not None:
-            on_agent_spawned()
+            result = spawn_agent_subprocess(
+                cl_name=cl_name,
+                project_file=project_file,
+                workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
+                workflow_name=workflow_name,
+                prompt=sub_prompt,
+                timestamp=timestamp,
+                project_name=project_name,
+                is_home_mode=is_home_mode,
+                vcs_ref=vcs_ref,
+                deferred_workspace=has_wait,
+                local_xprompts_file=local_xprompts_file,
+            )
+            results.append(result)
+
+            if on_agent_spawned is not None:
+                on_agent_spawned()
 
         # Wait for agent naming before launching the next segment,
         # so bare %wait in the next segment can resolve to this agent.
         if i < len(segments) - 1:
+            assert last_timestamp is not None
             artifacts_dir = create_artifacts_directory(
                 "ace-run",
                 project_name=project_name,
-                timestamp=timestamp,
+                timestamp=last_timestamp,
             )
             # The artifacts dir is already created by the runner; we just
             # need the path to poll agent_meta.json.
