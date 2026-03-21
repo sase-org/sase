@@ -26,12 +26,17 @@ user-prompt-level frontmatter for defining local xprompts. This applies to all a
 xprompts:
   _review_style: "Focus on correctness and readability"
 ---
+
 %name:author
 #gh:sase Fix the bug in parser.py. #_review_style
+
 ---
+
 %wait
 #gh:sase Add tests for the parser fix. #_review_style
+
 ---
+
 %wait
 #gh:sase Deploy the changes
 ```
