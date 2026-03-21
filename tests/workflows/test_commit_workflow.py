@@ -165,7 +165,8 @@ def test_get_cl_description_empty_path_falls_back() -> None:
     """Test that empty string path falls back to get_file_summary."""
     mod = _load_cl_workflow_module()
     with patch(
-        "sase.summarize_utils.get_file_summary", return_value="Summarized description"
+        "sase.ace.hooks.summarize_utils.get_file_summary",
+        return_value="Summarized description",
     ):
         result = mod._get_cl_description("some response", "")
     assert result == "Summarized description"
@@ -176,7 +177,8 @@ def test_get_cl_description_nonexistent_file_falls_back() -> None:
     """Test that a nonexistent file path falls back to get_file_summary."""
     mod = _load_cl_workflow_module()
     with patch(
-        "sase.summarize_utils.get_file_summary", return_value="Summarized description"
+        "sase.ace.hooks.summarize_utils.get_file_summary",
+        return_value="Summarized description",
     ):
         result = mod._get_cl_description("some response", "/nonexistent/path.md")
     assert result == "Summarized description"
@@ -191,7 +193,7 @@ def test_get_cl_description_empty_file_falls_back() -> None:
         desc_file = f.name
     try:
         with patch(
-            "sase.summarize_utils.get_file_summary",
+            "sase.ace.hooks.summarize_utils.get_file_summary",
             return_value="Summarized description",
         ):
             result = mod._get_cl_description("some response", desc_file)

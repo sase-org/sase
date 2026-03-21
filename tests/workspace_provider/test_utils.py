@@ -1,4 +1,4 @@
-"""Tests for sase.workspace_utils module."""
+"""Tests for sase.workspace_provider.utils module."""
 
 import os
 import tempfile
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.workspace_utils import (
+from sase.workspace_provider.utils import (
     ensure_git_clone,
     get_default_branch,
     parse_bare_repo_dir,
@@ -19,19 +19,19 @@ from sase.workspace_utils import (
 
 
 class TestGetDefaultBranch:
-    @patch("sase.workspace_utils.subprocess.run")
+    @patch("sase.workspace_provider.utils.subprocess.run")
     def test_detects_main(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(
             returncode=0, stdout="refs/remotes/origin/main\n"
         )
         assert get_default_branch("/repo") == "origin/main"
 
-    @patch("sase.workspace_utils.subprocess.run")
+    @patch("sase.workspace_provider.utils.subprocess.run")
     def test_fallback_on_failure(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=1, stdout="")
         assert get_default_branch("/repo") == "origin/main"
 
-    @patch("sase.workspace_utils.subprocess.run")
+    @patch("sase.workspace_provider.utils.subprocess.run")
     def test_fallback_on_exception(self, mock_run: MagicMock) -> None:
         mock_run.side_effect = OSError("no git")
         assert get_default_branch("/repo") == "origin/main"
@@ -74,8 +74,8 @@ class TestSetWorkspaceDir:
             assert set_workspace_dir(gp, "/repo/")
             assert os.path.exists(gp)
 
-    @patch("sase.workspace_utils.write_changespec_atomic")
-    @patch("sase.workspace_utils.changespec_lock")
+    @patch("sase.workspace_provider.utils.write_changespec_atomic")
+    @patch("sase.workspace_provider.utils.changespec_lock")
     def test_updates_existing(
         self, mock_lock: MagicMock, mock_write: MagicMock
     ) -> None:
@@ -91,8 +91,8 @@ class TestSetWorkspaceDir:
             assert "/old/" not in written
             os.unlink(f.name)
 
-    @patch("sase.workspace_utils.write_changespec_atomic")
-    @patch("sase.workspace_utils.changespec_lock")
+    @patch("sase.workspace_provider.utils.write_changespec_atomic")
+    @patch("sase.workspace_provider.utils.changespec_lock")
     def test_inserts_before_running(
         self, mock_lock: MagicMock, mock_write: MagicMock
     ) -> None:
@@ -122,7 +122,7 @@ class TestEnsureGitClone:
         with pytest.raises(RuntimeError, match="does not exist"):
             ensure_git_clone("/nonexistent/dir/", 1)
 
-    @patch("sase.workspace_utils.subprocess.run")
+    @patch("sase.workspace_provider.utils.subprocess.run")
     def test_secondary_creates(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(
             returncode=0, stdout="https://github.com/u/r.git\n"
@@ -136,7 +136,7 @@ class TestEnsureGitClone:
             # Should have called: get-url, clone, set-url, fetch
             assert mock_run.call_count == 4
 
-    @patch("sase.workspace_utils.subprocess.run")
+    @patch("sase.workspace_provider.utils.subprocess.run")
     def test_secondary_fails(self, mock_run: MagicMock) -> None:
         import subprocess as sp
 

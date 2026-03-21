@@ -84,7 +84,7 @@ steps:
       sys.path.insert(0, os.path.join(os.path.expanduser('~'), 'lib', 'sase', 'src'))
 
       from sase.vcs_provider import get_vcs_provider
-      from sase.workspace_changespec import create_changespec_for_workflow
+      from sase.workspace_provider.changespec import create_changespec_for_workflow
       from sase.workflows.utils import get_project_file_path
 
       # Get project name

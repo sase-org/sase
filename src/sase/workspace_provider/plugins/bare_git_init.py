@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from sase.workspace_provider.plugins.bare_git_ref import set_bare_repo_dir
-from sase.workspace_utils import set_workspace_dir
+from sase.workspace_provider.utils import set_workspace_dir
 
 
 def init_bare_git_project(

@@ -1,10 +1,10 @@
-"""Tests for sase.workspace_changespec."""
+"""Tests for sase.workspace_provider.changespec."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.workspace_changespec import (
+from sase.workspace_provider.changespec import (
     _build_description,
     _derive_cl_name,
     _get_commits_ahead,
@@ -18,7 +18,9 @@ from sase.workspace_changespec import (
 
 def test_get_commits_ahead_returns_oldest_first() -> None:
     mock_result = MagicMock(returncode=0, stdout="third\nsecond\nfirst\n")
-    with patch("sase.workspace_changespec.subprocess.run", return_value=mock_result):
+    with patch(
+        "sase.workspace_provider.changespec.subprocess.run", return_value=mock_result
+    ):
         assert _get_commits_ahead("origin/main", "agent_1") == [
             "first",
             "second",
@@ -28,7 +30,9 @@ def test_get_commits_ahead_returns_oldest_first() -> None:
 
 def test_get_commits_ahead_empty_on_no_output() -> None:
     mock_result = MagicMock(returncode=0, stdout="  \n")
-    with patch("sase.workspace_changespec.subprocess.run", return_value=mock_result):
+    with patch(
+        "sase.workspace_provider.changespec.subprocess.run", return_value=mock_result
+    ):
         assert _get_commits_ahead("origin/main", "agent_1") == []
 
 
@@ -69,7 +73,9 @@ def test_build_description_multiple_commits() -> None:
 
 def test_save_committed_diff_returns_none_on_empty(tmp_path: object) -> None:
     mock_result = MagicMock(returncode=0, stdout="")
-    with patch("sase.workspace_changespec.subprocess.run", return_value=mock_result):
+    with patch(
+        "sase.workspace_provider.changespec.subprocess.run", return_value=mock_result
+    ):
         assert (
             _save_committed_diff("cl", "origin/main", "agent_1", "260101_120000")
             is None
@@ -80,11 +86,17 @@ def test_save_committed_diff_writes_file(tmp_path: object) -> None:
     diffs_dir = str(tmp_path)
     mock_result = MagicMock(returncode=0, stdout="diff --git a/f b/f\n+hello\n")
     with (
-        patch("sase.workspace_changespec.subprocess.run", return_value=mock_result),
         patch(
-            "sase.workspace_changespec.ensure_sase_directory", return_value=diffs_dir
+            "sase.workspace_provider.changespec.subprocess.run",
+            return_value=mock_result,
         ),
-        patch("sase.workspace_changespec.shorten_path", side_effect=lambda p: p),
+        patch(
+            "sase.workspace_provider.changespec.ensure_sase_directory",
+            return_value=diffs_dir,
+        ),
+        patch(
+            "sase.workspace_provider.changespec.shorten_path", side_effect=lambda p: p
+        ),
     ):
         path = _save_committed_diff("my_cl", "origin/main", "agent_1", "260101_120000")
         assert path is not None
@@ -96,7 +108,7 @@ def test_save_committed_diff_writes_file(tmp_path: object) -> None:
 
 def test_create_changespec_for_workflow_no_commits() -> None:
     with patch(
-        "sase.workspace_changespec._get_commits_ahead",
+        "sase.workspace_provider.changespec._get_commits_ahead",
         return_value=[],
     ):
         result = create_changespec_for_workflow(
@@ -114,29 +126,33 @@ def test_create_changespec_for_workflow_no_commits() -> None:
 def test_create_changespec_for_workflow_success() -> None:
     with (
         patch(
-            "sase.workspace_changespec._get_commits_ahead",
+            "sase.workspace_provider.changespec._get_commits_ahead",
             return_value=["feat: add thing"],
         ),
         patch(
-            "sase.workspace_changespec.generate_timestamp", return_value="260101_120000"
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
         ),
         patch(
-            "sase.workspace_changespec.save_chat_history", return_value="~/chats/f.md"
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/f.md",
         ),
         patch(
-            "sase.workspace_changespec._save_committed_diff",
+            "sase.workspace_provider.changespec._save_committed_diff",
             return_value="~/diffs/f.diff",
         ),
         patch(
-            "sase.workspace_changespec.get_initial_hooks_for_changespec",
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_changespec.get_change_label", return_value="PR"),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
-            "sase.workspace_changespec.add_changespec_to_project_file",
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
         ) as mock_add,
-        patch("sase.workspace_changespec.subprocess.run"),  # Prevent real git branch -m
+        patch(
+            "sase.workspace_provider.changespec.subprocess.run"
+        ),  # Prevent real git branch -m
     ):
         result = create_changespec_for_workflow(
             project_name="proj",

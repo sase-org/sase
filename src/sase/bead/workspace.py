@@ -69,7 +69,7 @@ def _resolve_from_project_file(project_name: str) -> Path | None:
     if not project_file.exists():
         return None
 
-    from sase.workspace_utils import parse_workspace_dir
+    from sase.workspace_provider.utils import parse_workspace_dir
 
     workspace_dir = parse_workspace_dir(str(project_file))
     if not workspace_dir:
@@ -89,7 +89,7 @@ def _resolve_from_workspace_provider(project_name: str) -> Path | None:
         from sase.workspace_provider import (
             get_workspace_directory as ws_get_workspace_directory,
         )
-        from sase.workspace_utils import parse_workspace_dir
+        from sase.workspace_provider.utils import parse_workspace_dir
 
         project_file = (
             Path.home() / ".sase" / "projects" / project_name / f"{project_name}.gp"

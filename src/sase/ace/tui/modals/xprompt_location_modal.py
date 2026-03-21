@@ -16,7 +16,7 @@ from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
-from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import detect_project, get_sase_package_xprompts_dir
 
 from .base import FilterInput, OptionListNavigationMixin

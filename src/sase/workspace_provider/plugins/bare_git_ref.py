@@ -14,7 +14,7 @@ from sase.ace.changespec import (
     find_all_changespecs,
     write_changespec_atomic,
 )
-from sase.workspace_utils import (
+from sase.workspace_provider.utils import (
     get_default_branch,
     parse_bare_repo_dir,
     parse_workspace_dir,

@@ -20,7 +20,7 @@ from sase.workspace_provider.plugins.bare_git_submit import (
     prepare_mail_git,
     submit_bare_git,
 )
-from sase.workspace_utils import (
+from sase.workspace_provider.utils import (
     parse_bare_repo_dir,
     parse_workspace_dir,
 )
@@ -140,7 +140,7 @@ class BareGitWorkspacePlugin:
     ) -> str | None:
         if workflow_type != "git":
             return None
-        from sase.workspace_utils import ensure_git_clone
+        from sase.workspace_provider.utils import ensure_git_clone
 
         return ensure_git_clone(primary_workspace_dir, workspace_num)
 

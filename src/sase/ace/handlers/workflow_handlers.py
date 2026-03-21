@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from rich.markup import escape as _esc
 
-from sase.change_actions import (
+from sase.ace.change_actions import (
     execute_change_action,
     prompt_for_change_action,
 )

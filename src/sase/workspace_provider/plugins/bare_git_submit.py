@@ -7,7 +7,7 @@ prompting users before push (mail).
 import os
 import subprocess
 
-from sase.workspace_utils import (
+from sase.workspace_provider.utils import (
     get_default_branch,
     parse_workspace_dir,
 )
@@ -233,7 +233,7 @@ def _submit_via_local_merge(
     from rich.console import Console
     from rich.markup import escape as escape_markup
 
-    from sase.submission_utils import finalize_submission
+    from sase.workspace_provider.submission_utils import finalize_submission
 
     rich_console: Console | None = console if isinstance(console, Console) else None
 

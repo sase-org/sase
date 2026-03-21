@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.config import load_merged_config
-from sase.plugin_discovery import discover_plugin_resources
+from sase.main.plugin_discovery import discover_plugin_resources
 from sase.vcs_provider._errors import VCSProviderNotFoundError
 from sase.vcs_provider._registry import _create_provider_for
 
@@ -31,7 +31,7 @@ def test_discover_plugin_resources_skips_failures() -> None:
     ep_good.load.return_value = good_mod
 
     with patch(
-        "sase.plugin_discovery.importlib.metadata.entry_points",
+        "sase.main.plugin_discovery.importlib.metadata.entry_points",
         return_value=[ep_bad, ep_good],
     ):
         result = discover_plugin_resources("sase_xprompts")
@@ -124,7 +124,7 @@ def test_config_plugin_user_overrides_plugin(tmp_path: Path) -> None:
     with (
         patch("sase.config.CONFIG_DIR", tmp_path),
         patch(
-            "sase.config.discover_plugin_resources",
+            "sase.main.plugin_discovery.discover_plugin_resources",
             return_value=[fake_module],
         ),
         patch(
@@ -133,7 +133,7 @@ def test_config_plugin_user_overrides_plugin(tmp_path: Path) -> None:
                 mock_files if mod == fake_module else _original_files(mod)
             ),
         ),
-        patch("sase.config.is_plugin_disabled", return_value=False),
+        patch("sase.main.plugin_discovery.is_plugin_disabled", return_value=False),
     ):
         result = load_merged_config()
 
@@ -145,7 +145,7 @@ def test_config_plugin_disabled_returns_defaults(tmp_path: Path) -> None:
     """Disabled config plugins fall back to just defaults."""
     with (
         patch("sase.config.CONFIG_DIR", tmp_path),
-        patch("sase.config.is_plugin_disabled", return_value=True),
+        patch("sase.main.plugin_discovery.is_plugin_disabled", return_value=True),
     ):
         result = load_merged_config()
 

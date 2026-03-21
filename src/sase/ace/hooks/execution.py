@@ -273,7 +273,7 @@ def check_hook_completion(
 
         # Only auto-summarize if no metahook matches
         if not find_matching_metahook(hook.command, hook_output_content):
-            from sase.summarize_utils import get_file_summary
+            from sase.ace.hooks.summarize_utils import get_file_summary
 
             auto_skip_suffix = get_file_summary(
                 target_file=output_path,

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.config import load_xprompts_by_source
-from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 from .loader_parsing import (
     parse_inputs_from_front_matter,

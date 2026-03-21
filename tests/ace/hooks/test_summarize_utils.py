@@ -2,10 +2,10 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.summarize_utils import get_file_summary
+from sase.ace.hooks.summarize_utils import get_file_summary
 
 
-@patch("sase.summarize_utils.execute_workflow")
+@patch("sase.ace.hooks.summarize_utils.execute_workflow")
 def test_get_file_summary_returns_summary_on_success(
     mock_execute: MagicMock,
 ) -> None:
@@ -29,7 +29,7 @@ def test_get_file_summary_returns_summary_on_success(
     )
 
 
-@patch("sase.summarize_utils.execute_workflow")
+@patch("sase.ace.hooks.summarize_utils.execute_workflow")
 def test_get_file_summary_fallback_on_exception(
     mock_execute: MagicMock,
 ) -> None:
@@ -44,7 +44,7 @@ def test_get_file_summary_fallback_on_exception(
     assert result == "Fallback text"
 
 
-@patch("sase.summarize_utils.execute_workflow")
+@patch("sase.ace.hooks.summarize_utils.execute_workflow")
 def test_get_file_summary_default_fallback(mock_execute: MagicMock) -> None:
     """Test that get_file_summary uses default fallback."""
     mock_result = MagicMock()
@@ -58,7 +58,7 @@ def test_get_file_summary_default_fallback(mock_execute: MagicMock) -> None:
     assert result == "Operation completed"
 
 
-@patch("sase.summarize_utils.execute_workflow")
+@patch("sase.ace.hooks.summarize_utils.execute_workflow")
 def test_get_file_summary_with_code_fenced_json(
     mock_execute: MagicMock,
 ) -> None:
@@ -74,7 +74,7 @@ def test_get_file_summary_with_code_fenced_json(
     assert result == "Added timeout config"
 
 
-@patch("sase.summarize_utils.execute_workflow")
+@patch("sase.ace.hooks.summarize_utils.execute_workflow")
 def test_get_file_summary_passes_artifacts_dir(
     mock_execute: MagicMock,
 ) -> None:
@@ -97,7 +97,7 @@ def test_get_file_summary_passes_artifacts_dir(
     )
 
 
-@patch("sase.summarize_utils.execute_workflow")
+@patch("sase.ace.hooks.summarize_utils.execute_workflow")
 def test_get_file_summary_fallback_on_empty_summary(
     mock_execute: MagicMock,
 ) -> None:

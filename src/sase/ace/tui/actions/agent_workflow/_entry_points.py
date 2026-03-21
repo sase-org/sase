@@ -356,7 +356,7 @@ class EntryPointsMixin:
         # Delete any CRS proposal commits associated with comments
         deleted_proposals = 0
         if changespec.commits:
-            from sase.change_actions import delete_proposal_entry
+            from sase.ace.change_actions import delete_proposal_entry
 
             crs_proposals = [
                 c

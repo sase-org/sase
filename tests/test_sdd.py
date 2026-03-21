@@ -58,7 +58,7 @@ def test_primary_workspace_dir_prefers_project_workspace_dir() -> None:
         patch("sase.sdd.Path.home", return_value=Path("/home/user")),
         patch("sase.workspace_provider.get_workspace_name", return_value="myproject"),
         patch(
-            "sase.workspace_utils.parse_workspace_dir",
+            "sase.workspace_provider.utils.parse_workspace_dir",
             return_value="/home/user/myproject",
         ),
     ):

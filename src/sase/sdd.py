@@ -62,7 +62,7 @@ def _get_primary_workspace_dir_from_project(workspace_dir: str) -> str | None:
     """
     try:
         from sase.workspace_provider import get_workspace_name
-        from sase.workspace_utils import parse_workspace_dir
+        from sase.workspace_provider.utils import parse_workspace_dir
 
         project_name = get_workspace_name(workspace_dir)
         if not project_name:

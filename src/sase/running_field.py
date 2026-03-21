@@ -575,7 +575,7 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
         detect_workflow_type,
         get_workspace_directory as ws_get_workspace_directory,
     )
-    from sase.workspace_utils import parse_workspace_dir
+    from sase.workspace_provider.utils import parse_workspace_dir
     from sase.workflows.utils import get_project_file_path
 
     project_file = get_project_file_path(project)

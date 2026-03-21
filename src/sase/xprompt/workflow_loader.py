@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
     get_sase_package_xprompts_dir,

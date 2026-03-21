@@ -133,7 +133,7 @@ def _start_crs_workflow(
         Update message if started, None if failed.
     """
     from sase.vcs_provider import detect_vcs_family
-    from sase.workspace_utils import (
+    from sase.workspace_provider.utils import (
         ensure_git_clone,
         parse_workspace_dir,
     )

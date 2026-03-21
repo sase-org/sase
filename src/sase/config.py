@@ -15,7 +15,6 @@ from typing import Any, Literal
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +113,8 @@ def _load_plugin_configs() -> list[dict[str, Any]]:
 
     Returns config dicts sorted by entry-point name for determinism.
     """
+    from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+
     if is_plugin_disabled("CONFIG"):
         return []
 
@@ -158,6 +159,8 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
         results.append(("default_config", default["xprompts"]))
 
     # 2. Plugin configs
+    from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+
     if not is_plugin_disabled("CONFIG"):
         for module in discover_plugin_resources("sase_config"):
             try:

@@ -52,7 +52,7 @@ def resolve_agent_workspace_dir(
         detect_workflow_type,
         get_workspace_directory,
     )
-    from sase.workspace_utils import parse_workspace_dir
+    from sase.workspace_provider.utils import parse_workspace_dir
 
     try:
         workflow_type = detect_workflow_type(project_file)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sase.workspace_utils import parse_workspace_dir
+from sase.workspace_provider.utils import parse_workspace_dir
 
 
 def _is_workspace_variant(component: str, project_name: str) -> bool:

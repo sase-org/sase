@@ -3,7 +3,7 @@
 import os
 import tempfile
 
-from sase.change_actions import delete_proposal_entry
+from sase.ace.change_actions import delete_proposal_entry
 
 
 def testdelete_proposal_entry_file_not_found() -> None:

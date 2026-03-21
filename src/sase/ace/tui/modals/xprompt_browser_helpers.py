@@ -10,7 +10,7 @@ from pathlib import Path
 
 from rich.text import Text
 
-from sase.plugin_discovery import discover_plugin_resources
+from sase.main.plugin_discovery import discover_plugin_resources
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.workflow_models import Workflow
