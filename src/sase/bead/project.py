@@ -142,10 +142,25 @@ class BeadProject:
         return issue
 
     def close(self, issue_ids: list[str], reason: str | None = None) -> list[Issue]:
-        """Close one or more issues."""
+        """Close one or more issues.
+
+        If a plan bead is closed, all its phase children are also closed.
+        """
         now = _now()
         closed: list[Issue] = []
         for issue_id in issue_ids:
+            issue = db_mod.get_issue(self._conn, issue_id)
+            if issue is None:
+                raise KeyError(f"Issue not found: {issue_id}")
+            # Close children first if this is a plan bead
+            if issue.issue_type == IssueType.PLAN:
+                for child in db_mod.get_epic_children(self._conn, issue_id):
+                    if child.status != Status.CLOSED:
+                        closed_child = db_mod.close_issue(
+                            self._conn, child.id, now, reason
+                        )
+                        if closed_child is not None:
+                            closed.append(closed_child)
             issue = db_mod.close_issue(self._conn, issue_id, now, reason)
             if issue is None:
                 raise KeyError(f"Issue not found: {issue_id}")

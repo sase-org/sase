@@ -136,6 +136,39 @@ def test_close_with_reason(project):
     assert closed[0].close_reason == "done"
 
 
+def test_close_plan_cascades_children(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    c2 = project.create("C2", IssueType.PHASE, parent_id=epic.id)
+    closed = project.close([epic.id])
+    closed_ids = [i.id for i in closed]
+    assert c1.id in closed_ids
+    assert c2.id in closed_ids
+    assert epic.id in closed_ids
+    # All should now be closed
+    for issue_id in [c1.id, c2.id, epic.id]:
+        assert project.show(issue_id).status == Status.CLOSED
+
+
+def test_close_plan_skips_already_closed_children(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    project.create("C2", IssueType.PHASE, parent_id=epic.id)
+    # Close c1 first
+    project.close([c1.id])
+    # Now close the plan — c1 should not appear again
+    closed = project.close([epic.id])
+    closed_ids = [i.id for i in closed]
+    assert c1.id not in closed_ids
+
+
+def test_close_plan_cascades_reason_to_children(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    c1 = project.create("C1", IssueType.PHASE, parent_id=epic.id)
+    project.close([epic.id], reason="completed")
+    assert project.show(c1.id).close_reason == "completed"
+
+
 def test_close_not_found(project):
     with pytest.raises(KeyError):
         project.close(["nonexistent"])
@@ -169,8 +202,8 @@ def test_stats(project):
 
     s = project.stats()
     assert s["total"] == 2
-    assert s.get("closed", 0) == 1
-    assert s.get("open", 0) == 1
+    assert s.get("closed", 0) == 2
+    assert s.get("open", 0) == 0
     assert s.get("plan", 0) == 1
     assert s.get("phase", 0) == 1
 
