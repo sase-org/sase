@@ -76,12 +76,12 @@ def _auto_accept_proposal(
         True if successful, False otherwise.
     """
     # Import here to avoid circular imports
-    from sase.accept_workflow import (
+    from sase.workflows.accept import (
         find_proposal_entry,
         parse_proposal_id,
         renumber_commit_entries,
     )
-    from sase.commit_utils import apply_diff_to_workspace
+    from sase.workflows.commit_utils import apply_diff_to_workspace
 
     # Parse proposal ID
     parsed = parse_proposal_id(proposal_id)
@@ -121,7 +121,7 @@ def _auto_accept_proposal(
         # Continue anyway since amend succeeded
 
     # Add test target hooks from changed_test_targets
-    from sase.workflow_utils import add_test_hooks_if_available
+    from sase.workflows.utils import add_test_hooks_if_available
 
     add_test_hooks_if_available(
         changespec.file_path,

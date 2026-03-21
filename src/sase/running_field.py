@@ -547,7 +547,7 @@ def get_workspace_directory_for_num(
     # Clean non-main workspaces to avoid checkout conflicts from leftover
     # dirty state.
     if clean:
-        from sase.commit_utils import clean_workspace
+        from sase.workflows.commit_utils import clean_workspace
 
         clean_workspace(workspace_dir)
 
@@ -576,7 +576,7 @@ def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
         get_workspace_directory as ws_get_workspace_directory,
     )
     from sase.workspace_utils import parse_workspace_dir
-    from sase.workflow_utils import get_project_file_path
+    from sase.workflows.utils import get_project_file_path
 
     project_file = get_project_file_path(project)
     try:

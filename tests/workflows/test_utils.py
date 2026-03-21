@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.workflow_utils import (
+from sase.workflows.utils import (
     _get_changed_test_targets,
     add_test_hooks_if_available,
     get_changespec_from_file,
@@ -20,7 +20,7 @@ def test__get_changed_test_targets_whitespace_only() -> None:
     mock_result.returncode = 0
     mock_result.stdout = "   \n\n  "
 
-    with patch("sase.workflow_utils.subprocess.run", return_value=mock_result):
+    with patch("sase.workflows.utils.subprocess.run", return_value=mock_result):
         result = _get_changed_test_targets()
 
     assert result is None
@@ -33,7 +33,7 @@ def test__get_changed_test_targets_command_fails() -> None:
     mock_result.stdout = ""
     mock_result.stderr = "Error"
 
-    with patch("sase.workflow_utils.subprocess.run", return_value=mock_result):
+    with patch("sase.workflows.utils.subprocess.run", return_value=mock_result):
         result = _get_changed_test_targets()
 
     assert result is None
@@ -42,7 +42,7 @@ def test__get_changed_test_targets_command_fails() -> None:
 def test__get_changed_test_targets_command_not_found() -> None:
     """Test that None is returned when command is not found."""
     with patch(
-        "sase.workflow_utils.subprocess.run",
+        "sase.workflows.utils.subprocess.run",
         side_effect=FileNotFoundError("changed_test_targets not found"),
     ):
         result = _get_changed_test_targets()
@@ -57,7 +57,7 @@ def test__get_changed_test_targets_verbose_logs_success() -> None:
     mock_result.stdout = "//foo:test1"
 
     with (
-        patch("sase.workflow_utils.subprocess.run", return_value=mock_result),
+        patch("sase.workflows.utils.subprocess.run", return_value=mock_result),
         patch("sase.rich_utils.print_status") as mock_print_status,
     ):
         result = _get_changed_test_targets(verbose=True)
@@ -73,7 +73,7 @@ def test__get_changed_test_targets_verbose_logs_empty() -> None:
     mock_result.stdout = ""
 
     with (
-        patch("sase.workflow_utils.subprocess.run", return_value=mock_result),
+        patch("sase.workflows.utils.subprocess.run", return_value=mock_result),
         patch("sase.rich_utils.print_status") as mock_print_status,
     ):
         result = _get_changed_test_targets(verbose=True)
@@ -91,7 +91,7 @@ def test__get_changed_test_targets_verbose_logs_failure() -> None:
     mock_result.stderr = "Error occurred"
 
     with (
-        patch("sase.workflow_utils.subprocess.run", return_value=mock_result),
+        patch("sase.workflows.utils.subprocess.run", return_value=mock_result),
         patch("sase.rich_utils.print_status") as mock_print_status,
     ):
         result = _get_changed_test_targets(verbose=True)
@@ -106,7 +106,7 @@ def test_add_test_hooks_if_available_adds_hooks() -> None:
     """Test that function adds hooks when targets are found."""
     with (
         patch(
-            "sase.workflow_utils._get_changed_test_targets",
+            "sase.workflows.utils._get_changed_test_targets",
             return_value="//foo:test1 //bar:test2",
         ),
         patch(
@@ -133,7 +133,7 @@ def test_add_test_hooks_if_available_changes_directory() -> None:
     with (
         patch("os.getcwd", return_value=original_dir),
         patch("os.chdir") as mock_chdir,
-        patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
+        patch("sase.workflows.utils._get_changed_test_targets", return_value=None),
     ):
         result = add_test_hooks_if_available(
             "/fake/project.gp", "cl_name", workspace_dir=workspace_dir
@@ -155,7 +155,7 @@ def test_add_test_hooks_if_available_restores_directory_on_error() -> None:
         patch("os.getcwd", return_value=original_dir),
         patch("os.chdir") as mock_chdir,
         patch(
-            "sase.workflow_utils._get_changed_test_targets",
+            "sase.workflows.utils._get_changed_test_targets",
             side_effect=Exception("Test error"),
         ),
     ):
@@ -174,9 +174,9 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
     """Test that function returns False when adding hooks fails."""
     with (
         patch(
-            "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
+            "sase.workflows.utils._get_changed_test_targets", return_value="//foo:test1"
         ),
-        patch("sase.workflow_utils.get_changespec_from_file", return_value=None),
+        patch("sase.workflows.utils.get_changespec_from_file", return_value=None),
         patch("sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=False),
         patch("sase.rich_utils.print_status"),
     ):
@@ -192,7 +192,7 @@ def test_get_initial_hooks_for_changespec_returns_config_hooks() -> None:
     """Test that hooks from plugin config are returned."""
     config = {"default_hooks": ["!$sase_google_presubmit", "$sase_google_lint"]}
     with (
-        patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
+        patch("sase.workflows.utils._get_changed_test_targets", return_value=None),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value=config),
     ):
         result = get_initial_hooks_for_changespec()
@@ -205,7 +205,7 @@ def test_get_initial_hooks_for_changespec_returns_config_hooks() -> None:
 def test_get_initial_hooks_for_changespec_returns_empty_without_config() -> None:
     """Test that no default hooks are returned when no config is set."""
     with (
-        patch("sase.workflow_utils._get_changed_test_targets", return_value=None),
+        patch("sase.workflows.utils._get_changed_test_targets", return_value=None),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value={}),
     ):
         result = get_initial_hooks_for_changespec()
@@ -218,7 +218,7 @@ def test_get_initial_hooks_for_changespec_preserves_order() -> None:
     config = {"default_hooks": ["!$sase_google_presubmit", "$sase_google_lint"]}
     with (
         patch(
-            "sase.workflow_utils._get_changed_test_targets", return_value="//foo:test1"
+            "sase.workflows.utils._get_changed_test_targets", return_value="//foo:test1"
         ),
         patch("sase.ace.hooks.defaults.get_vcs_provider_config", return_value=config),
     ):
@@ -233,7 +233,7 @@ def test_get_initial_hooks_for_changespec_preserves_order() -> None:
 
 # Tests for get_project_file_path
 # Tests for get_cl_name_from_branch
-@patch("sase.workflow_utils.get_vcs_provider")
+@patch("sase.workflows.utils.get_vcs_provider")
 def test_get_cl_name_from_branch_failure(mock_get_provider: MagicMock) -> None:
     """Test get_cl_name_from_branch returns None on failure."""
     mock_provider = MagicMock()
@@ -245,7 +245,7 @@ def test_get_cl_name_from_branch_failure(mock_get_provider: MagicMock) -> None:
     assert result is None
 
 
-@patch("sase.workflow_utils.get_vcs_provider")
+@patch("sase.workflows.utils.get_vcs_provider")
 def test_get_cl_name_from_branch_empty(mock_get_provider: MagicMock) -> None:
     """Test get_cl_name_from_branch returns None for empty output."""
     mock_provider = MagicMock()
@@ -258,7 +258,7 @@ def test_get_cl_name_from_branch_empty(mock_get_provider: MagicMock) -> None:
 
 
 # Tests for get_project_from_workspace
-@patch("sase.workflow_utils.get_vcs_provider")
+@patch("sase.workflows.utils.get_vcs_provider")
 def test_get_project_from_workspace_failure(mock_get_provider: MagicMock) -> None:
     """Test get_project_from_workspace returns None on failure."""
     mock_provider = MagicMock()
@@ -270,7 +270,7 @@ def test_get_project_from_workspace_failure(mock_get_provider: MagicMock) -> Non
     assert result is None
 
 
-@patch("sase.workflow_utils.get_vcs_provider")
+@patch("sase.workflows.utils.get_vcs_provider")
 def test_get_project_from_workspace_empty(mock_get_provider: MagicMock) -> None:
     """Test get_project_from_workspace returns None for empty output."""
     mock_provider = MagicMock()

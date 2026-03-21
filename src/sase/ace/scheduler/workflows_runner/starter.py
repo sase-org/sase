@@ -6,7 +6,7 @@ import sys
 import time
 from collections.abc import Callable
 
-from sase.commit_utils import run_sase_hg_clean
+from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.sase_utils import (
     ensure_sase_directory,
     make_safe_filename,

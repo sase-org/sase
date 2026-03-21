@@ -2,7 +2,7 @@
 
 import os
 
-from sase.accept_workflow.parsing import parse_proposal_id
+from sase.workflows.accept.parsing import parse_proposal_id
 from rich.text import Text
 
 from ...changespec import (

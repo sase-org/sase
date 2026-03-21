@@ -9,14 +9,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.commit_workflow.changespec_operations import (
+from sase.workflows.commit.changespec_operations import (
     _find_changespec_end_line,
 )
-from sase.commit_workflow.changespec_queries import (
+from sase.workflows.commit.changespec_queries import (
     changespec_exists,
     project_file_exists,
 )
-from sase.commit_workflow.editor_utils import get_editor
+from sase.workflows.commit.editor_utils import get_editor
 
 
 def test_project_file_exists_false() -> None:
@@ -47,7 +47,7 @@ def test_changespec_exists_multiple_changespecs() -> None:
 
     try:
         with patch(
-            "sase.commit_workflow.changespec_queries.get_project_file_path",
+            "sase.workflows.commit.changespec_queries.get_project_file_path",
             return_value=project_file,
         ):
             assert changespec_exists("testproj", "feature_a") is True

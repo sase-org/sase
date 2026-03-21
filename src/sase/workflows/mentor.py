@@ -28,8 +28,8 @@ from sase.shared_utils import (
     generate_workflow_tag,
     initialize_sase_log,
 )
-from sase.workflow_base import BaseWorkflow
-from sase.workflow_utils import get_cl_name_from_branch
+from sase.workflows.base import BaseWorkflow
+from sase.workflows.utils import get_cl_name_from_branch
 from sase.xprompt import process_xprompt_references
 
 

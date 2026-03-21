@@ -6,18 +6,18 @@ This package provides functions for:
 - Workspace and diff management (workspace.py)
 """
 
-from sase.commit_utils.entries import (
+from sase.workflows.commit_utils.entries import (
     add_commit_entry,
     add_proposed_commit_entry,
     get_next_commit_number,
 )
-from sase.commit_utils.modifiers import (
+from sase.workflows.commit_utils.modifiers import (
     mark_proposal_broken,
     reject_all_new_proposals,
     reject_proposals_and_set_status_atomic,
     update_commit_entry_suffix,
 )
-from sase.commit_utils.workspace import (
+from sase.workflows.commit_utils.workspace import (
     apply_diff_to_workspace,
     apply_diffs_to_workspace,
     clean_workspace,

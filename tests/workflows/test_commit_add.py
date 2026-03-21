@@ -5,13 +5,13 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.commit_utils import (
+from sase.workflows.commit_utils import (
     add_commit_entry,
     add_proposed_commit_entry,
     get_next_commit_number,
     save_diff,
 )
-from sase.commit_utils.entries import (
+from sase.workflows.commit_utils.entries import (
     _get_next_proposal_letter,
 )
 
@@ -104,7 +104,7 @@ def test_add_commit_entry_nonexistent_file() -> None:
 
 
 # Tests for save_diff
-@patch("sase.commit_utils.workspace.get_vcs_provider")
+@patch("sase.workflows.commit_utils.workspace.get_vcs_provider")
 def test_save_diff_no_changes(mock_get_provider: MagicMock, tmp_path: Path) -> None:
     """Test save_diff when there are no changes (returns None)."""
     mock_provider = MagicMock()

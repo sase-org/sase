@@ -80,7 +80,7 @@ class RenameCLModal(ModalScreen[str | None]):
 
     def _submit_value(self) -> None:
         """Validate and submit the new name."""
-        from sase.commit_workflow.changespec_queries import changespec_exists
+        from sase.workflows.commit.changespec_queries import changespec_exists
         from sase.sase_utils import has_suffix
 
         rename_input = self.query_one("#rename-input", Input)

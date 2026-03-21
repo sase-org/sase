@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from sase.ace.changespec import changespec_lock, get_entry_id, write_changespec_atomic
-from sase.renumber_utils import (
+from sase.workflows.renumber_utils import (
     build_commits_section,
     find_commits_section,
     parse_commit_entries,

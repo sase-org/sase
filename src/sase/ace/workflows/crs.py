@@ -13,8 +13,8 @@ from sase.change_actions import (
     prompt_for_change_action,
 )
 from sase.history.chat import save_chat_history
-from sase.commit_utils import run_sase_hg_clean
-from sase.crs_workflow import CrsWorkflow
+from sase.workflows.commit_utils import run_sase_hg_clean
+from sase.workflows.crs import CrsWorkflow
 from sase.sase_utils import generate_timestamp, shorten_path
 from sase.running_field import (
     claim_workspace,

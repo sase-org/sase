@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.accept_workflow.parsing import (
+from sase.workflows.accept.parsing import (
     expand_shorthand_proposals,
     parse_proposal_entries,
 )

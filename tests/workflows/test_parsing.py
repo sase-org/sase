@@ -3,7 +3,7 @@
 import os
 import tempfile
 
-from sase.accept_workflow import (
+from sase.workflows.accept import (
     expand_shorthand_proposals,
     find_proposal_entry,
     parse_proposal_entries,
@@ -11,7 +11,7 @@ from sase.accept_workflow import (
     parse_proposal_id,
 )
 from sase.ace.changespec import CommitEntry
-from sase.workflow_utils import get_changespec_from_file
+from sase.workflows.utils import get_changespec_from_file
 
 
 # Tests for parse_proposal_id

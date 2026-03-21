@@ -4,11 +4,15 @@ import os
 import sys
 import tempfile
 
-from sase.commit_utils import add_commit_entry, get_next_commit_number, save_diff
+from sase.workflows.commit_utils import (
+    add_commit_entry,
+    get_next_commit_number,
+    save_diff,
+)
 from sase.rich_utils import print_status
 from sase.vcs_provider import detect_vcs_family, get_vcs_provider
-from sase.workflow_base import BaseWorkflow
-from sase.workflow_utils import get_initial_hooks_for_changespec, get_project_file_path
+from sase.workflows.base import BaseWorkflow
+from sase.workflows.utils import get_initial_hooks_for_changespec, get_project_file_path
 
 from .branch_info import (
     get_parent_branch_name,

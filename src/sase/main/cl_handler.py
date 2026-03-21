@@ -4,8 +4,8 @@ import argparse
 import sys
 from typing import NoReturn
 
-from sase.amend_workflow import AmendWorkflow
-from sase.commit_workflow import CommitWorkflow
+from sase.workflows.amend import AmendWorkflow
+from sase.workflows.commit import CommitWorkflow
 from rich.console import Console
 from rich.markup import escape as _esc
 
@@ -20,7 +20,7 @@ def handle_amend_command(args: argparse.Namespace) -> NoReturn:
 
     # Handle --accept mode
     if getattr(args, "accept", False):
-        from sase.accept_workflow import AcceptWorkflow, parse_proposal_entries
+        from sase.workflows.accept import AcceptWorkflow, parse_proposal_entries
 
         if not args.note:
             print_status("At least one proposal entry is required", "error")

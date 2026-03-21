@@ -23,7 +23,7 @@ from sase.shared_utils import (
     initialize_workflow,
     run_shell_command,
 )
-from sase.workflow_base import BaseWorkflow
+from sase.workflows.base import BaseWorkflow
 from sase.xprompt import escape_for_xprompt, process_xprompt_references
 
 

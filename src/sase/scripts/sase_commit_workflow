@@ -83,7 +83,7 @@ def _amend_cl_git(
     On PR branch: commit, push, and add HISTORY entry to ChangeSpec.
     """
     from sase.history.chat import save_chat_history
-    from sase.commit_utils.workspace import save_diff
+    from sase.workflows.commit_utils.workspace import save_diff
     from sase.sase_utils import generate_timestamp
 
     # Detect branch
@@ -161,8 +161,8 @@ def _amend_cl_git(
         return True, short_sha, "", "", diff_path or ""
     else:
         # PR branch path: add HISTORY entry to ChangeSpec
-        from sase.commit_utils.entries import add_commit_entry, get_next_commit_number
-        from sase.workflow_utils import (
+        from sase.workflows.commit_utils.entries import add_commit_entry, get_next_commit_number
+        from sase.workflows.utils import (
             add_test_hooks_if_available,
             get_project_file_path,
         )

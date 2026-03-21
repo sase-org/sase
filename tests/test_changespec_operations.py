@@ -5,7 +5,7 @@ import tempfile
 from unittest.mock import patch
 
 from sase.ace.changespec.parser import parse_project_file
-from sase.commit_workflow.changespec_operations import add_changespec_to_project_file
+from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
 
 
 def test_add_changespec_inherits_parent_hooks() -> None:
@@ -27,7 +27,7 @@ HOOKS:
 
     try:
         with patch(
-            "sase.commit_workflow.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -83,7 +83,7 @@ STATUS: Draft
 
     try:
         with patch(
-            "sase.commit_workflow.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(
@@ -115,7 +115,7 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
 
     try:
         with patch(
-            "sase.commit_workflow.changespec_operations.get_project_file_path",
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
             return_value=project_file,
         ):
             result = add_changespec_to_project_file(

@@ -3,7 +3,7 @@
 import os
 import tempfile
 
-from sase.accept_workflow import renumber_commit_entries
+from sase.workflows.accept import renumber_commit_entries
 
 
 def test_renumber_commit_entries_nonexistent_file() -> None:

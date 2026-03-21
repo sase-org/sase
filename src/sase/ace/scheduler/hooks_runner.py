@@ -4,7 +4,7 @@ import os
 import time
 from collections.abc import Callable
 
-from sase.commit_utils import (
+from sase.workflows.commit_utils import (
     apply_diff_to_workspace,
     clean_workspace,
     mark_proposal_broken,

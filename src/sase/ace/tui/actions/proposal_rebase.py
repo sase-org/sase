@@ -27,7 +27,7 @@ def _rebase_task(
     """
     import os
 
-    from sase.commit_utils import run_sase_hg_clean
+    from sase.workflows.commit_utils import run_sase_hg_clean
     from sase.running_field import (
         claim_workspace,
         get_first_available_axe_workspace,
@@ -117,8 +117,8 @@ def _accept_task(
     Returns:
         Tuple of (success, message).
     """
-    from sase.accept_workflow import AcceptWorkflow
-    from sase.accept_workflow.conflict_check import format_conflict_message
+    from sase.workflows.accept import AcceptWorkflow
+    from sase.workflows.accept.conflict_check import format_conflict_message
 
     workflow = AcceptWorkflow(
         proposals=entries,
@@ -160,7 +160,7 @@ class ProposalRebaseMixin:
         2. Kills running hooks (except $-prefixed ones)
         3. Rejects all new proposals
         """
-        from sase.commit_utils import reject_all_new_proposals
+        from sase.workflows.commit_utils import reject_all_new_proposals
 
         from ...changespec import get_base_status
         from ...comments import update_changespec_comments_field
@@ -246,7 +246,7 @@ class ProposalRebaseMixin:
         Returns:
             True if successful, False otherwise.
         """
-        from sase.commit_utils import reject_proposals_and_set_status_atomic
+        from sase.workflows.commit_utils import reject_proposals_and_set_status_atomic
 
         from ...comments import update_changespec_comments_field
         from ...comments.operations import mark_comment_agents_as_killed

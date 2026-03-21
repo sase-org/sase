@@ -11,8 +11,8 @@ from sase.ace.tui.actions.proposal_rebase import _accept_task
 # Helpers
 # ---------------------------------------------------------------------------
 
-_PATCH_WORKFLOW = "sase.accept_workflow.AcceptWorkflow"
-_PATCH_FORMAT_CONFLICT = "sase.accept_workflow.conflict_check.format_conflict_message"
+_PATCH_WORKFLOW = "sase.workflows.accept.AcceptWorkflow"
+_PATCH_FORMAT_CONFLICT = "sase.workflows.accept.conflict_check.format_conflict_message"
 
 
 def _make_mock_workflow(

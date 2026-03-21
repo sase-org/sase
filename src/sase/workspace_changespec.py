@@ -4,7 +4,7 @@ import re
 import subprocess
 
 from sase.history.chat import save_chat_history
-from sase.commit_workflow.changespec_operations import add_changespec_to_project_file
+from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
 from sase.workspace_provider import get_change_label
 from sase.sase_utils import (
     ensure_sase_directory,
@@ -12,7 +12,7 @@ from sase.sase_utils import (
     make_safe_filename,
     shorten_path,
 )
-from sase.workflow_utils import get_initial_hooks_for_changespec
+from sase.workflows.utils import get_initial_hooks_for_changespec
 
 _CONVENTIONAL_PREFIXES = re.compile(
     r"^(feat|fix|chore|ref|docs|test|ci|build|perf|style)\s*:\s*",

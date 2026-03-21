@@ -18,14 +18,14 @@ from sase.ace.hooks.timestamps import (
     get_hook_age_seconds,
     is_timestamp_suffix,
 )
-from sase.renumber_utils import (
+from sase.workflows.renumber_utils import (
     sort_hook_status_lines,
     sort_entries_by_id,
     parse_commit_entries,
     find_commits_section,
 )
 from sase.sase_utils import make_safe_filename, strip_reverted_suffix, has_suffix
-from sase.commit_utils.entries import _extract_timestamp_from_chat_path
+from sase.workflows.commit_utils.entries import _extract_timestamp_from_chat_path
 from sase.shared_utils import (
     content_ends_with_markdown_heading,
     apply_section_marker_handling,

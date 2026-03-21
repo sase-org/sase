@@ -5,7 +5,7 @@ import sys
 from typing import NoReturn
 
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
-from sase.commit_utils import (
+from sase.workflows.commit_utils import (
     add_commit_entry,
     add_proposed_commit_entry,
     clean_workspace,
@@ -13,8 +13,8 @@ from sase.commit_utils import (
 )
 from sase.rich_utils import print_status
 from sase.vcs_provider import get_vcs_provider
-from sase.workflow_base import BaseWorkflow
-from sase.workflow_utils import (
+from sase.workflows.base import BaseWorkflow
+from sase.workflows.utils import (
     add_test_hooks_if_available,
     get_changespec_from_file,
     get_cl_name_from_branch,

@@ -5,7 +5,7 @@ import os
 from sase.ace.changespec import ChangeSpec
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
 from sase.ace.operations import update_to_changespec
-from sase.commit_utils import run_sase_hg_clean
+from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.rich_utils import print_status
 from sase.running_field import (
     claim_workspace,
@@ -14,7 +14,7 @@ from sase.running_field import (
     release_workspace,
 )
 from sase.vcs_provider import get_vcs_provider
-from sase.workflow_utils import get_changespec_from_file
+from sase.workflows.utils import get_changespec_from_file
 
 from .renumber import rewind_commit_entries
 

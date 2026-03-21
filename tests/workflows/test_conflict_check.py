@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.accept_workflow.conflict_check import (
+from sase.workflows.accept.conflict_check import (
     ConflictCheckResult,
     ConflictPair,
     format_conflict_message,
@@ -29,8 +29,8 @@ def test_run_conflict_check_empty_proposals_returns_success() -> None:
     assert result.conflicting_pairs == []
 
 
-@patch("sase.accept_workflow.conflict_check.clean_workspace")
-@patch("sase.accept_workflow.conflict_check.apply_diffs_to_workspace")
+@patch("sase.workflows.accept.conflict_check.clean_workspace")
+@patch("sase.workflows.accept.conflict_check.apply_diffs_to_workspace")
 def test_run_conflict_check_two_proposals_no_conflict(
     mock_apply: MagicMock,
     mock_clean: MagicMock,
@@ -52,8 +52,8 @@ def test_run_conflict_check_two_proposals_no_conflict(
     assert mock_apply.call_count == 1
 
 
-@patch("sase.accept_workflow.conflict_check.clean_workspace")
-@patch("sase.accept_workflow.conflict_check.apply_diffs_to_workspace")
+@patch("sase.workflows.accept.conflict_check.clean_workspace")
+@patch("sase.workflows.accept.conflict_check.apply_diffs_to_workspace")
 def test_run_conflict_check_two_proposals_with_conflict(
     mock_apply: MagicMock,
     mock_clean: MagicMock,
@@ -79,8 +79,8 @@ def test_run_conflict_check_two_proposals_with_conflict(
     assert result.conflicting_pairs == []
 
 
-@patch("sase.accept_workflow.conflict_check.clean_workspace")
-@patch("sase.accept_workflow.conflict_check.apply_diffs_to_workspace")
+@patch("sase.workflows.accept.conflict_check.clean_workspace")
+@patch("sase.workflows.accept.conflict_check.apply_diffs_to_workspace")
 def test_run_conflict_check_three_proposals_triggers_pair_detection(
     mock_apply: MagicMock,
     mock_clean: MagicMock,
@@ -192,7 +192,7 @@ def test_format_conflict_message_single_pair() -> None:
 
 def test_accept_workflow_conflict_result_initially_none() -> None:
     """Test that AcceptWorkflow.conflict_result is None initially."""
-    from sase.accept_workflow import AcceptWorkflow
+    from sase.workflows.accept import AcceptWorkflow
 
     workflow = AcceptWorkflow(
         proposals=[("2a", None)],

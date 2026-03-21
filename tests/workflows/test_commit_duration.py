@@ -5,11 +5,11 @@ import tempfile
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sase.commit_utils import (
+from sase.workflows.commit_utils import (
     add_commit_entry,
     reject_all_new_proposals,
 )
-from sase.commit_utils.entries import (
+from sase.workflows.commit_utils.entries import (
     _extract_timestamp_from_chat_path,
     format_chat_line_with_duration,
 )

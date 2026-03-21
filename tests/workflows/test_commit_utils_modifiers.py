@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from sase.commit_utils import (
+from sase.workflows.commit_utils import (
     mark_proposal_broken,
     reject_proposals_and_set_status_atomic,
 )

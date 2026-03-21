@@ -115,7 +115,7 @@ class RewindMixin(HintMixinBase):
             changespec: The ChangeSpec to rewind.
             selected_entry_num: The entry number to rewind to.
         """
-        from sase.rewind_workflow import RewindWorkflow
+        from sase.workflows.rewind import RewindWorkflow
 
         def run_handler() -> tuple[bool, str]:
             workflow = RewindWorkflow(

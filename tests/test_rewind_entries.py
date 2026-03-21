@@ -3,7 +3,7 @@
 import os
 import tempfile
 
-from sase.rewind_workflow.renumber import rewind_commit_entries
+from sase.workflows.rewind.renumber import rewind_commit_entries
 
 
 def test_rewind_with_existing_proposals() -> None:

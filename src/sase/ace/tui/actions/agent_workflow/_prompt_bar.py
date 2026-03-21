@@ -30,7 +30,7 @@ class PromptBarMixin:
             update_target: What to checkout (CL name or "p4head").
             history_sort_key: Branch/CL name to sort prompt history by.
         """
-        from sase.commit_workflow.project_file_utils import create_project_file
+        from sase.workflows.commit.project_file_utils import create_project_file
         from sase.sase_utils import generate_timestamp
         from sase.running_field import (
             get_first_available_axe_workspace,

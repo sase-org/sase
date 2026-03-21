@@ -87,7 +87,7 @@ def ensure_project_file_and_get_workspace_num() -> ProjectInfo:
         Tuple of (project_file, workspace_num, project_name)
         All None if not in a recognized workspace or creation failed.
     """
-    from sase.commit_workflow.project_file_utils import create_project_file
+    from sase.workflows.commit.project_file_utils import create_project_file
 
     project_name = _get_project_name()
     if not project_name:

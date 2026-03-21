@@ -2,7 +2,7 @@
 
 import os
 
-from sase.workflow_utils import get_project_file_path
+from sase.workflows.utils import get_project_file_path
 
 
 def project_file_exists(project: str) -> bool:

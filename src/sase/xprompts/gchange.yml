@@ -85,7 +85,7 @@ steps:
 
       from sase.vcs_provider import get_vcs_provider
       from sase.workspace_changespec import create_changespec_for_workflow
-      from sase.workflow_utils import get_project_file_path
+      from sase.workflows.utils import get_project_file_path
 
       # Get project name
       provider = get_vcs_provider(os.getcwd())

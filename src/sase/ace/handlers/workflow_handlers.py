@@ -13,7 +13,7 @@ from sase.change_actions import (
     prompt_for_change_action,
 )
 from sase.history.chat import save_chat_history
-from sase.commit_utils import run_sase_hg_clean
+from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.sase_utils import generate_timestamp, strip_hook_prefix
 from sase.llm_provider import LLMInvocationError, invoke_agent
 from sase.running_field import (

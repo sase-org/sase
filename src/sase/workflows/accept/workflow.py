@@ -6,7 +6,7 @@ from typing import NoReturn
 
 from sase.ace.changespec import ChangeSpec, CommitEntry
 from sase.ace.operations import update_to_changespec
-from sase.commit_utils import (
+from sase.workflows.commit_utils import (
     apply_diff_to_workspace,
     clean_workspace,
     mark_proposal_broken,
@@ -21,8 +21,8 @@ from sase.running_field import (
     release_workspace,
 )
 from sase.vcs_provider import get_vcs_provider
-from sase.workflow_base import BaseWorkflow
-from sase.workflow_utils import (
+from sase.workflows.base import BaseWorkflow
+from sase.workflows.utils import (
     add_test_hooks_if_available,
     get_changespec_from_file,
     get_cl_name_from_branch,

@@ -7,7 +7,7 @@ import os
 import threading
 from typing import TYPE_CHECKING
 
-from sase.commit_utils import run_sase_hg_clean
+from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
 
 if TYPE_CHECKING:

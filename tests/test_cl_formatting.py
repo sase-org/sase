@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.commit_workflow.cl_formatting import format_cl_description
+from sase.workflows.commit.cl_formatting import format_cl_description
 from sase.workspace_provider._hookspec import hookimpl
 
 

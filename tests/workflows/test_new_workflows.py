@@ -3,7 +3,7 @@
 import os
 import tempfile
 
-from sase.crs_workflow import CrsWorkflow, _build_crs_prompt
+from sase.workflows.crs import CrsWorkflow, _build_crs_prompt
 
 
 class TestCrsWorkflow:

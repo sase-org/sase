@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from sase.commit_utils import run_sase_hg_clean
+from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.running_field import get_workspace_directory
 
 from ..bgcmd import (

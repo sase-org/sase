@@ -4,7 +4,7 @@ import os
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.rich_utils import print_status
-from sase.workflow_utils import get_project_file_path
+from sase.workflows.utils import get_project_file_path
 
 
 def _find_changespec_end_line(lines: list[str], changespec_name: str) -> int | None:
@@ -95,7 +95,7 @@ def add_changespec_to_project_file(
 
     # Ensure project file exists before trying to add a ChangeSpec
     if not os.path.isfile(project_file):
-        from sase.commit_workflow.project_file_utils import create_project_file
+        from sase.workflows.commit.project_file_utils import create_project_file
 
         if not create_project_file(project):
             return None
@@ -112,7 +112,7 @@ def add_changespec_to_project_file(
     # Build COMMITS field if initial_commits provided
     commits_block = ""
     if initial_commits:
-        from sase.commit_utils.entries import format_chat_line_with_duration
+        from sase.workflows.commit_utils.entries import format_chat_line_with_duration
 
         commits_lines = ["COMMITS:\n"]
         for num, note, chat_path, diff_path in initial_commits:

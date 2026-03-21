@@ -148,7 +148,7 @@ def prompt_for_change_action(
         None - No changes detected
     """
     # Import here to avoid circular imports
-    from sase.commit_utils import (
+    from sase.workflows.commit_utils import (
         add_proposed_commit_entry,
         clean_workspace,
         save_diff,
@@ -379,13 +379,13 @@ def execute_change_action(
             extra_msg = ""
 
         # Import accept workflow functions
-        from sase.accept_workflow import (
+        from sase.workflows.accept import (
             find_proposal_entry,
             parse_proposal_id,
             renumber_commit_entries,
         )
-        from sase.commit_utils import apply_diff_to_workspace
-        from sase.workflow_utils import get_changespec_from_file
+        from sase.workflows.commit_utils import apply_diff_to_workspace
+        from sase.workflows.utils import get_changespec_from_file
 
         # Parse proposal ID
         parsed = parse_proposal_id(proposal_id)
@@ -534,7 +534,7 @@ def execute_change_action(
     elif action == "promote":
         # Promote Draft ChangeSpec to Ready status
         from sase.status_state_machine import transition_changespec_status
-        from sase.workflow_utils import get_cl_name_from_branch
+        from sase.workflows.utils import get_cl_name_from_branch
 
         cl_name = get_cl_name_from_branch() or ""
         if not cl_name:
@@ -587,11 +587,11 @@ def execute_change_action(
         proposal_id = action_args
 
         # Import needed functions
-        from sase.accept_workflow import (
+        from sase.workflows.accept import (
             find_proposal_entry,
             parse_proposal_id,
         )
-        from sase.workflow_utils import get_changespec_from_file
+        from sase.workflows.utils import get_changespec_from_file
 
         # Parse proposal ID
         parsed = parse_proposal_id(proposal_id)

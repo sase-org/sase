@@ -24,7 +24,7 @@ def _parent_hook_passed_or_is_fix_proposal(
     Returns:
         True if the hook can run on this proposal, False if it should wait.
     """
-    from sase.accept_workflow.parsing import parse_proposal_id
+    from sase.workflows.accept.parsing import parse_proposal_id
 
     parsed = parse_proposal_id(entry_id)
     if parsed is None:

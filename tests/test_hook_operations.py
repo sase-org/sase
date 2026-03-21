@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sase.accept_workflow.renumber import (
+from sase.workflows.accept.renumber import (
     _build_entry_id_mapping,
     _update_hooks_with_id_mapping,
 )

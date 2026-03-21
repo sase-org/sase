@@ -6,7 +6,7 @@ This module handles:
 - Stripping terminal status markers (error -> removed)
 """
 
-from sase.commit_utils import update_commit_entry_suffix
+from sase.workflows.commit_utils import update_commit_entry_suffix
 
 from ..changespec import (
     ChangeSpec,

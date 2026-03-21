@@ -68,7 +68,7 @@ def prepare_workspace(
     Returns:
         True if successful, False otherwise.
     """
-    from sase.commit_utils import run_sase_hg_clean
+    from sase.workflows.commit_utils import run_sase_hg_clean
 
     # Clean workspace (saves any existing changes to a diff file)
     print("Cleaning workspace...")

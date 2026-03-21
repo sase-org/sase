@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.commit_workflow.changespec_queries import (
+from sase.workflows.commit.changespec_queries import (
     changespec_exists,
     get_blocking_exact_match_changespec,
 )
@@ -15,7 +15,7 @@ from sase.commit_workflow.changespec_queries import (
 # === Tests for changespec_exists ===
 
 
-@patch("sase.commit_workflow.changespec_queries.get_project_file_path")
+@patch("sase.workflows.commit.changespec_queries.get_project_file_path")
 @patch("builtins.open")
 def test_changespec_exists_exception(
     mock_open: MagicMock, mock_get_path: MagicMock
@@ -32,7 +32,7 @@ def test_changespec_exists_exception(
 # === Tests for get_blocking_exact_match_changespec ===
 
 
-@patch("sase.commit_workflow.changespec_queries.get_project_file_path")
+@patch("sase.workflows.commit.changespec_queries.get_project_file_path")
 def test_get_blocking_exact_match_no_file(mock_get_path: MagicMock) -> None:
     """Test returns None when project file doesn't exist."""
     mock_get_path.return_value = "/nonexistent/path.gp"
@@ -40,7 +40,7 @@ def test_get_blocking_exact_match_no_file(mock_get_path: MagicMock) -> None:
     assert result is None
 
 
-@patch("sase.commit_workflow.changespec_queries.get_project_file_path")
+@patch("sase.workflows.commit.changespec_queries.get_project_file_path")
 @patch("sase.ace.changespec.parse_project_file")
 def test_get_blocking_exact_match_mailed_status(
     mock_parse: MagicMock, mock_get_path: MagicMock
@@ -62,7 +62,7 @@ def test_get_blocking_exact_match_mailed_status(
         Path(f.name).unlink()
 
 
-@patch("sase.commit_workflow.changespec_queries.get_project_file_path")
+@patch("sase.workflows.commit.changespec_queries.get_project_file_path")
 @patch("sase.ace.changespec.parse_project_file")
 def test_get_blocking_exact_match_suffixed_not_blocking(
     mock_parse: MagicMock, mock_get_path: MagicMock

@@ -11,8 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from rich.markup import escape as _esc
 
-from sase.commit_utils import run_sase_hg_clean
-from sase.commit_workflow.editor_utils import get_editor
+from sase.workflows.commit_utils import run_sase_hg_clean
+from sase.workflows.commit.editor_utils import get_editor
 from sase.vcs_provider import get_vcs_provider
 
 from ..changespec import ChangeSpec

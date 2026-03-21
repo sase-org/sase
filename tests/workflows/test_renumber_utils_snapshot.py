@@ -2,7 +2,7 @@
 
 from inline_snapshot import snapshot
 
-from sase.renumber_utils import (
+from sase.workflows.renumber_utils import (
     build_commits_section,
     find_commits_section,
     parse_commit_entries,

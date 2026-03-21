@@ -1,6 +1,6 @@
 """Tests for renumber_utils shared module."""
 
-from sase.renumber_utils import (
+from sase.workflows.renumber_utils import (
     find_commits_section,
     parse_commit_entries,
 )
