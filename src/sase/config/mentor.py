@@ -92,6 +92,14 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
                     f"Each mentor in profile '{item['profile_name']}' must be a dictionary"
                 )
 
+            # Detect old format and give a clear error
+            if "prompt" in mentor_item:
+                raise ValueError(
+                    f"Mentor in profile '{item['profile_name']}' uses the old "
+                    "'prompt' format which is no longer supported. "
+                    "Use 'mentor_name', 'role', and 'focus_areas' instead."
+                )
+
             if "mentor_name" not in mentor_item:
                 raise ValueError(
                     f"Each mentor in profile '{item['profile_name']}' must have "
