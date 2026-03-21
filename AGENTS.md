@@ -100,6 +100,11 @@ Chezmoi iles related to sase that I know about:
 IMPORTANT: You can edit files in these repos if necessary. Just make sure to commit your changes to the corresponding
 repo using your commit skill (NOT `git commit`) after making them.
 
+## Config Changes
+
+When changing keymaps, leader mode keys, or any configuration values, always update **all** relevant config files
+consistently — especially `src/sase/sase.yml` (the default config) and any chezmoi sase.yml files.
+
 ## Plan Mode and Questions
 
 - You do NOT have access to plan mode (`EnterPlanMode`/`ExitPlanMode`). Use the `/sase_plan` skill instead.
