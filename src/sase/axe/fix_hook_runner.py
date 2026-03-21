@@ -18,7 +18,7 @@ from pathlib import Path
 
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.ace.hooks import contract_test_target_command, set_hook_suffix
-from sase.axe_runner_utils import (
+from sase.axe.runner_utils import (
     detect_and_write_agent_meta,
     finalize_axe_runner,
     write_done_marker,

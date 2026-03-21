@@ -5,7 +5,7 @@ This script is launched by the ace TUI to run custom agents in the background.
 It handles workspace cleanup and releases the workspace upon completion.
 
 The core execution loop (retry, plan approval, question handling) lives in
-``axe_run_agent_exec``.
+``axe.run_agent_exec``.
 """
 
 import json
@@ -15,15 +15,15 @@ import time
 from typing import Any
 
 from sase.ace.hooks import format_duration
-from sase.axe_run_agent_exec import AgentExecContext, run_execution_loop
-from sase.axe_run_agent_phases import (
+from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
+from sase.axe.run_agent_phases import (
     build_done_marker,
     claim_deferred_workspace,
     extract_directives_and_write_meta,
     record_stop_time,
     wait_for_dependencies,
 )
-from sase.axe_runner_utils import (
+from sase.axe.runner_utils import (
     all_steps_hidden,
     install_sigterm_handler,
     prepare_workspace,

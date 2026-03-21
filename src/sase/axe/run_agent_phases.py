@@ -10,7 +10,7 @@ import sys
 import time
 from typing import Any, NamedTuple
 
-from sase.axe_runner_utils import was_killed
+from sase.axe.runner_utils import was_killed
 
 
 class _AgentInfo(NamedTuple):

@@ -2,7 +2,7 @@
 
 import json
 
-from sase.axe_run_agent_helpers import normalize_handoff_interruption_state
+from sase.axe.run_agent_helpers import normalize_handoff_interruption_state
 
 
 def test_normalize_handoff_interruption_state_rewrites_sigterm_failures(

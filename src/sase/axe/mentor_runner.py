@@ -12,7 +12,7 @@ from pathlib import Path
 
 from sase.ace.hooks import format_duration
 from sase.ace.mentors import set_mentor_status
-from sase.axe_runner_utils import (
+from sase.axe.runner_utils import (
     detect_and_write_agent_meta,
     install_sigterm_handler,
     was_killed,

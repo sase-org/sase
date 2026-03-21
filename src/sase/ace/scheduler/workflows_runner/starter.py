@@ -234,7 +234,8 @@ def _start_crs_workflow(
         os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         ),
-        "axe_crs_runner.py",
+        "axe",
+        "crs_runner.py",
     )
 
     # Start the background process first to get actual PID
@@ -356,7 +357,8 @@ def start_fix_hook_workflow(
         os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         ),
-        "axe_fix_hook_runner.py",
+        "axe",
+        "fix_hook_runner.py",
     )
 
     # Start the background process first to get actual PID
@@ -459,7 +461,8 @@ def _start_summarize_hook_workflow(
         os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         ),
-        "axe_summarize_hook_runner.py",
+        "axe",
+        "summarize_hook_runner.py",
     )
 
     try:

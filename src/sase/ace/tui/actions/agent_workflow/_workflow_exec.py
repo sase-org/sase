@@ -220,7 +220,8 @@ class WorkflowExecMixin:
                     )
                 )
             ),
-            "axe_run_workflow_runner.py",
+            "axe",
+            "run_workflow_runner.py",
         )
 
         # Build output log path

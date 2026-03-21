@@ -69,7 +69,7 @@ def spawn_agent_subprocess(
     # code calls signal.signal() which fails from non-main threads).
     import importlib.util
 
-    _spec = importlib.util.find_spec("sase.axe_run_agent_runner")
+    _spec = importlib.util.find_spec("sase.axe.run_agent_runner")
     assert _spec is not None and _spec.origin is not None
     runner_script = os.path.abspath(_spec.origin)
 

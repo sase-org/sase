@@ -6,7 +6,7 @@ import signal
 import tempfile
 from unittest.mock import MagicMock, patch
 
-from sase.axe_runner_utils import (
+from sase.axe.runner_utils import (
     _killed_state,
     all_steps_hidden,
     finalize_axe_runner,
@@ -86,7 +86,7 @@ def test_finalize_axe_runner_success() -> None:
         update_suffix_calls.append((cs, pf, pid, ec))
 
     with patch(
-        "sase.axe_runner_utils.parse_project_file",
+        "sase.axe.runner_utils.parse_project_file",
         return_value=[mock_cs],
     ):
         finalize_axe_runner(
@@ -113,7 +113,7 @@ def test_finalize_axe_runner_no_matching_changespec() -> None:
         update_suffix_calls.append((cs, pf, pid, ec))
 
     with patch(
-        "sase.axe_runner_utils.parse_project_file",
+        "sase.axe.runner_utils.parse_project_file",
         return_value=[mock_cs],
     ):
         finalize_axe_runner(
@@ -131,7 +131,7 @@ def test_finalize_axe_runner_no_matching_changespec() -> None:
 def test_finalize_axe_runner_handles_errors() -> None:
     """Test finalize_axe_runner handles errors gracefully."""
     with patch(
-        "sase.axe_runner_utils.parse_project_file",
+        "sase.axe.runner_utils.parse_project_file",
         side_effect=Exception("Parse error"),
     ):
         # Should not raise - errors are caught and printed
@@ -150,12 +150,12 @@ def test_sigterm_handler_sets_killed() -> None:
     _killed_state["killed"] = False
     captured_handler = None
 
-    with patch("sase.axe_runner_utils.signal.signal") as mock_signal:
+    with patch("sase.axe.runner_utils.signal.signal") as mock_signal:
         install_sigterm_handler("test")
         captured_handler = mock_signal.call_args[0][1]
 
     # Invoke the handler - it calls sys.exit, so we catch SystemExit
-    with patch("sase.axe_runner_utils.sys.exit"):
+    with patch("sase.axe.runner_utils.sys.exit"):
         captured_handler(signal.SIGTERM, None)
 
     assert was_killed() is True
@@ -183,7 +183,7 @@ def test_prepare_workspace_update_fails() -> None:
 
     with (
         patch("sase.commit_utils.run_sase_hg_clean", return_value=(True, None)),
-        patch("sase.axe_runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -198,7 +198,7 @@ def test_prepare_workspace_non_sentinel_passes_through() -> None:
 
     with (
         patch("sase.commit_utils.run_sase_hg_clean", return_value=(True, None)),
-        patch("sase.axe_runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", "my_branch", backup_suffix="ace"

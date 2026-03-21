@@ -281,7 +281,7 @@ def test_serialize_deserialize_preserves_tags(tmp_path: object) -> None:
 
 def test_rollover_tagged_workflows_included_in_refs() -> None:
     """Only rollover-tagged workflows appear in follow-up agent prompts."""
-    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+    from sase.axe.run_agent_exec import _get_embedded_workflow_refs
 
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
@@ -299,7 +299,7 @@ def test_rollover_tagged_workflows_included_in_refs() -> None:
 
 def test_non_tagged_workflows_excluded_from_rollover() -> None:
     """Workflows without the rollover tag are excluded from follow-up refs."""
-    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+    from sase.axe.run_agent_exec import _get_embedded_workflow_refs
 
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
@@ -315,7 +315,7 @@ def test_non_tagged_workflows_excluded_from_rollover() -> None:
 
 def test_rollover_backward_compat_no_tags() -> None:
     """When no entry has tags key, all non-VCS workflows roll over (legacy)."""
-    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+    from sase.axe.run_agent_exec import _get_embedded_workflow_refs
 
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
@@ -334,7 +334,7 @@ def test_rollover_backward_compat_no_tags() -> None:
 
 def test_rollover_with_vcs_excluded() -> None:
     """VCS workflows are still excluded even if they have rollover tag."""
-    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+    from sase.axe.run_agent_exec import _get_embedded_workflow_refs
 
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
@@ -352,7 +352,7 @@ def test_rollover_with_vcs_excluded() -> None:
 
 def test_rollover_with_args_preserved() -> None:
     """Rollover-tagged workflow args are preserved in reconstructed refs."""
-    from sase.axe_run_agent_exec import _get_embedded_workflow_refs
+    from sase.axe.run_agent_exec import _get_embedded_workflow_refs
 
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [

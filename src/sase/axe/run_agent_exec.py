@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.axe_run_agent_helpers import (
+from sase.axe.run_agent_helpers import (
     create_followup_artifacts,
     extract_step_output_and_diff_path,
     format_qa_for_prompt,
@@ -24,8 +24,8 @@ from sase.axe_run_agent_helpers import (
     read_and_delete_marker,
     update_meta_suffix,
 )
-from sase.axe_run_agent_phases import build_done_marker
-from sase.axe_runner_utils import prepare_workspace, reset_killed, was_killed
+from sase.axe.run_agent_phases import build_done_marker
+from sase.axe.runner_utils import prepare_workspace, reset_killed, was_killed
 from sase.chat_history import save_chat_history
 from sase.chat_history_extras import format_extra_sections
 from sase.llm_provider.retry_config import (

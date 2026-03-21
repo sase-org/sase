@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from sase.axe_runner_utils import was_killed
+from sase.axe.runner_utils import was_killed
 from sase.shared_utils import create_artifacts_directory
 
 

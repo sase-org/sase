@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe_run_agent_phases import _AgentInfo
+from sase.axe.run_agent_phases import _AgentInfo
 from sase.llm_provider.retry_config import (
     RETRY_STATE_FILENAME,
     ProviderRetryConfig,
@@ -84,8 +84,8 @@ class _WorkflowResult:
         self.response_text = response_text
 
 
-_RUNNER = "sase.axe_run_agent_runner"
-_EXEC = "sase.axe_run_agent_exec"
+_RUNNER = "sase.axe.run_agent_runner"
+_EXEC = "sase.axe.run_agent_exec"
 
 
 def _base_patches(artifacts_dir: str) -> dict[str, Any]:
@@ -166,7 +166,7 @@ def _run_main(patches: dict[str, Any], tmp_path: Path) -> Path:
             p.start()
             stack.append(p)
         try:
-            from sase.axe_run_agent_runner import main
+            from sase.axe.run_agent_runner import main
 
             with pytest.raises(SystemExit):
                 main()

@@ -18,7 +18,7 @@ import sys
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
-from sase.axe_runner_utils import (
+from sase.axe.runner_utils import (
     detect_and_write_agent_meta,
     finalize_axe_runner,
     write_done_marker,

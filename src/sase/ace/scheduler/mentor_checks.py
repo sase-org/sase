@@ -278,7 +278,7 @@ def _is_mentor_process(pid: int) -> bool:
     """Check if a PID belongs to a mentor runner process.
 
     Uses /proc/<pid>/cmdline on Linux to verify the process is actually
-    an axe_mentor_runner.  This guards against PID reuse: after a mentor
+    a mentor_runner.  This guards against PID reuse: after a mentor
     process exits, a completely unrelated process may receive the same
     PID, causing ``is_process_running()`` to return True.
 
@@ -293,7 +293,7 @@ def _is_mentor_process(pid: int) -> bool:
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as f:
             cmdline = f.read().decode("utf-8", errors="replace")
-        return "axe_mentor_runner" in cmdline
+        return "mentor_runner" in cmdline
     except (FileNotFoundError, PermissionError, OSError):
         return True  # Can't check — assume it's the mentor
 
@@ -310,7 +310,7 @@ def _check_mentor_completion(
     concurrent status updates.
 
     Also detects PID reuse: if the PID is alive but belongs to an unrelated
-    process (not axe_mentor_runner), the mentor is marked as DEAD.
+    process (not mentor_runner), the mentor is marked as DEAD.
 
     Args:
         changespec: The ChangeSpec to check.

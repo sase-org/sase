@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from sase.axe_run_agent_helpers import extract_step_output_and_diff_path
+from sase.axe.run_agent_helpers import extract_step_output_and_diff_path
 
 
 def test_extract_step_output_from_workflow_state(tmp_path: Path) -> None:
