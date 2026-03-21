@@ -537,7 +537,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
                         format_with_prettier,
                     )
                     from sase.llm_provider._plan_utils import (
-                        add_approved_at_frontmatter,
+                        add_create_time_frontmatter,
                     )
                     from sase.running_field import get_workspace_directory
 
@@ -549,7 +549,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
                     content = src_plan.read_text(encoding="utf-8")
                     content = format_with_prettier(content)
                     dest_plan.write_text(
-                        add_approved_at_frontmatter(content), encoding="utf-8"
+                        add_create_time_frontmatter(content), encoding="utf-8"
                     )
                     response_data["saved_plan_path"] = str(dest_plan)
                 except Exception:

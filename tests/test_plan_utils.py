@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from sase.llm_provider._plan_utils import (
     PlanApprovalResult,
-    add_approved_at_frontmatter,
+    add_create_time_frontmatter,
     handle_plan_approval,
     save_plan_to_sase,
 )
@@ -33,31 +33,31 @@ def test_save_plan_to_sase(tmp_path: Path) -> None:
     assert dest2.name == "source_plan_1.md"
 
 
-def test_add_approved_at_frontmatter_no_existing() -> None:
+def test_add_create_time_frontmatter_no_existing() -> None:
     """Prepends frontmatter when the content has none."""
     dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=UTC)
-    result = add_approved_at_frontmatter("# My Plan\nDetails", dt)
+    result = add_create_time_frontmatter("# My Plan\nDetails", dt)
     assert (
         result
-        == "---\napproved_at: '2026-03-20 14:30:00'\nstatus: wip\n---\n# My Plan\nDetails"
+        == "---\ncreate_time: 2026-03-20 14:30:00\nstatus: wip\n---\n# My Plan\nDetails"
     )
 
 
-def test_add_approved_at_frontmatter_existing_frontmatter() -> None:
-    """Inserts approved_at into existing frontmatter."""
+def test_add_create_time_frontmatter_existing_frontmatter() -> None:
+    """Inserts create_time into existing frontmatter."""
     content = "---\ntitle: foo\n---\n# Plan"
     dt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
-    result = add_approved_at_frontmatter(content, dt)
+    result = add_create_time_frontmatter(content, dt)
     assert (
         result
-        == "---\ntitle: foo\napproved_at: '2026-01-01 00:00:00'\nstatus: wip\n---\n# Plan"
+        == "---\ntitle: foo\ncreate_time: 2026-01-01 00:00:00\nstatus: wip\n---\n# Plan"
     )
 
 
-def test_add_approved_at_frontmatter_already_has_field() -> None:
-    """Leaves content unchanged if approved_at field already exists."""
-    content = "---\napproved_at: '2025-01-01 00:00:00'\n---\n# Plan"
-    result = add_approved_at_frontmatter(content)
+def test_add_create_time_frontmatter_already_has_field() -> None:
+    """Leaves content unchanged if create_time field already exists."""
+    content = "---\ncreate_time: 2025-01-01 00:00:00\n---\n# Plan"
+    result = add_create_time_frontmatter(content)
     assert result == content
 
 

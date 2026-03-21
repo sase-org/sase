@@ -23,29 +23,29 @@ class PlanApprovalResult:
     feedback: str | None = None
 
 
-def add_approved_at_frontmatter(
-    content: str, approved_at: datetime | None = None
+def add_create_time_frontmatter(
+    content: str, create_time: datetime | None = None
 ) -> str:
-    """Add an ``approved_at`` field in YAML frontmatter to plan content.
+    """Add a ``create_time`` field in YAML frontmatter to plan content.
 
     If the content already has frontmatter (delimited by ``---``), the
-    ``approved_at`` field is inserted into the existing block (unless it already
+    ``create_time`` field is inserted into the existing block (unless it already
     contains one).  Otherwise a new frontmatter section is prepended.
 
     The datetime is formatted as ``yyyy-mm-dd HH:MM:SS`` (UTC).
     """
-    if approved_at is None:
-        approved_at = datetime.now(UTC)
-    ts = approved_at.strftime("%Y-%m-%d %H:%M:%S")
-    fields = f"approved_at: '{ts}'\nstatus: wip"
+    if create_time is None:
+        create_time = datetime.now(UTC)
+    ts = create_time.strftime("%Y-%m-%d %H:%M:%S")
+    fields = f"create_time: {ts}\nstatus: wip"
 
     # Already has frontmatter?
     if content.startswith("---\n"):
         end = content.find("\n---\n", 4)
         if end != -1:
             fm_body = content[4 : end + 1]  # includes trailing \n
-            # Already has an approved_at field — leave it alone.
-            if re.search(r"^approved_at:", fm_body, re.MULTILINE):
+            # Already has a create_time field — leave it alone.
+            if re.search(r"^create_time:", fm_body, re.MULTILINE):
                 return content
             # Insert the fields at the end of the frontmatter block.
             return f"---\n{fm_body}{fields}\n---\n{content[end + 5 :]}"
