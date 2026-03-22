@@ -95,28 +95,44 @@ class MentorReviewMixin:
         import json
         from pathlib import Path
 
+        from sase.main.query_handler import execute_standalone_steps
         from sase.sase_utils import generate_timestamp
         from sase.workspace_provider import detect_workflow_type
-        from sase.xprompt.tags import XPromptTag, get_by_tag
+        from sase.xprompt.tags import XPromptTag, get_by_tag, get_by_tag_strict
+        from sase.xprompt.workflow_executor_utils import render_template
 
         vcs_type = detect_workflow_type(project_file)
 
-        # Render accepted comments into prompt text
-        rendered_changes = "\n\n".join(
-            f"### Change {i + 1}: {c['focus_name']} ({c['severity']})\n"
-            f"**File**: `{c['file_path']}:{c['line_number']}`\n"
-            f"{c['description']}"
-            for i, c in enumerate(accepted_comments)
-        )
+        # Resolve the make_mentor_changes xprompt via tag
+        changes_wf = get_by_tag_strict(XPromptTag.make_mentor_changes)
+        if changes_wf is None:
+            raise RuntimeError(
+                "No xprompt with tag 'make_mentor_changes' found. "
+                "Ensure src/sase/xprompts/make_mentor_changes.yml is installed."
+            )
 
-        prompt = (
-            f"#{vcs_type}:{cl_name}\n\n"
-            "### Task\n\n"
-            "Apply the following code review changes to the codebase. "
-            "Make each change as described, run any relevant tests, "
-            "and commit your changes.\n\n"
-            f"{rendered_changes}"
-        )
+        # Build input context
+        context: dict[str, str] = {
+            "accepted_comments_json": json.dumps(accepted_comments),
+            "cl_name": cl_name,
+            "vcs_type": vcs_type,
+        }
+
+        # Execute pre-prompt steps (render_changes python step)
+        pre_steps = changes_wf.get_pre_prompt_steps()
+        if pre_steps:
+            context = execute_standalone_steps(
+                pre_steps, context, "make_mentor_changes", None
+            )
+
+        # Render prompt_part with context
+        prompt_part_content = changes_wf.get_prompt_part_content()
+        if not prompt_part_content:
+            raise RuntimeError(
+                "The #make_mentor_changes xprompt has no prompt_part step. "
+                "Check src/sase/xprompts/make_mentor_changes.yml."
+            )
+        prompt = render_template(prompt_part_content, context)
 
         # Append commit-tagged xprompt if one exists
         commit_wf = get_by_tag(XPromptTag.commit)
