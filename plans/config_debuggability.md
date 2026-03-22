@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-22 15:27:52
-status: wip
+status: done
 ---
 
 # Plan: Config & Mentor Profile Debuggability
