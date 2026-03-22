@@ -5,8 +5,8 @@ import os
 from sase.workspace_provider.utils import ensure_git_clone
 from sase.workspace_provider.plugins.bare_git_workspace import resolve_git_ref
 from sase.running_field import (
+    claim_next_axe_workspace,
     claim_workspace,
-    get_first_available_axe_workspace,
 )
 
 
@@ -26,6 +26,9 @@ def main(
     project_name = resolved.project_name
     project_file = resolved.project_file
 
+    pid = os.getpid()
+    workflow_name = workflow_label or f"git-{git_ref}"
+
     # Check if workspace was pre-allocated by the TUI
     pre_allocated = os.environ.get("SASE_GIT_PRE_ALLOCATED") == "1"
     if pre_allocated:
@@ -34,15 +37,6 @@ def main(
     elif n is not None:
         workspace_num = n
         workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
-    else:
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
-
-    pid = os.getpid()
-    workflow_name = workflow_label or f"git-{git_ref}"
-
-    # Skip claiming when pre-allocated — the launcher already claimed the workspace
-    if not pre_allocated:
         claim_workspace(
             project_file,
             workspace_num,
@@ -51,6 +45,17 @@ def main(
             None,
             pinned=not release,
         )
+    else:
+        # Atomically find + claim to prevent TOCTOU races where two
+        # concurrent processes (e.g. mentors) both see the same workspace
+        # as available and both claim it.
+        workspace_num = claim_next_axe_workspace(
+            project_file,
+            workflow_name,
+            pid,
+            pinned=not release,
+        )
+        workspace_dir = ensure_git_clone(resolved.primary_workspace_dir, workspace_num)
 
     print(f"project_name={project_name}")
     print(f"project_file={project_file}")

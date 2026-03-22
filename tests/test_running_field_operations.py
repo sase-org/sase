@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from sase.running_field import (
     _WorkspaceClaim,
+    claim_next_axe_workspace,
     claim_workspace,
     get_claimed_workspaces,
     get_first_available_workspace,
@@ -167,3 +168,72 @@ def test_get_workspace_directory_for_num_share() -> None:
         assert workspace_dir == "/cloud/myproject_3/google3"
         assert suffix == "myproject_3"
         mock_get_ws.assert_called_once_with("myproject", 3)
+
+
+def test_claim_workspace_rejects_duplicate_workspace_num() -> None:
+    """Test that claim_workspace refuses to double-claim a workspace number."""
+    project_file = _create_project_file_with_running(
+        running_claims=[_WorkspaceClaim(100, "hg-foo", "foo", pid=11111)]
+    )
+    try:
+        # Second claim for workspace #100 should be rejected
+        success = claim_workspace(project_file, 100, "hg-foo", 22222, "foo")
+        assert success is False
+
+        # Only the original claim should remain
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 1
+        assert claims[0].pid == 11111
+    finally:
+        Path(project_file).unlink()
+
+
+def test_claim_workspace_allows_workspace_zero_duplicates() -> None:
+    """Test that workspace #0 (deferred placeholder) allows duplicates."""
+    project_file = _create_project_file_with_running(
+        running_claims=[_WorkspaceClaim(0, "ace(run)-1", "foo", pid=11111)]
+    )
+    try:
+        success = claim_workspace(project_file, 0, "ace(run)-2", 22222, "bar")
+        assert success is True
+
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 2
+    finally:
+        Path(project_file).unlink()
+
+
+def test_claim_next_axe_workspace_finds_first_available() -> None:
+    """Test atomic claim picks the first free workspace in axe range."""
+    project_file = _create_project_file_with_running(
+        running_claims=[_WorkspaceClaim(100, "hg-foo", "foo", pid=11111)]
+    )
+    try:
+        workspace_num = claim_next_axe_workspace(
+            project_file, "hg-bar", 22222, cl_name="bar"
+        )
+        assert workspace_num == 101
+
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 2
+        claimed_nums = {c.workspace_num for c in claims}
+        assert claimed_nums == {100, 101}
+    finally:
+        Path(project_file).unlink()
+
+
+def test_claim_next_axe_workspace_empty_running_field() -> None:
+    """Test atomic claim on a file with no existing claims."""
+    project_file = _create_project_file_with_running()
+    try:
+        workspace_num = claim_next_axe_workspace(
+            project_file, "hg-foo", 12345, cl_name="foo"
+        )
+        assert workspace_num == 100
+
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 1
+        assert claims[0].workspace_num == 100
+        assert claims[0].pid == 12345
+    finally:
+        Path(project_file).unlink()

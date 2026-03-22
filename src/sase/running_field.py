@@ -276,6 +276,20 @@ def claim_workspace(
                         break
 
                 if running_field_idx >= 0:
+                    # Reject duplicate workspace numbers (TOCTOU race guard).
+                    # Two processes can call get_first_available_axe_workspace()
+                    # concurrently and both get the same number before either
+                    # claims it.  By checking under the lock we prevent the
+                    # second process from silently double-claiming.
+                    if workspace_num != 0:
+                        for k in range(running_field_idx + 1, running_end_idx + 1):
+                            existing = _WorkspaceClaim.from_line(lines[k])
+                            if (
+                                existing is not None
+                                and existing.workspace_num == workspace_num
+                            ):
+                                return False
+
                     # RUNNING field exists - add new claim
                     # Insert after the last continuation line
                     insert_idx = running_end_idx + 1
@@ -511,6 +525,133 @@ def get_first_available_axe_workspace(
 
     # All axe workspaces claimed - return min_workspace as fallback
     return min_workspace
+
+
+def claim_next_axe_workspace(
+    project_file: str,
+    workflow: str,
+    pid: int,
+    cl_name: str | None = None,
+    artifacts_timestamp: str | None = None,
+    pinned: bool = False,
+    min_workspace: int = 100,
+    max_workspace: int = 199,
+) -> int:
+    """Atomically find and claim the next available axe workspace.
+
+    Combines ``get_first_available_axe_workspace`` and ``claim_workspace``
+    into a single operation to eliminate the TOCTOU race window between
+    reading the available workspace number and claiming it.
+
+    Args:
+        project_file: Path to the ProjectSpec file.
+        workflow: Name of the workflow claiming the workspace.
+        pid: Process ID of the claiming process.
+        cl_name: Optional ChangeSpec name being worked on.
+        artifacts_timestamp: Optional timestamp of the artifacts directory.
+        pinned: If True, the claim is pinned and won't be cleaned up as stale.
+        min_workspace: Minimum workspace number to consider (default: 100).
+        max_workspace: Maximum workspace number to consider (default: 199).
+
+    Returns:
+        The claimed workspace number.
+
+    Raises:
+        RuntimeError: If no workspace could be claimed.
+    """
+    max_retries = 2
+    for attempt in range(1 + max_retries):
+        if not os.path.exists(project_file):
+            if attempt < max_retries:
+                time.sleep(0.5)
+                continue
+            raise RuntimeError(f"Project file does not exist: {project_file}")
+
+        try:
+            with changespec_lock(project_file):
+                with open(project_file, encoding="utf-8") as f:
+                    content = f.read()
+                    lines = content.split("\n")
+
+                # Find RUNNING field and existing claims
+                running_field_idx = -1
+                running_end_idx = -1
+                claimed_nums: set[int] = set()
+
+                for i, line in enumerate(lines):
+                    if line.startswith("RUNNING:"):
+                        running_field_idx = i
+                        for j in range(i + 1, len(lines)):
+                            if lines[j].startswith("  ") and (
+                                lines[j].strip().startswith("#")
+                                or lines[j].strip().startswith("|")
+                            ):
+                                running_end_idx = j
+                                existing = _WorkspaceClaim.from_line(lines[j])
+                                if existing is not None:
+                                    claimed_nums.add(existing.workspace_num)
+                            else:
+                                if running_end_idx == -1:
+                                    running_end_idx = i
+                                break
+                        else:
+                            if running_end_idx == -1:
+                                running_end_idx = i
+                        break
+
+                # Find first available workspace number
+                workspace_num: int | None = None
+                for n in range(min_workspace, max_workspace + 1):
+                    if n not in claimed_nums:
+                        workspace_num = n
+                        break
+
+                if workspace_num is None:
+                    raise RuntimeError(
+                        f"All axe workspaces ({min_workspace}-{max_workspace}) "
+                        f"are claimed in {project_file}"
+                    )
+
+                new_claim = _WorkspaceClaim(
+                    workspace_num=workspace_num,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    pid=pid,
+                    artifacts_timestamp=artifacts_timestamp,
+                    pinned=pinned,
+                )
+
+                if running_field_idx >= 0:
+                    insert_idx = running_end_idx + 1
+                    lines.insert(insert_idx, new_claim.to_line())
+                else:
+                    lines.insert(0, f"RUNNING:\n{new_claim.to_line()}\n")
+
+                result_content = "\n".join(lines)
+                result_content = _normalize_running_field_spacing(result_content)
+
+                cl_part = f" for {cl_name}" if cl_name else ""
+                write_changespec_atomic(
+                    project_file,
+                    result_content,
+                    f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
+                )
+                return workspace_num
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            if attempt < max_retries:
+                time.sleep(0.5)
+                continue
+            raise RuntimeError(
+                f"Failed to claim axe workspace in {project_file} "
+                f"after {1 + max_retries} attempts"
+            ) from exc
+
+    raise RuntimeError(
+        f"Failed to claim axe workspace in {project_file} "
+        f"after {1 + max_retries} attempts"
+    )
 
 
 def get_workspace_directory_for_num(
