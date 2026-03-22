@@ -7,7 +7,7 @@ import shutil
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone, UTC
+from datetime import datetime
 from pathlib import Path
 
 # Poll interval for plan approval responses (seconds)
@@ -32,10 +32,13 @@ def add_create_time_frontmatter(
     ``create_time`` field is inserted into the existing block (unless it already
     contains one).  Otherwise a new frontmatter section is prepended.
 
-    The datetime is formatted as ``yyyy-mm-dd HH:MM:SS`` (UTC).
+    The datetime is formatted as ``yyyy-mm-dd HH:MM:SS`` in the configured
+    timezone (see :func:`sase.sase_utils.get_timezone`).
     """
     if create_time is None:
-        create_time = datetime.now(UTC)
+        from sase.sase_utils import get_timezone
+
+        create_time = datetime.now(get_timezone())
     ts = create_time.strftime("%Y-%m-%d %H:%M:%S")
     fields = f"create_time: {ts}\nstatus: wip"
 

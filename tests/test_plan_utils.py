@@ -1,6 +1,7 @@
 """Tests for shared plan utilities (_plan_utils.py)."""
 
-from datetime import datetime, timezone, UTC
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,7 +36,7 @@ def test_save_plan_to_sase(tmp_path: Path) -> None:
 
 def test_add_create_time_frontmatter_no_existing() -> None:
     """Prepends frontmatter when the content has none."""
-    dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=UTC)
+    dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=ZoneInfo("America/New_York"))
     result = add_create_time_frontmatter("# My Plan\nDetails", dt)
     assert (
         result
@@ -46,7 +47,7 @@ def test_add_create_time_frontmatter_no_existing() -> None:
 def test_add_create_time_frontmatter_existing_frontmatter() -> None:
     """Inserts create_time into existing frontmatter."""
     content = "---\ntitle: foo\n---\n# Plan"
-    dt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+    dt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("America/New_York"))
     result = add_create_time_frontmatter(content, dt)
     assert (
         result
