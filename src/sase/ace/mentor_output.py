@@ -146,7 +146,7 @@ def load_mentor_outputs_for_commit(
         List of (path, MentorOutput) tuples for the matching commit.
     """
     all_outputs = _load_all_mentor_outputs(cl_name)
-    return [(p, o) for p, o in all_outputs if entry_id in p.stem]
+    return [(p, o) for p, o in all_outputs if p.stem.endswith(f"-{entry_id}")]
 
 
 # ── Acceptance state ─────────────────────────────────────────────────────
