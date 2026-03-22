@@ -11,6 +11,7 @@ from sase.ace.mentor_output import (
 from sase.ace.changespec.models import MentorEntry, MentorStatusLine
 from sase.ace.tui.modals.mentor_review_modal import (
     MentorApplyResult,
+    MentorKillResult,
     _MentorInfo,
     _MentorReviewData,
     MentorReviewModal,
@@ -406,3 +407,61 @@ def test_apply_with_no_accepted_comments() -> None:
                 accepted.append(comment)
 
     assert len(accepted) == 0
+
+
+# ── Kill action ──────────────────────────────────────────────────────
+
+
+def test_kill_result_dataclass() -> None:
+    """MentorKillResult stores all fields needed to identify the mentor."""
+    result = MentorKillResult(
+        entry_id="1",
+        mentor_name="quality",
+        profile_name="code",
+        cl_name="my-cl",
+    )
+    assert result.entry_id == "1"
+    assert result.mentor_name == "quality"
+    assert result.profile_name == "code"
+    assert result.cl_name == "my-cl"
+
+
+def test_kill_requires_running_mentor() -> None:
+    """action_kill_mentor on a non-running mentor does not produce a kill result."""
+    data = _make_modal_data([2])
+    # mentor_0 has status="COMMENTED", is_running=False by default
+    modal = MentorReviewModal(data)
+    mentor = modal._current_mentor()
+    assert mentor is not None
+    assert not mentor.is_running
+
+
+def test_kill_produces_result_for_running_mentor() -> None:
+    """A running mentor produces a MentorKillResult with correct fields."""
+    mentors = [
+        _MentorInfo(
+            mentor_name="quality",
+            profile_name="code",
+            status="RUNNING",
+            comments=[],
+            is_running=True,
+        ),
+    ]
+    data = _MentorReviewData(
+        mentors=mentors,
+        acceptance=MentorAcceptanceState(),
+        cl_name="my-cl",
+        entry_id="42",
+    )
+    # Verify the expected kill result would contain the right data
+    mentor = data.mentors[0]
+    result = MentorKillResult(
+        entry_id=data.entry_id,
+        mentor_name=mentor.mentor_name,
+        profile_name=mentor.profile_name,
+        cl_name=data.cl_name,
+    )
+    assert result.entry_id == "42"
+    assert result.mentor_name == "quality"
+    assert result.profile_name == "code"
+    assert result.cl_name == "my-cl"

@@ -62,6 +62,16 @@ class MentorApplyResult:
     cl_name: str
 
 
+@dataclass
+class MentorKillResult:
+    """Result returned when user presses K to kill a running mentor."""
+
+    entry_id: str
+    mentor_name: str
+    profile_name: str
+    cl_name: str
+
+
 def build_mentor_review_data(
     mentor_entry: MentorEntry,
     cl_name: str,
@@ -125,7 +135,9 @@ def build_mentor_review_data(
     )
 
 
-class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[MentorApplyResult | None]):
+class MentorReviewModal(
+    CopyModeForwardingMixin, ModalScreen[MentorApplyResult | MentorKillResult | None]
+):
     """Modal for reviewing mentor comments with navigation and acceptance."""
 
     BINDINGS = [
@@ -423,12 +435,13 @@ class MentorReviewModal(CopyModeForwardingMixin, ModalScreen[MentorApplyResult |
         if not mentor or not mentor.is_running:
             self.app.notify("Mentor is not running", severity="warning")
             return
-        # Delegate killing to the app - dismiss with a signal
-        self.dismiss(None)
-        # The killing logic is handled by the existing mentor killing infrastructure
-        self.app.notify(
-            f"Use ,M to kill running mentor: {mentor.mentor_name}",
-            severity="warning",
+        self.dismiss(
+            MentorKillResult(
+                entry_id=self._data.entry_id,
+                mentor_name=mentor.mentor_name,
+                profile_name=mentor.profile_name,
+                cl_name=self._data.cl_name,
+            )
         )
 
     # -- Scroll --

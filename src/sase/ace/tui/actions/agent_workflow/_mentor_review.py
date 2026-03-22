@@ -56,6 +56,7 @@ class MentorReviewMixin:
 
         from ...modals import (
             MentorApplyResult,
+            MentorKillResult,
             MentorReviewModal,
             build_mentor_review_data,
         )
@@ -68,8 +69,13 @@ class MentorReviewMixin:
         # Capture changespec info for the callback closure
         project_file = changespec.file_path
 
-        def on_mentor_review_dismiss(result: MentorApplyResult | None) -> None:
+        def on_mentor_review_dismiss(
+            result: MentorApplyResult | MentorKillResult | None,
+        ) -> None:
             if result is None:
+                return
+            if isinstance(result, MentorKillResult):
+                self._kill_mentor_from_review(result, project_file)
                 return
             self._launch_mentor_apply_agent(
                 result.accepted_comments,
@@ -168,6 +174,103 @@ class MentorReviewMixin:
         )
 
         self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+
+    def _kill_mentor_from_review(
+        self,
+        kill_result: object,
+        project_file: str,
+    ) -> None:
+        """Kill a running mentor process triggered from the review modal.
+
+        Args:
+            kill_result: A ``MentorKillResult`` with identifying fields.
+            project_file: Path to the project ``.gp`` file.
+        """
+        import os
+        import signal
+
+        from sase.ace.changespec import (
+            extract_pid_from_agent_suffix,
+            parse_project_file,
+        )
+        from sase.ace.hooks.processes import (
+            extract_mentor_workflow_from_suffix,
+            mark_mentor_agents_as_killed,
+        )
+        from sase.ace.mentors import update_changespec_mentors_field
+
+        entry_id: str = kill_result.entry_id  # type: ignore[attr-defined]
+        mentor_name: str = kill_result.mentor_name  # type: ignore[attr-defined]
+        profile_name: str = kill_result.profile_name  # type: ignore[attr-defined]
+        cl_name: str = kill_result.cl_name  # type: ignore[attr-defined]
+
+        # Re-read fresh state from disk for concurrency safety
+        changespecs = parse_project_file(project_file)
+        target_cs = None
+        for cs in changespecs:
+            if cs.name == cl_name:
+                target_cs = cs
+                break
+
+        if target_cs is None or not target_cs.mentors:
+            self.notify("ChangeSpec not found", severity="error")  # type: ignore[attr-defined]
+            return
+
+        # Find and kill the matching running mentor
+        killed_agents = []
+        for entry in target_cs.mentors:
+            if entry.entry_id != entry_id or not entry.status_lines:
+                continue
+            for sl in entry.status_lines:
+                if (
+                    sl.suffix_type != "running_agent"
+                    or not sl.suffix
+                    or sl.profile_name != profile_name
+                    or sl.mentor_name != mentor_name
+                ):
+                    continue
+
+                pid = extract_pid_from_agent_suffix(sl.suffix)
+                if pid is None:
+                    continue
+
+                try:
+                    os.killpg(pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    pass
+
+                killed_agents.append((entry, sl, pid))
+
+        if not killed_agents:
+            self.notify(  # type: ignore[attr-defined]
+                f"Mentor {mentor_name} is no longer running",
+                severity="warning",
+            )
+            self._reload_and_reposition()  # type: ignore[attr-defined]
+            return
+
+        # Mark killed and persist to project file
+        updated_mentors = mark_mentor_agents_as_killed(target_cs.mentors, killed_agents)
+        update_changespec_mentors_field(project_file, cl_name, updated_mentors)
+
+        # Release workspaces claimed by the killed mentor
+        from sase.running_field import get_claimed_workspaces, release_workspace
+
+        for _, status_line, _ in killed_agents:
+            if not status_line.suffix:
+                continue
+            workflow = extract_mentor_workflow_from_suffix(status_line.suffix)
+            if not workflow:
+                continue
+            for claim in get_claimed_workspaces(project_file):
+                if claim.workflow == workflow and claim.cl_name == cl_name:
+                    release_workspace(
+                        project_file, claim.workspace_num, workflow, cl_name
+                    )
+                    break
+
+        self.notify(f"Killed mentor: {mentor_name}")  # type: ignore[attr-defined]
+        self._reload_and_reposition()  # type: ignore[attr-defined]
 
     def _clear_changespec_comments(self) -> None:
         """Remove the COMMENTS field, kill running CRS agents, and delete proposals."""

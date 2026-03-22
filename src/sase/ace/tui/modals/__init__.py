@@ -38,6 +38,7 @@ from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
 from .mentor_review_modal import (
     MentorApplyResult,
+    MentorKillResult,
     MentorReviewModal,
     build_mentor_review_data,
 )
@@ -52,6 +53,7 @@ from .xprompt_select_modal import XPromptSelectModal
 __all__ = [
     "ActivityModal",
     "MentorApplyResult",
+    "MentorKillResult",
     "MentorReviewModal",
     "build_mentor_review_data",
     "AddXPromptModal",
