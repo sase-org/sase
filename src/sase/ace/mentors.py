@@ -200,6 +200,10 @@ def _apply_mentors_update(
 
     # If we were in target at end and didn't find MENTORS, append it
     if in_target_changespec and not found_mentors and mentors:
+        # Strip trailing blank lines so MENTORS stays inside the ChangeSpec
+        # boundary (parser treats 2+ blank lines as end of ChangeSpec)
+        while updated_lines and updated_lines[-1].strip() == "":
+            updated_lines.pop()
         updated_lines.extend(_format_mentors_field(mentors))
 
     return updated_lines

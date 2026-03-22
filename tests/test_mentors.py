@@ -101,6 +101,34 @@ DESCRIPTION:
     Path(file_path).unlink()
 
 
+def test_add_mentor_entry_last_changespec_with_trailing_blanks() -> None:
+    """Test MENTORS is inside ChangeSpec boundary when trailing blank lines exist.
+
+    When the target is the last ChangeSpec and the file has trailing blank lines
+    (2+ blank lines = end-of-ChangeSpec boundary), MENTORS must be inserted
+    BEFORE those blanks so the parser includes it in the ChangeSpec.
+    """
+    from sase.ace.changespec.parser import parse_project_file
+
+    content = "NAME: test-cl\nSTATUS: Ready\nDESCRIPTION:\n  Test description\n\n\n"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        file_path = f.name
+
+    result = add_mentor_entry(file_path, "test-cl", "1", ["feature"])
+    assert result is True
+
+    # Parse and verify the MENTORS field is visible to the parser
+    changespecs = parse_project_file(file_path)
+    assert len(changespecs) == 1
+    assert changespecs[0].mentors is not None
+    assert len(changespecs[0].mentors) == 1
+    assert changespecs[0].mentors[0].entry_id == "1"
+    assert changespecs[0].mentors[0].profiles == ["feature"]
+
+    Path(file_path).unlink()
+
+
 def test_add_mentor_entry_merge_profiles() -> None:
     """Test adding profiles to existing mentor entry."""
     content = """NAME: test-cl
