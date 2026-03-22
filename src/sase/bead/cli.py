@@ -223,7 +223,14 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         if issue.assignee:
             print(f"Assignee: {issue.assignee}")
         if issue.parent_id:
-            print(f"\nPARENT\n  ↑ {issue.parent_id}")
+            try:
+                parent = view.show(issue.parent_id)
+                print(
+                    f"\nPARENT\n  ↑ {parent.id} · {parent.title}"
+                    f"   [{parent.status.value.upper()}]"
+                )
+            except KeyError:
+                print(f"\nPARENT\n  ↑ {issue.parent_id}")
         # Show children if plan
         if issue.issue_type == IssueType.PLAN:
             children = view.get_epic_children(issue.id)
@@ -240,7 +247,10 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 try:
                     dep_issue = view.show(d.depends_on_id)
                     di = _status_icon(dep_issue.status)
-                    print(f"  → {di} {dep_issue.id}: {dep_issue.title}")
+                    print(
+                        f"  → {di} {dep_issue.id}: {dep_issue.title}"
+                        f"   [{dep_issue.status.value.upper()}]"
+                    )
                 except KeyError:
                     print(f"  → {d.depends_on_id} (not found)")
         # Show what this blocks
@@ -256,7 +266,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 try:
                     b = view.show(bid)
                     bi = _status_icon(b.status)
-                    print(f"  ← {bi} {b.id}: {b.title}")
+                    print(f"  ← {bi} {b.id}: {b.title}   [{b.status.value.upper()}]")
                 except KeyError:
                     print(f"  ← {bid} (not found)")
         if issue.description:
