@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -153,6 +154,53 @@ def _parse_mentor_json(
         return None
 
 
+def _get_cl_diff(workspace_dir: str) -> str | None:
+    """Get the CL diff from the checked-out workspace.
+
+    After the VCS workflow checks out the CL branch, generates a diff
+    against the default parent revision (e.g., ``origin/main``).  Falls
+    back to ``committed_diff`` (``HEAD~1..HEAD``) if the merge-base
+    approach fails.
+
+    Args:
+        workspace_dir: The workspace directory with the CL branch checked out.
+
+    Returns:
+        The diff text, or None if unavailable.
+    """
+    try:
+        from sase.vcs_provider import get_vcs_provider
+
+        provider = get_vcs_provider(workspace_dir)
+        base_rev = provider.get_default_parent_revision(workspace_dir)
+    except Exception:
+        return None
+
+    # Try merge-base diff for the full CL diff
+    try:
+        result = subprocess.run(
+            ["git", "diff", f"{base_rev}...HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=workspace_dir,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+
+    # Fallback: committed_diff (HEAD~1..HEAD)
+    try:
+        success, diff_text = provider.committed_diff(workspace_dir)
+        if success and diff_text:
+            return diff_text
+    except Exception:
+        pass
+
+    return None
+
+
 def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
     """Find a ChangeSpec by name across all project files.
 
@@ -292,6 +340,15 @@ class MentorWorkflow(BaseWorkflow):
             expanded_prompt, post_workflows = expand_embedded_workflows_in_query(
                 prompt, artifacts_dir
             )
+
+            # The VCS workflow checks out the CL branch but its prompt_part is
+            # empty — the mentor would see no diff at all.  Generate the CL
+            # diff from the checked-out workspace and prepend it to the prompt.
+            cl_diff = _get_cl_diff(os.getcwd())
+            if cl_diff:
+                expanded_prompt = (
+                    f"## CL Diff\n\n```diff\n{cl_diff}\n```\n\n" + expanded_prompt
+                )
 
             print_status(f"Running mentor '{self.mentor_name}'...", "progress")
             try:
