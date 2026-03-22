@@ -86,6 +86,15 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     waiting_path = Path(artifacts_dir) / "waiting.json"
     if waiting_path.exists() and agent.status == "RUNNING":
         agent.status = "WAITING"
+        # waiting.json may contain an updated waiting_for list (e.g. from the TUI
+        # "w" keymap), which takes precedence over agent_meta.json's wait_for.
+        try:
+            with open(waiting_path, encoding="utf-8") as f:
+                waiting_data = json.load(f)
+            if isinstance(waiting_data, dict) and waiting_data.get("waiting_for"):
+                agent.waiting_for = waiting_data["waiting_for"]
+        except (json.JSONDecodeError, OSError):
+            pass
 
     # Set PLANNING / PLAN APPROVED status for agents launched with %plan directive
     if data.get("plan") and agent.status == "RUNNING":
