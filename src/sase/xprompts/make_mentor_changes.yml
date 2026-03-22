@@ -29,4 +29,4 @@ steps:
       Apply the following code review changes to the codebase. Make each change as described,
       run any relevant tests, and commit your changes.
 
-      {{ rendered_changes }}
+      {{ render_changes.rendered_changes }}

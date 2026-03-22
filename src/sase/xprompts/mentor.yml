@@ -40,6 +40,6 @@ steps:
 
       ### Focus Areas
 
-      {{ rendered_focus_areas }}
+      {{ render_focus_areas.rendered_focus_areas }}
 
       #json:`{{ schema }}`
