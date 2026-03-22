@@ -108,10 +108,12 @@ def test_build_review_data_with_outputs(tmp_path: Path, monkeypatch: object) -> 
     """Build review data when mentor outputs exist on disk."""
     monkeypatch.setattr("sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path)  # type: ignore[attr-defined]
 
-    # Save a mentor output with 2 comments
+    # Save a mentor output with 2 comments.
+    # Use LLM-provided names that differ from config names to test that
+    # matching is done by timestamp, not by profile/mentor names in JSON.
     output = MentorOutput(
-        mentor_name="code_quality",
-        profile_name="code",
+        mentor_name="Gemini CLI",
+        profile_name="Senior Code Quality Reviewer",
         role="reviewer",
         comments=[
             MentorComment("style", "a.py", 10, "Fix style", "warning"),

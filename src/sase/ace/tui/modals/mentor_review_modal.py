@@ -89,9 +89,14 @@ def build_mentor_review_data(
         else set()
     )
     outputs = load_mentor_outputs_for_commit(cl_name, timestamps)
-    output_map: dict[tuple[str, str], MentorOutput] = {}
-    for _path, mo in outputs:
-        output_map[(mo.profile_name, mo.mentor_name)] = mo
+    # Map timestamp → MentorOutput (filenames use config-level names, but the
+    # JSON content may have LLM-provided names that don't match status lines).
+    ts_output_map: dict[str, MentorOutput] = {}
+    for path, mo in outputs:
+        for ts in timestamps:
+            if path.stem.endswith(f"-{ts}"):
+                ts_output_map[ts] = mo
+                break
 
     # Build mentor info list from status lines
     mentors: list[_MentorInfo] = []
@@ -105,7 +110,7 @@ def build_mentor_review_data(
             seen.add(key)
 
             comments: list[dict[str, str | int]] = []
-            output: MentorOutput | None = output_map.get(key)
+            output: MentorOutput | None = ts_output_map.get(sl.timestamp)
             if output is not None:
                 for c in output.comments:
                     comments.append(
