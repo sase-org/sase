@@ -23,6 +23,20 @@ class TestExtractStructuredContent:
         assert data == ["item1", "item2", "item3"]
         assert format_type == "yaml"
 
+    def test_bare_json_language_prefix(self) -> None:
+        """Test that a bare 'json' line prefix (no code fence backticks) is handled."""
+        response = 'json\n{"key": "value"}'
+        data, format_type = extract_structured_content(response)
+        assert data == {"key": "value"}
+        assert format_type == "json"
+
+    def test_bare_yaml_language_prefix(self) -> None:
+        """Test that a bare 'yaml' line prefix (no code fence backticks) is handled."""
+        response = "yaml\nkey: value\nother: 42"
+        data, format_type = extract_structured_content(response)
+        assert data == {"key": "value", "other": 42}
+        assert format_type == "yaml"
+
 
 class TestValidateAgainstSchema:
     """Tests for validate_against_schema function."""

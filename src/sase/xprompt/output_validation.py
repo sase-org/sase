@@ -47,12 +47,19 @@ def extract_structured_content(response: str) -> tuple[Any, str]:
 
     content_to_try: list[str] = []
 
-    # Add fenced content first (higher priority)
+    # Add fenced content first (highest priority)
     for match in matches:
         content_to_try.append(match.strip())
 
+    # Try stripping a bare language identifier line (e.g. "json\n{...}")
+    # Some LLM CLI tools strip code fence backticks but leave the language tag
+    stripped = response.strip()
+    lang_prefix = re.match(r"^(?:json|yaml|yml)\s*\n", stripped)
+    if lang_prefix:
+        content_to_try.append(stripped[lang_prefix.end() :].strip())
+
     # Also try the full response stripped
-    content_to_try.append(response.strip())
+    content_to_try.append(stripped)
 
     # Try parsing each candidate as JSON first, then YAML
     for content in content_to_try:
