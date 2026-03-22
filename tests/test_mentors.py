@@ -244,6 +244,37 @@ MENTORS:
     Path(file_path).unlink()
 
 
+def test_parse_commented_status_roundtrip() -> None:
+    """Test that COMMENTED status survives write-then-parse roundtrip."""
+    from sase.ace.changespec import parse_project_file
+
+    content = """\
+NAME: test-cl
+STATUS: Ready
+MENTORS:
+  (1) code[1/1]
+      | [260321_120000] code:quality - COMMENTED - (3m15s)
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        file_path = f.name
+
+    changespecs = parse_project_file(file_path)
+    assert len(changespecs) == 1
+    cs = changespecs[0]
+    assert cs.mentors is not None
+    assert len(cs.mentors) == 1
+    assert cs.mentors[0].status_lines is not None
+    assert len(cs.mentors[0].status_lines) == 1
+    sl = cs.mentors[0].status_lines[0]
+    assert sl.status == "COMMENTED"
+    assert sl.profile_name == "code"
+    assert sl.mentor_name == "quality"
+    assert sl.duration == "3m15s"
+
+    Path(file_path).unlink()
+
+
 def test_merge_preserves_commented_status_from_disk() -> None:
     """Test that merge preserves disk's COMMENTED status over stale RUNNING."""
     from sase.ace.mentors import merge_mentor_status_lines

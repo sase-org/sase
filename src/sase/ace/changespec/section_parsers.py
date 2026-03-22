@@ -234,7 +234,7 @@ def parse_mentors_line(
         status_content = stripped[2:]  # Skip "| " prefix
         mentor_status_match = re.match(
             r"^(?:\[(\d{6}_\d{6})\]\s+)?([^:]+):(\S+)\s+-\s+"
-            r"(STARTING|RUNNING|PASSED|FAILED|DEAD|KILLED)"
+            r"(STARTING|RUNNING|PASSED|COMMENTED|FAILED|DEAD|KILLED)"
             r"(?:\s+-\s+\(([^)]+)\))?$",
             status_content,
         )
