@@ -219,7 +219,8 @@
               "additionalProperties": false,
               "oneOf": [
                 { "required": ["xprompt"] },
-                { "required": ["prompt"] }
+                { "required": ["prompt"] },
+                { "required": ["mentor_name", "role", "focus_areas"] }
               ],
               "properties": {
                 "xprompt": {
@@ -232,7 +233,30 @@
                 },
                 "mentor_name": {
                   "type": "string",
-                  "description": "Name for the mentor (required when using prompt)"
+                  "description": "Name for the mentor"
+                },
+                "role": {
+                  "type": "string",
+                  "description": "Description of the mentor's role"
+                },
+                "focus_areas": {
+                  "type": "array",
+                  "description": "Specific areas this mentor should focus on during review",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["focus_name", "description"],
+                    "properties": {
+                      "focus_name": {
+                        "type": "string",
+                        "description": "Unique identifier for this focus area"
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "Detailed description of what to look for"
+                      }
+                    }
+                  }
                 }
               }
             }
