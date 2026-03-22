@@ -17,7 +17,7 @@ steps:
           f"{c['description']}"
           for i, c in enumerate(comments)
       )
-      output = {"rendered_changes": formatted}
+      print(json.dumps({"rendered_changes": formatted}))
     output: { rendered_changes: text }
 
   - name: apply

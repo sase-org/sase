@@ -16,7 +16,7 @@ steps:
       formatted = "\n".join(
           f"### {a['focus_name']}\n{a['description']}" for a in areas
       )
-      output = {"rendered_focus_areas": formatted}
+      print(json.dumps({"rendered_focus_areas": formatted}))
     output: { rendered_focus_areas: text }
 
   - name: review
