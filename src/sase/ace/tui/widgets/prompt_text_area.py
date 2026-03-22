@@ -221,6 +221,24 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         finally:
             self._formatting = False
 
+    def action_cursor_line_end(self, select: bool = False) -> None:
+        """Move to end of line, or end of next line if already there."""
+        row, col = self.cursor_location
+        line_end = len(self.document.get_line(row))
+        if col >= line_end and row < self.document.line_count - 1:
+            next_end = len(self.document.get_line(row + 1))
+            self.move_cursor((row + 1, next_end), select=select)
+        else:
+            super().action_cursor_line_end(select=select)
+
+    def action_cursor_line_start(self, select: bool = False) -> None:
+        """Move to start of line, or start of previous line if already there."""
+        row, col = self.cursor_location
+        if col == 0 and row > 0:
+            self.move_cursor((row - 1, 0), select=select)
+        else:
+            super().action_cursor_line_start(select=select)
+
     def action_open_editor(self) -> None:
         """Request to open external editor."""
         PromptInputBar = _prompt_bar_class()
