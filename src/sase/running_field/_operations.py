@@ -1,178 +1,24 @@
-"""
-RUNNING field management for tracking active workflows and workspace claims.
-
-The RUNNING field in ProjectSpec files tracks which workspace directories
-are currently in use by sase workflows. Format:
-
-RUNNING:
-  #1 | 12345 | crs | my_feature
-  #3 | 67890 | crs | other_feature
-
-Where:
-- #N is the workspace number (1 = main workspace, 2+ = workspace shares)
-- PID is the process ID of the running agent (required - every entry must have a PID)
-- WORKFLOW is the name of the running workflow (e.g., crs, crs, run, rerun)
-- CL_NAME is the ChangeSpec name being worked on (optional, can be empty)
-"""
+"""RUNNING field CRUD operations for tracking active workflows."""
 
 import os
-import re
 import time
-from dataclasses import dataclass
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.running_field._formatting import (
+    clean_orphaned_blank_lines,
+    normalize_running_field_spacing,
+)
+from sase.running_field._model import WorkspaceClaim
 
 
-@dataclass
-class _WorkspaceClaim:
-    """Represents a single workspace claim in the RUNNING field."""
-
-    workspace_num: int
-    workflow: str
-    cl_name: str | None
-    pid: int
-    artifacts_timestamp: str | None = None
-    pinned: bool = False
-
-    def to_line(self) -> str:
-        """Convert to RUNNING field line format.
-
-        Format: #N | PID | WORKFLOW | CL_NAME | TIMESTAMP
-        PID is second to make it easily visible for process management.
-
-        Raises:
-            ValueError: If pid is not set (every RUNNING entry must have a PID).
-        """
-        cl_part = self.cl_name or ""
-        ts_part = f" | {self.artifacts_timestamp}" if self.artifacts_timestamp else ""
-        pin_part = " | PINNED" if self.pinned else ""
-        return f"  #{self.workspace_num} | {self.pid} | {self.workflow} | {cl_part}{ts_part}{pin_part}"
-
-    @staticmethod
-    def from_line(line: str) -> "_WorkspaceClaim | None":
-        """Parse a RUNNING field line into a _WorkspaceClaim.
-
-        Format (PID second, required):
-        - #<N> | <PID> | <WORKFLOW> | <CL_NAME>
-        - #<N> | <PID> | <WORKFLOW> | <CL_NAME> | <TIMESTAMP>
-
-        Note: Returns None for entries without a PID (PID is required).
-        """
-        match = re.match(
-            r"^\s*#(\d+)\s*\|\s*(\d+)\s*\|\s*(\S+)\s*\|\s*([^|]*?)"
-            r"(?:\s*\|\s*(\d{6}_\d{6}|\d{14}))?(?:\s*\|\s*([^|]+))?$",
-            line,
-        )
-        if match:
-            workspace_num = int(match.group(1))
-            pid = int(match.group(2))
-            workflow = match.group(3)
-            cl_name = match.group(4).strip() or None
-            artifacts_timestamp = match.group(5) if match.group(5) else None
-            pinned = match.group(6) is not None and match.group(6).strip() == "PINNED"
-            return _WorkspaceClaim(
-                workspace_num=workspace_num,
-                workflow=workflow,
-                cl_name=cl_name,
-                pid=pid,
-                artifacts_timestamp=artifacts_timestamp,
-                pinned=pinned,
-            )
-
-        return None
-
-
-def _normalize_running_field_spacing(content: str) -> str:
-    """Normalize blank lines around the RUNNING field.
-
-    Ensures exactly two blank lines between:
-    - The last RUNNING entry and the first ChangeSpec (NAME field)
-    - If there's no RUNNING field, clean up any orphaned blank lines at the start
-
-    Args:
-        content: The file content as a string.
-
-    Returns:
-        The content with normalized spacing.
-    """
-    lines = content.split("\n")
-    result_lines: list[str] = []
-    i = 0
-
-    while i < len(lines):
-        line = lines[i]
-
-        # Check if this is the RUNNING field
-        if line.startswith("RUNNING:"):
-            result_lines.append(line)
-            i += 1
-
-            # Collect all RUNNING entries (2-space indented lines starting with #)
-            while i < len(lines):
-                entry_line = lines[i]
-                if entry_line.startswith("  ") and entry_line.strip().startswith("#"):
-                    result_lines.append(entry_line)
-                    i += 1
-                else:
-                    break
-
-            # Skip all blank lines after RUNNING entries
-            while i < len(lines) and lines[i].strip() == "":
-                i += 1
-
-            # Add exactly two blank lines before the next content (NAME field)
-            if i < len(lines):
-                result_lines.append("")
-                result_lines.append("")
-        else:
-            result_lines.append(line)
-            i += 1
-
-    return "\n".join(result_lines)
-
-
-def _clean_orphaned_blank_lines(content: str) -> str:
-    """Clean up orphaned consecutive blank lines in the file.
-
-    This is used after removing the RUNNING field entirely to clean up
-    any extra blank lines that were left behind.
-
-    Args:
-        content: The file content as a string.
-
-    Returns:
-        The content with consecutive blank lines reduced to at most two.
-        Two blank lines are preserved because they serve as boundaries
-        between ChangeSpecs.
-    """
-    lines = content.split("\n")
-    result_lines: list[str] = []
-    consecutive_blank_count = 0
-
-    for line in lines:
-        is_blank = line.strip() == ""
-
-        if is_blank:
-            consecutive_blank_count += 1
-            # Allow at most 2 consecutive blank lines (ChangeSpec boundary)
-            if consecutive_blank_count > 2:
-                continue
-        else:
-            consecutive_blank_count = 0
-
-        result_lines.append(line)
-
-    return "\n".join(result_lines)
-
-
-def get_claimed_workspaces(project_file: str) -> list[_WorkspaceClaim]:
+def get_claimed_workspaces(project_file: str) -> list[WorkspaceClaim]:
     """Get all workspace claims from a ProjectSpec file.
 
     Args:
         project_file: Path to the ProjectSpec file
 
     Returns:
-        List of _WorkspaceClaim objects representing active claims
+        List of WorkspaceClaim objects representing active claims
     """
     if not os.path.exists(project_file):
         return []
@@ -183,7 +29,7 @@ def get_claimed_workspaces(project_file: str) -> list[_WorkspaceClaim]:
     except Exception:
         return []
 
-    claims: list[_WorkspaceClaim] = []
+    claims: list[WorkspaceClaim] = []
     in_running_field = False
 
     for line in lines:
@@ -194,7 +40,7 @@ def get_claimed_workspaces(project_file: str) -> list[_WorkspaceClaim]:
         if in_running_field:
             # Check if this is a continuation line (starts with 2 spaces)
             if line.startswith("  ") and line.strip().startswith("#") is not False:
-                claim = _WorkspaceClaim.from_line(line)
+                claim = WorkspaceClaim.from_line(line)
                 if claim:
                     claims.append(claim)
             else:
@@ -243,7 +89,7 @@ def claim_workspace(
                     content = f.read()
                     lines = content.split("\n")
 
-                new_claim = _WorkspaceClaim(
+                new_claim = WorkspaceClaim(
                     workspace_num=workspace_num,
                     workflow=workflow,
                     cl_name=cl_name,
@@ -283,7 +129,7 @@ def claim_workspace(
                     # second process from silently double-claiming.
                     if workspace_num != 0:
                         for k in range(running_field_idx + 1, running_end_idx + 1):
-                            existing = _WorkspaceClaim.from_line(lines[k])
+                            existing = WorkspaceClaim.from_line(lines[k])
                             if (
                                 existing is not None
                                 and existing.workspace_num == workspace_num
@@ -300,7 +146,7 @@ def claim_workspace(
 
                 # Normalize blank lines around RUNNING field
                 result_content = "\n".join(lines)
-                result_content = _normalize_running_field_spacing(result_content)
+                result_content = normalize_running_field_spacing(result_content)
 
                 # Write atomically
                 cl_part = f" for {cl_name}" if cl_name else ""
@@ -360,7 +206,7 @@ def release_workspace(
                     continue
 
                 if in_running_field and line.startswith("  "):
-                    claim = _WorkspaceClaim.from_line(line)
+                    claim = WorkspaceClaim.from_line(line)
                     if claim:
                         # Check if this is the claim to remove
                         should_remove = claim.workspace_num == workspace_num
@@ -388,10 +234,10 @@ def release_workspace(
             result_content = "\n".join(new_lines)
             if has_remaining_claims:
                 # Normalize spacing around remaining RUNNING field
-                result_content = _normalize_running_field_spacing(result_content)
+                result_content = normalize_running_field_spacing(result_content)
             else:
                 # Clean up orphaned blank lines where RUNNING field was removed
-                result_content = _clean_orphaned_blank_lines(result_content)
+                result_content = clean_orphaned_blank_lines(result_content)
 
             # Write atomically
             write_changespec_atomic(
@@ -443,10 +289,10 @@ def update_running_field_cl_name(
                     continue
 
                 if in_running_field and line.startswith("  "):
-                    claim = _WorkspaceClaim.from_line(line)
+                    claim = WorkspaceClaim.from_line(line)
                     if claim and claim.cl_name == old_cl_name:
                         # Update the cl_name, preserving other fields
-                        updated_claim = _WorkspaceClaim(
+                        updated_claim = WorkspaceClaim(
                             workspace_num=claim.workspace_num,
                             workflow=claim.workflow,
                             cl_name=new_cl_name,
@@ -475,56 +321,6 @@ def update_running_field_cl_name(
             return True
     except Exception:
         return False
-
-
-def get_first_available_workspace(project_file: str, max_workspaces: int = 99) -> int:
-    """Find the first available (unclaimed) workspace number.
-
-    Args:
-        project_file: Path to the ProjectSpec file
-        max_workspaces: Maximum workspace number to check (1-99)
-
-    Returns:
-        First available workspace number (1 = main, 2+ = shares)
-    """
-    claims = get_claimed_workspaces(project_file)
-    claimed_nums = {claim.workspace_num for claim in claims}
-
-    # Find first unclaimed workspace number
-    for n in range(1, max_workspaces + 1):
-        if n not in claimed_nums:
-            return n
-
-    # All workspaces claimed - return 1 as fallback
-    return 1
-
-
-def get_first_available_axe_workspace(
-    project_file: str, min_workspace: int = 100, max_workspace: int = 199
-) -> int:
-    """Find the first available (unclaimed) workspace number for axe hooks.
-
-    Axe hooks use workspace numbers >= 100 to avoid conflicts with regular
-    workflows that use workspaces 1-99.
-
-    Args:
-        project_file: Path to the ProjectSpec file
-        min_workspace: Minimum workspace number to consider (default: 100)
-        max_workspace: Maximum workspace number to consider (default: 199)
-
-    Returns:
-        First available workspace number in the axe range (100-199)
-    """
-    claims = get_claimed_workspaces(project_file)
-    claimed_nums = {claim.workspace_num for claim in claims}
-
-    # Find first unclaimed workspace number in axe range
-    for n in range(min_workspace, max_workspace + 1):
-        if n not in claimed_nums:
-            return n
-
-    # All axe workspaces claimed - return min_workspace as fallback
-    return min_workspace
 
 
 def claim_next_axe_workspace(
@@ -587,7 +383,7 @@ def claim_next_axe_workspace(
                                 or lines[j].strip().startswith("|")
                             ):
                                 running_end_idx = j
-                                existing = _WorkspaceClaim.from_line(lines[j])
+                                existing = WorkspaceClaim.from_line(lines[j])
                                 if existing is not None:
                                     claimed_nums.add(existing.workspace_num)
                             else:
@@ -612,7 +408,7 @@ def claim_next_axe_workspace(
                         f"are claimed in {project_file}"
                     )
 
-                new_claim = _WorkspaceClaim(
+                new_claim = WorkspaceClaim(
                     workspace_num=workspace_num,
                     workflow=workflow,
                     cl_name=cl_name,
@@ -628,7 +424,7 @@ def claim_next_axe_workspace(
                     lines.insert(0, f"RUNNING:\n{new_claim.to_line()}\n")
 
                 result_content = "\n".join(lines)
-                result_content = _normalize_running_field_spacing(result_content)
+                result_content = normalize_running_field_spacing(result_content)
 
                 cl_part = f" for {cl_name}" if cl_name else ""
                 write_changespec_atomic(
@@ -651,80 +447,4 @@ def claim_next_axe_workspace(
     raise RuntimeError(
         f"Failed to claim axe workspace in {project_file} "
         f"after {1 + max_retries} attempts"
-    )
-
-
-def get_workspace_directory_for_num(
-    workspace_num: int, project_basename: str, *, clean: bool = True
-) -> tuple[str, str | None]:
-    """Get the workspace directory path for a given workspace number.
-
-    Calls sase_hg_get_workspace to get the directory path, which will create
-    workspace shares if they don't exist.
-
-    For non-main workspaces (workspace_num > 1), automatically cleans the
-    workspace to revert any uncommitted changes before returning.  This
-    prevents ``checkout`` / ``hg update`` failures caused by leftover dirty
-    state from a previous run.
-
-    Args:
-        workspace_num: Workspace number (1 = main, 2+ = shares)
-        project_basename: Project name
-        clean: If True (default), clean non-main workspaces before returning.
-
-    Returns:
-        Tuple of (workspace_directory, workspace_suffix)
-        - workspace_directory: Full path to workspace directory
-        - workspace_suffix: Suffix like "fig_3" or None for main workspace
-
-    Raises:
-        RuntimeError: If sase_hg_get_workspace command fails
-    """
-    workspace_dir = get_workspace_directory(project_basename, workspace_num)
-
-    if workspace_num == 1:
-        return (workspace_dir, None)
-
-    # Clean non-main workspaces to avoid checkout conflicts from leftover
-    # dirty state.
-    if clean:
-        from sase.workflows.commit_utils import clean_workspace
-
-        clean_workspace(workspace_dir)
-
-    workspace_suffix = f"{project_basename}_{workspace_num}"
-    return (workspace_dir, workspace_suffix)
-
-
-def get_workspace_directory(project: str, workspace_num: int = 1) -> str:
-    """Get the workspace directory path for a project.
-
-    Delegates to workspace provider plugins via the
-    ``ws_get_workspace_directory`` hook.
-
-    Args:
-        project: Project name (e.g., "foobar")
-        workspace_num: Workspace number (1 = main, 2+ = shares)
-
-    Returns:
-        Full path to workspace directory
-
-    Raises:
-        RuntimeError: If workspace resolution fails
-    """
-    from sase.workspace_provider import (
-        detect_workflow_type,
-        get_workspace_directory as ws_get_workspace_directory,
-    )
-    from sase.workspace_provider.utils import parse_workspace_dir
-    from sase.workflows.utils import get_project_file_path
-
-    project_file = get_project_file_path(project)
-    try:
-        workflow_type = detect_workflow_type(project_file)
-    except ValueError as e:
-        raise RuntimeError(str(e)) from e
-    workspace_dir = parse_workspace_dir(project_file) or ""
-    return ws_get_workspace_directory(
-        workflow_type, workspace_num, project, workspace_dir
     )
