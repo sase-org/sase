@@ -98,11 +98,11 @@ def test_get_axe_status_returns_none_when_process_dead(
 
 
 @patch("sase.axe.process.is_process_running")
-def test_get_axe_status_returns_basic_status_when_no_status_file(
+def test_get_axe_status_returns_full_status_when_no_status_file(
     mock_is_running: MagicMock,
     temp_state_dir: Path,
 ) -> None:
-    """Test get_axe_status returns basic status when no status.json exists."""
+    """Test get_axe_status returns full status dict when no status.json exists."""
     pid_file = temp_state_dir / "pid"
     pid_file.write_text("12345")
 
@@ -111,7 +111,11 @@ def test_get_axe_status_returns_basic_status_when_no_status_file(
     status = get_axe_status()
     assert status is not None
     assert status["pid"] == 12345
-    assert "initializing" in status["status"]
+    assert status["status"] == "running"
+    # Should have all AxeStatus fields populated from config defaults
+    assert "max_hook_runners" in status
+    assert "max_agent_runners" in status
+    assert "started_at" in status
 
 
 # --- get_axe_pid Tests ---

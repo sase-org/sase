@@ -158,28 +158,48 @@ def get_axe_status() -> dict | None:
         return None
 
     status = read_status()
-    if status is None:
-        return {"pid": pid, "status": "running (initializing)"}
-
-    result: dict = {
-        "pid": status.pid,
-        "started_at": status.started_at,
-        "status": status.status,
-        "full_check_interval": status.full_check_interval,
-        "hook_interval": status.hook_interval,
-        "max_hook_runners": status.max_hook_runners,
-        "max_agent_runners": status.max_agent_runners,
-        "zombie_timeout": status.zombie_timeout,
-        "query": status.query,
-        "current_hook_runners": status.current_hook_runners,
-        "current_agent_runners": status.current_agent_runners,
-        "last_full_cycle": status.last_full_cycle,
-        "last_hook_cycle": status.last_hook_cycle,
-        "next_full_cycle": status.next_full_cycle,
-        "total_changespecs": status.total_changespecs,
-        "filtered_changespecs": status.filtered_changespecs,
-        "uptime_seconds": status.uptime_seconds,
-    }
+    if status is not None:
+        result: dict = {
+            "pid": status.pid,
+            "started_at": status.started_at,
+            "status": status.status,
+            "full_check_interval": status.full_check_interval,
+            "hook_interval": status.hook_interval,
+            "max_hook_runners": status.max_hook_runners,
+            "max_agent_runners": status.max_agent_runners,
+            "zombie_timeout": status.zombie_timeout,
+            "query": status.query,
+            "current_hook_runners": status.current_hook_runners,
+            "current_agent_runners": status.current_agent_runners,
+            "last_full_cycle": status.last_full_cycle,
+            "last_hook_cycle": status.last_hook_cycle,
+            "next_full_cycle": status.next_full_cycle,
+            "total_changespecs": status.total_changespecs,
+            "filtered_changespecs": status.filtered_changespecs,
+            "uptime_seconds": status.uptime_seconds,
+        }
+    else:
+        # No legacy status.json — construct from config + live data
+        config = load_axe_config()
+        result = {
+            "pid": pid,
+            "started_at": "",
+            "status": "running",
+            "full_check_interval": 0,
+            "hook_interval": 0,
+            "max_hook_runners": config.max_hook_runners,
+            "max_agent_runners": config.max_agent_runners,
+            "zombie_timeout": config.zombie_timeout_seconds,
+            "query": config.query,
+            "current_hook_runners": 0,
+            "current_agent_runners": 0,
+            "last_full_cycle": None,
+            "last_hook_cycle": None,
+            "next_full_cycle": None,
+            "total_changespecs": 0,
+            "filtered_changespecs": 0,
+            "uptime_seconds": 0,
+        }
 
     # Append per-lumberjack statuses
     lumberjacks_status: dict[str, dict] = {}
