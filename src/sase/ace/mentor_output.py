@@ -135,18 +135,23 @@ def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
 
 
 def load_mentor_outputs_for_commit(
-    cl_name: str, entry_id: str
+    cl_name: str, timestamps: set[str]
 ) -> list[tuple[Path, MentorOutput]]:
-    """Load mentor outputs matching a specific commit entry.
+    """Load mentor outputs matching specific timestamps.
 
-    Uses the timestamp from the filename to filter by commit entry.
-    The *entry_id* is matched against the timestamp portion of the filename.
+    Each mentor output file is named ``<cl>-<profile>-<mentor>-<timestamp>.json``.
+    The *timestamps* set (from ``MentorStatusLine.timestamp``) is matched against
+    the final segment of each filename.
 
     Returns:
-        List of (path, MentorOutput) tuples for the matching commit.
+        List of (path, MentorOutput) tuples for the matching timestamps.
     """
     all_outputs = _load_all_mentor_outputs(cl_name)
-    return [(p, o) for p, o in all_outputs if p.stem.endswith(f"-{entry_id}")]
+    return [
+        (p, o)
+        for p, o in all_outputs
+        if any(p.stem.endswith(f"-{ts}") for ts in timestamps)
+    ]
 
 
 # ── Acceptance state ─────────────────────────────────────────────────────

@@ -82,8 +82,13 @@ def build_mentor_review_data(
     """
     entry_id = mentor_entry.entry_id
 
-    # Load mentor outputs from disk
-    outputs = load_mentor_outputs_for_commit(cl_name, entry_id)
+    # Load mentor outputs from disk, matching by status line timestamps
+    timestamps = (
+        {sl.timestamp for sl in mentor_entry.status_lines}
+        if mentor_entry.status_lines
+        else set()
+    )
+    outputs = load_mentor_outputs_for_commit(cl_name, timestamps)
     output_map: dict[tuple[str, str], MentorOutput] = {}
     for _path, mo in outputs:
         output_map[(mo.profile_name, mo.mentor_name)] = mo

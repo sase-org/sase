@@ -118,7 +118,7 @@ def test_build_review_data_with_outputs(tmp_path: Path, monkeypatch: object) -> 
             MentorComment("docs", "b.py", 20, "Add docs", "suggestion"),
         ],
     )
-    save_mentor_output("my-cl", "code", "code_quality", "1", output)
+    save_mentor_output("my-cl", "code", "code_quality", "260321_120000", output)
 
     entry = _make_mentor_entry(
         entry_id="1",

@@ -207,17 +207,15 @@ def test_cl_name_with_slash(tmp_path: Path, monkeypatch: object) -> None:
 def test_load_for_commit_no_false_positives(
     tmp_path: Path, monkeypatch: object
 ) -> None:
-    """Short entry IDs must not collide with other filename components."""
+    """Only outputs whose timestamps are in the requested set are returned."""
     monkeypatch.setattr("sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path)  # type: ignore[attr-defined]
 
-    # Timestamp "1" for entry_id "1"
-    save_mentor_output("cl", "profile1", "mentor1", "1", _make_output())
-    # Timestamp "21" — should NOT match entry_id "1"
-    save_mentor_output("cl", "profile1", "mentor1", "21", _make_output())
+    save_mentor_output("cl", "profile1", "mentor1", "260321_120000", _make_output())
+    save_mentor_output("cl", "profile1", "mentor1", "260321_130000", _make_output())
 
-    results = load_mentor_outputs_for_commit("cl", "1")
+    results = load_mentor_outputs_for_commit("cl", {"260321_120000"})
     assert len(results) == 1
-    assert results[0][0].stem.endswith("-1")
+    assert results[0][0].stem.endswith("-260321_120000")
 
 
 # ── Acceptance state ─────────────────────────────────────────────────────
