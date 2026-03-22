@@ -10,7 +10,7 @@ steps:
     hidden: true
     python: |
       import json
-      comments = json.loads("{{ accepted_comments_json }}")
+      comments = json.loads({{ accepted_comments_json | tojson }})
       formatted = "\n\n".join(
           f"### Change {i+1}: {c['focus_name']} ({c['severity']})\n"
           f"**File**: `{c['file_path']}:{c['line_number']}`\n"
