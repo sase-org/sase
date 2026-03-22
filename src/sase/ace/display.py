@@ -567,7 +567,7 @@ def display_changespec(
                     if msl.status == "PASSED":
                         text.append(msl.status, style="bold #00AF00")
                     elif msl.status == "COMMENTED":
-                        text.append(msl.status, style="bold #5FAFFF")
+                        text.append(msl.status, style="bold #5FD7D7")
                     elif msl.status == "FAILED":
                         text.append(msl.status, style="bold #FF5F5F")
                     elif msl.status == "RUNNING":

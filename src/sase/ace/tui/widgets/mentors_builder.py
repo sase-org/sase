@@ -142,7 +142,7 @@ def build_mentors_section(
             if passed_count:
                 parts.append(("PASSED", passed_count, "#00AF00"))
             if commented_count:
-                parts.append(("COMMENTED", commented_count, "#5FAFFF"))
+                parts.append(("COMMENTED", commented_count, "#5FD7D7"))
             if failed_count:
                 parts.append(("FAILED", failed_count, "#FF5F5F"))
             if dead_count:
@@ -240,7 +240,7 @@ def build_mentors_section(
                 if msl.status == "PASSED":
                     text.append(msl.status, style="bold #00AF00")
                 elif msl.status == "COMMENTED":
-                    text.append(msl.status, style="bold #5FAFFF")
+                    text.append(msl.status, style="bold #5FD7D7")
                 elif msl.status == "FAILED":
                     text.append(msl.status, style="bold #FF5F5F")
                 elif msl.status == "RUNNING":
