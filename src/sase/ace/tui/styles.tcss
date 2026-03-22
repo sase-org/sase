@@ -236,9 +236,8 @@ MentorReviewModal {
 }
 
 #mentor-review-container {
-    width: 90%;
-    max-width: 120;
-    height: 80%;
+    width: 95%;
+    height: 95%;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -256,8 +255,8 @@ MentorReviewModal {
 }
 
 #mentor-side-panel {
-    width: 25;
-    min-width: 20;
+    width: 30;
+    min-width: 25;
     height: 100%;
     border-right: solid $secondary;
     padding: 0 1;
