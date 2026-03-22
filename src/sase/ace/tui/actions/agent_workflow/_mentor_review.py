@@ -61,7 +61,9 @@ class MentorReviewMixin:
             build_mentor_review_data,
         )
 
-        data = build_mentor_review_data(latest_entry, changespec.name)
+        data = build_mentor_review_data(
+            latest_entry, changespec.name, changespec.project_basename
+        )
         if data is None:
             self.notify("No mentor data available", severity="warning")  # type: ignore[attr-defined]
             return

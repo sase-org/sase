@@ -80,6 +80,7 @@ class _MentorReviewData:
     acceptance: MentorAcceptanceState
     cl_name: str
     entry_id: str
+    project_basename: str = ""
     total_comments: int = 0
 
     def __post_init__(self) -> None:
@@ -107,6 +108,7 @@ class MentorKillResult:
 def build_mentor_review_data(
     mentor_entry: MentorEntry,
     cl_name: str,
+    project_basename: str = "",
 ) -> _MentorReviewData | None:
     """Build _MentorReviewData from a MentorEntry.
 
@@ -174,6 +176,7 @@ def build_mentor_review_data(
         acceptance=acceptance,
         cl_name=cl_name,
         entry_id=entry_id,
+        project_basename=project_basename,
     )
 
 
@@ -369,13 +372,32 @@ class MentorReviewModal(
         except Exception:
             pass
 
+    def _resolve_file_path(self, file_path: str) -> str:
+        """Resolve a potentially relative file path to an absolute path."""
+        expanded = os.path.expanduser(file_path)
+        if os.path.isabs(expanded):
+            return expanded
+
+        # Resolve relative paths against the primary workspace directory
+        project_basename = self._data.project_basename
+        if project_basename:
+            try:
+                from sase.running_field import get_workspace_directory
+
+                workspace_dir = get_workspace_directory(project_basename, 1)
+                return os.path.join(workspace_dir, expanded)
+            except Exception:
+                pass
+
+        return expanded
+
     def _build_code_snippet(
         self, file_path: str, line_number: int, header_lines: int
     ) -> Syntax | None:
         """Build a syntax-highlighted code snippet centered on line_number."""
-        expanded = os.path.expanduser(file_path)
+        resolved = self._resolve_file_path(file_path)
         try:
-            with open(expanded, encoding="utf-8") as f:
+            with open(resolved, encoding="utf-8") as f:
                 content = f.read()
         except Exception:
             return None
