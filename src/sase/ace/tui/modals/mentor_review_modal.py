@@ -80,7 +80,7 @@ class _MentorReviewData:
     acceptance: MentorAcceptanceState
     cl_name: str
     entry_id: str
-    project_basename: str = ""
+    workspace_dir: str = ""
     total_comments: int = 0
 
     def __post_init__(self) -> None:
@@ -108,7 +108,7 @@ class MentorKillResult:
 def build_mentor_review_data(
     mentor_entry: MentorEntry,
     cl_name: str,
-    project_basename: str = "",
+    workspace_dir: str = "",
 ) -> _MentorReviewData | None:
     """Build _MentorReviewData from a MentorEntry.
 
@@ -176,7 +176,7 @@ def build_mentor_review_data(
         acceptance=acceptance,
         cl_name=cl_name,
         entry_id=entry_id,
-        project_basename=project_basename,
+        workspace_dir=workspace_dir,
     )
 
 
@@ -378,16 +378,9 @@ class MentorReviewModal(
         if os.path.isabs(expanded):
             return expanded
 
-        # Resolve relative paths against the primary workspace directory
-        project_basename = self._data.project_basename
-        if project_basename:
-            try:
-                from sase.running_field import get_workspace_directory
-
-                workspace_dir = get_workspace_directory(project_basename, 1)
-                return os.path.join(workspace_dir, expanded)
-            except Exception:
-                pass
+        # Resolve relative paths against the claimed workspace directory
+        if self._data.workspace_dir:
+            return os.path.join(self._data.workspace_dir, expanded)
 
         return expanded
 
