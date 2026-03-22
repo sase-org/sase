@@ -311,6 +311,26 @@ def parse_output_from_front_matter(
     ):
         return OutputSpec(type=output_type, schema=schema)
 
+    # Raw JSON Schema: 'type' is a JSON Schema type keyword (e.g. "object", "array")
+    # and the dict contains schema-specific keys like 'properties' or 'items'.
+    # Treat the entire dict as the schema rather than falling through to shortform.
+    _JSON_SCHEMA_TYPES = {
+        "object",
+        "array",
+        "string",
+        "number",
+        "integer",
+        "boolean",
+        "null",
+    }
+    if (
+        output_type
+        and isinstance(output_type, str)
+        and output_type in _JSON_SCHEMA_TYPES
+        and ("properties" in output_data or "items" in output_data)
+    ):
+        return OutputSpec(type="json_schema", schema=output_data)
+
     # Shortform dict: {name: word, desc: text}
     # If 'type' is present but not a known longform type, treat as shortform
     return _parse_shortform_output(output_data)
