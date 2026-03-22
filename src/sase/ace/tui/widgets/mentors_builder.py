@@ -78,9 +78,8 @@ def build_mentors_section(
 
         # Count non-RUNNING statuses for folded summary
         # What's folded depends on the fold level:
-        # - COLLAPSED: PASSED always folded; FAILED folded for non-latest; DEAD always
-        # - EXPANDED: PASSED folded for non-latest; FAILED folded for non-latest; DEAD
-        #   folded for non-latest
+        # - COLLAPSED: PASSED/DEAD always folded; FAILED/COMMENTED folded for non-latest
+        # - EXPANDED: PASSED/COMMENTED/FAILED/DEAD folded for non-latest
         # - FULLY_EXPANDED: nothing folded
         passed_count = 0
         commented_count = 0
@@ -96,11 +95,7 @@ def build_mentors_section(
                         # EXPANDED: only non-latest PASSED are folded
                         passed_count += 1
                 elif msl.status == "COMMENTED":
-                    if mentors_fold == FoldLevel.COLLAPSED:
-                        # COLLAPSED: all COMMENTED are folded
-                        commented_count += 1
-                    elif not is_latest_entry:
-                        # EXPANDED: only non-latest COMMENTED are folded
+                    if not is_latest_entry:
                         commented_count += 1
                 elif msl.status == "FAILED":
                     if not is_latest_entry:
@@ -156,13 +151,12 @@ def build_mentors_section(
                         and msl.suffix_type == "running_agent"
                     )
                     if not force_show:
-                        # COLLAPSED: non-latest → hide all; latest → hide PASSED/DEAD
+                        # COLLAPSED: non-latest → hide all; latest → hide PASSED+DEAD
                         # EXPANDED: non-latest → hide all; latest → show all
                         if not is_latest_entry:
                             continue
                         if mentors_fold == FoldLevel.COLLAPSED and msl.status in (
                             "PASSED",
-                            "COMMENTED",
                             "DEAD",
                         ):
                             continue

@@ -86,10 +86,10 @@ def test_commented_status_displayed(_mock_fmt: object, _mock_exists: object) -> 
     "sase.ace.display_helpers.format_profile_with_count",
     return_value="prof[1/1]",
 )
-def test_commented_folded_in_collapsed_mode(
+def test_commented_shown_in_collapsed_mode(
     _mock_fmt: object, _mock_exists: object
 ) -> None:
-    """Test that COMMENTED is folded in COLLAPSED mode like PASSED."""
+    """Test that COMMENTED is shown (not folded) in COLLAPSED mode for latest entry."""
     msl = MentorStatusLine(
         profile_name="prof",
         mentor_name="code_quality",
@@ -117,9 +117,9 @@ def test_commented_folded_in_collapsed_mode(
     )
 
     plain = text.plain
-    # COMMENTED should be folded in COLLAPSED mode
-    assert "folded" in plain
-    assert "COMMENTED: 1" in plain
+    # COMMENTED should be visible in COLLAPSED mode (like FAILED), not folded
+    assert "COMMENTED" in plain
+    assert "folded" not in plain
 
 
 @patch("sase.ace.tui.widgets.mentors_builder.os.path.exists", return_value=True)
