@@ -23,7 +23,7 @@ steps:
     prompt_part: |
       {% if cl_name != "null" %}#{{ vcs_type }}:{{ cl_name }}
 
-      {% endif %}### Role
+      {% endif %}## Role
 
       You are a {{ role }}.
 
@@ -38,7 +38,7 @@ steps:
         a clear description of what should be changed.
       - If you find no issues for a focus area, omit it from your output.
 
-      ### Focus Areas
+      ## Focus Areas
 
       {{ render_focus_areas.rendered_focus_areas }}
 
