@@ -21,7 +21,6 @@ steps:
 
   - name: review
     prompt_part: |
-      %model:#pro
       {% if cl_name != "null" %}#{{ vcs_type }}:{{ cl_name }}
 
       {% endif %}### Role
