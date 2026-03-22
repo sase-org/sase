@@ -36,7 +36,8 @@ steps:
       - Do NOT comment on code that was not modified / added by this CL.
       - Every comment MUST be actionable: include the file path, line number, and
         a clear description of what should be changed.
-      - If you find no issues for a focus area, omit it from your output.
+      - You are NOT required to make any comments. Only make comments if you find legitimate issues that are within
+        scope of your focus areas.
 
       ## Focus Areas
 
