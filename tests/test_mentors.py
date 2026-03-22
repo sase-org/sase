@@ -5,19 +5,19 @@ from pathlib import Path
 
 from sase.ace.changespec import MentorEntry, MentorStatusLine
 from sase.ace.mentors import (
-    _format_mentors_field,
     add_mentor_entry,
+    format_mentors_field,
     set_mentor_status,
 )
 
 
-def test_format_mentors_field_empty() -> None:
+def testformat_mentors_field_empty() -> None:
     """Test formatting empty mentors list."""
-    lines = _format_mentors_field([])
+    lines = format_mentors_field([])
     assert lines == []
 
 
-def test_format_mentors_field_running_no_timestamp_prefix() -> None:
+def testformat_mentors_field_running_no_timestamp_prefix() -> None:
     """Test that RUNNING status lines don't show timestamp prefix.
 
     The timestamp is stored in the model but should not be displayed
@@ -44,7 +44,7 @@ def test_format_mentors_field_running_no_timestamp_prefix() -> None:
             ),
         ],
     )
-    lines = _format_mentors_field([entry])
+    lines = format_mentors_field([entry])
     content = "".join(lines)
 
     # RUNNING line should NOT have timestamp prefix
@@ -55,7 +55,7 @@ def test_format_mentors_field_running_no_timestamp_prefix() -> None:
     assert "[260107_140027] feature:soundness - PASSED" in content
 
 
-def test_format_mentors_field_with_error_suffix() -> None:
+def testformat_mentors_field_with_error_suffix() -> None:
     """Test formatting with error suffix."""
     entry = MentorEntry(
         entry_id="1",
@@ -71,7 +71,7 @@ def test_format_mentors_field_with_error_suffix() -> None:
             ),
         ],
     )
-    lines = _format_mentors_field([entry])
+    lines = format_mentors_field([entry])
     # Should contain error marker
     assert any("!:" in line for line in lines)
 
@@ -188,7 +188,7 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_format_mentors_field_commented_shows_timestamp_prefix() -> None:
+def testformat_mentors_field_commented_shows_timestamp_prefix() -> None:
     """Test that COMMENTED status lines show timestamp prefix like PASSED."""
     entry = MentorEntry(
         entry_id="1",
@@ -203,7 +203,7 @@ def test_format_mentors_field_commented_shows_timestamp_prefix() -> None:
             ),
         ],
     )
-    lines = _format_mentors_field([entry])
+    lines = format_mentors_field([entry])
     content = "".join(lines)
 
     # COMMENTED should show timestamp prefix (like PASSED)
@@ -246,7 +246,7 @@ MENTORS:
 
 def test_merge_preserves_commented_status_from_disk() -> None:
     """Test that merge preserves disk's COMMENTED status over stale RUNNING."""
-    from sase.ace.mentors import _merge_mentor_status_lines
+    from sase.ace.mentors import merge_mentor_status_lines
 
     disk_mentors = [
         MentorEntry(
@@ -281,7 +281,7 @@ def test_merge_preserves_commented_status_from_disk() -> None:
         )
     ]
 
-    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+    result = merge_mentor_status_lines(disk_mentors, caller_mentors)
 
     assert result[0].status_lines is not None
     sl = result[0].status_lines[0]
@@ -289,7 +289,7 @@ def test_merge_preserves_commented_status_from_disk() -> None:
     assert sl.duration == "3m15s"
 
 
-def test_format_mentors_field_with_plain_suffix() -> None:
+def testformat_mentors_field_with_plain_suffix() -> None:
     """Test formatting with plain suffix (no type)."""
     entry = MentorEntry(
         entry_id="1",
@@ -305,7 +305,7 @@ def test_format_mentors_field_with_plain_suffix() -> None:
             ),
         ],
     )
-    lines = _format_mentors_field([entry])
+    lines = format_mentors_field([entry])
     content = "".join(lines)
     assert "some_suffix" in content
 
@@ -341,14 +341,14 @@ STATUS: Ready
 
 
 def test_merge_preserves_terminal_status_from_disk() -> None:
-    """Test that _merge_mentor_status_lines preserves terminal disk status.
+    """Test that merge_mentor_status_lines preserves terminal disk status.
 
     When the caller has a stale RUNNING status but the disk has been updated
     to PASSED by set_mentor_status(), the merge should prefer the disk version.
     This prevents the race condition where update_changespec_mentors_field()
     overwrites a newer terminal status with a stale RUNNING status.
     """
-    from sase.ace.mentors import _merge_mentor_status_lines
+    from sase.ace.mentors import merge_mentor_status_lines
 
     # Disk has PASSED (updated by set_mentor_status after caller's read)
     disk_mentors = [
@@ -385,7 +385,7 @@ def test_merge_preserves_terminal_status_from_disk() -> None:
         )
     ]
 
-    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+    result = merge_mentor_status_lines(disk_mentors, caller_mentors)
 
     # The disk's PASSED status should win over the caller's stale RUNNING
     assert result[0].status_lines is not None
@@ -402,7 +402,7 @@ def test_merge_preserves_caller_killed_agent() -> None:
     mark_mentor_agents_as_killed), the caller's version should win over
     the disk's RUNNING status.
     """
-    from sase.ace.mentors import _merge_mentor_status_lines
+    from sase.ace.mentors import merge_mentor_status_lines
 
     # Disk still has RUNNING (process was just killed, hasn't updated yet)
     disk_mentors = [
@@ -440,7 +440,7 @@ def test_merge_preserves_caller_killed_agent() -> None:
         )
     ]
 
-    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+    result = merge_mentor_status_lines(disk_mentors, caller_mentors)
 
     # Caller's killed_agent should be preserved (disk is non-terminal)
     assert result[0].status_lines is not None
@@ -450,7 +450,7 @@ def test_merge_preserves_caller_killed_agent() -> None:
 
 def test_merge_adds_missing_status_lines() -> None:
     """Test that merge still adds status lines the caller doesn't have."""
-    from sase.ace.mentors import _merge_mentor_status_lines
+    from sase.ace.mentors import merge_mentor_status_lines
 
     # Disk has two status lines
     disk_mentors = [
@@ -491,7 +491,7 @@ def test_merge_adds_missing_status_lines() -> None:
         )
     ]
 
-    result = _merge_mentor_status_lines(disk_mentors, caller_mentors)
+    result = merge_mentor_status_lines(disk_mentors, caller_mentors)
 
     # Should now have both status lines
     assert result[0].status_lines is not None

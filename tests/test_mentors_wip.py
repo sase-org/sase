@@ -6,17 +6,17 @@ from unittest.mock import patch
 
 from sase.ace.changespec import MentorEntry, MentorStatusLine
 from sase.ace.mentors import (
-    _format_mentors_field,
-    _format_profile_with_count,
     clear_mentor_draft_flags,
+    format_mentors_field,
+    format_profile_with_count,
     set_mentor_draft_flags,
 )
 from sase.config.mentor import MentorProfileConfig
 from test_utils import make_mentor_config
 
 
-def test_format_profile_with_count_counts_all_mentors() -> None:
-    """Test that _format_profile_with_count counts all started mentors."""
+def testformat_profile_with_count_counts_all_mentors() -> None:
+    """Test that format_profile_with_count counts all started mentors."""
     mock_profile = MentorProfileConfig(
         profile_name="test_profile",
         mentors=[
@@ -51,11 +51,11 @@ def test_format_profile_with_count_counts_all_mentors() -> None:
         "sase.config.mentor.get_mentor_profile_by_name",
         side_effect=mock_get_profile,
     ):
-        result = _format_profile_with_count("test_profile", status_lines)
+        result = format_profile_with_count("test_profile", status_lines)
         assert result == "test_profile[2/3]"
 
 
-def test_format_mentors_field_shows_all_profiles() -> None:
+def testformat_mentors_field_shows_all_profiles() -> None:
     """Test that entries show all profiles."""
     profiles = {
         "profile_a": MentorProfileConfig(
@@ -84,7 +84,7 @@ def test_format_mentors_field_shows_all_profiles() -> None:
         "sase.config.mentor.get_mentor_profile_by_name",
         side_effect=mock_get_profile,
     ):
-        lines = _format_mentors_field([entry])
+        lines = format_mentors_field([entry])
         content = "".join(lines)
 
         # Both profiles should be visible
