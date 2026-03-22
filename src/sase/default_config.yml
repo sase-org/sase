@@ -283,3 +283,6 @@ xprompts:
       ### THE PROMPT YOU NEED TO CREATE A PLAN FOR
 
       {{ prompt }}
+  x:
+    input: { name: word, cmd: text }
+    content: "@$(sase_xcmd {{ name }} {{ cmd }})"

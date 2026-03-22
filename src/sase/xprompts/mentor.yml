@@ -23,6 +23,8 @@ steps:
     prompt_part: |
       {% if cl_name != "null" %}#{{ vcs_type }}:{{ cl_name }}
 
+      {% endif %}{% if diff_ref %}#{{ diff_ref }}
+
       {% endif %}## Role
 
       You are a {{ role }}.

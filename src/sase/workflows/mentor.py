@@ -40,7 +40,7 @@ from sase.shared_utils import (
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import get_cl_name_from_branch
 from sase.xprompt.output_validation import extract_structured_content
-from sase.xprompt.tags import XPromptTag, get_by_tag_strict
+from sase.xprompt.tags import XPromptTag, get_by_tag, get_by_tag_strict
 from sase.xprompt.workflow_executor_utils import render_template
 
 log = logging.getLogger(__name__)
@@ -80,12 +80,17 @@ def _build_mentor_prompt(
         [asdict(fa) for fa in mentor.focus_areas], ensure_ascii=False
     )
     schema = json.dumps(MENTOR_OUTPUT_JSON_SCHEMA, ensure_ascii=False)
+    # Resolve the diff_file-tagged xprompt (e.g., #pr_diff or #cl_diff)
+    diff_wf = get_by_tag(XPromptTag.diff_file, project=project)
+    diff_ref = diff_wf.name if diff_wf else ""
+
     context: dict[str, str] = {
         "role": mentor.role,
         "focus_areas_json": focus_areas_json,
         "schema": schema,
         "cl_name": cl_name,
         "vcs_type": vcs_type,
+        "diff_ref": diff_ref,
     }
 
     # Execute pre-prompt steps (render_focus_areas python step)

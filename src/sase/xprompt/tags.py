@@ -19,6 +19,7 @@ class XPromptTag(Enum):
     mentor = "mentor"
     commit = "commit"
     make_mentor_changes = "make_mentor_changes"
+    diff_file = "diff_file"
 
 
 def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:
