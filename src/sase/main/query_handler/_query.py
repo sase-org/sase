@@ -348,6 +348,13 @@ def execute_standalone_steps(
                     f"Bash step '{step.name}' failed: {error_msg}"
                 )
 
+            # Save stdout artifact before parsing key=value output
+            artifact_path: str | None = None
+            if step.artifact == "stdout" and result.stdout.strip() and artifacts_dir:
+                artifact_path = os.path.join(artifacts_dir, f"{step.name}.stdout")
+                with open(artifact_path, "w") as f:
+                    f.write(result.stdout)
+
             output = parse_bash_output(result.stdout)
             # Handle _chdir special output: change executor's working directory
             if "_chdir" in output:
@@ -355,6 +362,8 @@ def execute_standalone_steps(
                 if not os.path.isabs(chdir_path):
                     chdir_path = os.path.abspath(chdir_path)
                 os.chdir(chdir_path)
+            if artifact_path is not None:
+                output["_artifact"] = artifact_path
             context[step.name] = output
 
         elif step.is_python_step() and step.python:
@@ -381,6 +390,13 @@ def execute_standalone_steps(
                     f"Python step '{step.name}' failed: {error_msg}"
                 )
 
+            # Save stdout artifact before parsing key=value output
+            artifact_path_py: str | None = None
+            if step.artifact == "stdout" and result.stdout.strip() and artifacts_dir:
+                artifact_path_py = os.path.join(artifacts_dir, f"{step.name}.stdout")
+                with open(artifact_path_py, "w") as f:
+                    f.write(result.stdout)
+
             output = parse_bash_output(result.stdout)
             # Handle _chdir special output: change executor's working directory
             if "_chdir" in output:
@@ -388,6 +404,8 @@ def execute_standalone_steps(
                 if not os.path.isabs(chdir_path):
                     chdir_path = os.path.abspath(chdir_path)
                 os.chdir(chdir_path)
+            if artifact_path_py is not None:
+                output["_artifact"] = artifact_path_py
             context[step.name] = output
 
         elif step.is_agent_step() and step.agent:
