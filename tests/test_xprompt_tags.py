@@ -133,23 +133,27 @@ def test_get_by_tag_not_found() -> None:
 
 
 def test_get_by_tag_precedence() -> None:
-    """get_by_tag returns the first match from get_all_prompts iteration order."""
-    wf_local = Workflow(
-        name="my_crs",
-        steps=[WorkflowStep(name="main", prompt_part="local crs")],
+    """get_by_tag returns the last (highest-priority) match.
+
+    get_all_prompts() builds the dict from lowest to highest priority,
+    so the last entry with a matching tag wins.
+    """
+    wf_builtin = Workflow(
+        name="crs",
+        steps=[WorkflowStep(name="main", prompt_part="builtin crs")],
         tags=frozenset({XPromptTag.crs}),
     )
     wf_plugin = Workflow(
-        name="crs",
+        name="my_crs",
         steps=[WorkflowStep(name="main", prompt_part="plugin crs")],
         tags=frozenset({XPromptTag.crs}),
     )
-    # Local comes first in dict iteration (simulating precedence)
-    mock_prompts = {"my_crs": wf_local, "crs": wf_plugin}
+    # Dict is ordered lowest→highest priority; plugin overrides builtin
+    mock_prompts = {"crs": wf_builtin, "my_crs": wf_plugin}
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
         result = get_by_tag(XPromptTag.crs)
-    assert result is wf_local
+    assert result is wf_plugin
 
 
 # ── Tags from frontmatter (.md files) ──────────────────────────────────

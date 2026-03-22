@@ -55,15 +55,18 @@ def get_by_tag(tag: XPromptTag, project: str | None = None) -> Workflow | None:
 
     Uses ``get_all_prompts()`` so the loader's existing precedence
     (local > user > plugin > builtin) naturally handles override order.
+    The dict is built from lowest to highest priority, so we return the
+    **last** match to respect the override chain.
 
-    Returns the first matching Workflow, or None.
+    Returns the highest-priority matching Workflow, or None.
     """
     from sase.xprompt.loader import get_all_prompts
 
+    result: Workflow | None = None
     for wf in get_all_prompts(project=project).values():
         if tag in wf.tags:
-            return wf
-    return None
+            result = wf
+    return result
 
 
 def get_by_tag_strict(tag: XPromptTag, project: str | None = None) -> Workflow | None:
