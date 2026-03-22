@@ -12,7 +12,7 @@ steps:
     hidden: true
     python: |
       import json
-      areas = json.loads("{{ focus_areas_json }}")
+      areas = json.loads('''{{ focus_areas_json }}''')
       formatted = "\n".join(
           f"### {a['focus_name']}\n{a['description']}" for a in areas
       )
