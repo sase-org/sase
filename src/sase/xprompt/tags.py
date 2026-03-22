@@ -18,6 +18,7 @@ class XPromptTag(Enum):
     rollover = "rollover"
     mentor = "mentor"
     commit = "commit"
+    propose = "propose"
     make_mentor_changes = "make_mentor_changes"
     diff_file = "diff_file"
 

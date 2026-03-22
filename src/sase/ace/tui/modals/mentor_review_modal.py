@@ -96,10 +96,14 @@ class _MentorReviewData:
 
 @dataclass
 class MentorApplyResult:
-    """Result returned when user presses <enter> to apply accepted comments."""
+    """Result returned when user applies accepted comments.
+
+    ``mode`` is ``"commit"`` (A key) or ``"propose"`` (a key).
+    """
 
     accepted_comments: list[dict[str, str | int]]
     cl_name: str
+    mode: str = "commit"
 
 
 @dataclass
@@ -205,7 +209,8 @@ class MentorReviewModal(
         ("n", "next_comment", "Next comment"),
         ("p", "prev_comment", "Prev comment"),
         ("space", "toggle_accept", "Toggle accept"),
-        ("enter", "apply", "Apply accepted"),
+        ("a", "apply_propose", "Apply + propose"),
+        ("shift+a", "apply_commit", "Apply + commit"),
         ("shift+k", "kill_mentor", "Kill mentor"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
@@ -442,7 +447,8 @@ class MentorReviewModal(
             ("n/p", "comments"),
             ("j/k", "mentors"),
             ("\u2423", "toggle"),
-            ("<enter>", "apply"),
+            ("a", "apply+propose"),
+            ("A", "apply+commit"),
             ("K", "kill"),
             ("q", "close"),
         ]
@@ -522,22 +528,40 @@ class MentorReviewModal(
 
     # -- Apply --
 
-    def action_apply(self) -> None:
-        """Collect accepted comments and dismiss with apply result."""
+    def _collect_accepted(self) -> list[dict[str, str | int]]:
+        """Collect all accepted comments across mentors."""
         accepted: list[dict[str, str | int]] = []
         for m in self._data.mentors:
             for i, comment in enumerate(m.comments):
                 if self._data.acceptance.is_accepted(m.profile_name, m.mentor_name, i):
                     accepted.append(comment)
+        return accepted
 
+    def action_apply_commit(self) -> None:
+        """Apply accepted comments and commit (A key)."""
+        accepted = self._collect_accepted()
         if not accepted:
             self.app.notify("No comments accepted", severity="warning")
             return
-
         self.dismiss(
             MentorApplyResult(
                 accepted_comments=accepted,
                 cl_name=self._data.cl_name,
+                mode="commit",
+            )
+        )
+
+    def action_apply_propose(self) -> None:
+        """Apply accepted comments and propose (a key)."""
+        accepted = self._collect_accepted()
+        if not accepted:
+            self.app.notify("No comments accepted", severity="warning")
+            return
+        self.dismiss(
+            MentorApplyResult(
+                accepted_comments=accepted,
+                cl_name=self._data.cl_name,
+                mode="propose",
             )
         )
 

@@ -359,7 +359,7 @@ def test_modal_accepted_count_for_mentor() -> None:
 
 
 def test_apply_result_dataclass() -> None:
-    """MentorApplyResult stores accepted comments and cl_name."""
+    """MentorApplyResult stores accepted comments, cl_name, and mode."""
     comments: list[dict[str, str | int]] = [
         {
             "focus_name": "style",
@@ -371,8 +371,19 @@ def test_apply_result_dataclass() -> None:
     ]
     result = MentorApplyResult(accepted_comments=comments, cl_name="my-cl")
     assert result.cl_name == "my-cl"
+    assert result.mode == "commit"  # default
     assert len(result.accepted_comments) == 1
     assert result.accepted_comments[0]["focus_name"] == "style"
+
+
+def test_apply_result_propose_mode() -> None:
+    """MentorApplyResult can be created with propose mode."""
+    result = MentorApplyResult(
+        accepted_comments=[],
+        cl_name="my-cl",
+        mode="propose",
+    )
+    assert result.mode == "propose"
 
 
 def test_apply_collects_only_accepted_comments() -> None:

@@ -51,6 +51,7 @@ def test_parse_tags_all_values() -> None:
             "rollover",
             "mentor",
             "commit",
+            "propose",
             "make_mentor_changes",
             "diff_file",
         ]
@@ -416,6 +417,10 @@ def test_parse_mentor_tag() -> None:
 
 def test_parse_commit_tag() -> None:
     assert parse_tags("commit") == frozenset({XPromptTag.commit})
+
+
+def test_parse_propose_tag() -> None:
+    assert parse_tags("propose") == frozenset({XPromptTag.propose})
 
 
 def test_parse_make_mentor_changes_tag() -> None:

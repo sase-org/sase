@@ -104,6 +104,7 @@ class MentorReviewMixin:
                 result.accepted_comments,
                 result.cl_name,
                 project_file,
+                mode=result.mode,
             )
 
         self.push_screen(MentorReviewModal(data), on_mentor_review_dismiss)  # type: ignore[attr-defined]
@@ -113,6 +114,8 @@ class MentorReviewMixin:
         accepted_comments: list[dict[str, str | int]],
         cl_name: str,
         project_file: str,
+        *,
+        mode: str = "commit",
     ) -> None:
         """Build and launch the apply agent for accepted mentor comments.
 
@@ -120,6 +123,8 @@ class MentorReviewMixin:
             accepted_comments: The accepted mentor comment dicts.
             cl_name: The CL name.
             project_file: Path to the project ``.gp`` file.
+            mode: ``"commit"`` or ``"propose"`` — determines which
+                post-apply xprompt to append.
         """
         import json
         from pathlib import Path
@@ -163,10 +168,13 @@ class MentorReviewMixin:
             )
         prompt = render_template(prompt_part_content, context)
 
-        # Append commit-tagged xprompt if one exists
-        commit_wf = get_by_tag(XPromptTag.commit)
-        if commit_wf is not None:
-            prompt += f"\n\n#{commit_wf.name}(who=mentor)"
+        # Append the post-apply xprompt (propose or commit) if one exists
+        if mode == "propose":
+            post_wf = get_by_tag(XPromptTag.propose)
+        else:
+            post_wf = get_by_tag(XPromptTag.commit)
+        if post_wf is not None:
+            prompt += f"\n\n#{post_wf.name}(who=mentor)"
 
         # Set up prompt context in home mode (VCS resolution happens
         # in _finish_agent_launch from the #vcs:cl_name prefix)
