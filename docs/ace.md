@@ -138,13 +138,29 @@ The modal supports live filtering as you type in the search box and displays las
 | `,!`       | Run command using current CL context                           |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals) |
 | `,h`       | Run agent (home directory)                                     |
-| `,m`       | Kill running mentors                                           |
+| `,m`       | Review mentors (opens Mentor Review modal)                     |
+| `,M`       | Kill running mentors                                           |
 | `,r`       | Show runners info                                              |
 | `,<space>` | Run agent from current CL (skips project selection)            |
 | `,.`       | Open prompt history modal for the last CL                      |
 
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
 > [Agents Tab Leader Mode](#leader-mode--prefix-1).
+
+### Mentor Review Modal
+
+Press `,m` to open the Mentor Review modal, which lets you navigate mentor comments, accept or reject suggestions, and
+apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor system reference.
+
+| Key                 | Action                                       |
+| ------------------- | -------------------------------------------- |
+| `j` / `k`           | Navigate between mentors                     |
+| `n` / `p`           | Navigate between comments within a mentor    |
+| `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up             |
+| `Space`             | Toggle acceptance of the current comment     |
+| `Enter`             | Apply all accepted comments (launches agent) |
+| `Shift+K`           | Kill a running mentor                        |
+| `Esc` / `q`         | Close modal                                  |
 
 ### Copy Mode (`%` prefix)
 

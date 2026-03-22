@@ -300,8 +300,9 @@ Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
 
 ### mentor_profiles
 
-Defines mentor agents that run automatically when a ChangeSpec's diff, changed files, or amend notes match configurable
-criteria. Each profile groups one or more mentors with shared matching rules.
+Defines mentor agents that run automated code reviews when a ChangeSpec's diff, changed files, or amend notes match
+configurable criteria. Each profile groups one or more mentors with shared matching rules. See
+[docs/mentors.md](mentors.md) for the full mentor system reference.
 
 ```yaml
 mentor_profiles:
@@ -309,39 +310,55 @@ mentor_profiles:
     file_globs:
       - "*.py"
     mentors:
-      - prompt: "#mentor/python_style"
-      - mentor_name: docstrings
-        prompt: "#mentor/docstrings"
+      - mentor_name: style_checker
+        role: "Python style expert"
+        focus_areas:
+          - focus_name: style
+            description: "PEP 8 compliance and code style"
+          - focus_name: naming
+            description: "Variable and function naming conventions"
 
-  - profile_name: proto_check
-    diff_regexes:
-      - "^\\+.*\\.proto"
-    amend_note_regexes:
-      - "proto"
+  - profile_name: first_commit_review
+    first_commit: true
     mentors:
-      - prompt: "#mentor/proto_review"
+      - mentor_name: architecture
+        role: "Software architect"
+        focus_areas:
+          - focus_name: design
+            description: "Overall design and architectural patterns"
 ```
 
 **Profile fields:**
 
-| Field                | Type         | Required | Description                                        |
-| -------------------- | ------------ | -------- | -------------------------------------------------- |
-| `profile_name`       | string       | yes      | Unique name identifying this profile.              |
-| `mentors`            | list         | yes      | List of mentor definitions (see below).            |
-| `file_globs`         | list[string] | no\*     | Glob patterns matched against changed file paths.  |
-| `diff_regexes`       | list[string] | no\*     | Regex patterns matched against the diff content.   |
-| `amend_note_regexes` | list[string] | no\*     | Regex patterns matched against commit/amend notes. |
+| Field                | Type         | Required | Description                                              |
+| -------------------- | ------------ | -------- | -------------------------------------------------------- |
+| `profile_name`       | string       | yes      | Unique name identifying this profile.                    |
+| `mentors`            | list         | yes      | List of mentor definitions (see below).                  |
+| `file_globs`         | list[string] | no\*     | Glob patterns matched against changed file paths.        |
+| `diff_regexes`       | list[string] | no\*     | Regex patterns matched against the diff content.         |
+| `amend_note_regexes` | list[string] | no\*     | Regex patterns matched against commit/amend notes.       |
+| `first_commit`       | bool         | no       | If true, match only on the first commit of a ChangeSpec. |
 
-\*At least one of `file_globs`, `diff_regexes`, or `amend_note_regexes` must be provided per profile.
+\*At least one of `file_globs`, `diff_regexes`, `amend_note_regexes`, or `first_commit` must be provided per profile.
 
 **Mentor fields:**
 
-| Field         | Type   | Required | Default | Description                                                     |
-| ------------- | ------ | -------- | ------- | --------------------------------------------------------------- |
-| `prompt`      | string | yes      | -       | The xprompt reference (e.g., `"#mentor/foo"`) or inline prompt. |
-| `mentor_name` | string | no       | -       | Derived from `prompt` if omitted (last segment after `/`).      |
+| Field         | Type         | Required | Description                                                 |
+| ------------- | ------------ | -------- | ----------------------------------------------------------- |
+| `mentor_name` | string       | yes      | Unique name identifying this mentor within its profile.     |
+| `role`        | string       | yes      | Role or persona for the mentor (e.g., "Security reviewer"). |
+| `focus_areas` | list[object] | yes      | List of review focus areas (see below).                     |
 
-Mentors run automatically on ChangeSpecs with Draft or Mailed status when their matching criteria are met.
+**Focus area fields:**
+
+| Field         | Type   | Required | Description                                           |
+| ------------- | ------ | -------- | ----------------------------------------------------- |
+| `focus_name`  | string | yes      | Short name for this focus area (e.g., "correctness"). |
+| `description` | string | yes      | Description of what this focus area reviews.          |
+
+Mentors run automatically on ChangeSpecs with Draft or Mailed status when their matching criteria are met. Mentor
+comments are structured JSON with severity levels (error, warning, suggestion) that can be reviewed and applied through
+the ACE TUI's Mentor Review modal (`,m`).
 
 Source: `src/sase/config/mentor.py`
 
