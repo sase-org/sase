@@ -441,6 +441,11 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self._execute_charwise_operator((row, col), (row, len(line)), op)
             return True
 
+        # Toggle case (~)
+        if key == "~":
+            self._toggle_case(count)
+            return True
+
         # Join lines (J)
         if key == "J":
             self._join_lines(count)

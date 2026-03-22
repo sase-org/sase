@@ -192,6 +192,31 @@ class VimNormalOpsMixin(_MixinBase):
                 self.cursor_location = (first_row, 0)
             self.read_only = was_readonly
 
+    def _toggle_case(self, count: int) -> None:
+        """Toggle case of *count* characters at cursor (vim ``~``).
+
+        Swaps upper↔lower for each character, then advances the cursor.
+        Non-alpha characters are skipped over without modification.
+        """
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        if col >= len(line):
+            return
+        end = min(col + count, len(line))
+        segment = line[col:end]
+        toggled = segment.swapcase()
+        if toggled == segment:
+            # Nothing changed – just advance cursor
+            self.cursor_location = (row, end)
+            return
+        was_readonly = self.read_only
+        self.read_only = False
+        self.delete((row, col), (row, end))
+        self._replace_via_keyboard(toggled, (row, col), (row, col))
+        self.read_only = was_readonly
+        self.cursor_location = (row, end)
+        self._record_mutation()
+
     def _join_lines(self, count: int) -> None:
         """Join the current line with the next *count* lines (vim ``J``).
 
