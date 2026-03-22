@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+from textual.worker import Worker, WorkerState
 
 from sase.axe.state import (
     AxeMetrics,
@@ -44,6 +46,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     _leader_mode_active: bool
     _bang_mode_active: bool
     _keymap_registry: KeymapRegistry
+    _axe_worker: Worker[Any] | None
 
     # Background command state
     _axe_current_view: AxeViewType
@@ -160,7 +163,18 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
     def action_stop_axe_and_quit(self) -> None:
         """Stop the axe daemon and quit the application."""
         if self.axe_running:
-            self._stop_axe()
+            # Send SIGTERM directly without waiting — the daemon is detached
+            # and handles its own graceful shutdown.
+            import os
+            import signal
+
+            proc = get_axe_process_module()
+            pid = proc.get_axe_pid()
+            if pid is not None:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    pass
         self._save_current_selection()  # type: ignore[attr-defined]
         from sase.ace.tui_activity import (
             remove_idle_state,
@@ -210,26 +224,48 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         self._refresh_axe_display()
 
     def _start_axe(self) -> None:
-        """Start the axe daemon."""
-        try:
-            self._set_axe_starting(True)
+        """Start the axe daemon in a background worker thread."""
+        if self._axe_worker is not None:
+            return  # Start/stop already in progress
+        self._set_axe_starting(True)
+
+        def _do_start() -> tuple[bool, str]:
             proc = get_axe_process_module()
-            proc.start_axe_daemon()
-            self._load_axe_status()
-        except Exception as e:
-            self._set_axe_starting(False)
-            self.notify(f"Failed to start axe: {e}", severity="error")  # type: ignore[attr-defined]
+            pid = proc.start_axe_daemon()
+            if pid is not None:
+                return (True, f"Axe started (pid {pid})")
+            return (False, "Failed to start axe")
+
+        self._axe_worker = self.run_worker(_do_start, thread=True)  # type: ignore[attr-defined]
 
     def _stop_axe(self) -> None:
-        """Stop the axe daemon."""
-        try:
-            self._set_axe_stopping(True)
+        """Stop the axe daemon in a background worker thread."""
+        if self._axe_worker is not None:
+            return  # Start/stop already in progress
+        self._set_axe_stopping(True)
+
+        def _do_stop() -> tuple[bool, str]:
             proc = get_axe_process_module()
-            proc.stop_axe_daemon()
-            self._load_axe_status()
-        except Exception as e:
-            self._set_axe_stopping(False)
-            self.notify(f"Failed to stop axe: {e}", severity="error")  # type: ignore[attr-defined]
+            stopped = proc.stop_axe_daemon()
+            if stopped:
+                return (True, "Axe stopped")
+            return (False, "Axe was not running")
+
+        self._axe_worker = self.run_worker(_do_stop, thread=True)  # type: ignore[attr-defined]
+
+    def _on_axe_worker_done(self, worker: Worker[Any], state: WorkerState) -> None:
+        """Handle axe start/stop worker completion."""
+        self._axe_worker = None
+
+        if state == WorkerState.SUCCESS and worker.result is not None:
+            success, message = worker.result
+            if not success:
+                self.notify(message, severity="error")  # type: ignore[attr-defined]
+        elif state == WorkerState.ERROR:
+            error_msg = str(worker.error) if worker.error else "Unknown error"
+            self.notify(f"Axe operation failed: {error_msg}", severity="error")  # type: ignore[attr-defined]
+
+        self._load_axe_status()
 
     def action_show_runners(self) -> None:
         """Show the runners modal with all current runners."""

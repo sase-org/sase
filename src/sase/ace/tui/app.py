@@ -4,13 +4,14 @@ import logging
 import os
 import sys
 import time
-from typing import Literal
+from typing import Any, Literal
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.timer import Timer
 from textual.widgets import Footer, Header
+from textual.worker import Worker
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -192,6 +193,9 @@ class AceApp(
 
         # Bang mode state (for ! key sub-commands)
         self._bang_mode_active: bool = False
+
+        # Axe worker state (for background start/stop)
+        self._axe_worker: Worker[Any] | None = None
 
         # Custom mode state (for user-defined prefix-key modes)
         self._custom_mode_active: str | None = None

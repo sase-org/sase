@@ -172,11 +172,16 @@ class TaskActionsMixin:
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Route worker state changes for background tasks."""
-        # Only handle workers we track
-        if event.worker not in self._task_workers.values():
+        # Handle task queue workers
+        if event.worker in self._task_workers.values():
+            if event.state == WorkerState.SUCCESS:
+                self._on_task_worker_completed(event.worker)
+            elif event.state == WorkerState.ERROR:
+                self._on_task_worker_error(event.worker)
             return
 
-        if event.state == WorkerState.SUCCESS:
-            self._on_task_worker_completed(event.worker)
-        elif event.state == WorkerState.ERROR:
-            self._on_task_worker_error(event.worker)
+        # Handle axe worker (defined in AxeMixin)
+        axe_worker = getattr(self, "_axe_worker", None)
+        if axe_worker is not None and event.worker is axe_worker:
+            if event.state in (WorkerState.SUCCESS, WorkerState.ERROR):
+                self._on_axe_worker_done(event.worker, event.state)  # type: ignore[attr-defined]
