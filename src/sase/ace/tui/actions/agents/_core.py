@@ -264,11 +264,12 @@ class AgentsMixinCore(
             ):
                 delete_agent_artifacts(a.artifacts_dir or a.get_artifacts_dir())
 
-        # Auto-dismiss hidden agents that have reached DONE or FAILED status.
-        # This ensures hidden agents disappear automatically when complete
-        # rather than sitting in a dismissable state behind the '.' toggle.
+        # Auto-dismiss hidden agents that have completed successfully.
+        # Failed agents are kept visible so the user can investigate.
         auto_dismissed = [
-            a for a in all_agents if a.hidden and a.status in DISMISSABLE_STATUSES
+            a
+            for a in all_agents
+            if a.hidden and a.status in DISMISSABLE_STATUSES and a.status != "FAILED"
         ]
         for agent in auto_dismissed:
             self._persist_dismissed_agent(agent.identity)
