@@ -23,7 +23,7 @@ steps:
     prompt_part: |
       {% if cl_name != "null" %}#{{ vcs_type }}:{{ cl_name }}
 
-      {% endif %}{% if diff_ref %}#{{ diff_ref }}
+      {% endif %}{% if diff_ref %}A diff of the file changes made by this CL can be found in the #{{ diff_ref }} file.
 
       {% endif %}## Role
 
