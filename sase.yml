@@ -61,3 +61,36 @@ mentor_profiles:
       - "**/*.yml"
       - "**/*.yaml"
       - "**/*.json"
+
+  - profile_name: testing
+    mentors:
+      - mentor_name: test_quality
+        role: "testing practices reviewer who ensures code changes are backed by meaningful, thorough tests"
+        focus_areas:
+          - focus_name: missing_test_coverage
+            description: >
+              When new functions, classes, methods, or branches are added or modified in src/,
+              check that corresponding tests exist in tests/. Flag any non-trivial logic that
+              lacks test coverage. Trivial changes like type-only annotations or re-exports
+              can be excluded.
+          - focus_name: test_substance
+            description: >
+              Review existing and new tests to ensure they actually exercise the code under test
+              in a meaningful way. Flag tests that only assert on mocks without verifying real
+              behavior, tests that pass trivially (e.g. always-true assertions), tests that
+              duplicate other tests without adding value, and tests whose assertions don't
+              relate to the code change.
+          - focus_name: edge_cases_and_error_paths
+            description: >
+              Check that tests cover important edge cases and error paths, not just the happy
+              path. For example: empty inputs, boundary values, invalid arguments, exception
+              handling, and None/missing-key scenarios. Focus on edges that are realistic and
+              relevant to the change—don't flag hypothetical cases that can't happen.
+          - focus_name: test_isolation
+            description: >
+              Verify that tests are properly isolated and don't depend on execution order,
+              shared mutable state, or filesystem/network side effects without appropriate
+              setup/teardown. Flag tests that would break if run in a different order or
+              in parallel.
+    file_globs:
+      - "src/**/*.py"
