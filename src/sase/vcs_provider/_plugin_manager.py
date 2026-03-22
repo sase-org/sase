@@ -121,6 +121,13 @@ class VCSPluginManager(VCSProvider):
             )
         return result  # type: ignore[return-value]
 
+    def file_at_revision(
+        self, revision: str, file_path: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        return self._call_or_raise(
+            "vcs_file_at_revision", revision=revision, file_path=file_path, cwd=cwd
+        )
+
     def sync_workspace(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_sync_workspace", cwd=cwd)
 

@@ -65,27 +65,36 @@ class MentorReviewMixin:
         project_file = changespec.file_path
         project_basename = changespec.project_basename
 
-        # Claim a workspace and checkout the ChangeSpec's branch so we can
-        # display code snippets from the correct revision.
-        workspace_dir, workspace_num = self._claim_mentor_review_workspace(
-            project_file, project_basename, changespec.name
-        )
+        # Get VCS provider from the primary workspace (read-only, no claim needed)
+        from sase.running_field import get_workspace_directory_for_num
+        from sase.vcs_provider import get_vcs_provider
 
-        data = build_mentor_review_data(latest_entry, changespec.name, workspace_dir)
+        provider = None
+        revision = ""
+        ws_dir = ""
+        try:
+            ws_dir, _ = get_workspace_directory_for_num(1, project_basename)
+            provider = get_vcs_provider(ws_dir)
+            revision = provider.resolve_revision(
+                changespec.name, project_basename, ws_dir
+            )
+        except Exception:
+            pass
+
+        data = build_mentor_review_data(
+            latest_entry,
+            changespec.name,
+            vcs_provider=provider,
+            revision=revision,
+            vcs_cwd=ws_dir,
+        )
         if data is None:
-            # Release workspace if we claimed one but got no data
-            if workspace_num is not None:
-                self._release_mentor_review_workspace(project_file, workspace_num)
             self.notify("No mentor data available", severity="warning")  # type: ignore[attr-defined]
             return
 
         def on_mentor_review_dismiss(
             result: MentorApplyResult | MentorKillResult | None,
         ) -> None:
-            # Always release the claimed workspace when the modal closes
-            if workspace_num is not None:
-                self._release_mentor_review_workspace(project_file, workspace_num)
-
             if result is None:
                 return
             if isinstance(result, MentorKillResult):
@@ -98,68 +107,6 @@ class MentorReviewMixin:
             )
 
         self.push_screen(MentorReviewModal(data), on_mentor_review_dismiss)  # type: ignore[attr-defined]
-
-    def _claim_mentor_review_workspace(
-        self,
-        project_file: str,
-        project_basename: str,
-        changespec_name: str,
-    ) -> tuple[str, int | None]:
-        """Claim a workspace and checkout the ChangeSpec's branch.
-
-        Returns:
-            Tuple of (workspace_dir, workspace_num).  If claiming fails,
-            workspace_dir is empty and workspace_num is None.
-        """
-        import subprocess
-
-        from sase.running_field import (
-            claim_workspace,
-            get_first_available_axe_workspace,
-            get_workspace_directory_for_num,
-        )
-        from sase.vcs_provider import get_vcs_provider
-
-        try:
-            workspace_num = get_first_available_axe_workspace(project_file)
-            ws_dir, _ = get_workspace_directory_for_num(workspace_num, project_basename)
-        except Exception:
-            return ("", None)
-
-        pid = os.getpid()
-        if not claim_workspace(
-            project_file, workspace_num, "mentor-review", pid, changespec_name
-        ):
-            return ("", None)
-
-        # Checkout the branch in the claimed workspace
-        try:
-            provider = get_vcs_provider(ws_dir)
-            branch_name = provider.resolve_revision(
-                changespec_name, project_basename, ws_dir
-            )
-            subprocess.run(
-                ["git", "fetch", "origin", f"+{branch_name}:{branch_name}"],
-                cwd=ws_dir,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            provider.checkout(branch_name, ws_dir)
-        except Exception:
-            pass
-
-        return (ws_dir, workspace_num)
-
-    @staticmethod
-    def _release_mentor_review_workspace(
-        project_file: str,
-        workspace_num: int,
-    ) -> None:
-        """Release a workspace previously claimed for mentor review."""
-        from sase.running_field import release_workspace
-
-        release_workspace(project_file, workspace_num, "mentor-review")
 
     def _launch_mentor_apply_agent(
         self,

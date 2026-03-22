@@ -269,6 +269,15 @@ class GitCommon(CommandRunner):
         return f"origin/{self._get_default_branch(cwd)}"
 
     @hookimpl
+    def vcs_file_at_revision(
+        self, revision: str, file_path: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        out = self._run(["git", "show", f"{revision}:{file_path}"], cwd)
+        if not out.success:
+            return (False, f"git show failed: {out.stderr.strip()}")
+        return (True, out.stdout)
+
+    @hookimpl
     def vcs_sync_workspace(self, cwd: str) -> tuple[bool, str | None]:
         fetch_out = self._run(["git", "fetch", "origin"], cwd, timeout=600)
         if not fetch_out.success:

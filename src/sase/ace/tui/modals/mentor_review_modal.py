@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from rich.console import Group
 from rich.syntax import Syntax
@@ -72,6 +73,10 @@ class _MentorInfo:
     is_running: bool = False
 
 
+if TYPE_CHECKING:
+    from sase.vcs_provider._base import VCSProvider
+
+
 @dataclass
 class _MentorReviewData:
     """Data passed to the MentorReviewModal."""
@@ -80,8 +85,10 @@ class _MentorReviewData:
     acceptance: MentorAcceptanceState
     cl_name: str
     entry_id: str
-    workspace_dir: str = ""
-    total_comments: int = 0
+    vcs_provider: VCSProvider | None = None
+    revision: str = ""
+    vcs_cwd: str = ""
+    total_comments: int = field(init=False, default=0)
 
     def __post_init__(self) -> None:
         self.total_comments = sum(len(m.comments) for m in self.mentors)
@@ -108,7 +115,10 @@ class MentorKillResult:
 def build_mentor_review_data(
     mentor_entry: MentorEntry,
     cl_name: str,
-    workspace_dir: str = "",
+    *,
+    vcs_provider: VCSProvider | None = None,
+    revision: str = "",
+    vcs_cwd: str = "",
 ) -> _MentorReviewData | None:
     """Build _MentorReviewData from a MentorEntry.
 
@@ -176,7 +186,9 @@ def build_mentor_review_data(
         acceptance=acceptance,
         cl_name=cl_name,
         entry_id=entry_id,
-        workspace_dir=workspace_dir,
+        vcs_provider=vcs_provider,
+        revision=revision,
+        vcs_cwd=vcs_cwd,
     )
 
 
@@ -372,30 +384,19 @@ class MentorReviewModal(
         except Exception:
             pass
 
-    def _resolve_file_path(self, file_path: str) -> str:
-        """Resolve a potentially relative file path to an absolute path."""
-        expanded = os.path.expanduser(file_path)
-        if os.path.isabs(expanded):
-            return expanded
-
-        # Resolve relative paths against the claimed workspace directory
-        if self._data.workspace_dir:
-            return os.path.join(self._data.workspace_dir, expanded)
-
-        return expanded
-
     def _build_code_snippet(
         self, file_path: str, line_number: int, header_lines: int
     ) -> Syntax | None:
         """Build a syntax-highlighted code snippet centered on line_number."""
-        resolved = self._resolve_file_path(file_path)
-        try:
-            with open(resolved, encoding="utf-8") as f:
-                content = f.read()
-        except Exception:
+        if not self._data.vcs_provider or not self._data.revision:
             return None
-
-        if not content.strip():
+        try:
+            ok, content = self._data.vcs_provider.file_at_revision(
+                self._data.revision, file_path, self._data.vcs_cwd
+            )
+            if not ok or not content or not content.strip():
+                return None
+        except (NotImplementedError, Exception):
             return None
 
         total_lines = content.count("\n") + 1

@@ -133,6 +133,18 @@ class VCSProvider(ABC):
             "get_default_parent_revision is not supported by this VCS provider"
         )
 
+    def file_at_revision(
+        self, revision: str, file_path: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        """Read a single file's contents at a specific revision.
+
+        Returns ``(True, file_content)`` on success, ``(False, error)`` on failure.
+        The *file_path* should be relative to the repository root.
+        """
+        raise NotImplementedError(
+            "file_at_revision is not supported by this VCS provider"
+        )
+
     def sync_workspace(self, cwd: str) -> tuple[bool, str | None]:
         """Sync the workspace with the remote (fetch + rebase / hg sync)."""
         raise NotImplementedError(

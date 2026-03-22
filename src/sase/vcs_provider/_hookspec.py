@@ -90,6 +90,11 @@ class VCSHookSpec:
     def vcs_get_default_parent_revision(self, cwd: str) -> str: ...
 
     @hookspec(firstresult=True)
+    def vcs_file_at_revision(
+        self, revision: str, file_path: str, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
     def vcs_sync_workspace(self, cwd: str) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)
