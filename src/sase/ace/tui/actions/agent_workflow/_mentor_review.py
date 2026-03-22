@@ -115,13 +115,13 @@ class MentorReviewMixin:
 
         from sase.running_field import (
             claim_workspace,
-            get_first_available_workspace,
+            get_first_available_axe_workspace,
             get_workspace_directory_for_num,
         )
         from sase.vcs_provider import get_vcs_provider
 
         try:
-            workspace_num = get_first_available_workspace(project_file)
+            workspace_num = get_first_available_axe_workspace(project_file)
             ws_dir, _ = get_workspace_directory_for_num(workspace_num, project_basename)
         except Exception:
             return ("", None)
