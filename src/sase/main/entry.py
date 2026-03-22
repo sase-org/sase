@@ -390,6 +390,11 @@ def main() -> NoReturn:
     # --- ace ---
     if args.command == "ace":
         from sase.ace.tui import AceApp
+        from sase.config.core import set_include_local_config
+
+        # Don't load repo-level sase.yml for the TUI — local config should
+        # only apply to agent runs (which are separate processes).
+        set_include_local_config(False)
 
         # Wire --vcs-provider to env var for downstream resolution
         vcs_provider = getattr(args, "vcs_provider", None)

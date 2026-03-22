@@ -12,6 +12,7 @@ from sase.config.core import (
     load_config_layers,
     load_merged_config,
     load_xprompts_by_source,
+    set_include_local_config,
 )
 
 
@@ -97,6 +98,20 @@ def test_get_local_config_path_returns_none_when_missing(tmp_path: Path) -> None
         result = _get_local_config_path()
 
     assert result is None
+
+
+def test_get_local_config_path_returns_none_when_disabled(tmp_path: Path) -> None:
+    """Returns None when _include_local_config is False (e.g. sase ace)."""
+    local_config = tmp_path / "sase.yml"
+    local_config.write_text(yaml.dump({"key": "local"}))
+
+    set_include_local_config(False)
+    try:
+        with patch("sase.config.core.Path.cwd", return_value=tmp_path):
+            result = _get_local_config_path()
+        assert result is None
+    finally:
+        set_include_local_config(True)
 
 
 def test_load_merged_config_local_overrides_global(tmp_path: Path) -> None:

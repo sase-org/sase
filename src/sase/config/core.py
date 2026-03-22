@@ -5,7 +5,9 @@ then deep-merges plugin ``default_config.yml`` files, then
 ``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
 alphabetically, with list concatenation) on top, then finally any local
-``sase.yml`` found in the current working directory (with list concatenation).
+``sase.yml`` found in the current working directory (with list concatenation),
+unless local config loading has been disabled via ``set_include_local_config(False)``
+(e.g. for ``sase ace`` runs where the TUI should not inherit repo-level config).
 """
 
 import importlib.resources
@@ -21,6 +23,17 @@ log = logging.getLogger(__name__)
 
 CONFIG_DIR = Path("~/.config/sase").expanduser()
 CHEZMOI_HOME = Path("~/.local/share/chezmoi/home").expanduser()
+
+# When False, _get_local_config_path() always returns None.
+# Set to False for `sase ace` so the TUI doesn't pick up a repo's sase.yml;
+# agent runs are separate processes and keep the default (True).
+_include_local_config: bool = True
+
+
+def set_include_local_config(value: bool) -> None:
+    """Enable or disable loading of the local CWD ``sase.yml``."""
+    global _include_local_config
+    _include_local_config = value
 
 
 def get_use_chezmoi() -> bool:
@@ -115,7 +128,13 @@ def _get_overlay_paths() -> list[Path]:
 
 
 def _get_local_config_path() -> Path | None:
-    """Return the path to a local ``sase.yml`` in the CWD, if it exists."""
+    """Return the path to a local ``sase.yml`` in the CWD, if it exists.
+
+    Returns ``None`` when ``_include_local_config`` is ``False`` (e.g. during
+    ``sase ace`` runs where the TUI shouldn't inherit repo-level config).
+    """
+    if not _include_local_config:
+        return None
     local_path = Path.cwd() / "sase.yml"
     if local_path.is_file():
         return local_path
