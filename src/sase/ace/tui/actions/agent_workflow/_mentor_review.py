@@ -58,6 +58,7 @@ class MentorReviewMixin:
             MentorApplyResult,
             MentorKillResult,
             MentorReviewModal,
+            MentorRunResult,
             build_mentor_review_data,
         )
 
@@ -93,9 +94,12 @@ class MentorReviewMixin:
             return
 
         def on_mentor_review_dismiss(
-            result: MentorApplyResult | MentorKillResult | None,
+            result: MentorApplyResult | MentorKillResult | MentorRunResult | None,
         ) -> None:
             if result is None:
+                return
+            if isinstance(result, MentorRunResult):
+                self._run_mentor_profile(result, project_file)
                 return
             if isinstance(result, MentorKillResult):
                 self._kill_mentor_from_review(result, project_file)
@@ -205,6 +209,87 @@ class MentorReviewMixin:
         )
 
         self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+
+    def _run_mentor_profile(
+        self,
+        run_result: object,
+        project_file: str,
+    ) -> None:
+        """Start unstarted mentors for a profile selected from the review modal."""
+        import logging
+
+        from sase.ace.changespec import parse_project_file
+        from sase.ace.mentors.entries import add_mentor_entry
+        from sase.ace.scheduler.mentor_runner import start_single_mentor
+        from sase.config.mentor import get_mentor_profile_by_name
+
+        log = logging.getLogger(__name__)
+
+        profile_name: str = run_result.profile_name  # type: ignore[attr-defined]
+        cl_name: str = run_result.cl_name  # type: ignore[attr-defined]
+        entry_id: str = run_result.entry_id  # type: ignore[attr-defined]
+
+        profile = get_mentor_profile_by_name(profile_name)
+        if profile is None:
+            self.notify(f"Profile '{profile_name}' not found", severity="error")  # type: ignore[attr-defined]
+            return
+
+        # Re-read fresh state from disk for concurrency safety
+        changespecs = parse_project_file(project_file)
+        target_cs = None
+        for cs in changespecs:
+            if cs.name == cl_name:
+                target_cs = cs
+                break
+
+        if target_cs is None:
+            self.notify("ChangeSpec not found", severity="error")  # type: ignore[attr-defined]
+            return
+
+        # Ensure profile is in the MENTORS entry
+        add_mentor_entry(project_file, cl_name, entry_id, [profile_name])
+
+        # Re-parse after add_mentor_entry may have modified the file
+        changespecs = parse_project_file(project_file)
+        for cs in changespecs:
+            if cs.name == cl_name:
+                target_cs = cs
+                break
+
+        # Determine which mentors already have status lines
+        already_started: set[str] = set()
+        if target_cs.mentors:
+            for entry in target_cs.mentors:
+                if entry.entry_id != entry_id or not entry.status_lines:
+                    continue
+                for sl in entry.status_lines:
+                    if sl.profile_name == profile_name:
+                        already_started.add(sl.mentor_name)
+
+        # Start unstarted mentors
+        started = 0
+
+        def _log_cb(msg: str, color: str | None = None) -> None:
+            log.info(msg)
+
+        for mentor_cfg in profile.mentors:
+            if mentor_cfg.mentor_name in already_started:
+                continue
+            result = start_single_mentor(
+                target_cs, entry_id, profile, mentor_cfg.mentor_name, _log_cb
+            )
+            if result is not None:
+                started += 1
+
+        if started == 0:
+            self.notify(  # type: ignore[attr-defined]
+                f"All mentors already running for {profile_name}",
+                severity="warning",
+            )
+        else:
+            self.notify(f"Started {started} mentor(s) for {profile_name}")  # type: ignore[attr-defined]
+
+        self._reload_and_reposition()  # type: ignore[attr-defined]
 
     def _kill_mentor_from_review(
         self,

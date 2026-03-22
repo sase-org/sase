@@ -63,7 +63,7 @@ _EXTENSION_TO_LEXER: dict[str, str] = {
 
 
 @dataclass
-class _MentorInfo:
+class MentorInfo:
     """Aggregated info for a single mentor in the side panel."""
 
     mentor_name: str
@@ -81,7 +81,7 @@ if TYPE_CHECKING:
 class _MentorReviewData:
     """Data passed to the MentorReviewModal."""
 
-    mentors: list[_MentorInfo]
+    mentors: list[MentorInfo]
     acceptance: MentorAcceptanceState
     cl_name: str
     entry_id: str
@@ -116,6 +116,15 @@ class MentorKillResult:
     cl_name: str
 
 
+@dataclass
+class MentorRunResult:
+    """Result returned when user selects a profile to run via ``r``."""
+
+    profile_name: str
+    cl_name: str
+    entry_id: str
+
+
 def build_mentor_review_data(
     mentor_entry: MentorEntry,
     cl_name: str,
@@ -147,7 +156,7 @@ def build_mentor_review_data(
                 break
 
     # Build mentor info list from status lines
-    mentors: list[_MentorInfo] = []
+    mentors: list[MentorInfo] = []
     seen: set[tuple[str, str]] = set()
 
     if mentor_entry.status_lines:
@@ -172,7 +181,7 @@ def build_mentor_review_data(
                     )
 
             mentors.append(
-                _MentorInfo(
+                MentorInfo(
                     mentor_name=sl.mentor_name,
                     profile_name=sl.profile_name,
                     status=sl.status,
@@ -197,7 +206,8 @@ def build_mentor_review_data(
 
 
 class MentorReviewModal(
-    CopyModeForwardingMixin, ModalScreen[MentorApplyResult | MentorKillResult | None]
+    CopyModeForwardingMixin,
+    ModalScreen[MentorApplyResult | MentorKillResult | MentorRunResult | None],
 ):
     """Modal for reviewing mentor comments with navigation and acceptance."""
 
@@ -211,6 +221,7 @@ class MentorReviewModal(
         ("space", "toggle_accept", "Toggle accept"),
         ("a", "apply_propose", "Apply + propose"),
         ("shift+a", "apply_commit", "Apply + commit"),
+        ("r", "run_profile", "Run mentor profile"),
         ("shift+k", "kill_mentor", "Kill mentor"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
@@ -248,7 +259,7 @@ class MentorReviewModal(
         text.append(" Mentor Review", style="bold white")
         return text
 
-    def _current_mentor(self) -> _MentorInfo | None:
+    def _current_mentor(self) -> MentorInfo | None:
         if not self._data.mentors:
             return None
         return self._data.mentors[self._mentor_idx]
@@ -450,6 +461,7 @@ class MentorReviewModal(
             ("a", "apply+propose"),
             ("A", "apply+commit"),
             ("K", "kill"),
+            ("r", "run"),
             ("q", "close"),
         ]
         for i, (key, label) in enumerate(bindings):
@@ -581,6 +593,35 @@ class MentorReviewModal(
             )
         )
 
+    # -- Run profile --
+
+    def action_run_profile(self) -> None:
+        """Open profile picker and dismiss with MentorRunResult on selection."""
+        from sase.config.mentor import get_all_mentor_profiles
+
+        from .mentor_profile_select_modal import MentorProfileSelectModal
+
+        profiles = get_all_mentor_profiles()
+        if not profiles:
+            self.app.notify("No mentor profiles configured", severity="warning")
+            return
+
+        def on_profile_dismiss(profile_name: str | None) -> None:
+            if profile_name is None:
+                return
+            self.dismiss(
+                MentorRunResult(
+                    profile_name=profile_name,
+                    cl_name=self._data.cl_name,
+                    entry_id=self._data.entry_id,
+                )
+            )
+
+        self.app.push_screen(
+            MentorProfileSelectModal(profiles, self._data.mentors),
+            on_profile_dismiss,
+        )
+
     # -- Scroll --
 
     def action_scroll_down(self) -> None:
@@ -604,7 +645,7 @@ class MentorReviewModal(
 
     # -- Helpers --
 
-    def _all_comments_accepted(self, mentor: _MentorInfo) -> bool:
+    def _all_comments_accepted(self, mentor: MentorInfo) -> bool:
         if not mentor.comments:
             return False
         return all(
@@ -614,7 +655,7 @@ class MentorReviewModal(
             for i in range(len(mentor.comments))
         )
 
-    def _accepted_count_for_mentor(self, mentor: _MentorInfo) -> int:
+    def _accepted_count_for_mentor(self, mentor: MentorInfo) -> int:
         return sum(
             1
             for i in range(len(mentor.comments))

@@ -63,7 +63,7 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
     return os.path.join(chats_dir, filename)
 
 
-def _start_single_mentor(
+def start_single_mentor(
     changespec: ChangeSpec,
     entry_id: str,
     profile: MentorProfileConfig,
@@ -203,7 +203,7 @@ def start_mentors_for_profile(
         ):
             continue
 
-        result = _start_single_mentor(
+        result = start_single_mentor(
             changespec, entry_id, profile, mentor.mentor_name, log
         )
         if result:

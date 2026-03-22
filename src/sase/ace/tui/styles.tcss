@@ -276,6 +276,39 @@ MentorReviewModal {
     padding-top: 1;
 }
 
+/* Mentor Profile Select Modal */
+MentorProfileSelectModal {
+    align: center middle;
+}
+
+#mentor-profile-select-container {
+    width: 50%;
+    height: 40%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#mentor-profile-select-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#mentor-profile-select-list {
+    height: 1fr;
+    overflow-y: auto;
+    padding: 0 1;
+}
+
+#mentor-profile-select-footer {
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* Confirm Kill / Dismiss All Modal styling */
 ConfirmKillModal #confirm-message,
 ConfirmDismissAllModal #confirm-message {

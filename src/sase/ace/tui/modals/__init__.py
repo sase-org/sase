@@ -36,10 +36,12 @@ from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
+from .mentor_profile_select_modal import MentorProfileSelectModal
 from .mentor_review_modal import (
     MentorApplyResult,
     MentorKillResult,
     MentorReviewModal,
+    MentorRunResult,
     build_mentor_review_data,
 )
 from .add_xprompt_modal import AddXPromptModal
@@ -54,7 +56,9 @@ __all__ = [
     "ActivityModal",
     "MentorApplyResult",
     "MentorKillResult",
+    "MentorProfileSelectModal",
     "MentorReviewModal",
+    "MentorRunResult",
     "build_mentor_review_data",
     "AddXPromptModal",
     "AgentInterruptModal",

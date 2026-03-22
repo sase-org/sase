@@ -12,7 +12,7 @@ from sase.ace.changespec.models import MentorEntry, MentorStatusLine
 from sase.ace.tui.modals.mentor_review_modal import (
     MentorApplyResult,
     MentorKillResult,
-    _MentorInfo,
+    MentorInfo,
     _MentorReviewData,
     MentorReviewModal,
     build_mentor_review_data,
@@ -26,7 +26,7 @@ def test_mentor_review_data_total_comments() -> None:
     """Total comments is the sum across all mentors."""
     data = _MentorReviewData(
         mentors=[
-            _MentorInfo(
+            MentorInfo(
                 mentor_name="a",
                 profile_name="p",
                 status="COMMENTED",
@@ -40,7 +40,7 @@ def test_mentor_review_data_total_comments() -> None:
                     }
                 ],
             ),
-            _MentorInfo(
+            MentorInfo(
                 mentor_name="b",
                 profile_name="p",
                 status="COMMENTED",
@@ -73,9 +73,7 @@ def test_mentor_review_data_zero_comments() -> None:
     """No comments when all mentors passed."""
     data = _MentorReviewData(
         mentors=[
-            _MentorInfo(
-                mentor_name="a", profile_name="p", status="PASSED", comments=[]
-            ),
+            MentorInfo(mentor_name="a", profile_name="p", status="PASSED", comments=[]),
         ],
         acceptance=MentorAcceptanceState(),
         cl_name="test-cl",
@@ -224,7 +222,7 @@ def _make_modal_data(
             for j in range(count)
         ]
         mentors.append(
-            _MentorInfo(
+            MentorInfo(
                 mentor_name=f"mentor_{i}",
                 profile_name="code",
                 status="COMMENTED" if count > 0 else "PASSED",
@@ -452,7 +450,7 @@ def test_kill_requires_running_mentor() -> None:
 def test_kill_produces_result_for_running_mentor() -> None:
     """A running mentor produces a MentorKillResult with correct fields."""
     mentors = [
-        _MentorInfo(
+        MentorInfo(
             mentor_name="quality",
             profile_name="code",
             status="RUNNING",
