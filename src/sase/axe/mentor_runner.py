@@ -15,7 +15,6 @@ from sase.ace.mentors import set_mentor_status
 from sase.axe.runner_utils import (
     detect_and_write_agent_meta,
     install_sigterm_handler,
-    was_killed,
     write_done_marker,
 )
 from sase.workflows.mentor import MentorWorkflow
@@ -77,8 +76,11 @@ def main() -> None:
             success = workflow.run()
             response_path = workflow.response_path
             comment_count = workflow.comment_count
-        except Exception as e:
-            print(f"Error running mentor workflow: {e}", file=sys.stderr)
+        except BaseException as e:
+            # Catch BaseException (not just Exception) so that SystemExit from
+            # the SIGTERM handler doesn't bypass the status update below.
+            if isinstance(e, Exception):
+                print(f"Error running mentor workflow: {e}", file=sys.stderr)
             success = False
             comment_count = 0
 
@@ -114,26 +116,24 @@ def main() -> None:
             suffix = None
             suffix_type = None
 
-        # Skip status update if we were killed - the accept workflow already marked
-        # the mentor as killed, and we don't want to overwrite that status
-        if was_killed():
-            print("Skipping status update - mentor was killed", file=sys.stderr)
-        else:
-            try:
-                set_mentor_status(
-                    project_file,
-                    cl_name,
-                    entry_id,
-                    profile_name,
-                    mentor_name,
-                    status=final_status,
-                    timestamp=timestamp,
-                    duration=duration if final_status != "FAILED" else None,
-                    suffix=suffix,
-                    suffix_type=suffix_type,
-                )
-            except Exception as e:
-                print(f"Error updating mentor status: {e}", file=sys.stderr)
+        # Always attempt the status update. If the accept workflow already
+        # marked the mentor as KILLED (suffix_type="killed_agent"),
+        # set_mentor_status() will detect that and return early (no-op).
+        try:
+            set_mentor_status(
+                project_file,
+                cl_name,
+                entry_id,
+                profile_name,
+                mentor_name,
+                status=final_status,
+                timestamp=timestamp,
+                duration=duration if final_status != "FAILED" else None,
+                suffix=suffix,
+                suffix_type=suffix_type,
+            )
+        except Exception as e:
+            print(f"Error updating mentor status: {e}", file=sys.stderr)
 
     finally:
         # Write done.json marker for Agents tab visibility
