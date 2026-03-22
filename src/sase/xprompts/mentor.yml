@@ -32,7 +32,7 @@ steps:
       describing any issues you find.
 
       IMPORTANT:
-      - DO NOT make any changes outside the scope of the focus areas below.
+      - DO NOT make any comments that are outside the scope of the focus areas below.
       - Do NOT comment on code that was not modified / added by this CL.
       - Every comment MUST be actionable: include the file path, line number, and
         a clear description of what should be changed.
