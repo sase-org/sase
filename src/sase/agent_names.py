@@ -99,6 +99,25 @@ def list_running_agents() -> list[_RunningAgentInfo]:
             if not isinstance(data, dict):
                 continue
 
+            # Follow-up agents (coder/epic steps spawned after plan
+            # approval) share their parent's name — skip duplicates.
+            if data.get("parent_timestamp"):
+                continue
+
+            # Workflow agents with appears_as_agent=False are multi-step
+            # orchestrators that shouldn't appear as separate agents.
+            wf_path = artifact_dir / "workflow_state.json"
+            if wf_path.exists():
+                try:
+                    with open(wf_path, encoding="utf-8") as f:
+                        wf_data = json.load(f)
+                    if isinstance(wf_data, dict) and not wf_data.get(
+                        "appears_as_agent", False
+                    ):
+                        continue
+                except (json.JSONDecodeError, OSError):
+                    pass
+
             # Verify process is alive
             if not _is_process_alive(data, artifact_dir):
                 continue
