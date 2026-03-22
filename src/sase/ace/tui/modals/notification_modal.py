@@ -34,6 +34,7 @@ _ACTION_BADGES: dict[str | None, str] = {
     "HITL": "[HITL]",
     "PlanApproval": "[plan]",
     "UserQuestion": "[question]",
+    "ViewErrorReport": "[error]",
 }
 
 

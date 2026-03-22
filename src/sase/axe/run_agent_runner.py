@@ -37,6 +37,67 @@ from sase.shared_utils import (
 install_sigterm_handler("agent", soft=True)
 
 
+def _write_error_report(
+    artifacts_dir: str,
+    *,
+    agent_model: str | None,
+    agent_llm_provider: str | None,
+    workflow_name: str,
+    cl_name: str,
+    duration: str,
+    error_summary: str,
+    error_traceback: str | None,
+) -> str | None:
+    """Write a formatted error report to the artifacts directory.
+
+    Returns the file path, or None if writing failed.
+    """
+    try:
+        from sase.llm_provider.registry import format_provider_model_label
+
+        report_path = os.path.join(artifacts_dir, "error_report.md")
+        label = format_provider_model_label(agent_llm_provider, agent_model)
+
+        lines = [
+            "# Agent Error Report",
+            "",
+            "## Summary",
+            "",
+            "| Field | Value |",
+            "|-------|-------|",
+            f"| Model | {label} |",
+            f"| Workflow | {workflow_name} |",
+            f"| CL | {cl_name} |",
+            f"| Duration | {duration} |",
+            "",
+            "## Error",
+            "",
+            "```",
+            error_summary,
+            "```",
+        ]
+
+        if error_traceback:
+            lines.extend(
+                [
+                    "",
+                    "## Traceback",
+                    "",
+                    "```",
+                    error_traceback.rstrip(),
+                    "```",
+                ]
+            )
+
+        lines.append("")
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        return report_path
+    except Exception:
+        return None
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
     # Accept 13 args: cl_name, project_file, workspace_dir, output_path,
@@ -88,6 +149,8 @@ def main() -> None:
     duration = "0s"
     saved_path: str | None = None
     diff_path: str | None = None
+    error_summary: str | None = None
+    error_traceback_str: str | None = None
 
     print("Starting agent run")
     print(f"CL: {cl_name}")
@@ -246,6 +309,8 @@ def main() -> None:
 
             traceback.print_exc()
             success = False
+            error_summary = f"{type(e).__qualname__}: {e}"
+            error_traceback_str = traceback.format_exc()
             # Write error done marker so TUI can display the error
             try:
                 error_done = build_done_marker(
@@ -346,6 +411,21 @@ def main() -> None:
             except Exception:
                 pass  # Best effort
 
+        # Write error report for failed agents (before notification so it
+        # can be attached as a file).
+        error_report_path: str | None = None
+        if not success and error_summary:
+            error_report_path = _write_error_report(
+                current_artifacts_dir,
+                agent_model=agent_model,
+                agent_llm_provider=agent_llm_provider,
+                workflow_name=workflow_name,
+                cl_name=cl_name,
+                duration=duration,
+                error_summary=error_summary,
+                error_traceback=error_traceback_str,
+            )
+
         # Skip notification if the agent was killed by the user (SIGTERM).
         # The user already knows it died because they killed it from the TUI.
         # Also skip when every step in the workflow was hidden (e.g. for-loops
@@ -354,18 +434,38 @@ def main() -> None:
             from sase.notifications.senders import notify_workflow_complete
 
             extra_files = [p for p in [saved_path, diff_path] if p]
+
+            # For failures: attach error report (first) and output log
+            if not success:
+                if error_report_path:
+                    extra_files.insert(0, error_report_path)
+                if os.path.isfile(output_path):
+                    extra_files.append(output_path)
+
             from sase.llm_provider.registry import format_provider_model_label
 
             agent_label = format_provider_model_label(agent_llm_provider, agent_model)
-            notify_workflow_complete(
-                sender="user-agent",
-                cl_name=cl_name,
-                success=success,
-                notes=[
-                    f"{agent_label} {'completed' if success else 'failed'}: {workflow_name}"
-                ],
-                action="JumpToAgent",
-                action_data={
+
+            # Build notes — include error summary for failures
+            notes = [
+                f"{agent_label} {'completed' if success else 'failed'}: {workflow_name}"
+            ]
+            if not success and error_summary:
+                notes.append(error_summary)
+
+            # For failures with an error report, use ViewErrorReport action
+            # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
+            if not success and error_report_path:
+                action = "ViewErrorReport"
+                action_data: dict[str, str] = {
+                    "error_report_path": error_report_path,
+                    "cl_name": cl_name,
+                    "raw_suffix": artifacts_timestamp,
+                    **({"agent_name": agent_name} if agent_name else {}),
+                }
+            else:
+                action = "JumpToAgent"
+                action_data = {
                     "cl_name": cl_name,
                     "raw_suffix": artifacts_timestamp,
                     **({"agent_name": agent_name} if agent_name else {}),
@@ -376,7 +476,15 @@ def main() -> None:
                         else {}
                     ),
                     "prompt": prompt,
-                },
+                }
+
+            notify_workflow_complete(
+                sender="user-agent",
+                cl_name=cl_name,
+                success=success,
+                notes=notes,
+                action=action,
+                action_data=action_data,
                 extra_files=extra_files,
             )
 

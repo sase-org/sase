@@ -330,6 +330,7 @@ class AgentNotificationMixin:
             handle_plan_approval,
             handle_tmux,
             handle_user_question,
+            handle_view_error_report,
         )
         from ...modals import NotificationModal
 
@@ -363,6 +364,8 @@ class AgentNotificationMixin:
                 handle_plan_approval(self, result)
             elif result.action == "UserQuestion":
                 handle_user_question(self, result)
+            elif result.action == "ViewErrorReport":
+                handle_view_error_report(self, result)
 
         self.push_screen(  # type: ignore[attr-defined]
             NotificationModal(unread, initial_index=initial_index), callback=_on_dismiss

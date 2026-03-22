@@ -88,6 +88,45 @@ def handle_jump_to_agent(app: object, notification: Notification) -> bool:
     return False
 
 
+def handle_view_error_report(app: object, notification: Notification) -> bool:
+    """Open the error report file in $EDITOR for detailed error investigation.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification with action_data containing
+            error_report_path.
+
+    Returns:
+        True if the error report was opened successfully.
+    """
+    import os
+    import subprocess
+
+    from sase.ace.hints import build_editor_args
+
+    error_report = notification.action_data.get("error_report_path")
+    if not error_report:
+        # Fall back to first attached file
+        if notification.files:
+            error_report = notification.files[0]
+        else:
+            app.notify("No error report available", severity="warning")  # type: ignore[attr-defined]
+            return False
+
+    expanded = os.path.expanduser(error_report)
+    if not os.path.exists(expanded):
+        app.notify("Error report file not found", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    editor = os.environ.get("EDITOR") or "nvim"
+    editor_args = build_editor_args(editor, [expanded])
+
+    with app.suspend():  # type: ignore[attr-defined]
+        subprocess.run(editor_args, check=False)
+
+    return True
+
+
 def handle_jump_to_changespec(app: object, notification: Notification) -> bool:
     """Jump to the changespec referenced in the notification.
 
