@@ -24,6 +24,7 @@ from sase.ace.mentor_output import (
     MentorAcceptanceState,
     MentorOutput,
     load_acceptance_state,
+    load_file_snapshots,
     load_mentor_outputs_for_commit,
     save_acceptance_state,
 )
@@ -88,6 +89,7 @@ class _MentorReviewData:
     vcs_provider: VCSProvider | None = None
     revision: str = ""
     vcs_cwd: str = ""
+    file_snapshots: dict[str, str] = field(default_factory=dict)
     total_comments: int = field(init=False, default=0)
 
     def __post_init__(self) -> None:
@@ -193,6 +195,15 @@ def build_mentor_review_data(
     if not mentors:
         return None
 
+    # Load and merge file snapshots from all mentor outputs
+    all_snapshots: dict[str, str] = {}
+    if mentor_entry.status_lines:
+        for sl in mentor_entry.status_lines:
+            snapshots = load_file_snapshots(
+                cl_name, sl.profile_name, sl.mentor_name, sl.timestamp
+            )
+            all_snapshots.update(snapshots)
+
     acceptance = load_acceptance_state(cl_name, entry_id)
     return _MentorReviewData(
         mentors=mentors,
@@ -202,6 +213,7 @@ def build_mentor_review_data(
         vcs_provider=vcs_provider,
         revision=revision,
         vcs_cwd=vcs_cwd,
+        file_snapshots=all_snapshots,
     )
 
 
@@ -404,15 +416,21 @@ class MentorReviewModal(
         self, file_path: str, line_number: int, header_lines: int
     ) -> Syntax | None:
         """Build a syntax-highlighted code snippet centered on line_number."""
-        if not self._data.vcs_provider or not self._data.revision:
-            return None
-        try:
-            ok, content = self._data.vcs_provider.file_at_revision(
-                self._data.revision, file_path, self._data.vcs_cwd
-            )
-            if not ok or not content or not content.strip():
-                return None
-        except (NotImplementedError, Exception):
+        # Try file snapshots first (instant, no subprocess)
+        content = self._data.file_snapshots.get(file_path)
+
+        # Fall back to VCS provider for old mentor outputs without snapshots
+        if content is None and self._data.vcs_provider and self._data.revision:
+            try:
+                ok, vcs_content = self._data.vcs_provider.file_at_revision(
+                    self._data.revision, file_path, self._data.vcs_cwd
+                )
+                if ok and vcs_content and vcs_content.strip():
+                    content = vcs_content
+            except (NotImplementedError, Exception):
+                pass
+
+        if content is None:
             return None
 
         total_lines = content.count("\n") + 1

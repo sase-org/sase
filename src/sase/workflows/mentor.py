@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -16,6 +17,7 @@ from sase.ace.mentor_output import (
     MENTOR_OUTPUT_JSON_SCHEMA,
     MentorComment,
     MentorOutput,
+    save_file_snapshots,
     save_mentor_output,
 )
 from sase.config.mentor import (
@@ -367,6 +369,39 @@ class MentorWorkflow(BaseWorkflow):
                     self._timestamp,
                     mentor_output,
                 )
+                # Snapshot files referenced by comments for fast review
+                if mentor_output.comments:
+                    unique_paths = {c.file_path for c in mentor_output.comments}
+                    file_contents: dict[str, str] = {}
+                    for fp in unique_paths:
+                        try:
+                            full_path = os.path.join(os.getcwd(), fp)
+                            with open(
+                                full_path, encoding="utf-8", errors="replace"
+                            ) as fh:
+                                file_contents[fp] = fh.read()
+                        except OSError:
+                            log.debug("Could not snapshot %s for mentor review", fp)
+                    if file_contents:
+                        rev = ""
+                        try:
+                            rev = subprocess.run(
+                                ["git", "rev-parse", "HEAD"],
+                                capture_output=True,
+                                text=True,
+                                check=True,
+                            ).stdout.strip()
+                        except (subprocess.CalledProcessError, FileNotFoundError):
+                            pass
+                        save_file_snapshots(
+                            resolved_cl_name,
+                            self.profile_name,
+                            self.mentor_name,
+                            self._timestamp,
+                            rev,
+                            file_contents,
+                        )
+
                 print_status(
                     f"Mentor produced {self.comment_count} comment(s)", "success"
                 )

@@ -127,11 +127,57 @@ def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
         # Skip acceptance state files
         if path.name.endswith("-acceptance.json"):
             continue
+        if path.name.endswith("-files.json"):
+            continue
         try:
             results.append((path, _load_mentor_output(path)))
         except (json.JSONDecodeError, KeyError, TypeError):
             log.warning("Skipping malformed mentor output: %s", path)
     return results
+
+
+def save_file_snapshots(
+    cl_name: str,
+    profile_name: str,
+    mentor_name: str,
+    timestamp: str,
+    revision: str,
+    files: dict[str, str],
+) -> Path:
+    """Save file content snapshots alongside mentor output.
+
+    File is written to ``~/.sase/mentors/<cl>-<profile>-<mentor>-<ts>-files.json``.
+    """
+    SASE_MENTORS_DIR.mkdir(parents=True, exist_ok=True)
+    safe_cl = cl_name.replace("/", "_")
+    filename = f"{safe_cl}-{profile_name}-{mentor_name}-{timestamp}-files.json"
+    path = SASE_MENTORS_DIR / filename
+    data = {"revision": revision, "files": files}
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def load_file_snapshots(
+    cl_name: str,
+    profile_name: str,
+    mentor_name: str,
+    timestamp: str,
+) -> dict[str, str]:
+    """Load file snapshots for a mentor output.
+
+    Returns an empty dict if the file doesn't exist or is malformed.
+    """
+    safe_cl = cl_name.replace("/", "_")
+    filename = f"{safe_cl}-{profile_name}-{mentor_name}-{timestamp}-files.json"
+    path = SASE_MENTORS_DIR / filename
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data.get("files", {})
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        log.warning("Malformed file snapshots: %s", path)
+        return {}
 
 
 def load_mentor_outputs_for_commit(
