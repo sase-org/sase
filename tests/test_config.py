@@ -118,8 +118,8 @@ def test_load_merged_config_local_overrides_global(tmp_path: Path) -> None:
     assert result["other"] == "g"
 
 
-def test_load_merged_config_local_replaces_lists(tmp_path: Path) -> None:
-    """Local sase.yml uses replace strategy for lists."""
+def test_load_merged_config_local_concatenates_lists(tmp_path: Path) -> None:
+    """Local sase.yml concatenates lists (project profiles extend plugin profiles)."""
     global_config = tmp_path / "global"
     global_config.mkdir()
     (global_config / "sase.yml").write_text(yaml.dump({"items": [1, 2]}))
@@ -134,7 +134,7 @@ def test_load_merged_config_local_replaces_lists(tmp_path: Path) -> None:
     ):
         result = load_merged_config()
 
-    assert result["items"] == [3]
+    assert result["items"] == [1, 2, 3]
 
 
 def test_load_xprompts_by_source_includes_local_config(tmp_path: Path) -> None:

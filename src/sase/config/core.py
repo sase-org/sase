@@ -5,7 +5,7 @@ then deep-merges plugin ``default_config.yml`` files, then
 ``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
 alphabetically, with list concatenation) on top, then finally any local
-``sase.yml`` found in the current working directory (with list replacement).
+``sase.yml`` found in the current working directory (with list concatenation).
 """
 
 import importlib.resources
@@ -206,7 +206,7 @@ def load_merged_config() -> dict[str, Any]:
     2. Plugin ``default_config.yml`` files (sorted by EP name, lists concatenate)
     3. ``sase.yml`` (user config — lists **replace** defaults)
     4. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
-    5. ``./sase.yml`` (local CWD config — lists **replace**, highest priority)
+    5. ``./sase.yml`` (local CWD config — lists **concatenate**, highest priority)
 
     Returns at least the defaults even when no user config files exist.
     """
@@ -226,11 +226,13 @@ def load_merged_config() -> dict[str, Any]:
         if overlay:
             result = _deep_merge(result, overlay)
 
-    # 5. Local config (highest priority)
+    # 5. Local config (highest priority, lists concatenate so that
+    #    project-specific entries *add to* rather than replace plugin/user lists
+    #    — e.g. a repo's mentor_profiles should extend, not wipe, plugin profiles)
     local_path = _get_local_config_path()
     if local_path:
         local_config = _load_yaml_file(local_path)
         if local_config:
-            result = _deep_merge(result, local_config, list_strategy="replace")
+            result = _deep_merge(result, local_config)
 
     return result
