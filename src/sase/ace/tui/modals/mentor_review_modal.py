@@ -7,8 +7,11 @@ acceptance toggling, and running mentor killing.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 
+from rich.console import Group
+from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
@@ -27,6 +30,35 @@ from sase.ace.mentor_output import (
 from .base import CopyModeForwardingMixin
 
 log = logging.getLogger(__name__)
+
+_EXTENSION_TO_LEXER: dict[str, str] = {
+    ".bash": "bash",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".css": "css",
+    ".dart": "dart",
+    ".diff": "diff",
+    ".go": "go",
+    ".html": "html",
+    ".java": "java",
+    ".js": "javascript",
+    ".json": "json",
+    ".kt": "kotlin",
+    ".md": "markdown",
+    ".patch": "diff",
+    ".py": "python",
+    ".rb": "ruby",
+    ".rs": "rust",
+    ".sh": "bash",
+    ".sql": "sql",
+    ".swift": "swift",
+    ".toml": "toml",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".xml": "xml",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+}
 
 
 @dataclass
@@ -321,11 +353,66 @@ class MentorReviewModal(
             text.append("  [ ]", style="dim")
         text.append("\n")
 
+        # Code snippet with syntax highlighting
+        snippet = self._build_code_snippet(
+            str(comment["file_path"]),
+            int(comment["line_number"]),
+            text.plain.count("\n"),
+        )
+
         try:
             panel = self.query_one("#mentor-main-panel", Static)
-            panel.update(text)
+            if snippet is not None:
+                panel.update(Group(text, snippet))
+            else:
+                panel.update(text)
         except Exception:
             pass
+
+    def _build_code_snippet(
+        self, file_path: str, line_number: int, header_lines: int
+    ) -> Syntax | None:
+        """Build a syntax-highlighted code snippet centered on line_number."""
+        expanded = os.path.expanduser(file_path)
+        try:
+            with open(expanded, encoding="utf-8") as f:
+                content = f.read()
+        except Exception:
+            return None
+
+        if not content.strip():
+            return None
+
+        total_lines = content.count("\n") + 1
+        line_number = max(1, min(line_number, total_lines))
+
+        # Determine lexer from file extension
+        _, ext = os.path.splitext(file_path)
+        lexer = _EXTENSION_TO_LEXER.get(ext.lower(), "text")
+
+        # Compute available lines from panel height
+        try:
+            panel = self.query_one("#mentor-main-panel", Static)
+            panel_height = panel.content_size.height
+        except Exception:
+            panel_height = 0
+        max_lines = max(5, (panel_height or 40) - header_lines - 1)
+
+        # Center the range on the target line
+        half = max_lines // 2
+        start = max(1, line_number - half)
+        end = min(total_lines, start + max_lines - 1)
+        start = max(1, end - max_lines + 1)
+
+        return Syntax(
+            content,
+            lexer,
+            theme="monokai",
+            line_numbers=True,
+            line_range=(start, end),
+            highlight_lines={line_number},
+            word_wrap=True,
+        )
 
     def _update_footer(self) -> None:
         accepted = self._data.acceptance.accepted_count
