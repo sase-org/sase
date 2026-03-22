@@ -464,4 +464,111 @@ def test_first_commit_matches_later_via_amend_note_regexes() -> None:
     assert profile_matches_any_commit(profile, commits) is True
 
 
+# --- trace_profile_matching tests ---
+
+
+def test_trace_profile_matching_first_commit_match() -> None:
+    """Trace correctly reports first_commit match."""
+    from unittest.mock import patch
+
+    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
+    from sase.config.mentor import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="init_review",
+        mentors=[make_mentor_config()],
+        first_commit=True,
+    )
+    cs = _make_changespec(
+        commits=[CommitEntry(number=1, note="Initial commit")],
+    )
+    with patch(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        return_value=[profile],
+    ):
+        traces = trace_profile_matching(cs)
+
+    assert len(traces) == 1
+    assert traces[0].overall_match is True
+    first_cr = next(
+        cr for cr in traces[0].criteria_results if cr.criterion == "first_commit"
+    )
+    assert first_cr.configured is True
+    assert first_cr.matched is True
+
+
+def test_trace_profile_matching_no_match() -> None:
+    """Trace correctly reports no match when criteria don't apply."""
+    from unittest.mock import patch
+
+    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
+    from sase.config.mentor import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="init_review",
+        mentors=[make_mentor_config()],
+        first_commit=True,
+    )
+    cs = _make_changespec(
+        commits=[CommitEntry(number=2, note="Second commit")],
+    )
+    with patch(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        return_value=[profile],
+    ):
+        traces = trace_profile_matching(cs)
+
+    assert len(traces) == 1
+    assert traces[0].overall_match is False
+
+
+def test_trace_profile_matching_amend_note_match() -> None:
+    """Trace correctly reports amend_note_regexes match."""
+    from unittest.mock import patch
+
+    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
+    from sase.config.mentor import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="note_matcher",
+        mentors=[make_mentor_config()],
+        amend_note_regexes=[r"fix.*bug"],
+    )
+    cs = _make_changespec(
+        commits=[CommitEntry(number=1, note="fix the bug in parser")],
+    )
+    with patch(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        return_value=[profile],
+    ):
+        traces = trace_profile_matching(cs)
+
+    assert len(traces) == 1
+    assert traces[0].overall_match is True
+    note_cr = next(
+        cr for cr in traces[0].criteria_results if cr.criterion == "amend_note_regexes"
+    )
+    assert note_cr.configured is True
+    assert note_cr.matched is True
+    assert "fix.*bug" in note_cr.details
+
+
+def test_trace_profile_matching_empty_profiles() -> None:
+    """Trace returns empty list when no profiles loaded."""
+    from unittest.mock import patch
+
+    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
+
+    cs = _make_changespec(
+        commits=[CommitEntry(number=1, note="commit")],
+    )
+    with patch(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        return_value=[],
+    ):
+        traces = trace_profile_matching(cs)
+
+    assert traces == []
+
+
 # Tests for WIP status being skipped entirely by mentor checks

@@ -10,6 +10,7 @@ alphabetically, with list concatenation) on top, then finally any local
 
 import importlib.resources
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -55,8 +56,21 @@ def _deep_merge(
                 )
             elif isinstance(base_val, list) and isinstance(override_val, list):
                 if list_strategy == "replace":
+                    log.debug(
+                        "Merging key %r: list replace (base=%d items → override=%d items)",
+                        key,
+                        len(base_val),
+                        len(override_val),
+                    )
                     result[key] = override_val
                 else:
+                    log.debug(
+                        "Merging key %r: list concatenate (base=%d items, override=%d items → %d items)",
+                        key,
+                        len(base_val),
+                        len(override_val),
+                        len(base_val) + len(override_val),
+                    )
                     result[key] = base_val + override_val
             else:
                 result[key] = override_val
@@ -211,19 +225,32 @@ def load_merged_config() -> dict[str, Any]:
     Returns at least the defaults even when no user config files exist.
     """
     result = _load_default_config()
+    log.debug("Loading layer 'default' (keys: %s)", ", ".join(result.keys()))
 
     # 2. Plugin configs (between defaults and user config)
     for plugin_config in _load_plugin_configs():
+        log.debug("Loading layer 'plugin' (keys: %s)", ", ".join(plugin_config.keys()))
         result = _deep_merge(result, plugin_config)
 
     base_path = CONFIG_DIR / "sase.yml"
     user_base = _load_yaml_file(base_path)
     if user_base:
+        log.debug(
+            "Loading layer 'user' from %s (keys: %s) [list_strategy=replace]",
+            base_path,
+            ", ".join(user_base.keys()),
+        )
         result = _deep_merge(result, user_base, list_strategy="replace")
 
     for overlay_path in _get_overlay_paths():
         overlay = _load_yaml_file(overlay_path)
         if overlay:
+            log.debug(
+                "Loading layer 'overlay:%s' from %s (keys: %s)",
+                overlay_path.name,
+                overlay_path,
+                ", ".join(overlay.keys()),
+            )
             result = _deep_merge(result, overlay)
 
     # 5. Local config (highest priority, lists concatenate so that
@@ -233,6 +260,131 @@ def load_merged_config() -> dict[str, Any]:
     if local_path:
         local_config = _load_yaml_file(local_path)
         if local_config:
+            log.debug(
+                "Loading layer 'local' from %s (keys: %s) [list_strategy=concatenate]",
+                local_path,
+                ", ".join(local_config.keys()),
+            )
             result = _deep_merge(result, local_config)
 
     return result
+
+
+@dataclass
+class _ConfigLayer:
+    """Describes a single layer in the config merge chain."""
+
+    name: str
+    path: str | None
+    exists: bool
+    list_strategy: str
+    keys: list[str] = field(default_factory=list)
+    data: dict[str, Any] = field(default_factory=dict)
+
+
+def load_config_layers() -> list[_ConfigLayer]:
+    """Load all config layers with metadata, without merging.
+
+    Returns a list of _ConfigLayer descriptors in merge order (lowest to highest
+    priority).  Each entry records the source path, whether the file existed,
+    which top-level keys it contributed, and the raw data.
+    """
+    from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
+
+    layers: list[_ConfigLayer] = []
+
+    # 1. Built-in default
+    default_data = _load_default_config()
+    layers.append(
+        _ConfigLayer(
+            name="default",
+            path=None,
+            exists=True,
+            list_strategy="concatenate",
+            keys=list(default_data.keys()),
+            data=default_data,
+        )
+    )
+
+    # 2. Plugin configs
+    if not is_plugin_disabled("CONFIG"):
+        for module in discover_plugin_resources("sase_config"):
+            module_name = getattr(module, "__name__", str(module))
+            try:
+                ref = importlib.resources.files(module).joinpath("default_config.yml")
+                text = ref.read_text(encoding="utf-8")
+                data = yaml.safe_load(text)
+                if isinstance(data, dict):
+                    layers.append(
+                        _ConfigLayer(
+                            name=f"plugin:{module_name}",
+                            path=None,
+                            exists=True,
+                            list_strategy="concatenate",
+                            keys=list(data.keys()),
+                            data=data,
+                        )
+                    )
+            except Exception:
+                layers.append(
+                    _ConfigLayer(
+                        name=f"plugin:{module_name}",
+                        path=None,
+                        exists=False,
+                        list_strategy="concatenate",
+                    )
+                )
+
+    # 3. User config
+    base_path = CONFIG_DIR / "sase.yml"
+    user_data = _load_yaml_file(base_path)
+    layers.append(
+        _ConfigLayer(
+            name="user",
+            path=str(base_path),
+            exists=user_data is not None,
+            list_strategy="replace",
+            keys=list(user_data.keys()) if user_data else [],
+            data=user_data or {},
+        )
+    )
+
+    # 4. Overlay files
+    for overlay_path in _get_overlay_paths():
+        overlay_data = _load_yaml_file(overlay_path)
+        layers.append(
+            _ConfigLayer(
+                name=f"overlay:{overlay_path.name}",
+                path=str(overlay_path),
+                exists=overlay_data is not None,
+                list_strategy="concatenate",
+                keys=list(overlay_data.keys()) if overlay_data else [],
+                data=overlay_data or {},
+            )
+        )
+
+    # 5. Local config
+    local_path = _get_local_config_path()
+    if local_path:
+        local_data = _load_yaml_file(local_path)
+        layers.append(
+            _ConfigLayer(
+                name="local",
+                path=str(local_path),
+                exists=local_data is not None,
+                list_strategy="concatenate",
+                keys=list(local_data.keys()) if local_data else [],
+                data=local_data or {},
+            )
+        )
+    else:
+        layers.append(
+            _ConfigLayer(
+                name="local",
+                path=str(Path.cwd() / "sase.yml"),
+                exists=False,
+                list_strategy="concatenate",
+            )
+        )
+
+    return layers

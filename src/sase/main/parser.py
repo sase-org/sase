@@ -314,6 +314,39 @@ def create_parser() -> argparse.ArgumentParser:
     bead_update_parser.add_argument("-D", "--design")
     bead_update_parser.add_argument("-a", "--assignee")
 
+    # --- config ---
+    config_parser = top_level_subparsers.add_parser(
+        "config",
+        help="Inspect merged configuration, layers, and mentor profile matching",
+    )
+    config_subparsers = config_parser.add_subparsers(
+        dest="config_subcommand", help="Config subcommands"
+    )
+
+    # sase config show
+    config_show_parser = config_subparsers.add_parser(
+        "show", help="Print the final merged config as YAML"
+    )
+    config_show_parser.add_argument(
+        "-k",
+        "--key",
+        help="Extract a specific top-level key (e.g., mentor_profiles)",
+    )
+
+    # sase config layers
+    config_subparsers.add_parser(
+        "layers", help="Show per-layer breakdown of the config merge chain"
+    )
+
+    # sase config mentor-match
+    config_mentor_match_parser = config_subparsers.add_parser(
+        "mentor-match",
+        help="Trace mentor profile matching for a ChangeSpec",
+    )
+    config_mentor_match_parser.add_argument(
+        "changespec_name", help="NAME of the ChangeSpec to trace matching for"
+    )
+
     # --- amend ---
     amend_parser = top_level_subparsers.add_parser(
         "amend",

@@ -4,6 +4,7 @@ import fnmatch
 import os
 import re
 from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from sase.config.mentor import (
     MentorProfileConfig,
@@ -289,3 +290,166 @@ def add_matching_profiles_upfront(
             )
 
     return updates
+
+
+@dataclass
+class _CriterionResult:
+    """Result of evaluating a single matching criterion."""
+
+    criterion: str
+    configured: bool
+    matched: bool
+    details: str = ""
+
+
+@dataclass
+class _ProfileMatchTrace:
+    """Trace of matching a single profile against commits."""
+
+    profile_name: str
+    criteria_results: list[_CriterionResult] = field(default_factory=list)
+    overall_match: bool = False
+
+
+def _trace_profile_match(
+    profile: MentorProfileConfig,
+    commits: list[CommitEntry],
+) -> _ProfileMatchTrace:
+    """Trace how a profile matches against a set of commits, returning details."""
+    trace = _ProfileMatchTrace(profile_name=profile.profile_name)
+
+    # first_commit
+    has_first = any(c.display_number == "1" for c in commits)
+    trace.criteria_results.append(
+        _CriterionResult(
+            criterion="first_commit",
+            configured=profile.first_commit,
+            matched=profile.first_commit and has_first,
+            details="commit (1) present" if has_first else "no commit (1)",
+        )
+    )
+
+    # file_globs
+    if profile.file_globs:
+        glob_matched = False
+        details_parts: list[str] = []
+        for commit in commits:
+            if not commit.diff:
+                continue
+            full_path = os.path.expanduser(commit.diff)
+            if not os.path.exists(full_path):
+                details_parts.append(f"diff {commit.diff}: file not found")
+                continue
+            with open(full_path, encoding="utf-8", errors="ignore") as f:
+                diff_content = f.read()
+            changed_files = _extract_changed_files_from_diff(diff_content)
+            for pattern in profile.file_globs:
+                for filepath in changed_files:
+                    if fnmatch.fnmatch(filepath, pattern):
+                        details_parts.append(f"{pattern} matched {filepath}")
+                        glob_matched = True
+            if not glob_matched and changed_files:
+                details_parts.append(
+                    f"checked {len(changed_files)} files, no glob match"
+                )
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="file_globs",
+                configured=True,
+                matched=glob_matched,
+                details="; ".join(details_parts) if details_parts else "no diffs",
+            )
+        )
+    else:
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="file_globs", configured=False, matched=False, details=""
+            )
+        )
+
+    # diff_regexes
+    if profile.diff_regexes:
+        regex_matched = False
+        regex_details: list[str] = []
+        for commit in commits:
+            if not commit.diff:
+                continue
+            full_path = os.path.expanduser(commit.diff)
+            if not os.path.exists(full_path):
+                continue
+            with open(full_path, encoding="utf-8", errors="ignore") as f:
+                diff_content = f.read()
+            for regex in profile.diff_regexes:
+                if re.search(regex, diff_content):
+                    regex_details.append(f"/{regex}/ matched in {commit.diff}")
+                    regex_matched = True
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="diff_regexes",
+                configured=True,
+                matched=regex_matched,
+                details="; ".join(regex_details) if regex_details else "no match",
+            )
+        )
+    else:
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="diff_regexes", configured=False, matched=False, details=""
+            )
+        )
+
+    # amend_note_regexes
+    if profile.amend_note_regexes:
+        note_matched = False
+        note_details: list[str] = []
+        for commit in commits:
+            if not commit.note:
+                continue
+            for regex in profile.amend_note_regexes:
+                if re.search(regex, commit.note):
+                    note_details.append(
+                        f"/{regex}/ matched note ({commit.display_number})"
+                    )
+                    note_matched = True
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="amend_note_regexes",
+                configured=True,
+                matched=note_matched,
+                details="; ".join(note_details) if note_details else "no match",
+            )
+        )
+    else:
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="amend_note_regexes",
+                configured=False,
+                matched=False,
+                details="",
+            )
+        )
+
+    trace.overall_match = any(
+        cr.configured and cr.matched for cr in trace.criteria_results
+    )
+    return trace
+
+
+def trace_profile_matching(
+    changespec: ChangeSpec,
+) -> list[_ProfileMatchTrace]:
+    """Trace profile matching for a ChangeSpec, returning structured results.
+
+    Args:
+        changespec: The ChangeSpec to trace matching for.
+
+    Returns:
+        List of _ProfileMatchTrace, one per loaded profile.
+    """
+    commits = _get_commits_since_last_mentors(changespec)
+    profiles = get_all_mentor_profiles()
+
+    if not profiles:
+        return []
+
+    return [_trace_profile_match(profile, commits) for profile in profiles]
