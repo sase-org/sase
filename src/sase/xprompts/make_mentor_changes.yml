@@ -29,4 +29,6 @@ steps:
       Apply the following code review changes to the codebase. Make each change as described,
       run any relevant tests, and commit your changes.
 
+      %xprompts_enabled:false
       {{ render_changes.rendered_changes }}
+      %xprompts_enabled:true
