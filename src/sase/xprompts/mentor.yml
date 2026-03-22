@@ -45,4 +45,6 @@ steps:
 
       {{ render_focus_areas.rendered_focus_areas }}
 
+      ## JSON Output Format
+
       #json:`{{ schema }}`
