@@ -698,3 +698,74 @@ def set_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
         return True  # ChangeSpec not found, nothing to do
     except Exception:
         return False
+
+
+def remove_mentor_data(
+    project_file: str,
+    changespec_name: str,
+    *,
+    delete_field: bool = False,
+    entry_ids_to_delete: set[str] | None = None,
+    lines_to_delete: dict[str, set[tuple[str, str]]] | None = None,
+) -> bool:
+    """Remove mentor entries, status lines, or the entire MENTORS field.
+
+    Unlike update_changespec_mentors_field which merges status_lines from
+    disk, this function performs direct deletions without merge-back.
+
+    Args:
+        project_file: Path to the project file.
+        changespec_name: Name of the ChangeSpec.
+        delete_field: If True, remove the entire MENTORS field.
+        entry_ids_to_delete: Set of entry IDs to completely remove.
+        lines_to_delete: Dict mapping entry_id to set of
+            (mentor_name, profile_name) tuples to remove.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        with changespec_lock(project_file):
+            changespecs = parse_project_file(project_file)
+            current_mentors: list[MentorEntry] = []
+            for cs in changespecs:
+                if cs.name == changespec_name:
+                    current_mentors = list(cs.mentors) if cs.mentors else []
+                    break
+
+            if not current_mentors:
+                return True
+
+            if delete_field:
+                updated_mentors: list[MentorEntry] = []
+            else:
+                updated_mentors = []
+                for entry in current_mentors:
+                    if entry_ids_to_delete and entry.entry_id in entry_ids_to_delete:
+                        continue
+                    if lines_to_delete and entry.entry_id in lines_to_delete:
+                        if entry.status_lines:
+                            entry.status_lines = [
+                                sl
+                                for sl in entry.status_lines
+                                if (sl.mentor_name, sl.profile_name)
+                                not in lines_to_delete[entry.entry_id]
+                            ]
+                    updated_mentors.append(entry)
+
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            updated_lines = _apply_mentors_update(
+                lines, changespec_name, updated_mentors
+            )
+            content = "".join(updated_lines)
+
+            write_changespec_atomic(
+                project_file,
+                content,
+                f"Remove mentor data for {changespec_name}",
+            )
+            return True
+    except Exception:
+        return False

@@ -275,7 +275,10 @@ def build_hooks_section(
                 text.append("| ", style="#808080")
                 # Determine if we should show a hint for this status line
                 show_hint = False
-                if with_hints and hints_for not in ("mentors_running",):
+                if with_hints and hints_for not in (
+                    "mentors_running",
+                    "mentors_manage",
+                ):
                     show_hint = True
 
                 if show_hint:

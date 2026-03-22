@@ -257,7 +257,7 @@ class KeybindingFooter(Horizontal):
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))
             bindings.append((k("run_cmd"), "run cmd (CL)"))
-            bindings.append((k("kill_mentors"), "kill mentors"))
+            bindings.append((k("kill_mentors"), "manage mentors"))
             if has_mentor_results:
                 bindings.append((k("review_mentors"), "review mentors"))
         if self._runner_count > 0:

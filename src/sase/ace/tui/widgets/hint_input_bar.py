@@ -137,9 +137,9 @@ class HintInputBar(Static):
                     id="hint-input",
                 )
             elif self.mode == "mentors":
-                yield Label("Kill Mentors: ", id="hint-label")
+                yield Label("Mentors: ", id="hint-label")
                 yield _HintInput(
-                    placeholder="1-5 or 1 3 5 (select running mentors to kill)",
+                    placeholder="1-5 or 1 3 5 (delete entries/lines, kills running)",
                     id="hint-input",
                 )
             elif self.mode == "rewind":

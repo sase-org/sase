@@ -1,4 +1,4 @@
-"""Mentor killing methods for the ace TUI app."""
+"""Mentor management methods for the ace TUI app."""
 
 from __future__ import annotations
 
@@ -8,39 +8,27 @@ from ._types import HintMixinBase
 
 
 class MentorKillingMixin(HintMixinBase):
-    """Mixin providing mentor killing actions via hint mode."""
+    """Mixin providing mentor management actions via hint mode."""
 
     def action_kill_mentors(self) -> None:
-        """Show hints for running mentors and allow killing selected ones."""
+        """Show hints for managing mentors - delete entries, lines, or field."""
         if not self.changespecs:
             return
 
         changespec = self.changespecs[self.current_idx]
 
-        # Check if there are any running mentors
-        has_running = False
-        if changespec.mentors:
-            for entry in changespec.mentors:
-                if entry.status_lines:
-                    for sl in entry.status_lines:
-                        if sl.suffix_type == "running_agent":
-                            has_running = True
-                            break
-                if has_running:
-                    break
-
-        if not has_running:
-            self.notify("No running mentors to kill", severity="warning")  # type: ignore[attr-defined]
+        if not changespec.mentors:
+            self.notify("No mentors to manage", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Re-render detail with hints for running mentors
+        # Re-render detail with manage hints
         detail_widget = self.query_one("#detail-panel", ChangeSpecDetail)  # type: ignore[attr-defined]
         query_str = self.canonical_query_string  # type: ignore[attr-defined]
         hint_mappings, hook_hint_to_idx, hint_to_entry_id, mentor_hint_to_info = (
             detail_widget.update_display_with_hints(
                 changespec,
                 query_str,
-                hints_for="mentors_running",
+                hints_for="mentors_manage",
                 hooks_collapsed=self.hooks_collapsed,  # type: ignore[attr-defined]
                 commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
                 mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
@@ -48,12 +36,12 @@ class MentorKillingMixin(HintMixinBase):
         )
 
         if not mentor_hint_to_info:
-            self.notify("No running mentors found", severity="warning")  # type: ignore[attr-defined]
+            self.notify("No mentor items to manage", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Store state for later processing
         self._hint_mode_active = True
-        self._hint_mode_hints_for = "mentors_running"
+        self._hint_mode_hints_for = "mentors_manage"
         self._hint_mappings = hint_mappings
         self._hook_hint_to_idx = hook_hint_to_idx
         self._hint_to_entry_id = hint_to_entry_id
@@ -66,11 +54,10 @@ class MentorKillingMixin(HintMixinBase):
         detail_container.mount(hint_bar)
 
     def _process_mentors_input(self, user_input: str) -> None:
-        """Process mentor kill input - kill selected running mentors."""
+        """Process mentor management input - delete entries, lines, or field."""
         if not user_input:
             return
 
-        changespec = self.changespecs[self.current_idx]
         mentor_hint_to_info = self._mentor_hint_to_info
 
         # Parse hint numbers from input (space-separated, ranges like 1-3)
@@ -109,26 +96,56 @@ class MentorKillingMixin(HintMixinBase):
             return
 
         if not selected_hints:
-            self.notify("No valid mentors selected", severity="warning")  # type: ignore[attr-defined]
+            self.notify("No valid selections", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Kill the selected mentors
-        self._kill_selected_mentors(changespec, selected_hints)
+        # Categorize selections
+        delete_field = False
+        entry_ids_to_delete: set[str] = set()
+        lines_to_delete: dict[str, set[tuple[str, str]]] = {}
 
-    def _kill_selected_mentors(
+        for hint in selected_hints:
+            entry_id = self._hint_to_entry_id[hint]
+            mentor_name, profile_name = mentor_hint_to_info[hint]
+
+            if mentor_name == "__FIELD__":
+                delete_field = True
+            elif mentor_name == "__ENTRY__":
+                entry_ids_to_delete.add(entry_id)
+            else:
+                lines_to_delete.setdefault(entry_id, set()).add(
+                    (mentor_name, profile_name)
+                )
+
+        # If deleting field, don't need individual entry/line deletions
+        if delete_field:
+            entry_ids_to_delete = set()
+            lines_to_delete = {}
+
+        changespec = self.changespecs[self.current_idx]
+        self._apply_mentor_deletions(
+            changespec, delete_field, entry_ids_to_delete, lines_to_delete
+        )
+
+    def _apply_mentor_deletions(
         self,
         changespec: ChangeSpec,
-        selected_hints: set[int],
+        delete_field: bool,
+        entry_ids_to_delete: set[str],
+        lines_to_delete: dict[str, set[tuple[str, str]]],
     ) -> None:
-        """Kill selected running mentor processes and mark them as killed."""
-        from ....changespec import parse_project_file
-        from ....hooks.processes import (
-            extract_mentor_workflow_from_suffix,
-            mark_mentor_agents_as_killed,
-        )
-        from ....mentors import update_changespec_mentors_field
+        """Apply mentor deletions - kill running mentors, then remove data."""
+        import os
+        import signal
 
-        # Re-read fresh state from disk
+        from ....changespec import (
+            extract_pid_from_agent_suffix,
+            parse_project_file,
+        )
+        from ....hooks.processes import extract_mentor_workflow_from_suffix
+        from ....mentors import remove_mentor_data
+
+        # Re-read fresh state from disk for killing
         changespecs = parse_project_file(changespec.file_path)
         target_cs = None
         for cs in changespecs:
@@ -137,72 +154,44 @@ class MentorKillingMixin(HintMixinBase):
                 break
 
         if target_cs is None or not target_cs.mentors:
-            self.notify("ChangeSpec not found", severity="error")  # type: ignore[attr-defined]
+            self.notify("ChangeSpec not found or no mentors", severity="error")  # type: ignore[attr-defined]
             return
 
-        # Build set of (entry_id, profile_name, mentor_name) to kill
-        mentors_to_kill: set[tuple[str, str, str]] = set()
-        for hint in selected_hints:
-            entry_id = self._hint_to_entry_id[hint]
-            mentor_name, profile_name = self._mentor_hint_to_info[hint]
-            mentors_to_kill.add((entry_id, profile_name, mentor_name))
+        # Determine which entries have running mentors that need killing
+        if delete_field:
+            kill_entry_ids = {e.entry_id for e in target_cs.mentors}
+        else:
+            kill_entry_ids = set(entry_ids_to_delete)
 
-        # Find and kill matching running mentor processes
-        import os
-        import signal
-
-        from ....changespec import (
-            MentorEntry,
-            MentorStatusLine,
-            extract_pid_from_agent_suffix,
-        )
-
-        killed_agents: list[tuple[MentorEntry, MentorStatusLine, int]] = []
+        # Kill running mentors in affected entries and release workspaces
         killed_count = 0
+        killed_suffixes: list[str] = []
 
         for entry in target_cs.mentors:
+            if entry.entry_id not in kill_entry_ids:
+                continue
             if not entry.status_lines:
                 continue
             for sl in entry.status_lines:
                 if sl.suffix_type != "running_agent" or not sl.suffix:
                     continue
-                key = (entry.entry_id, sl.profile_name, sl.mentor_name)
-                if key not in mentors_to_kill:
-                    continue
-
                 pid = extract_pid_from_agent_suffix(sl.suffix)
                 if pid is None:
                     continue
-
                 try:
                     os.killpg(pid, signal.SIGTERM)
                 except (ProcessLookupError, PermissionError):
                     pass
-
-                killed_agents.append((entry, sl, pid))
                 killed_count += 1
+                killed_suffixes.append(sl.suffix)
 
-        if killed_agents:
-            # Mark killed mentors with killed_agent suffix_type
-            updated_mentors = mark_mentor_agents_as_killed(
-                target_cs.mentors, killed_agents
-            )
-            update_changespec_mentors_field(
-                changespec.file_path, changespec.name, updated_mentors
-            )
-
-            # Release workspaces claimed by killed mentor processes
+        if killed_suffixes:
             from sase.running_field import get_claimed_workspaces, release_workspace
 
-            for _, status_line, _ in killed_agents:
-                suffix = status_line.suffix
-                if not suffix:
-                    continue
-
+            for suffix in killed_suffixes:
                 workflow = extract_mentor_workflow_from_suffix(suffix)
                 if not workflow:
                     continue
-
                 for claim in get_claimed_workspaces(changespec.file_path):
                     if claim.workflow == workflow and claim.cl_name == changespec.name:
                         release_workspace(
@@ -213,5 +202,32 @@ class MentorKillingMixin(HintMixinBase):
                         )
                         break
 
-        self.notify(f"Killed {killed_count} mentor(s)")  # type: ignore[attr-defined]
+        # Apply deletions to disk
+        success = remove_mentor_data(
+            changespec.file_path,
+            changespec.name,
+            delete_field=delete_field,
+            entry_ids_to_delete=entry_ids_to_delete or None,
+            lines_to_delete=lines_to_delete or None,
+        )
+
+        if not success:
+            self.notify("Failed to update mentors", severity="error")  # type: ignore[attr-defined]
+            return
+
+        # Build notification
+        msg_parts: list[str] = []
+        if delete_field:
+            msg_parts.append("Deleted MENTORS field")
+        else:
+            if entry_ids_to_delete:
+                n = len(entry_ids_to_delete)
+                msg_parts.append(f"Deleted {n} {'entry' if n == 1 else 'entries'}")
+            total_lines = sum(len(v) for v in lines_to_delete.values())
+            if total_lines:
+                msg_parts.append(f"removed {total_lines} line(s)")
+        if killed_count:
+            msg_parts.append(f"killed {killed_count} running mentor(s)")
+
+        self.notify(", ".join(msg_parts) if msg_parts else "No changes")  # type: ignore[attr-defined]
         self._reload_and_reposition()  # type: ignore[attr-defined]

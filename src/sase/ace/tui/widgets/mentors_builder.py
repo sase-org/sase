@@ -63,6 +63,12 @@ def build_mentors_section(
                 if latest_entry_id is None or commit.number > int(latest_entry_id):
                     latest_entry_id = str(commit.number)
 
+    if with_hints and hints_for == "mentors_manage":
+        hint_mappings[hint_counter] = ""
+        hint_to_entry_id[hint_counter] = "__FIELD__"
+        mentor_hint_to_info[hint_counter] = ("__FIELD__", "__FIELD__")
+        text.append(f"[{hint_counter}] ", style="bold #FF5F5F")
+        hint_counter += 1
     text.append("MENTORS:\n", style="bold #87D7FF")
 
     for mentor_entry in changespec.mentors:
@@ -85,7 +91,11 @@ def build_mentors_section(
         commented_count = 0
         failed_count = 0
         dead_count = 0
-        if mentors_fold != FoldLevel.FULLY_EXPANDED and mentor_entry.status_lines:
+        if (
+            mentors_fold != FoldLevel.FULLY_EXPANDED
+            and hints_for != "mentors_manage"
+            and mentor_entry.status_lines
+        ):
             for msl in mentor_entry.status_lines:
                 if msl.status == "PASSED":
                     if mentors_fold == FoldLevel.COLLAPSED:
@@ -110,6 +120,12 @@ def build_mentors_section(
 
         # Entry line (2-space indented): (N) profile1[x/y] [profile2[x/y] ...]
         text.append("  ", style="")
+        if with_hints and hints_for == "mentors_manage":
+            hint_mappings[hint_counter] = ""
+            hint_to_entry_id[hint_counter] = mentor_entry.entry_id
+            mentor_hint_to_info[hint_counter] = ("__ENTRY__", "__ENTRY__")
+            text.append(f"[{hint_counter}] ", style="bold #FF5F5F")
+            hint_counter += 1
         text.append(f"({mentor_entry.entry_id}) ", style="bold #D7AF5F")
         profiles_with_counts = [
             format_profile_with_count(p, mentor_entry.status_lines)
@@ -143,7 +159,10 @@ def build_mentors_section(
         # Status lines (if present) - 6-space indented
         if mentor_entry.status_lines:
             for msl in mentor_entry.status_lines:
-                if mentors_fold != FoldLevel.FULLY_EXPANDED:
+                if (
+                    mentors_fold != FoldLevel.FULLY_EXPANDED
+                    and hints_for != "mentors_manage"
+                ):
                     # In mentors_running mode, always show RUNNING mentors
                     # regardless of fold level or entry age
                     force_show = (
@@ -165,9 +184,20 @@ def build_mentors_section(
                 text.append("| ", style="#808080")
 
                 # Show hints based on mode:
+                # - mentors_manage: hints for non-running mentors (for ,M manage mode)
                 # - mentors_running: hints for RUNNING mentors (for ,M kill mode)
                 # - default: hints for PASSED/FAILED mentors (for view mode)
-                if with_hints and hints_for == "mentors_running":
+                if with_hints and hints_for == "mentors_manage":
+                    if msl.suffix_type != "running_agent":
+                        hint_mappings[hint_counter] = ""
+                        hint_to_entry_id[hint_counter] = mentor_entry.entry_id
+                        mentor_hint_to_info[hint_counter] = (
+                            msl.mentor_name,
+                            msl.profile_name,
+                        )
+                        text.append(f"[{hint_counter}] ", style="bold #FF5F5F")
+                        hint_counter += 1
+                elif with_hints and hints_for == "mentors_running":
                     if msl.suffix_type == "running_agent":
                         hint_mappings[hint_counter] = ""  # No file to view
                         hint_to_entry_id[hint_counter] = mentor_entry.entry_id
