@@ -166,7 +166,7 @@ class MentorReviewMixin:
         # Append commit-tagged xprompt if one exists
         commit_wf = get_by_tag(XPromptTag.commit)
         if commit_wf is not None:
-            prompt += f"\n\n#{commit_wf.name}"
+            prompt += f"\n\n#{commit_wf.name}(who=mentor)"
 
         # Set up prompt context in home mode (VCS resolution happens
         # in _finish_agent_launch from the #vcs:cl_name prefix)
