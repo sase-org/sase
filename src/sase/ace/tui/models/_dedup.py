@@ -61,6 +61,17 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.start_time = source.start_time
     if target.raw_suffix is None and source.raw_suffix is not None:
         target.raw_suffix = source.raw_suffix
+    # ChangeSpec-sourced fields (mentor, hook, CRS metadata)
+    if target.mentor_profile is None and source.mentor_profile is not None:
+        target.mentor_profile = source.mentor_profile
+    if target.mentor_name is None and source.mentor_name is not None:
+        target.mentor_name = source.mentor_name
+    if target.hook_command is None and source.hook_command is not None:
+        target.hook_command = source.hook_command
+    if target.reviewer is None and source.reviewer is not None:
+        target.reviewer = source.reviewer
+    if target.commit_entry_id is None and source.commit_entry_id is not None:
+        target.commit_entry_id = source.commit_entry_id
 
 
 def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
