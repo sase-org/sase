@@ -1,5 +1,6 @@
 """Tests for status_state_machine file-based transitions and atomic operations."""
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -7,11 +8,7 @@ from sase.status_state_machine import (
     transition_changespec_status,
 )
 
-
-def _create_test_project_file(status: str = "Ready") -> str:
-    """Create a temporary project file with a test ChangeSpec."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
-        f.write(f"""# Test Project
+_CHANGESPEC_TEMPLATE = """# Test Project
 
 ## ChangeSpec
 
@@ -24,7 +21,13 @@ STATUS: {status}
 TEST TARGETS: None
 
 ---
-""")
+"""
+
+
+def _create_test_project_file(status: str = "Ready", suffix: str = ".gp") -> str:
+    """Create a temporary project file with a test ChangeSpec."""
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=suffix) as f:
+        f.write(_CHANGESPEC_TEMPLATE.format(status=status))
         return f.name
 
 
@@ -53,11 +56,14 @@ def test_transition_changespec_status_invalid_transition() -> None:
 
 
 def test_transition_changespec_status_skip_validation() -> None:
-    """Test that validation can be skipped with validate=False."""
+    """Test that validation can be skipped and ChangeSpec moves to archive."""
+    from sase.ace.changespec.archive import get_archive_file_path
+
     project_file = _create_test_project_file("Ready")
+    archive_file = get_archive_file_path(project_file)
 
     try:
-        # This transition would normally be invalid
+        # This transition (Ready→Submitted) would normally be invalid
         success, old_status, error, _ = transition_changespec_status(
             project_file, "Test Feature", "Submitted", validate=False
         )
@@ -67,27 +73,48 @@ def test_transition_changespec_status_skip_validation() -> None:
         assert error is None
 
         # ChangeSpec should have been moved to the archive file
-        from sase.ace.changespec.archive import get_archive_file_path
+        assert os.path.isfile(archive_file)
+        with open(archive_file) as f:
+            assert "STATUS: Submitted" in f.read()
 
-        archive_file = get_archive_file_path(project_file)
-        archive_path = Path(archive_file)
-        if archive_path.exists():
-            # Submitted ChangeSpec was moved to archive
-            with open(archive_file) as f:
-                assert "STATUS: Submitted" in f.read()
-        else:
-            # Fallback: if archive didn't happen (e.g., non-.gp file), check main
-            with open(project_file) as f:
-                assert "STATUS: Submitted" in f.read()
+        # ChangeSpec should NOT be in the main file
+        with open(project_file) as f:
+            assert "NAME: Test Feature" not in f.read()
 
     finally:
         Path(project_file).unlink()
-        # Clean up archive file if created
-        from sase.ace.changespec.archive import get_archive_file_path
+        if Path(archive_file).exists():
+            Path(archive_file).unlink()
 
-        archive_path = Path(get_archive_file_path(project_file))
-        if archive_path.exists():
-            archive_path.unlink()
+
+def test_transition_from_archive_to_main() -> None:
+    """Test moving a ChangeSpec from archive back to main file (validate=False)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        main_file = os.path.join(tmpdir, "test.gp")
+        archive_file = os.path.join(tmpdir, "test-archive.gp")
+
+        # Set up: main file is empty, ChangeSpec is in the archive with Submitted status
+        with open(main_file, "w") as f:
+            f.write("# Test Project\n")
+        with open(archive_file, "w") as f:
+            f.write(_CHANGESPEC_TEMPLATE.format(status="Submitted"))
+
+        # Transition from Submitted→WIP (via validate=False) on the archive file
+        success, old_status, error, _ = transition_changespec_status(
+            archive_file, "Test Feature", "WIP", validate=False
+        )
+
+        assert success is True
+        assert old_status == "Submitted"
+        assert error is None
+
+        # ChangeSpec should have been moved to the main file
+        with open(main_file) as f:
+            assert "NAME: Test Feature" in f.read()
+
+        # ChangeSpec should NOT be in the archive file
+        with open(archive_file) as f:
+            assert "NAME: Test Feature" not in f.read()
 
 
 def test_transition_changespec_status_nonexistent_changespec() -> None:
@@ -119,7 +146,7 @@ def _create_project_file_with_multiple_changespecs(
     Returns:
         Path to the created project file.
     """
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gp") as f:
         f.write("# Test Project\n\n")
         for name, status, parent in changespecs:
             parent_val = parent if parent else "None"

@@ -641,6 +641,8 @@ def transition_changespec_status(
     if result[0]:  # success
         from sase.ace.changespec.archive import (
             get_archive_file_path,
+            get_main_file_path,
+            is_archive_file,
             move_changespec_to_file,
         )
 
@@ -648,13 +650,19 @@ def transition_changespec_status(
         old_is_archive = old_status_val in ARCHIVE_STATUSES if old_status_val else False
         new_is_archive = new_status in ARCHIVE_STATUSES
 
-        if new_is_archive and not old_is_archive:
-            # Moving TO archive: source is main file, dest is archive file
-            archive_file = get_archive_file_path(project_file)
-            move_changespec_to_file(project_file, archive_file, changespec_name)
-        elif old_is_archive and not new_is_archive:
-            # Moving FROM archive: source is archive file, dest is main file
-            archive_file = get_archive_file_path(project_file)
-            move_changespec_to_file(archive_file, project_file, changespec_name)
+        if new_is_archive != old_is_archive:
+            # Determine main and archive file paths, handling the case
+            # where project_file itself is the archive file
+            if is_archive_file(project_file):
+                main_file = get_main_file_path(project_file)
+                archive_file = project_file
+            else:
+                main_file = project_file
+                archive_file = get_archive_file_path(project_file)
+
+            if new_is_archive:
+                move_changespec_to_file(main_file, archive_file, changespec_name)
+            else:
+                move_changespec_to_file(archive_file, main_file, changespec_name)
 
     return (result[0], result[1], result[2], sibling_results)

@@ -91,11 +91,6 @@ def _extract_changespec_block(
         # Reached beginning of file
         pass
 
-    # Include any blank lines between the header (or previous content) and NAME
-    # We already walked backwards; block_start is the earliest line to include.
-    # But only include blank lines that are directly above the block:
-    if block_start < name_line_idx:
-        block_start = block_start  # already correct
     # Also include blank lines that sit between previous content and our header
     while block_start > 0 and lines[block_start - 1].strip() == "":
         block_start -= 1
