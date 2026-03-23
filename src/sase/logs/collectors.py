@@ -195,6 +195,51 @@ def _collect_jsonl_by_timestamp(path: str, start: datetime, end: datetime) -> li
     return lines
 
 
+def collect_comments(start: datetime, end: datetime) -> list[Path]:
+    return _collect_by_filename_suffix("~/.sase/comments", start, end, "*.json")
+
+
+def collect_mentors(start: datetime, end: datetime) -> list[Path]:
+    return _collect_by_mtime("~/.sase/mentors", start, end, "*.json")
+
+
+def collect_archived_diffs(start: datetime, end: datetime) -> list[Path]:
+    return _collect_by_mtime("~/.sase/archived", start, end, "*.diff")
+
+
+def collect_reverted_diffs(start: datetime, end: datetime) -> list[Path]:
+    return _collect_by_mtime("~/.sase/reverted", start, end, "*.diff")
+
+
+def collect_saved_plans(start: datetime, end: datetime) -> list[Path]:
+    return _collect_by_mtime("~/.sase/plans", start, end)
+
+
+def collect_axe_state(start: datetime, end: datetime) -> list[tuple[str, Path]]:
+    """Collect axe lumberjack state files whose mtime falls within the date range.
+
+    Returns a list of (lumberjack_name, file_path) tuples so the pack builder
+    can preserve the per-lumberjack directory structure.
+    """
+    jacks_dir = Path("~/.sase/axe/lumberjacks").expanduser()
+    if not jacks_dir.is_dir():
+        return []
+    results: list[tuple[str, Path]] = []
+    for jack_dir in sorted(jacks_dir.iterdir()):
+        if not jack_dir.is_dir():
+            continue
+        name = jack_dir.name
+        # Collect state JSON files directly in the lumberjack dir
+        for p in jack_dir.glob("*.json"):
+            if p.is_file() and _in_range(_ts_from_mtime(p), start, end):
+                results.append((name, p))
+        # Collect output log
+        log_file = jack_dir / "logs" / "output.log"
+        if log_file.is_file() and _in_range(_ts_from_mtime(log_file), start, end):
+            results.append((name, log_file))
+    return results
+
+
 def collect_run_log(start: datetime, end: datetime) -> list[str]:
     return _collect_jsonl_by_timestamp("~/.sase/logs/runs.jsonl", start, end)
 
