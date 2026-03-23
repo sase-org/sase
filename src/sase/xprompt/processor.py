@@ -233,7 +233,7 @@ def process_xprompt_references(
         # Check if any matches are actual xprompts we know about
         has_known_xprompt = False
         for match in matches:
-            name = match.group(1)
+            name = match.group(1).replace("__", "/")
             if name in xprompts:
                 has_known_xprompt = True
                 break
@@ -244,7 +244,7 @@ def process_xprompt_references(
         # Expand from last to first to preserve positions
         try:
             for match in reversed(matches):
-                name = match.group(1)
+                name = match.group(1).replace("__", "/")
 
                 # Skip if this isn't a known xprompt
                 if name not in xprompts:

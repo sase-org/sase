@@ -62,6 +62,46 @@ def test_process_xprompt_heading_content_no_extra_newline_at_end() -> None:
     assert result == "# New Query"
 
 
+def test_process_xprompt_double_underscore_resolves_as_slash() -> None:
+    """Test that #foo__bar expands the xprompt registered as foo/bar."""
+    snippets = {"foo/bar": "expanded content"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#foo__bar")
+    assert result == "expanded content"
+
+
+def test_process_xprompt_double_underscore_multi_level() -> None:
+    """Test that #a__b__c expands the xprompt registered as a/b/c."""
+    snippets = {"a/b/c": "deep content"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#a__b__c")
+    assert result == "deep content"
+
+
+def test_process_xprompt_double_underscore_with_args() -> None:
+    """Test that #foo__bar(val) expands with args."""
+    snippets = {"foo/bar": "got {1}"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#foo__bar(hello)")
+    assert result == "got hello"
+
+
+def test_process_xprompt_single_underscore_unchanged() -> None:
+    """Test that single underscores are NOT converted to slashes."""
+    snippets = {"foo_bar": "single underscore content"}
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts", return_value=_make_xprompts(snippets)
+    ):
+        result = process_xprompt_references("#foo_bar")
+    assert result == "single underscore content"
+
+
 def test_process_xprompt_heading_content_no_extra_newline_before_newline() -> None:
     """Test that xprompt ending with heading before a newline gets no extra newline."""
     snippets = {"section": "# New Query"}

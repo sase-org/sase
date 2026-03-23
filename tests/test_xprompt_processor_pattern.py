@@ -167,3 +167,28 @@ def test_xprompt_pattern_colon_arg_cmd_sub_with_args() -> None:
     assert match is not None
     assert match.group(1) == "foo"
     assert match.group(3) == "$(echo hello)"
+
+
+# --- Double-underscore as slash alias ---
+
+
+def test_xprompt_pattern_double_underscore_matches() -> None:
+    """Test that double underscores in xprompt names are matched by the pattern."""
+    match = re.search(_XPROMPT_PATTERN, "#foo__bar")
+    assert match is not None
+    assert match.group(1) == "foo__bar"
+
+
+def test_xprompt_pattern_double_underscore_multi_level() -> None:
+    """Test that multiple double underscores are matched."""
+    match = re.search(_XPROMPT_PATTERN, "#a__b__c")
+    assert match is not None
+    assert match.group(1) == "a__b__c"
+
+
+def test_xprompt_pattern_double_underscore_with_args() -> None:
+    """Test that double-underscore names work with parenthesis args."""
+    match = re.search(_XPROMPT_PATTERN, "#foo__bar(arg)")
+    assert match is not None
+    assert match.group(1) == "foo__bar"
+    assert match.group(2) == "("
