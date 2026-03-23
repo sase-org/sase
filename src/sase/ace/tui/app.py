@@ -289,6 +289,9 @@ class AceApp(
         self._inactive_seconds: int = int(
             ace_cfg.get("inactive_seconds", 600) if isinstance(ace_cfg, dict) else 600
         )
+        self._snippets: dict[str, str] = (
+            ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
+        )
 
         # Build keymap registry from config
         from .keymaps import (

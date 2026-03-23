@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-22 20:22:57
-status: wip
+status: done
 ---
 
 # Plan: Prompt Input Snippet Expansion

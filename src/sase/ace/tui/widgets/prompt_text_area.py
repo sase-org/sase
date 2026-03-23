@@ -254,6 +254,63 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         if bar:
             bar.post_message(PromptInputBar.WorkflowEditorRequested())
 
+    def _get_snippets(self) -> dict[str, str]:
+        """Get the snippet registry from the app config."""
+        return self._ace_app._snippets
+
+    def _try_expand_snippet(self) -> bool:
+        """Try to expand a snippet trigger word at the cursor.
+
+        Extracts the word immediately before the cursor, looks it up in the
+        snippet registry, and replaces it with the expanded template. The
+        cursor is positioned at the ``$0`` marker if present, otherwise at
+        the end of the expanded text.
+
+        Returns True if a snippet was expanded.
+        """
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+
+        # Extract word before cursor (alphanumeric + underscore)
+        word_start = col
+        while word_start > 0 and (
+            line[word_start - 1].isalnum() or line[word_start - 1] == "_"
+        ):
+            word_start -= 1
+
+        if word_start == col:
+            return False  # No word before cursor
+
+        trigger = line[word_start:col]
+        snippets = self._get_snippets()
+
+        if trigger not in snippets:
+            return False
+
+        template = snippets[trigger]
+        cursor_marker = "$0"
+        cursor_offset = template.find(cursor_marker)
+        expanded = template.replace(cursor_marker, "", 1)
+
+        # Replace trigger word with expanded text
+        start = (row, word_start)
+        end = (row, col)
+        self._replace_via_keyboard(expanded, start, end)
+
+        # Position cursor at $0 location (if present)
+        if cursor_offset >= 0:
+            text_before_cursor = expanded[:cursor_offset]
+            lines = text_before_cursor.split("\n")
+            if len(lines) > 1:
+                cursor_row = row + len(lines) - 1
+                cursor_col = len(lines[-1])
+            else:
+                cursor_row = row
+                cursor_col = word_start + len(lines[-1])
+            self.cursor_location = (cursor_row, cursor_col)
+
+        return True
+
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._vim_mode = "normal"
@@ -301,6 +358,13 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             event.prevent_default()
             self._enter_normal_mode()
             return
+
+        # Tab in INSERT mode: attempt snippet expansion
+        if event.key == "tab":
+            if self._try_expand_snippet():
+                event.stop()
+                event.prevent_default()
+                return
 
         # Detect '#@' trigger before the '@' is inserted
         if event.character == "@":
