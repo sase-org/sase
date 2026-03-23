@@ -22,7 +22,7 @@ from pathlib import Path
 from sase.ace.hooks import set_hook_suffix
 from sase.axe.runner_utils import detect_and_write_agent_meta, write_done_marker
 from sase.config.metahook import MetahookConfig, find_matching_metahook
-from sase.shared_utils import create_artifacts_directory
+from sase.artifacts import create_artifacts_directory
 from sase.ace.hooks.summarize_utils import get_file_summary
 
 # Workflow completion marker (same pattern as other axe runners)

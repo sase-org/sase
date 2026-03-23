@@ -18,7 +18,7 @@ from sase.axe.runner_utils import (
     write_done_marker,
 )
 from sase.workflows.mentor import MentorWorkflow
-from sase.shared_utils import create_artifacts_directory
+from sase.artifacts import create_artifacts_directory
 
 install_sigterm_handler("mentor")
 

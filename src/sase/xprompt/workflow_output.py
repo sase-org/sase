@@ -9,7 +9,7 @@ from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.text import Text
-from sase.shared_utils import dump_yaml
+from sase.content import dump_yaml
 
 
 @dataclass

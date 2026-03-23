@@ -13,7 +13,7 @@ from sase.xprompt._disabled_regions import (
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 
 from sase.output import print_status
-from sase.shared_utils import (
+from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
 )

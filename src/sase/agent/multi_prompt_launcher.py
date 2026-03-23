@@ -175,7 +175,7 @@ def launch_multi_prompt_agents(
         get_workspace_directory_for_num,
     )
     from sase.core.time import generate_timestamp
-    from sase.shared_utils import create_artifacts_directory
+    from sase.artifacts import create_artifacts_directory
     from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
 
     results: list[AgentLaunchResult] = []

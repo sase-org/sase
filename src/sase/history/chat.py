@@ -13,7 +13,7 @@ from pathlib import Path
 from sase.core.changespec import strip_reverted_suffix
 from sase.core.paths import ensure_sase_directory, get_sase_directory
 from sase.core.time import generate_timestamp, get_timezone
-from sase.shared_utils import run_shell_command
+from sase.core.shell import run_shell_command
 
 
 def _get_branch_or_workspace_name() -> str:

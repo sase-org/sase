@@ -49,7 +49,7 @@ def spawn_agent_subprocess(
     """
     from sase.running_field import claim_workspace
     from sase.core.paths import ensure_sase_directory
-    from sase.shared_utils import convert_timestamp_to_artifacts_format
+    from sase.artifacts import convert_timestamp_to_artifacts_format
 
     # Write prompt to temp file (runner will read and delete)
     from sase.core.paths import get_sase_tmpdir

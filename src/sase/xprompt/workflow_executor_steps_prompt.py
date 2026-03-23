@@ -171,7 +171,7 @@ class PromptStepMixin:
             preprocess_prompt_early,
             preprocess_prompt_late,
         )
-        from sase.shared_utils import ensure_str_content
+        from sase.content import ensure_str_content
 
         from sase.xprompt import extract_structured_content
 

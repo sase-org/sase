@@ -32,13 +32,13 @@ from sase.main.query_handler import (
 )
 from sase.output import print_artifact_created, print_status, print_workflow_header
 from sase.core.time import generate_timestamp
-from sase.shared_utils import (
+from sase.artifacts import (
     create_artifacts_directory,
-    ensure_str_content,
     finalize_sase_log,
     generate_workflow_tag,
     initialize_sase_log,
 )
+from sase.content import ensure_str_content
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import get_cl_name_from_branch
 from sase.xprompt.output_validation import extract_structured_content

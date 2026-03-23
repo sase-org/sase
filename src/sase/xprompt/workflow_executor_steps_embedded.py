@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from sase.shared_utils import (
+from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
 )

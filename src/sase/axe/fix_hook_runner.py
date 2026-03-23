@@ -31,7 +31,8 @@ from sase.main.query_handler import (
     execute_standalone_steps,
     expand_embedded_workflows_in_query,
 )
-from sase.shared_utils import create_artifacts_directory, ensure_str_content
+from sase.artifacts import create_artifacts_directory
+from sase.content import ensure_str_content
 from sase.xprompt import escape_for_xprompt, process_xprompt_references
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from sase.main.query_handler._query import _evaluate_standalone_condition
-from sase.shared_utils import dump_yaml
+from sase.content import dump_yaml
 from sase.xprompt._exceptions import XPromptArgumentError
 from sase.xprompt._jinja import (
     _substitute_legacy_placeholders,

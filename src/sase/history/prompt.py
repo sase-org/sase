@@ -31,7 +31,7 @@ def _get_current_branch_or_workspace() -> str:
     Returns:
         The branch or workspace name, or "unknown" if it cannot be determined.
     """
-    from sase.shared_utils import run_shell_command
+    from sase.core.shell import run_shell_command
 
     result = run_shell_command("branch_or_workspace_name", capture_output=True)
     if result.returncode != 0:

@@ -14,15 +14,15 @@ from sase.output import (
     print_status,
     print_workflow_header,
 )
-from sase.shared_utils import (
+from sase.artifacts import (
     create_artifacts_directory,
-    ensure_str_content,
     finalize_sase_log,
     generate_workflow_tag,
     initialize_sase_log,
     initialize_workflow,
-    run_shell_command,
 )
+from sase.content import ensure_str_content
+from sase.core.shell import run_shell_command
 from sase.workflows.base import BaseWorkflow
 from sase.xprompt import escape_for_xprompt, process_xprompt_references
 

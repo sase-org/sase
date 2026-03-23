@@ -29,7 +29,7 @@ from sase.axe.runner_utils import (
     prepare_workspace,
     was_killed,
 )
-from sase.shared_utils import (
+from sase.artifacts import (
     convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
 )

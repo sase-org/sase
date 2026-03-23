@@ -1,4 +1,4 @@
-"""Tests for sase.shared_utils module."""
+"""Tests for sase.artifacts module."""
 
 import os
 import string
@@ -8,27 +8,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.core.shell import run_shell_command
-from sase.shared_utils import (
+from sase.artifacts import (
     _finalize_log_file,
     _initialize_log_file,
-    apply_section_marker_handling,
-    content_ends_with_markdown_heading,
     create_artifacts_directory,
-    ensure_str_content,
     finalize_sase_log,
     generate_workflow_tag,
     initialize_sase_log,
     run_bam_command,
 )
-
-
-def test_ensure_str_content_with_list() -> None:
-    """Test that list content is converted to string."""
-    content: list[str | dict[str, str]] = ["part1", "part2", {"key": "value"}]
-    result = ensure_str_content(content)
-    assert isinstance(result, str)
-    assert "part1" in result
-    assert "part2" in result
 
 
 def test_run_shell_command_success() -> None:
@@ -69,7 +57,7 @@ def test_finalize_sase_log() -> None:
         assert "XYZ" in content
 
 
-@patch("sase.shared_utils.run_shell_command")
+@patch("sase.artifacts.run_shell_command")
 def test_run_bam_command_success(mock_run_cmd: MagicMock) -> None:
     """Test that bam command is run successfully."""
     # This should not raise an exception
@@ -77,7 +65,7 @@ def test_run_bam_command_success(mock_run_cmd: MagicMock) -> None:
     mock_run_cmd.assert_called_once()
 
 
-@patch("sase.shared_utils.run_shell_command")
+@patch("sase.artifacts.run_shell_command")
 def test_run_bam_command_exception(mock_run_cmd: MagicMock) -> None:
     """Test that bam command exceptions are handled gracefully."""
     mock_run_cmd.side_effect = Exception("bam not found")
@@ -119,9 +107,8 @@ def test_create_artifacts_directory_workspace_name_fails(
         create_artifacts_directory("test-workflow")
 
 
-# Tests for get_sase_log_file
 # Tests for _initialize_log_file
-@patch("sase.shared_utils.print_status")
+@patch("sase.artifacts.print_status")
 def test_initialize_log_file_error(mock_print_status: MagicMock) -> None:
     """Test _initialize_log_file handles write errors gracefully."""
     _initialize_log_file("/nonexistent/dir/file.md", "content", "Test op")
@@ -131,7 +118,7 @@ def test_initialize_log_file_error(mock_print_status: MagicMock) -> None:
 
 
 # Tests for _finalize_log_file
-@patch("sase.shared_utils.print_status")
+@patch("sase.artifacts.print_status")
 def test_finalize_log_file_error(mock_print_status: MagicMock) -> None:
     """Test _finalize_log_file handles errors gracefully."""
     _finalize_log_file("/nonexistent/dir/file.md", "content", "Test op")
@@ -140,28 +127,6 @@ def test_finalize_log_file_error(mock_print_status: MagicMock) -> None:
     assert "Failed" in call_msg
 
 
-# Tests for apply_section_marker_handling
-def test_apply_section_marker_handling_hr_marker_only_not_at_line_start() -> None:
-    """Test standalone --- marker not at line start is stripped (no newlines added for empty)."""
-    content = "---"
-    result = apply_section_marker_handling(content, is_at_line_start=False)
-    assert result == ""
-
-
-def test_apply_section_marker_handling_hr_marker_with_content() -> None:
-    """Test --- marker at line start prepends \\n for paragraph break."""
-    content = "---\nActual content"
-    result = apply_section_marker_handling(content, is_at_line_start=True)
-    assert result == "\nActual content"
-
-
-# Tests for content_ends_with_markdown_heading
-def test_content_ends_with_markdown_heading_empty() -> None:
-    """Test that empty content returns False."""
-    assert content_ends_with_markdown_heading("") is False
-
-
-# Tests for convert_timestamp_to_artifacts_format
 # Tests for create_artifacts_directory with timestamp parameter
 def test_create_artifacts_directory_with_timestamp() -> None:
     """Test that pre-existing timestamp is used instead of generating new one."""

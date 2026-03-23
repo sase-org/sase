@@ -212,7 +212,7 @@ def write_done_marker(
         response_path: Optional path to the response/chat file.
         diff_path: Optional path to the diff file.
     """
-    from sase.shared_utils import convert_timestamp_to_artifacts_format
+    from sase.artifacts import convert_timestamp_to_artifacts_format
 
     artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
     outcome = "completed" if exit_code == 0 else "failed"

@@ -11,7 +11,7 @@ import yaml  # type: ignore[import-untyped]
 from rich.console import Console
 from rich.markup import escape as _esc
 from rich.syntax import Syntax
-from sase.shared_utils import dump_yaml
+from sase.content import dump_yaml
 
 from sase.xprompt.workflow_executor_types import HITLResult
 

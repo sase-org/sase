@@ -36,7 +36,7 @@ from sase.llm_provider.retry_config import (
     is_retryable_error,
     truncate_error_snippet,
 )
-from sase.shared_utils import convert_timestamp_to_artifacts_format
+from sase.artifacts import convert_timestamp_to_artifacts_format
 
 
 @dataclass

@@ -9,10 +9,10 @@ from typing import Any
 
 from sase.history.chat import save_chat_history
 from sase.running_field import claim_workspace, release_workspace
-from sase.shared_utils import (
+from sase.artifacts import create_artifacts_directory
+from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
-    create_artifacts_directory,
 )
 from sase.xprompt.models import UNSET
 from sase.xprompt.workflow_models import WorkflowStep
@@ -410,7 +410,7 @@ def execute_standalone_steps(
 
         elif step.is_agent_step() and step.agent:
             from sase.llm_provider import LLMInvocationError, invoke_agent
-            from sase.shared_utils import ensure_str_content
+            from sase.content import ensure_str_content
             from sase.xprompt import process_xprompt_references
 
             rendered_prompt = render_template(step.agent, context)

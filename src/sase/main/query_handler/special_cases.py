@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from sase.history.chat import list_chat_histories
-from sase.shared_utils import create_artifacts_directory
+from sase.artifacts import create_artifacts_directory
 
 from ._daemon import run_query_daemon
 from ._editor import open_editor_for_prompt, show_prompt_history_picker

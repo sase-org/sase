@@ -228,7 +228,7 @@ def _read_prompt_preview(
     # Convert YYmmdd_HHMMSS to YYYYmmddHHMMSS if needed
     ts = artifacts_timestamp
     if len(ts) == 13 and ts[6] == "_":
-        from sase.shared_utils import convert_timestamp_to_artifacts_format
+        from sase.artifacts import convert_timestamp_to_artifacts_format
 
         ts = convert_timestamp_to_artifacts_format(ts)
 

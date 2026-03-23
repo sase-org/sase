@@ -28,7 +28,7 @@ class AgentWorkflowHITLMixin:
         import tempfile
 
         import yaml  # type: ignore[import-untyped]
-        from sase.shared_utils import dump_yaml
+        from sase.content import dump_yaml
 
         # Unwrap _data if present
         data = output.get("_data", output) if isinstance(output, dict) else output
