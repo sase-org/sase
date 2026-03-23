@@ -219,7 +219,7 @@ def _match_sibling(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
     Returns:
         True if the base names match (case-insensitive).
     """
-    from sase.sase_utils import strip_reverted_suffix
+    from sase.core.changespec import strip_reverted_suffix
 
     # Get the base name of the search value (strip __<N> suffix)
     search_base = strip_reverted_suffix(prop.value).lower()

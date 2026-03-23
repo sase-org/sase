@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 from sase.status_state_machine import transition_changespec_status
 
 from ..changespec import ChangeSpec, CommentEntry, is_plain_suffix
@@ -133,7 +133,7 @@ rm -f "$0"
 exit $exit_code
 """
 
-    from sase.sase_utils import get_sase_tmpdir
+    from sase.core.paths import get_sase_tmpdir
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".sh", delete=False, dir=get_sase_tmpdir()

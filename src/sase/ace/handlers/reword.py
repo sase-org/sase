@@ -141,7 +141,7 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
     Returns:
         The edited content string, or None if the editor failed.
     """
-    from sase.sase_utils import get_sase_tmpdir
+    from sase.core.paths import get_sase_tmpdir
 
     fd, temp_path = tempfile.mkstemp(
         suffix=".md", prefix="sase_reword_", dir=get_sase_tmpdir()

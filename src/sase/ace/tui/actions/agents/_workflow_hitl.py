@@ -37,7 +37,7 @@ class AgentWorkflowHITLMixin:
         yaml_content = dump_yaml(data, sort_keys=False)
 
         # Create temp file
-        from sase.sase_utils import get_sase_tmpdir
+        from sase.core.paths import get_sase_tmpdir
 
         fd, temp_path = tempfile.mkstemp(
             suffix=".yml", prefix="workflow_edit_", dir=get_sase_tmpdir()

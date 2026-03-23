@@ -25,7 +25,7 @@ def format_relative_time(iso_timestamp: str) -> str:
     Returns strings like "2m ago", "1h ago", "3d ago".
     Handles both tz-aware and naive timestamps.
     """
-    from sase.sase_utils import get_timezone
+    from sase.core.time import get_timezone
 
     try:
         ts = datetime.fromisoformat(iso_timestamp)

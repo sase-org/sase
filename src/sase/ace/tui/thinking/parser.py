@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 # Files larger than this use tail-seeking optimization
 _TAIL_THRESHOLD = 500 * 1024  # 500 KB

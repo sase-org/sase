@@ -15,7 +15,8 @@ from sase.ace.change_actions import (
 from sase.history.chat import save_chat_history
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.workflows.crs import CrsWorkflow
-from sase.sase_utils import generate_timestamp, shorten_path
+from sase.core.paths import shorten_path
+from sase.core.time import generate_timestamp
 from sase.running_field import (
     claim_workspace,
     get_first_available_workspace,

@@ -419,7 +419,7 @@ def execute_standalone_steps(
             # Create temp artifacts dir if not provided
             step_artifacts_dir = artifacts_dir
             if step_artifacts_dir is None:
-                from sase.sase_utils import get_sase_tmpdir
+                from sase.core.paths import get_sase_tmpdir
 
                 step_artifacts_dir = tempfile.mkdtemp(
                     prefix=f"embedded-{workflow_name}-",
@@ -455,7 +455,7 @@ def run_query(
         query: The query to send to the agent.
         previous_history: Optional previous conversation history to continue from.
     """
-    from sase.sase_utils import generate_timestamp
+    from sase.core.time import generate_timestamp
     from sase.xprompt.models import create_anonymous_workflow
     from sase.xprompt.workflow_runner import execute_workflow
 

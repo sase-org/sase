@@ -9,11 +9,11 @@ from rich.markup import escape as _esc
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from sase.sase_utils import (
+from sase.core.changespec import (
     get_workspace_directory_for_changespec,
-    run_workspace_command,
     strip_reverted_suffix,
 )
+from sase.core.shell import run_workspace_command
 from sase.running_field import (
     update_running_field_cl_name,
 )

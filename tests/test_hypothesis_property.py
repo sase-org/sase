@@ -24,7 +24,8 @@ from sase.workflows.renumber_utils import (
     parse_commit_entries,
     find_commits_section,
 )
-from sase.sase_utils import make_safe_filename, strip_reverted_suffix, has_suffix
+from sase.core.changespec import has_suffix, strip_reverted_suffix
+from sase.core.paths import make_safe_filename
 from sase.workflows.commit_utils.entries import _extract_timestamp_from_chat_path
 from sase.shared_utils import (
     content_ends_with_markdown_heading,

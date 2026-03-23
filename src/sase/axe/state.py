@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 # State directory location
 AXE_STATE_DIR = Path.home() / ".sase" / "axe"

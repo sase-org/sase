@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 
 _COMMAND_HISTORY_FILE = Path.home() / ".sase" / "command_history.json"
 

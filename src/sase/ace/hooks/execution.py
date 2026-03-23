@@ -4,10 +4,8 @@ import os
 import subprocess
 import tempfile
 
-from sase.sase_utils import (
-    generate_timestamp,
-    strip_reverted_suffix,
-)
+from sase.core.changespec import strip_reverted_suffix
+from sase.core.time import generate_timestamp
 
 from ..changespec import (
     ChangeSpec,
@@ -119,7 +117,7 @@ rm -f "$0"
 exit $exit_code
 """
     # Write wrapper script to temp file (don't delete - background process needs it)
-    from sase.sase_utils import get_sase_tmpdir
+    from sase.core.paths import get_sase_tmpdir
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".sh", delete=False, dir=get_sase_tmpdir()

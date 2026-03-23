@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 from rich.text import Text
 from textual.containers import VerticalScroll

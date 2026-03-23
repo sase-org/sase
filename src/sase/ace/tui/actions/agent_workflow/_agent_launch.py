@@ -44,7 +44,7 @@ class AgentLaunchMixin:
             return
 
         # Regenerate timestamp at launch time (not when prompt bar was opened)
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
 
         ctx = self._prompt_context
         ctx.timestamp = generate_timestamp()
@@ -274,7 +274,7 @@ class AgentLaunchMixin:
             get_workspace_directory,
             get_workspace_directory_for_num,
         )
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
 
         launched = 0
         for i, model_prompt in enumerate(model_prompts):
@@ -372,7 +372,7 @@ class AgentLaunchMixin:
             prompt: The user's prompt for all agents.
         """
         from sase.workspace_provider import detect_workflow_type
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
         from sase.running_field import (
             get_first_available_axe_workspace,
             get_workspace_directory_for_num,

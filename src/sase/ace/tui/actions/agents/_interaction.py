@@ -307,7 +307,7 @@ class AgentInteractionMixin:
                 subprocess.run([editor, expanded], check=False)
         elif content is not None:
             editor = os.environ.get("EDITOR") or "nvim"
-            from sase.sase_utils import get_sase_tmpdir
+            from sase.core.paths import get_sase_tmpdir
 
             fd, tmp_path = tempfile.mkstemp(
                 suffix=suffix, prefix="sase_ace_panel_", dir=get_sase_tmpdir()

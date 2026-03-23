@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 import pytest
 

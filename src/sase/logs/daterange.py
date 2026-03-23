@@ -8,7 +8,7 @@ timezone (consistent with the rest of the codebase).
 import re
 from datetime import datetime, timedelta
 
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 def _parse_datepoint(s: str) -> datetime:

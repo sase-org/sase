@@ -3,7 +3,7 @@
 import os
 import tempfile
 from datetime import datetime, timedelta
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 from sase.workflows.commit_utils import (
     add_commit_entry,

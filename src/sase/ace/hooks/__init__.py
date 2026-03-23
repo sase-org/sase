@@ -8,7 +8,7 @@ This package provides utilities for:
 - Setting and clearing hook suffixes
 """
 
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 
 from .execution import (
     check_hook_completion,

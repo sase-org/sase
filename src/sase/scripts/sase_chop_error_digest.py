@@ -11,7 +11,7 @@ from sase.axe.state import (
     write_last_error_digest_ts,
 )
 from sase.notifications.senders import notify_axe_error_digest
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 def main() -> None:

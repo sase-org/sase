@@ -32,7 +32,7 @@ class EditorMixin:
         import tempfile
 
         def run_editor() -> str | None:
-            from sase.sase_utils import get_sase_tmpdir
+            from sase.core.paths import get_sase_tmpdir
 
             fd, temp_path = tempfile.mkstemp(
                 suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
@@ -90,7 +90,7 @@ class EditorMixin:
         import tempfile
 
         import yaml  # type: ignore[import-untyped]
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
         from sase.xprompt.loader import get_sase_package_xprompts_dir
 
         timestamp = generate_timestamp()
@@ -106,7 +106,7 @@ class EditorMixin:
         )
 
         def run_editor() -> tuple[str, str] | None:
-            from sase.sase_utils import get_sase_tmpdir
+            from sase.core.paths import get_sase_tmpdir
 
             fd, temp_path = tempfile.mkstemp(
                 suffix=".yml", prefix="sase_ace_workflow_", dir=get_sase_tmpdir()

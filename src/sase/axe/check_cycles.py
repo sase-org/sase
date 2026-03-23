@@ -24,7 +24,7 @@ from sase.ace.scheduler.checks_runner import (
     start_reviewer_comments_check,
 )
 from sase.ace.sync_cache import should_check, update_last_checked
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 from sase.running_field import get_workspace_directory
 
 from .state import CycleResult, write_cycle_result

@@ -353,7 +353,7 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
             # _load_workflow_from_file derives the correct workflow name.
             import tempfile
 
-            from sase.sase_utils import get_sase_tmpdir
+            from sase.core.paths import get_sase_tmpdir
 
             tmpdir = Path(tempfile.mkdtemp(dir=get_sase_tmpdir()))
             tmp_path = tmpdir / entry_name

@@ -6,11 +6,11 @@ import sys
 import time
 from collections.abc import Callable
 
-from sase.sase_utils import (
+from sase.core.changespec import strip_reverted_suffix
+from sase.core.paths import (
     ensure_sase_directory,
     get_sase_directory,
     make_safe_filename,
-    strip_reverted_suffix,
 )
 from sase.config.mentor import MentorProfileConfig
 

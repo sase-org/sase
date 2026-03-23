@@ -25,7 +25,7 @@ from sase.axe.runner_utils import (
 )
 from sase.history.chat import find_chat_by_timestamp
 from sase.workflows.crs import CrsWorkflow
-from sase.sase_utils import shorten_path
+from sase.core.paths import shorten_path
 from sase.shared_utils import create_artifacts_directory
 
 

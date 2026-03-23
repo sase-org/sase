@@ -58,3 +58,6 @@ CLAUDE.local.md
 
 # Hypothesis
 .hypothesis/
+
+# Override global gitignore rule that ignores 'core'
+!src/sase/core/

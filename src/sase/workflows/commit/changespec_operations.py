@@ -135,7 +135,7 @@ def add_changespec_to_project_file(
                     existing_names.add(line[6:].strip())
 
             # Add _<N> suffix to make name unique (for WIP ChangeSpecs)
-            from sase.sase_utils import get_next_suffix_number
+            from sase.core.changespec import get_next_suffix_number
 
             suffix_num = get_next_suffix_number(cl_name, existing_names)
             cl_name = f"{cl_name}_{suffix_num}"

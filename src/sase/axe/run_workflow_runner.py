@@ -227,7 +227,7 @@ def main() -> None:
         if not was_killed() and not all_steps_hidden(artifacts_dir):
             from sase.history.chat import list_chat_histories
             from sase.notifications.senders import notify_workflow_complete
-            from sase.sase_utils import get_sase_directory
+            from sase.core.paths import get_sase_directory
 
             # Find chat file (most recent chat history)
             extra_files: list[str] = []

@@ -84,7 +84,7 @@ def _amend_cl_git(
     """
     from sase.history.chat import save_chat_history
     from sase.workflows.commit_utils.workspace import save_diff
-    from sase.sase_utils import generate_timestamp
+    from sase.core.time import generate_timestamp
 
     # Detect branch
     branch = _get_cl_name_from_branch()

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 def notify_workflow_complete(

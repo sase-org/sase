@@ -4,7 +4,8 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from sase.sase_utils import generate_timestamp, strip_reverted_suffix
+from sase.core.changespec import strip_reverted_suffix
+from sase.core.time import generate_timestamp
 
 _PROMPT_HISTORY_FILE = Path.home() / ".sase" / "prompt_history.json"
 

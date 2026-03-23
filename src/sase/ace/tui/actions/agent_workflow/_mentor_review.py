@@ -134,7 +134,7 @@ class MentorReviewMixin:
         from pathlib import Path
 
         from sase.main.query_handler import execute_standalone_steps
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
         from sase.workspace_provider import detect_workflow_type
         from sase.xprompt.tags import XPromptTag, get_by_tag, get_by_tag_strict
         from sase.xprompt.workflow_executor_utils import render_template

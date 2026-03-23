@@ -23,7 +23,7 @@ from sase.ace.scheduler.workflows_runner import (
     check_and_complete_workflows,
     start_stale_workflows,
 )
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 from .state import AxeMetrics
 

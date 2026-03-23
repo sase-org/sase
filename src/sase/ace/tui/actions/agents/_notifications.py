@@ -239,7 +239,7 @@ class AgentNotificationMixin:
         import os
         import subprocess
 
-        from sase.sase_utils import get_vendored_tool
+        from sase.core.shell import get_vendored_tool
 
         # Get current tmux pane from environment
         tmux_pane = os.environ.get("TMUX_PANE")

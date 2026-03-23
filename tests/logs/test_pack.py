@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.logs.pack import build_pack
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 class TestBuildPack:

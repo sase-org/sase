@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sase.sase_utils import run_shell_command
+from sase.core.shell import run_shell_command
 from sase.shared_utils import (
     _finalize_log_file,
     _initialize_log_file,

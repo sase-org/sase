@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 # ---------------------------------------------------------------------------

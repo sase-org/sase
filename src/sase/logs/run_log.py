@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 from typing import Any
 
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 LOGS_DIR = os.path.expanduser("~/.sase/logs")
 RUNS_FILE = os.path.join(LOGS_DIR, "runs.jsonl")

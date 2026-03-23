@@ -64,7 +64,7 @@ class EntryPointsMixin:
         """Show prompt history modal for the last agent selection (bound to ,.)."""
         from pathlib import Path
 
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
 
         from ...modals import (
             PromptHistoryAction,
@@ -380,7 +380,7 @@ class EntryPointsMixin:
         """
         from pathlib import Path
 
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
 
         from ...modals import SelectionItem
 

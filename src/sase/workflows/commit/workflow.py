@@ -146,7 +146,7 @@ class CommitWorkflow(BaseWorkflow):
         if file_path is None:
             if self._message:
                 # Use message provided via -m flag
-                from sase.sase_utils import get_sase_tmpdir
+                from sase.core.paths import get_sase_tmpdir
 
                 fd, file_path = tempfile.mkstemp(
                     suffix=".txt", prefix="sase_commit_", dir=get_sase_tmpdir()

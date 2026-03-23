@@ -14,7 +14,8 @@ from sase.ace.change_actions import (
 )
 from sase.history.chat import save_chat_history
 from sase.workflows.commit_utils import run_sase_hg_clean
-from sase.sase_utils import generate_timestamp, strip_hook_prefix
+from sase.core.shell import strip_hook_prefix
+from sase.core.time import generate_timestamp
 from sase.llm_provider import LLMInvocationError, invoke_agent
 from sase.running_field import (
     claim_workspace,

@@ -3,12 +3,9 @@
 import os
 from pathlib import Path
 
-from sase.sase_utils import (
-    ensure_sase_directory,
-    generate_timestamp,
-    make_safe_filename,
-    strip_reverted_suffix,
-)
+from sase.core.changespec import strip_reverted_suffix
+from sase.core.paths import ensure_sase_directory, make_safe_filename
+from sase.core.time import generate_timestamp
 from sase.vcs_provider import get_vcs_provider
 
 

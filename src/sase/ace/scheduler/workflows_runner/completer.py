@@ -1,6 +1,6 @@
 """Workflow completion handling logic for the axe scheduler."""
 
-from sase.sase_utils import shorten_path
+from sase.core.paths import shorten_path
 from sase.running_field import (
     get_claimed_workspaces,
     get_workspace_directory_for_num,

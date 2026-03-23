@@ -3,11 +3,8 @@
 import logging
 import os
 
-from sase.sase_utils import (
-    ensure_sase_directory,
-    make_safe_filename,
-    strip_reverted_suffix,
-)
+from sase.core.changespec import strip_reverted_suffix
+from sase.core.paths import ensure_sase_directory, make_safe_filename
 
 from ..changespec import (
     HookEntry,

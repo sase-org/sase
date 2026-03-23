@@ -6,12 +6,12 @@ import subprocess
 from sase.history.chat import save_chat_history
 from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
 from sase.workspace_provider import get_change_label
-from sase.sase_utils import (
+from sase.core.paths import (
     ensure_sase_directory,
-    generate_timestamp,
     make_safe_filename,
     shorten_path,
 )
+from sase.core.time import generate_timestamp
 from sase.workflows.utils import get_initial_hooks_for_changespec
 
 _CONVENTIONAL_PREFIXES = re.compile(

@@ -1,6 +1,6 @@
 """Mentor status operations - setting, merging, and clearing status lines."""
 
-from sase.sase_utils import generate_timestamp as gen_timestamp
+from sase.core.time import generate_timestamp as gen_timestamp
 from sase.status_state_machine import remove_workspace_suffix
 
 from sase.ace.changespec import (

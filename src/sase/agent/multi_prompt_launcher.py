@@ -65,7 +65,7 @@ def _serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
 
     Returns the path to the temp file.
     """
-    from sase.sase_utils import get_sase_tmpdir
+    from sase.core.paths import get_sase_tmpdir
 
     data: dict[str, object] = {}
     for name, xp in xprompts.items():
@@ -174,7 +174,7 @@ def launch_multi_prompt_agents(
         get_workspace_directory,
         get_workspace_directory_for_num,
     )
-    from sase.sase_utils import generate_timestamp
+    from sase.core.time import generate_timestamp
     from sase.shared_utils import create_artifacts_directory
     from sase.xprompt.directives import has_wait_directive, split_prompt_for_models
 

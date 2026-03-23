@@ -10,7 +10,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from sase.sase_utils import get_vendored_tool
+from sase.core.shell import get_vendored_tool
 
 
 def is_auto_approve_active() -> bool:

@@ -20,7 +20,7 @@ from sase.ace.hooks.formatting import (
     format_hooks_field,
 )
 from sase.ace.hooks.test_targets import expand_test_target_shorthand
-from sase.sase_utils import get_sase_directory
+from sase.core.paths import get_sase_directory
 
 
 def _make_hook(

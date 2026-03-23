@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.running_field import get_claimed_workspaces
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 from ....hooks.processes import is_process_running
 from .._timestamps import (

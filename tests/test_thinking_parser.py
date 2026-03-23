@@ -15,7 +15,7 @@ from sase.ace.tui.thinking.parser import (
     read_gemini_log,
 )
 from sase.ace.tui.widgets.thinking_panel import _format_timestamp
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 # --- helpers ---

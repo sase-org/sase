@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sase.axe.state import AxeStatus, LumberjackStatus
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll

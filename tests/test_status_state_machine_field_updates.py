@@ -247,7 +247,7 @@ TEST TARGETS: None
         # Mock the external dependencies
         with (
             patch("sase.ace.mentors.clear_mentor_draft_flags"),
-            patch("sase.sase_utils.has_suffix") as mock_has_suffix,
+            patch("sase.core.changespec.has_suffix") as mock_has_suffix,
         ):
             mock_has_suffix.return_value = False
 

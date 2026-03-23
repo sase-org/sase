@@ -9,7 +9,7 @@ import signal
 import time
 from collections.abc import Callable
 
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 
 from ..changespec import (
     ChangeSpec,

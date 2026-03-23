@@ -38,7 +38,7 @@ class StatusActionsMixin:
 
     def _apply_status_change(self, changespec: ChangeSpec, new_status: str) -> None:
         """Apply a status change to a ChangeSpec."""
-        from sase.sase_utils import has_suffix, strip_reverted_suffix
+        from sase.core.changespec import has_suffix, strip_reverted_suffix
         from sase.status_state_machine import (
             transition_changespec_status,
         )

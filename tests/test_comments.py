@@ -10,7 +10,7 @@ from sase.ace.comments import (
     is_comments_suffix_stale,
 )
 from sase.ace.constants import DEFAULT_ZOMBIE_TIMEOUT_SECONDS
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 
 
 def test_get_comments_file_path() -> None:

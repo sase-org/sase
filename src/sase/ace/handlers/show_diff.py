@@ -51,7 +51,7 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
             return
 
         # Write diff to a temp file and display with bat/less
-        from sase.sase_utils import get_sase_tmpdir
+        from sase.core.paths import get_sase_tmpdir
 
         with tempfile.NamedTemporaryFile(
             mode="w",

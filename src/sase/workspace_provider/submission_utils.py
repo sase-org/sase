@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.markup import escape as escape_markup
 
 from sase.ace.operations import rename_changespec_with_references
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 from sase.status_state_machine import transition_changespec_status
 
 

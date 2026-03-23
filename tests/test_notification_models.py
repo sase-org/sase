@@ -26,7 +26,7 @@ class TestFormatRelativeTime:
         return dt.isoformat()
 
     def test_seconds_ago(self) -> None:
-        from sase.sase_utils import get_timezone
+        from sase.core.time import get_timezone
 
         now = datetime(2025, 6, 15, 12, 0, 30, tzinfo=get_timezone())
         ts = datetime(2025, 6, 15, 12, 0, 5, tzinfo=get_timezone())
@@ -36,7 +36,7 @@ class TestFormatRelativeTime:
             assert format_relative_time(self._make_iso(ts)) == snapshot("25s ago")
 
     def test_minutes_ago(self) -> None:
-        from sase.sase_utils import get_timezone
+        from sase.core.time import get_timezone
 
         now = datetime(2025, 6, 15, 12, 5, 0, tzinfo=get_timezone())
         ts = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
@@ -46,7 +46,7 @@ class TestFormatRelativeTime:
             assert format_relative_time(self._make_iso(ts)) == snapshot("5m ago")
 
     def test_hours_ago(self) -> None:
-        from sase.sase_utils import get_timezone
+        from sase.core.time import get_timezone
 
         now = datetime(2025, 6, 15, 15, 0, 0, tzinfo=get_timezone())
         ts = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
@@ -56,7 +56,7 @@ class TestFormatRelativeTime:
             assert format_relative_time(self._make_iso(ts)) == snapshot("3h ago")
 
     def test_days_ago(self) -> None:
-        from sase.sase_utils import get_timezone
+        from sase.core.time import get_timezone
 
         now = datetime(2025, 6, 18, 12, 0, 0, tzinfo=get_timezone())
         ts = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
@@ -66,7 +66,7 @@ class TestFormatRelativeTime:
             assert format_relative_time(self._make_iso(ts)) == snapshot("3d ago")
 
     def test_future_timestamp(self) -> None:
-        from sase.sase_utils import get_timezone
+        from sase.core.time import get_timezone
 
         now = datetime(2025, 6, 15, 12, 0, 0, tzinfo=get_timezone())
         ts = datetime(2025, 6, 15, 12, 5, 0, tzinfo=get_timezone())
@@ -80,7 +80,7 @@ class TestFormatRelativeTime:
 
     def test_naive_timestamp_gets_tz(self) -> None:
         """Naive timestamps (no tzinfo) should be treated as Eastern."""
-        from sase.sase_utils import get_timezone
+        from sase.core.time import get_timezone
 
         now = datetime(2025, 6, 15, 12, 2, 0, tzinfo=get_timezone())
         ts_naive = datetime(2025, 6, 15, 12, 0, 0)  # No tzinfo

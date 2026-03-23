@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from sase.logs.daterange import _parse_datepoint, parse_daterange
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 class TestParseDatepoint:

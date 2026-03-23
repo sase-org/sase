@@ -1,16 +1,15 @@
-"""Tests for sase_utils module."""
+"""Tests for core utility modules (formerly sase_utils)."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.sase_utils import (
+from sase.core.changespec import (
     changespec_name_to_branch,
     get_next_suffix_number,
     get_workspace_directory_for_changespec,
-    run_workspace_command,
-    shorten_path,
-    strip_hook_prefix,
 )
+from sase.core.paths import shorten_path
+from sase.core.shell import run_workspace_command, strip_hook_prefix
 
 
 def test_shorten_path_partial_home_match() -> None:
@@ -67,7 +66,7 @@ def test_get_next_suffix_number_checks_both_formats() -> None:
 
 def test_run_workspace_command_failure() -> None:
     """Test run_workspace_command returns failure on non-zero exit code."""
-    with patch("sase.sase_utils.subprocess.run") as mock_run:
+    with patch("sase.core.shell.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=1, stderr="some error", stdout="")
         success, error = run_workspace_command(["sase_hg_prune", "foo"], "/tmp")
 
@@ -79,7 +78,7 @@ def test_run_workspace_command_failure() -> None:
 
 def test_run_workspace_command_command_not_found() -> None:
     """Test run_workspace_command handles FileNotFoundError."""
-    with patch("sase.sase_utils.subprocess.run") as mock_run:
+    with patch("sase.core.shell.subprocess.run") as mock_run:
         mock_run.side_effect = FileNotFoundError()
         success, error = run_workspace_command(["nonexistent_cmd"], "/tmp")
 
@@ -89,7 +88,7 @@ def test_run_workspace_command_command_not_found() -> None:
 
 def test_run_workspace_command_no_capture() -> None:
     """Test run_workspace_command with capture_output=False."""
-    with patch("sase.sase_utils.subprocess.run") as mock_run:
+    with patch("sase.core.shell.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
         success, error = run_workspace_command(
             ["sase", "commit"], "/tmp", capture_output=False

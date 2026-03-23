@@ -240,7 +240,7 @@ class TreeNavigationMixin(NavigationMixinBase):
         - For ancestor navigation: ancestor:<ancestor_name>
         - For child navigation: ancestor:<current_name>
         """
-        from sase.sase_utils import strip_reverted_suffix
+        from sase.core.changespec import strip_reverted_suffix
 
         from ....query import parse_query, to_canonical_string
         from ....query_history import push_to_prev_stack, save_query_history

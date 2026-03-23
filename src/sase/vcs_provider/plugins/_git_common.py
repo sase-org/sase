@@ -160,7 +160,7 @@ class GitCommon(CommandRunner):
     def vcs_resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:
-        from sase.sase_utils import (
+        from sase.core.changespec import (
             changespec_name_to_branch,
             changespec_name_to_branch_with_suffix,
         )

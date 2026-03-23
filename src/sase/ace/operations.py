@@ -8,7 +8,7 @@ from rich.console import Console
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from sase.sase_utils import (
+from sase.core.changespec import (
     get_next_suffix_number,
     has_suffix,
 )

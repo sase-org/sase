@@ -31,7 +31,7 @@ from sase.main.query_handler import (
     expand_embedded_workflows_in_query,
 )
 from sase.output import print_artifact_created, print_status, print_workflow_header
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 from sase.shared_utils import (
     create_artifacts_directory,
     ensure_str_content,

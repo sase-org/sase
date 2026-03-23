@@ -38,7 +38,7 @@ def add_create_time_frontmatter(
     timezone (see :func:`sase.sase_utils.get_timezone`).
     """
     if create_time is None:
-        from sase.sase_utils import get_timezone
+        from sase.core.time import get_timezone
 
         create_time = datetime.now(get_timezone())
     ts = create_time.strftime("%Y-%m-%d %H:%M:%S")

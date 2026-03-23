@@ -53,7 +53,7 @@ def _check_siblings_for_unreverted_children(
     """
     from sase.ace.changespec import find_all_changespecs, parse_project_file
     from sase.ace.revert import has_children
-    from sase.sase_utils import strip_reverted_suffix
+    from sase.core.changespec import strip_reverted_suffix
 
     changespecs = parse_project_file(project_file)
     all_changespecs = find_all_changespecs()
@@ -101,7 +101,7 @@ def _revert_sibling_draft_changespecs(
     """
     from sase.ace.changespec import parse_project_file
     from sase.ace.revert import revert_changespec
-    from sase.sase_utils import strip_reverted_suffix
+    from sase.core.changespec import strip_reverted_suffix
 
     changespecs = parse_project_file(project_file)
     results: list[SiblingRevertResult] = []
@@ -250,7 +250,7 @@ def _handle_draft_transition(
     """
     from sase.ace.changespec import find_all_changespecs
     from sase.ace.mentors import set_mentor_draft_flags
-    from sase.sase_utils import get_next_suffix_number
+    from sase.core.changespec import get_next_suffix_number
 
     all_changespecs = find_all_changespecs()
     invalid_children = [
@@ -358,7 +358,7 @@ def _handle_ready_transition(
 
     # Validate siblings don't have unreverted children when transitioning to Ready
     if new_status == "Ready" and old_status in ("WIP", "Draft"):
-        from sase.sase_utils import has_suffix, strip_reverted_suffix
+        from sase.core.changespec import has_suffix, strip_reverted_suffix
 
         if has_suffix(changespec_name):
             base_name = strip_reverted_suffix(changespec_name)
@@ -392,7 +392,7 @@ def _handle_ready_transition(
     # (WIP has no mentors to clear)
     if old_status == "Draft" and new_status == "Ready":
         from sase.ace.mentors import clear_mentor_draft_flags
-        from sase.sase_utils import has_suffix, strip_reverted_suffix
+        from sase.core.changespec import has_suffix, strip_reverted_suffix
 
         clear_mentor_draft_flags(project_file, changespec_name)
 
@@ -405,7 +405,7 @@ def _handle_ready_transition(
 
     # Strip suffix when transitioning from WIP to Ready
     if old_status == "WIP" and new_status == "Ready":
-        from sase.sase_utils import has_suffix, strip_reverted_suffix
+        from sase.core.changespec import has_suffix, strip_reverted_suffix
 
         if has_suffix(changespec_name):
             suffix_strip_info = (

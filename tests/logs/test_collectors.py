@@ -11,7 +11,7 @@ from sase.logs.collectors import (
     collect_diffs,
     collect_hooks,
 )
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 class TestTimestampExtraction:

@@ -48,11 +48,11 @@ def spawn_agent_subprocess(
             before the error is raised).
     """
     from sase.running_field import claim_workspace
-    from sase.sase_utils import ensure_sase_directory
+    from sase.core.paths import ensure_sase_directory
     from sase.shared_utils import convert_timestamp_to_artifacts_format
 
     # Write prompt to temp file (runner will read and delete)
-    from sase.sase_utils import get_sase_tmpdir
+    from sase.core.paths import get_sase_tmpdir
 
     fd, prompt_file = tempfile.mkstemp(
         suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
@@ -186,7 +186,7 @@ def launch_agent_from_cwd(query: str) -> AgentLaunchResult:
         get_workspace_directory,
         get_workspace_directory_for_num,
     )
-    from sase.sase_utils import generate_timestamp
+    from sase.core.time import generate_timestamp
     from sase.workspace_provider import get_workflow_names
 
     # --- Resolve project context ---

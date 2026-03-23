@@ -9,7 +9,7 @@ from typing import NoReturn
 
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 
 def handle_notify_command(args: argparse.Namespace) -> NoReturn:

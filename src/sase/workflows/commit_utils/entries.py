@@ -4,7 +4,7 @@ import os
 import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 
 
 def _extract_timestamp_from_chat_path(chat_path: str) -> str | None:

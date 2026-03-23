@@ -31,7 +31,7 @@ class PromptBarMixin:
             history_sort_key: Branch/CL name to sort prompt history by.
         """
         from sase.workflows.commit.project_file_utils import create_project_file
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
         from sase.running_field import (
             get_first_available_axe_workspace,
             get_workspace_directory_for_num,
@@ -123,7 +123,7 @@ class PromptBarMixin:
         """
         from pathlib import Path
 
-        from sase.sase_utils import generate_timestamp
+        from sase.core.time import generate_timestamp
 
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"

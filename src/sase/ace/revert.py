@@ -9,7 +9,7 @@ from rich.markup import escape as escape_markup
 
 # Add parent directory to path for status_state_machine import
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from sase.sase_utils import (
+from sase.core.changespec import (
     get_workspace_directory_for_changespec,
 )
 from sase.status_state_machine import (

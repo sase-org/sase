@@ -9,7 +9,7 @@ import os
 import subprocess
 from typing import Any, Literal, cast
 
-from sase.sase_utils import generate_timestamp
+from sase.core.time import generate_timestamp
 from langchain_core.messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 

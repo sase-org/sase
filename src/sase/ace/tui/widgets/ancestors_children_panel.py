@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.sase_utils import strip_reverted_suffix
+from sase.core.changespec import strip_reverted_suffix
 from rich.text import Text
 from textual.widgets import Static
 

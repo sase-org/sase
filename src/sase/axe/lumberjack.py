@@ -17,7 +17,7 @@ import schedule
 from rich.console import Console
 
 from sase.ace.query import QueryExpr, parse_query
-from sase.sase_utils import get_timezone
+from sase.core.time import get_timezone
 
 from .check_cycles import CheckCycleRunner
 from .chop_script_context import (
