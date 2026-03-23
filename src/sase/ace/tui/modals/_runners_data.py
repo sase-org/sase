@@ -287,6 +287,10 @@ def _collect_manual_agents() -> list[RunnerInfo]:
                 project_name, claim.artifacts_timestamp
             )
 
+            # Skip agents without a prompt - they're not manually initiated
+            if not prompt_preview:
+                continue
+
             agents.append(
                 RunnerInfo(
                     runner_type="agent",
