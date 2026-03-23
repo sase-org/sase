@@ -52,6 +52,9 @@ explore/
 # Private Claude Instructions
 CLAUDE.local.md
 
+# Personal xprompts (local overrides, not tracked)
+xprompts/
+
 # Copied context files (from @ file references)
 .sase/
 .sase_beads/beads.db
