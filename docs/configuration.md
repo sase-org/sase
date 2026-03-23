@@ -89,10 +89,11 @@ ace:
             shell: "just test"
 ```
 
-| Field              | Type | Default | Description                                                             |
-| ------------------ | ---- | ------- | ----------------------------------------------------------------------- |
-| `inactive_seconds` | int  | `600`   | Seconds of inactivity before the IDLE badge appears in the TUI top bar. |
-| `keymaps`          | dict | -       | Configurable keybindings (see below).                                   |
+| Field              | Type         | Default | Description                                                             |
+| ------------------ | ------------ | ------- | ----------------------------------------------------------------------- |
+| `inactive_seconds` | int          | `600`   | Seconds of inactivity before the IDLE badge appears in the TUI top bar. |
+| `keymaps`          | dict         | -       | Configurable keybindings (see below).                                   |
+| `snippets`         | dict[string] | `{}`    | Trigger-word → template mappings for prompt input snippet expansion.    |
 
 The IDLE indicator can also be triggered manually via the `i` keybinding. External tools can query idle status via
 `sase.ace.tui_activity.is_idle()`.
@@ -126,6 +127,26 @@ The keymap loader validates configuration: invalid keys are reverted to defaults
 prefix conflicts between custom modes and app bindings are detected.
 
 Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps/`
+
+#### `ace.snippets`
+
+Defines expandable text snippets for the prompt input widget. Each entry maps a trigger word to a template string. Press
+`Tab` in the prompt input to expand the trigger word before the cursor.
+
+```yaml
+ace:
+  snippets:
+    fix: "Please fix the following issue:\n$0"
+    review: "Review this code for correctness, performance, and style."
+    plan: "#plan\n$0"
+```
+
+Templates can contain `$0` to mark where the cursor should be placed after expansion. If no `$0` is present, the cursor
+moves to the end of the expanded text.
+
+See [docs/ace.md — Snippets](ace.md#snippets) for usage details.
+
+Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
 
 ### llm_provider
 

@@ -160,8 +160,8 @@ sase
 
 ### ChangeSpec
 
-A ChangeSpec is the tracked unit of work in sase. Each ChangeSpec follows a status lifecycle (WIP → Drafted → Mailed →
-Submitted) and carries structured metadata such as reviewers, tags, and comments. See
+A ChangeSpec is the tracked unit of work in sase. Each ChangeSpec follows a status lifecycle (WIP → Draft → Ready →
+Mailed → Submitted) and carries structured metadata such as reviewers, tags, and comments. See
 [`docs/change_spec.md`](docs/change_spec.md) for the full field reference.
 
 ### Workflows
@@ -306,6 +306,7 @@ just build         # Build wheel + sdist
 - [`docs/configuration.md`](docs/configuration.md) — Configuration reference
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
 - [`docs/mentors.md`](docs/mentors.md) — Automated code review mentor system
+- [`docs/notifications.md`](docs/notifications.md) — Notification system
 - [`docs/plugins.md`](docs/plugins.md) — Plugin system and extension guide
 - [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference

@@ -152,15 +152,18 @@ The modal supports live filtering as you type in the search box and displays las
 Press `,m` to open the Mentor Review modal, which lets you navigate mentor comments, accept or reject suggestions, and
 apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor system reference.
 
-| Key                 | Action                                       |
-| ------------------- | -------------------------------------------- |
-| `j` / `k`           | Navigate between mentors                     |
-| `n` / `p`           | Navigate between comments within a mentor    |
-| `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up             |
-| `Space`             | Toggle acceptance of the current comment     |
-| `Enter`             | Apply all accepted comments (launches agent) |
-| `Shift+K`           | Kill a running mentor                        |
-| `Esc` / `q`         | Close modal                                  |
+| Key                 | Action                                                   |
+| ------------------- | -------------------------------------------------------- |
+| `j` / `k`           | Navigate between mentors                                 |
+| `n` / `p`           | Navigate between comments within a mentor                |
+| `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up                         |
+| `Space`             | Toggle acceptance of the current comment                 |
+| `Enter`             | Apply all accepted comments (launches agent)             |
+| `a`                 | Apply accepted comments and propose (amend with propose) |
+| `A`                 | Apply accepted comments and commit                       |
+| `r`                 | Run a mentor profile (opens profile picker)              |
+| `Shift+K`           | Kill a running mentor                                    |
+| `Esc` / `q`         | Close modal                                              |
 
 ### Copy Mode (`%` prefix)
 
@@ -563,14 +566,17 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 
 ### INSERT Mode (Default)
 
-| Key      | Action                                          |
-| -------- | ----------------------------------------------- |
-| `Enter`  | Submit the prompt                               |
-| `Ctrl+J` | Insert a newline                                |
-| `Ctrl+G` | Open full prompt in `$EDITOR`                   |
-| `Ctrl+I` | Load a prompt from history                      |
-| `#@`     | Open XPrompt snippet picker (type `#` then `@`) |
-| `Escape` | Switch to vim NORMAL mode                       |
+| Key      | Action                                                                   |
+| -------- | ------------------------------------------------------------------------ |
+| `Enter`  | Submit the prompt                                                        |
+| `Ctrl+J` | Insert a newline                                                         |
+| `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0) |
+| `Ctrl+E` | Move to end of line (jumps to next line end if already at end)           |
+| `Ctrl+G` | Open full prompt in `$EDITOR`                                            |
+| `Ctrl+I` | Load a prompt from history                                               |
+| `Tab`    | Expand snippet trigger word (see [Snippets](#snippets) below)            |
+| `#@`     | Open XPrompt snippet picker (type `#` then `@`)                          |
+| `Escape` | Switch to vim NORMAL mode                                                |
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
@@ -621,19 +627,20 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 
 #### Other Commands
 
-| Key | Action                                             |
-| --- | -------------------------------------------------- |
-| `i` | Enter INSERT mode                                  |
-| `a` | Append after cursor                                |
-| `A` | Append at end of line                              |
-| `I` | Insert at line start                               |
-| `o` | Open line below                                    |
-| `O` | Open line above                                    |
-| `u` | Undo                                               |
-| `x` | Delete character                                   |
-| `p` | Paste                                              |
-| `.` | Repeat last mutation (supports count: `3.`)        |
-| `J` | Join current line with next (supports count: `5J`) |
+| Key | Action                                                       |
+| --- | ------------------------------------------------------------ |
+| `i` | Enter INSERT mode                                            |
+| `a` | Append after cursor                                          |
+| `A` | Append at end of line                                        |
+| `I` | Insert at line start                                         |
+| `o` | Open line below                                              |
+| `O` | Open line above                                              |
+| `u` | Undo                                                         |
+| `x` | Delete character                                             |
+| `p` | Paste                                                        |
+| `~` | Toggle case of character(s) at cursor (supports count: `5~`) |
+| `.` | Repeat last mutation (supports count: `3.`)                  |
+| `J` | Join current line with next (supports count: `5J`)           |
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
 
@@ -666,6 +673,34 @@ or off — when enabled, cancelled prompts appear in the results with a `✗` ma
 | `*`    | Green   | Prompt matches current branch    |
 | `~`    | Yellow  | Prompt matches current workspace |
 | `✗`    | Magenta | Prompt was cancelled             |
+
+## Snippets
+
+The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets are configured in the
+`ace.snippets` section of `sase.yml` as a mapping of trigger words to template strings:
+
+```yaml
+ace:
+  snippets:
+    fix: "Please fix the following issue:\n$0"
+    review: "Review this code for correctness, performance, and style."
+```
+
+### Usage
+
+1. Type a trigger word (e.g., `fix`) in the prompt input.
+2. Press `Tab`. If the word before the cursor matches a snippet, it is replaced with the template text.
+3. If the template contains `$0`, the cursor is positioned at that marker after expansion. Otherwise, the cursor moves
+   to the end of the expanded text.
+
+Trigger words are matched against the alphanumeric/underscore word immediately before the cursor. If no snippet matches,
+`Tab` behaves normally.
+
+### XPrompt Picker (`#@`)
+
+Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal. This lists all available
+xprompts and inserts the selected xprompt name at the cursor position after the `#`. This is separate from the
+`ace.snippets` mechanism — it provides quick access to xprompt references rather than expanding static templates.
 
 ## Auto-Refresh
 

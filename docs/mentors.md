@@ -156,18 +156,51 @@ status, and duration for completed mentors.
 Press `,m` on the CLs tab to open the Mentor Review modal for the current ChangeSpec. The modal shows all mentor
 comments and lets you accept or reject individual suggestions.
 
-| Key                 | Action                                       |
-| ------------------- | -------------------------------------------- |
-| `j` / `k`           | Navigate between mentors                     |
-| `n` / `p`           | Navigate between comments within a mentor    |
-| `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up             |
-| `Space`             | Toggle acceptance of the current comment     |
-| `Enter`             | Apply all accepted comments (launches agent) |
-| `Shift+K`           | Kill a running mentor                        |
-| `Esc` / `q`         | Close modal                                  |
+| Key                 | Action                                                   |
+| ------------------- | -------------------------------------------------------- |
+| `j` / `k`           | Navigate between mentors                                 |
+| `n` / `p`           | Navigate between comments within a mentor                |
+| `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up                         |
+| `Space`             | Toggle acceptance of the current comment                 |
+| `Enter`             | Apply all accepted comments (launches agent)             |
+| `a`                 | Apply accepted comments and propose (amend with propose) |
+| `A`                 | Apply accepted comments and commit                       |
+| `r`                 | Run a mentor profile (opens profile picker)              |
+| `Shift+K`           | Kill a running mentor                                    |
+| `Esc` / `q`         | Close modal                                              |
 
-Pressing `Enter` launches the `make_mentor_changes` workflow, which passes the accepted comments to an agent that
-implements the suggested changes.
+#### Apply Modes
+
+There are three ways to apply accepted mentor comments:
+
+- **`Enter`** — Launches the `make_mentor_changes` workflow, which passes the accepted comments to an agent that
+  implements the suggested changes.
+- **`a`** — Same as `Enter`, but also appends the `propose` xprompt (tagged with `propose`) to the agent prompt, so the
+  agent proposes its changes as an amend rather than directly committing.
+- **`A`** — Same as `Enter`, but appends the `commit` xprompt (tagged with `commit`) so the agent commits directly.
+
+#### Running Mentor Profiles
+
+Press `r` to open a profile picker showing all configured mentor profiles. Selecting a profile starts (or restarts) all
+mentors in that profile for the current ChangeSpec. This is useful for re-running a specific review after making
+changes.
+
+### Code Snippets in Review
+
+Each mentor comment in the review modal is displayed alongside a syntax-highlighted code snippet centered on the
+referenced line number. The snippet uses Rich's Monokai theme with line numbers, word wrapping, and the target line
+highlighted. Syntax highlighting is determined by the file extension (supports Python, JavaScript, TypeScript, Go, Rust,
+and 18 other languages).
+
+Code snippets are loaded from file snapshots when available (instant), falling back to the VCS provider's object store
+for older mentor outputs.
+
+### File Snapshots
+
+When a mentor completes, the contents of all files referenced in its comments are snapshotted and saved alongside the
+mentor output at `~/.sase/mentors/<cl>-<profile>-<mentor>-<ts>-files.json`. This ensures that the Mentor Review modal
+can display code snippets instantly without fetching files from VCS, even if the working tree has changed since the
+mentor ran.
 
 ### Kill Mentors (`,M`)
 
@@ -181,7 +214,7 @@ Press `z` `m` to toggle the MENTORS section visibility in the ChangeSpec detail 
 
 Mentors run on ChangeSpecs that meet **all** of the following:
 
-- Status is **Draft** or **Mailed** (not WIP, Submitted, or Reverted).
+- Status is **Ready** (not WIP, Draft, Mailed, Submitted, Reverted, or Archived).
 - The ChangeSpec has at least one commit.
 - At least one mentor profile's matching criteria are satisfied.
 - All non-skip hooks for the matched commit have reached a terminal state.

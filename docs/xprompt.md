@@ -192,6 +192,11 @@ For VCS workspace references, underscores can be used as an alternative to colon
 `#gh:sase`. The underscore is normalized to a colon before pattern matching, so both forms work identically. This is
 useful in contexts where colons are inconvenient.
 
+Double underscores (`__`) in xprompt names are treated as forward slashes (`/`), enabling flat references to namespaced
+xprompts. For example, `#foo__bar` resolves to the xprompt registered as `foo/bar`, and `#a__b__c` resolves to `a/b/c`.
+Single underscores are not affected. This is useful when `/` is inconvenient in certain input contexts (e.g., shell
+completion or certain prompt editors).
+
 Markdown headings like `# Heading` are not matched because a space after `#` prevents the pattern from firing.
 
 ## Arguments
@@ -414,12 +419,17 @@ making the system extensible — a plugin or user can override the CRS workflow 
 
 ### Available Tags
 
-| Tag        | Description                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| `vcs`      | VCS workflow xprompt — wraps other embedded workflows, running its setup/teardown around them |
-| `crs`      | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)          |
-| `fix_hook` | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                        |
-| `rollover` | Marks workflows whose embedded references carry forward to follow-up agent steps              |
+| Tag                   | Description                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `vcs`                 | VCS workflow xprompt — wraps other embedded workflows, running its setup/teardown around them |
+| `crs`                 | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)          |
+| `fix_hook`            | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                        |
+| `rollover`            | Marks workflows whose embedded references carry forward to follow-up agent steps              |
+| `mentor`              | Mentor review prompt workflow                                                                 |
+| `commit`              | Commit workflow (appended by mentor review `A` key for direct commit)                         |
+| `propose`             | Propose workflow (appended by mentor review `a` key for propose-style amend)                  |
+| `make_mentor_changes` | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                   |
+| `diff_file`           | Injects the CL diff into the mentor prompt                                                    |
 
 ### Defining Tags
 
