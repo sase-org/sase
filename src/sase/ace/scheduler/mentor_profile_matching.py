@@ -258,7 +258,6 @@ def add_matching_profiles_upfront(
     if changespec.status in (
         "Draft",
         "WIP",
-        "Mailed",
         "Reverted",
         "Submitted",
         "Archived",

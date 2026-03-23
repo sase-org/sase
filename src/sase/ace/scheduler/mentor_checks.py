@@ -397,7 +397,6 @@ def check_mentors(
     if changespec.status in (
         "Draft",
         "WIP",
-        "Mailed",
         "Reverted",
         "Submitted",
         "Archived",
