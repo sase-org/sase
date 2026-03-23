@@ -7,9 +7,15 @@ from pathlib import Path
 from sase.logs.collectors import (
     _ts_from_artifacts_dir,
     _ts_from_filename_suffix,
+    collect_archived_diffs,
+    collect_axe_state,
     collect_chats,
+    collect_comments,
     collect_diffs,
     collect_hooks,
+    collect_mentors,
+    collect_reverted_diffs,
+    collect_saved_plans,
 )
 from sase.core.time import get_timezone
 
@@ -119,6 +125,109 @@ class TestCollectJsonl:
 
         assert len(results) == 1
         assert "260315" in results[0]
+
+
+class TestNewCollectors:
+    def test_collect_comments(self, tmp_path: Path) -> None:
+        comments_dir = tmp_path / "comments"
+        comments_dir.mkdir()
+        (comments_dir / "myspec-critique-260315_140000.json").write_text("{}")
+        (comments_dir / "myspec-critique-260310_140000.json").write_text("{}")
+
+        start = datetime(2026, 3, 14, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2026, 3, 16, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_comments(start, end)
+
+        assert len(results) == 1
+        assert "260315" in results[0].name
+
+    def test_collect_mentors(self, tmp_path: Path) -> None:
+        mentors_dir = tmp_path / "mentors"
+        mentors_dir.mkdir()
+        (mentors_dir / "cl-profile-mentor-260315_140000.json").write_text("{}")
+        (mentors_dir / "cl-profile-mentor-260315_140000-files.json").write_text("{}")
+        (mentors_dir / "cl-entry-readstate.json").write_text("{}")
+
+        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_mentors(start, end)
+
+        assert len(results) == 3
+
+    def test_collect_archived_diffs(self, tmp_path: Path) -> None:
+        archived_dir = tmp_path / "archived"
+        archived_dir.mkdir()
+        (archived_dir / "myspec__1.diff").write_text("diff")
+
+        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_archived_diffs(start, end)
+
+        assert len(results) == 1
+
+    def test_collect_reverted_diffs(self, tmp_path: Path) -> None:
+        reverted_dir = tmp_path / "reverted"
+        reverted_dir.mkdir()
+        (reverted_dir / "myspec__1.diff").write_text("diff")
+
+        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_reverted_diffs(start, end)
+
+        assert len(results) == 1
+
+    def test_collect_saved_plans(self, tmp_path: Path) -> None:
+        plans_dir = tmp_path / "plans"
+        plans_dir.mkdir()
+        (plans_dir / "my-plan.md").write_text("# Plan")
+
+        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_saved_plans(start, end)
+
+        assert len(results) == 1
+
+    def test_collect_axe_state(self, tmp_path: Path) -> None:
+        jack_dir = tmp_path / "axe" / "lumberjacks" / "hooks"
+        jack_dir.mkdir(parents=True)
+        (jack_dir / "status.json").write_text("{}")
+        (jack_dir / "metrics.json").write_text("{}")
+        logs_dir = jack_dir / "logs"
+        logs_dir.mkdir()
+        (logs_dir / "output.log").write_text("log line")
+
+        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_axe_state(start, end)
+
+        assert len(results) == 3
+        names = {name for name, _ in results}
+        assert names == {"hooks"}
+        filenames = {p.name for _, p in results}
+        assert "status.json" in filenames
+        assert "metrics.json" in filenames
+        assert "output.log" in filenames
+
+    def test_collect_axe_state_empty(self, tmp_path: Path) -> None:
+        start = datetime(2020, 1, 1, 0, 0, 0, tzinfo=get_timezone())
+        end = datetime(2030, 12, 31, 23, 59, 59, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_axe_state(start, end)
+
+        assert results == []
 
 
 def _patch_expanduser(tmp_path: Path):

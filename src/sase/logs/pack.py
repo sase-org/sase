@@ -8,16 +8,22 @@ from pathlib import Path
 from sase.core.time import get_timezone
 
 from sase.logs.collectors import (
+    collect_archived_diffs,
     collect_artifacts,
+    collect_axe_state,
     collect_chats,
     collect_checks,
+    collect_comments,
     collect_diffs,
     collect_event_log,
     collect_hooks,
+    collect_mentors,
     collect_notifications,
     collect_plans,
     collect_questions,
+    collect_reverted_diffs,
     collect_run_log,
+    collect_saved_plans,
     collect_workflows,
 )
 
@@ -43,6 +49,11 @@ def build_pack(start: datetime, end: datetime, range_spec: str) -> str:
         "checks": collect_checks(start, end),
         "plans": collect_plans(start, end),
         "questions": collect_questions(start, end),
+        "comments": collect_comments(start, end),
+        "mentors": collect_mentors(start, end),
+        "archived": collect_archived_diffs(start, end),
+        "reverted": collect_reverted_diffs(start, end),
+        "saved_plans": collect_saved_plans(start, end),
     }
 
     for subdir, files in collector_map.items():
@@ -64,6 +75,18 @@ def build_pack(start: datetime, end: datetime, range_spec: str) -> str:
             rel = art_dir.relative_to(Path("~/.sase/projects").expanduser())
             dest = artifacts_dest / rel
             shutil.copytree(art_dir, dest, dirs_exist_ok=True)
+            file_count += 1
+
+    # -- axe lumberjack state (preserve per-lumberjack structure) --
+    axe_files = collect_axe_state(start, end)
+    if axe_files:
+        for jack_name, src_path in axe_files:
+            rel = src_path.relative_to(
+                Path("~/.sase/axe/lumberjacks").expanduser() / jack_name
+            )
+            dest = pack_dir / "axe" / jack_name / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_path, dest)
             file_count += 1
 
     # -- JSONL-based collectors --
