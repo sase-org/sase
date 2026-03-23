@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -53,6 +54,8 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
         self._formatting: bool = False
+        self._snippet_tabstops: list[int] = []
+        self._snippet_end_from_doc_end: int = 0
 
     @property
     def _ace_app(self) -> AceApp:
@@ -74,6 +77,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
 
     def action_submit_prompt(self) -> None:
         """Submit the prompt text."""
+        self._snippet_tabstops = []
         bar = self._find_prompt_bar()
         if bar:
             bar._handle_text_submission(self.text)
@@ -262,9 +266,10 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Try to expand a snippet trigger word at the cursor.
 
         Extracts the word immediately before the cursor, looks it up in the
-        snippet registry, and replaces it with the expanded template. The
-        cursor is positioned at the ``$0`` marker if present, otherwise at
-        the end of the expanded text.
+        snippet registry, and replaces it with the expanded template.  Supports
+        tabstop markers ``$1``, ``$2``, ... for sequential cursor positions and
+        ``$0`` for the final cursor position.  If no ``$0`` is present, the
+        final position defaults to the end of the expansion.
 
         Returns True if a snippet was expanded.
         """
@@ -288,27 +293,99 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             return False
 
         template = snippets[trigger]
-        cursor_marker = "$0"
-        cursor_offset = template.find(cursor_marker)
-        expanded = template.replace(cursor_marker, "", 1)
+
+        # Find all tabstop markers ($0, $1, $2, ...) and build cleaned text
+        markers: list[tuple[int, int]] = []  # (tabstop_number, offset_in_cleaned)
+        cleaned_parts: list[str] = []
+        last_end = 0
+        cleaned_offset = 0
+        seen: set[int] = set()
+
+        for match in re.finditer(r"\$(\d+)", template):
+            num = int(match.group(1))
+            before = template[last_end : match.start()]
+            cleaned_parts.append(before)
+            cleaned_offset += len(before)
+            if num not in seen:
+                markers.append((num, cleaned_offset))
+                seen.add(num)
+            last_end = match.end()
+
+        cleaned_parts.append(template[last_end:])
+        expanded = "".join(cleaned_parts)
 
         # Replace trigger word with expanded text
-        start = (row, word_start)
-        end = (row, col)
-        self._replace_via_keyboard(expanded, start, end)
+        self._replace_via_keyboard(expanded, (row, word_start), (row, col))
 
-        # Position cursor at $0 location (if present)
-        if cursor_offset >= 0:
-            text_before_cursor = expanded[:cursor_offset]
-            lines = text_before_cursor.split("\n")
-            if len(lines) > 1:
-                cursor_row = row + len(lines) - 1
-                cursor_col = len(lines[-1])
-            else:
-                cursor_row = row
-                cursor_col = word_start + len(lines[-1])
-            self.cursor_location = (cursor_row, cursor_col)
+        if not markers:
+            # No markers — cursor stays at end (default behavior)
+            self._snippet_tabstops = []
+            return True
 
+        # Add implicit $0 at end if not present
+        if 0 not in seen:
+            markers.append((0, len(expanded)))
+
+        # Sort: $1, $2, ..., then $0 last
+        markers.sort(key=lambda m: (m[0] == 0, m[0]))
+
+        expansion_len = len(expanded)
+
+        # Position cursor at first tabstop
+        first_offset = markers[0][1]
+        self._position_cursor_at_expansion_offset(
+            row, word_start, expanded, first_offset
+        )
+
+        # Store remaining tabstops as chars-from-end-of-expansion
+        self._snippet_tabstops = [expansion_len - offset for _, offset in markers[1:]]
+
+        # Track expansion end for offset adjustment on advance
+        doc_len = len(self.text)
+        start_abs = (
+            sum(len(self.document.get_line(r)) + 1 for r in range(row)) + word_start
+        )
+        self._snippet_end_from_doc_end = doc_len - (start_abs + expansion_len)
+
+        return True
+
+    def _position_cursor_at_expansion_offset(
+        self,
+        start_row: int,
+        start_col: int,
+        expanded: str,
+        offset: int,
+    ) -> None:
+        """Position cursor at a character offset within expanded text."""
+        text_before = expanded[:offset]
+        lines = text_before.split("\n")
+        if len(lines) > 1:
+            self.cursor_location = (start_row + len(lines) - 1, len(lines[-1]))
+        else:
+            self.cursor_location = (start_row, start_col + len(lines[-1]))
+
+    def _try_advance_tabstop(self) -> bool:
+        """Advance to the next snippet tabstop. Returns True if advanced."""
+        if not self._snippet_tabstops:
+            return False
+
+        from_end = self._snippet_tabstops.pop(0)
+        doc_len = len(self.text)
+        expansion_end = doc_len - self._snippet_end_from_doc_end
+        target_offset = expansion_end - from_end
+
+        # Convert absolute offset to (row, col)
+        remaining = target_offset
+        for r in range(self.document.line_count):
+            line_len = len(self.document.get_line(r))
+            if remaining <= line_len:
+                self.cursor_location = (r, remaining)
+                return True
+            remaining -= line_len + 1
+
+        # Fallback: end of document
+        last_row = self.document.line_count - 1
+        self.cursor_location = (last_row, len(self.document.get_line(last_row)))
         return True
 
     def _enter_normal_mode(self) -> None:
@@ -316,6 +393,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._vim_mode = "normal"
         self._pending_operator = ""
         self._pending_operator_count = 1
+        self._snippet_tabstops = []
         self.read_only = True
         self.show_line_numbers = self.document.line_count > 1
         self.highlight_cursor_line = True
@@ -359,8 +437,12 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self._enter_normal_mode()
             return
 
-        # Tab in INSERT mode: attempt snippet expansion
+        # Tab in INSERT mode: advance tabstop or attempt snippet expansion
         if event.key == "tab":
+            if self._try_advance_tabstop():
+                event.stop()
+                event.prevent_default()
+                return
             if self._try_expand_snippet():
                 event.stop()
                 event.prevent_default()

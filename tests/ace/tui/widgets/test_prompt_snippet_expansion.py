@@ -132,3 +132,119 @@ class TestMultiLineExpansion:
         assert expanded is True
         assert ta.text == "line one\nline two"
         assert ta.cursor_location == (1, 5)
+
+
+class TestTabstopExpansion:
+    async def test_dollar_one_places_cursor(self) -> None:
+        """$1 places cursor at first tabstop on expansion."""
+        ta, expanded = await _setup(
+            snippets={"fi": "the $1 file"},
+            text="fi",
+            cursor=(0, 2),
+        )
+        assert expanded is True
+        assert ta.text == "the  file"
+        assert ta.cursor_location == (0, 4)
+
+    async def test_advance_to_implicit_end(self) -> None:
+        """Tab advances to end of expansion when no $0 present."""
+        app = _SnippetTestApp({"fi": "the $1 file"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fi")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.cursor_location == (0, 4)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 9)
+
+    async def test_advance_to_explicit_dollar_zero(self) -> None:
+        """Tab advances from $1 to explicit $0 position."""
+        app = _SnippetTestApp({"wrap": "($1)$0"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("wrap")
+            ta.cursor_location = (0, 4)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.text == "()"
+            assert ta.cursor_location == (0, 1)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 2)
+
+    async def test_multiple_tabstops_in_order(self) -> None:
+        """$1 then $2 then $0 visited in order."""
+        app = _SnippetTestApp({"fn": "def $1($2):$0"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fn")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.text == "def ():"
+            assert ta.cursor_location == (0, 4)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 5)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 7)
+
+    async def test_no_advance_without_active_session(self) -> None:
+        """_try_advance_tabstop returns False when no session active."""
+        ta, expanded = await _setup(
+            snippets={"hello": "Hello World"},
+            text="hello",
+            cursor=(0, 5),
+        )
+        assert expanded is True
+        assert ta._try_advance_tabstop() is False
+
+    async def test_advance_with_trailing_text(self) -> None:
+        """Tabstop positions adjust correctly with text after expansion."""
+        app = _SnippetTestApp({"fi": "the $1 file"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fi done")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.text == "the  file done"
+            assert ta.cursor_location == (0, 4)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 9)
+
+    async def test_advance_after_typing(self) -> None:
+        """Tabstop end position adjusts for text typed at earlier tabstop."""
+        app = _SnippetTestApp({"fi": "the $1 file"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fi")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.cursor_location == (0, 4)
+            # Simulate user typing "main" at $1
+            ta.load_text("the main file")
+            ta.cursor_location = (0, 8)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 13)
