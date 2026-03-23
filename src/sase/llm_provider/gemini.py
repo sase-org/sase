@@ -1,7 +1,9 @@
 """Gemini LLM provider implementation."""
 
 import os
+import pty
 import subprocess
+import termios
 import time
 from pathlib import Path
 
@@ -135,6 +137,10 @@ class GeminiProvider(LLMProvider):
     ) -> tuple[str, str, int]:
         """Run the Gemini CLI subprocess.
 
+        Uses a PTY for stdout so that the Gemini CLI uses line-buffered
+        output (instead of block-buffered pipes), enabling real-time
+        streaming into ``live_reply.md`` for the TUI.
+
         Args:
             args: Command-line arguments.
             prompt: Prompt to write to stdin.
@@ -143,13 +149,39 @@ class GeminiProvider(LLMProvider):
         Returns:
             Tuple of (stdout_content, stderr_content, return_code).
         """
+        # Create a PTY pair so Gemini CLI sees a terminal on stdout and
+        # flushes output line-by-line instead of block-buffering.
+        master_fd, slave_fd = pty.openpty()
+
+        # Disable output post-processing (OPOST) to prevent the PTY
+        # line discipline from converting \n → \r\n.
+        try:
+            attrs = termios.tcgetattr(slave_fd)
+            attrs[1] &= ~termios.OPOST
+            termios.tcsetattr(slave_fd, termios.TCSANOW, attrs)
+        except termios.error:
+            pass
+
+        env = os.environ.copy()
+        env["TERM"] = "dumb"
+        env["NO_COLOR"] = "1"
+
         process = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdout=slave_fd,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
+        os.close(slave_fd)  # Parent doesn't need the slave end
+
+        # Wrap the PTY master as a text stream so stream_process_output
+        # can read from it exactly like a regular pipe.
+        pty_stdout = open(  # noqa: SIM115
+            master_fd, encoding="utf-8", closefd=True
+        )
+        process.stdout = pty_stdout  # type: ignore[assignment]
 
         # Write prompt to stdin
         if process.stdin:
@@ -181,5 +213,11 @@ class GeminiProvider(LLMProvider):
 
             threading.Thread(target=_monitor_interrupt, daemon=True).start()
 
-        # Stream output in real-time
-        return stream_process_output(process, suppress_output=suppress_output)
+        # Stream output in real-time with ANSI stripping (the PTY may
+        # cause Gemini CLI to emit terminal control codes).
+        try:
+            return stream_process_output(
+                process, suppress_output=suppress_output, clean_ansi=True
+            )
+        finally:
+            pty_stdout.close()

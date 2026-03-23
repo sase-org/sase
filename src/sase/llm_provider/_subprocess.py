@@ -2,12 +2,33 @@
 
 import json
 import os
+import re
 import select
 import subprocess
 import sys
 from datetime import UTC, datetime
 from collections.abc import Mapping
 from typing import IO
+
+# Matches ANSI escape sequences: CSI, OSC, charset selection, and other
+# single-character escapes.  Used to clean PTY output that may contain
+# colour codes or cursor-movement sequences.
+_ANSI_RE = re.compile(
+    r"\x1b"
+    r"(?:"
+    r"\[[0-9;?]*[A-Za-z@]"  # CSI sequences (colors, cursor, erase, …)
+    r"|\][^\x07\x1b]*(?:\x07|\x1b\\)"  # OSC sequences
+    r"|[()][0-9A-Za-z]"  # Charset selection
+    r"|."  # Any other ESC + single char
+    r")"
+)
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences and bare carriage returns from *text*."""
+    text = _ANSI_RE.sub("", text)
+    # Normalize CRLF then strip bare CR (spinner overwrites, etc.)
+    return text.replace("\r\n", "\n").replace("\r", "")
 
 
 def _open_live_reply_file() -> IO[str] | None:
@@ -22,12 +43,17 @@ def _open_live_reply_file() -> IO[str] | None:
 def stream_process_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
+    clean_ansi: bool = False,
 ) -> tuple[str, str, int]:
     """Stream stdout and stderr from a process in real-time.
 
     Args:
         process: The subprocess.Popen process to stream from.
         suppress_output: If True, don't print output to console.
+        clean_ansi: If True, strip ANSI escape sequences from stdout
+            lines before accumulating and writing to ``live_reply.md``.
+            Useful when stdout is backed by a PTY that may inject
+            terminal control codes.
 
     Returns:
         Tuple of (stdout_content, stderr_content, return_code).
@@ -58,8 +84,14 @@ def stream_process_output(
 
             # Read from stdout
             if process.stdout and process.stdout in ready:
-                line = process.stdout.readline()
+                try:
+                    line = process.stdout.readline()
+                except OSError:
+                    # PTY master raises EIO when the slave side closes
+                    line = ""
                 if line:
+                    if clean_ansi:
+                        line = _strip_ansi(line)
                     stdout_lines.append(line)
                     if live_reply_file:
                         live_reply_file.write(line)
@@ -79,13 +111,18 @@ def stream_process_output(
             if process.poll() is not None:
                 # Read any remaining output
                 if process.stdout:
-                    for line in process.stdout:
-                        stdout_lines.append(line)
-                        if live_reply_file:
-                            live_reply_file.write(line)
-                            live_reply_file.flush()
-                        if not suppress_output:
-                            print(line, end="", flush=True)
+                    try:
+                        for line in process.stdout:
+                            if clean_ansi:
+                                line = _strip_ansi(line)
+                            stdout_lines.append(line)
+                            if live_reply_file:
+                                live_reply_file.write(line)
+                                live_reply_file.flush()
+                            if not suppress_output:
+                                print(line, end="", flush=True)
+                    except OSError:
+                        pass
                 if process.stderr:
                     for line in process.stderr:
                         stderr_lines.append(line)
