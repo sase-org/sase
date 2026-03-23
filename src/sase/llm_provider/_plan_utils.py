@@ -35,7 +35,7 @@ def add_create_time_frontmatter(
     section is prepended.
 
     The datetime is formatted as ``yyyy-mm-dd HH:MM:SS`` in the configured
-    timezone (see :func:`sase.sase_utils.get_timezone`).
+    timezone (see :func:`sase.core.time.get_timezone`).
     """
     if create_time is None:
         from sase.core.time import get_timezone

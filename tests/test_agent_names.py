@@ -1,4 +1,4 @@
-"""Tests for sase.agent_names module."""
+"""Tests for sase.agent.names module."""
 
 import json
 import os
