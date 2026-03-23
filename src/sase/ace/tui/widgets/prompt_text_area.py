@@ -469,10 +469,14 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
                         return
         await super()._on_key(event)
 
-        # Auto-wrap: reflow with prettier when line exceeds available width
+        # Auto-wrap: reflow with prettier when line exceeds available width.
+        # Skip wrapping on space so the user's trailing space is never consumed
+        # by the line break — wrapping will fire on the next non-space character
+        # when the space has become an interior word separator.
         if (
             self._vim_mode == "insert"
             and event.character
             and event.character.isprintable()
+            and event.character != " "
         ):
             await self._format_with_prettier()
