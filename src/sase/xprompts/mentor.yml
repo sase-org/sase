@@ -48,3 +48,9 @@ steps:
       ## JSON Output Format
 
       #json:`{{ schema }}`
+
+      ## Verification
+
+      Before submitting your final JSON output, write it to a temporary file and
+      run `sase comments <file>` to validate and preview it. Fix any errors the
+      command reports before producing your final answer.
