@@ -75,9 +75,6 @@ def test_mentor_output_empty_comments() -> None:
 def test_json_schema_has_required_fields() -> None:
     """Test that the JSON schema declares all required top-level fields."""
     assert set(MENTOR_OUTPUT_JSON_SCHEMA["required"]) == {
-        "mentor_name",
-        "profile_name",
-        "role",
         "comments",
     }
 

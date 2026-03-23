@@ -40,9 +40,6 @@ class MentorOutput:
 MENTOR_OUTPUT_JSON_SCHEMA: dict = {
     "type": "object",
     "properties": {
-        "mentor_name": {"type": "string"},
-        "profile_name": {"type": "string"},
-        "role": {"type": "string"},
         "comments": {
             "type": "array",
             "items": {
@@ -67,7 +64,7 @@ MENTOR_OUTPUT_JSON_SCHEMA: dict = {
             },
         },
     },
-    "required": ["mentor_name", "profile_name", "role", "comments"],
+    "required": ["comments"],
 }
 
 
