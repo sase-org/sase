@@ -325,6 +325,13 @@ class EmbeddedWorkflowMixin:
             finally:
                 # Restore original context
                 self.context = original_context
+                # Sync state.context back to the parent context so that
+                # workflow_state.json always reflects the parent's context
+                # (including cl_name).  Without this, the state.context
+                # retains the embedded workflow's context because step
+                # execution methods call ``self.state.context = dict(self.context)``
+                # while self.context points at the embedded context.
+                self.state.context = dict(self.context)
                 self._current_embedded_workflow_name = None
 
         return not hit_failure
