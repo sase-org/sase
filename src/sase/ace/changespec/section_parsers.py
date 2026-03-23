@@ -98,9 +98,13 @@ def parse_hooks_line(
         # Remove the "| " prefix for regex matching
         status_content = stripped[2:]  # Skip "| " prefix
         # Try new format: (N) [YYmmdd_HHMMSS] STATUS (XmYs) - (SUFFIX)
+        # Note: The suffix group uses .+ instead of [^)]+ to handle suffix
+        # text that contains literal ")" characters (e.g., AI-generated
+        # summaries like "test failed (Exit 3)."). The .+ greedily matches
+        # through nested parens, then backtracks to the final ")$".
         new_status_match = re.match(
             r"^\((\d+[a-z]?)\)\s+\[(\d{6})_(\d{6})\]\s*(RUNNING|PASSED|FAILED|DEAD)"
-            r"(?:\s+\(([^)]+)\))?(?:\s+-\s+\(([^)]+)\))?$",
+            r"(?:\s+\(([^)]+)\))?(?:\s+-\s+\((.+)\))?$",
             status_content,
         )
         if new_status_match and current_hook_entry is not None:

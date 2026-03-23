@@ -56,6 +56,40 @@ def test_parse_changespec_hooks_with_dead_status() -> None:
     assert sl.duration == "24h0m"
 
 
+def test_parse_changespec_hooks_suffix_with_closing_paren() -> None:
+    """Test parsing HOOKS where suffix text contains ')' characters.
+
+    AI-generated summaries can contain parentheses (e.g., "Exit 3)"),
+    which previously broke the regex that used [^)]+ for the suffix group.
+    """
+    lines = [
+        "NAME: test_cl\n",
+        "DESCRIPTION:\n",
+        "  Test description\n",
+        "STATUS: Ready\n",
+        "COMMITS:\n",
+        "  (8) Some commit\n",
+        "HOOKS:\n",
+        "  pytest src\n",
+        "      | (8) [260323_173040] FAILED (1m30s)"
+        " - (%: deal_check_line_chart_test failed remotely (Exit 3)."
+        " | deal_check_line_chart_test failed remotely (Exit 3).)\n",
+        "\n",
+    ]
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    assert changespec is not None
+    assert changespec.hooks is not None
+    assert len(changespec.hooks) == 1
+    sl = changespec.hooks[0].latest_status_line
+    assert sl is not None
+    assert sl.status == "FAILED"
+    assert sl.duration == "1m30s"
+    assert sl.commit_entry_num == "8"
+    # The suffix should be parsed despite containing ')' characters
+    assert sl.suffix is not None
+    assert "Exit 3" in sl.suffix
+
+
 # Tests for hook utility functions
 def test_format_duration_seconds_only() -> None:
     """Test formatting duration with only seconds."""
