@@ -314,6 +314,24 @@ def create_parser() -> argparse.ArgumentParser:
     bead_update_parser.add_argument("-D", "--design")
     bead_update_parser.add_argument("-a", "--assignee")
 
+    # --- comments ---
+    comments_parser = top_level_subparsers.add_parser(
+        "comments",
+        help="Preview mentor comments from JSON (reads from stdin or file)",
+    )
+    comments_parser.add_argument(
+        "file",
+        nargs="?",
+        help="Path to JSON file containing comments (default: read from stdin)",
+    )
+    comments_parser.add_argument(
+        "-c",
+        "--context",
+        type=int,
+        default=5,
+        help="Lines of code context above/below the target line (default: 5)",
+    )
+
     # --- config ---
     config_parser = top_level_subparsers.add_parser(
         "config",

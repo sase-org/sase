@@ -91,6 +91,12 @@ def main() -> NoReturn:
         handler(args)
         sys.exit(0)
 
+    # --- comments ---
+    if args.command == "comments":
+        from .comments_handler import handle_comments_command
+
+        handle_comments_command(args)
+
     # --- commit ---
     if args.command == "commit":
         handle_commit_command(args)

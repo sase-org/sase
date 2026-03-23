@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-23 16:00:01
-status: wip
+status: done
 ---
 
 # Plan: `sase comments` CLI Command
