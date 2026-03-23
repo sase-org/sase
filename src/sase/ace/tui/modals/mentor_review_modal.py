@@ -49,9 +49,9 @@ class MentorReviewModal(
         ("p", "prev_comment", "Prev comment"),
         ("space", "toggle_accept", "Toggle accept"),
         ("a", "apply_propose", "Apply + propose"),
-        ("shift+a", "apply_commit", "Apply + commit"),
+        ("A", "apply_commit", "Apply + commit"),
         ("r", "run_profile", "Run mentor profile"),
-        ("shift+k", "kill_mentor", "Kill mentor"),
+        ("K", "kill_mentor", "Kill mentor"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
