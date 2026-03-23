@@ -35,8 +35,8 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
   (e.g., "hooks", "checks"), runs one or more chops per cycle, and maintains independent state and metrics.
 
 - **Chop**: A single job unit executed by a lumberjack. Can be a script (external executable that reads context JSON) or
-  an agent (background process launched via agent_launcher). Chops can be configured with custom environment variables
-  and run frequency.
+  an agent (background process launched via the agent launcher). Chops can be configured with custom environment
+  variables and run frequency.
 
 ## CLI Commands
 

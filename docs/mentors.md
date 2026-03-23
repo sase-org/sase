@@ -202,6 +202,15 @@ mentor output at `~/.sase/mentors/<cl>-<profile>-<mentor>-<ts>-files.json`. This
 can display code snippets instantly without fetching files from VCS, even if the working tree has changed since the
 mentor ran.
 
+### Read Tracking
+
+The Mentor Review modal tracks which comments you have viewed. As you navigate between comments, each one is
+automatically marked as read. The modal header shows a mini progress bar for each mentor (`■` = read, `□` = unread)
+along with an accepted/total count. Read state persists across modal opens and is stored per ChangeSpec and commit
+entry.
+
+Unread comment counts also appear inline in the CLs tab list (see [ACE docs](ace.md#mentor-comment-stats-in-cl-list)).
+
 ### Kill Mentors (`,M`)
 
 Press `,M` on the CLs tab to kill all running mentors for the current ChangeSpec.

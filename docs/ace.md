@@ -353,7 +353,8 @@ filterable list on the left and a syntax-highlighted preview on the right.
 
 Xprompts are grouped by source (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`, Home `~/xprompts/`,
 project-specific, config `sase.yml`, plugins, built-in). Workflow xprompts (multi-step YAML) are marked with a gear
-icon.
+icon. Project-local xprompts defined in each project's `sase.yml` file are also included, even though the TUI's normal
+config loading does not read project-local config files.
 
 ### Keybindings
 
@@ -410,6 +411,16 @@ have been associated with the current CL.
 | `j` / `k`   | Navigate through agent list |
 | `Enter`     | Jump to agent in Agents tab |
 | `Esc` / `q` | Close modal                 |
+
+## Mentor Comment Stats in CL List
+
+When a ChangeSpec has completed mentor reviews with comments, the CLs tab list entry shows inline stats:
+
+- **checkmark + count** (e.g., `✓3`) — number of accepted comments
+- **dot + count** (e.g., `●2`) — number of unread comments
+
+These stats are computed from the latest commit entry's finished mentors. They update as you accept or read comments in
+the Mentor Review modal.
 
 ## Tab Bar Display
 
@@ -684,23 +695,26 @@ ace:
   snippets:
     fix: "Please fix the following issue:\n$0"
     review: "Review this code for correctness, performance, and style."
+    bug: "Bug in $1:\n\nExpected: $2\nActual: $3\n\nPlease fix.$0"
 ```
 
 ### Usage
 
 1. Type a trigger word (e.g., `fix`) in the prompt input.
 2. Press `Tab`. If the word before the cursor matches a snippet, it is replaced with the template text.
-3. If the template contains `$0`, the cursor is positioned at that marker after expansion. Otherwise, the cursor moves
-   to the end of the expanded text.
+3. If the template contains tabstop markers (`$1`, `$2`, ...), the cursor jumps to `$1` first. Press `Tab` again to
+   advance to `$2`, then `$3`, and so on. `$0` marks the final cursor position after all tabstops are visited. If there
+   are no tabstop markers, the cursor moves to the end of the expanded text.
 
 Trigger words are matched against the alphanumeric/underscore word immediately before the cursor. If no snippet matches,
-`Tab` behaves normally.
+`Tab` advances to the next tabstop (if any are remaining from a previous expansion), or behaves normally.
 
 ### XPrompt Picker (`#@`)
 
 Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal. This lists all available
-xprompts and inserts the selected xprompt name at the cursor position after the `#`. This is separate from the
-`ace.snippets` mechanism — it provides quick access to xprompt references rather than expanding static templates.
+xprompts (including project-local xprompts from `sase.yml` files) and inserts the selected xprompt name at the cursor
+position after the `#`. This is separate from the `ace.snippets` mechanism — it provides quick access to xprompt
+references rather than expanding static templates.
 
 ## Auto-Refresh
 

@@ -204,6 +204,11 @@ src/sase/
 │   ├── comments/          # Comment management
 │   ├── scheduler/         # Task scheduling within ACE
 │   └── workflows/         # ACE-specific workflow integrations
+├── agent/                 # Agent subprocess management
+│   ├── launcher.py        # Agent subprocess launcher
+│   ├── multi_prompt.py    # Multi-prompt parsing (frontmatter + segment splitting)
+│   ├── multi_prompt_launcher.py # Sequential multi-agent launch orchestration
+│   └── names.py           # Agent auto-naming utilities
 ├── axe/                   # Lumberjack-based daemon and agent runners
 │   ├── orchestrator.py    # Multi-lumberjack supervisor
 │   ├── lumberjack.py      # Single-lumberjack scheduler loop
@@ -220,11 +225,19 @@ src/sase/
 │   ├── core.py            # Config file discovery, deep-merge, and loading
 │   ├── mentor.py          # Mentor profile configuration
 │   └── metahook.py        # Metahook configuration
+├── core/                  # Shared core utilities
+│   ├── time.py            # Time formatting and parsing
+│   ├── paths.py           # Path resolution helpers
+│   ├── shell.py           # Shell command utilities
+│   └── changespec.py      # ChangeSpec utility functions
 ├── history/               # History persistence
 │   ├── chat.py            # Chat history persistence
 │   ├── command.py         # Command history persistence
 │   ├── hook.py            # Hook history persistence
 │   └── prompt.py          # Prompt history persistence and querying
+├── sdd/                   # Spec-driven development utilities
+│   ├── files.py           # SDD file management (specs, plans)
+│   └── beads.py           # SDD bead integration
 ├── workflows/             # All change-lifecycle workflows
 │   ├── accept/            # Change acceptance workflows
 │   ├── commit/            # Commit creation workflows
@@ -257,14 +270,15 @@ src/sase/
 │   ├── _registry.py       # Workspace detection and metadata registry
 │   └── plugins/           # Built-in workspace plugins
 │       └── bare_git_*.py  # BareGitWorkspacePlugin (ref resolution, submit, mail)
-├── agent_launcher.py      # Agent subprocess launcher
-├── multi_prompt.py        # Multi-prompt parsing (frontmatter + segment splitting)
-├── multi_prompt_launcher.py # Sequential multi-agent launch orchestration
+├── running_field/         # Workspace claim and slot management
 ├── bead/                  # Git-native issue tracking (plans, phases, dependencies)
 ├── logs/                  # Agent run log collection and packaging
 ├── gemini_wrapper/        # Gemini-specific integration
 ├── notifications/         # Notification system and delivery
 ├── status_state_machine/  # ChangeSpec status transitions
+├── artifacts.py           # Artifact path resolution and management
+├── content.py             # Content extraction and text utilities
+├── output.py              # Rich console output helpers
 ├── scripts/               # Extracted Python utility scripts
 tests/                     # Test suite (mirrors src/sase/ structure)
 docs/                      # Detailed documentation
