@@ -275,15 +275,8 @@ xprompts:
         3. ALL necessary design decisions have been made and documented in the plan.
 
       If there are any deficiencies in the current plan, you should update the plan file to properly address them.
-  plan:
-    input:
-      prompt: text
-    content: |
-      Can you create a plan using your /sase_plan skill for the following prompt:
-
-      ### THE PROMPT YOU NEED TO CREATE A PLAN FOR
-
-      {{ prompt }}
+  plan: |
+    Think this through thoroughly and create a plan using your `/sase_plan` skill.
   x:
     input: { name: word, cmd: text }
     content: "@$(sase_xcmd {{ name }} {{ cmd }})"
