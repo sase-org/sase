@@ -81,12 +81,18 @@ keystrokes and `--size` to control terminal dimensions.
 
 Some files associated with this project live in the ~/.local/share/chezmoi/ directory. Feel free to modify these if
 needed, but make sure to commit your changes to the chezmoi repo using your commit skill (NOT `git commit`) after making
-them. Ignore the .sase_beads/ changes in commits when composing your commit message.
+them. Ignore the .sase_beads/ changes in commits when composing your commit message. IMPORTANT: After committing to this
+repo, you MUST run the `chezmoi apply` command. Otherwise, the changes to the chezmoi files will not be applied to the
+system (i.e. copied to their proper locations).
 
 Chezmoi iles related to sase that I know about:
 
 - The sase.yml files that I use to configure sase can be found in the ~/.local/share/chezmoi/home/dot_config/sase/
   directory.
+- The `ccommit` script, which is used by your `/commit` skill is defined in the chezmoi repo.
+
+IMPORTANT: After committing to this repo, you MUST run the `chezmoi apply` command. Otherwise, the changes to the
+chezmoi files will not be applied to the system (i.e. copied to their proper locations).
 
 ## Plugin Repos
 
