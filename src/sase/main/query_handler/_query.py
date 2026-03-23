@@ -481,7 +481,7 @@ def run_query(
 
     # Parse user-prompt frontmatter for local xprompts (after history save
     # so prompt history retains the original frontmatter).
-    from sase.multi_prompt import parse_multi_prompt
+    from sase.agent.multi_prompt import parse_multi_prompt
 
     multi = parse_multi_prompt(query)
     local_xprompts = multi.local_xprompts

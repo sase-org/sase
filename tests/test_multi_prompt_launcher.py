@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.multi_prompt_launcher import (
+from sase.agent.multi_prompt_launcher import (
     deserialize_local_xprompts,
     launch_multi_prompt_agents,
     _serialize_local_xprompts,
@@ -152,8 +152,8 @@ def test__wait_for_agent_naming_waits_for_name_field() -> None:
 # --- launch_multi_prompt_agents ---
 
 
-@patch("sase.agent_launcher.spawn_agent_subprocess")
-@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.sase_utils.generate_timestamp")
 @patch("sase.shared_utils.create_artifacts_directory")
 @patch("sase.running_field.get_first_available_axe_workspace")
@@ -190,8 +190,8 @@ def test_launch_multi_prompt_sequential_calls(
     assert mock_wait.call_count == 2
 
 
-@patch("sase.agent_launcher.spawn_agent_subprocess")
-@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.sase_utils.generate_timestamp")
 @patch("sase.shared_utils.create_artifacts_directory")
 @patch("sase.running_field.get_first_available_axe_workspace")
@@ -229,8 +229,8 @@ def test_launch_multi_prompt_each_gets_own_timestamp(
     assert calls[1].kwargs["workspace_num"] == 101
 
 
-@patch("sase.agent_launcher.spawn_agent_subprocess")
-@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.sase_utils.generate_timestamp", side_effect=["ts1", "ts2"])
 @patch("sase.shared_utils.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace", side_effect=[100, 101])
@@ -277,8 +277,8 @@ def test_launch_multi_prompt_passes_segment_local_xprompts_file(
             os.unlink(second_path)
 
 
-@patch("sase.agent_launcher.spawn_agent_subprocess")
-@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.sase_utils.generate_timestamp", return_value="ts1")
 @patch("sase.shared_utils.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace", return_value=100)
@@ -323,8 +323,8 @@ def test_launch_multi_prompt_includes_transitive_local_xprompts(
             os.unlink(path)
 
 
-@patch("sase.agent_launcher.spawn_agent_subprocess")
-@patch("sase.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.shared_utils.create_artifacts_directory", return_value="/a")
 @patch("sase.running_field.get_first_available_axe_workspace")
 @patch(

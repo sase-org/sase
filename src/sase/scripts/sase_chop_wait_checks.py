@@ -10,7 +10,7 @@ import argparse
 import json
 from pathlib import Path
 
-from sase.agent_names import find_named_agent
+from sase.agent.names import find_named_agent
 from sase.axe.chop_script_context import read_chop_context
 
 

@@ -64,7 +64,7 @@ class AgentLaunchMixin:
 
         # Check if this is a bulk run
         if self._bulk_changespecs:
-            from sase.multi_prompt import is_multi_prompt
+            from sase.agent.multi_prompt import is_multi_prompt
 
             if is_multi_prompt(prompt):
                 self.notify(  # type: ignore[attr-defined]
@@ -86,7 +86,7 @@ class AgentLaunchMixin:
         # (sase run) behavior: each segment handles its own VCS resolution
         # in the agent runner, avoiding per-segment workspace allocation
         # at the TUI level.
-        from sase.multi_prompt import parse_multi_prompt
+        from sase.agent.multi_prompt import parse_multi_prompt
 
         multi = parse_multi_prompt(prompt)
         if len(multi.segments) > 1:
@@ -327,8 +327,8 @@ class AgentLaunchMixin:
         Delegates to ``launch_multi_prompt_agents()`` in a background thread
         to avoid blocking the TUI event loop during naming-wait polls.
         """
-        from sase.multi_prompt import MultiPrompt
-        from sase.multi_prompt_launcher import launch_multi_prompt_agents
+        from sase.agent.multi_prompt import MultiPrompt
+        from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
         assert isinstance(multi, MultiPrompt)
 
@@ -484,7 +484,7 @@ class AgentLaunchMixin:
             vcs_ref: If set, a (workflow_type, ref) tuple for the pre-resolved
                 VCS reference.  Used to set SASE_*_PRE_ALLOCATED env vars.
         """
-        from sase.agent_launcher import spawn_agent_subprocess
+        from sase.agent.launcher import spawn_agent_subprocess
 
         try:
             spawn_agent_subprocess(

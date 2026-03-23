@@ -195,7 +195,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
     # Auto-generate name if %name was used bare (no argument)
     if "name" in seen and not seen["name"]:
-        from sase.agent_names import get_next_auto_name
+        from sase.agent.names import get_next_auto_name
 
         seen["name"] = get_next_auto_name()
 
@@ -206,7 +206,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         for raw_arg in seen_multi["wait"]:
             if not raw_arg:
                 if prev_name is None:
-                    from sase.agent_names import get_most_recent_agent_name
+                    from sase.agent.names import get_most_recent_agent_name
 
                     prev_name = get_most_recent_agent_name() or ""
                 if not prev_name:

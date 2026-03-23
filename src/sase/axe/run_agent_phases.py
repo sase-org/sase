@@ -50,7 +50,7 @@ def extract_directives_and_write_meta(
     from sase.xprompt.directives import extract_prompt_directives
 
     # Parse user-prompt frontmatter to extract local xprompts.
-    from sase.multi_prompt import parse_multi_prompt
+    from sase.agent.multi_prompt import parse_multi_prompt
 
     multi = parse_multi_prompt(prompt)
     prompt_body = "\n---\n".join(multi.segments)
@@ -60,7 +60,7 @@ def extract_directives_and_write_meta(
     env_xprompts_path = os.environ.pop("SASE_AGENT_LOCAL_XPROMPTS", None)
     if env_xprompts_path:
         try:
-            from sase.multi_prompt_launcher import deserialize_local_xprompts
+            from sase.agent.multi_prompt_launcher import deserialize_local_xprompts
 
             env_xprompts = deserialize_local_xprompts(env_xprompts_path)
             # Frontmatter xprompts take precedence over env-delivered ones.
@@ -99,7 +99,7 @@ def extract_directives_and_write_meta(
 
     agent_name = directives.name
     if agent_name is None:
-        from sase.agent_names import get_next_auto_name
+        from sase.agent.names import get_next_auto_name
 
         agent_name = get_next_auto_name()
 
@@ -146,7 +146,7 @@ def extract_directives_and_write_meta(
             json.dump(agent_meta, f, indent=2)
 
         if agent_name:
-            from sase.agent_names import claim_agent_name
+            from sase.agent.names import claim_agent_name
 
             claim_agent_name(agent_name, artifacts_dir)
             os.environ["SASE_AGENT_NAME"] = agent_name

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent_names import claim_agent_name, find_named_agent, get_next_auto_name
+from sase.agent.names import claim_agent_name, find_named_agent, get_next_auto_name
 
 # A PID that is guaranteed not to exist (beyond kernel PID_MAX_LIMIT)
 _DEAD_PID = 99_999_999

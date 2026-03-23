@@ -126,7 +126,7 @@ def _find_chop_config(chop_name: str, config: AxeConfig) -> ChopConfig | None:
 
 def _run_agent_chop_oneshot(chop: ChopConfig) -> None:
     """Run an agent chop as a one-shot launch."""
-    from sase.agent_launcher import launch_agent_from_cwd
+    from sase.agent.launcher import launch_agent_from_cwd
 
     assert chop.agent is not None
     try:

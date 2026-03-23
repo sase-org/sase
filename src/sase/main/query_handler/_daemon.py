@@ -2,7 +2,7 @@
 
 import sys
 
-from sase.agent_launcher import launch_agent_from_cwd
+from sase.agent.launcher import launch_agent_from_cwd
 
 
 def run_query_daemon(query: str) -> None:

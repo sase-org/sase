@@ -34,10 +34,10 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if daemon_mode:
             run_query_daemon(prompt)
             return
-        from sase.multi_prompt import is_multi_prompt
+        from sase.agent.multi_prompt import is_multi_prompt
 
         if is_multi_prompt(prompt):
-            from sase.multi_prompt import parse_multi_prompt
+            from sase.agent.multi_prompt import parse_multi_prompt
 
             n = len(parse_multi_prompt(prompt).segments)
             print(f"Multi-prompt detected — launching {n} agents in daemon mode")

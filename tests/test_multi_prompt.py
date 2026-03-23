@@ -2,7 +2,7 @@
 
 import pytest
 
-from sase.multi_prompt import (
+from sase.agent.multi_prompt import (
     MultiPrompt,
     _LocalXPromptNameError,
     is_multi_prompt,

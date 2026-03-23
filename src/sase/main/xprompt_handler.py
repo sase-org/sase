@@ -30,7 +30,7 @@ def _handle_expand(args: argparse.Namespace) -> None:
     from sase.xprompt._trace import ExpansionTrace, print_trace
 
     from sase.main.query_handler import expand_embedded_workflows_in_query
-    from sase.multi_prompt import parse_multi_prompt
+    from sase.agent.multi_prompt import parse_multi_prompt
 
     prompt = args.prompt if args.prompt else sys.stdin.read()
 

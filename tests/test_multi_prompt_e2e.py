@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.multi_prompt import is_multi_prompt, parse_multi_prompt
+from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
 from sase.xprompt.models import XPrompt
 
 
@@ -117,7 +117,7 @@ def test_resume_with_single_prompt_succeeds() -> None:
 
 def test_local_xprompts_env_var_temp_file_cleaned_up() -> None:
     """The temp file for SASE_AGENT_LOCAL_XPROMPTS is deleted after deserialization."""
-    from sase.multi_prompt_launcher import (
+    from sase.agent.multi_prompt_launcher import (
         _serialize_local_xprompts,
         deserialize_local_xprompts,
     )
@@ -146,7 +146,7 @@ def test_local_xprompts_env_var_temp_file_cleaned_up() -> None:
 
 def test_local_xprompts_env_var_cleanup_in_extract_directives() -> None:
     """axe_run_agent_phases pops the env var and cleans up the temp file."""
-    from sase.multi_prompt_launcher import _serialize_local_xprompts
+    from sase.agent.multi_prompt_launcher import _serialize_local_xprompts
 
     xprompts = {
         "_style": XPrompt(name="_style", content="be concise"),

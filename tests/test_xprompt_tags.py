@@ -269,7 +269,7 @@ def test_namespace_workflow_preserves_tags() -> None:
 def test_serialize_deserialize_preserves_tags(tmp_path: object) -> None:
     from pathlib import Path
 
-    from sase.multi_prompt_launcher import deserialize_local_xprompts
+    from sase.agent.multi_prompt_launcher import deserialize_local_xprompts
 
     xp = XPrompt(name="hook", content="body", tags=frozenset({XPromptTag.fix_hook}))
 

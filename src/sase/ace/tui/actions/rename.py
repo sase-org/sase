@@ -240,7 +240,7 @@ class RenameMixin:
             with open(meta_path, "w") as f:
                 json.dump(meta, f, indent=2)
 
-            from sase.agent_names import claim_agent_name
+            from sase.agent.names import claim_agent_name
 
             claim_agent_name(new_name, artifacts_dir)
 

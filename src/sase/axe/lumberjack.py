@@ -209,7 +209,7 @@ class Lumberjack:
             self._agent_pids.pop(chop.name, None)
 
         try:
-            from sase.agent_launcher import launch_agent_from_cwd
+            from sase.agent.launcher import launch_agent_from_cwd
 
             # Signal the agent runner to auto-dismiss on completion so
             # recurring run_every agents don't accumulate as "done" entries.

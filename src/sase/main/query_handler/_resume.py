@@ -53,7 +53,7 @@ def handle_run_with_resume(
         sys.exit(1)
 
     # Multi-prompt (--- separators) is not supported in resume mode.
-    from sase.multi_prompt import is_multi_prompt
+    from sase.agent.multi_prompt import is_multi_prompt
 
     if is_multi_prompt(query):
         print("Error: multi-prompt (--- separators) is not supported with -r/--resume")

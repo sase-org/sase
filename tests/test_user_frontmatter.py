@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.multi_prompt import _LocalXPromptNameError, parse_multi_prompt
+from sase.agent.multi_prompt import _LocalXPromptNameError, parse_multi_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ def test_no_frontmatter_passthrough() -> None:
 @_PATCH_XPROMPTS
 def test_extract_directives_handles_frontmatter(_xp, _al, tmp_path) -> None:
     """extract_directives_and_write_meta correctly processes frontmatter prompts."""
-    from sase.multi_prompt import parse_multi_prompt
+    from sase.agent.multi_prompt import parse_multi_prompt
 
     prompt = (
         '---\nxprompts:\n  _ctx: "extra context"\n---\n%name:test_agent\nDo work. #_ctx'

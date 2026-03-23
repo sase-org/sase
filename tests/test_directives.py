@@ -174,7 +174,7 @@ def test_name_bare_auto_generates() -> None:
     """Bare %name auto-generates a name via get_next_auto_name()."""
     prompt = "%name\nDo work"
     with patch(
-        "sase.agent_names.get_next_auto_name",
+        "sase.agent.names.get_next_auto_name",
         return_value="a",
     ):
         cleaned, directives = extract_prompt_directives(prompt)
@@ -186,7 +186,7 @@ def test_name_bare_alias_auto_generates() -> None:
     """Bare %n auto-generates a name."""
     prompt = "%n\nDo work"
     with patch(
-        "sase.agent_names.get_next_auto_name",
+        "sase.agent.names.get_next_auto_name",
         return_value="b",
     ):
         cleaned, directives = extract_prompt_directives(prompt)
@@ -198,7 +198,7 @@ def test_wait_bare_resolves_to_previous_agent() -> None:
     """Bare %wait resolves to the most recently named previous agent."""
     prompt = "%name:foo\n%wait\nDo work"
     with patch(
-        "sase.agent_names.get_most_recent_agent_name",
+        "sase.agent.names.get_most_recent_agent_name",
         return_value="prev",
     ):
         cleaned, directives = extract_prompt_directives(prompt)
@@ -212,11 +212,11 @@ def test_wait_bare_with_bare_name_does_not_self_wait() -> None:
     prompt = "%name\n%wait\nDo work"
     with (
         patch(
-            "sase.agent_names.get_next_auto_name",
+            "sase.agent.names.get_next_auto_name",
             return_value="b",
         ),
         patch(
-            "sase.agent_names.get_most_recent_agent_name",
+            "sase.agent.names.get_most_recent_agent_name",
             return_value="a",
         ),
     ):
@@ -230,7 +230,7 @@ def test_wait_bare_no_previous_agent_raises() -> None:
     """Bare %wait with no previously named agent raises DirectiveError."""
     prompt = "%wait\nDo work"
     with patch(
-        "sase.agent_names.get_most_recent_agent_name",
+        "sase.agent.names.get_most_recent_agent_name",
         return_value=None,
     ):
         with pytest.raises(DirectiveError, match="no previously.*named agent"):
@@ -241,7 +241,7 @@ def test_wait_mixed_bare_and_explicit() -> None:
     """Mix of bare and explicit %wait works."""
     prompt = "%name:foo\n%wait:bar\n%wait\nDo work"
     with patch(
-        "sase.agent_names.get_most_recent_agent_name",
+        "sase.agent.names.get_most_recent_agent_name",
         return_value="prev",
     ):
         cleaned, directives = extract_prompt_directives(prompt)
