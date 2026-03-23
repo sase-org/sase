@@ -37,13 +37,15 @@ from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
 from .mentor_profile_select_modal import MentorProfileSelectModal
-from .mentor_review_modal import (
+from .mentor_review_models import (
     MentorApplyResult,
+    MentorInfo,
     MentorKillResult,
-    MentorReviewModal,
+    MentorReviewData,
     MentorRunResult,
     build_mentor_review_data,
 )
+from .mentor_review_modal import MentorReviewModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
 from .xprompt_browser_modal import XPromptBrowserModal
@@ -55,8 +57,10 @@ from .xprompt_select_modal import XPromptSelectModal
 __all__ = [
     "ActivityModal",
     "MentorApplyResult",
+    "MentorInfo",
     "MentorKillResult",
     "MentorProfileSelectModal",
+    "MentorReviewData",
     "MentorReviewModal",
     "MentorRunResult",
     "build_mentor_review_data",

@@ -14,7 +14,7 @@ from textual.widgets import Static
 from sase.config.mentor import MentorProfileConfig
 
 from .base import CopyModeForwardingMixin
-from .mentor_review_modal import MentorInfo
+from .mentor_review_models import MentorInfo
 
 
 class MentorProfileSelectModal(CopyModeForwardingMixin, ModalScreen[str | None]):

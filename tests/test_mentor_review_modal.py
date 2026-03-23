@@ -10,22 +10,22 @@ from sase.ace.mentor_output import (
     save_mentor_output,
 )
 from sase.ace.changespec.models import MentorEntry, MentorStatusLine
-from sase.ace.tui.modals.mentor_review_modal import (
+from sase.ace.tui.modals.mentor_review_models import (
     MentorApplyResult,
-    MentorKillResult,
     MentorInfo,
-    _MentorReviewData,
-    MentorReviewModal,
+    MentorKillResult,
+    MentorReviewData,
     build_mentor_review_data,
 )
+from sase.ace.tui.modals.mentor_review_modal import MentorReviewModal
 
 
-# ── _MentorReviewData ──────────────────────────────────────────────────────
+# ── MentorReviewData ──────────────────────────────────────────────────────
 
 
 def test_mentor_review_data_total_comments() -> None:
     """Total comments is the sum across all mentors."""
-    data = _MentorReviewData(
+    data = MentorReviewData(
         mentors=[
             MentorInfo(
                 mentor_name="a",
@@ -73,7 +73,7 @@ def test_mentor_review_data_total_comments() -> None:
 
 def test_mentor_review_data_zero_comments() -> None:
     """No comments when all mentors passed."""
-    data = _MentorReviewData(
+    data = MentorReviewData(
         mentors=[
             MentorInfo(mentor_name="a", profile_name="p", status="PASSED", comments=[]),
         ],
@@ -210,8 +210,8 @@ def test_build_review_data_running_mentor(tmp_path: Path, monkeypatch: object) -
 def _make_modal_data(
     mentor_comments: list[int],
     accepted: dict[str, bool] | None = None,
-) -> _MentorReviewData:
-    """Create _MentorReviewData with N mentors, each having the given comment counts."""
+) -> MentorReviewData:
+    """Create MentorReviewData with N mentors, each having the given comment counts."""
     mentors = []
     for i, count in enumerate(mentor_comments):
         comments: list[dict[str, str | int]] = [
@@ -233,7 +233,7 @@ def _make_modal_data(
             )
         )
     acceptance = MentorAcceptanceState(accepted=accepted or {})
-    return _MentorReviewData(
+    return MentorReviewData(
         mentors=mentors,
         acceptance=acceptance,
         read_state=MentorReadState(),
@@ -462,7 +462,7 @@ def test_kill_produces_result_for_running_mentor() -> None:
             is_running=True,
         ),
     ]
-    data = _MentorReviewData(
+    data = MentorReviewData(
         mentors=mentors,
         acceptance=MentorAcceptanceState(),
         read_state=MentorReadState(),
