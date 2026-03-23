@@ -345,18 +345,16 @@ class AceApp(
         This allows modals (e.g. revive agent modal) to use priority tab
         bindings without the app-level next_tab/prev_tab consuming the key
         first. It also lets the prompt text area handle Tab for snippet
-        expansion when in INSERT mode.
+        expansion.
         """
         if action in ("next_tab", "prev_tab"):
             from textual.screen import ModalScreen
 
             if isinstance(self.screen, ModalScreen):
                 return False
-            # Let PromptTextArea handle Tab for snippet expansion in INSERT mode
             from .widgets.prompt_text_area import PromptTextArea
 
-            focused = self.focused
-            if isinstance(focused, PromptTextArea) and focused._vim_mode == "insert":
+            if isinstance(self.focused, PromptTextArea):
                 return False
         return super().check_action(action, parameters)
 
