@@ -26,7 +26,7 @@ function has_changes_matching() {
 function print_cmd_to_user() {
     local group="$1"
     local cmd="$2"
-    echo "[sase_old_stop_hook:${group}] Running \`$cmd\`..."
+    echo "[sase_commit_stop_hook:${group}] Running \`$cmd\`..."
 }
 
 # Truncate command output to avoid blowing up the Claude Code context window.
@@ -120,7 +120,7 @@ function run() {
     cd "$PROJECT_DIR" || return 1
 
     # Log that this hook ran
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_old_stop_hook ran" >>"$PROJECT_DIR/.claude/hooks.log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran" >>"$PROJECT_DIR/.claude/hooks.log"
 
     # Cache changed files once (eliminates redundant git calls)
     CHANGED_FILES="$(get_changed_files)"
