@@ -442,6 +442,46 @@ def replace_vcs_workflow_tags(prompt: str, new_vcs_prefix: str) -> str:
     return result
 
 
+def extract_project_from_vcs_tag(tag: str) -> str | None:
+    """Extract the project/ref name from a VCS workflow tag.
+
+    Handles formats like ``#gh:sase ``, ``#gh!!:sase ``, ``#git(repo) ``.
+    Returns the ref portion (e.g. ``"sase"``, ``"repo"``) or ``None`` if
+    no ref is present.
+
+    Args:
+        tag: The VCS tag string as returned by :func:`extract_vcs_workflow_tag`.
+    """
+    tag = tag.strip()
+    if not tag.startswith("#"):
+        return None
+
+    body = tag[1:]  # strip leading #
+
+    # Strip optional !! or ?? HITL suffix from the workflow-type portion
+    for suffix in ("!!", "??"):
+        idx = body.find(suffix)
+        if idx != -1:
+            body = body[:idx] + body[idx + len(suffix) :]
+            break
+
+    # Parenthesized ref: #git(repo) → repo
+    if "(" in body:
+        start = body.index("(")
+        end = body.find(")", start)
+        if end != -1:
+            return body[start + 1 : end] or None
+        return None
+
+    # Colon ref: #gh:sase → sase
+    if ":" in body:
+        ref = body.split(":", 1)[1]
+        return ref or None
+
+    # No ref (e.g. #gh+ or bare #gh)
+    return None
+
+
 def parse_workflow_reference(
     workflow_ref: str,
 ) -> tuple[str, list[str], dict[str, str]]:

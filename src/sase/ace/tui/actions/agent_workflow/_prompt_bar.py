@@ -358,7 +358,44 @@ class PromptBarMixin:
             project = ctx.project_name
         else:
             project = None
-        self.push_screen(XPromptSelectModal(project=project), on_xprompt_select)  # type: ignore[attr-defined]
+
+        # Detect VCS tag in current prompt text to load that project's
+        # local xprompts (e.g. #gh:sase → load sase's sase.yml xprompts).
+        extra_prompts = None
+        try:
+            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+            prompt_text = bar.query_one("#prompt-input", PromptTextArea).text
+            if prompt_text:
+                from sase.xprompt._parsing import (
+                    extract_project_from_vcs_tag,
+                    extract_vcs_workflow_tag,
+                )
+                from sase.xprompt.loader import (
+                    get_known_project_workspaces,
+                    load_project_local_xprompts,
+                )
+                from sase.xprompt.models import xprompt_to_workflow
+
+                vcs_tag = extract_vcs_workflow_tag(prompt_text)
+                if vcs_tag:
+                    vcs_project = extract_project_from_vcs_tag(vcs_tag)
+                    if vcs_project:
+                        workspaces = get_known_project_workspaces()
+                        ws_dir = workspaces.get(vcs_project)
+                        if ws_dir:
+                            xprompts = load_project_local_xprompts(ws_dir, vcs_project)
+                            if xprompts:
+                                extra_prompts = {
+                                    name: xprompt_to_workflow(xp)
+                                    for name, xp in xprompts.items()
+                                }
+        except Exception:
+            pass
+
+        self.push_screen(  # type: ignore[attr-defined]
+            XPromptSelectModal(project=project, extra_prompts=extra_prompts),
+            on_xprompt_select,
+        )
 
     def on_prompt_input_bar_workflow_editor_requested(self, event: object) -> None:
         """Handle request to open workflow YAML editor (Ctrl+Y)."""

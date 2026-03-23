@@ -10,6 +10,7 @@ This module provides a replacement for the legacy snippet system, adding:
 
 from ._parsing import (
     escape_for_xprompt,
+    extract_project_from_vcs_tag,
     extract_vcs_workflow_tag,
     parse_workflow_reference,
     replace_vcs_workflow_tags,
@@ -18,10 +19,13 @@ from ._parsing import (
 )
 from .directives import PromptDirectives, extract_prompt_directives
 from .loader import (
+    get_all_project_local_prompts,
     get_all_prompts,
     get_all_workflows,
     get_all_xprompts,
+    get_known_project_workspaces,
     get_xprompt_or_workflow,
+    load_project_local_xprompts,
 )
 from .models import (
     InputArg,
@@ -84,12 +88,16 @@ __all__ = [
     "validate_against_schema",
     "validate_response",
     # Loader
+    "get_all_project_local_prompts",
     "get_all_prompts",
     "get_all_workflows",
     "get_all_xprompts",
+    "get_known_project_workspaces",
     "get_xprompt_or_workflow",
+    "load_project_local_xprompts",
     # Parsing
     "escape_for_xprompt",
+    "extract_project_from_vcs_tag",
     "extract_vcs_workflow_tag",
     "parse_workflow_reference",
     "replace_vcs_workflow_tags",

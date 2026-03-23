@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-22 20:55:53
-status: wip
+status: done
 ---
 
 # Plan: Show Project-Local sase.yml XPrompts in TUI Panels

@@ -81,6 +81,16 @@ class XPromptBrowserModal(
     def _load_xprompts(self) -> None:
         """Load all xprompts and organize into groups."""
         prompts = get_all_prompts(project=self._project)
+
+        # Also load project-local xprompts from ALL known projects'
+        # sase.yml files.  These are not loaded by get_all_prompts()
+        # because the TUI disables _include_local_config.
+        from sase.xprompt.loader import get_all_project_local_prompts
+
+        project_local = get_all_project_local_prompts()
+        # Merge; existing prompts take precedence on collision
+        prompts = {**project_local, **prompts}
+
         items: list[BrowserItem] = []
 
         for name, workflow in prompts.items():

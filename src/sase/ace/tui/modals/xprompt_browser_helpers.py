@@ -91,6 +91,11 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     if source_path == "local_config":
         return "Local sase.yml", "./sase.yml", True
 
+    # Project-local sase.yml loaded via get_all_project_local_prompts()
+    if source_path.startswith("project_local_config:"):
+        proj = source_path.removeprefix("project_local_config:")
+        return f"Project ({proj}) sase.yml", f"~/.sase/projects/{proj}/sase.yml", True
+
     # Inside sase package (built-in)
     if source_path.startswith(sase_pkg_dir):
         return "Built-in", source_path.replace(home, "~"), True
@@ -173,6 +178,17 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
     # local_config → ./sase.yml in CWD
     if source_path == "local_config":
         return str(Path.cwd() / "sase.yml")
+
+    # project_local_config:{project} → project's workspace sase.yml
+    if source_path.startswith("project_local_config:"):
+        project_name = source_path.removeprefix("project_local_config:")
+        from sase.xprompt.loader import get_known_project_workspaces
+
+        workspaces = get_known_project_workspaces()
+        ws_dir = workspaces.get(project_name)
+        if ws_dir:
+            return str(ws_dir / "sase.yml")
+        return None
 
     # config → user sase.yml
     if source_path == "config":

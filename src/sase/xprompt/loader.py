@@ -4,7 +4,9 @@ import functools
 import importlib.resources
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+import yaml  # type: ignore[import-untyped]
 
 from sase.config import load_xprompts_by_source
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
@@ -327,6 +329,89 @@ def _load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
                 xprompts[ns.name] = ns
 
     return xprompts
+
+
+def get_known_project_workspaces() -> dict[str, Path]:
+    """Enumerate all known projects and their primary workspace directories.
+
+    Parses ``~/.sase/projects/*/*.gp`` files for ``WORKSPACE_DIR:`` lines.
+
+    Returns:
+        Mapping of project name to workspace directory path.
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.is_dir():
+        return {}
+
+    result: dict[str, Path] = {}
+    for gp_file in projects_dir.glob("*/*.gp"):
+        project_name = gp_file.stem
+        try:
+            text = gp_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if line.startswith("WORKSPACE_DIR:"):
+                ws_dir = line.removeprefix("WORKSPACE_DIR:").strip()
+                ws_path = Path(ws_dir)
+                if ws_path.is_dir():
+                    result[project_name] = ws_path
+                break
+
+    return result
+
+
+def load_project_local_xprompts(
+    workspace_dir: Path, project: str
+) -> dict[str, XPrompt]:
+    """Load xprompts from a project's ``sase.yml`` file.
+
+    Reads ``<workspace_dir>/sase.yml`` directly, bypassing the
+    ``_include_local_config`` flag.  Returns xprompts namespaced with
+    ``{project}/``.
+    """
+    sase_yml = workspace_dir / "sase.yml"
+    if not sase_yml.is_file():
+        return {}
+
+    try:
+        with open(sase_yml, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except Exception:
+        log.debug("Failed to load project sase.yml: %s", sase_yml, exc_info=True)
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    xprompts_data: dict[str, Any] = data.get("xprompts", {})
+    if not isinstance(xprompts_data, dict) or not xprompts_data:
+        return {}
+
+    source_label = f"project_local_config:{project}"
+    parsed = parse_xprompt_entries(xprompts_data, source_label)
+    return {
+        f"{project}/{name}": _namespace_xprompt(project, xp)
+        for name, xp in parsed.items()
+    }
+
+
+def get_all_project_local_prompts() -> dict[str, "Workflow"]:
+    """Load xprompts from ALL known projects' ``sase.yml`` files.
+
+    Calls :func:`get_known_project_workspaces` then
+    :func:`load_project_local_xprompts` for each.  Returns a unified
+    dict of Workflow objects (xprompts converted via
+    :func:`xprompt_to_workflow`).
+    """
+    from sase.xprompt.models import xprompt_to_workflow
+
+    all_workflows: dict[str, Workflow] = {}
+    for project_name, ws_dir in get_known_project_workspaces().items():
+        xprompts = load_project_local_xprompts(ws_dir, project_name)
+        for name, xp in xprompts.items():
+            all_workflows[name] = xprompt_to_workflow(xp)
+    return all_workflows
 
 
 def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:

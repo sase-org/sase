@@ -51,15 +51,24 @@ class XPromptSelectModal(OptionListNavigationMixin, ModalScreen[str | None]):
     _option_list_id = "xprompt-list"
     BINDINGS = [*OptionListNavigationMixin.NAVIGATION_BINDINGS]
 
-    def __init__(self, project: str | None = None) -> None:
+    def __init__(
+        self,
+        project: str | None = None,
+        extra_prompts: dict[str, Workflow] | None = None,
+    ) -> None:
         """Initialize the xprompt modal.
 
         Args:
             project: Optional project name to include project-specific xprompts.
+            extra_prompts: Additional prompts to merge (e.g. project-local
+                xprompts detected from a VCS tag in the prompt text).
         """
         super().__init__()
         # Use unified loader - all items are Workflow objects now
         self._prompts = get_all_prompts(project=project)
+        if extra_prompts:
+            # Merge extra prompts; they take precedence on collision
+            self._prompts = {**self._prompts, **extra_prompts}
         # Build unified items dict: name -> (content/preview, type)
         # Simple xprompts show raw content, complex workflows show step preview
         self._all_items: dict[str, tuple[str, str]] = {}
