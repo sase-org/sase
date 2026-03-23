@@ -73,6 +73,66 @@ def changespec_lock(
         os.close(fd)
 
 
+def acquire_edit_lock(project_file: str) -> None:
+    """Create a .edit_lock sentinel file containing the current PID.
+
+    Args:
+        project_file: Path to the .gp file to lock.
+    """
+    lock_file = f"{project_file}.edit_lock"
+    lock_dir = os.path.dirname(lock_file)
+    if lock_dir and not os.path.exists(lock_dir):
+        os.makedirs(lock_dir, exist_ok=True)
+    with open(lock_file, "w", encoding="utf-8") as f:
+        f.write(str(os.getpid()))
+
+
+def release_edit_lock(project_file: str) -> None:
+    """Remove the .edit_lock sentinel file.
+
+    Args:
+        project_file: Path to the .gp file to unlock.
+    """
+    lock_file = f"{project_file}.edit_lock"
+    try:
+        os.unlink(lock_file)
+    except FileNotFoundError:
+        pass
+
+
+def is_edit_locked(project_file: str) -> bool:
+    """Check if a project file has an active edit lock.
+
+    Returns True if .edit_lock exists AND the PID within is still alive.
+    Removes stale lock files (dead PID) and returns False.
+
+    Args:
+        project_file: Path to the .gp file to check.
+    """
+    lock_file = f"{project_file}.edit_lock"
+    try:
+        with open(lock_file, encoding="utf-8") as f:
+            pid = int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return False
+
+    # Check if the process is still alive
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        # Process is dead — stale lock
+        try:
+            os.unlink(lock_file)
+        except FileNotFoundError:
+            pass
+        return False
+    except PermissionError:
+        # Process exists but we can't signal it — treat as locked
+        return True
+
+    return True
+
+
 def write_changespec_atomic(
     project_file: str,
     content: str,

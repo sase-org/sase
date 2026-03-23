@@ -12,6 +12,7 @@ from sase.ace.changespec import (
     ChangeSpec,
     find_all_changespecs,
     get_base_status,
+    is_edit_locked,
 )
 from sase.ace.cl_status import is_parent_submitted
 from sase.ace.comments import is_timestamp_suffix
@@ -82,13 +83,17 @@ class CheckCycleRunner:
         if all_changespecs is None:
             all_changespecs = find_all_changespecs()
 
+        # Remove changespecs from edit-locked project files
+        unlocked = [cs for cs in all_changespecs if not is_edit_locked(cs.file_path)]
+        if len(unlocked) < len(all_changespecs):
+            skipped = len(all_changespecs) - len(unlocked)
+            self._log(f"Skipping {skipped} changespec(s) due to edit lock", None)
+
         if not self.parsed_query:
-            return all_changespecs
+            return unlocked
 
         return [
-            cs
-            for cs in all_changespecs
-            if evaluate_query(self.parsed_query, cs, all_changespecs)
+            cs for cs in unlocked if evaluate_query(self.parsed_query, cs, unlocked)
         ]
 
     def is_leaf_cl(self, changespec: ChangeSpec) -> bool:

@@ -5,7 +5,10 @@ from typing import Any
 
 from .locking import (
     LockTimeoutError,
+    acquire_edit_lock,
     changespec_lock,
+    is_edit_locked,
+    release_edit_lock,
     write_changespec_atomic,
 )
 from .models import (
@@ -61,7 +64,10 @@ __all__ = [
     "ERROR_SUFFIX_MESSAGES",
     # Locking
     "LockTimeoutError",
+    "acquire_edit_lock",
     "changespec_lock",
+    "is_edit_locked",
+    "release_edit_lock",
     "write_changespec_atomic",
     # Functions
     "extract_pid_from_agent_suffix",
