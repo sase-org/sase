@@ -441,6 +441,15 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             self._execute_charwise_operator((row, col), (row, len(line)), op)
             return True
 
+        # Character shortcuts (x = dl, s = cl)
+        if key in ("x", "s"):
+            row, col = self.cursor_location
+            line = doc.get_line(row)
+            end_col = min(col + count, len(line))
+            op = "c" if key == "s" else "d"
+            self._execute_charwise_operator((row, col), (row, end_col), op)
+            return True
+
         # Toggle case (~)
         if key == "~":
             self._toggle_case(count)
