@@ -423,6 +423,14 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self.action_submit_prompt()
             return
 
+        if event.key == "ctrl+c":
+            event.stop()
+            event.prevent_default()
+            bar = self._find_prompt_bar()
+            if bar:
+                bar.action_cancel()
+            return
+
         if self._vim_mode == "normal":
             if self._handle_normal_mode_key(event):
                 event.stop()
