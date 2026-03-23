@@ -22,6 +22,9 @@ xprompts:
   remember: |
     Can you update / create the appropriate AGENTS.md file so you never forget about this again?
 
+  research: |
+    Store your research in a new markdown file in the research/ directory.
+
 mentor_profiles:
   - profile_name: gotchas
     mentors:
