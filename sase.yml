@@ -33,32 +33,28 @@ mentor_profiles:
         focus_areas:
           - focus_name: config_schema_sync
             description: >
-              When new config fields are added or changed (in default_config.yml, sase.yml, or code),
-              check that config/sase.schema.json is updated to match. Missing schema updates break
-              yaml-language-server LSP validation in editors. This is the single most common gotcha
-              in this repo.
+              When new config fields are added or changed (in default_config.yml, sase.yml, or code), check that
+              config/sase.schema.json is updated to match. Missing schema updates break yaml-language-server LSP
+              validation in editors. This is the single most common gotcha in this repo.
           - focus_name: workflow_schema_sync
             description: >
               When xprompt workflow step types or their fields are added or changed, check that
               src/sase/xprompts/workflow.schema.json is updated accordingly.
           - focus_name: nvim_syntax_sync
             description: >
-              When ChangeSpec display format, status names, tag names, or other TUI-visible tokens
-              change, check whether ../sase-nvim syntax highlighting files need a corresponding
-              update.
+              When ChangeSpec display format, status names, tag names, or other TUI-visible tokens change, check whether
+              ../sase-nvim syntax highlighting files need a corresponding update.
           - focus_name: keymap_config_sync
             description: >
-              When keymaps or leader mode keys are changed in code (e.g. in
-              src/sase/ace/tui/keymaps/), check that src/sase/default_config.yml is updated to
-              reflect the new defaults. Hardcoded defaults in code and the config file must stay
-              in sync.
+              When keymaps or leader mode keys are changed in code (e.g. in src/sase/ace/tui/keymaps/), check that
+              src/sase/default_config.yml is updated to reflect the new defaults. Hardcoded defaults in code and the
+              config file must stay in sync.
           - focus_name: cross_repo_impact
             description: >
-              When renaming files, changing config structure, or modifying shared interfaces, check
-              whether plugin repos (../sase-github, ../sase-google, ../sase-telegram, ../sase-nvim)
-              or chezmoi configs (~/.local/share/chezmoi/home/dot_config/sase/) need corresponding
-              updates. Also check importlib.resources paths, error messages, docstrings, and docs/
-              for stale references.
+              When renaming files, changing config structure, or modifying shared interfaces, check whether plugin repos
+              (../sase-github, ../sase-google, ../sase-telegram, ../sase-nvim) or chezmoi configs
+              (~/.local/share/chezmoi/home/dot_config/sase/) need corresponding updates. Also check importlib.resources
+              paths, error messages, docstrings, and docs/ for stale references.
     file_globs:
       - "**/*.py"
       - "**/*.yml"
@@ -72,28 +68,24 @@ mentor_profiles:
         focus_areas:
           - focus_name: missing_test_coverage
             description: >
-              When new functions, classes, methods, or branches are added or modified in src/,
-              check that corresponding tests exist in tests/. Flag any non-trivial logic that
-              lacks test coverage. Trivial changes like type-only annotations or re-exports
-              can be excluded.
+              When new functions, classes, methods, or branches are added or modified in src/, check that corresponding
+              tests exist in tests/. Flag any non-trivial logic that lacks test coverage. Trivial changes like type-only
+              annotations or re-exports can be excluded.
           - focus_name: test_substance
             description: >
-              Review existing and new tests to ensure they actually exercise the code under test
-              in a meaningful way. Flag tests that only assert on mocks without verifying real
-              behavior, tests that pass trivially (e.g. always-true assertions), tests that
-              duplicate other tests without adding value, and tests whose assertions don't
-              relate to the code change.
+              Review existing and new tests to ensure they actually exercise the code under test in a meaningful way.
+              Flag tests that only assert on mocks without verifying real behavior, tests that pass trivially (e.g.
+              always-true assertions), tests that duplicate other tests without adding value, and tests whose assertions
+              don't relate to the code change.
           - focus_name: edge_cases_and_error_paths
             description: >
-              Check that tests cover important edge cases and error paths, not just the happy
-              path. For example: empty inputs, boundary values, invalid arguments, exception
-              handling, and None/missing-key scenarios. Focus on edges that are realistic and
-              relevant to the change—don't flag hypothetical cases that can't happen.
+              Check that tests cover important edge cases and error paths, not just the happy path. For example: empty
+              inputs, boundary values, invalid arguments, exception handling, and None/missing-key scenarios. Focus on
+              edges that are realistic and relevant to the change—don't flag hypothetical cases that can't happen.
           - focus_name: test_isolation
             description: >
-              Verify that tests are properly isolated and don't depend on execution order,
-              shared mutable state, or filesystem/network side effects without appropriate
-              setup/teardown. Flag tests that would break if run in a different order or
-              in parallel.
+              Verify that tests are properly isolated and don't depend on execution order, shared mutable state, or
+              filesystem/network side effects without appropriate setup/teardown. Flag tests that would break if run in
+              a different order or in parallel.
     file_globs:
       - "src/**/*.py"
