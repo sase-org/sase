@@ -131,30 +131,30 @@ sase
 | Command                    | Description                                                                      |
 | -------------------------- | -------------------------------------------------------------------------------- |
 | `sase ace`                 | Interactive TUI for navigating and managing ChangeSpecs                          |
-| `sase axe start`           | Start the lumberjack-based daemon (orchestrator mode)                            |
-| `sase axe stop`            | Stop the running axe orchestrator                                                |
+| `sase amend`               | Amend a commit with COMMITS tracking                                             |
 | `sase axe chop`            | List or run individual chop scripts                                              |
 | `sase axe lumberjack`      | List, run, or check status of lumberjacks                                        |
-| `sase search`              | Search and filter ChangeSpecs with query expressions                             |
+| `sase axe start`           | Start the lumberjack-based daemon (orchestrator mode)                            |
+| `sase axe stop`            | Stop the running axe orchestrator                                                |
+| `sase bead`                | Lightweight git-native issue tracking (plans, phases, dependencies)              |
+| `sase commit`              | Create a commit with formatted CL description and metadata                       |
+| `sase config layers`       | Show per-layer breakdown of the configuration merge chain                        |
+| `sase config mentor-match` | Trace mentor profile matching for a specific ChangeSpec                          |
+| `sase config show`         | Dump the final merged configuration as YAML (supports `--key` filtering)         |
+| `sase init-git`            | Initialize a new bare-repo-backed git project                                    |
+| `sase logs`                | Collect and package agent run logs for a date range                              |
+| `sase notify`              | Create a notification (reads JSON from stdin or uses flags)                      |
+| `sase path`                | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `config-schema`) |
+| `sase plan`                | Submit a plan for approval (used by `/sase_plan` skill)                          |
+| `sase questions`           | Ask the user questions (used by `/sase_questions` skill)                         |
+| `sase restore`             | Restore a reverted ChangeSpec by re-applying its diff                            |
+| `sase revert`              | Revert a ChangeSpec by pruning its CL and archiving its diff                     |
 | `sase run`                 | Execute workflows, resume agents, run queries, or open editor/history picker     |
+| `sase search`              | Search and filter ChangeSpecs with query expressions                             |
 | `sase xprompt expand`      | Expand prompt templates with sase references (supports `--trace`)                |
 | `sase xprompt explain`     | Dry-run visualization of a workflow's execution plan                             |
 | `sase xprompt graph`       | Generate a DAG visualization of a workflow (Mermaid or text)                     |
 | `sase xprompt list`        | List all available xprompts with metadata, inputs, tags, and preview (JSON)      |
-| `sase commit`              | Create a commit with formatted CL description and metadata                       |
-| `sase amend`               | Amend a commit with COMMITS tracking                                             |
-| `sase revert`              | Revert a ChangeSpec by pruning its CL and archiving its diff                     |
-| `sase restore`             | Restore a reverted ChangeSpec by re-applying its diff                            |
-| `sase init-git`            | Initialize a new bare-repo-backed git project                                    |
-| `sase path`                | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `config-schema`) |
-| `sase bead`                | Lightweight git-native issue tracking (plans, phases, dependencies)              |
-| `sase logs`                | Collect and package agent run logs for a date range                              |
-| `sase notify`              | Create a notification (reads JSON from stdin or uses flags)                      |
-| `sase config show`         | Dump the final merged configuration as YAML (supports `--key` filtering)         |
-| `sase config layers`       | Show per-layer breakdown of the configuration merge chain                        |
-| `sase config mentor-match` | Trace mentor profile matching for a specific ChangeSpec                          |
-| `sase plan`                | Submit a plan for approval (used by `/sase_plan` skill)                          |
-| `sase questions`           | Ask the user questions (used by `/sase_questions` skill)                         |
 
 ## Core Concepts
 
