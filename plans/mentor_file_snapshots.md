@@ -1,5 +1,5 @@
 ---
-create_time: 2026-03-22
+create_time: 2026-03-22 00:00:00
 status: draft
 ---
 
