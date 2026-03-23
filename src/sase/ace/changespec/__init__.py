@@ -9,6 +9,7 @@ from .locking import (
     changespec_lock,
     is_edit_locked,
     release_edit_lock,
+    wait_for_edit_lock_release,
     write_changespec_atomic,
 )
 from .models import (
@@ -68,6 +69,7 @@ __all__ = [
     "changespec_lock",
     "is_edit_locked",
     "release_edit_lock",
+    "wait_for_edit_lock_release",
     "write_changespec_atomic",
     # Functions
     "extract_pid_from_agent_suffix",
