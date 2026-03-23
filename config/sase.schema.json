@@ -15,6 +15,13 @@
           "description": "Seconds of inactivity before auto-sleep",
           "default": 600
         },
+        "snippets": {
+          "type": "object",
+          "description": "Snippet expansions for the prompt input (trigger string to expansion text)",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "keymaps": {
           "type": "object",
           "description": "Keymap configuration for the TUI",
