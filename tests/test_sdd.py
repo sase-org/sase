@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.sdd.beads import _init_beads
+from sase.sdd.beads import init_beads
 from sase.sdd.files import (
-    _get_primary_workspace_dir,
+    get_primary_workspace_dir,
     commit_sdd_files,
     get_sdd_dir,
     update_spec_with_qa,
@@ -16,40 +16,40 @@ from sase.sdd.files import (
 
 
 # ---------------------------------------------------------------------------
-# _get_primary_workspace_dir
+# get_primary_workspace_dir
 # ---------------------------------------------------------------------------
 
 
 def test_primary_workspace_dir_ws1() -> None:
     assert (
-        _get_primary_workspace_dir("/home/user/myproject", 1) == "/home/user/myproject"
+        get_primary_workspace_dir("/home/user/myproject", 1) == "/home/user/myproject"
     )
 
 
 def test_primary_workspace_dir_ws0() -> None:
     assert (
-        _get_primary_workspace_dir("/home/user/myproject", 0) == "/home/user/myproject"
+        get_primary_workspace_dir("/home/user/myproject", 0) == "/home/user/myproject"
     )
 
 
 def test_primary_workspace_dir_ws2() -> None:
-    result = _get_primary_workspace_dir("/home/user/myproject_2", 2)
+    result = get_primary_workspace_dir("/home/user/myproject_2", 2)
     assert result == "/home/user/myproject"
 
 
 def test_primary_workspace_dir_ws3() -> None:
-    result = _get_primary_workspace_dir("/home/user/myproject_3", 3)
+    result = get_primary_workspace_dir("/home/user/myproject_3", 3)
     assert result == "/home/user/myproject"
 
 
 def test_primary_workspace_dir_no_suffix() -> None:
     """If workspace dir doesn't end with _N suffix, return as-is."""
-    result = _get_primary_workspace_dir("/home/user/myproject", 2)
+    result = get_primary_workspace_dir("/home/user/myproject", 2)
     assert result == "/home/user/myproject"
 
 
 def test_primary_workspace_dir_trailing_slash() -> None:
-    result = _get_primary_workspace_dir("/home/user/myproject_2/", 2)
+    result = get_primary_workspace_dir("/home/user/myproject_2/", 2)
     assert result == "/home/user/myproject"
 
 
@@ -62,7 +62,7 @@ def test_primary_workspace_dir_prefers_project_workspace_dir() -> None:
             return_value="/home/user/myproject",
         ),
     ):
-        result = _get_primary_workspace_dir("/home/user/myproject_2", 1)
+        result = get_primary_workspace_dir("/home/user/myproject_2", 1)
     assert result == "/home/user/myproject"
 
 
@@ -156,18 +156,18 @@ def test_update_spec_with_qa_missing_file() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _init_beads
+# init_beads
 # ---------------------------------------------------------------------------
 
 
-def test_init_beads_creates_sdd_git_repo() -> None:
+def testinit_beads_creates_sdd_git_repo() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
             patch("sase.sdd.beads.subprocess.run") as mock_run,
             patch("sase.sdd.beads.BeadProject.init") as mock_bead_init,
         ):
             mock_run.return_value = subprocess.CompletedProcess([], 0)
-            result = _init_beads(tmpdir, 1)
+            result = init_beads(tmpdir, 1)
 
         assert result == Path(tmpdir) / ".sase" / "sdd"
         assert result.is_dir()
@@ -180,8 +180,8 @@ def test_init_beads_creates_sdd_git_repo() -> None:
         mock_bead_init.assert_called_once_with(sdd_dir, beads_dirname="beads")
 
 
-def test_init_beads_idempotent() -> None:
-    """Calling _init_beads twice should not error."""
+def testinit_beads_idempotent() -> None:
+    """Calling init_beads twice should not error."""
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir) / ".sase" / "sdd"
         sdd_dir.mkdir(parents=True)
@@ -194,7 +194,7 @@ def test_init_beads_idempotent() -> None:
 
         with patch("sase.sdd.beads.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess([], 0)
-            result = _init_beads(tmpdir, 1)
+            result = init_beads(tmpdir, 1)
         assert result == sdd_dir
 
 

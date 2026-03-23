@@ -1,14 +1,14 @@
-"""Tests for expand_prompt_for_spec() and _dry_expand_embedded_workflows()."""
+"""Tests for expand_prompt_for_spec() and dry_expand_embedded_workflows()."""
 
 from dataclasses import dataclass, field
 from unittest.mock import patch
 
-from sase.sdd.files import _dry_expand_embedded_workflows, expand_prompt_for_spec
+from sase.sdd.files import dry_expand_embedded_workflows, expand_prompt_for_spec
 from sase.xprompt.models import UNSET, InputArg
 
 
 # ---------------------------------------------------------------------------
-# Helpers: minimal Workflow stub for _dry_expand_embedded_workflows tests
+# Helpers: minimal Workflow stub for dry_expand_embedded_workflows tests
 # ---------------------------------------------------------------------------
 
 
@@ -59,7 +59,7 @@ def _make_standalone_workflow(name: str) -> _FakeWorkflow:
 
 
 # ---------------------------------------------------------------------------
-# _dry_expand_embedded_workflows
+# dry_expand_embedded_workflows
 # ---------------------------------------------------------------------------
 
 _LOADER_PATH = "sase.xprompt.loader.get_all_workflows"
@@ -68,7 +68,7 @@ _LOADER_PATH = "sase.xprompt.loader.get_all_workflows"
 def test_dry_expand_no_workflows() -> None:
     """Plain text with no workflow references is unchanged."""
     with patch(_LOADER_PATH, return_value={}):
-        result = _dry_expand_embedded_workflows("Hello world")
+        result = dry_expand_embedded_workflows("Hello world")
     assert result == "Hello world"
 
 
@@ -76,7 +76,7 @@ def test_dry_expand_simple_prompt_part() -> None:
     """A simple #wf reference is replaced with its prompt_part content."""
     wf = _make_workflow("greet", "Hello from workflow!")
     with patch(_LOADER_PATH, return_value={"greet": wf}):
-        result = _dry_expand_embedded_workflows("Say #greet please")
+        result = dry_expand_embedded_workflows("Say #greet please")
     assert result == "Say Hello from workflow! please"
 
 
@@ -88,7 +88,7 @@ def test_dry_expand_with_args() -> None:
         inputs=[InputArg(name="name", default=UNSET)],
     )
     with patch(_LOADER_PATH, return_value={"greet": wf}):
-        result = _dry_expand_embedded_workflows("Say #greet(World) please")
+        result = dry_expand_embedded_workflows("Say #greet(World) please")
     assert result == "Say Hello World! please"
 
 
@@ -100,7 +100,7 @@ def test_dry_expand_colon_arg() -> None:
         inputs=[InputArg(name="name", default=UNSET)],
     )
     with patch(_LOADER_PATH, return_value={"repo": wf}):
-        result = _dry_expand_embedded_workflows("#repo:myrepo")
+        result = dry_expand_embedded_workflows("#repo:myrepo")
     assert result == "Repo: myrepo"
 
 
@@ -112,7 +112,7 @@ def test_dry_expand_plus_arg() -> None:
         inputs=[InputArg(name="enabled", default="false")],
     )
     with patch(_LOADER_PATH, return_value={"verbose": wf}):
-        result = _dry_expand_embedded_workflows("#verbose+")
+        result = dry_expand_embedded_workflows("#verbose+")
     assert result == "Verbose: true"
 
 
@@ -124,7 +124,7 @@ def test_dry_expand_default_args() -> None:
         inputs=[InputArg(name="name", default="World")],
     )
     with patch(_LOADER_PATH, return_value={"greet": wf}):
-        result = _dry_expand_embedded_workflows("#greet")
+        result = dry_expand_embedded_workflows("#greet")
     assert result == "Hello World!"
 
 
@@ -132,7 +132,7 @@ def test_dry_expand_unknown_ref_left_asis() -> None:
     """References to unknown workflows are left untouched."""
     wf = _make_workflow("known", "expanded")
     with patch(_LOADER_PATH, return_value={"known": wf}):
-        result = _dry_expand_embedded_workflows("#unknown stays #known goes")
+        result = dry_expand_embedded_workflows("#unknown stays #known goes")
     assert result == "#unknown stays expanded goes"
 
 
@@ -140,7 +140,7 @@ def test_dry_expand_standalone_workflow_left_asis() -> None:
     """Workflows without prompt_part (standalone) are left as-is."""
     wf = _make_standalone_workflow("deploy")
     with patch(_LOADER_PATH, return_value={"deploy": wf}):
-        result = _dry_expand_embedded_workflows("Run #deploy now")
+        result = dry_expand_embedded_workflows("Run #deploy now")
     assert result == "Run #deploy now"
 
 
@@ -149,7 +149,7 @@ def test_dry_expand_multiple_workflows() -> None:
     wf_a = _make_workflow("alpha", "A")
     wf_b = _make_workflow("beta", "B")
     with patch(_LOADER_PATH, return_value={"alpha": wf_a, "beta": wf_b}):
-        result = _dry_expand_embedded_workflows("#alpha and #beta")
+        result = dry_expand_embedded_workflows("#alpha and #beta")
     assert result == "A and B"
 
 
@@ -158,7 +158,7 @@ def test_dry_expand_fenced_code_block_protected() -> None:
     wf = _make_workflow("greet", "expanded")
     prompt = "Before\n```\n#greet\n```\nAfter #greet"
     with patch(_LOADER_PATH, return_value={"greet": wf}):
-        result = _dry_expand_embedded_workflows(prompt)
+        result = dry_expand_embedded_workflows(prompt)
     assert "```\n#greet\n```" in result
     assert result.endswith("After expanded")
 
@@ -173,7 +173,7 @@ def test_dry_expand_no_pre_post_steps_executed() -> None:
             return_value="Hello!",
         ) as mock_render,
     ):
-        result = _dry_expand_embedded_workflows("#greet")
+        result = dry_expand_embedded_workflows("#greet")
     assert result == "Hello!"
     # render_template should be called exactly once (for the prompt_part)
     mock_render.assert_called_once()

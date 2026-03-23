@@ -42,7 +42,7 @@ def test_ensure_beads_initialized_non_vc_already_exists() -> None:
         (Path(tmpdir) / ".sase" / "sdd" / "beads").mkdir(parents=True)
         with (
             patch("sase.sdd.beads.get_sdd_config", return_value=False),
-            patch("sase.sdd.beads._init_beads") as mock_init,
+            patch("sase.sdd.beads.init_beads") as mock_init,
         ):
             ensure_beads_initialized(tmpdir, 1)
             mock_init.assert_not_called()
@@ -53,7 +53,7 @@ def test_ensure_beads_initialized_non_vc_calls_init_beads() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
             patch("sase.sdd.beads.get_sdd_config", return_value=False),
-            patch("sase.sdd.beads._init_beads") as mock_init,
+            patch("sase.sdd.beads.init_beads") as mock_init,
         ):
             ensure_beads_initialized(tmpdir, 1)
             mock_init.assert_called_once_with(tmpdir, 1)

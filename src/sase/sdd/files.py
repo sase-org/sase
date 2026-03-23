@@ -20,11 +20,11 @@ def get_sdd_dir(
     if version_controlled:
         return Path(workspace_dir)
     return (
-        Path(_get_primary_workspace_dir(workspace_dir, workspace_num)) / ".sase" / "sdd"
+        Path(get_primary_workspace_dir(workspace_dir, workspace_num)) / ".sase" / "sdd"
     )
 
 
-def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
+def get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     """Derive primary workspace dir from current workspace.
 
     Prefer the project's configured WORKSPACE_DIR (source of truth).
@@ -33,7 +33,7 @@ def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     For workspace_num == 1, returns workspace_dir as-is.
     For workspace_num > 1, strips the ``_{workspace_num}`` suffix.
     """
-    configured_primary = _get_primary_workspace_dir_from_project(workspace_dir)
+    configured_primary = _resolve_primary_from_project(workspace_dir)
     if configured_primary:
         return configured_primary
 
@@ -46,7 +46,7 @@ def _get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
     return workspace_dir
 
 
-def _get_primary_workspace_dir_from_project(workspace_dir: str) -> str | None:
+def _resolve_primary_from_project(workspace_dir: str) -> str | None:
     """Resolve primary workspace from the project's WORKSPACE_DIR field.
 
     Returns ``None`` if project/workspace metadata cannot be resolved.
@@ -156,12 +156,12 @@ def expand_prompt_for_spec(prompt: str) -> str:
     expanded = result.prompt
 
     # Step 2: Dry-expand embedded workflow prompt_parts (no pre/post execution)
-    expanded = _dry_expand_embedded_workflows(expanded)
+    expanded = dry_expand_embedded_workflows(expanded)
 
     return expanded
 
 
-def _dry_expand_embedded_workflows(prompt: str) -> str:
+def dry_expand_embedded_workflows(prompt: str) -> str:
     """Replace embedded workflow references with their rendered prompt_part content.
 
     This is a "dry" expansion — only the ``prompt_part`` template is rendered
