@@ -55,11 +55,12 @@ def test_add_create_time_frontmatter_existing_frontmatter() -> None:
     )
 
 
-def test_add_create_time_frontmatter_already_has_field() -> None:
-    """Leaves content unchanged if create_time field already exists."""
-    content = "---\ncreate_time: 2025-01-01 00:00:00\n---\n# Plan"
-    result = add_create_time_frontmatter(content)
-    assert result == content
+def test_add_create_time_frontmatter_overwrites_existing_field() -> None:
+    """Overwrites an existing create_time field with the correct format."""
+    content = "---\ncreate_time: 2025-01-01\n---\n# Plan"
+    dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=ZoneInfo("America/New_York"))
+    result = add_create_time_frontmatter(content, dt)
+    assert result == "---\ncreate_time: 2026-03-20 14:30:00\n---\n# Plan"
 
 
 def test_handle_plan_approval_auto_approve() -> None:

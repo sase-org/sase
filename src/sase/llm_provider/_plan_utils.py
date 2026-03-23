@@ -29,8 +29,10 @@ def add_create_time_frontmatter(
     """Add a ``create_time`` field in YAML frontmatter to plan content.
 
     If the content already has frontmatter (delimited by ``---``), the
-    ``create_time`` field is inserted into the existing block (unless it already
-    contains one).  Otherwise a new frontmatter section is prepended.
+    ``create_time`` field is inserted into the existing block.  If a
+    ``create_time`` field already exists (e.g. added by an agent), it is
+    overwritten to ensure the correct format.  Otherwise a new frontmatter
+    section is prepended.
 
     The datetime is formatted as ``yyyy-mm-dd HH:MM:SS`` in the configured
     timezone (see :func:`sase.sase_utils.get_timezone`).
@@ -47,9 +49,15 @@ def add_create_time_frontmatter(
         end = content.find("\n---\n", 4)
         if end != -1:
             fm_body = content[4 : end + 1]  # includes trailing \n
-            # Already has a create_time field — leave it alone.
+            # Overwrite existing create_time field if present.
             if re.search(r"^create_time:", fm_body, re.MULTILINE):
-                return content
+                fm_body = re.sub(
+                    r"^create_time:.*$",
+                    f"create_time: {ts}",
+                    fm_body,
+                    flags=re.MULTILINE,
+                )
+                return f"---\n{fm_body}---\n{content[end + 5 :]}"
             # Insert the fields at the end of the frontmatter block.
             return f"---\n{fm_body}{fields}\n---\n{content[end + 5 :]}"
 
