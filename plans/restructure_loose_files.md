@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-22 22:50:38
 status: wip
+bead_id: sase-8
 ---
 
 # Plan: Restructure Loose Files in `src/sase/` (Option A)
