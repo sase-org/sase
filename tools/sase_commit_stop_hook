@@ -119,6 +119,11 @@ function check_sibling_repos() {
 function run() {
     cd "$PROJECT_DIR" || return 1
 
+    # Allow callers to disable this hook entirely (e.g. Gemini CLI)
+    if [ -n "$SASE_DISABLE_COMMIT_STOP_HOOK" ]; then
+        return 0
+    fi
+
     # Log that this hook ran
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran" >>"$PROJECT_DIR/.claude/hooks.log"
 
