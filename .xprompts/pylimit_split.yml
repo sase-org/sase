@@ -1,0 +1,24 @@
+input:
+  limits: { type: text, default: "1000 850 700" }
+steps:
+  - name: find_src_files
+    hidden: true
+    bash: |
+      tools/pylimit_files-260227 src {{ limits }} | python3 -c "import sys, json; print('files=' + json.dumps([l.strip() for l in sys.stdin if l.strip()]))"
+    output: { files: text }
+
+  - name: find_tests_files
+    hidden: true
+    bash: |
+      tools/pylimit_files-260227 tests {{ limits }} | python3 -c "import sys, json; print('files=' + json.dumps([l.strip() for l in sys.stdin if l.strip()]))"
+    output: { files: text }
+
+  - name: split_src_files
+    for: { file_path: "{{ find_src_files.files }}" }
+    agent: |
+      #gh:sase /split {{ file_path }}
+
+  - name: split_tests_files
+    for: { file_path: "{{ find_tests_files.files }}" }
+    agent: |
+      #gh:sase /split {{ file_path }}
