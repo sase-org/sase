@@ -58,7 +58,7 @@ def test__get_changed_test_targets_verbose_logs_success() -> None:
 
     with (
         patch("sase.workflows.utils.subprocess.run", return_value=mock_result),
-        patch("sase.rich_utils.print_status") as mock_print_status,
+        patch("sase.output.print_status") as mock_print_status,
     ):
         result = _get_changed_test_targets(verbose=True)
 
@@ -74,7 +74,7 @@ def test__get_changed_test_targets_verbose_logs_empty() -> None:
 
     with (
         patch("sase.workflows.utils.subprocess.run", return_value=mock_result),
-        patch("sase.rich_utils.print_status") as mock_print_status,
+        patch("sase.output.print_status") as mock_print_status,
     ):
         result = _get_changed_test_targets(verbose=True)
 
@@ -92,7 +92,7 @@ def test__get_changed_test_targets_verbose_logs_failure() -> None:
 
     with (
         patch("sase.workflows.utils.subprocess.run", return_value=mock_result),
-        patch("sase.rich_utils.print_status") as mock_print_status,
+        patch("sase.output.print_status") as mock_print_status,
     ):
         result = _get_changed_test_targets(verbose=True)
 
@@ -112,7 +112,7 @@ def test_add_test_hooks_if_available_adds_hooks() -> None:
         patch(
             "sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=True
         ) as mock_add_hooks,
-        patch("sase.rich_utils.print_status"),
+        patch("sase.output.print_status"),
     ):
         result = add_test_hooks_if_available("/fake/project.gp", "cl_name")
 
@@ -178,7 +178,7 @@ def test_add_test_hooks_if_available_returns_false_on_failure() -> None:
         ),
         patch("sase.workflows.utils.get_changespec_from_file", return_value=None),
         patch("sase.ace.hooks.add_test_target_hooks_to_changespec", return_value=False),
-        patch("sase.rich_utils.print_status"),
+        patch("sase.output.print_status"),
     ):
         result = add_test_hooks_if_available("/fake/project.gp", "cl_name")
 

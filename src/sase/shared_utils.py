@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 from sase.sase_utils import get_timezone, get_vendored_tool, run_shell_command
-from sase.rich_utils import (
+from sase.output import (
     print_file_operation,
     print_status,
     print_workflow_header,

@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 
 from sase.sase_utils import generate_timestamp
 from langchain_core.messages import AIMessage
-from sase.rich_utils import print_decision_counts, print_prompt_and_response
+from sase.output import print_decision_counts, print_prompt_and_response
 
 from .postprocessing import (
     postprocess_error,

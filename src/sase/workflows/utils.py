@@ -60,7 +60,7 @@ def _get_changed_test_targets(verbose: bool = False) -> str | None:
         Space-separated test targets string, or None if no targets found
         or the command fails.
     """
-    from sase.rich_utils import print_status
+    from sase.output import print_status
 
     try:
         result = subprocess.run(
@@ -160,7 +160,7 @@ def add_test_hooks_if_available(
         True if test hooks were added or none were needed, False on error.
     """
     from sase.ace.hooks import add_test_target_hooks_to_changespec
-    from sase.rich_utils import print_status
+    from sase.output import print_status
 
     # Run changed_test_targets in the specified directory if provided
     original_dir = None

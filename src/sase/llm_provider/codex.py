@@ -4,7 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from sase.rich_utils import gemini_timer
+from sase.output import gemini_timer
 
 from ._subprocess import stream_and_parse_codex_json_output
 from .base import LLMProvider

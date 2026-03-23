@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sase.rich_utils import (
+from sase.output import (
     print_file_operation,
     print_status,
 )

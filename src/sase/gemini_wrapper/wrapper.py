@@ -21,7 +21,7 @@ from sase.llm_provider.postprocessing import (  # noqa: F401
     save_prompt_to_file as _save_prompt_to_file,
 )
 from sase.llm_provider.types import _MODEL_SIZE_TO_TIER
-from sase.rich_utils import print_decision_counts
+from sase.output import print_decision_counts
 
 
 def invoke_agent(

@@ -5,7 +5,7 @@ from itertools import combinations
 
 from sase.ace.changespec import CommitEntry
 from sase.workflows.commit_utils import apply_diffs_to_workspace, clean_workspace
-from sase.rich_utils import print_status
+from sase.output import print_status
 
 
 @dataclass

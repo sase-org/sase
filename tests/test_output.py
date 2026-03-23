@@ -1,10 +1,10 @@
-"""Tests for sase.rich_utils module."""
+"""Tests for sase.output module."""
 
 from io import StringIO
 
 from rich.console import Console
 
-from sase.rich_utils import (
+from sase.output import (
     escape_markup,
     gemini_timer,
     print_artifact_created,

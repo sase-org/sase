@@ -6,7 +6,7 @@ from sase.ace.changespec import ChangeSpec
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
 from sase.ace.operations import update_to_changespec
 from sase.workflows.commit_utils import run_sase_hg_clean
-from sase.rich_utils import print_status
+from sase.output import print_status
 from sase.running_field import (
     claim_workspace,
     get_first_available_axe_workspace,

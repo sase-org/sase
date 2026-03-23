@@ -16,7 +16,7 @@ def handle_amend_command(args: argparse.Namespace) -> NoReturn:
     Args:
         args: Parsed command-line arguments.
     """
-    from sase.rich_utils import print_status
+    from sase.output import print_status
 
     # Handle --accept mode
     if getattr(args, "accept", False):

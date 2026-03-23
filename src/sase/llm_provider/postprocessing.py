@@ -10,7 +10,7 @@ from datetime import datetime
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.sase_utils import get_timezone
-from sase.rich_utils import print_prompt_and_response
+from sase.output import print_prompt_and_response
 from sase.shared_utils import get_sase_log_file, run_bam_command
 
 from .types import _MODEL_TIER_TO_LABEL, LoggingContext, ModelTier

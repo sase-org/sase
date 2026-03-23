@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
-from sase.rich_utils import print_status
+from sase.output import print_status
 
 from ._exceptions import XPromptArgumentError
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks

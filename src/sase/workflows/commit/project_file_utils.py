@@ -3,7 +3,7 @@
 import os
 
 from sase.ace.changespec import write_changespec_atomic
-from sase.rich_utils import print_status
+from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
 
 

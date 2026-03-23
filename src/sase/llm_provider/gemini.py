@@ -5,7 +5,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from sase.rich_utils import gemini_timer
+from sase.output import gemini_timer
 
 from ._subprocess import stream_process_output
 from .base import LLMProvider

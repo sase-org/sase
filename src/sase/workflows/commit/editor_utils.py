@@ -4,7 +4,7 @@ import os
 import subprocess
 import tempfile
 
-from sase.rich_utils import print_status
+from sase.output import print_status
 
 
 def get_editor() -> str:

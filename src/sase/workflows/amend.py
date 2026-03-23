@@ -11,7 +11,7 @@ from sase.workflows.commit_utils import (
     clean_workspace,
     save_diff,
 )
-from sase.rich_utils import print_status
+from sase.output import print_status
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
 from sase.workflows.utils import (

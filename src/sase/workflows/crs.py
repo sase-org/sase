@@ -9,7 +9,7 @@ from sase.main.query_handler import (
     execute_standalone_steps,
     expand_embedded_workflows_in_query,
 )
-from sase.rich_utils import (
+from sase.output import (
     print_artifact_created,
     print_status,
     print_workflow_header,

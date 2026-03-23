@@ -12,7 +12,7 @@ from sase.workflows.commit_utils import (
     mark_proposal_broken,
     run_sase_hg_clean,
 )
-from sase.rich_utils import print_status
+from sase.output import print_status
 from sase.running_field import (
     claim_workspace,
     get_claimed_workspaces,
