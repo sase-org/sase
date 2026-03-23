@@ -422,6 +422,10 @@ class ChangeSpec:
         """Extract project basename from file_path.
 
         Returns:
-            Project name without extension (e.g., "myproject" from "myproject.gp").
+            Project name without extension (e.g., "myproject" from "myproject.gp"
+            or "myproject-archive.gp").
         """
-        return os.path.splitext(os.path.basename(self.file_path))[0]
+        basename = os.path.splitext(os.path.basename(self.file_path))[0]
+        if basename.endswith("-archive"):
+            return basename[:-8]
+        return basename

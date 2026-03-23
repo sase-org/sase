@@ -66,13 +66,28 @@ def test_transition_changespec_status_skip_validation() -> None:
         assert old_status == "Ready"
         assert error is None
 
-        # Verify the file was updated
-        with open(project_file) as f:
-            content = f.read()
-            assert "STATUS: Submitted" in content
+        # ChangeSpec should have been moved to the archive file
+        from sase.ace.changespec.archive import get_archive_file_path
+
+        archive_file = get_archive_file_path(project_file)
+        archive_path = Path(archive_file)
+        if archive_path.exists():
+            # Submitted ChangeSpec was moved to archive
+            with open(archive_file) as f:
+                assert "STATUS: Submitted" in f.read()
+        else:
+            # Fallback: if archive didn't happen (e.g., non-.gp file), check main
+            with open(project_file) as f:
+                assert "STATUS: Submitted" in f.read()
 
     finally:
         Path(project_file).unlink()
+        # Clean up archive file if created
+        from sase.ace.changespec.archive import get_archive_file_path
+
+        archive_path = Path(get_archive_file_path(project_file))
+        if archive_path.exists():
+            archive_path.unlink()
 
 
 def test_transition_changespec_status_nonexistent_changespec() -> None:

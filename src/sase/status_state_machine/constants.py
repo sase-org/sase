@@ -40,6 +40,9 @@ VALID_STATUSES = [
     "Archived",
 ]
 
+# Statuses that cause a ChangeSpec to be moved to the archive file
+ARCHIVE_STATUSES = frozenset({"Submitted", "Archived", "Reverted"})
+
 
 # Valid state transitions
 # Key: current status, Value: list of allowed next statuses

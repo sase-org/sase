@@ -26,6 +26,12 @@ from .models import (
     parse_commit_entry_id,
 )
 from .parser import parse_project_file
+from .archive import (
+    get_archive_file_path,
+    get_main_file_path,
+    is_archive_file,
+    move_changespec_to_file,
+)
 from .raw_text import get_raw_changespec_text
 from .validation import (
     all_hooks_passed_for_entries,
@@ -79,6 +85,10 @@ __all__ = [
     "all_hooks_passed_for_entries",
     "parse_project_file",
     "get_raw_changespec_text",
+    "get_archive_file_path",
+    "get_main_file_path",
+    "is_archive_file",
+    "move_changespec_to_file",
     "find_all_changespecs",
     "get_eligible_parents_in_project",
     "get_entry_id",
@@ -86,10 +96,10 @@ __all__ = [
 
 
 def find_all_changespecs() -> list[ChangeSpec]:
-    """Find all ChangeSpecs in all project files.
+    """Find all ChangeSpecs in all project files (including archive files).
 
     Returns:
-        List of all ChangeSpec objects from ~/.sase/projects/<project>/<project>.gp files
+        List of all ChangeSpec objects from both main and archive project files.
     """
     projects_dir = Path.home() / ".sase" / "projects"
 
@@ -103,13 +113,17 @@ def find_all_changespecs() -> list[ChangeSpec]:
         if not project_dir.is_dir():
             continue
 
-        # Look for <project>.gp file inside the project directory
         project_name = project_dir.name
-        gp_file = project_dir / f"{project_name}.gp"
 
+        # Read main project file
+        gp_file = project_dir / f"{project_name}.gp"
         if gp_file.exists():
-            changespecs = parse_project_file(str(gp_file))
-            all_changespecs.extend(changespecs)
+            all_changespecs.extend(parse_project_file(str(gp_file)))
+
+        # Also read archive file
+        archive_file = project_dir / f"{project_name}-archive.gp"
+        if archive_file.exists():
+            all_changespecs.extend(parse_project_file(str(archive_file)))
 
     return all_changespecs
 

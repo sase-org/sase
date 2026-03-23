@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
 from sase.vcs_provider import get_vcs_provider
 
-from .constants import VALID_TRANSITIONS, is_valid_transition
+from .constants import ARCHIVE_STATUSES, VALID_TRANSITIONS, is_valid_transition
 from .field_updates import apply_status_update, read_status_from_lines
 
 if TYPE_CHECKING:
@@ -636,5 +636,25 @@ def transition_changespec_status(
         base_name, suffixed_name = suffix_append_info
         _handle_suffix_append(project_file, base_name, suffixed_name)
 
+    # Move ChangeSpec between main and archive files based on status change
     assert result is not None
+    if result[0]:  # success
+        from sase.ace.changespec.archive import (
+            get_archive_file_path,
+            move_changespec_to_file,
+        )
+
+        old_status_val = result[1]
+        old_is_archive = old_status_val in ARCHIVE_STATUSES if old_status_val else False
+        new_is_archive = new_status in ARCHIVE_STATUSES
+
+        if new_is_archive and not old_is_archive:
+            # Moving TO archive: source is main file, dest is archive file
+            archive_file = get_archive_file_path(project_file)
+            move_changespec_to_file(project_file, archive_file, changespec_name)
+        elif old_is_archive and not new_is_archive:
+            # Moving FROM archive: source is archive file, dest is main file
+            archive_file = get_archive_file_path(project_file)
+            move_changespec_to_file(archive_file, project_file, changespec_name)
+
     return (result[0], result[1], result[2], sibling_results)

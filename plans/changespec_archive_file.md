@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-23 18:43:08
-status: wip
+status: done
 ---
 
 # Plan: Move ChangeSpecs to Archive File on Terminal Status

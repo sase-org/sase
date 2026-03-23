@@ -134,6 +134,16 @@ def add_changespec_to_project_file(
                 if line.startswith("NAME: "):
                     existing_names.add(line[6:].strip())
 
+            # Also check archive file for existing names
+            from sase.ace.changespec.archive import get_archive_file_path
+
+            archive_file = get_archive_file_path(project_file)
+            if os.path.isfile(archive_file):
+                with open(archive_file, encoding="utf-8") as f:
+                    for line in f.readlines():
+                        if line.startswith("NAME: "):
+                            existing_names.add(line[6:].strip())
+
             # Add _<N> suffix to make name unique (for WIP ChangeSpecs)
             from sase.core.changespec import get_next_suffix_number
 

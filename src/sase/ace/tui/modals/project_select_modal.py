@@ -259,7 +259,7 @@ class ProjectSelectModal(
             )
             return
 
-        # Check if project file contains any ChangeSpecs
+        # Check if project file or archive file contains any ChangeSpecs
         gp_path = (
             Path.home()
             / ".sase"
@@ -267,7 +267,10 @@ class ProjectSelectModal(
             / item.project_name
             / f"{item.project_name}.gp"
         )
+        archive_path = gp_path.parent / f"{item.project_name}-archive.gp"
         changespecs = parse_project_file(str(gp_path))
+        if archive_path.exists():
+            changespecs.extend(parse_project_file(str(archive_path)))
         if changespecs:
             self.notify(
                 f"Cannot delete project '{item.project_name}': file contains ChangeSpecs",
@@ -278,8 +281,10 @@ class ProjectSelectModal(
         def _on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            # Delete the .gp file
+            # Delete the .gp file and archive file
             os.unlink(gp_path)
+            if archive_path.exists():
+                os.unlink(archive_path)
             # Remove parent directory if empty
             try:
                 os.rmdir(gp_path.parent)
