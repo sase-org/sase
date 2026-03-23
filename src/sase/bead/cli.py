@@ -30,7 +30,7 @@ def _find_beads_location() -> tuple[Path, str]:
 
     primary = resolve_primary_workspace()
     if primary:
-        from sase.sdd import get_sdd_config
+        from sase.sdd.beads import get_sdd_config
 
         if get_sdd_config():
             # VC mode: .sase_beads/ — prefer CWD copy, then primary.
@@ -75,7 +75,7 @@ def _init_beads(root: Path, beads_dirname: str) -> None:
     with BeadProject.init(root, beads_dirname=beads_dirname):
         pass
     if beads_dirname == BEADS_DIRNAME_NON_VC:
-        from sase.sdd import commit_sdd_files
+        from sase.sdd.files import commit_sdd_files
 
         commit_sdd_files(root, "Initialize beads")
 
@@ -274,7 +274,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         if issue.notes:
             print(f"\nNOTES\n  {issue.notes}")
         if issue.design:
-            from sase.sdd import get_sdd_config
+            from sase.sdd.beads import get_sdd_config
 
             if get_sdd_config():
                 display = os.path.relpath(issue.design)

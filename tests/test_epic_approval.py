@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.llm_provider._plan_utils import PlanApprovalResult
-from sase.sdd import ensure_beads_initialized
+from sase.sdd.beads import ensure_beads_initialized
 
 
 # ---------------------------------------------------------------------------
@@ -18,8 +18,8 @@ def test_ensure_beads_initialized_vc_already_exists() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         (Path(tmpdir) / ".sase_beads").mkdir()
         with (
-            patch("sase.sdd.get_sdd_config", return_value=True),
-            patch("sase.sdd.BeadProject") as mock_bp,
+            patch("sase.sdd.beads.get_sdd_config", return_value=True),
+            patch("sase.sdd.beads.BeadProject") as mock_bp,
         ):
             ensure_beads_initialized(tmpdir, 1)
             mock_bp.init.assert_not_called()
@@ -29,8 +29,8 @@ def test_ensure_beads_initialized_vc_creates_beads() -> None:
     """Initializes .sase_beads/ when sdd.version_controlled is enabled and .sase_beads/ missing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
-            patch("sase.sdd.get_sdd_config", return_value=True),
-            patch("sase.sdd.BeadProject") as mock_bp,
+            patch("sase.sdd.beads.get_sdd_config", return_value=True),
+            patch("sase.sdd.beads.BeadProject") as mock_bp,
         ):
             ensure_beads_initialized(tmpdir, 1)
             mock_bp.init.assert_called_once_with(Path(tmpdir))
@@ -41,8 +41,8 @@ def test_ensure_beads_initialized_non_vc_already_exists() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         (Path(tmpdir) / ".sase" / "sdd" / "beads").mkdir(parents=True)
         with (
-            patch("sase.sdd.get_sdd_config", return_value=False),
-            patch("sase.sdd._init_beads") as mock_init,
+            patch("sase.sdd.beads.get_sdd_config", return_value=False),
+            patch("sase.sdd.beads._init_beads") as mock_init,
         ):
             ensure_beads_initialized(tmpdir, 1)
             mock_init.assert_not_called()
@@ -52,8 +52,8 @@ def test_ensure_beads_initialized_non_vc_calls_init_beads() -> None:
     """Calls _init_beads when non-VC repo is missing .sase/sdd/beads/."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
-            patch("sase.sdd.get_sdd_config", return_value=False),
-            patch("sase.sdd._init_beads") as mock_init,
+            patch("sase.sdd.beads.get_sdd_config", return_value=False),
+            patch("sase.sdd.beads._init_beads") as mock_init,
         ):
             ensure_beads_initialized(tmpdir, 1)
             mock_init.assert_called_once_with(tmpdir, 1)
@@ -68,8 +68,8 @@ def test_ensure_beads_initialized_workspace_num_2() -> None:
         workspace_2.mkdir()
 
         with (
-            patch("sase.sdd.get_sdd_config", return_value=True),
-            patch("sase.sdd.BeadProject") as mock_bp,
+            patch("sase.sdd.beads.get_sdd_config", return_value=True),
+            patch("sase.sdd.beads.BeadProject") as mock_bp,
         ):
             ensure_beads_initialized(str(workspace_2), 2)
             mock_bp.init.assert_called_once_with(primary)

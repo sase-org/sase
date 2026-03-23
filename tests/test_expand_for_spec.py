@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from unittest.mock import patch
 
-from sase.sdd import _dry_expand_embedded_workflows, expand_prompt_for_spec
+from sase.sdd.files import _dry_expand_embedded_workflows, expand_prompt_for_spec
 from sase.xprompt.models import UNSET, InputArg
 
 

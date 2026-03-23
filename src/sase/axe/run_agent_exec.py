@@ -380,10 +380,10 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 continue
 
             # Write SDD files (spec + plan) to project
-            from sase.sdd import (
+            from sase.sdd.beads import get_sdd_config
+            from sase.sdd.files import (
                 commit_sdd_files,
                 expand_prompt_for_spec,
-                get_sdd_config,
                 get_sdd_dir,
                 write_sdd_files,
             )
@@ -420,7 +420,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
 
             if plan_result.action == "epic":
                 # Ensure beads are initialized before spawning epic agent
-                from sase.sdd import ensure_beads_initialized
+                from sase.sdd.beads import ensure_beads_initialized
 
                 ensure_beads_initialized(ctx.workspace_dir, ctx.workspace_num)
 
@@ -512,7 +512,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             # Update SDD spec file with Q&A answers
             if sdd_spec_path is not None:
                 try:
-                    from sase.sdd import update_spec_with_qa
+                    from sase.sdd.files import update_spec_with_qa
 
                     update_spec_with_qa(Path(sdd_spec_path), qa_text)
                 except Exception:

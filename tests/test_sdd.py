@@ -1,15 +1,15 @@
-"""Tests for sdd.py - SDD file writing utilities."""
+"""Tests for sdd/ subpackage - SDD file writing utilities."""
 
 import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.sdd import (
+from sase.sdd.beads import _init_beads
+from sase.sdd.files import (
     _get_primary_workspace_dir,
     commit_sdd_files,
     get_sdd_dir,
-    _init_beads,
     update_spec_with_qa,
     write_sdd_files,
 )
@@ -55,7 +55,7 @@ def test_primary_workspace_dir_trailing_slash() -> None:
 
 def test_primary_workspace_dir_prefers_project_workspace_dir() -> None:
     with (
-        patch("sase.sdd.Path.home", return_value=Path("/home/user")),
+        patch("sase.sdd.files.Path.home", return_value=Path("/home/user")),
         patch("sase.workspace_provider.get_workspace_name", return_value="myproject"),
         patch(
             "sase.workspace_provider.utils.parse_workspace_dir",
@@ -163,8 +163,8 @@ def test_update_spec_with_qa_missing_file() -> None:
 def test_init_beads_creates_sdd_git_repo() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
-            patch("sase.sdd.subprocess.run") as mock_run,
-            patch("sase.sdd.BeadProject.init") as mock_bead_init,
+            patch("sase.sdd.beads.subprocess.run") as mock_run,
+            patch("sase.sdd.beads.BeadProject.init") as mock_bead_init,
         ):
             mock_run.return_value = subprocess.CompletedProcess([], 0)
             result = _init_beads(tmpdir, 1)
@@ -192,7 +192,7 @@ def test_init_beads_idempotent() -> None:
         # Simulate existing .gitignore
         (sdd_dir / ".gitignore").write_text("beads/beads.db\n", encoding="utf-8")
 
-        with patch("sase.sdd.subprocess.run") as mock_run:
+        with patch("sase.sdd.beads.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess([], 0)
             result = _init_beads(tmpdir, 1)
         assert result == sdd_dir
