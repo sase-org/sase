@@ -23,10 +23,13 @@ from sase.ace.changespec.models import MentorEntry
 from sase.ace.mentor_output import (
     MentorAcceptanceState,
     MentorOutput,
+    MentorReadState,
     load_acceptance_state,
     load_file_snapshots,
     load_mentor_outputs_for_commit,
+    load_read_state,
     save_acceptance_state,
+    save_read_state,
 )
 
 from .base import CopyModeForwardingMixin
@@ -84,6 +87,7 @@ class _MentorReviewData:
 
     mentors: list[MentorInfo]
     acceptance: MentorAcceptanceState
+    read_state: MentorReadState
     cl_name: str
     entry_id: str
     vcs_provider: VCSProvider | None = None
@@ -205,9 +209,11 @@ def build_mentor_review_data(
             all_snapshots.update(snapshots)
 
     acceptance = load_acceptance_state(cl_name, entry_id)
+    read_state = load_read_state(cl_name, entry_id)
     return _MentorReviewData(
         mentors=mentors,
         acceptance=acceptance,
+        read_state=read_state,
         cl_name=cl_name,
         entry_id=entry_id,
         vcs_provider=vcs_provider,
@@ -262,6 +268,7 @@ class MentorReviewModal(
         self._refresh_all()
 
     def _refresh_all(self) -> None:
+        self._mark_current_read()
         self._update_side_panel()
         self._update_main_panel()
         self._update_footer()
@@ -308,10 +315,23 @@ class MentorReviewModal(
             text.append(f" {indicator} ", style=style)
             text.append(f"{m.mentor_name}", style=name_style)
 
-            # Comment count
+            # Comment count + read progress bar
             if m.comments:
+                total = len(m.comments)
                 accepted = self._accepted_count_for_mentor(m)
-                text.append(f" ({accepted}/{len(m.comments)})", style="dim")
+                read = self._read_count_for_mentor(m)
+                text.append(f" ({accepted}/{total})", style="dim")
+
+                # Mini progress bar: ■ = read, □ = unread
+                bar_width = min(total, 5)
+                filled = round(read / total * bar_width)
+                filled = max(0, min(bar_width, filled))
+                text.append(" ")
+                if read == total:
+                    text.append("■" * bar_width, style="#00D7AF")
+                else:
+                    text.append("■" * filled, style="#87D7FF")
+                    text.append("□" * (bar_width - filled), style="dim #4A4A6A")
             elif m.is_running:
                 text.append(" (running)", style="dim yellow")
             elif m.status == "PASSED":
@@ -467,9 +487,12 @@ class MentorReviewModal(
     def _update_footer(self) -> None:
         accepted = self._data.acceptance.accepted_count
         total = self._data.total_comments
+        total_read = sum(self._read_count_for_mentor(m) for m in self._data.mentors)
 
         text = Text()
-        text.append(f" Accepted: {accepted}/{total}", style="bold")
+        text.append(f" Read: {total_read}/{total}", style="bold #87D7FF")
+        text.append("  Accepted: ", style="bold")
+        text.append(f"{accepted}/{total}", style="bold")
         text.append("  \u2502  ", style="dim")
 
         bindings = [
@@ -662,6 +685,25 @@ class MentorReviewModal(
         self.dismiss(None)
 
     # -- Helpers --
+
+    def _mark_current_read(self) -> None:
+        """Mark the currently displayed comment as read and persist."""
+        mentor = self._current_mentor()
+        if not mentor or not mentor.comments:
+            return
+        idx = max(0, min(self._comment_idx, len(mentor.comments) - 1))
+        newly_read = self._data.read_state.mark_read(
+            mentor.profile_name, mentor.mentor_name, idx
+        )
+        if newly_read:
+            save_read_state(
+                self._data.cl_name, self._data.entry_id, self._data.read_state
+            )
+
+    def _read_count_for_mentor(self, mentor: MentorInfo) -> int:
+        return self._data.read_state.read_count_for_mentor(
+            mentor.profile_name, mentor.mentor_name, len(mentor.comments)
+        )
 
     def _all_comments_accepted(self, mentor: MentorInfo) -> bool:
         if not mentor.comments:

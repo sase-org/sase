@@ -6,6 +6,7 @@ from sase.ace.mentor_output import (
     MentorAcceptanceState,
     MentorComment,
     MentorOutput,
+    MentorReadState,
     save_mentor_output,
 )
 from sase.ace.changespec.models import MentorEntry, MentorStatusLine
@@ -63,6 +64,7 @@ def test_mentor_review_data_total_comments() -> None:
             ),
         ],
         acceptance=MentorAcceptanceState(),
+        read_state=MentorReadState(),
         cl_name="test-cl",
         entry_id="1",
     )
@@ -76,6 +78,7 @@ def test_mentor_review_data_zero_comments() -> None:
             MentorInfo(mentor_name="a", profile_name="p", status="PASSED", comments=[]),
         ],
         acceptance=MentorAcceptanceState(),
+        read_state=MentorReadState(),
         cl_name="test-cl",
         entry_id="1",
     )
@@ -233,6 +236,7 @@ def _make_modal_data(
     return _MentorReviewData(
         mentors=mentors,
         acceptance=acceptance,
+        read_state=MentorReadState(),
         cl_name="test-cl",
         entry_id="1",
     )
@@ -461,6 +465,7 @@ def test_kill_produces_result_for_running_mentor() -> None:
     data = _MentorReviewData(
         mentors=mentors,
         acceptance=MentorAcceptanceState(),
+        read_state=MentorReadState(),
         cl_name="my-cl",
         entry_id="42",
     )

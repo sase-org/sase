@@ -127,6 +127,8 @@ def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
         # Skip acceptance state files
         if path.name.endswith("-acceptance.json"):
             continue
+        if path.name.endswith("-readstate.json"):
+            continue
         if path.name.endswith("-files.json"):
             continue
         try:
@@ -250,6 +252,75 @@ class MentorAcceptanceState:
     def total_count(self) -> int:
         """Return total number of tracked comments."""
         return len(self.accepted)
+
+
+@dataclass
+class MentorReadState:
+    """Tracks which mentor comments have been read (navigated to).
+
+    Maps ``(profile_name, mentor_name, comment_index)`` to ``bool``.
+    """
+
+    read: dict[str, bool] = field(default_factory=dict)
+
+    @staticmethod
+    def _key(profile_name: str, mentor_name: str, comment_index: int) -> str:
+        return f"{profile_name}:{mentor_name}:{comment_index}"
+
+    def is_read(self, profile_name: str, mentor_name: str, comment_index: int) -> bool:
+        """Check if a comment has been read."""
+        return self.read.get(self._key(profile_name, mentor_name, comment_index), False)
+
+    def mark_read(
+        self, profile_name: str, mentor_name: str, comment_index: int
+    ) -> bool:
+        """Mark a comment as read. Returns True if newly marked."""
+        key = self._key(profile_name, mentor_name, comment_index)
+        if self.read.get(key, False):
+            return False
+        self.read[key] = True
+        return True
+
+    def read_count_for_mentor(
+        self, profile_name: str, mentor_name: str, total: int
+    ) -> int:
+        """Count how many of a mentor's comments have been read."""
+        return sum(
+            1
+            for i in range(total)
+            if self.read.get(self._key(profile_name, mentor_name, i), False)
+        )
+
+
+def save_read_state(cl_name: str, entry_id: str, state: MentorReadState) -> Path:
+    """Save read state to disk.
+
+    File is written to ``~/.sase/mentors/<cl>-<entry_id>-readstate.json``.
+    """
+    SASE_MENTORS_DIR.mkdir(parents=True, exist_ok=True)
+    safe_cl = cl_name.replace("/", "_")
+    filename = f"{safe_cl}-{entry_id}-readstate.json"
+    path = SASE_MENTORS_DIR / filename
+    path.write_text(json.dumps(state.read, indent=2), encoding="utf-8")
+    return path
+
+
+def load_read_state(cl_name: str, entry_id: str) -> MentorReadState:
+    """Load read state from disk.
+
+    Returns a fresh ``MentorReadState`` if the file does not exist.
+    """
+    safe_cl = cl_name.replace("/", "_")
+    filename = f"{safe_cl}-{entry_id}-readstate.json"
+    path = SASE_MENTORS_DIR / filename
+    if not path.is_file():
+        return MentorReadState()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return MentorReadState(read=data)
+    except (json.JSONDecodeError, TypeError):
+        log.warning("Malformed read state: %s", path)
+        return MentorReadState()
 
 
 def save_acceptance_state(

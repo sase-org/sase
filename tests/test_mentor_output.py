@@ -8,12 +8,15 @@ from sase.ace.mentor_output import (
     MentorAcceptanceState,
     MentorComment,
     MentorOutput,
+    MentorReadState,
     load_acceptance_state,
     load_mentor_outputs_for_commit,
+    load_read_state,
     _load_all_mentor_outputs,
     _load_mentor_output,
     save_acceptance_state,
     save_mentor_output,
+    save_read_state,
 )
 
 
@@ -291,3 +294,79 @@ def test_load_acceptance_state_malformed(tmp_path: Path, monkeypatch: object) ->
 
     state = load_acceptance_state("cl", "1")
     assert state.accepted_count == 0
+
+
+# ── Read state ───────────────────────────────────────────────────────────
+
+
+def test_read_state_mark_and_query() -> None:
+    """Test marking comments as read and querying state."""
+    state = MentorReadState()
+    assert state.is_read("code", "quality", 0) is False
+
+    # First mark returns True (newly read)
+    assert state.mark_read("code", "quality", 0) is True
+    assert state.is_read("code", "quality", 0) is True
+
+    # Second mark returns False (already read)
+    assert state.mark_read("code", "quality", 0) is False
+
+
+def test_read_state_count_for_mentor() -> None:
+    """Test read_count_for_mentor counts correctly."""
+    state = MentorReadState()
+    state.mark_read("code", "quality", 0)
+    state.mark_read("code", "quality", 2)
+
+    assert state.read_count_for_mentor("code", "quality", 4) == 2
+    assert state.read_count_for_mentor("code", "other", 4) == 0
+
+
+def test_save_and_load_read_state(tmp_path: Path, monkeypatch: object) -> None:
+    """Test save/load round-trip for read state."""
+    monkeypatch.setattr("sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path)  # type: ignore[attr-defined]
+
+    state = MentorReadState()
+    state.mark_read("code", "quality", 0)
+    state.mark_read("code", "quality", 2)
+    state.mark_read("code", "tests", 0)
+
+    save_read_state("my-cl", "3", state)
+
+    loaded = load_read_state("my-cl", "3")
+    assert loaded.is_read("code", "quality", 0) is True
+    assert loaded.is_read("code", "quality", 1) is False
+    assert loaded.is_read("code", "quality", 2) is True
+    assert loaded.is_read("code", "tests", 0) is True
+
+
+def test_load_read_state_missing(tmp_path: Path, monkeypatch: object) -> None:
+    """Test loading non-existent read state returns empty."""
+    monkeypatch.setattr("sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path)  # type: ignore[attr-defined]
+
+    state = load_read_state("no-cl", "1")
+    assert state.read_count_for_mentor("code", "quality", 5) == 0
+
+
+def test_load_read_state_malformed(tmp_path: Path, monkeypatch: object) -> None:
+    """Test loading malformed read state returns empty."""
+    monkeypatch.setattr("sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path)  # type: ignore[attr-defined]
+
+    bad = tmp_path / "cl-1-readstate.json"
+    bad.write_text("not valid json", encoding="utf-8")
+
+    state = load_read_state("cl", "1")
+    assert state.read_count_for_mentor("code", "quality", 5) == 0
+
+
+def test_load_all_skips_readstate_files(tmp_path: Path, monkeypatch: object) -> None:
+    """_load_all_mentor_outputs ignores readstate files."""
+    monkeypatch.setattr("sase.ace.mentor_output.SASE_MENTORS_DIR", tmp_path)  # type: ignore[attr-defined]
+
+    save_mentor_output("cl", "p", "m", "260321_120000", _make_output())
+    # Write a readstate file alongside
+    (tmp_path / "cl-1-readstate.json").write_text("{}", encoding="utf-8")
+
+    results = _load_all_mentor_outputs("cl")
+    assert len(results) == 1
+    assert not results[0][0].name.endswith("-readstate.json")
