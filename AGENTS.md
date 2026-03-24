@@ -80,10 +80,10 @@ keystrokes and `--size` to control terminal dimensions.
 ## Chezmoi Repo
 
 Some files associated with this project live in the ~/.local/share/chezmoi/ directory. Feel free to modify these if
-needed, but make sure to commit your changes to the chezmoi repo using your commit skill (NOT `git commit`) after making
-them. Ignore the .sase_beads/ changes in commits when composing your commit message. IMPORTANT: After committing to this
-repo, you MUST run the `chezmoi apply` command. Otherwise, the changes to the chezmoi files will not be applied to the
-system (i.e. copied to their proper locations).
+needed, but make sure to commit your changes to the chezmoi repo using your `/sase_git_commit` skill (NOT `git commit`)
+after making them. Ignore the .sase_beads/ changes in commits when composing your commit message. IMPORTANT: After
+committing to this repo, you MUST run the `chezmoi apply` command. Otherwise, the changes to the chezmoi files will not
+be applied to the system (i.e. copied to their proper locations).
 
 Chezmoi files related to sase that I know about:
 
@@ -103,7 +103,7 @@ chezmoi files will not be applied to the system (i.e. copied to their proper loc
   file syntax highlighting).
 
 IMPORTANT: You can edit files in these repos if necessary. Just make sure to commit your changes to the corresponding
-repo using your commit skill (NOT `git commit`) after making them.
+repo using your `/sase_git_commit` skill (NOT `git commit`) after making them.
 
 ## Config Changes
 
