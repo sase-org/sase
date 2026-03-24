@@ -23,10 +23,10 @@ steps:
       RESULT_FILE="${SASE_ARTIFACTS_DIR}/commit_result.json"
       [ -f "$RESULT_FILE" ] || exit 0
       eval "$(python3 -c "
-      import json, sys
+      import json, shlex
       d = json.load(open('$RESULT_FILE'))
       for k in ('result', 'message', 'changespec_name'):
-          print(f'{k}={d.get(k, \"\") or \"\"}')
+          print(f'{k}={shlex.quote(d.get(k, \"\") or \"\")}')
       ")"
       if [ -n "$message" ]; then
         header=$(echo "$message" | head -1)

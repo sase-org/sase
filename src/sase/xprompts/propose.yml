@@ -15,10 +15,10 @@ steps:
       RESULT_FILE="${SASE_ARTIFACTS_DIR}/commit_result.json"
       [ -f "$RESULT_FILE" ] || exit 0
       eval "$(python3 -c "
-      import json, sys
+      import json, shlex
       d = json.load(open('$RESULT_FILE'))
       for k in ('result', 'message'):
-          print(f'{k}={d.get(k, \"\") or \"\"}')
+          print(f'{k}={shlex.quote(d.get(k, \"\") or \"\")}')
       ")"
       [ -n "$result" ] && echo "meta_proposal_id=$result"
       [ -n "$message" ] && echo "meta_commit_message=$message"
