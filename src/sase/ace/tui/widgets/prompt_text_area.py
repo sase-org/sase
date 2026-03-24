@@ -90,10 +90,9 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     def _get_wrap_width(self) -> int:
         """Get the width at which to auto-wrap text.
 
-        Always accounts for the gutter since line numbers appear when
-        line_count > 1 (which will be the case after wrapping).  Also
-        reserves space for the vertical scrollbar which overlays the
-        content area when visible.
+        Matches the Textual TextArea's internal ``wrap_width`` property
+        which accounts for the gutter, scrollbar, and a 1-cell cursor
+        reservation.
         """
         text_width = self.size.width
         if text_width <= 0:
@@ -102,7 +101,9 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         gutter_width = len(str(max(self.document.line_count, 2))) + 2
         # Reserve space for the vertical scrollbar that overlays content
         scrollbar_width = self.styles.scrollbar_size_vertical
-        return max(text_width - gutter_width - scrollbar_width, 1)
+        # Reserve 1 cell for the cursor, matching TextArea.wrap_width
+        cursor_width = 1
+        return max(text_width - gutter_width - scrollbar_width - cursor_width, 1)
 
     def _auto_wrap_line(self) -> None:
         """Insert a newline when the cursor's line exceeds available width.
