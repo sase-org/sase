@@ -105,7 +105,6 @@ def _save_committed_diff(
     return shorten_path(diff_path)
 
 
-# pyvision: public_api_methods.txt
 def create_changespec_for_workflow(
     project_name: str,
     project_file: str,
