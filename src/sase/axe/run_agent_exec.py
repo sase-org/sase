@@ -75,7 +75,7 @@ class _AgentExecResult:
 
 
 def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
-    """Commit SDD spec and plan files via ccommit before launching the epic agent.
+    """Commit SDD spec and plan files via ``sase commit`` before launching the epic agent.
 
     The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
     wipes uncommitted files.  Committing (and pushing) the SDD files first
@@ -86,13 +86,14 @@ def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
     files = [f for f in (spec_file, plan_file) if os.path.exists(f)]
     if not files:
         return
+    payload = json.dumps(
+        {
+            "message": f"chore: Add SDD spec and plan for {plan_name}",
+            "files": files,
+        }
+    )
     subprocess.run(
-        [
-            "ccommit",
-            "chore",
-            f"Add SDD spec and plan for {plan_name}",
-            *files,
-        ],
+        ["sase", "commit", payload],
         cwd=workspace_dir,
         capture_output=True,
         text=True,
@@ -457,7 +458,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                         _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
 
                 # Point SASE_PLAN at the committed in-repo plan file so
-                # ccommit can update its frontmatter without copying.
+                # the commit workflow can update its frontmatter without copying.
                 if sdd_plan_name:
                     os.environ["SASE_PLAN"] = str(
                         sdd_dir / "plans" / f"{sdd_plan_name}.md"

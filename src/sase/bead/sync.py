@@ -27,7 +27,7 @@ def sync_status(beads_dir: Path) -> bool:
     """Check if JSONL has unstaged changes. Returns True if clean.
 
     Only checks for unstaged (working-tree) changes, since staged changes
-    are expected — they will be included in the next ccommit.
+    are expected — they will be included in the next commit.
     """
     jsonl_path = beads_dir / "issues.jsonl"
     if not jsonl_path.exists():
