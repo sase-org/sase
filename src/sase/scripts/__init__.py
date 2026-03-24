@@ -70,6 +70,10 @@ def sase_git_commit() -> NoReturn:
     _exec_script("sase_git_commit")
 
 
+def sase_git_fix() -> NoReturn:
+    _exec_script("sase_git_fix")
+
+
 def sase_chop_hook_checks() -> None:
     from sase.scripts.sase_chop_hook_checks import main
 

@@ -40,6 +40,7 @@ dev = [
 sase = "sase.main.entry:main"
 sase_bug = "sase.scripts:sase_bug"
 sase_git_commit = "sase.scripts:sase_git_commit"
+sase_git_fix = "sase.scripts:sase_git_fix"
 sase_json_workflow = "sase.scripts:sase_json_workflow"
 sase_migrate_statuses = "sase.scripts:sase_migrate_statuses"
 sase_chop_hook_checks = "sase.scripts:sase_chop_hook_checks"

@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# sase_git_fix — run "fix" target from Justfile or Makefile if available.
+#
+# Checks (in order):
+#   1. Justfile with a "fix" recipe  → just fix
+#   2. Makefile with a "fix" target  → make fix
+#   3. Neither                       → exit 0 (no-op)
+#
+
+set -euo pipefail
+
+if [[ -f Justfile ]] && just --summary 2>/dev/null | tr ' ' '\n' | grep -qx 'fix'; then
+  exec just fix
+fi
+
+if [[ -f Makefile ]] && grep -qE '^fix\s*:' Makefile; then
+  exec make fix
+fi
+
+exit 0
