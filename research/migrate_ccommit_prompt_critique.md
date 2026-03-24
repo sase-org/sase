@@ -16,6 +16,12 @@ The prompt doesn't specify which layer should absorb each piece of `ccommit` fun
 `just fmt` be called in the Python VCS provider, or should the skill instructions tell the agent to run it? These are
 very different designs.
 
+#### DECISIONS
+
+- We should migrate the `ccommit` script to src/sase/scripts/sase_git_commit in this repo.
+- We should also start using this new `sase_git_commit` script to make git commits from `sase commit` (you might need to
+  edit the ../sase-github repo for this).
+
 ### 2. Feature-by-feature ambiguity
 
 Here are the ccommit features not present in the unified workflow, each needing a decision:
@@ -31,6 +37,23 @@ Here are the ccommit features not present in the unified workflow, each needing 
 | JSON logging (`~/.ccommit.jsonl`)         | No                                       | Add? Or rely on sase's own logging?                        |
 | Conventional commit tag validation        | No (agent composes message freely)       | Validate programmatically? Or trust the agent?             |
 
+#### DECISIONS
+
+- `just fmt`: This should be supported via a new `precommit_command` sase.yml config field. You should set
+  `precommit_command: "just fix"` in this repo's local sase.yml file (make sure this field is supported in local
+  sase.yml files) and set `precommit_command: "sase_hg_fix"` to the ../sase-google repo's default_config.yml file
+  (`sase_hg_fix` is a new script that you should create in that repo that wraps `hg fix`, but only runs it if we are in
+  an hg repo (make sure this works reliably).
+- Merge/pull from origin/master: Add to the VCS providers. Replicate this for git repos, but just
+  `hg update <branch_name>` should be sufficient for the ../sase-google repo (hg VCS provider).
+- Beads: The bead operations should be performed by `sase commit` (make sure we support repos that do NOT have
+  `sdd.version_controlled` set to `true`).
+- `SASE_PLAN` in commit message + mark as done: This should be supported for all repos (regardless of VCS provider or
+  the `sdd.version_controlled` config field---though this field will control where the plans/ directory lives).
+- Desktop notifications: We don't need to suppor tthis.
+- JSON logging: This should be supported by the new `sase_git_commit` script.
+- Conventional commit tag validation: Let's not worry about this for now.
+
 ### 3. What happens to existing artifacts?
 
 The prompt doesn't say:
@@ -40,6 +63,10 @@ The prompt doesn't say:
 - **Is the `ccommit` bash script deleted?** Or kept for manual human use outside of sase workflows?
 - **Does the chezmoi-managed `SKILL.md` for `/commit` get updated or removed?**
 
+#### DECISIONS
+
+- Delete the `/commit` skill (and all references to it) and the `ccommit` script as the last phase in your plan.
+
 ### 4. Scope across the three methods
 
 ccommit is commit-only. The unified system has `create_commit`, `create_proposal`, and `create_pull_request`. The prompt
@@ -48,6 +75,10 @@ says "integrate all functionality" but doesn't clarify which features apply to w
 - Merge-with-master makes sense for `create_commit` but probably not `create_pull_request` (which creates a branch).
 - Bead handling likely applies to all three, but the amend-to-fold-bead-notes pattern doesn't translate to proposals.
 - Push retry applies to commit/push but not proposals in systems where proposals are branch-only.
+
+#### DECISIONS
+
+Use your best judgement on these.
 
 ### 5. Missing: the `/commit` skill instruction → `sase_git_commit` convergence
 
@@ -60,10 +91,19 @@ The prompt should specify: after integration, which skill does the agent use? If
 its SKILL.md needs to be updated with any ccommit-specific instructions that the agent is responsible for (like
 conventional tag selection, bead checking).
 
+#### DECISIONS
+
+- The `/commit` skill gets deleted. Modify the `/sase_git_commit` skill as needed.
+- Stop telling the agent to use `.venv/bin/sase commit` (tell it to just use `sase commit`).
+
 ### 6. The stop hook interaction
 
 The `sase_commit_stop_hook` detects uncommitted changes and tells the agent to run `/sase_git_commit`. If `/commit` is
 being absorbed, should the stop hook's behavior change? Currently it never invokes `/commit`.
+
+#### DECISIONS
+
+No. Instead, the `/sase_git_commit` skill should be updated as needed.
 
 ---
 
