@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-24 09:34:47
-status: wip
+status: done
 ---
 
 # Plan: VCS Commit Workflow Fixes & Improvements

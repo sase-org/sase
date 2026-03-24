@@ -192,6 +192,54 @@ class TestCommitWorkflowValidation:
                 assert wf.run() is True
 
 
+class TestCommitWorkflowChangeSpecErrorHandling:
+    """Verify that _create_changespec exceptions don't fail the workflow."""
+
+    @patch(_PROJECT_FILE_TARGET, side_effect=RuntimeError("boom"))
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    @patch(_PROVIDER_TARGET)
+    def test_changespec_exception_does_not_fail_workflow(
+        self,
+        mock_get: MagicMock,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_provider: MagicMock,
+    ) -> None:
+        """An exception in _create_changespec must not cause run() to fail."""
+        mock_provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = mock_provider
+        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        assert wf.run() is True
+
+    def test_missing_name_for_pull_request_returns_false(self) -> None:
+        """Empty/missing name field fails validation for create_pull_request."""
+        wf = CommitWorkflow({"message": "test"}, "create_pull_request")
+        assert wf.run() is False
+
+    def test_empty_name_for_pull_request_returns_false(self) -> None:
+        """Explicitly empty name field fails validation."""
+        wf = CommitWorkflow({"name": "", "message": "test"}, "create_pull_request")
+        assert wf.run() is False
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_name_present_for_pull_request_passes_validation(
+        self,
+        mock_get: MagicMock,
+        mock_proj_name: MagicMock,
+        mock_provider: MagicMock,
+    ) -> None:
+        """Valid payload with name passes validation."""
+        mock_provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = mock_provider
+        payload = {"name": "feat-branch", "message": "test"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        assert wf.run() is True
+
+
 class TestCommitWorkflowProperties:
     """Verify workflow metadata."""
 
