@@ -1,19 +1,14 @@
 #!/bin/bash
 
 # Commit-orchestration stop hook.
-# When $SASE_COMMIT_METHOD is set (i.e. we are inside a commit xprompt workflow),
-# detects uncommitted changes and instructs the agent to use the appropriate
-# /sase_<vcs>_commit skill. Blocks only once per session via a marker file.
+# Detects uncommitted changes and instructs the agent to use the appropriate
+# /sase_<vcs>_commit skill. Also checks sibling repos. Blocks only once per
+# session via a marker file.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # --- Early exits ---
-
-# Not inside a commit workflow — nothing to do.
-if [ -z "$SASE_COMMIT_METHOD" ]; then
-    exit 0
-fi
 
 # Allow callers to disable this hook entirely (e.g. Gemini CLI)
 if [ -n "$SASE_DISABLE_COMMIT_STOP_HOOK" ]; then
@@ -117,7 +112,7 @@ function run() {
     cd "$PROJECT_DIR" || return 1
 
     # Log that this hook ran
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran (method=$SASE_COMMIT_METHOD)" >>"$PROJECT_DIR/.claude/hooks.log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran (method=${SASE_COMMIT_METHOD:-none})" >>"$PROJECT_DIR/.claude/hooks.log"
 
     # Session-unique marker file for deduplication (block only once per cycle)
     if [ -n "$TMUX_PANE" ]; then

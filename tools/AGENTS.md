@@ -35,10 +35,9 @@ Quality-check stop hook for the sase repo only. Runs auto-formatting (`just fmt-
 
 ## `sase_commit_stop_hook`
 
-Commit-orchestration stop hook. When `$SASE_COMMIT_METHOD` is set (i.e. inside a commit xprompt workflow like `#commit`,
-`#propose`, or `#pr`), detects uncommitted changes and instructs the agent to use the appropriate `/sase_git_commit` or
-`/sase_hg_commit` skill. Also checks sibling repos for uncommitted changes. Blocks only once per session via a marker
-file.
+Commit-orchestration stop hook. Detects uncommitted changes and instructs the agent to use the appropriate
+`/sase_git_commit` or `/sase_hg_commit` skill. Also checks sibling repos for uncommitted changes. Blocks only once per
+session via a marker file.
 
 ## `sase_bead`
 
