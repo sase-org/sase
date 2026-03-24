@@ -496,13 +496,6 @@ class EmbeddedWorkflowMixin:
                     )
                 running_offset += len(pre_steps)
 
-            # Inject embedded workflow environment variables into os.environ
-            # so they are visible to the agent, stop hooks, and post-steps.
-            if p.workflow.environment:
-                for key, value_template in p.workflow.environment.items():
-                    rendered = render_template(value_template, p.embedded_context)
-                    os.environ[key] = rendered
-
             # Render prompt_part
             prompt_part_content = p.workflow.get_prompt_part_content()
             if prompt_part_content:

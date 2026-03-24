@@ -209,13 +209,6 @@ def expand_embedded_workflows_in_query(
                 pre_steps, embedded_context, workflow.name, artifacts_dir
             )
 
-        # Inject embedded workflow environment variables into os.environ
-        # so they are visible to the agent, stop hooks, and post-steps.
-        if workflow.environment:
-            for key, value_template in workflow.environment.items():
-                rendered = render_template(value_template, embedded_context)
-                os.environ[key] = rendered
-
         # Render prompt_part with the embedded context (args + pre-step outputs)
         prompt_part_content = workflow.get_prompt_part_content()
         if prompt_part_content:

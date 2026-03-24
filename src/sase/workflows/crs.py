@@ -196,12 +196,6 @@ class CrsWorkflow(BaseWorkflow):
             f.write(response_content)
         print_artifact_created(self.response_path)
 
-        # Inject environment variables that embedded workflow post-steps need.
-        # The normal workflow executor does this via _inject_environment(), but
-        # the standalone embed path must set them explicitly.
-        os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
-        os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
-
         # Execute post-steps from embedded workflows (proposal creation via #propose)
         for ewf_result in post_workflows:
             ewf_result.context["_prompt"] = expanded_prompt
@@ -222,7 +216,8 @@ class CrsWorkflow(BaseWorkflow):
 
                 traceback.print_exc()
 
-            # Extract proposal_id from the 'propose' step output
+            # Extract proposal_id from propose step output
+            # (runs even if later steps like 'report' failed)
             create_result = ewf_result.context.get("propose", {})
             if isinstance(create_result, dict) and create_result.get("success") in (
                 True,

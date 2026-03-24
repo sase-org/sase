@@ -1,7 +1,6 @@
 ---
-status: done
+status: reverted
 create_time: 2026-03-24 16:20:24
-status: done
 ---
 
 # Fix missing environment injection for embedded commit/propose/pr xprompt workflows
