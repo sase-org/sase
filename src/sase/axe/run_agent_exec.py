@@ -344,6 +344,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 plan_data.get("plan_file"),
                 str(uuid.uuid4()),
                 killed_check=was_killed,
+                agent_name=ctx.agent_name,
             )
             if plan_result is None and was_killed():
                 loop_outcome = "killed"
