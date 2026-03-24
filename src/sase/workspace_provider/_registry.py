@@ -124,10 +124,21 @@ def get_change_label(project_file: str) -> str:
     """Return the change label (``"PR"`` or ``"CL"``) for *project_file*.
 
     Falls back to legacy detection when no plugin claims the project.
+    For archive files, retries with the corresponding main project file.
     """
     result = _get_manager().get_change_label(project_file)
     if result is not None:
         return result
+
+    # Archive files aren't claimed by plugins — retry with the main file path
+    from sase.ace.changespec.archive import get_main_file_path, is_archive_file
+
+    if is_archive_file(project_file):
+        main_file = get_main_file_path(project_file)
+        result = _get_manager().get_change_label(main_file)
+        if result is not None:
+            return result
+
     raise ValueError(
         f"No workspace plugin provided a change label for '{project_file}'. "
         f"Install the appropriate workspace plugin."
