@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-24 02:17:41
-status: wip
+status: done
 ---
 
 # Plan: sase-9.3 — `sase commit` rewrite + new hookspecs + remove `sase amend`

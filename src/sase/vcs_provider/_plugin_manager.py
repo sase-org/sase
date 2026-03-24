@@ -202,6 +202,17 @@ class VCSPluginManager(VCSProvider):
     def rewind(self, diff_paths: list[str], cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_rewind", diff_paths=diff_paths, cwd=cwd)
 
+    # --- Commit dispatch ---
+
+    def create_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_create_commit", payload=payload, cwd=cwd)
+
+    def create_proposal(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_create_proposal", payload=payload, cwd=cwd)
+
+    def create_pull_request(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_create_pull_request", payload=payload, cwd=cwd)
+
     # --- VCS-agnostic methods ---
 
     def prepare_description_for_reword(self, description: str) -> str:

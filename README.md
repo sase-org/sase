@@ -89,7 +89,7 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 ┌────────────────────────────────────────────────────────┐
 │                        sase CLI                        │
 ├─────────────┬────────────┬────────────┬────────────────┤
-│  ace        │  axe       │  run       │ commit/amend   │
+│  ace        │  axe       │  run       │    commit      │
 │  (TUI)      │  (daemon)  │ (workflows)│  (VCS ops)     │
 ├─────────────┴────────────┴────────────┴────────────────┤
 │                      Core Engine                       │
@@ -131,7 +131,6 @@ sase
 | Command                    | Description                                                                      |
 | -------------------------- | -------------------------------------------------------------------------------- |
 | `sase ace`                 | Interactive TUI for navigating and managing ChangeSpecs                          |
-| `sase amend`               | Amend a commit with COMMITS tracking                                             |
 | `sase axe chop`            | List or run individual chop scripts                                              |
 | `sase axe lumberjack`      | List, run, or check status of lumberjacks                                        |
 | `sase axe start`           | Start the lumberjack-based daemon (orchestrator mode)                            |

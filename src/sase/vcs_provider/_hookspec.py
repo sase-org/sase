@@ -158,6 +158,21 @@ class VCSHookSpec:
         self, diff_paths: list[str], cwd: str
     ) -> tuple[bool, str | None]: ...
 
+    # --- Commit dispatch ---
+
+    @hookspec(firstresult=True)
+    def vcs_create_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_create_proposal(
+        self, payload: dict, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_create_pull_request(
+        self, payload: dict, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
     # --- VCS-agnostic operations ---
 
     @hookspec(firstresult=True)

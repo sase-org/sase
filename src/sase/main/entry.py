@@ -4,7 +4,6 @@ import sys
 from typing import NoReturn
 
 from .cl_handler import (
-    handle_amend_command,
     handle_commit_command,
     handle_restore_command,
     handle_revert_command,
@@ -34,10 +33,6 @@ def main() -> NoReturn:
         from .ace_handler import handle_ace_command
 
         handle_ace_command(args)
-
-    # --- amend ---
-    if args.command == "amend":
-        handle_amend_command(args)
 
     # --- axe ---
     if args.command == "axe":

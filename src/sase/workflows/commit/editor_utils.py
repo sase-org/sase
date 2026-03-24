@@ -2,9 +2,6 @@
 
 import os
 import subprocess
-import tempfile
-
-from sase.output import print_status
 
 
 def get_editor() -> str:
@@ -31,46 +28,3 @@ def get_editor() -> str:
 
     # Default to vim
     return "vim"
-
-
-def open_editor_for_commit_message() -> str | None:
-    """Open the user's editor with a temporary file for the commit message.
-
-    Returns:
-        Path to the temporary file containing the commit message, or None if
-        the user didn't write anything or the editor failed.
-    """
-    # Create a temporary file that won't be automatically deleted
-    from sase.core.paths import get_sase_tmpdir
-
-    fd, temp_path = tempfile.mkstemp(
-        suffix=".txt", prefix="sase_commit_", dir=get_sase_tmpdir()
-    )
-    os.close(fd)
-
-    editor = get_editor()
-
-    try:
-        # Open editor with the temporary file
-        result = subprocess.run([editor, temp_path], check=False)
-        if result.returncode != 0:
-            print_status("Editor exited with non-zero status.", "error")
-            os.unlink(temp_path)
-            return None
-
-        # Check if the user wrote anything
-        with open(temp_path, encoding="utf-8") as f:
-            content = f.read().strip()
-
-        if not content:
-            print_status("No commit message provided. Aborting.", "error")
-            os.unlink(temp_path)
-            return None
-
-        return temp_path
-
-    except Exception as e:
-        print_status(f"Failed to open editor: {e}", "error")
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
-        return None

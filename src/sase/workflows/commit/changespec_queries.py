@@ -5,18 +5,6 @@ import os
 from sase.workflows.utils import get_project_file_path
 
 
-def project_file_exists(project: str) -> bool:
-    """Check if a project file exists for the given project.
-
-    Args:
-        project: Project name.
-
-    Returns:
-        True if the project file exists, False otherwise.
-    """
-    return os.path.isfile(get_project_file_path(project))
-
-
 def changespec_exists(project: str, cl_name: str) -> bool:
     """Check if a ChangeSpec with the given name already exists in the project file.
 
@@ -41,35 +29,3 @@ def changespec_exists(project: str, cl_name: str) -> bool:
         return False
     except Exception:
         return False
-
-
-def get_blocking_exact_match_changespec(
-    project: str, cl_name: str
-) -> tuple[str, str] | None:
-    """Check if a ChangeSpec with exact name has blocking status (Ready/Mailed).
-
-    Args:
-        project: Project name.
-        cl_name: CL name to check (with or without project prefix).
-
-    Returns:
-        Tuple of (name, status) if a blocking ChangeSpec exists, None otherwise.
-    """
-    from sase.ace.changespec import parse_project_file
-
-    project_file = get_project_file_path(project)
-    if not os.path.isfile(project_file):
-        return None
-
-    # Normalize: ensure project prefix
-    full_name = cl_name
-    if not cl_name.startswith(f"{project}_"):
-        full_name = f"{project}_{cl_name}"
-
-    changespecs = parse_project_file(project_file)
-    for cs in changespecs:
-        # Exact name match only (no suffix stripping)
-        if cs.name == full_name and cs.status in {"Ready", "Mailed"}:
-            return (cs.name, cs.status)
-
-    return None

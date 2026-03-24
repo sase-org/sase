@@ -4,68 +4,9 @@ import argparse
 import sys
 from typing import NoReturn
 
-from sase.workflows.amend import AmendWorkflow
 from sase.workflows.commit import CommitWorkflow
 from rich.console import Console
 from rich.markup import escape as _esc
-
-
-def handle_amend_command(args: argparse.Namespace) -> NoReturn:
-    """Handle the 'amend' command.
-
-    Args:
-        args: Parsed command-line arguments.
-    """
-    from sase.output import print_status
-
-    # Handle --accept mode
-    if getattr(args, "accept", False):
-        from sase.workflows.accept import AcceptWorkflow, parse_proposal_entries
-
-        if not args.note:
-            print_status("At least one proposal entry is required", "error")
-            sys.exit(1)
-
-        entries = parse_proposal_entries(args.note)
-        if entries is None:
-            print_status("Invalid proposal entry format", "error")
-            sys.exit(1)
-
-        accept_workflow = AcceptWorkflow(
-            proposals=entries,
-            cl_name=getattr(args, "cl_name", None),
-        )
-        success = accept_workflow.run()
-        sys.exit(0 if success else 1)
-
-    # Regular amend mode
-    if not args.note:
-        print_status("Note is required for amend", "error")
-        sys.exit(1)
-
-    if len(args.note) > 1:
-        print_status(
-            "Only one note is allowed for amend (use quotes for multi-word notes)",
-            "error",
-        )
-        sys.exit(1)
-
-    workflow = AmendWorkflow(
-        note=args.note[0],
-        chat_path=args.chat_path,
-        timestamp=args.timestamp,
-        propose=getattr(args, "propose", False),
-        target_dir=getattr(args, "target_dir", None),
-    )
-    success = workflow.run()
-    if success:
-        try:
-            from sase.logs.run_log import log_event
-
-            log_event(event="amend_created", note=args.note[0])
-        except Exception:
-            pass
-    sys.exit(0 if success else 1)
 
 
 def handle_commit_command(args: argparse.Namespace) -> NoReturn:
@@ -74,33 +15,24 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     Args:
         args: Parsed command-line arguments.
     """
-    # Validate mutual exclusivity of file_path and message
-    if args.file_path and args.message:
-        print(
-            "Error: --message and file_path are mutually exclusive. "
-            "Please provide only one.",
-            file=sys.stderr,
-        )
+    import json
+    import os
+
+    try:
+        payload = json.loads(args.payload)
+    except json.JSONDecodeError as exc:
+        print(f"Error: invalid JSON payload: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    workflow = CommitWorkflow(
-        cl_name=args.cl_name,
-        file_path=args.file_path,
-        bug=args.bug,
-        fixed_bug=getattr(args, "fixed_bug", None),
-        project=args.project,
-        chat_path=args.chat_path,
-        timestamp=args.timestamp,
-        end_timestamp=args.end_timestamp,
-        note=args.note,
-        message=args.message,
-    )
+    method = args.method or os.environ.get("SASE_COMMIT_METHOD", "create_commit")
+
+    workflow = CommitWorkflow(payload=payload, method=method)
     success = workflow.run()
     if success:
         try:
             from sase.logs.run_log import log_event
 
-            log_event(event="commit_created", cl_name=args.cl_name)
+            log_event(event="commit_created", method=method)
         except Exception:
             pass
     sys.exit(0 if success else 1)

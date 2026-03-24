@@ -3,59 +3,6 @@
 import argparse
 
 
-def register_amend_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'amend' subcommand parser."""
-    amend_parser = subparsers.add_parser(
-        "amend",
-        help="Amend the current commit with COMMITS tracking",
-    )
-    amend_parser.add_argument(
-        "note",
-        nargs="*",
-        help='The note for this amend (e.g., "Fixed typo in README"). '
-        "When using --accept, this should be proposal entries instead.",
-    )
-    # Options for 'amend' (keep sorted alphabetically by long option name)
-    amend_parser.add_argument(
-        "-a",
-        "--accept",
-        action="store_true",
-        help="Accept one or more proposed COMMITS entries by applying their diffs. "
-        "When used, positional args are proposal entries (format: <id>[(<msg>)]). "
-        "Examples: '2a', '2b(Add foobar field)'.",
-    )
-    amend_parser.add_argument(
-        "-c",
-        "--chat",
-        dest="chat_path",
-        help="Path to the chat file associated with this amend.",
-    )
-    amend_parser.add_argument(
-        "-C",
-        "--cl",
-        dest="cl_name",
-        help="CL name (defaults to current branch name). Only used with --accept.",
-    )
-    amend_parser.add_argument(
-        "-p",
-        "--propose",
-        action="store_true",
-        help="Create a proposed COMMITS entry instead of amending. "
-        "Saves the diff, adds a proposed entry (e.g., 2a), and cleans workspace.",
-    )
-    amend_parser.add_argument(
-        "-t",
-        "--target-dir",
-        dest="target_dir",
-        help="Directory to run commands in (default: current directory).",
-    )
-    amend_parser.add_argument(
-        "-T",
-        "--timestamp",
-        help="Shared timestamp for synced chat/diff files (YYmmdd_HHMMSS format).",
-    )
-
-
 def register_comments_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'comments' subcommand parser."""
     comments_parser = subparsers.add_parser(
@@ -80,63 +27,17 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'commit' subcommand parser."""
     commit_parser = subparsers.add_parser(
         "commit",
-        help="Create a commit with formatted CL description and metadata",
+        help="Dispatch a VCS commit operation via JSON payload",
     )
     commit_parser.add_argument(
-        "cl_name",
-        help="CL name to use for the commit (e.g., 'baz_feature'). The project name "
-        "will be automatically prepended if not already present.",
-    )
-    commit_parser.add_argument(
-        "file_path",
-        nargs="?",
-        help="Path to the file containing the CL description. "
-        "If not provided, vim will be opened to write the commit message.",
-    )
-    # Options for 'commit' (keep sorted alphabetically by long option name)
-    # Bug options are mutually exclusive - use either BUG= or FIXED= tag
-    bug_group = commit_parser.add_mutually_exclusive_group()
-    bug_group.add_argument(
-        "-b",
-        "--bug",
-        help="Bug number for BUG= tag. Defaults to the VCS provider's bug detection.",
-    )
-    bug_group.add_argument(
-        "-B",
-        "--fixed-bug",
-        help="Bug number for FIXED= tag (bug is fixed by this CL).",
-    )
-    commit_parser.add_argument(
-        "-c",
-        "--chat",
-        dest="chat_path",
-        help="Path to the chat file associated with this commit (for COMMITS entry).",
+        "payload",
+        help="JSON string describing the commit operation",
     )
     commit_parser.add_argument(
         "-m",
-        "--message",
-        help="Commit message to use directly (mutually exclusive with file_path).",
-    )
-    commit_parser.add_argument(
-        "-n",
-        "--note",
-        help="Custom note for the initial COMMITS entry (default: 'Initial Commit').",
-    )
-    commit_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name to prepend to the CL description. Defaults to output of 'sase_workspace_name'.",
-    )
-    commit_parser.add_argument(
-        "-t",
-        "--timestamp",
-        help="Shared timestamp for synced chat/diff files (YYmmdd_HHMMSS format).",
-    )
-    commit_parser.add_argument(
-        "-e",
-        "--end-timestamp",
-        dest="end_timestamp",
-        help="End timestamp for duration calculation (YYmmdd_HHMMSS format).",
+        "--method",
+        help="Commit method: create_commit, create_proposal, or create_pull_request. "
+        "Overrides $SASE_COMMIT_METHOD env var.",
     )
 
 

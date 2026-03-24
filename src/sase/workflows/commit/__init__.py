@@ -1,5 +1,7 @@
-"""Workflow for creating VCS commits with formatted CL descriptions."""
+"""Workflow for dispatching VCS commit operations."""
 
+import json
+import os
 import sys
 from typing import NoReturn
 
@@ -17,40 +19,30 @@ def main() -> NoReturn:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Create a commit with formatted CL description and metadata tags."
+        description="Dispatch a VCS commit operation via JSON payload."
     )
     parser.add_argument(
-        "cl_name",
-        help='CL name to use for the commit (e.g., "baz_feature"). The project name '
-        'will be automatically prepended if not already present (e.g., "foobar_baz_feature").',
+        "payload",
+        help="JSON string describing the commit operation",
     )
     parser.add_argument(
-        "file_path",
-        nargs="?",
-        help="Path to the file containing the CL description. "
-        "If not provided, vim will be opened to write the commit message.",
-    )
-    parser.add_argument(
-        "-b",
-        "--bug",
-        help="Bug number to include in the metadata tags (e.g., '12345'). "
-        "Defaults to the VCS provider's bug detection.",
-    )
-    parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name to prepend to the CL description (e.g., 'foobar'). "
-        "Defaults to the output of the 'sase_workspace_name' command.",
+        "-m",
+        "--method",
+        help="Commit method: create_commit, create_proposal, or create_pull_request. "
+        "Overrides $SASE_COMMIT_METHOD env var.",
     )
 
     args = parser.parse_args()
 
-    workflow = CommitWorkflow(
-        cl_name=args.cl_name,
-        file_path=args.file_path,
-        bug=args.bug,
-        project=args.project,
-    )
+    try:
+        payload = json.loads(args.payload)
+    except json.JSONDecodeError as exc:
+        print(f"Error: invalid JSON payload: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    method = args.method or os.environ.get("SASE_COMMIT_METHOD", "create_commit")
+
+    workflow = CommitWorkflow(payload=payload, method=method)
     success = workflow.run()
     sys.exit(0 if success else 1)
 

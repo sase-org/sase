@@ -12,16 +12,8 @@ import pytest
 from sase.workflows.commit.changespec_operations import (
     _find_changespec_end_line,
 )
-from sase.workflows.commit.changespec_queries import (
-    changespec_exists,
-    project_file_exists,
-)
+from sase.workflows.commit.changespec_queries import changespec_exists
 from sase.workflows.commit.editor_utils import get_editor
-
-
-def test_project_file_exists_false() -> None:
-    """Test project_file_exists returns False for non-existent project."""
-    assert project_file_exists("nonexistent_project_xyz123") is False
 
 
 def test_changespec_exists_no_project_file() -> None:

@@ -246,6 +246,24 @@ class VCSProvider(ABC):
         """Rewind changes by importing diffs in reverse."""
         raise NotImplementedError("rewind is not supported by this VCS provider")
 
+    # --- Commit dispatch ---
+
+    def create_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        """Create a commit from a JSON payload."""
+        raise NotImplementedError("create_commit is not supported by this VCS provider")
+
+    def create_proposal(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        """Create a proposal from a JSON payload."""
+        raise NotImplementedError(
+            "create_proposal is not supported by this VCS provider"
+        )
+
+    def create_pull_request(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        """Create a pull request from a JSON payload."""
+        raise NotImplementedError(
+            "create_pull_request is not supported by this VCS provider"
+        )
+
     # --- VCS-agnostic methods (default implementations) ---
 
     def prepare_description_for_reword(self, description: str) -> str:

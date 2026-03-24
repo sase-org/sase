@@ -5,7 +5,6 @@ import argparse
 from sase.main.parser_ace import register_ace_parser, register_axe_parser
 from sase.main.parser_bead import register_bead_parser
 from sase.main.parser_commands import (
-    register_amend_parser,
     register_comments_parser,
     register_commit_parser,
     register_config_parser,
@@ -38,7 +37,6 @@ def create_parser() -> argparse.ArgumentParser:
     # TOP-LEVEL SUBCOMMANDS (keep sorted alphabetically)
     # =========================================================================
     register_ace_parser(top_level_subparsers)
-    register_amend_parser(top_level_subparsers)
     register_axe_parser(top_level_subparsers)
     register_bead_parser(top_level_subparsers)
     register_comments_parser(top_level_subparsers)
