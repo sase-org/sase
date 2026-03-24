@@ -1,7 +1,7 @@
 ---
-status: wip
+status: done
 create_time: 2026-03-24 16:20:24
-status: wip
+status: done
 ---
 
 # Fix missing environment injection for embedded commit/propose/pr xprompt workflows
