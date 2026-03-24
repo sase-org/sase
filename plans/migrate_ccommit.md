@@ -40,7 +40,7 @@ delete the old artifacts.
 
 ### Files to create/modify
 
-**sase_100 repo:**
+**sase repo:**
 
 - `src/sase/default_config.yml` — Add `precommit_command: ""` under a new top-level key (or under `vcs_provider`)
 - `sase.yml` — Add `precommit_command: "just fix"` to the local config
@@ -55,14 +55,14 @@ delete the old artifacts.
 
 ### Validation
 
-- `just install && just check` passes in sase_100
+- `just install && just check` passes in sase
 - Verify `precommit_command` is loadable:
   `python -c "from sase.config.core import load_merged_config; print(load_merged_config().get('precommit_command'))"`
 - In sase-google: install and verify `sase_hg_fix` is available on PATH
 
 ### Commit instructions
 
-Use `ccommit` to commit changes in each repo after validation passes. For sase_100:
+Use `ccommit` to commit changes in each repo after validation passes. For sase:
 `cd <repo_root> && ccommit chore "Add precommit_command config field" <files...>`. For sase-google:
 `cd <repo_root> && ccommit feat "Add sase_hg_fix script and precommit_command config" <files...>`.
 
@@ -123,14 +123,14 @@ Python commit workflow and git VCS provider.
 
 ### Validation
 
-- `just install && just check` passes in sase_100
+- `just install && just check` passes in sase
 - Manual test: create a test commit in a scratch git repo using `sase commit '{"message": "test: foo", "files": [...]}'`
   and verify the new features work (fmt runs, push retries, etc.)
 - In sase-google: `just install` or equivalent passes
 
 ### Commit instructions
 
-Use `ccommit` to commit after validation. For sase_100:
+Use `ccommit` to commit after validation. For sase:
 `cd <repo_root> && ccommit feat "Add precommit, merge, push retry, bead lifecycle, and SASE_PLAN to commit workflow" <files...>`.
 For sase-google: `cd <repo_root> && ccommit feat "Add hg update sync to vcs_create_commit" <files...>`.
 
@@ -224,7 +224,7 @@ Then run `chezmoi apply`.
 
 ### Files to update
 
-**sase_100 repo:**
+**sase repo:**
 
 - `AGENTS.md` — Remove any references to `/commit` skill or `ccommit`
 - `research/migrate_ccommit_prompt_critique.md` — No changes (keep as historical record)
@@ -242,7 +242,7 @@ Then run `chezmoi apply`.
 
 ### Commit instructions
 
-Use the `sase_git_commit` script (newly created in Phase 3) to commit in sase_100:
+Use the `sase_git_commit` script (newly created in Phase 3) to commit in sase:
 `cd <repo_root> && sase_git_commit '{"message": "chore: Remove references to old /commit skill and ccommit", "files": [...]}'`.
 For chezmoi: use `ccommit` one last time, then apply:
 `cd ~/.local/share/chezmoi && ccommit chore "Remove /commit skill and ccommit script" <files...> && chezmoi apply`.
@@ -251,10 +251,10 @@ For chezmoi: use `ccommit` one last time, then apply:
 
 ## Phase Summary
 
-| Phase | Description                                                  | Repos affected        |
-| ----- | ------------------------------------------------------------ | --------------------- |
-| 1     | `precommit_command` config + `sase_hg_fix` script            | sase_100, sase-google |
-| 2     | Enhance CommitWorkflow + VCS providers with ccommit features | sase_100, sase-google |
-| 3     | Create `sase_git_commit` bash script with JSON logging       | sase_100              |
-| 4     | Update skill SKILL.md files                                  | chezmoi               |
-| 5     | Delete old `/commit` skill and `ccommit`                     | chezmoi, sase_100     |
+| Phase | Description                                                  | Repos affected    |
+| ----- | ------------------------------------------------------------ | ----------------- |
+| 1     | `precommit_command` config + `sase_hg_fix` script            | sase, sase-google |
+| 2     | Enhance CommitWorkflow + VCS providers with ccommit features | sase, sase-google |
+| 3     | Create `sase_git_commit` bash script with JSON logging       | sase              |
+| 4     | Update skill SKILL.md files                                  | chezmoi           |
+| 5     | Delete old `/commit` skill and `ccommit`                     | chezmoi, sase     |
