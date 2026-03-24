@@ -1,5 +1,4 @@
 ---
-bead_id: pending
 create_time: 2026-03-24 09:34:47
 status: wip
 ---
