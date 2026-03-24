@@ -16,9 +16,9 @@ steps:
   - name: split_src_files
     for: { file_path: "{{ find_src_files.files }}" }
     agent: |
-      #gh:sase /split {{ file_path }}
+      #gh:sase /split {{ file_path }} #commit
 
   - name: split_tests_files
     for: { file_path: "{{ find_tests_files.files }}" }
     agent: |
-      #gh:sase /split {{ file_path }}
+      #gh:sase /split {{ file_path }} #commit
