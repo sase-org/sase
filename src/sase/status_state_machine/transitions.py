@@ -147,17 +147,26 @@ def _handle_suffix_strip(
         List of SiblingRevertResult for reverted siblings.
     """
     from sase.ace.revert import update_changespec_name_atomic
-    from sase.running_field import get_workspace_directory, update_running_field_cl_name
+    from sase.core.changespec import changespec_name_to_branch
+    from sase.running_field import (
+        get_first_available_axe_workspace,
+        get_workspace_directory_for_num,
+        update_running_field_cl_name,
+    )
 
     from .field_updates import update_parent_references_atomic
 
     # Update NAME field
     update_changespec_name_atomic(project_file, suffixed_name, base_name)
 
-    # Rename the CL in Mercurial to match the new name
+    # Rename the CL in git to match the new name
     project_basename = Path(project_file).stem
     try:
-        workspace_dir = get_workspace_directory(project_basename)
+        # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
+        workspace_num = get_first_available_axe_workspace(project_file)
+        workspace_dir, _ = get_workspace_directory_for_num(
+            workspace_num, project_basename
+        )
 
         provider = get_vcs_provider(workspace_dir)
 
@@ -169,8 +178,9 @@ def _handle_suffix_strip(
         if not checkout_ok:
             logger.warning(f"Failed to checkout CL {suffixed_name}: {checkout_err}")
         else:
-            # Now rename the CL
-            rename_ok, rename_err = provider.rename_branch(base_name, workspace_dir)
+            # Rename to the canonical branch form (prefix stripped, hyphens)
+            new_branch = changespec_name_to_branch(base_name, project_basename)
+            rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
     except RuntimeError as e:
@@ -201,17 +211,26 @@ def _handle_suffix_append(
         suffixed_name: The new name with suffix (e.g., "foo_bar__1").
     """
     from sase.ace.revert import update_changespec_name_atomic
-    from sase.running_field import get_workspace_directory, update_running_field_cl_name
+    from sase.core.changespec import changespec_name_to_branch_with_suffix
+    from sase.running_field import (
+        get_first_available_axe_workspace,
+        get_workspace_directory_for_num,
+        update_running_field_cl_name,
+    )
 
     from .field_updates import update_parent_references_atomic
 
     # Update NAME field
     update_changespec_name_atomic(project_file, base_name, suffixed_name)
 
-    # Rename the CL in Mercurial to match the new name
+    # Rename the CL in git to match the new name
     project_basename = Path(project_file).stem
     try:
-        workspace_dir = get_workspace_directory(project_basename)
+        # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
+        workspace_num = get_first_available_axe_workspace(project_file)
+        workspace_dir, _ = get_workspace_directory_for_num(
+            workspace_num, project_basename
+        )
 
         provider = get_vcs_provider(workspace_dir)
 
@@ -221,8 +240,11 @@ def _handle_suffix_append(
         if not checkout_ok:
             logger.warning(f"Failed to checkout CL {base_name}: {checkout_err}")
         else:
-            # Now rename the CL
-            rename_ok, rename_err = provider.rename_branch(suffixed_name, workspace_dir)
+            # Rename to the canonical branch form (prefix stripped, hyphens, with suffix)
+            new_branch = changespec_name_to_branch_with_suffix(
+                suffixed_name, project_basename
+            )
+            rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
     except RuntimeError as e:
