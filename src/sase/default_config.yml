@@ -1,5 +1,6 @@
 timezone: "America/New_York"
 use_chezmoi: false
+precommit_command: ""
 
 ace:
   inactive_seconds: 600

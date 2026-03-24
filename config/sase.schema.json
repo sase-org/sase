@@ -415,6 +415,11 @@
         "type": "string"
       }
     },
+    "precommit_command": {
+      "type": "string",
+      "description": "Command to run before commits (e.g., 'just fix'). Empty string means no precommit command.",
+      "default": ""
+    },
     "timezone": {
       "type": "string",
       "description": "IANA timezone name used for all dates/datetimes (e.g., 'America/New_York', 'US/Pacific')",

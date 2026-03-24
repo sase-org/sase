@@ -1,3 +1,5 @@
+precommit_command: "just fix"
+
 sdd:
   version_controlled: true
 
