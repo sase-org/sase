@@ -38,7 +38,6 @@ def test_serialize_deserialize_roundtrip_simple() -> None:
         assert xp.content == "Focus on correctness"
         assert xp.source_path == "user-prompt"
         assert xp.inputs == []
-        assert xp.hooks == []
     finally:
         os.unlink(path)
 
@@ -54,7 +53,6 @@ def test_serialize_deserialize_roundtrip_with_inputs() -> None:
                 InputArg(name="count", type=InputType.INT, default=3),
             ],
             source_path="/some/path.yml",
-            hooks=["echo done"],
         ),
     }
     path = _serialize_local_xprompts(xprompts)
@@ -68,7 +66,6 @@ def test_serialize_deserialize_roundtrip_with_inputs() -> None:
         assert xp.inputs[1].name == "count"
         assert xp.inputs[1].type == InputType.INT
         assert xp.inputs[1].default == 3
-        assert xp.hooks == ["echo done"]
     finally:
         os.unlink(path)
 

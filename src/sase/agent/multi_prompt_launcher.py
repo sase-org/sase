@@ -82,7 +82,6 @@ def _serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
                 for inp in xp.inputs
             ],
             "source_path": xp.source_path,
-            "hooks": xp.hooks,
             "tags": [t.value for t in xp.tags],
         }
 
@@ -122,7 +121,6 @@ def deserialize_local_xprompts(path: str) -> dict[str, XPrompt]:
             content=entry["content"],
             inputs=inputs,
             source_path=entry.get("source_path"),
-            hooks=entry.get("hooks", []),
             tags=parse_tags(entry.get("tags")),
         )
     return result

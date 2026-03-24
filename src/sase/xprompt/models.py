@@ -159,7 +159,6 @@ class XPrompt:
     content: str
     inputs: list[InputArg] = field(default_factory=list)
     source_path: str | None = None
-    hooks: list[str] = field(default_factory=list)
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
 
     def has_tag(self, tag: XPromptTag) -> bool:

@@ -76,26 +76,11 @@ def extract_directives_and_write_meta(
     # Expand xprompts before extracting directives so that
     # directives embedded in xprompts (e.g. %model:#pro inside
     # #mentor) are discovered for agent metadata.
-    # Also collect hook commands from expanded xprompts.
-    xprompt_hooks: list[str] = []
     expanded_for_directives = process_xprompt_references(
         prompt_body,
         extra_xprompts=multi.local_xprompts or None,
-        hooks_collector=xprompt_hooks,
     )
     _, directives = extract_prompt_directives(expanded_for_directives)
-
-    # Write collected xprompt hooks to a temp file so the stop hook can
-    # find and run them.  The path is passed via SASE_XPROMPT_HOOKS_FILE.
-    if xprompt_hooks:
-        import tempfile
-
-        hooks_fd, hooks_path = tempfile.mkstemp(
-            prefix="sase_xprompt_hooks_", suffix=".json"
-        )
-        with os.fdopen(hooks_fd, "w") as hf:
-            json.dump(xprompt_hooks, hf)
-        os.environ["SASE_XPROMPT_HOOKS_FILE"] = hooks_path
 
     agent_name = directives.name
     if agent_name is None:

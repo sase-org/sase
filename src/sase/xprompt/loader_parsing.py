@@ -369,7 +369,6 @@ def parse_xprompt_entries(
             # Simple string content (no arguments)
             content = value
             inputs: list[InputArg] = []
-            hooks: list[str] = []
             tags: frozenset[XPromptTag] = frozenset()
         elif isinstance(value, dict):
             # Structured xprompt with input/content
@@ -377,8 +376,6 @@ def parse_xprompt_entries(
             if not isinstance(content, str):
                 continue
             inputs = parse_inputs_from_front_matter(value.get("input"))
-            raw_hooks = value.get("hooks")
-            hooks = [str(h) for h in raw_hooks] if isinstance(raw_hooks, list) else []
             tags = parse_tags(value.get("tags"))
         else:
             continue
@@ -388,7 +385,6 @@ def parse_xprompt_entries(
             content=content,
             inputs=inputs,
             source_path=source_path,
-            hooks=hooks,
             tags=tags,
         )
 
