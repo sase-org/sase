@@ -489,7 +489,9 @@ class AgentKillingMixin:
         from ....dismissed_agents import save_dismissed_agents
 
         for agent in agents:
-            _dismiss_notifications_for_agent(agent)
+            # NOTE: We intentionally do NOT dismiss notifications here
+            # (same rationale as _dismiss_done_agent — Telegram outbound
+            # needs them undismissed to deliver when the user is idle).
             self._agent_status_overrides.pop(agent.identity, None)
             self._agent_pre_question_status.pop(agent.identity, None)
 
@@ -562,7 +564,11 @@ class AgentKillingMixin:
             self.notify("Cannot dismiss agent: no timestamp", severity="error")  # type: ignore[attr-defined]
             return
 
-        _dismiss_notifications_for_agent(agent)
+        # NOTE: We intentionally do NOT dismiss notifications here.
+        # Dismissing a DONE agent is a UI cleanup action, not an
+        # acknowledgment of the notification.  The Telegram outbound
+        # needs the notification to remain undismissed so it can
+        # deliver it when the user becomes idle.
         self._agent_status_overrides.pop(agent.identity, None)
         self._agent_pre_question_status.pop(agent.identity, None)
         self._refresh_notification_count()  # type: ignore[attr-defined]
