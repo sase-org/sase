@@ -277,6 +277,15 @@ xprompts:
       If there are any deficiencies in the current plan, you should update the plan file to properly address them.
   plan: |
     Think this through thoroughly and create a plan using your `/sase_plan` skill.
+  review_prompt:
+    input:
+      prompt: text
+    content: |
+      Can you help me review the prompt I've prepared below and look for gaps / ambiguity in the requirements? In
+      particular, what design decisions would you need from me if I were to ask you to implement the functionality described
+      by that prompt?
+
+      ### THE PROMPT
   x:
     input: { name: word, cmd: text }
     content: "@$(sase_xcmd {{ name }} {{ cmd }})"
