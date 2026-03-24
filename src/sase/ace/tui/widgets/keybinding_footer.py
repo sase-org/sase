@@ -268,6 +268,7 @@ class KeybindingFooter(Horizontal):
         bindings.append((k("prompt_history"), "prompt history"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
+            bindings.append((k("retry_edit"), "retry (edit)"))
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("activity_info"), "activity"))

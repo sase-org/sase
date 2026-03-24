@@ -291,6 +291,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Kill agent & edit prompt",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'retry_edit'))}",
+                    "Retry: edit prompt & relaunch",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'prompt_history'))}",
                     "Prompt history (last CL)",
                 ),

@@ -327,6 +327,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "agent_home": "h",
             "agent_from_cl": "space",
             "kill_and_edit": "x",
+            "retry_edit": "r",
             "activity_info": "i",
             "clear_comments": "c",
             "prompt_history": "full_stop",

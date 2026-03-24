@@ -308,6 +308,27 @@ class EntryPointsMixin:
                     history_sort_key=project_name,
                 )
 
+    def _retry_edit_agent(self) -> None:
+        """Open the selected agent's prompt in the editor for re-launch.
+
+        Like :meth:`_kill_and_edit_agent` but without killing or dismissing
+        the existing agent.
+        """
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+        raw_prompt = agent.get_raw_xprompt_content()
+
+        if raw_prompt is None:
+            self.notify("No prompt found for this agent", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        self._edit_and_relaunch_agent(
+            raw_prompt, agent.project_file, agent.cl_name, agent.is_project_agent
+        )
+
     def _kill_and_edit_agent(self) -> None:
         """Kill the selected agent, then open its prompt in the editor for re-launch.
 
