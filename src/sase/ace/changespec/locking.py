@@ -1,11 +1,14 @@
 """File locking for ChangeSpec files to prevent race conditions."""
 
 import fcntl
+import logging
 import os
 import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
 
 
 class LockTimeoutError(Exception):
@@ -15,6 +18,111 @@ class LockTimeoutError(Exception):
         self.lock_file = lock_file
         self.timeout = timeout
         super().__init__(f"Timeout waiting for lock on {lock_file} after {timeout}s")
+
+
+def _read_edit_lock_pid(project_file: str) -> int | None:
+    """Read the PID from an edit lock file.
+
+    Returns the PID if the lock file exists and contains a valid integer,
+    else None.
+    """
+    lock_file = f"{project_file}.edit_lock"
+    try:
+        with open(lock_file, encoding="utf-8") as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+def acquire_edit_lock(project_file: str) -> None:
+    """Create a .edit_lock sentinel file containing the current PID.
+
+    Args:
+        project_file: Path to the .gp file to lock.
+    """
+    lock_file = f"{project_file}.edit_lock"
+    lock_dir = os.path.dirname(lock_file)
+    if lock_dir and not os.path.exists(lock_dir):
+        os.makedirs(lock_dir, exist_ok=True)
+    with open(lock_file, "w", encoding="utf-8") as f:
+        f.write(str(os.getpid()))
+
+
+def release_edit_lock(project_file: str) -> None:
+    """Remove the .edit_lock sentinel file.
+
+    Args:
+        project_file: Path to the .gp file to unlock.
+    """
+    lock_file = f"{project_file}.edit_lock"
+    try:
+        os.unlink(lock_file)
+    except FileNotFoundError:
+        pass
+
+
+def is_edit_locked(project_file: str) -> bool:
+    """Check if a project file has an active edit lock.
+
+    Returns True if .edit_lock exists AND the PID within is still alive.
+    Removes stale lock files (dead PID) and returns False.
+
+    Args:
+        project_file: Path to the .gp file to check.
+    """
+    pid = _read_edit_lock_pid(project_file)
+    if pid is None:
+        return False
+
+    # Check if the process is still alive
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        # Process is dead — stale lock
+        try:
+            os.unlink(f"{project_file}.edit_lock")
+        except FileNotFoundError:
+            pass
+        return False
+    except PermissionError:
+        # Process exists but we can't signal it — treat as locked
+        return True
+
+    return True
+
+
+def wait_for_edit_lock_release(
+    project_file: str,
+    poll_interval: float = 0.5,
+    timeout: float = 14400,
+) -> None:
+    """Block until the edit lock on project_file is released.
+
+    Same-process exemption: returns immediately if the lock is held by
+    the current process (os.getpid()).
+
+    Args:
+        project_file: Path to the .gp file.
+        poll_interval: Seconds between checks.
+        timeout: Maximum seconds to wait before raising LockTimeoutError.
+    """
+    pid = _read_edit_lock_pid(project_file)
+    if pid is None or pid == os.getpid():
+        return
+
+    if not is_edit_locked(project_file):
+        return
+
+    basename = os.path.basename(project_file)
+    logger.info("Waiting for edit lock on %s (PID %d)...", basename, pid)
+
+    start = time.monotonic()
+    while is_edit_locked(project_file):
+        if time.monotonic() - start >= timeout:
+            raise LockTimeoutError(f"{project_file}.edit_lock", timeout)
+        time.sleep(poll_interval)
+
+    logger.info("Edit lock released on %s, proceeding", basename)
 
 
 @contextmanager
@@ -45,6 +153,9 @@ def changespec_lock(
             # ... modify content ...
             write_changespec_atomic(project_file, content, "Update XYZ")
     """
+    if exclusive:
+        wait_for_edit_lock_release(project_file)
+
     lock_file = f"{project_file}.lock"
 
     # Create lock file directory if needed

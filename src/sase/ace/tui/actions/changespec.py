@@ -487,6 +487,8 @@ class ChangeSpecMixin:
         """Open ChangeSpec in editor with nvim enhancements."""
         import subprocess
 
+        from ...changespec.locking import acquire_edit_lock, release_edit_lock
+
         editor = os.environ.get("EDITOR") or "nvim"
         file_path = os.path.expanduser(changespec.file_path)
         args = [editor]
@@ -502,8 +504,12 @@ class ChangeSpecMixin:
                 ]
             )
         args.append(file_path)
-        with self.suspend():  # type: ignore[attr-defined]
-            subprocess.run(args, check=False)
+        acquire_edit_lock(file_path)
+        try:
+            with self.suspend():  # type: ignore[attr-defined]
+                subprocess.run(args, check=False)
+        finally:
+            release_edit_lock(file_path)
 
     def _save_selection_for_current_query(self) -> None:
         """Save the current ChangeSpec selection keyed by current query."""
