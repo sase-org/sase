@@ -1,0 +1,10 @@
+tags: rollover, propose
+
+environment:
+  SASE_COMMIT_METHOD: create_proposal
+
+steps:
+  - name: inject
+    prompt_part: |
+      ---
+      IMPORTANT: You should make the necessary file changes, but should NOT commit or create a proposal yourself.

@@ -519,6 +519,27 @@ class EmbeddedWorkflowMixin:
                     and prompt[p.match_end] != "\n"
                 ):
                     prompt_part_content += "\n\n"
+            # Append VCS-specific tagged content based on SASE_COMMIT_METHOD
+            commit_method = p.workflow.environment.get("SASE_COMMIT_METHOD")
+            if commit_method:
+                from sase.xprompt.tags import get_by_tag
+
+                append_tag = None
+                if commit_method in ("create_commit", "create_proposal"):
+                    append_tag = XPromptTag.append_to_commit_and_propose
+                elif commit_method == "create_pull_request":
+                    append_tag = XPromptTag.append_to_pr
+
+                if append_tag:
+                    vcs_hint = wraps_all_pending[0].name if wraps_all_pending else None
+                    tagged_wf = get_by_tag(append_tag, vcs_hint=vcs_hint)
+                    if tagged_wf:
+                        tagged_content = tagged_wf.get_prompt_part_content()
+                        if tagged_content:
+                            prompt_part_content = (
+                                (prompt_part_content or "") + "\n" + tagged_content
+                            )
+
             p.rendered_prompt_part = prompt_part_content
 
         # ── Phase 4: Text replacement ────────────────────────────────────

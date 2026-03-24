@@ -1,0 +1,10 @@
+tags: rollover, commit
+
+environment:
+  SASE_COMMIT_METHOD: create_commit
+
+steps:
+  - name: inject
+    prompt_part: |
+      ---
+      IMPORTANT: You should make the necessary file changes, but should NOT commit them yourself.

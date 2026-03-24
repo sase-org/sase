@@ -60,6 +60,8 @@ def test_parse_tags_all_values() -> None:
             "propose",
             "make_mentor_changes",
             "diff_file",
+            "append_to_pr",
+            "append_to_commit_and_propose",
         ]
     )
     assert result == frozenset(XPromptTag)
@@ -659,3 +661,114 @@ def test_get_by_tag_single_match_ignores_vcs_hint() -> None:
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
         result = get_by_tag(XPromptTag.diff_file, vcs_hint="gh")
     assert result is wf_pr_diff
+
+
+# ── Append tags ────────────────────────────────────────────────────────
+
+
+def test_parse_append_to_pr_tag() -> None:
+    assert parse_tags("append_to_pr") == frozenset({XPromptTag.append_to_pr})
+
+
+def test_parse_append_to_commit_and_propose_tag() -> None:
+    assert parse_tags("append_to_commit_and_propose") == frozenset(
+        {XPromptTag.append_to_commit_and_propose}
+    )
+
+
+def test_get_by_tag_append_to_pr_vcs_disambiguates() -> None:
+    """append_to_pr tag with vcs_hint picks the right VCS plugin xprompt."""
+    wf_hg = Workflow(
+        name="hg",
+        steps=[WorkflowStep(name="main", prompt_part="hg vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="plugin:sase_google/hg.yml",
+    )
+    wf_no_cl_ops = Workflow(
+        name="no_cl_ops",
+        steps=[WorkflowStep(name="main", prompt_part="no cl ops")],
+        tags=frozenset({XPromptTag.append_to_pr}),
+        source_path="plugin_config:sase_google",
+    )
+    mock_prompts = {"hg": wf_hg, "no_cl_ops": wf_no_cl_ops}
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.append_to_pr, vcs_hint="hg")
+    assert result is wf_no_cl_ops
+
+
+def test_get_by_tag_append_to_commit_and_propose_vcs_disambiguates() -> None:
+    """append_to_commit_and_propose uses VCS-aware disambiguation."""
+    wf_gh = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="github vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="plugin:sase_github/gh.yml",
+    )
+    wf_google_append = Workflow(
+        name="no_cl_ops_and_cldd",
+        steps=[WorkflowStep(name="main", prompt_part="#no_cl_ops #cldd")],
+        tags=frozenset({XPromptTag.append_to_commit_and_propose}),
+        source_path="plugin_config:sase_google",
+    )
+    wf_github_append = Workflow(
+        name="prdd",
+        steps=[WorkflowStep(name="main", prompt_part="#pr_diff")],
+        tags=frozenset({XPromptTag.append_to_commit_and_propose}),
+        source_path="plugin_config:sase_github",
+    )
+    mock_prompts = {
+        "gh": wf_gh,
+        "no_cl_ops_and_cldd": wf_google_append,
+        "prdd": wf_github_append,
+    }
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.append_to_commit_and_propose, vcs_hint="gh")
+    assert result is wf_github_append
+
+
+def test_get_by_tag_append_to_commit_and_propose_picks_google() -> None:
+    """append_to_commit_and_propose with hg vcs_hint picks Google plugin."""
+    wf_hg = Workflow(
+        name="hg",
+        steps=[WorkflowStep(name="main", prompt_part="hg vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="plugin:sase_google/hg.yml",
+    )
+    wf_google_append = Workflow(
+        name="no_cl_ops_and_cldd",
+        steps=[WorkflowStep(name="main", prompt_part="#no_cl_ops #cldd")],
+        tags=frozenset({XPromptTag.append_to_commit_and_propose}),
+        source_path="plugin_config:sase_google",
+    )
+    wf_github_append = Workflow(
+        name="prdd",
+        steps=[WorkflowStep(name="main", prompt_part="#pr_diff")],
+        tags=frozenset({XPromptTag.append_to_commit_and_propose}),
+        source_path="plugin_config:sase_github",
+    )
+    mock_prompts = {
+        "hg": wf_hg,
+        "no_cl_ops_and_cldd": wf_google_append,
+        "prdd": wf_github_append,
+    }
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.append_to_commit_and_propose, vcs_hint="hg")
+    assert result is wf_google_append
+
+
+def test_get_by_tag_append_no_match_returns_none() -> None:
+    """append_to_pr returns None when no xprompts have the tag."""
+    wf_gh = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="github vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="plugin:sase_github/gh.yml",
+    )
+    mock_prompts = {"gh": wf_gh}
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.append_to_pr, vcs_hint="gh")
+    assert result is None

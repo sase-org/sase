@@ -1,0 +1,18 @@
+tags: rollover
+
+input:
+  - name: name
+    type: word
+  - name: bug_id
+    type: int
+    default: 0
+
+environment:
+  SASE_COMMIT_METHOD: create_pull_request
+  SASE_BUG_ID: "{{ bug_id }}"
+
+steps:
+  - name: inject
+    prompt_part: |
+      ---
+      IMPORTANT: You should make the necessary file changes, but should NOT create a commit, branch, or pull request yourself.
