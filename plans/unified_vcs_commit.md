@@ -1,6 +1,7 @@
 ---
 create_time: 2026-03-24 00:26:19
 status: wip
+bead_id: sase-9
 ---
 
 # Plan: Unified VCS Commit Prompts
