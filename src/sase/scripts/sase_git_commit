@@ -1,0 +1,75 @@
+#!/bin/bash
+#
+# sase_git_commit — thin wrapper around `sase commit` that adds JSON logging.
+#
+# Usage: sase_git_commit '<json_payload>' [-m METHOD]
+#
+# All commit logic lives in CommitWorkflow and VCS providers;
+# this script only adds structured logging to ~/.sase_git_commit.jsonl.
+
+set -euo pipefail
+
+LOG_FILE="${HOME}/.sase_git_commit.jsonl"
+SCRIPT_START_EPOCH=$(date +%s)
+
+# --- JSON logging --------------------------------------------------------- #
+
+function jlog() {
+  command -v jq &>/dev/null || return 0
+  local event="$1"
+  shift
+
+  local jq_args=()
+  local jq_pairs=""
+  local i=0
+
+  while [[ $# -gt 0 ]]; do
+    local key="${1%%=*}"
+    local val="${1#*=}"
+    jq_args+=("--arg" "k${i}" "$key" "--arg" "v${i}" "$val")
+    jq_pairs+=", (\$k${i}): \$v${i}"
+    i=$((i + 1))
+    shift
+  done
+
+  jq -c -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg event "$event" \
+    "${jq_args[@]}" \
+    "{timestamp: \$ts, event: \$event${jq_pairs}}" >>"${LOG_FILE}" 2>/dev/null
+}
+
+# --- Exit handler --------------------------------------------------------- #
+
+function on_exit() {
+  local exit_code=$?
+  local now
+  now=$(date +%s)
+  local elapsed=$((now - SCRIPT_START_EPOCH))
+  jlog "script_exit" "exit_code=${exit_code}" "duration_s=${elapsed}"
+  exit "${exit_code}"
+}
+trap on_exit EXIT
+
+# --- Main ----------------------------------------------------------------- #
+
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+jlog "script_start" \
+  "args=$*" \
+  "working_dir=$(pwd)" \
+  "branch=${branch}" \
+  "pid=$$"
+
+# Delegate to sase commit, forwarding all arguments.
+set +e
+sase commit "$@"
+rc=$?
+set -e
+
+if [[ ${rc} -eq 0 ]]; then
+  commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+  jlog "commit" "result=ok" "commit_hash=${commit_hash}"
+else
+  jlog "commit" "result=failed" "exit_code=${rc}"
+fi
+
+exit "${rc}"
