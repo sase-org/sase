@@ -100,9 +100,11 @@ function check_sibling_repos() {
         local repos_list
         repos_list=$(printf ', %s' "${sibling_repos_with_changes[@]}")
         repos_list=${repos_list:2} # Remove leading ', '
+        local skill
+        skill="$(resolve_commit_skill)"
         emit_block \
-            "Stop hook blocked: sibling repos have uncommitted changes. Run /commit now." \
-            "Uncommitted changes detected in sibling repo(s): ${repos_list}. Use your /commit skill to commit them before continuing."
+            "Stop hook blocked: sibling repos have uncommitted changes. Run ${skill} now." \
+            "Uncommitted changes detected in sibling repo(s): ${repos_list}. Use your ${skill} skill to commit them before continuing."
         return $?
     fi
 

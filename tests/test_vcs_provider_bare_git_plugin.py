@@ -79,6 +79,106 @@ def test_plugin_mail_push_failure(
 # === Test registry integration ===
 
 
+# === Tests for commit dispatch hooks ===
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_commit_success(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+) -> None:
+    """All 3 git commands (add, commit, push) succeed."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    ok, err = bare_git_provider.create_commit(
+        {"message": "fix: bug", "files": ["a.py"]}, "/workspace"
+    )
+
+    assert ok is True
+    assert err is None
+    assert mock_run.call_count == 3
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_commit_no_files_uses_add_all(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+) -> None:
+    """Empty files list falls back to git add -A."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    bare_git_provider.create_commit({"message": "chore: sync", "files": []}, "/ws")
+
+    add_call = mock_run.call_args_list[0]
+    cmd = add_call[0][0]
+    assert cmd == ["git", "add", "-A"]
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_commit_push_fails(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+) -> None:
+    """Returns error tuple when push fails."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="", stderr=""),  # git add
+        MagicMock(returncode=0, stdout="", stderr=""),  # git commit
+        MagicMock(returncode=1, stdout="", stderr="push rejected"),  # git push
+    ]
+    ok, err = bare_git_provider.create_commit({"message": "test", "files": []}, "/ws")
+
+    assert ok is False
+    assert isinstance(err, str)
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_proposal_delegates(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+) -> None:
+    """create_proposal delegates to create_commit (same behavior for bare git)."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    ok, err = bare_git_provider.create_proposal({"message": "propose: change"}, "/ws")
+
+    assert ok is True
+    # Same sequence as create_commit: add, commit, push
+    assert mock_run.call_count == 3
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_pull_request_creates_branch(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+) -> None:
+    """create_pull_request creates a new branch, commits, and pushes."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    ok, err = bare_git_provider.create_pull_request(
+        {"name": "feat-x", "message": "add feature", "files": []}, "/ws"
+    )
+
+    assert ok is True
+    checkout_call = mock_run.call_args_list[0]
+    cmd = checkout_call[0][0]
+    assert cmd == ["git", "checkout", "-b", "feat-x"]
+    # 4 calls: checkout -b, add, commit, push -u
+    assert mock_run.call_count == 4
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_create_pull_request_push_fails(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+) -> None:
+    """Returns error when push fails during pull request creation."""
+    mock_run.side_effect = [
+        MagicMock(returncode=0, stdout="", stderr=""),  # checkout -b
+        MagicMock(returncode=0, stdout="", stderr=""),  # add
+        MagicMock(returncode=0, stdout="", stderr=""),  # commit
+        MagicMock(returncode=1, stdout="", stderr="push failed"),  # push
+    ]
+    ok, err = bare_git_provider.create_pull_request(
+        {"name": "feat-x", "message": "test", "files": []}, "/ws"
+    )
+
+    assert ok is False
+    assert isinstance(err, str)
+
+
+# === Test registry integration ===
+
+
 @patch("sase.vcs_provider._registry._resolve_vcs_name", return_value="bare_git")
 def test_registry_routes_bare_git_through_plugin(mock_resolve: MagicMock) -> None:
     """get_vcs_provider returns a VCSPluginManager for bare_git."""
