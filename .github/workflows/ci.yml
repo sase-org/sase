@@ -29,15 +29,17 @@ jobs:
         with:
           go-version: 'stable'
           cache: false
-      - name: Cache bd binary
-        id: cache-bd
+      - name: Cache Go binaries
+        id: cache-go-bin
         uses: actions/cache@v4
         with:
-          path: ~/go/bin/bd
-          key: bd-v2-linux-amd64-go-${{ hashFiles('.github/workflows/ci.yml') }}
-      - name: Install beads (bd)
-        if: steps.cache-bd.outputs.cache-hit != 'true'
-        run: CGO_ENABLED=0 go install github.com/steveyegge/beads/cmd/bd@latest
+          path: ~/go/bin
+          key: go-bin-v3-linux-amd64-${{ hashFiles('.github/workflows/ci.yml') }}
+      - name: Install Go tools (bd, keep-sorted)
+        if: steps.cache-go-bin.outputs.cache-hit != 'true'
+        run: |
+          CGO_ENABLED=0 go install github.com/steveyegge/beads/cmd/bd@latest
+          CGO_ENABLED=0 go install github.com/google/keep-sorted@latest
       - name: Verify bd installation
         run: |
           echo "--- bd location ---"

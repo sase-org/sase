@@ -22,14 +22,17 @@ _header NAME:
 install: _setup
     uv pip install -e ".[dev]"
 
-# Run linters (ruff + mypy + pyscripts)
-lint: _setup (_header "lint")
+# Run linters (ruff + mypy + pyscripts + keep-sorted)
+lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     {{ venv_bin }}/ruff check src/ tests/
     @printf "\n---------- Running mypy type checker... ----------\n"
     {{ venv_bin }}/mypy
     @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
     {{ venv_bin }}/python tools/pyscripts-260314
+
+# Auto-fix all code (format + keep-sorted)
+fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
 
 # Auto-format all code
 fmt: (_header "fmt") fmt-py fmt-md
@@ -45,6 +48,16 @@ fmt-py: _setup
 fmt-md:
     @printf "\n---------- Formatting Markdown with prettier... ----------\n"
     prettier --write --prose-wrap=always --print-width=120 "**/*.md"
+
+# Auto-fix keep-sorted blocks in YAML files
+fix-keep-sorted:
+    @printf "\n---------- Fixing keep-sorted blocks in YAML files... ----------\n"
+    git ls-files '*.yml' '*.yaml' | xargs keep-sorted
+
+# Lint keep-sorted blocks in YAML files (CI mode)
+lint-keep-sorted:
+    @printf "\n---------- Checking keep-sorted blocks in YAML files... ----------\n"
+    git ls-files '*.yml' '*.yaml' | xargs keep-sorted --mode lint
 
 # Check all formatting (CI mode)
 fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check
@@ -75,8 +88,8 @@ test-py VER: _setup
 # Run all checks (format check + lint + test)
 check: fmt-check lint test
 
-# Format code, run linteers, and run tests.
-all: fmt lint pylimit pyvision test
+# Fix code, run linters, and run tests.
+all: fix lint pylimit pyvision test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")

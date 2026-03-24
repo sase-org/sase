@@ -208,33 +208,7 @@ sdd:
 
 xprompt_aliases: {}
 xprompts:
-  phase: |
-    This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
-    keep in mind that each phase will be completed by a distinct `claude` instance.
-
-  bd/next:
-    input:
-      prompt: { type: text, default: "" }
-    content: |
-      Can you run the `sase bead ready` command to see which beads are ready to be worked, claim the next ready bead
-      by marking it as in-progress, complete the work associated with it, and then close the bead (do NOT close the
-      parent epic bead)? Make sure to mark the bead as in-progress before you start working. If there are no non-epic
-      beads ready to work, you should terminate without doing anything. {{ prompt }}
-
-      IMPORTANT: Do NOT create any beads of your own. You are meant to work the pre-existing ready bead that you select. If
-      you decide to create a plan for this bead, make sure you explicitly mention the bead ID in the plan.
-
-  bd/new_epic:
-    input:
-      plan_file_path: path
-    content: |
-      Can you help me create one bead for every phase in the {{ plan_file_path }} plan file?
-
-      These beads should all be children of a new plan bead that you should also create. The plan bead should be linked to the
-      plan file using the `sase bead create` command's `--plan` option. Also, add the bead ID of the plan to a new
-      frontmatter field called `bead_id` in the plan file.
-
-      Make sure that each phase bead has the appropriate dependencies set up.
+  # keep-sorted start
 
   bd/land_epic:
     input:
@@ -254,15 +228,28 @@ xprompts:
       Finally, find the plan file associated with this work (should be in the plans/ directory) and then look for a file of
       the same name in the specs/ directory. If found, a `status` field should be added (or updated if it already exists) to
       the frontmatter of the plan file with a value of `done`.
-
-  bd/review/prompt:
+  bd/new_epic:
     input:
-      file_base: word
+      plan_file_path: path
     content: |
-      Can you help me review the prompt I've prepared in the @specs/{{ file_base }}.md file and look for gaps / ambiguity
-      in the requirements? In particular, what design decisions would you need from me if I were to ask you to implement the
-      functionality described in that file?
+      Can you help me create one bead for every phase in the {{ plan_file_path }} plan file?
 
+      These beads should all be children of a new plan bead that you should also create. The plan bead should be linked to the
+      plan file using the `sase bead create` command's `--plan` option. Also, add the bead ID of the plan to a new
+      frontmatter field called `bead_id` in the plan file.
+
+      Make sure that each phase bead has the appropriate dependencies set up.
+  bd/next:
+    input:
+      prompt: { type: text, default: "" }
+    content: |
+      Can you run the `sase bead ready` command to see which beads are ready to be worked, claim the next ready bead
+      by marking it as in-progress, complete the work associated with it, and then close the bead (do NOT close the
+      parent epic bead)? Make sure to mark the bead as in-progress before you start working. If there are no non-epic
+      beads ready to work, you should terminate without doing anything. {{ prompt }}
+
+      IMPORTANT: Do NOT create any beads of your own. You are meant to work the pre-existing ready bead that you select. If
+      you decide to create a plan for this bead, make sure you explicitly mention the bead ID in the plan.
   bd/review/plan:
     input:
       file_base: word
@@ -275,6 +262,16 @@ xprompts:
         3. ALL necessary design decisions have been made and documented in the plan.
 
       If there are any deficiencies in the current plan, you should update the plan file to properly address them.
+  bd/review/prompt:
+    input:
+      file_base: word
+    content: |
+      Can you help me review the prompt I've prepared in the @specs/{{ file_base }}.md file and look for gaps / ambiguity
+      in the requirements? In particular, what design decisions would you need from me if I were to ask you to implement the
+      functionality described in that file?
+  phase: |
+    This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
+    keep in mind that each phase will be completed by a distinct `claude` instance.
   plan: |
     Think this through thoroughly and create a plan using your `/sase_plan` skill.
   review_prompt:
@@ -289,3 +286,4 @@ xprompts:
   x:
     input: { name: word, cmd: text }
     content: "@$(sase_xcmd {{ name }} {{ cmd }})"
+  # keep-sorted end
