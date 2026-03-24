@@ -235,7 +235,7 @@ The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+
 | ---------- | --------------------------------------------------------------------- |
 | `,h`       | Run agent (home directory)                                            |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed) |
-| `,r`       | Show runners info                                                     |
+| `,r`       | Edit prompt and relaunch agent (retry without killing)                |
 | `,x`       | Kill agent & edit prompt                                              |
 | `,<space>` | Run agent from current agent's CL (skips selection)                   |
 | `,.`       | Open prompt history modal for the last CL                             |

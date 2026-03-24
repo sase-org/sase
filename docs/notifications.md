@@ -11,6 +11,22 @@ to the user through the ACE TUI. Notifications are stored as JSONL and persisted
 Press `N` on any tab in ACE to open the notifications modal. Notifications display relative timestamps (e.g., "2m ago",
 "1h ago") and can be marked as read or dismissed.
 
+### Modal Keybindings
+
+| Key                 | Action                                              |
+| ------------------- | --------------------------------------------------- |
+| `j` / `k`           | Navigate between notifications                      |
+| `Enter`             | Select notification (jump to CL, approve plan, etc) |
+| `x`                 | Dismiss notification (with confirmation for plans)  |
+| `e`                 | Open attached file in `$EDITOR`                     |
+| `Ctrl+N` / `Ctrl+P` | Cycle through attached files                        |
+| `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                       |
+| `R`                 | Mark all notifications as read                      |
+| `Esc` / `q`         | Close modal                                         |
+
+Plan and question notifications require confirmation (`y` / `n`) before dismissal to prevent accidental loss of pending
+approvals.
+
 ## Notification Types
 
 The following events generate notifications:

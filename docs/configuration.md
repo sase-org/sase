@@ -17,6 +17,7 @@ and CLI flags.
   - [xprompts](#xprompts)
   - [xprompt_aliases](#xprompt_aliases)
   - [use_chezmoi](#use_chezmoi)
+  - [precommit_command](#precommit_command)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 
@@ -485,6 +486,21 @@ use_chezmoi: true # default: false
 | `use_chezmoi` | bool | `false` | Remap home xprompt paths to chezmoi-managed equivalents. |
 
 Source: `src/sase/config/core.py`
+
+### precommit_command
+
+A shell command to run before commits (e.g., linting, formatting). If set, the commit workflow executes this command
+before creating a commit. An empty string (the default) means no precommit command is run.
+
+```yaml
+precommit_command: "just fix" # default: ""
+```
+
+| Field               | Type   | Default | Description                                                       |
+| ------------------- | ------ | ------- | ----------------------------------------------------------------- |
+| `precommit_command` | string | `""`    | Shell command to run before commits. Empty string means disabled. |
+
+Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/workflow.py`
 
 ## Environment Variables
 

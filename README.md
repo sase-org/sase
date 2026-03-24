@@ -136,6 +136,7 @@ sase
 | `sase axe start`           | Start the lumberjack-based daemon (orchestrator mode)                            |
 | `sase axe stop`            | Stop the running axe orchestrator                                                |
 | `sase bead`                | Lightweight git-native issue tracking (plans, phases, dependencies)              |
+| `sase comments`            | Preview mentor comments from JSON with syntax-highlighted code context           |
 | `sase commit`              | Create a commit with formatted CL description and metadata                       |
 | `sase config layers`       | Show per-layer breakdown of the configuration merge chain                        |
 | `sase config mentor-match` | Trace mentor profile matching for a specific ChangeSpec                          |

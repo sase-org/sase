@@ -7,6 +7,7 @@ with control flow, parallel execution, and human-in-the-loop approval.
 
 - [Top-Level Structure](#top-level-structure)
 - [Input Parameters](#input-parameters)
+- [Environment](#environment)
 - [Step Types](#step-types)
 - [Step Imports](#step-imports)
 - [Output Specification](#output-specification)
@@ -29,18 +30,21 @@ name: my_workflow # Workflow identifier (optional, defaults to filename)
 tags: vcs, rollover # Semantic role tags (optional)
 input: # Input parameter definitions (optional)
   ...
+environment: # Environment variables (optional)
+  MY_VAR: "value"
 steps: # Ordered list of steps (required)
   - ...
 ```
 
 ### Fields
 
-| Field   | Required | Description                                                                               |
-| ------- | -------- | ----------------------------------------------------------------------------------------- |
-| `name`  | No       | Workflow identifier used in `#name(args)` syntax. Defaults to filename without extension. |
-| `tags`  | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.               |
-| `input` | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                   |
-| `steps` | Yes      | Ordered list of workflow steps to execute.                                                |
+| Field         | Required | Description                                                                               |
+| ------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `name`        | No       | Workflow identifier used in `#name(args)` syntax. Defaults to filename without extension. |
+| `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.               |
+| `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                   |
+| `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).          |
+| `steps`       | Yes      | Ordered list of workflow steps to execute.                                                |
 
 ## Input Parameters
 
@@ -90,6 +94,25 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple CLs" } }
 ### Default Values
 
 Parameters without a `default` are required. Parameters with `default: null` or `default: ""` are optional.
+
+## Environment
+
+Workflows can declare environment variables that are set once before any steps run and persist for the entire agent
+session. Values support Jinja2 templates rendered against the workflow's input arguments.
+
+```yaml
+name: deploy_workflow
+input: { target: word }
+environment:
+  DEPLOY_TARGET: "{{ target }}"
+  VERBOSE: "1"
+steps:
+  - name: deploy
+    bash: echo "Deploying to $DEPLOY_TARGET"
+```
+
+Environment variables are injected into `os.environ` at workflow start, making them available to all bash, python, and
+agent steps without explicit passing.
 
 ## Step Types
 
