@@ -50,10 +50,6 @@ def _detect_interpreter(script: Path) -> str:
     return sys.executable
 
 
-def sase_commit_workflow() -> NoReturn:
-    _exec_script("sase_commit_workflow")
-
-
 def sase_json_workflow() -> NoReturn:
     _exec_script("sase_json_workflow")
 

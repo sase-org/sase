@@ -309,7 +309,7 @@ def test_rollover_tagged_workflows_included_in_refs() -> None:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
-            {"name": "gcommit", "args": {}, "tags": ["rollover"]},
+            {"name": "commit", "args": {}, "tags": ["rollover"]},
             {"name": "summarize", "args": {}, "tags": []},
         ]
         metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
@@ -317,7 +317,7 @@ def test_rollover_tagged_workflows_included_in_refs() -> None:
             json.dump(metadata, f)
 
         result = _get_embedded_workflow_refs(tmpdir, None)
-        assert "#gcommit" in result
+        assert "#commit" in result
         assert "#summarize" not in result
 
 
@@ -363,7 +363,7 @@ def test_rollover_with_vcs_excluded() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
             {"name": "git", "args": {}, "tags": ["vcs", "rollover"]},
-            {"name": "gcommit", "args": {}, "tags": ["rollover"]},
+            {"name": "commit", "args": {}, "tags": ["rollover"]},
         ]
         metadata_path = os.path.join(tmpdir, "embedded_workflows.json")
         with open(metadata_path, "w") as f:
@@ -371,7 +371,7 @@ def test_rollover_with_vcs_excluded() -> None:
 
         result = _get_embedded_workflow_refs(tmpdir, "#git:sase ")
         assert "#git" not in result
-        assert "#gcommit" in result
+        assert "#commit" in result
 
 
 def test_rollover_with_args_preserved() -> None:
@@ -380,9 +380,9 @@ def test_rollover_with_args_preserved() -> None:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
-            {"name": "gcommit", "args": {"who": "bot"}, "tags": ["rollover"]},
+            {"name": "commit", "args": {"who": "bot"}, "tags": ["rollover"]},
             {
-                "name": "gchange",
+                "name": "pr",
                 "args": {"name": "feat", "who": "bot"},
                 "tags": ["rollover"],
             },
@@ -392,15 +392,15 @@ def test_rollover_with_args_preserved() -> None:
             json.dump(metadata, f)
 
         result = _get_embedded_workflow_refs(tmpdir, None)
-        assert "#gcommit:bot" in result
-        assert "#gchange(name=feat, who=bot)" in result
+        assert "#commit:bot" in result
+        assert "#pr(name=feat, who=bot)" in result
 
 
 def test_embedded_workflows_json_includes_tags() -> None:
     """embedded_workflows.json metadata includes tags for each workflow."""
     with tempfile.TemporaryDirectory() as tmpdir:
         metadata = [
-            {"name": "gcommit", "args": {}, "tags": ["rollover"]},
+            {"name": "commit", "args": {}, "tags": ["rollover"]},
             {"name": "git", "args": {}, "tags": ["vcs"]},
             {"name": "sync", "args": {}, "tags": []},
         ]
