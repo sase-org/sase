@@ -134,6 +134,10 @@
             "type": "string",
             "description": "Content to append to containing prompt when workflow is embedded. Mutually exclusive with prompt/bash/python/parallel. Cannot have control flow (if/for/repeat/while), output, or hitl."
           },
+          "use": {
+            "type": "string",
+            "description": "Reference to a shared workflow step (e.g., 'shared/check_changes'). Mutually exclusive with agent/prompt/bash/python/prompt_part/parallel."
+          },
           "output": {
             "description": "Output specification for validating step responses",
             "oneOf": [
@@ -424,6 +428,7 @@
                     { "required": ["bash"] },
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
+                    { "required": ["use"] },
                     { "required": ["parallel"] }
                   ]
                 }
@@ -436,6 +441,7 @@
                     { "required": ["bash"] },
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
+                    { "required": ["use"] },
                     { "required": ["parallel"] }
                   ]
                 }
@@ -448,6 +454,7 @@
                     { "required": ["prompt"] },
                     { "required": ["python"] },
                     { "required": ["prompt_part"] },
+                    { "required": ["use"] },
                     { "required": ["parallel"] }
                   ]
                 }
@@ -460,6 +467,7 @@
                     { "required": ["prompt"] },
                     { "required": ["bash"] },
                     { "required": ["prompt_part"] },
+                    { "required": ["use"] },
                     { "required": ["parallel"] }
                   ]
                 }
@@ -472,6 +480,7 @@
                     { "required": ["prompt"] },
                     { "required": ["bash"] },
                     { "required": ["python"] },
+                    { "required": ["use"] },
                     { "required": ["parallel"] },
                     { "required": ["if"] },
                     { "required": ["for"] },
@@ -483,6 +492,19 @@
                 }
               },
               {
+                "required": ["use"],
+                "not": {
+                  "anyOf": [
+                    { "required": ["agent"] },
+                    { "required": ["prompt"] },
+                    { "required": ["bash"] },
+                    { "required": ["python"] },
+                    { "required": ["prompt_part"] },
+                    { "required": ["parallel"] }
+                  ]
+                }
+              },
+              {
                 "required": ["parallel"],
                 "not": {
                   "anyOf": [
@@ -490,7 +512,8 @@
                     { "required": ["prompt"] },
                     { "required": ["bash"] },
                     { "required": ["python"] },
-                    { "required": ["prompt_part"] }
+                    { "required": ["prompt_part"] },
+                    { "required": ["use"] }
                   ]
                 }
               }
@@ -502,6 +525,9 @@
                 { "required": ["for", "repeat"] },
                 { "required": ["for", "while"] },
                 { "required": ["repeat", "while"] },
+                { "required": ["use", "for"] },
+                { "required": ["use", "repeat"] },
+                { "required": ["use", "while"] },
                 { "required": ["parallel", "repeat"] },
                 { "required": ["parallel", "while"] },
                 { "required": ["prompt_part", "for"] },
