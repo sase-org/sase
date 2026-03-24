@@ -51,7 +51,24 @@ def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:
     return frozenset(tags)
 
 
-def get_by_tag(tag: XPromptTag, project: str | None = None) -> Workflow | None:
+def _extract_plugin_module(source_path: str | None) -> str | None:
+    """Extract the plugin module name from an xprompt/workflow source_path."""
+    if not source_path:
+        return None
+    if source_path.startswith("plugin:"):
+        # "plugin:sase_github/gh.yml" → "sase_github"
+        return source_path.removeprefix("plugin:").split("/")[0]
+    if source_path.startswith("plugin_config:"):
+        # "plugin_config:sase_google" → "sase_google"
+        return source_path.removeprefix("plugin_config:")
+    return None
+
+
+def get_by_tag(
+    tag: XPromptTag,
+    project: str | None = None,
+    vcs_hint: str | None = None,
+) -> Workflow | None:
     """Find the highest-priority xprompt/workflow with the given tag.
 
     Uses ``get_all_prompts()`` so the loader's existing precedence
@@ -59,15 +76,40 @@ def get_by_tag(tag: XPromptTag, project: str | None = None) -> Workflow | None:
     The dict is built from lowest to highest priority, so we return the
     **last** match to respect the override chain.
 
+    When *vcs_hint* is provided and multiple workflows match the tag,
+    the result is disambiguated by preferring the match whose plugin
+    module matches the active VCS workflow's plugin module.
+
     Returns the highest-priority matching Workflow, or None.
     """
     from sase.xprompt.loader import get_all_prompts
 
-    result: Workflow | None = None
-    for wf in get_all_prompts(project=project).values():
+    all_prompts = get_all_prompts(project=project)
+
+    matches: list[Workflow] = []
+    for wf in all_prompts.values():
         if tag in wf.tags:
-            result = wf
-    return result
+            matches.append(wf)
+
+    if not matches:
+        return None
+    if len(matches) == 1 or not vcs_hint:
+        return matches[-1]
+
+    # Disambiguate: prefer the match from the same plugin as the VCS workflow
+    vcs_wf = all_prompts.get(vcs_hint)
+    if vcs_wf is None:
+        return matches[-1]
+
+    vcs_module = _extract_plugin_module(vcs_wf.source_path)
+    if vcs_module is None:
+        return matches[-1]
+
+    for match in reversed(matches):
+        if _extract_plugin_module(match.source_path) == vcs_module:
+            return match
+
+    return matches[-1]
 
 
 def get_by_tag_strict(tag: XPromptTag, project: str | None = None) -> Workflow | None:

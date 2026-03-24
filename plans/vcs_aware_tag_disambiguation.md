@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-23 22:25:50
-status: wip
+status: done
 ---
 
 # Plan: VCS-Aware Tag Disambiguation for `diff_file`

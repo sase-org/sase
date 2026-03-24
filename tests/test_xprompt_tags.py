@@ -8,7 +8,13 @@ from unittest.mock import patch
 import pytest
 
 from sase.xprompt.models import XPrompt, xprompt_to_workflow
-from sase.xprompt.tags import XPromptTag, get_by_tag, get_by_tag_strict, parse_tags
+from sase.xprompt.tags import (
+    XPromptTag,
+    _extract_plugin_module,
+    get_by_tag,
+    get_by_tag_strict,
+    parse_tags,
+)
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
@@ -467,3 +473,189 @@ def test_get_by_tag_strict_multiple_raises() -> None:
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
         with pytest.raises(ValueError, match="Multiple xprompts found with tag"):
             get_by_tag_strict(XPromptTag.mentor)
+
+
+# ── _extract_plugin_module ────────────────────────────────────────────
+
+
+def test_extract_plugin_module_none() -> None:
+    assert _extract_plugin_module(None) is None
+
+
+def test_extract_plugin_module_empty() -> None:
+    assert _extract_plugin_module("") is None
+
+
+def test_extract_plugin_module_plugin_workflow() -> None:
+    assert _extract_plugin_module("plugin:sase_github/gh.yml") == "sase_github"
+
+
+def test_extract_plugin_module_plugin_config() -> None:
+    assert _extract_plugin_module("plugin_config:sase_google") == "sase_google"
+
+
+def test_extract_plugin_module_builtin() -> None:
+    assert _extract_plugin_module("builtin:sase/xprompts/pr_diff.md") is None
+
+
+def test_extract_plugin_module_user() -> None:
+    assert _extract_plugin_module("user:~/.config/sase/sase.yml") is None
+
+
+# ── get_by_tag with vcs_hint ─────────────────────────────────────────
+
+
+def test_get_by_tag_vcs_hint_disambiguates() -> None:
+    """When two xprompts share diff_file tag, vcs_hint picks the right one."""
+    wf_gh = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="github vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="plugin:sase_github/gh.yml",
+    )
+    wf_pr_diff = Workflow(
+        name="pr_diff",
+        steps=[WorkflowStep(name="main", prompt_part="pr diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_github",
+    )
+    wf_cl_diff = Workflow(
+        name="cl_diff",
+        steps=[WorkflowStep(name="main", prompt_part="cl diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_google",
+    )
+    mock_prompts = {
+        "gh": wf_gh,
+        "pr_diff": wf_pr_diff,
+        "cl_diff": wf_cl_diff,
+    }
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.diff_file, vcs_hint="gh")
+    assert result is wf_pr_diff
+
+
+def test_get_by_tag_vcs_hint_picks_google() -> None:
+    """vcs_hint='hg' picks the sase_google diff xprompt."""
+    wf_hg = Workflow(
+        name="hg",
+        steps=[WorkflowStep(name="main", prompt_part="hg vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="plugin:sase_google/hg.yml",
+    )
+    wf_pr_diff = Workflow(
+        name="pr_diff",
+        steps=[WorkflowStep(name="main", prompt_part="pr diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_github",
+    )
+    wf_cl_diff = Workflow(
+        name="cl_diff",
+        steps=[WorkflowStep(name="main", prompt_part="cl diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_google",
+    )
+    mock_prompts = {
+        "hg": wf_hg,
+        "pr_diff": wf_pr_diff,
+        "cl_diff": wf_cl_diff,
+    }
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.diff_file, vcs_hint="hg")
+    assert result is wf_cl_diff
+
+
+def test_get_by_tag_no_vcs_hint_returns_last() -> None:
+    """Without vcs_hint, last-wins behavior is preserved."""
+    wf_pr_diff = Workflow(
+        name="pr_diff",
+        steps=[WorkflowStep(name="main", prompt_part="pr diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_github",
+    )
+    wf_cl_diff = Workflow(
+        name="cl_diff",
+        steps=[WorkflowStep(name="main", prompt_part="cl diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_google",
+    )
+    mock_prompts = {"pr_diff": wf_pr_diff, "cl_diff": wf_cl_diff}
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.diff_file)
+    assert result is wf_cl_diff
+
+
+def test_get_by_tag_vcs_hint_unknown_workflow_falls_back() -> None:
+    """If vcs_hint names an unknown workflow, fall back to last-wins."""
+    wf_pr_diff = Workflow(
+        name="pr_diff",
+        steps=[WorkflowStep(name="main", prompt_part="pr diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_github",
+    )
+    wf_cl_diff = Workflow(
+        name="cl_diff",
+        steps=[WorkflowStep(name="main", prompt_part="cl diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_google",
+    )
+    mock_prompts = {"pr_diff": wf_pr_diff, "cl_diff": wf_cl_diff}
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.diff_file, vcs_hint="svn")
+    assert result is wf_cl_diff
+
+
+def test_get_by_tag_vcs_hint_no_module_match_falls_back() -> None:
+    """If vcs_hint workflow has no plugin module, fall back to last-wins."""
+    wf_custom_vcs = Workflow(
+        name="custom",
+        steps=[WorkflowStep(name="main", prompt_part="custom vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="user:~/.config/sase/sase.yml",
+    )
+    wf_pr_diff = Workflow(
+        name="pr_diff",
+        steps=[WorkflowStep(name="main", prompt_part="pr diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_github",
+    )
+    wf_cl_diff = Workflow(
+        name="cl_diff",
+        steps=[WorkflowStep(name="main", prompt_part="cl diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_google",
+    )
+    mock_prompts = {
+        "custom": wf_custom_vcs,
+        "pr_diff": wf_pr_diff,
+        "cl_diff": wf_cl_diff,
+    }
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.diff_file, vcs_hint="custom")
+    assert result is wf_cl_diff
+
+
+def test_get_by_tag_single_match_ignores_vcs_hint() -> None:
+    """With only one match, vcs_hint doesn't change anything."""
+    wf_gh = Workflow(
+        name="gh",
+        steps=[WorkflowStep(name="main", prompt_part="github vcs")],
+        tags=frozenset({XPromptTag.vcs}),
+        source_path="plugin:sase_github/gh.yml",
+    )
+    wf_pr_diff = Workflow(
+        name="pr_diff",
+        steps=[WorkflowStep(name="main", prompt_part="pr diff")],
+        tags=frozenset({XPromptTag.diff_file}),
+        source_path="plugin_config:sase_github",
+    )
+    mock_prompts = {"gh": wf_gh, "pr_diff": wf_pr_diff}
+
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
+        result = get_by_tag(XPromptTag.diff_file, vcs_hint="gh")
+    assert result is wf_pr_diff

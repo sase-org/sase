@@ -83,7 +83,7 @@ def _build_mentor_prompt(
     )
     schema = json.dumps(MENTOR_OUTPUT_JSON_SCHEMA, ensure_ascii=False)
     # Resolve the diff_file-tagged xprompt (e.g., #pr_diff or #cl_diff)
-    diff_wf = get_by_tag(XPromptTag.diff_file, project=project)
+    diff_wf = get_by_tag(XPromptTag.diff_file, project=project, vcs_hint=vcs_type)
     diff_ref = diff_wf.name if diff_wf else ""
 
     context: dict[str, str] = {
