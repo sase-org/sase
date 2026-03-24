@@ -33,6 +33,13 @@ class CommitWorkflow(BaseWorkflow):
             )
             return False
 
+        if not isinstance(self._payload, dict):
+            print_status("Payload must be a JSON object.", "error")
+            return False
+        if "message" not in self._payload and self._method != "create_pull_request":
+            print_status("Payload missing required 'message' field.", "error")
+            return False
+
         cwd = os.getcwd()
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)

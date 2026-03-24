@@ -169,6 +169,29 @@ class TestCommitWorkflowChangeSpec:
             mock_proj.assert_not_called()
 
 
+class TestCommitWorkflowValidation:
+    """Verify payload validation."""
+
+    def test_non_dict_payload_returns_false(self) -> None:
+        wf = CommitWorkflow("not a dict", "create_commit")  # type: ignore[arg-type]
+        assert wf.run() is False
+
+    def test_missing_message_returns_false(self) -> None:
+        wf = CommitWorkflow({"files": ["a.py"]}, "create_commit")
+        assert wf.run() is False
+
+    def test_missing_message_ok_for_pull_request(self) -> None:
+        """create_pull_request doesn't require 'message' at validation time."""
+        wf = CommitWorkflow({"name": "feat-x"}, "create_pull_request")
+        # Will fail at provider dispatch, but passes validation
+        with patch(_PROJECT_NAME_TARGET, return_value=None):
+            with patch(_PROVIDER_TARGET) as mock_get:
+                mock_prov = MagicMock()
+                mock_prov.create_pull_request.return_value = (True, None)
+                mock_get.return_value = mock_prov
+                assert wf.run() is True
+
+
 class TestCommitWorkflowProperties:
     """Verify workflow metadata."""
 
