@@ -124,7 +124,7 @@ def start_single_mentor(
                     profile.profile_name,
                     timestamp,
                 ],
-                cwd=os.path.expanduser("~"),
+                cwd=os.getcwd(),
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
