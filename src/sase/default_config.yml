@@ -208,7 +208,9 @@ vcs_provider:
 sdd:
   version_controlled: false
 
-xprompt_aliases: {}
+xprompt_aliases:
+  c: commit
+  p: propose
 xprompts:
   # keep-sorted start
 
