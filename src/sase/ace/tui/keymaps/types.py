@@ -278,6 +278,7 @@ class FoldModeKeymaps(ModeKeymaps):
             "cycle_hooks": "h",
             "cycle_mentors": "m",
             "cycle_all": "z",
+            "toggle_all": "Z",
         }
     )
 

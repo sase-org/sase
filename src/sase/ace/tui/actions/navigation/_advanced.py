@@ -45,6 +45,20 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.commits_collapsed = new_state
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
+        elif key == fold_keys["toggle_all"]:
+            # Toggle: if not fully collapsed, collapse all; otherwise fully expand
+            all_collapsed = (
+                self.commits_collapsed
+                == self.hooks_collapsed
+                == self.mentors_collapsed
+                == FoldLevel.COLLAPSED
+            )
+            new_state = (
+                FoldLevel.FULLY_EXPANDED if all_collapsed else FoldLevel.COLLAPSED
+            )
+            self.commits_collapsed = new_state
+            self.hooks_collapsed = new_state
+            self.mentors_collapsed = new_state
         else:
             # Invalid key - cancel fold mode and restore footer
             self._refresh_current_tab()  # type: ignore[attr-defined]

@@ -221,6 +221,7 @@ class KeybindingFooter(Horizontal):
             (k("cycle_hooks"), "hooks"),
             (k("cycle_mentors"), "mentors"),
             (k("cycle_all"), "all"),
+            (k("toggle_all"), "toggle"),
         ]
         text = self._format_bindings(bindings)
         prefix = Text()

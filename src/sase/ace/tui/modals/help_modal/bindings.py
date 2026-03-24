@@ -102,6 +102,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_all'))}",
                     "Cycle all sections",
                 ),
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_all'))}",
+                    "Toggle all collapsed/expanded",
+                ),
             ],
         ),
         (
