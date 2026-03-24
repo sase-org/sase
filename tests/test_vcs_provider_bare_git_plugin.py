@@ -86,15 +86,15 @@ def test_plugin_mail_push_failure(
 def test_vcs_create_commit_success(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
-    """All 3 git commands (add, commit, push) succeed."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-    ok, err = bare_git_provider.create_commit(
+    """All git commands (add, commit, push, rev-parse) succeed."""
+    mock_run.return_value = MagicMock(returncode=0, stdout="abc1234", stderr="")
+    ok, result = bare_git_provider.create_commit(
         {"message": "fix: bug", "files": ["a.py"]}, "/workspace"
     )
 
     assert ok is True
-    assert err is None
-    assert mock_run.call_count == 3
+    assert result == "abc1234"
+    assert mock_run.call_count == 4  # add, commit, push, rev-parse
 
 
 @patch(_MOCK_TARGET)
@@ -131,12 +131,14 @@ def test_vcs_create_proposal_delegates(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
     """create_proposal delegates to create_commit (same behavior for bare git)."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-    ok, err = bare_git_provider.create_proposal({"message": "propose: change"}, "/ws")
+    mock_run.return_value = MagicMock(returncode=0, stdout="abc1234", stderr="")
+    ok, result = bare_git_provider.create_proposal(
+        {"message": "propose: change"}, "/ws"
+    )
 
     assert ok is True
-    # Same sequence as create_commit: add, commit, push
-    assert mock_run.call_count == 3
+    # Same sequence as create_commit: add, commit, push, rev-parse
+    assert mock_run.call_count == 4
 
 
 @patch(_MOCK_TARGET)

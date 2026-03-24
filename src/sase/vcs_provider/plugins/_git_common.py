@@ -413,7 +413,9 @@ class GitCommon(CommandRunner):
         out = self._run(["git", "push"], cwd)
         if not out.success:
             return self._to_result(out, "git push")
-        return (True, None)
+        rev = self._run(["git", "rev-parse", "--short", "HEAD"], cwd)
+        commit_hash = rev.stdout.strip() if rev.success else None
+        return (True, commit_hash)
 
     @hookimpl
     def vcs_create_proposal(self, payload: dict, cwd: str) -> tuple[bool, str | None]:

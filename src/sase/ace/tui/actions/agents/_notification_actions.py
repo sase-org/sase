@@ -147,13 +147,11 @@ def handle_jump_to_changespec(app: object, notification: Notification) -> bool:
 
 
 def get_meta_changespec_name(agent: Agent) -> str | None:
-    """Extract ChangeSpec name from meta_new_cl or meta_new_pr in step output.
+    """Extract ChangeSpec name from step output meta variables.
 
-    For meta_new_cl: value format is ``full_cl_name (url)`` — extracts the name
-    before the parenthesized URL.
-
-    For meta_new_pr: value is a PR URL — looks for meta_changespec in the same
-    step output to get the ChangeSpec name.
+    Checks the new ``meta_changespec`` variable first (from v2 xprompts),
+    then falls back to legacy ``meta_new_cl`` / ``meta_new_pr`` formats
+    for agents that ran with older xprompts.
 
     Args:
         agent: The agent to check.
@@ -165,22 +163,26 @@ def get_meta_changespec_name(agent: Agent) -> str | None:
     if not step_output or not isinstance(step_output, dict):
         return None
 
-    # Check meta_new_cl: format is "full_cl_name (url)"
+    # New canonical path: meta_changespec contains the ChangeSpec name directly
+    meta_changespec = step_output.get("meta_changespec")
+    if meta_changespec:
+        return str(meta_changespec).strip()
+
+    # Legacy support: meta_new_cl format is "full_cl_name (url)"
     meta_new_cl = step_output.get("meta_new_cl")
     if meta_new_cl:
         value = str(meta_new_cl).strip()
-        # Parse out the URL part: "name (url)" → "name"
         paren_idx = value.rfind(" (")
         if paren_idx > 0:
             return value[:paren_idx].strip()
         return value
 
-    # Check meta_new_pr: PR URL — ChangeSpec name comes from meta_changespec
+    # Legacy support: meta_new_pr + meta_changespec
     meta_new_pr = step_output.get("meta_new_pr")
     if meta_new_pr:
-        meta_changespec = step_output.get("meta_changespec")
-        if meta_changespec:
-            return str(meta_changespec).strip()
+        meta_cs = step_output.get("meta_changespec")
+        if meta_cs:
+            return str(meta_cs).strip()
 
     return None
 

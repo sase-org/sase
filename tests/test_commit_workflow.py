@@ -1,5 +1,8 @@
 """Tests for the CommitWorkflow dispatch class."""
 
+import json
+import tempfile
+from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
@@ -250,3 +253,157 @@ class TestCommitWorkflowProperties:
     def test_description(self) -> None:
         wf = CommitWorkflow({}, "create_commit")
         assert "VCS" in wf.description
+
+
+class TestWriteResultMarker:
+    """Verify _write_result_marker writes correct marker file."""
+
+    def test_writes_marker_with_all_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug", "name": "feat-x"}
+            wf = CommitWorkflow(payload, "create_commit")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._write_result_marker("abc123", "proj_feat_1")
+
+            marker_path = Path(tmpdir) / "commit_result.json"
+            assert marker_path.exists()
+            data = json.loads(marker_path.read_text())
+            assert data == {
+                "method": "create_commit",
+                "result": "abc123",
+                "message": "fix: bug",
+                "name": "feat-x",
+                "changespec_name": "proj_feat_1",
+            }
+
+    def test_writes_none_values(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "test"}
+            wf = CommitWorkflow(payload, "create_proposal")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._write_result_marker(None, None)
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert data["result"] is None
+            assert data["changespec_name"] is None
+
+    def test_skips_when_no_artifacts_dir(self) -> None:
+        payload = {"message": "test"}
+        wf = CommitWorkflow(payload, "create_commit")
+        with patch.dict("os.environ", {}, clear=True):
+            # Should not raise
+            wf._write_result_marker("abc", None)
+
+
+class TestCreateChangespecReturn:
+    """Verify _create_changespec returns cs_name."""
+
+    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    def test_returns_cs_name_on_success(
+        self,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_cs: MagicMock,
+    ) -> None:
+        payload = {"name": "feat-x", "message": "add feature"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+        result = wf._create_changespec(cl_url="https://github.com/org/repo/pull/1")
+        assert result == "proj_feat_1"
+
+    @patch(_CHANGESPEC_TARGET, return_value=None)
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    def test_returns_none_when_no_commits(
+        self,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_cs: MagicMock,
+    ) -> None:
+        payload = {"name": "feat-x", "message": "test"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+        result = wf._create_changespec(cl_url=None)
+        assert result is None
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    def test_returns_none_when_no_project(self, mock_proj_name: MagicMock) -> None:
+        payload = {"name": "feat-x", "message": "test"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+        result = wf._create_changespec(cl_url=None)
+        assert result is None
+
+    @patch(_PROJECT_FILE_TARGET, side_effect=RuntimeError("boom"))
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    def test_returns_none_on_exception(
+        self,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+    ) -> None:
+        payload = {"name": "feat-x", "message": "test"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+        result = wf._create_changespec(cl_url=None)
+        assert result is None
+
+
+class TestGetMetaChangespecName:
+    """Verify get_meta_changespec_name with new and legacy variables."""
+
+    def _make_agent(self, step_output: dict | None) -> MagicMock:
+        agent = MagicMock()
+        agent.step_output = step_output
+        return agent
+
+    def test_meta_changespec_direct(self) -> None:
+        from sase.ace.tui.actions.agents._notification_actions import (
+            get_meta_changespec_name,
+        )
+
+        agent = self._make_agent({"meta_changespec": "proj_feat_1"})
+        assert get_meta_changespec_name(agent) == "proj_feat_1"
+
+    def test_meta_changespec_strips_whitespace(self) -> None:
+        from sase.ace.tui.actions.agents._notification_actions import (
+            get_meta_changespec_name,
+        )
+
+        agent = self._make_agent({"meta_changespec": "  proj_feat_1  "})
+        assert get_meta_changespec_name(agent) == "proj_feat_1"
+
+    def test_legacy_meta_new_cl(self) -> None:
+        from sase.ace.tui.actions.agents._notification_actions import (
+            get_meta_changespec_name,
+        )
+
+        agent = self._make_agent({"meta_new_cl": "proj_feat_1 (http://cl/123)"})
+        assert get_meta_changespec_name(agent) == "proj_feat_1"
+
+    def test_legacy_meta_new_pr_with_changespec(self) -> None:
+        from sase.ace.tui.actions.agents._notification_actions import (
+            get_meta_changespec_name,
+        )
+
+        agent = self._make_agent(
+            {
+                "meta_new_pr": "https://github.com/org/repo/pull/1",
+                "meta_changespec": "proj_feat_1",
+            }
+        )
+        # meta_changespec takes priority (new canonical path)
+        assert get_meta_changespec_name(agent) == "proj_feat_1"
+
+    def test_returns_none_for_empty_output(self) -> None:
+        from sase.ace.tui.actions.agents._notification_actions import (
+            get_meta_changespec_name,
+        )
+
+        agent = self._make_agent({})
+        assert get_meta_changespec_name(agent) is None
+
+    def test_returns_none_for_none_output(self) -> None:
+        from sase.ace.tui.actions.agents._notification_actions import (
+            get_meta_changespec_name,
+        )
+
+        agent = self._make_agent(None)
+        assert get_meta_changespec_name(agent) is None

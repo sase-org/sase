@@ -1,5 +1,6 @@
 """CommitWorkflow class for dispatching VCS commit operations."""
 
+import json
 import os
 
 from sase.output import print_status
@@ -58,12 +59,14 @@ class CommitWorkflow(BaseWorkflow):
 
         print_status(f"{self._method} completed successfully!", "success")
 
+        cs_name: str | None = None
         if self._method == "create_pull_request":
-            self._create_changespec(cl_url=result)
+            cs_name = self._create_changespec(cl_url=result)
 
+        self._write_result_marker(result, cs_name)
         return True
 
-    def _create_changespec(self, cl_url: str | None) -> None:
+    def _create_changespec(self, cl_url: str | None) -> str | None:
         """Best-effort ChangeSpec creation after a successful PR flow."""
         try:
             from sase.workflows.utils import (
@@ -79,7 +82,7 @@ class CommitWorkflow(BaseWorkflow):
                 print_status(
                     "Skipping ChangeSpec: could not detect project name.", "info"
                 )
-                return
+                return None
 
             project_file = get_project_file_path(project_name)
             branch_name = self._payload.get("name", "")
@@ -99,5 +102,26 @@ class CommitWorkflow(BaseWorkflow):
                 print_status(f"Created ChangeSpec: {cs_name}", "success")
             else:
                 print_status("Skipping ChangeSpec: no new commits detected.", "info")
+            return cs_name
         except Exception as exc:
             print_status(f"Skipping ChangeSpec: {exc}", "warning")
+            return None
+
+    def _write_result_marker(
+        self, result: str | None, changespec_name: str | None
+    ) -> None:
+        """Write commit result to a marker file for xprompt post-steps."""
+        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+        if not artifacts_dir:
+            return
+
+        marker = {
+            "method": self._method,
+            "result": result,
+            "message": self._payload.get("message", ""),
+            "name": self._payload.get("name", ""),
+            "changespec_name": changespec_name,
+        }
+        marker_path = os.path.join(artifacts_dir, "commit_result.json")
+        with open(marker_path, "w") as f:
+            json.dump(marker, f)
