@@ -1,0 +1,210 @@
+#!/bin/bash
+
+# Quality-check stop hook for the sase repo.
+# Runs formatting, linting, testing, pyvision, and pylimit.
+# This hook is sase-repo-specific and should NOT be configured for other projects.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# File patterns for conditional execution
+PYTHON_PATTERN='^(src/sase|tests)/.*\.py$'
+MD_PATTERN='\.md$'
+
+# Get list of uncommitted changed files (modified + untracked)
+function get_changed_files() {
+    {
+        git diff --name-only HEAD 2>/dev/null
+        git ls-files --others --exclude-standard 2>/dev/null
+    } | sort -u
+}
+
+# Check if any changed files match a pattern (reads from cached $CHANGED_FILES)
+function has_changes_matching() {
+    local pattern="$1"
+    echo "$CHANGED_FILES" | grep -qE "$pattern"
+}
+
+# Print the command we are about to run.
+function print_cmd_to_user() {
+    local group="$1"
+    local cmd="$2"
+    echo "[sase_core_stop_hook:${group}] Running \`$cmd\`..."
+}
+
+# Truncate command output to avoid blowing up the Claude Code context window.
+# When the stop hook returns exit code 2, stderr is injected into the
+# conversation. Large outputs (e.g., 3600+ pytest lines) can push the
+# conversation past the 200k-token limit, causing "Prompt is too long" errors.
+_MAX_ERROR_LINES=80
+function truncate_output() {
+    local output="$1"
+    local total_lines
+    total_lines=$(echo "$output" | wc -l)
+    if [ "$total_lines" -gt "$_MAX_ERROR_LINES" ]; then
+        local skipped=$((total_lines - _MAX_ERROR_LINES))
+        echo "[... truncated $skipped lines ...]"
+        echo "$output" | tail -n "$_MAX_ERROR_LINES"
+    else
+        echo "$output"
+    fi
+}
+
+# Detect Codex hook runtime.
+function is_codex_runtime() {
+    [ -n "$CODEX_THREAD_ID" ] || [ -n "$CODEX_CI" ]
+}
+
+# Emit a hook "block" response that works for both Codex and Claude.
+# - Codex: structured JSON on stdout + exit 0.
+# - Claude: message on stderr + exit 2.
+function emit_block() {
+    local reason="$1"
+    local details="${2:-}"
+
+    if is_codex_runtime; then
+        printf '{"decision":"block","reason":"%s"}\n' "$reason"
+        if [ -n "$details" ]; then
+            echo -e "$details" >&2
+        fi
+        return 0
+    fi
+
+    if [ -n "$details" ]; then
+        echo -e "$details" >&2
+    else
+        echo "$reason" >&2
+    fi
+    return 2
+}
+
+# Send notification for failures
+function send_failure_notification() {
+    local errors="$1"
+    local prefix="\[sase]"
+    local window
+    if [[ -n "$TMUX_PANE" ]]; then
+        window=$(tmux display-message -t "$TMUX_PANE" -p '#W' 2>/dev/null)
+        if [[ -n "$window" ]]; then
+            prefix="\[sase#${window}]"
+        fi
+    fi
+
+    if [[ "$(uname)" == "Darwin" ]]; then
+        terminal-notifier -title "${prefix} Quality Checks - FAILED" -message "$errors"
+    elif command -v notify-send &>/dev/null; then
+        notify-send "${prefix} Quality Checks - FAILED" "$errors"
+    fi
+}
+
+# Run quality checks conditionally based on changed files
+function run() {
+    cd "$PROJECT_DIR" || return 1
+
+    # Allow callers to disable this hook entirely
+    if [ -n "$SASE_DISABLE_CORE_STOP_HOOK" ]; then
+        return 0
+    fi
+
+    # Log that this hook ran
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_core_stop_hook ran" >>"$PROJECT_DIR/.claude/hooks.log"
+
+    # Cache changed files once (eliminates redundant git calls)
+    CHANGED_FILES="$(get_changed_files)"
+
+    # Check which types of files have changed
+    local has_python_changes=false
+    local has_md_changes=false
+
+    if has_changes_matching "$PYTHON_PATTERN"; then
+        has_python_changes=true
+    fi
+    if has_changes_matching "$MD_PATTERN"; then
+        has_md_changes=true
+    fi
+
+    # Auto-format changed files before running checks
+    if [ "$has_python_changes" = true ]; then
+        print_cmd_to_user "fmt" "just fmt-py"
+        just fmt-py 2>&1 || true
+    fi
+    if [ "$has_md_changes" = true ]; then
+        print_cmd_to_user "fmt" "just fmt-md"
+        just fmt-md 2>&1 || true
+    fi
+
+    # Re-cache changed files after formatting (formatting may have changed files)
+    CHANGED_FILES="$(get_changed_files)"
+
+    # Create temp directory for parallel job output
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    local pids=()
+
+    # Run Python linters and tests if Python files changed
+    if [ "$has_python_changes" = true ]; then
+        (
+            local errors=""
+            local output
+
+            print_cmd_to_user "python" "just lint"
+            if ! output=$(just lint 2>&1); then
+                errors+="just lint FAILED:\n$(truncate_output "$output")\n\n"
+            fi
+
+            # Run python tests (can take 60+ seconds)
+            print_cmd_to_user "python" "just test"
+            if ! output=$(timeout 120 just test 2>&1); then
+                local exit_code=$?
+                if [ $exit_code -eq 124 ]; then
+                    errors+="just test TIMED OUT after 120 seconds\n\n"
+                else
+                    errors+="just test FAILED:\n$(truncate_output "$output")\n\n"
+                fi
+            fi
+
+            print_cmd_to_user "python" "just pyvision"
+            if ! output=$(just pyvision 2>&1); then
+                errors+="just pyvision FAILED:\n$(truncate_output "$output")\n\n"
+            fi
+
+            print_cmd_to_user "python" "just pylimit"
+            if ! output=$(just pylimit 2>&1); then
+                errors+="just pylimit FAILED:\n$(truncate_output "$output")\n\n"
+            fi
+
+            if [ -n "$errors" ]; then
+                printf '%s' "$errors" >"$tmpdir/python_errors"
+            fi
+        ) &
+        pids+=($!)
+    fi
+
+    # Wait for all background jobs to complete
+    for pid in "${pids[@]}"; do
+        wait "$pid"
+    done
+
+    # Collect errors from all groups
+    local errors=""
+    for f in "$tmpdir"/python_errors; do
+        if [ -f "$f" ]; then
+            errors+="$(cat "$f")"
+        fi
+    done
+
+    # If any errors occurred, block and report
+    if [ -n "$errors" ]; then
+        send_failure_notification "$errors"
+        emit_block \
+            "Stop hook blocked: quality checks failed. Fix failures." \
+            "$errors"
+        return $?
+    fi
+
+    return 0
+}
+
+run "$@"

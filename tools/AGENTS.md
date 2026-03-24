@@ -28,9 +28,17 @@ said, there are a few exceptions:
   `--exclude-decorator <name>` option. This can be repeated for multiple decorator names. The decorator is matched by
   its simple name (e.g. `--exclude-decorator hook` matches `@hook`, `@hook(...)`, and `@hook.sub`).
 
+## `sase_core_stop_hook`
+
+Quality-check stop hook for the sase repo only. Runs auto-formatting (`just fmt-py`, `just fmt-md`), linting
+(`just lint`), testing (`just test`), pyvision, and pylimit. Blocks the agent if any checks fail.
+
 ## `sase_commit_stop_hook`
 
-Stop hook with quality checks (formatting, linting, testing, commit prompts, sibling repo checks).
+Commit-orchestration stop hook. When `$SASE_COMMIT_METHOD` is set (i.e. inside a commit xprompt workflow like `#commit`,
+`#propose`, or `#pr`), detects uncommitted changes and instructs the agent to use the appropriate `/sase_git_commit` or
+`/sase_hg_commit` skill. Also checks sibling repos for uncommitted changes. Blocks only once per session via a marker
+file.
 
 ## `sase_bead`
 

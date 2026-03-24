@@ -1,12 +1,26 @@
 #!/bin/bash
 
-# Directory containing this script (the bin/ directory)
+# Commit-orchestration stop hook.
+# When $SASE_COMMIT_METHOD is set (i.e. we are inside a commit xprompt workflow),
+# detects uncommitted changes and instructs the agent to use the appropriate
+# /sase_<vcs>_commit skill. Blocks only once per session via a marker file.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# File patterns for conditional execution
-PYTHON_PATTERN='^(src/sase|tests)/.*\.py$'
-MD_PATTERN='\.md$'
+# --- Early exits ---
+
+# Not inside a commit workflow — nothing to do.
+if [ -z "$SASE_COMMIT_METHOD" ]; then
+    exit 0
+fi
+
+# Allow callers to disable this hook entirely (e.g. Gemini CLI)
+if [ -n "$SASE_DISABLE_COMMIT_STOP_HOOK" ]; then
+    exit 0
+fi
+
+# --- Helper functions ---
 
 # Get list of uncommitted changed files (modified + untracked)
 function get_changed_files() {
@@ -14,37 +28,6 @@ function get_changed_files() {
         git diff --name-only HEAD 2>/dev/null
         git ls-files --others --exclude-standard 2>/dev/null
     } | sort -u
-}
-
-# Check if any changed files match a pattern (reads from cached $CHANGED_FILES)
-function has_changes_matching() {
-    local pattern="$1"
-    echo "$CHANGED_FILES" | grep -qE "$pattern"
-}
-
-# Print the command we are about to run.
-function print_cmd_to_user() {
-    local group="$1"
-    local cmd="$2"
-    echo "[sase_commit_stop_hook:${group}] Running \`$cmd\`..."
-}
-
-# Truncate command output to avoid blowing up the Claude Code context window.
-# When the stop hook returns exit code 2, stderr is injected into the
-# conversation. Large outputs (e.g., 3600+ pytest lines) can push the
-# conversation past the 200k-token limit, causing "Prompt is too long" errors.
-_MAX_ERROR_LINES=80
-function truncate_output() {
-    local output="$1"
-    local total_lines
-    total_lines=$(echo "$output" | wc -l)
-    if [ "$total_lines" -gt "$_MAX_ERROR_LINES" ]; then
-        local skipped=$((total_lines - _MAX_ERROR_LINES))
-        echo "[... truncated $skipped lines ...]"
-        echo "$output" | tail -n "$_MAX_ERROR_LINES"
-    else
-        echo "$output"
-    fi
 }
 
 # Detect Codex hook runtime.
@@ -75,19 +58,30 @@ function emit_block() {
     return 2
 }
 
-# Send Mac notification for failures
-function send_failure_notification() {
-    local errors="$1"
-    local prefix="\[sase]"
-    local window
-    if [[ -n "$TMUX_PANE" ]]; then
-        window=$(tmux display-message -t "$TMUX_PANE" -p '#W' 2>/dev/null)
-        if [[ -n "$window" ]]; then
-            prefix="\[sase#${window}]"
+# Map $SASE_VCS_PROVIDER to the correct commit skill name.
+function resolve_commit_skill() {
+    local provider="${SASE_VCS_PROVIDER:-}"
+
+    # If not set, try auto-detection
+    if [ -z "$provider" ]; then
+        if [ -d .hg ]; then
+            provider="hg"
+        else
+            provider="git"
         fi
     fi
 
-    terminal-notifier -title "${prefix} Stop Hook - FAILED" -message "$errors"
+    case "$provider" in
+        github | bare_git | git)
+            echo "/sase_git_commit"
+            ;;
+        hg | google)
+            echo "/sase_hg_commit"
+            ;;
+        *)
+            echo "/sase_git_commit"
+            ;;
+    esac
 }
 
 # Check sibling sase-* repos for uncommitted changes
@@ -115,118 +109,42 @@ function check_sibling_repos() {
     return 0
 }
 
-# Run quality checks conditionally based on changed files
+# --- Main ---
+
 function run() {
     cd "$PROJECT_DIR" || return 1
 
-    # Allow callers to disable this hook entirely (e.g. Gemini CLI)
-    if [ -n "$SASE_DISABLE_COMMIT_STOP_HOOK" ]; then
+    # Log that this hook ran
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran (method=$SASE_COMMIT_METHOD)" >>"$PROJECT_DIR/.claude/hooks.log"
+
+    # Session-unique marker file for deduplication (block only once per cycle)
+    if [ -n "$TMUX_PANE" ]; then
+        TMUX_PANE_ID="${TMUX_PANE//[%]/}"
+    else
+        TMUX_PANE_ID="default"
+    fi
+    local marker_file="/tmp/sase_commit_stop_hook_${TMUX_PANE_ID}"
+
+    # If marker file exists from a previous block, clear it and skip
+    if [ -f "$marker_file" ]; then
+        rm -f "$marker_file"
         return 0
     fi
 
-    # Log that this hook ran
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran" >>"$PROJECT_DIR/.claude/hooks.log"
+    # Check for uncommitted changes in the main repo
+    local changed_files
+    changed_files="$(get_changed_files)"
 
-    # Cache changed files once (eliminates redundant git calls)
-    CHANGED_FILES="$(get_changed_files)"
+    if echo "$changed_files" | grep -q .; then
+        local skill
+        skill="$(resolve_commit_skill)"
 
-    # Check which types of files have changed
-    local has_python_changes=false
-    local has_md_changes=false
+        # Create marker so we only block once per cycle
+        touch "$marker_file"
 
-    if has_changes_matching "$PYTHON_PATTERN"; then
-        has_python_changes=true
-    fi
-    if has_changes_matching "$MD_PATTERN"; then
-        has_md_changes=true
-    fi
-
-    # Auto-format changed files before running checks
-    if [ "$has_python_changes" = true ]; then
-        print_cmd_to_user "fmt" "just fmt-py"
-        just fmt-py 2>&1 || true
-    fi
-    if [ "$has_md_changes" = true ]; then
-        print_cmd_to_user "fmt" "just fmt-md"
-        just fmt-md 2>&1 || true
-    fi
-
-    # Re-cache changed files after formatting (formatting may have changed files)
-    CHANGED_FILES="$(get_changed_files)"
-
-    # Create temp directory for parallel job output
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' RETURN
-
-    local pids=()
-
-    # Run Python linters and tests if Python files changed
-    if [ "$has_python_changes" = true ]; then
-        (
-            local errors=""
-            local output
-
-            print_cmd_to_user "python" "just lint"
-            if ! output=$(just lint 2>&1); then
-                errors+="just lint FAILED:\n$(truncate_output "$output")\n\n"
-            fi
-
-            # Run python tests (can take 60+ seconds)
-            print_cmd_to_user "python" "just test"
-            if ! output=$(timeout 120 just test 2>&1); then
-                local exit_code=$?
-                if [ $exit_code -eq 124 ]; then
-                    errors+="just test TIMED OUT after 120 seconds\n\n"
-                else
-                    errors+="just test FAILED:\n$(truncate_output "$output")\n\n"
-                fi
-            fi
-
-            print_cmd_to_user "python" "just pyvision"
-            if ! output=$(just pyvision 2>&1); then
-                errors+="just pyvision FAILED:\n$(truncate_output "$output")\n\n"
-            fi
-
-            print_cmd_to_user "python" "just pylimit"
-            if ! output=$(just pylimit 2>&1); then
-                errors+="just pylimit FAILED:\n$(truncate_output "$output")\n\n"
-            fi
-
-            if [ -n "$errors" ]; then
-                printf '%s' "$errors" >"$tmpdir/python_errors"
-            fi
-        ) &
-        pids+=($!)
-    fi
-
-    # Wait for all background jobs to complete
-    for pid in "${pids[@]}"; do
-        wait "$pid"
-    done
-
-    # Collect errors from all groups
-    local errors=""
-    for f in "$tmpdir"/python_errors; do
-        if [ -f "$f" ]; then
-            errors+="$(cat "$f")"
-        fi
-    done
-
-    # If any errors occurred, block and report
-    if [ -n "$errors" ]; then
-        send_failure_notification "$errors"
         emit_block \
-            "Stop hook blocked: quality checks failed. Fix failures, then run /commit." \
-            "$errors"
-        return $?
-    fi
-
-    # Check if there are any uncommitted changes (uses cached file list)
-    if echo "$CHANGED_FILES" | grep -q .; then
-        emit_block \
-            "Stop hook blocked: uncommitted changes remain. Run /commit now." \
-            "All checks passed, but uncommitted changes are still present:\n$CHANGED_FILES\nUse your /commit skill to commit these changes now before continuing."
+            "Stop hook blocked: uncommitted changes remain. Run ${skill} now." \
+            "Uncommitted changes detected:\n${changed_files}\n\nUse your ${skill} skill to commit these changes now."
         return $?
     fi
 
