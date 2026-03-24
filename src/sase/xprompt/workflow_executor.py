@@ -96,6 +96,19 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             start_time=datetime.now().isoformat(),
         )
 
+    def _inject_environment(self) -> None:
+        """Inject workflow environment variables into os.environ.
+
+        Values are rendered as Jinja2 templates with the workflow's input args
+        as context. Existing env vars are overwritten (workflow config takes
+        precedence).
+        """
+        from sase.xprompt.workflow_executor_utils import render_template
+
+        for key, value_template in self.workflow.environment.items():
+            rendered = render_template(value_template, self.context)
+            os.environ[key] = rendered
+
     def _should_hitl(self, step: WorkflowStep) -> bool:
         """Determine whether HITL review is required for a step.
 
@@ -178,6 +191,11 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             True if workflow completed successfully, False otherwise.
         """
         self._save_state()
+
+        # Inject workflow environment variables before any steps run
+        if self.workflow.environment:
+            self._inject_environment()
+
         total_steps = len(self.workflow.steps)
         has_finally_steps = any(s.finally_ for s in self.workflow.steps)
 

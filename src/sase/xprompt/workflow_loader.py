@@ -119,6 +119,7 @@ def _namespace_workflow(project: str, wf: Workflow) -> Workflow:
         xprompts=wf.xprompts,
         wraps_all=wf.wraps_all,
         tags=wf.tags,
+        environment=wf.environment,
     )
 
 
@@ -165,6 +166,12 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
         if isinstance(xprompts_data, dict)
         else {}
     )
+
+    # Parse environment
+    environment_data = data.get("environment")
+    environment: dict[str, str] = {}
+    if isinstance(environment_data, dict):
+        environment = {str(k): str(v) for k, v in environment_data.items()}
 
     # Parse steps
     steps_data = data.get("steps", [])
@@ -220,6 +227,7 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
         xprompts=parsed_xprompts,
         wraps_all=wraps_all,
         tags=tags,
+        environment=environment,
     )
 
     # Validate variable usage
@@ -370,6 +378,7 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
                         xprompts=workflow.xprompts,
                         wraps_all=workflow.wraps_all,
                         tags=workflow.tags,
+                        environment=workflow.environment,
                     )
             finally:
                 tmp_path.unlink(missing_ok=True)

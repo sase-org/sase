@@ -39,6 +39,13 @@
       "description": "If true, this workflow's pre-steps run before all other embedded workflows and post-steps run after all others. Used for workspace setup/teardown workflows.",
       "default": false
     },
+    "environment": {
+      "type": "object",
+      "description": "Environment variables to set at workflow start. Keys are variable names, values are strings (supporting Jinja2 templates rendered against input args). Set once before any steps run and persist for the entire agent session.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "input": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [

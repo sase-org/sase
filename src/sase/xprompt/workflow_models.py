@@ -125,6 +125,10 @@ class Workflow:
         wraps_all: If True, this workflow's pre-steps run before all other embedded
             workflows' pre-steps and its post-steps run after all others. Used for
             workspace setup/teardown workflows like #git, #gh, #hg.
+        environment: Environment variables to set at workflow start. Keys are
+            variable names, values are strings (supporting Jinja2 templates
+            rendered against input args). Set once before any steps run and
+            persist for the entire agent session.
     """
 
     name: str
@@ -134,6 +138,7 @@ class Workflow:
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
     wraps_all: bool = False  # Deprecated: use tags: vcs instead
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
+    environment: dict[str, str] = field(default_factory=dict)
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""
