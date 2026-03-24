@@ -63,7 +63,7 @@ mentor_profiles:
 
   - profile_name: testing
     mentors:
-      - mentor_name: test_quality
+      - mentor_name: testing
         role: "testing practices reviewer who ensures code changes are backed by meaningful, thorough tests"
         focus_areas:
           - focus_name: missing_test_coverage
