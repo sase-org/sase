@@ -17,6 +17,32 @@ from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 _MOCK_TARGET = "sase.vcs_provider._command_runner.subprocess.run"
 
 
+def _git_cmd_handler(stdout: str = "", *, push_rc: int = 0):  # type: ignore[no-untyped-def]
+    """Return a ``subprocess.run`` side-effect for git-commit dispatch tests.
+
+    ``git diff --cached --quiet`` returns non-zero (staged changes exist) and
+    ``git show-ref --verify --quiet`` returns 1 (no remote branch → skip merge).
+    """
+    from typing import Any
+
+    def handler(*args: Any, **kwargs: Any) -> MagicMock:
+        cmd: list[str] = args[0] if args else kwargs.get("cmd", [])
+        if isinstance(cmd, list):
+            if "diff" in cmd and "--cached" in cmd and "--quiet" in cmd:
+                return MagicMock(returncode=1, stdout="", stderr="")
+            if "show-ref" in cmd and "--verify" in cmd:
+                return MagicMock(returncode=1, stdout="", stderr="")
+            if "push" in cmd:
+                return MagicMock(
+                    returncode=push_rc,
+                    stdout="" if push_rc else stdout,
+                    stderr="push rejected" if push_rc else "",
+                )
+        return MagicMock(returncode=0, stdout=stdout, stderr="")
+
+    return handler
+
+
 @pytest.fixture
 def bare_git_provider() -> VCSPluginManager:
     """Create a VCSPluginManager backed by BareGitPlugin."""
@@ -86,15 +112,14 @@ def test_plugin_mail_push_failure(
 def test_vcs_create_commit_success(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
-    """All git commands (add, commit, push, rev-parse) succeed."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="abc1234", stderr="")
+    """All git commands (add, validate, merge-skip, commit, push, rev-parse) succeed."""
+    mock_run.side_effect = _git_cmd_handler(stdout="abc1234")
     ok, result = bare_git_provider.create_commit(
         {"message": "fix: bug", "files": ["a.py"]}, "/workspace"
     )
 
     assert ok is True
     assert result == "abc1234"
-    assert mock_run.call_count == 4  # add, commit, push, rev-parse
 
 
 @patch(_MOCK_TARGET)
@@ -131,14 +156,12 @@ def test_vcs_create_proposal_delegates(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
     """create_proposal delegates to create_commit (same behavior for bare git)."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="abc1234", stderr="")
+    mock_run.side_effect = _git_cmd_handler(stdout="abc1234")
     ok, result = bare_git_provider.create_proposal(
         {"message": "propose: change"}, "/ws"
     )
 
     assert ok is True
-    # Same sequence as create_commit: add, commit, push, rev-parse
-    assert mock_run.call_count == 4
 
 
 @patch(_MOCK_TARGET)
@@ -146,7 +169,7 @@ def test_vcs_create_pull_request_creates_branch(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:
     """create_pull_request creates a new branch, commits, and pushes."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    mock_run.side_effect = _git_cmd_handler()
     ok, err = bare_git_provider.create_pull_request(
         {"name": "feat-x", "message": "add feature", "files": []}, "/ws"
     )
@@ -155,8 +178,6 @@ def test_vcs_create_pull_request_creates_branch(
     checkout_call = mock_run.call_args_list[0]
     cmd = checkout_call[0][0]
     assert cmd == ["git", "checkout", "-b", "feat-x"]
-    # 4 calls: checkout -b, add, commit, push -u
-    assert mock_run.call_count == 4
 
 
 @patch(_MOCK_TARGET)

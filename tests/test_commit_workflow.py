@@ -10,9 +10,17 @@ import pytest
 from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
+_CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
 _CHANGESPEC_TARGET = "sase.workspace_provider.changespec.create_changespec_for_workflow"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 _PROJECT_FILE_TARGET = "sase.workflows.utils.get_project_file_path"
+
+
+@pytest.fixture(autouse=True)
+def _no_precommit():  # type: ignore[no-untyped-def]
+    """Prevent precommit commands from running in tests."""
+    with patch(_CONFIG_TARGET, return_value={"precommit_command": ""}):
+        yield
 
 
 @pytest.fixture
@@ -273,6 +281,7 @@ class TestWriteResultMarker:
                 "result": "abc123",
                 "message": "fix: bug",
                 "name": "feat-x",
+                "bead_id": "",
                 "changespec_name": "proj_feat_1",
             }
 

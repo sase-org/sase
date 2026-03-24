@@ -2,7 +2,9 @@
 
 import json
 import os
+import subprocess
 
+from sase.config.core import load_merged_config
 from sase.output import print_status
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
@@ -48,6 +50,17 @@ class CommitWorkflow(BaseWorkflow):
             return False
 
         cwd = os.getcwd()
+
+        # Run precommit command (e.g. `just fix`) before any VCS operations
+        if not self._run_precommit(cwd):
+            return False
+
+        # Bead lifecycle: close, sync, inject ID into commit message
+        self._handle_beads(cwd)
+
+        # SASE_PLAN: append PLAN= to message and mark plan as done
+        self._handle_sase_plan(cwd)
+
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)
 
@@ -65,6 +78,97 @@ class CommitWorkflow(BaseWorkflow):
 
         self._write_result_marker(result, cs_name)
         return True
+
+    def _run_precommit(self, cwd: str) -> bool:
+        """Run the precommit_command from config, if configured."""
+        config = load_merged_config()
+        cmd = config.get("precommit_command", "")
+        if not cmd:
+            return True
+        print_status(f"Running precommit command: {cmd}", "progress")
+        result = subprocess.run(
+            cmd, shell=True, cwd=cwd, check=False, capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            print_status(
+                f"Precommit command failed (exit {result.returncode}): {cmd}",
+                "error",
+            )
+            return False
+        return True
+
+    def _handle_beads(self, cwd: str) -> None:
+        """Close and sync beads, inject bead ID into commit message."""
+        bead_id = self._payload.get("bead_id")
+        has_bead_dir = os.path.isdir(os.path.join(cwd, ".sase_beads")) or os.path.isdir(
+            os.path.join(cwd, ".beads")
+        )
+
+        if bead_id:
+            # Close bead (best effort)
+            print_status(f"Closing bead {bead_id}...", "progress")
+            subprocess.run(
+                ["sase", "bead", "close", bead_id],
+                cwd=cwd,
+                capture_output=True,
+                check=False,
+            )
+            # Inject bead ID into commit message headline
+            message = self._payload.get("message", "")
+            if f"({bead_id})" not in message:
+                first_line, sep, rest = message.partition("\n")
+                self._payload["message"] = f"{first_line} ({bead_id}){sep}{rest}"
+
+        if bead_id or has_bead_dir:
+            # Sync beads (best effort)
+            subprocess.run(
+                ["sase", "bead", "sync"],
+                cwd=cwd,
+                capture_output=True,
+                check=False,
+            )
+
+    def _handle_sase_plan(self, cwd: str) -> None:
+        """Append PLAN= to commit message and mark plan as done."""
+        plan_path = os.environ.get("SASE_PLAN", "")
+        if not plan_path or not os.path.isfile(plan_path):
+            return
+
+        # Compute repo-root-relative path
+        repo_root = ""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                check=False,
+            )
+            if result.returncode == 0:
+                repo_root = result.stdout.strip()
+        except Exception:
+            pass
+
+        if repo_root and plan_path.startswith(repo_root + "/"):
+            plan_rel = plan_path[len(repo_root) + 1 :]
+        elif os.path.isfile(plan_path):
+            plan_rel = f".sase/sdd/plans/{os.path.basename(plan_path)}"
+        else:
+            plan_rel = f"plans/{os.path.basename(plan_path)}"
+
+        # Append PLAN= to commit message
+        message = self._payload.get("message", "")
+        self._payload["message"] = f"{message}\n\nPLAN={plan_rel}"
+
+        # Mark plan as done
+        subprocess.run(
+            ["sed", "-i", "s/^status: wip$/status: done/", plan_path],
+            check=False,
+            capture_output=True,
+        )
+
+        # Record plan file for VCS provider to stage
+        self._payload["_plan_path"] = plan_path
 
     def _create_changespec(self, cl_url: str | None) -> str | None:
         """Best-effort ChangeSpec creation after a successful PR flow."""
@@ -120,6 +224,7 @@ class CommitWorkflow(BaseWorkflow):
             "result": result,
             "message": self._payload.get("message", ""),
             "name": self._payload.get("name", ""),
+            "bead_id": self._payload.get("bead_id", ""),
             "changespec_name": changespec_name,
         }
         marker_path = os.path.join(artifacts_dir, "commit_result.json")
