@@ -13,7 +13,6 @@ Output file will contain:
     - Completion marker: ===WORKFLOW_COMPLETE=== PROPOSAL_ID: <id> EXIT_CODE: <code>
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -181,10 +180,6 @@ def main() -> int:
         history_ref = f"({last_history_id})" if last_history_id else ""
         display_command = contract_test_target_command(run_hook_command)
         who = f"fix-hook {history_ref} {display_command}"
-
-        # Inject environment variables that embedded workflow post-steps need.
-        os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
-        os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
 
         # Execute post-steps from embedded workflows (proposal creation via #propose)
         for ewf_result in post_workflows:
