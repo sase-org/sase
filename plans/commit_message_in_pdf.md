@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-24 17:36:58
-status: wip
+status: done
 ---
 
 # Plan: Include Commit Message in Telegram PDF

@@ -149,6 +149,7 @@ def main() -> None:
     duration = "0s"
     saved_path: str | None = None
     diff_path: str | None = None
+    step_output: dict[str, Any] | None = None
     error_summary: str | None = None
     error_traceback_str: str | None = None
 
@@ -302,6 +303,7 @@ def main() -> None:
             saved_path = exec_result.saved_path
             diff_path = exec_result.diff_path
             current_artifacts_dir = exec_result.current_artifacts_dir
+            step_output = exec_result.step_output
 
         except Exception as e:
             print(f"Error running agent: {e}", file=sys.stderr)
@@ -455,6 +457,8 @@ def main() -> None:
 
             # For failures with an error report, use ViewErrorReport action
             # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
+            commit_message = (step_output or {}).get("meta_commit_message")
+
             if not success and error_report_path:
                 action = "ViewErrorReport"
                 action_data: dict[str, str] = {
@@ -462,6 +466,7 @@ def main() -> None:
                     "cl_name": cl_name,
                     "raw_suffix": artifacts_timestamp,
                     **({"agent_name": agent_name} if agent_name else {}),
+                    **({"commit_message": commit_message} if commit_message else {}),
                 }
             else:
                 action = "JumpToAgent"
@@ -476,6 +481,7 @@ def main() -> None:
                         else {}
                     ),
                     "prompt": prompt,
+                    **({"commit_message": commit_message} if commit_message else {}),
                 }
 
             notify_workflow_complete(

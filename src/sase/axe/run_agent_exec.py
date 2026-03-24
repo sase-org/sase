@@ -72,6 +72,7 @@ class _AgentExecResult:
     saved_path: str | None = None
     diff_path: str | None = None
     current_artifacts_dir: str = ""
+    step_output: dict[str, Any] | None = None
 
 
 def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
@@ -548,6 +549,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
 
     saved_path: str | None = None
     diff_path: str | None = None
+    step_output: dict[str, Any] | None = None
 
     if loop_outcome == "completed":
         assert result is not None
@@ -633,4 +635,5 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
         saved_path=saved_path,
         diff_path=diff_path,
         current_artifacts_dir=current_artifacts_dir,
+        step_output=step_output,
     )
