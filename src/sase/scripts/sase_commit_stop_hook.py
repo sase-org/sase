@@ -93,7 +93,7 @@ def _normalize_provider(provider: str | None) -> str:
 def _build_name_instruction() -> str | None:
     sase_name = os.environ.get("SASE_PR_NAME")
     sase_pr_name_is_set = True
-    if not sase_name:
+    if not sase_name or sase_name == "None":
         sase_name = "<name>"
         sase_pr_name_is_set = False
     project_file = os.environ.get("SASE_AGENT_PROJECT_FILE", "")
@@ -229,9 +229,7 @@ def main() -> int:
     runtime = (
         "gemini"
         if _is_gemini_runtime()
-        else "codex"
-        if _is_codex_runtime()
-        else "claude"
+        else "codex" if _is_codex_runtime() else "claude"
     )
     commit_method = os.environ.get("SASE_COMMIT_METHOD", "")
 
