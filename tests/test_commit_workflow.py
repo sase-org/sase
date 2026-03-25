@@ -94,10 +94,15 @@ class TestCommitWorkflowChangeSpec:
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    @patch(
+        "sase.workflows.commit.changespec_operations.compute_suffixed_cl_name",
+        return_value="feat-x_1",
+    )
     @patch(_PROVIDER_TARGET)
     def test_creates_changespec_on_pr_success(
         self,
         mock_get: MagicMock,
+        mock_suffix: MagicMock,
         mock_proj_name: MagicMock,
         mock_proj_file: MagicMock,
         mock_cs: MagicMock,
@@ -116,11 +121,13 @@ class TestCommitWorkflowChangeSpec:
             project_name="proj",
             project_file="/fake/proj.gp",
             checkout_target="HEAD~1",
-            branch_name="feat-x",
+            branch_name="feat-x_1",
             prompt="",
             response="",
             workflow_name="sase_commit",
             cl_url="https://github.com/org/repo/pull/1",
+            cl_name="feat-x",
+            commit_description="add feature",
         )
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
@@ -318,6 +325,7 @@ class TestCreateChangespecReturn:
     ) -> None:
         payload = {"name": "feat-x", "message": "add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
+        wf._base_cl_name = "feat-x"
         result = wf._create_changespec(cl_url="https://github.com/org/repo/pull/1")
         assert result == "proj_feat_1"
 
@@ -332,6 +340,7 @@ class TestCreateChangespecReturn:
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
         wf = CommitWorkflow(payload, "create_pull_request")
+        wf._base_cl_name = "feat-x"
         result = wf._create_changespec(cl_url=None)
         assert result is None
 
@@ -339,6 +348,7 @@ class TestCreateChangespecReturn:
     def test_returns_none_when_no_project(self, mock_proj_name: MagicMock) -> None:
         payload = {"name": "feat-x", "message": "test"}
         wf = CommitWorkflow(payload, "create_pull_request")
+        wf._base_cl_name = "feat-x"
         result = wf._create_changespec(cl_url=None)
         assert result is None
 
@@ -351,6 +361,7 @@ class TestCreateChangespecReturn:
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
         wf = CommitWorkflow(payload, "create_pull_request")
+        wf._base_cl_name = "feat-x"
         result = wf._create_changespec(cl_url=None)
         assert result is None
 
