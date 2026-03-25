@@ -5,12 +5,33 @@
 # detects uncommitted changes and instructs the agent to use the appropriate
 # /sase_<vcs>_commit skill. Blocks only once per session via a marker file.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+function resolve_project_dir() {
+    local candidate=""
+
+    for candidate in \
+        "${CLAUDE_PROJECT_DIR:-}" \
+        "${GEMINI_PROJECT_DIR:-}" \
+        "${CODEX_PROJECT_DIR:-}"
+    do
+        if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    if git rev-parse --show-toplevel >/dev/null 2>&1; then
+        git rev-parse --show-toplevel
+        return 0
+    fi
+
+    pwd
+}
+
+PROJECT_DIR="$(resolve_project_dir)"
 
 # --- Early exits ---
 
-# Not inside a commit workflow — nothing to do.
+# Not inside a commit workflow; nothing to do.
 if [ -z "$SASE_COMMIT_METHOD" ]; then
     exit 0
 fi
@@ -116,8 +137,10 @@ function check_sibling_repos() {
 function run() {
     cd "$PROJECT_DIR" || return 1
 
-    # Log that this hook ran
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran (method=$SASE_COMMIT_METHOD)" >>"$PROJECT_DIR/.claude/hooks.log"
+    # Log that this hook ran when repo-local Claude log dir is available.
+    if [ -d "$PROJECT_DIR/.claude" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] sase_commit_stop_hook ran (method=$SASE_COMMIT_METHOD)" >>"$PROJECT_DIR/.claude/hooks.log"
+    fi
 
     # Session-unique marker file for deduplication (block only once per cycle)
     if [ -n "$TMUX_PANE" ]; then
@@ -150,7 +173,7 @@ function run() {
         return $?
     fi
 
-    # No main repo changes — check sibling repos
+    # No main repo changes; check sibling repos
     check_sibling_repos
     return $?
 }

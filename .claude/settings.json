@@ -14,7 +14,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/tools/sase_commit_stop_hook",
+            "command": "sase_commit_stop_hook",
             "timeout": 60
           }
         ]
