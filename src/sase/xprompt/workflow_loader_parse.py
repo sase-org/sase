@@ -159,10 +159,6 @@ def _parse_workflow_step(
 
     # Validate prompt_part step restrictions
     if prompt_part is not None:
-        if condition:
-            raise WorkflowValidationError(
-                f"Step '{name}' with 'prompt_part' cannot have 'if' condition"
-            )
         if for_loop or repeat_data or while_data:
             raise WorkflowValidationError(
                 f"Step '{name}' with 'prompt_part' cannot have "

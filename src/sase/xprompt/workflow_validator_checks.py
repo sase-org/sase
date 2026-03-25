@@ -41,7 +41,7 @@ def validate_prompt_part_steps(workflow: Workflow) -> list[str]:
 
     Validates:
     - At most one prompt_part step per workflow
-    - prompt_part steps cannot have control flow (if, for, repeat, while)
+    - prompt_part steps cannot have loop control flow (for, repeat, while)
     - prompt_part steps cannot have output specification
     - prompt_part steps cannot have hitl: true
 
@@ -60,11 +60,7 @@ def validate_prompt_part_steps(workflow: Workflow) -> list[str]:
 
         prompt_part_count += 1
 
-        # Validate no control flow
-        if step.condition:
-            errors.append(
-                f"Step '{step.name}' with 'prompt_part' cannot have 'if' condition"
-            )
+        # Validate no loop control flow (if: is allowed)
         if step.for_loop:
             errors.append(
                 f"Step '{step.name}' with 'prompt_part' cannot have 'for' loop"

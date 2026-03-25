@@ -503,8 +503,23 @@ class EmbeddedWorkflowMixin:
                     rendered = render_template(value_template, p.embedded_context)
                     os.environ[key] = rendered
 
-            # Render prompt_part
-            prompt_part_content = p.workflow.get_prompt_part_content()
+            # Render prompt_part (respecting if: condition)
+            prompt_part_idx = p.workflow.get_prompt_part_index()
+            prompt_part_step = (
+                p.workflow.steps[prompt_part_idx]
+                if prompt_part_idx is not None
+                else None
+            )
+            prompt_part_content = ""
+            if prompt_part_step and prompt_part_step.condition:
+                rendered_cond = render_template(
+                    prompt_part_step.condition, p.embedded_context
+                )
+                cond_str = rendered_cond.strip().lower()
+                if cond_str not in ("", "false", "none", "0", "[]", "{}"):
+                    prompt_part_content = prompt_part_step.prompt_part or ""
+            else:
+                prompt_part_content = p.workflow.get_prompt_part_content()
             if prompt_part_content:
                 prompt_part_content = render_template(
                     prompt_part_content, p.embedded_context

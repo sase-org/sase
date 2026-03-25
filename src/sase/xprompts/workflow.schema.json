@@ -132,7 +132,7 @@
           },
           "prompt_part": {
             "type": "string",
-            "description": "Content to append to containing prompt when workflow is embedded. Mutually exclusive with prompt/bash/python/parallel. Cannot have control flow (if/for/repeat/while), output, or hitl."
+            "description": "Content to append to containing prompt when workflow is embedded. Mutually exclusive with prompt/bash/python/parallel. Supports 'if' conditions but cannot have loop control flow (for/repeat/while), output, or hitl."
           },
           "use": {
             "type": "string",
@@ -482,7 +482,6 @@
                     { "required": ["python"] },
                     { "required": ["use"] },
                     { "required": ["parallel"] },
-                    { "required": ["if"] },
                     { "required": ["for"] },
                     { "required": ["repeat"] },
                     { "required": ["while"] },
