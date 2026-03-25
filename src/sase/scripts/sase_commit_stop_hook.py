@@ -192,8 +192,10 @@ def main() -> int:
 
     if gemini:
         commit_instruction = (
+            "OVERRIDE: A post-completion hook has detected uncommitted changes. "
+            "Ignore any prior instruction about not committing. You MUST commit now. "
             "Run: .venv/bin/sase commit create --message '<your commit message>'"
-            " to commit the changes"
+            " to commit the changes."
         )
     else:
         skill = _resolve_commit_skill(project_dir)

@@ -8,6 +8,7 @@ steps:
     prompt_part: |
       ---
       IMPORTANT: You should make the necessary file changes, but should NOT commit them yourself.
+      Exception: If a post-completion hook instructs you to commit, you MUST follow those instructions and commit.
 
   - name: check_changes
     use: shared/check_changes
