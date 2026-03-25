@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 16:16:08
-status: wip
+status: done
 ---
 
 # Plan: Add commit skills to Gemini/Codex and remove hg_commit from Claude
