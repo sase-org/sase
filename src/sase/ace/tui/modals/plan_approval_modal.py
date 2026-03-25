@@ -17,7 +17,7 @@ from .base import CopyModeForwardingMixin
 class PlanApprovalResult:
     """Result from the plan approval modal."""
 
-    action: str  # "approve", "reject", or "epic"
+    action: str  # "approve", "reject", "commit", or "epic"
     feedback: str | None = None
 
 
@@ -30,6 +30,7 @@ class PlanApprovalModal(
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
         ("a", "approve", "Approve"),
+        ("c", "commit", "Commit"),
         ("r", "reject", "Reject"),
         ("f", "feedback", "Reject w/ feedback"),
         ("e", "edit", "Edit"),
@@ -54,7 +55,7 @@ class PlanApprovalModal(
         """Compose the modal layout."""
         plan_name = os.path.basename(self._plan_file)
         hints = (
-            "[green]a[/green]=Approve  [red]r[/red]=Reject  "
+            "[green]a[/green]=Approve  [green]c[/green]=Commit  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Reject w/ feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
@@ -120,6 +121,12 @@ class PlanApprovalModal(
         if self._feedback_mode:
             return
         self.dismiss(PlanApprovalResult(action="approve"))
+
+    def action_commit(self) -> None:
+        """Commit the plan without running a coder agent."""
+        if self._feedback_mode:
+            return
+        self.dismiss(PlanApprovalResult(action="commit"))
 
     def action_reject(self) -> None:
         """Reject the plan without feedback."""

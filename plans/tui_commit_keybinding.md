@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 16:24:18
-status: wip
+status: done
 ---
 
 # Plan: Add `c` (commit) keybinding to TUI plan approval modal

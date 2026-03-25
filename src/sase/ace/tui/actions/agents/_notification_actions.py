@@ -567,7 +567,7 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             response_data["feedback"] = result.feedback
 
         # On approval, save plan to workspace .sase/plans/ directory
-        if result.action == "approve" and notification.files:
+        if result.action in ("approve", "commit") and notification.files:
             project_dir = notification.action_data.get("project_dir")
             if project_dir:
                 import os
@@ -614,6 +614,9 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             if result.action == "approve":
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 # Persist approval to agent_meta.json so it survives TUI restarts
+                persist_plan_approved(agent)
+            elif result.action == "commit":
+                app._agent_status_overrides[agent.identity] = "PLAN COMMITTED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent)
             elif result.action == "epic":
                 app._agent_status_overrides[agent.identity] = "EPIC CREATED"  # type: ignore[attr-defined]
