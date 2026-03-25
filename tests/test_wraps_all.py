@@ -8,7 +8,7 @@ import pytest
 from sase.xprompt.tags import XPromptTag
 from sase.xprompt.workflow_executor_steps_embedded import (
     EmbeddedWorkflowMixin,
-    _PendingEmbeddedWorkflow,
+    PendingEmbeddedWorkflow,
 )
 from sase.xprompt.workflow_models import (
     Workflow,
@@ -169,14 +169,14 @@ class _TrackingExecutor(_FakeExecutor):
 
 
 # ============================================================================
-# _PendingEmbeddedWorkflow dataclass tests
+# PendingEmbeddedWorkflow dataclass tests
 # ============================================================================
 
 
 def test_pending_embedded_workflow_defaults() -> None:
-    """_PendingEmbeddedWorkflow has correct defaults."""
+    """PendingEmbeddedWorkflow has correct defaults."""
     wf = _make_workflow("test")
-    p = _PendingEmbeddedWorkflow(
+    p = PendingEmbeddedWorkflow(
         name="test",
         workflow=wf,
         match_start=0,
