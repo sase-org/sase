@@ -21,7 +21,8 @@ steps:
       result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
       # If stop hook already handled the commit, read the existing result
       if result_file and os.path.isfile(result_file):
-          d = json.load(open(result_file))
+          with open(result_file) as f:
+              d = json.load(f)
           print(f"success=true")
           print(f"new_commit={d.get('result', '') or ''}")
           raise SystemExit(0)
@@ -32,7 +33,8 @@ steps:
       wf = CommitWorkflow(payload={"message": f"[{who}] Agent changes"}, method=method)
       ok = wf.run()
       if ok and result_file and os.path.isfile(result_file):
-          d = json.load(open(result_file))
+          with open(result_file) as f:
+              d = json.load(f)
           print(f"success=true")
           print(f"new_commit={d.get('result', '') or ''}")
       else:
@@ -43,12 +45,14 @@ steps:
 
   - name: report
     hidden: true
+    if: "{{ check_changes.has_changes }}"
     bash: |
       RESULT_FILE="${SASE_ARTIFACTS_DIR}/commit_result.json"
       [ -f "$RESULT_FILE" ] || exit 0
-      eval "$(python3 -c "
-      import json, shlex
-      d = json.load(open('$RESULT_FILE'))
+      eval "$(RESULT_FILE="$RESULT_FILE" python3 -c "
+      import json, os, shlex
+      with open(os.environ['RESULT_FILE']) as f:
+          d = json.load(f)
       for k in ('result', 'message'):
           print(f'{k}={shlex.quote(d.get(k, \"\") or \"\")}')
       ")"
