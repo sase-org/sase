@@ -27,7 +27,25 @@ steps:
       import json, os
       artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
       result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
+      # If stop hook already handled the commit, read the existing result
       if result_file and os.path.isfile(result_file):
+          with open(result_file) as f:
+              d = json.load(f)
+          print("success=true")
+          print(f"pr_url={d.get('result', '') or ''}")
+          raise SystemExit(0)
+      # Create the PR ourselves (fallback path)
+      from sase.workflows.commit import CommitWorkflow
+      method = os.environ.get("SASE_COMMIT_METHOD", "create_pull_request")
+      name = {{ name | tojson }}
+      who = {{ who | default("agent") | tojson }}
+      bug_id = {{ bug_id | default(0) | tojson }}
+      wf = CommitWorkflow(
+          payload={"message": f"[{who}] Agent changes", "name": name, "bug_id": bug_id},
+          method=method,
+      )
+      ok = wf.run()
+      if ok and result_file and os.path.isfile(result_file):
           with open(result_file) as f:
               d = json.load(f)
           print("success=true")
