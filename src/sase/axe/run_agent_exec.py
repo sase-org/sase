@@ -412,6 +412,16 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             except Exception:
                 pass  # Best effort — don't block the workflow
 
+            if plan_result.action == "commit":
+                # Commit SDD files but do NOT spawn a follow-up agent
+                if sdd_plan_name:
+                    if version_controlled:
+                        _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
+                    else:
+                        commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
+                loop_outcome = "plan_committed"
+                break
+
             # VCS workflow tag prefix for follow-up agents
             vcs_prefix = ctx.vcs_tag or ""
 

@@ -72,6 +72,43 @@ def test_handle_plan_approval_auto_approve() -> None:
     assert result == PlanApprovalResult(action="approve", plan_file="/path/to/plan.md")
 
 
+def test_handle_plan_approval_commit(tmp_path: Path) -> None:
+    """Test that handle_plan_approval accepts 'commit' action from response file."""
+    import json
+
+    plan_file = str(tmp_path / "plan.md")
+    Path(plan_file).write_text("# Plan")
+    session_id = "test-commit-session"
+    response_dir = tmp_path / ".sase" / "plan_approval" / session_id
+
+    def _fake_notify(**_kwargs: object) -> None:
+        # Write the response file after handle_plan_approval has cleared
+        # any stale response and is about to enter the poll loop.
+        (response_dir / "plan_response.json").write_text(
+            json.dumps({"action": "commit"})
+        )
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler.is_auto_approve_active",
+            return_value=False,
+        ),
+        patch(
+            "sase.notifications.senders.notify_plan_approval",
+            side_effect=_fake_notify,
+        ),
+        patch("sase.main.plan_approve_handler.send_desktop_notification"),
+        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
+        patch(
+            "sase.main.plan_approve_handler.get_tmux_prefix",
+            return_value="",
+        ),
+        patch.object(Path, "home", return_value=tmp_path),
+    ):
+        result = handle_plan_approval(plan_file, session_id)
+    assert result == PlanApprovalResult(action="commit", plan_file=plan_file)
+
+
 def test_handle_plan_approval_none_plan_file() -> None:
     """Test that handle_plan_approval returns None when plan_file is None."""
     with patch(

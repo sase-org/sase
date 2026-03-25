@@ -182,7 +182,7 @@ def handle_plan_approval(
                     request_path.unlink()
 
                 action = response_data.get("action")
-                if action in ("approve", "epic"):
+                if action in ("approve", "epic", "commit"):
                     response_path.unlink()
                     assert plan_file is not None
                     return PlanApprovalResult(action=action, plan_file=plan_file)
