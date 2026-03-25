@@ -15,14 +15,22 @@ Output file will contain:
 
 import os
 import sys
+import time
+import traceback as tb_mod
 from pathlib import Path
 
 from sase.ace.changespec import ChangeSpec, parse_project_file
-from sase.ace.hooks import contract_test_target_command, set_hook_suffix
+from sase.ace.hooks import (
+    contract_test_target_command,
+    format_duration,
+    set_hook_suffix,
+)
 from sase.axe.runner_utils import (
     detect_and_write_agent_meta,
     finalize_axe_runner,
+    read_agent_meta,
     write_done_marker,
+    write_error_report,
 )
 from sase.history.chat import find_chat_by_timestamp
 from sase.core.paths import shorten_path
@@ -111,6 +119,9 @@ def main() -> int:
 
     proposal_id: str | None = None
     exit_code = 1
+    error_summary: str | None = None
+    error_traceback_str: str | None = None
+    start_time = time.time()
 
     # Get the command to run (strip "!" prefix)
     run_hook_command = strip_hook_prefix(hook_command)
@@ -175,6 +186,8 @@ def main() -> int:
             response_content = ensure_str_content(response.content)
         except LLMInvocationError as e:
             response_content = str(e)
+            error_summary = f"LLMInvocationError: {e}"
+            error_traceback_str = tb_mod.format_exc()
         print(f"\nAgent Response:\n{response_content}\n")
 
         # Build who identifier for proposal
@@ -241,12 +254,18 @@ def main() -> int:
 
     except Exception as e:
         print(f"Error running fix-hook workflow: {e}")
-        import traceback
-
-        traceback.print_exc()
+        tb_mod.print_exc()
         exit_code = 1
+        error_summary = f"{type(e).__qualname__}: {e}"
+        error_traceback_str = tb_mod.format_exc()
 
     finally:
+        duration = format_duration(int(time.time() - start_time))
+        success = exit_code == 0 and proposal_id is not None
+
+        # Read output_path from env var (set by starter.py)
+        output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")
+
         # Find chat file for response_path (written by invoke_agent during execution)
         chat_path = find_chat_by_timestamp(timestamp)
 
@@ -258,7 +277,25 @@ def main() -> int:
             timestamp=timestamp,
             exit_code=exit_code,
             response_path=chat_path,
+            error=error_summary,
+            traceback_str=error_traceback_str,
+            output_path=output_log_path,
         )
+
+        # Write error report for failed runs
+        error_report_path: str | None = None
+        if not success and error_summary:
+            meta = read_agent_meta(artifacts_dir)
+            error_report_path = write_error_report(
+                artifacts_dir,
+                agent_model=meta["model"],
+                agent_llm_provider=meta["llm_provider"],
+                workflow_name="fix-hook",
+                cl_name=changespec_name,
+                duration=duration,
+                error_summary=error_summary,
+                error_traceback=error_traceback_str,
+            )
 
         # Finalize: update suffix, release workspace, write completion marker
         finalize_axe_runner(
@@ -273,19 +310,42 @@ def main() -> int:
 
         from sase.notifications.senders import notify_workflow_complete
 
+        # Build notes with error summary for failures
+        notes = [
+            f"Fix-hook {'completed' if success else 'failed'} for {changespec_name}"
+        ]
+        if not success and error_summary:
+            notes.append(error_summary)
+
+        # Build file list — attach error report and output log for failures
         extra_files = [chat_path] if chat_path else []
+        if not success:
+            if error_report_path:
+                extra_files.insert(0, error_report_path)
+            if output_log_path and os.path.isfile(output_log_path):
+                extra_files.append(output_log_path)
+
+        # Use ViewErrorReport action for failures with error report
+        if not success and error_report_path:
+            action = "ViewErrorReport"
+            action_data: dict[str, str] = {
+                "error_report_path": error_report_path,
+                "cl_name": changespec_name,
+            }
+        else:
+            action = "JumpToChangeSpec"
+            action_data = {
+                "changespec_name": changespec_name,
+                "project_file": project_file,
+            }
+
         notify_workflow_complete(
             sender="fix-hook",
             cl_name=changespec_name,
-            success=(exit_code == 0 and proposal_id is not None),
-            notes=[
-                f"Fix-hook {'completed' if exit_code == 0 else 'failed'} for {changespec_name}"
-            ],
-            action="JumpToChangeSpec",
-            action_data={
-                "changespec_name": changespec_name,
-                "project_file": project_file,
-            },
+            success=success,
+            notes=notes,
+            action=action,
+            action_data=action_data,
             extra_files=extra_files,
         )
 

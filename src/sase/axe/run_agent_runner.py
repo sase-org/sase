@@ -28,6 +28,7 @@ from sase.axe.runner_utils import (
     install_sigterm_handler,
     prepare_workspace,
     was_killed,
+    write_error_report,
 )
 from sase.artifacts import (
     convert_timestamp_to_artifacts_format,
@@ -35,67 +36,6 @@ from sase.artifacts import (
 )
 
 install_sigterm_handler("agent", soft=True)
-
-
-def _write_error_report(
-    artifacts_dir: str,
-    *,
-    agent_model: str | None,
-    agent_llm_provider: str | None,
-    workflow_name: str,
-    cl_name: str,
-    duration: str,
-    error_summary: str,
-    error_traceback: str | None,
-) -> str | None:
-    """Write a formatted error report to the artifacts directory.
-
-    Returns the file path, or None if writing failed.
-    """
-    try:
-        from sase.llm_provider.registry import format_provider_model_label
-
-        report_path = os.path.join(artifacts_dir, "error_report.md")
-        label = format_provider_model_label(agent_llm_provider, agent_model)
-
-        lines = [
-            "# Agent Error Report",
-            "",
-            "## Summary",
-            "",
-            "| Field | Value |",
-            "|-------|-------|",
-            f"| Model | {label} |",
-            f"| Workflow | {workflow_name} |",
-            f"| CL | {cl_name} |",
-            f"| Duration | {duration} |",
-            "",
-            "## Error",
-            "",
-            "```",
-            error_summary,
-            "```",
-        ]
-
-        if error_traceback:
-            lines.extend(
-                [
-                    "",
-                    "## Traceback",
-                    "",
-                    "```",
-                    error_traceback.rstrip(),
-                    "```",
-                ]
-            )
-
-        lines.append("")
-        with open(report_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-
-        return report_path
-    except Exception:
-        return None
 
 
 def main() -> None:
@@ -417,7 +357,7 @@ def main() -> None:
         # can be attached as a file).
         error_report_path: str | None = None
         if not success and error_summary:
-            error_report_path = _write_error_report(
+            error_report_path = write_error_report(
                 current_artifacts_dir,
                 agent_model=agent_model,
                 agent_llm_provider=agent_llm_provider,

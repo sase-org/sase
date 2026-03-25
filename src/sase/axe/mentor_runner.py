@@ -8,6 +8,7 @@ It handles workspace cleanup and status updates upon completion.
 import os
 import sys
 import time
+import traceback as tb_mod
 from pathlib import Path
 
 from sase.ace.hooks import format_duration
@@ -15,7 +16,9 @@ from sase.ace.mentors import set_mentor_status
 from sase.axe.runner_utils import (
     detect_and_write_agent_meta,
     install_sigterm_handler,
+    read_agent_meta,
     write_done_marker,
+    write_error_report,
 )
 from sase.workflows.mentor import MentorWorkflow
 from sase.artifacts import create_artifacts_directory
@@ -46,6 +49,8 @@ def main() -> None:
     final_status = "FAILED"
     duration = "0s"
     response_path: str | None = None
+    error_summary: str | None = None
+    error_traceback_str: str | None = None
 
     # Create artifacts directory early so done.json can be written even on error
     # Note: MentorWorkflow also creates this same directory internally
@@ -81,6 +86,8 @@ def main() -> None:
             # the SIGTERM handler doesn't bypass the status update below.
             if isinstance(e, Exception):
                 print(f"Error running mentor workflow: {e}", file=sys.stderr)
+                error_summary = f"{type(e).__qualname__}: {e}"
+                error_traceback_str = tb_mod.format_exc()
             success = False
             comment_count = 0
 
@@ -138,6 +145,10 @@ def main() -> None:
     finally:
         # Write done.json marker for Agents tab visibility
         exit_code = 0 if success else 1
+
+        # Read output_path from env var (set by mentor starter)
+        output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH") or output_path
+
         write_done_marker(
             artifacts_dir,
             cl_name=cl_name,
@@ -145,7 +156,25 @@ def main() -> None:
             timestamp=timestamp,
             exit_code=exit_code,
             response_path=response_path,
+            error=error_summary,
+            traceback_str=error_traceback_str,
+            output_path=output_log_path,
         )
+
+        # Write error report for failed runs
+        error_report_path: str | None = None
+        if not success and error_summary:
+            meta = read_agent_meta(artifacts_dir)
+            error_report_path = write_error_report(
+                artifacts_dir,
+                agent_model=meta["model"],
+                agent_llm_provider=meta["llm_provider"],
+                workflow_name=f"mentor-{mentor_name}",
+                cl_name=cl_name,
+                duration=duration,
+                error_summary=error_summary,
+                error_traceback=error_traceback_str,
+            )
 
         # Write completion marker
         try:
@@ -155,6 +184,50 @@ def main() -> None:
                 f.write(f"Duration: {duration}\n")
         except Exception as e:
             print(f"Error writing completion marker: {e}", file=sys.stderr)
+
+        # Send notification for mentor completion
+        from sase.notifications.senders import notify_workflow_complete
+
+        # Build notes with error summary for failures
+        notes = [
+            f"Mentor {mentor_name} {'completed' if success else 'failed'} for {cl_name}"
+        ]
+        if not success and error_summary:
+            notes.append(error_summary)
+
+        # Build file list — attach error report and output log for failures
+        extra_files: list[str] = []
+        if response_path:
+            extra_files.append(response_path)
+        if not success:
+            if error_report_path:
+                extra_files.insert(0, error_report_path)
+            if output_log_path and os.path.isfile(output_log_path):
+                extra_files.append(output_log_path)
+
+        # Use ViewErrorReport action for failures with error report
+        if not success and error_report_path:
+            action = "ViewErrorReport"
+            action_data: dict[str, str] = {
+                "error_report_path": error_report_path,
+                "cl_name": cl_name,
+            }
+        else:
+            action = "JumpToChangeSpec"
+            action_data = {
+                "changespec_name": cl_name,
+                "project_file": project_file,
+            }
+
+        notify_workflow_complete(
+            sender=f"mentor-{mentor_name}",
+            cl_name=cl_name,
+            success=success,
+            notes=notes,
+            action=action,
+            action_data=action_data,
+            extra_files=extra_files,
+        )
 
     sys.exit(0 if success else 1)
 

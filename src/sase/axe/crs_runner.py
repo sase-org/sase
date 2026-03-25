@@ -15,13 +15,18 @@ Output file will contain:
 
 import os
 import sys
+import time
+import traceback as tb_mod
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
+from sase.ace.hooks import format_duration
 from sase.axe.runner_utils import (
     detect_and_write_agent_meta,
     finalize_axe_runner,
+    read_agent_meta,
     write_done_marker,
+    write_error_report,
 )
 from sase.history.chat import find_chat_by_timestamp
 from sase.workflows.crs import CrsWorkflow
@@ -71,6 +76,9 @@ def main() -> int:
 
     proposal_id: str | None = None
     exit_code = 1
+    error_summary: str | None = None
+    error_traceback_str: str | None = None
+    start_time = time.time()
 
     # Detect VCS type for the project
     from sase.workspace_provider import detect_workflow_type
@@ -87,6 +95,9 @@ def main() -> int:
 
     # Write agent_meta.json early so Agents tab shows model/VCS while running
     detect_and_write_agent_meta(artifacts_dir, project_file)
+
+    # Read output_path from env var (set by starter.py)
+    output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")
 
     try:
         print(f"Running CRS workflow for {changespec_name}")
@@ -111,6 +122,7 @@ def main() -> int:
 
         if not workflow_succeeded:
             print("CRS workflow failed")
+            error_summary = "Workflow returned failure status (no exception raised)"
             exit_code = 1
         else:
             # Get proposal_id from workflow
@@ -119,12 +131,15 @@ def main() -> int:
 
     except Exception as e:
         print(f"Error running CRS workflow: {e}")
-        import traceback
-
-        traceback.print_exc()
+        tb_mod.print_exc()
         exit_code = 1
+        error_summary = f"{type(e).__qualname__}: {e}"
+        error_traceback_str = tb_mod.format_exc()
 
     finally:
+        duration = format_duration(int(time.time() - start_time))
+        success = exit_code == 0 and proposal_id is not None
+
         # Find chat file for response_path (written by invoke_agent during execution)
         chat_path = find_chat_by_timestamp(timestamp)
 
@@ -136,7 +151,25 @@ def main() -> int:
             timestamp=timestamp,
             exit_code=exit_code,
             response_path=chat_path,
+            error=error_summary,
+            traceback_str=error_traceback_str,
+            output_path=output_log_path,
         )
+
+        # Write error report for failed runs
+        error_report_path: str | None = None
+        if not success and error_summary:
+            meta = read_agent_meta(artifacts_dir)
+            error_report_path = write_error_report(
+                artifacts_dir,
+                agent_model=meta["model"],
+                agent_llm_provider=meta["llm_provider"],
+                workflow_name="crs",
+                cl_name=changespec_name,
+                duration=duration,
+                error_summary=error_summary,
+                error_traceback=error_traceback_str,
+            )
 
         # Finalize: update suffix, write completion marker
         # Workspace release is handled by the scheduler's completer
@@ -152,19 +185,40 @@ def main() -> int:
 
         from sase.notifications.senders import notify_workflow_complete
 
+        # Build notes with error summary for failures
+        notes = [f"CRS {'completed' if success else 'failed'} for {changespec_name}"]
+        if not success and error_summary:
+            notes.append(error_summary)
+
+        # Build file list — attach error report and output log for failures
         extra_files = [chat_path] if chat_path else []
+        if not success:
+            if error_report_path:
+                extra_files.insert(0, error_report_path)
+            if output_log_path and os.path.isfile(output_log_path):
+                extra_files.append(output_log_path)
+
+        # Use ViewErrorReport action for failures with error report
+        if not success and error_report_path:
+            action = "ViewErrorReport"
+            action_data: dict[str, str] = {
+                "error_report_path": error_report_path,
+                "cl_name": changespec_name,
+            }
+        else:
+            action = "JumpToChangeSpec"
+            action_data = {
+                "changespec_name": changespec_name,
+                "project_file": project_file,
+            }
+
         notify_workflow_complete(
             sender="crs",
             cl_name=changespec_name,
-            success=(exit_code == 0 and proposal_id is not None),
-            notes=[
-                f"CRS {'completed' if exit_code == 0 else 'failed'} for {changespec_name}"
-            ],
-            action="JumpToChangeSpec",
-            action_data={
-                "changespec_name": changespec_name,
-                "project_file": project_file,
-            },
+            success=success,
+            notes=notes,
+            action=action,
+            action_data=action_data,
             extra_files=extra_files,
         )
 

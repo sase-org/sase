@@ -237,6 +237,7 @@ def _start_crs_workflow(
 
     # Start the background process first to get actual PID
     try:
+        env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
                 [
@@ -252,7 +253,7 @@ def _start_crs_workflow(
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
-                env=os.environ,
+                env=env,
             )
             pid = proc.pid
     except Exception as e:
@@ -360,6 +361,7 @@ def start_fix_hook_workflow(
 
     # Start the background process first to get actual PID
     try:
+        env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
                 [
@@ -377,7 +379,7 @@ def start_fix_hook_workflow(
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
-                env=os.environ,
+                env=env,
             )
             pid = proc.pid
     except Exception as e:
@@ -464,6 +466,7 @@ def _start_summarize_hook_workflow(
 
     try:
         # Start the background process and capture PID
+        env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
                 [
@@ -480,7 +483,7 @@ def _start_summarize_hook_workflow(
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
-                env=os.environ,
+                env=env,
             )
             pid = proc.pid
 

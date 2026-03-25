@@ -111,6 +111,7 @@ def start_single_mentor(
 
     # Start the background process
     try:
+        env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
             proc = subprocess.Popen(
                 [
@@ -128,7 +129,7 @@ def start_single_mentor(
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
-                env=os.environ,
+                env=env,
             )
             pid = proc.pid
     except Exception as e:

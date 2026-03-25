@@ -199,6 +199,9 @@ def write_done_marker(
     workspace_num: int | None = None,
     response_path: str | None = None,
     diff_path: str | None = None,
+    error: str | None = None,
+    traceback_str: str | None = None,
+    output_path: str | None = None,
 ) -> None:
     """Write a done.json marker to an axe runner's artifacts directory.
 
@@ -211,6 +214,9 @@ def write_done_marker(
         workspace_num: Optional workspace number.
         response_path: Optional path to the response/chat file.
         diff_path: Optional path to the diff file.
+        error: Optional error summary string.
+        traceback_str: Optional formatted traceback string.
+        output_path: Optional path to the stdout/stderr output log.
     """
     from sase.artifacts import convert_timestamp_to_artifacts_format
 
@@ -231,6 +237,12 @@ def write_done_marker(
         done_data["response_path"] = response_path
     if diff_path:
         done_data["diff_path"] = diff_path
+    if error:
+        done_data["error"] = error
+    if traceback_str:
+        done_data["traceback"] = traceback_str
+    if output_path:
+        done_data["output_path"] = output_path
 
     done_path = os.path.join(artifacts_dir, "done.json")
     try:
@@ -239,6 +251,85 @@ def write_done_marker(
         print(f"Done marker written to: {done_path}")
     except Exception as e:
         print(f"Warning: Failed to write done marker: {e}")
+
+
+def read_agent_meta(artifacts_dir: str) -> dict[str, str | None]:
+    """Read agent_meta.json and return model/provider info.
+
+    Returns:
+        Dict with ``model`` and ``llm_provider`` keys (values may be None).
+    """
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    result: dict[str, str | None] = {"model": None, "llm_provider": None}
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            data = json.load(f)
+        result["model"] = data.get("model")
+        result["llm_provider"] = data.get("llm_provider")
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return result
+
+
+def write_error_report(
+    artifacts_dir: str,
+    *,
+    agent_model: str | None,
+    agent_llm_provider: str | None,
+    workflow_name: str,
+    cl_name: str,
+    duration: str,
+    error_summary: str,
+    error_traceback: str | None,
+) -> str | None:
+    """Write a formatted error report to the artifacts directory.
+
+    Returns the file path, or None if writing failed.
+    """
+    try:
+        from sase.llm_provider.registry import format_provider_model_label
+
+        report_path = os.path.join(artifacts_dir, "error_report.md")
+        label = format_provider_model_label(agent_llm_provider, agent_model)
+
+        lines = [
+            "# Agent Error Report",
+            "",
+            "## Summary",
+            "",
+            "| Field | Value |",
+            "|-------|-------|",
+            f"| Model | {label} |",
+            f"| Workflow | {workflow_name} |",
+            f"| CL | {cl_name} |",
+            f"| Duration | {duration} |",
+            "",
+            "## Error",
+            "",
+            "```",
+            error_summary,
+            "```",
+        ]
+
+        if error_traceback:
+            lines.extend(
+                [
+                    "",
+                    "## Traceback",
+                    "",
+                    "```",
+                    error_traceback.rstrip(),
+                    "```",
+                ]
+            )
+
+        lines.append("")
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        return report_path
+    except Exception:
+        return None
 
 
 def finalize_axe_runner(

@@ -15,12 +15,20 @@ Output file will contain:
     - Completion marker: ===WORKFLOW_COMPLETE=== PROPOSAL_ID: None EXIT_CODE: <code>
 """
 
+import os
 import subprocess
 import sys
+import time
+import traceback as tb_mod
 from pathlib import Path
 
-from sase.ace.hooks import set_hook_suffix
-from sase.axe.runner_utils import detect_and_write_agent_meta, write_done_marker
+from sase.ace.hooks import format_duration, set_hook_suffix
+from sase.axe.runner_utils import (
+    detect_and_write_agent_meta,
+    read_agent_meta,
+    write_done_marker,
+    write_error_report,
+)
 from sase.config.metahook import MetahookConfig, find_matching_metahook
 from sase.artifacts import create_artifacts_directory
 from sase.ace.hooks.summarize_utils import get_file_summary
@@ -47,6 +55,9 @@ def main() -> int:
     timestamp = sys.argv[7]  # Same timestamp used in agent suffix
 
     exit_code = 1
+    error_summary: str | None = None
+    error_traceback_str: str | None = None
+    start_time = time.time()
 
     # Create artifacts directory early so done.json can be written even on error
     artifacts_dir = create_artifacts_directory(
@@ -108,6 +119,9 @@ def main() -> int:
                         )
                         exit_code = 1
 
+                    # Read output_path from env var (set by starter.py)
+                    output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")
+
                     # Write done.json and completion marker, then return early
                     write_done_marker(
                         artifacts_dir,
@@ -115,6 +129,7 @@ def main() -> int:
                         project_file=project_file,
                         timestamp=timestamp,
                         exit_code=exit_code,
+                        output_path=output_log_path,
                     )
                     print()
                     print(f"{WORKFLOW_COMPLETE_MARKER}None EXIT_CODE: {exit_code}")
@@ -165,10 +180,16 @@ def main() -> int:
 
     except Exception as e:
         print(f"Error running summarize-hook workflow: {e}")
-        import traceback
-
-        traceback.print_exc()
+        tb_mod.print_exc()
         exit_code = 1
+        error_summary = f"{type(e).__qualname__}: {e}"
+        error_traceback_str = tb_mod.format_exc()
+
+    duration = format_duration(int(time.time() - start_time))
+    success = exit_code == 0
+
+    # Read output_path from env var (set by starter.py)
+    output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")
 
     # Write done.json marker for Agents tab visibility
     write_done_marker(
@@ -177,6 +198,66 @@ def main() -> int:
         project_file=project_file,
         timestamp=timestamp,
         exit_code=exit_code,
+        error=error_summary,
+        traceback_str=error_traceback_str,
+        output_path=output_log_path,
+    )
+
+    # Write error report for failed runs
+    error_report_path: str | None = None
+    if not success and error_summary:
+        meta = read_agent_meta(artifacts_dir)
+        error_report_path = write_error_report(
+            artifacts_dir,
+            agent_model=meta["model"],
+            agent_llm_provider=meta["llm_provider"],
+            workflow_name="summarize-hook",
+            cl_name=changespec_name,
+            duration=duration,
+            error_summary=error_summary,
+            error_traceback=error_traceback_str,
+        )
+
+    # Send notification for summarize-hook completion
+    from sase.notifications.senders import notify_workflow_complete
+
+    # Build notes with error summary for failures
+    notes = [
+        f"Summarize-hook {'completed' if success else 'failed'} for {changespec_name}"
+    ]
+    if not success and error_summary:
+        notes.append(error_summary)
+
+    # Build file list — attach error report and output log for failures
+    extra_files: list[str] = []
+    if not success:
+        if error_report_path:
+            extra_files.insert(0, error_report_path)
+        if output_log_path and os.path.isfile(output_log_path):
+            extra_files.append(output_log_path)
+
+    # Use ViewErrorReport action for failures with error report
+    if not success and error_report_path:
+        action = "ViewErrorReport"
+        action_data: dict[str, str] = {
+            "error_report_path": error_report_path,
+            "cl_name": changespec_name,
+        }
+    else:
+        action = "JumpToChangeSpec"
+        action_data = {
+            "changespec_name": changespec_name,
+            "project_file": project_file,
+        }
+
+    notify_workflow_complete(
+        sender="summarize-hook",
+        cl_name=changespec_name,
+        success=success,
+        notes=notes,
+        action=action,
+        action_data=action_data,
+        extra_files=extra_files,
     )
 
     # Write completion marker (no proposal ID for summarize workflows)
