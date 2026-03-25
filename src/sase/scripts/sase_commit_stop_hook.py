@@ -1,13 +1,37 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
 import sys
+import time
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from sase.vcs_provider import get_vcs_provider
 from sase.vcs_provider._registry import detect_vcs
+
+LOG_FILE = os.path.expanduser("~/.sase_commit_stop_hook.jsonl")
+
+
+def _jlog(event: str, **kwargs: Any) -> None:
+    """Append a structured JSON log line to ~/.sase_commit_stop_hook.jsonl."""
+    record: dict[str, Any] = {
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "event": event,
+        **kwargs,
+    }
+    try:
+        with open(LOG_FILE, "a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                f.write(json.dumps(record, default=str) + "\n")
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+    except OSError:
+        pass
 
 
 def _resolve_project_dir() -> str:
@@ -167,24 +191,58 @@ def _log_hook_run(project_dir: str) -> None:
 
 
 def main() -> int:
+    t0 = time.monotonic()
+
+    def _exit(code: int, event: str = "script_exit", **extra: Any) -> int:
+        _jlog(
+            event, exit_code=code, duration_s=round(time.monotonic() - t0, 3), **extra
+        )
+        return code
+
+    runtime = (
+        "gemini"
+        if _is_gemini_runtime()
+        else "codex"
+        if _is_codex_runtime()
+        else "claude"
+    )
+    commit_method = os.environ.get("SASE_COMMIT_METHOD", "")
+
     if os.environ.get("SASE_DISABLE_COMMIT_STOP_HOOK"):
-        return 0
+        _jlog("disabled", runtime=runtime)
+        return _exit(0, reason="disabled")
 
     project_dir = _resolve_project_dir()
     os.chdir(project_dir)
 
+    _jlog(
+        "script_start",
+        runtime=runtime,
+        project_dir=project_dir,
+        commit_method=commit_method,
+        pid=os.getpid(),
+    )
+
     _log_hook_run(project_dir)
 
-    gemini = _is_gemini_runtime()
+    gemini = runtime == "gemini"
     gemini_input = _read_gemini_stdin() if gemini else {}
 
     # Deduplication: Gemini uses stop_hook_active from stdin
     if gemini and gemini_input.get("stop_hook_active"):
-        return 0
+        _jlog("gemini_dedup_skip")
+        return _exit(0, reason="gemini_dedup")
 
     has_changes, changed_files = _get_changed_files(project_dir)
+    _jlog(
+        "changes_check",
+        has_changes=has_changes,
+        num_files=len(changed_files),
+        files=changed_files[:20],
+    )
+
     if not has_changes:
-        return 0
+        return _exit(0, reason="no_changes")
 
     if gemini:
         commit_instruction = (
@@ -202,10 +260,17 @@ def main() -> int:
         + "\n".join(changed_files)
         + f"\n\n{commit_instruction}"
     )
-    return _emit_block(
+    rc = _emit_block(
         f"Stop hook blocked: uncommitted changes remain. {commit_instruction}",
         details,
     )
+    _jlog(
+        "block_emitted",
+        exit_code=rc,
+        num_files=len(changed_files),
+        commit_instruction=commit_instruction,
+    )
+    return _exit(rc, reason="block_emitted")
 
 
 if __name__ == "__main__":
