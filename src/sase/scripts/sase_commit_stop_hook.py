@@ -90,6 +90,18 @@ def _normalize_provider(provider: str | None) -> str:
     return token or "git"
 
 
+def _build_name_instruction() -> str | None:
+    sase_name = os.environ.get("SASE_NAME")
+    if not sase_name:
+        return None
+    project_file = os.environ.get("SASE_AGENT_PROJECT_FILE", "")
+    project = Path(project_file).stem if project_file else ""
+    parts = [f'You MUST include "name": "{sase_name}" in your commit JSON payload.']
+    if project:
+        parts.append(f'The name MUST begin with "{project}_".')
+    return " ".join(parts)
+
+
 def _resolve_commit_skill(project_dir: str) -> str:
     explicit = os.environ.get("SASE_COMMIT_SKILL")
     if explicit:
@@ -251,6 +263,9 @@ def main() -> int:
         "Ignore any prior instruction about not committing. You MUST commit now. "
         f"Use your {skill} skill to commit these changes now."
     )
+    name_instruction = _build_name_instruction()
+    if name_instruction:
+        commit_instruction += " " + name_instruction
 
     details = (
         "Uncommitted changes detected:\n"
