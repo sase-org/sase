@@ -336,6 +336,66 @@ class EmbeddedWorkflowMixin:
 
         return not hit_failure
 
+    def _resolve_tagged_workflow_content(
+        self,
+        tagged_wf: Workflow,
+        step_index_offset: int,
+    ) -> tuple[str, int]:
+        """Execute a tagged workflow's pre-steps and return its prompt_part.
+
+        Tagged workflows (e.g. ``append_to_commit_and_propose``) may have
+        pre-steps and conditional prompt_part steps.  This method executes the
+        pre-steps, evaluates the ``if:`` condition, and returns the rendered
+        prompt_part content.
+
+        Returns:
+            Tuple of (prompt_part_content, number_of_pre_steps_executed).
+        """
+        prompt_part_idx = tagged_wf.get_prompt_part_index()
+        if prompt_part_idx is None:
+            return "", 0
+
+        prompt_part_step = tagged_wf.steps[prompt_part_idx]
+        pre_steps = tagged_wf.get_pre_prompt_steps()
+
+        # Simple case: no pre-steps and no condition — return content directly.
+        if not pre_steps and not prompt_part_step.condition:
+            return tagged_wf.get_prompt_part_content(), 0
+
+        # Execute pre-steps to build context for the condition / template.
+        tagged_ctx: dict[str, Any] = {}
+        if pre_steps:
+            from sase.xprompt.workflow_output import ParentStepContext
+
+            parent_ctx = ParentStepContext(
+                step_index=self.state.current_step_index,
+                total_steps=len(self.workflow.steps),
+            )
+            success = self._execute_embedded_workflow_steps(
+                pre_steps,
+                tagged_ctx,
+                f"tagged:{tagged_wf.name}",
+                parent_step_context=parent_ctx,
+                is_pre_prompt_step=True,
+                step_index_offset=step_index_offset,
+                embedded_workflow_name=tagged_wf.name,
+            )
+            if not success:
+                return "", len(pre_steps)
+
+        # Evaluate if: condition on the prompt_part step.
+        if prompt_part_step.condition:
+            rendered_cond = render_template(prompt_part_step.condition, tagged_ctx)
+            cond_str = rendered_cond.strip().lower()
+            if cond_str in ("", "false", "none", "0", "[]", "{}"):
+                return "", len(pre_steps)
+
+        # Return content, rendered with the tagged context if available.
+        content = prompt_part_step.prompt_part or ""
+        if content and tagged_ctx:
+            content = render_template(content, tagged_ctx)
+        return content, len(pre_steps)
+
     def _expand_embedded_workflows_in_prompt(
         self,
         prompt: str,
@@ -556,7 +616,12 @@ class EmbeddedWorkflowMixin:
                     vcs_hint = wraps_all_pending[0].name if wraps_all_pending else None
                     tagged_wf = get_by_tag(append_tag, vcs_hint=vcs_hint)
                     if tagged_wf:
-                        tagged_content = tagged_wf.get_prompt_part_content()
+                        tagged_content, extra_steps = (
+                            self._resolve_tagged_workflow_content(
+                                tagged_wf, running_offset
+                            )
+                        )
+                        running_offset += extra_steps
                         if tagged_content:
                             prompt_part_content = (
                                 (prompt_part_content or "") + "\n" + tagged_content
