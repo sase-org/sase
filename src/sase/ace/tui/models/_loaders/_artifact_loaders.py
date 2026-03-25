@@ -334,6 +334,7 @@ def load_done_agents(
                     # after the agent started, which the runner doesn't know
                     # about when writing done.json).
                     enrich_agent_from_meta(agent, str(artifact_dir))
+                    _enrich_agent_from_prompt_markers(agent, str(artifact_dir))
 
                     agents.append(agent)
                 except Exception:
