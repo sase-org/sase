@@ -18,6 +18,8 @@ and CLI flags.
   - [xprompt_aliases](#xprompt_aliases)
   - [use_chezmoi](#use_chezmoi)
   - [precommit_command](#precommit_command)
+  - [timezone](#timezone)
+  - [sdd](#sdd)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 
@@ -456,13 +458,18 @@ directory-switching) to work correctly.
 
 ```yaml
 xprompt_aliases:
+  c: commit # #c → #commit
+  p: propose # #p → #propose
   gh_sase: "gh:sase" # #gh_sase → #gh:sase
   gh_foo: "gh:foo/bar" # #gh_foo → #gh:foo/bar
 ```
 
-| Field             | Type         | Default | Description                                                  |
-| ----------------- | ------------ | ------- | ------------------------------------------------------------ |
-| `xprompt_aliases` | dict[string] | `{}`    | Mapping of alias name → target. Applied as text substitution |
+| Field             | Type         | Default                   | Description                                                  |
+| ----------------- | ------------ | ------------------------- | ------------------------------------------------------------ |
+| `xprompt_aliases` | dict[string] | `{c: commit, p: propose}` | Mapping of alias name → target. Applied as text substitution |
+
+The built-in defaults provide `#c` as a shorthand for `#commit` and `#p` for `#propose`. Additional aliases can be added
+in user config files.
 
 Each entry maps an alias name to a target string. When the processor encounters `#alias_name` in a prompt, it replaces
 it with `#target` before any other xprompt resolution occurs. Only `#`-prefixed references are substituted; the alias
@@ -501,6 +508,36 @@ precommit_command: "just fix" # default: ""
 | `precommit_command` | string | `""`    | Shell command to run before commits. Empty string means disabled. |
 
 Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/workflow.py`
+
+### timezone
+
+The timezone used for formatting timestamps in notifications, agent logs, and TUI displays.
+
+```yaml
+timezone: "America/New_York" # default: "America/New_York"
+```
+
+| Field      | Type   | Default              | Description                               |
+| ---------- | ------ | -------------------- | ----------------------------------------- |
+| `timezone` | string | `"America/New_York"` | IANA timezone name for timestamp display. |
+
+### sdd
+
+Configuration for spec-driven development features, including the bead issue tracker.
+
+```yaml
+sdd:
+  version_controlled: false # default: false
+```
+
+| Field                    | Type | Default | Description                                                                        |
+| ------------------------ | ---- | ------- | ---------------------------------------------------------------------------------- |
+| `sdd.version_controlled` | bool | `false` | Store beads in `.sase_beads/` (git-tracked) instead of `.sase/sdd/beads/` (local). |
+
+When enabled, the bead database directory (`.sase_beads/`) is placed in the project root so that `issues.jsonl` and
+`config.json` are tracked in git. See [`docs/beads.md`](beads.md) for the full bead system reference.
+
+Source: `src/sase/default_config.yml`
 
 ## Environment Variables
 

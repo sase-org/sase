@@ -633,7 +633,16 @@ passing literal `#name` patterns to downstream consumers.
 ## XPrompt Aliases
 
 XPrompt aliases provide raw text-level substitution that runs _before_ any other xprompt processing. They are defined in
-the `xprompt_aliases` config field in `sase.yml`:
+the `xprompt_aliases` config field in `sase.yml`.
+
+The built-in defaults provide two shorthand aliases:
+
+| Alias | Target    | Usage             |
+| ----- | --------- | ----------------- |
+| `c`   | `commit`  | `#c` → `#commit`  |
+| `p`   | `propose` | `#p` → `#propose` |
+
+Additional aliases can be added in user config files:
 
 ```yaml
 xprompt_aliases:

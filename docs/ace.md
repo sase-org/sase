@@ -94,12 +94,13 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Fold Mode (`z` prefix)
 
-| Key     | Action                 |
-| ------- | ---------------------- |
-| `z` `c` | Toggle commits section |
-| `z` `h` | Toggle hooks section   |
-| `z` `m` | Toggle mentors section |
-| `z` `z` | Toggle all sections    |
+| Key     | Action                                    |
+| ------- | ----------------------------------------- |
+| `z` `c` | Cycle commits section (expand → collapse) |
+| `z` `h` | Cycle hooks section (expand → collapse)   |
+| `z` `m` | Cycle mentors section (expand → collapse) |
+| `z` `z` | Cycle all sections                        |
+| `z` `Z` | Toggle all sections (expand ↔ collapse)   |
 
 ### Workflows and Agents
 
