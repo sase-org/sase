@@ -92,13 +92,27 @@ def _normalize_provider(provider: str | None) -> str:
 
 def _build_name_instruction() -> str | None:
     sase_name = os.environ.get("SASE_PR_NAME")
+    sase_pr_name_is_set = True
     if not sase_name:
-        return None
+        sase_name = "<name>"
+        sase_pr_name_is_set = False
     project_file = os.environ.get("SASE_AGENT_PROJECT_FILE", "")
     project = Path(project_file).stem if project_file else ""
-    parts = [f'You MUST include "name": "{sase_name}" in your commit JSON payload.']
-    if project:
-        parts.append(f'The name MUST begin with "{project}_".')
+    full_sase_name = sase_name
+    if project and sase_pr_name_is_set:
+        full_sase_name = f"{project}_{sase_name}"
+    parts = [
+        f'You MUST include `"name": "{full_sase_name}"` in your commit JSON payload.'
+    ]
+    if not sase_pr_name_is_set:
+        parts.append(
+            f"You should decide on what name to use for `{sase_name}` but it should be"
+            ' short, descriptive, and consist" of lowercase letters and underscores.'
+        )
+        if project:
+            parts.append(
+                f'Also, one more requirement: `{sase_name}` MUST start with "{project}_".'
+            )
     return " ".join(parts)
 
 
@@ -215,9 +229,7 @@ def main() -> int:
     runtime = (
         "gemini"
         if _is_gemini_runtime()
-        else "codex"
-        if _is_codex_runtime()
-        else "claude"
+        else "codex" if _is_codex_runtime() else "claude"
     )
     commit_method = os.environ.get("SASE_COMMIT_METHOD", "")
 
