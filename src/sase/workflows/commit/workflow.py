@@ -64,7 +64,12 @@ class CommitWorkflow(BaseWorkflow):
         # Pre-compute the _<N> suffix for create_pull_request so the CL is
         # created with the correct suffixed name (important for non-git VCS
         # where ChangeSpec creation may not be able to rename the CL later).
+        # Save the base name so _create_changespec can pass it (un-suffixed)
+        # to add_changespec_to_project_file, which adds its own suffix.
+        self._base_cl_name: str | None = None
         if self._method == "create_pull_request":
+            base_name: str = self._payload["name"]
+            self._base_cl_name = base_name
             try:
                 from sase.workflows.commit.changespec_operations import (
                     compute_suffixed_cl_name,
@@ -73,7 +78,6 @@ class CommitWorkflow(BaseWorkflow):
 
                 project_name = get_project_from_workspace()
                 if project_name:
-                    base_name = self._payload["name"]
                     suffixed = compute_suffixed_cl_name(project_name, base_name)
                     if suffixed:
                         self._payload["name"] = suffixed
@@ -220,7 +224,7 @@ class CommitWorkflow(BaseWorkflow):
                 response="",
                 workflow_name="sase_commit",
                 cl_url=cl_url,
-                cl_name=self._payload.get("name"),
+                cl_name=self._base_cl_name or self._payload.get("name"),
                 commit_description=self._payload.get("message", ""),
             )
             if cs_name:
