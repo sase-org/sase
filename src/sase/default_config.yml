@@ -274,9 +274,10 @@ xprompts:
       Can you help me review the prompt I've prepared in the @specs/{{ file_base }}.md file and look for gaps / ambiguity
       in the requirements? In particular, what design decisions would you need from me if I were to ask you to implement the
       functionality described in that file?
-  phase: |
+  epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
-    keep in mind that each phase will be completed by a distinct `claude` instance.
+    keep in mind that each phase will be completed by a distinct agent instance (i.e. a distince `claude` / `gemini` /
+    `codex` command).
   plan: |
     Think this through thoroughly and create a plan using your `/sase_plan` skill.
   review_prompt:
