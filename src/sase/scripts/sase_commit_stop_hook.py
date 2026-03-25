@@ -91,7 +91,7 @@ def _normalize_provider(provider: str | None) -> str:
 
 
 def _build_name_instruction() -> str | None:
-    sase_name = os.environ.get("SASE_NAME")
+    sase_name = os.environ.get("SASE_PR_NAME")
     if not sase_name:
         return None
     project_file = os.environ.get("SASE_AGENT_PROJECT_FILE", "")

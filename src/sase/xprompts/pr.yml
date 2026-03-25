@@ -10,7 +10,7 @@ input:
 environment:
   SASE_COMMIT_METHOD: create_pull_request
   SASE_BUG_ID: "{{ bug_id }}"
-  SASE_NAME: "{{ name }}"
+  SASE_PR_NAME: "{{ name }}"
 
 steps:
   - name: inject
