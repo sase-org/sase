@@ -171,6 +171,21 @@ control over background resource usage.
 └── recent_errors.json              # Last 100 errors encountered
 ```
 
+## Error Reporting
+
+When an axe runner (CRS, fix-hook, mentor, summarize-hook) encounters an error, the system captures structured error
+information:
+
+- **done.json** — Written to the runner's artifacts directory on completion. Includes `error` (summary string) and
+  `traceback` (formatted traceback) fields when the run fails.
+- **error_report.md** — A formatted markdown error report written to the artifacts directory, containing model,
+  workflow, CL name, duration, error message, and traceback.
+- **Notifications** — Error notifications are sent with a `ViewErrorReport` action, allowing you to view the full error
+  report from the ACE notification panel.
+
+The `error_digest` chop in the housekeeping lumberjack periodically sends digest notifications summarizing recent errors
+from `recent_errors.json`.
+
 ## Process Lifecycle
 
 1. `sase axe start` spawns the orchestrator as a detached background process

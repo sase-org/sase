@@ -582,6 +582,14 @@ variable is used as a fallback. Values are split on whitespace and appended to t
 | ------------- | --------------------------------------------------------------------------------------------- |
 | `SASE_TMPDIR` | Override the temp directory for all sase operations. Falls back to system default when unset. |
 
+### Workflow Environment (Internal)
+
+These are set automatically by sase workflows during agent execution and are not intended for manual use.
+
+| Variable       | Description                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| `SASE_PR_NAME` | Set by the `#pr` workflow to pass the PR/CL name to the commit stop hook for naming commits. |
+
 ### Workspace Management (Internal)
 
 These are set automatically by sase when launching agent subprocesses and are not intended for manual use.

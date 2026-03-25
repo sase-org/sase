@@ -174,6 +174,19 @@ steps:
 > **Note:** A workflow may have at most one `prompt_part` step. It is mutually exclusive with `agent`, `bash`, `python`,
 > and `parallel` within a single step.
 
+`prompt_part` steps support `if` conditions for conditional inclusion. When the condition evaluates to falsy, the prompt
+part content is omitted:
+
+```yaml
+steps:
+  - name: inject
+    prompt_part: |
+      Include this only when feature_flag is set.
+    if: "{{ feature_flag }}"
+```
+
+> **Note:** Loop control flow (`for`, `repeat`, `while`) is not supported on `prompt_part` steps — only `if`.
+
 ### Bash Steps
 
 Execute a shell command:
