@@ -15,7 +15,7 @@ steps:
   - name: inject
     prompt_part: |
       ---
-      IMPORTANT: You should make the necessary file changes, but should NOT create a commit, branch, or pull request yourself.
+      IMPORTANT: You should make the necessary file changes, but should NOT create a commit, branch, or PR / CL yourself.
 
   - name: check_changes
     use: shared/check_changes
