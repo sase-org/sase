@@ -133,28 +133,9 @@ def collect_artifacts(start: datetime, end: datetime) -> list[Path]:
 
 def collect_notifications(start: datetime, end: datetime) -> list[str]:
     """Return filtered JSONL lines from notifications.jsonl whose timestamp is in range."""
-    path = Path("~/.sase/notifications/notifications.jsonl").expanduser()
-    if not path.is_file():
-        return []
-    lines: list[str] = []
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        ts_str = data.get("timestamp", "")
-        try:
-            ts = datetime.fromisoformat(ts_str)
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=get_timezone())
-        except (ValueError, TypeError):
-            continue
-        if _in_range(ts, start, end):
-            lines.append(line)
-    return lines
+    return _collect_jsonl_by_iso_timestamp(
+        "~/.sase/notifications/notifications.jsonl", start, end
+    )
 
 
 def collect_checks(start: datetime, end: datetime) -> list[Path]:
@@ -188,6 +169,34 @@ def _collect_jsonl_by_timestamp(path: str, start: datetime, end: datetime) -> li
             ts = datetime.strptime(ts_str, "%y%m%d_%H%M%S").replace(
                 tzinfo=get_timezone()
             )
+        except (ValueError, TypeError):
+            continue
+        if _in_range(ts, start, end):
+            lines.append(line)
+    return lines
+
+
+def _collect_jsonl_by_iso_timestamp(
+    path: str, start: datetime, end: datetime
+) -> list[str]:
+    """Filter JSONL lines by their ``timestamp`` field (ISO 8601 format)."""
+    p = Path(path).expanduser()
+    if not p.is_file():
+        return []
+    lines: list[str] = []
+    for line in p.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        ts_str = data.get("timestamp", "")
+        try:
+            ts = datetime.fromisoformat(ts_str)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=get_timezone())
         except (ValueError, TypeError):
             continue
         if _in_range(ts, start, end):
@@ -246,3 +255,11 @@ def collect_run_log(start: datetime, end: datetime) -> list[str]:
 
 def collect_event_log(start: datetime, end: datetime) -> list[str]:
     return _collect_jsonl_by_timestamp("~/.sase/logs/events.jsonl", start, end)
+
+
+def collect_commit_stop_hook_log(start: datetime, end: datetime) -> list[str]:
+    return _collect_jsonl_by_iso_timestamp("~/.sase_commit_stop_hook.jsonl", start, end)
+
+
+def collect_git_commit_log(start: datetime, end: datetime) -> list[str]:
+    return _collect_jsonl_by_iso_timestamp("~/.sase_git_commit.jsonl", start, end)

@@ -14,8 +14,10 @@ from sase.logs.collectors import (
     collect_chats,
     collect_checks,
     collect_comments,
+    collect_commit_stop_hook_log,
     collect_diffs,
     collect_event_log,
+    collect_git_commit_log,
     collect_hooks,
     collect_mentors,
     collect_notifications,
@@ -104,6 +106,18 @@ def build_pack(start: datetime, end: datetime, range_spec: str) -> str:
     if event_lines:
         (pack_dir / "events.jsonl").write_text("\n".join(event_lines) + "\n")
         file_count += len(event_lines)
+
+    commit_stop_lines = collect_commit_stop_hook_log(start, end)
+    if commit_stop_lines:
+        (pack_dir / "commit_stop_hook.jsonl").write_text(
+            "\n".join(commit_stop_lines) + "\n"
+        )
+        file_count += len(commit_stop_lines)
+
+    git_commit_lines = collect_git_commit_log(start, end)
+    if git_commit_lines:
+        (pack_dir / "git_commit.jsonl").write_text("\n".join(git_commit_lines) + "\n")
+        file_count += len(git_commit_lines)
 
     # -- manifest --
     manifest = {
