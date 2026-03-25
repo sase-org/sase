@@ -50,6 +50,8 @@ class MentorKillingMixin(HintMixinBase):
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
+        if not detail_container.is_attached:
+            return
         hint_bar = HintInputBar(mode="mentors", id="hint-input-bar")
         detail_container.mount(hint_bar)
 

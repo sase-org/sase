@@ -46,6 +46,8 @@ class RewindMixin(HintMixinBase):
 
         # Mount the rewind input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
+        if not detail_container.is_attached:
+            return
         rewind_bar = HintInputBar(
             mode="rewind", placeholder=placeholder, id="hint-input-bar"
         )

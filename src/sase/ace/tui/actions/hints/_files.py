@@ -50,6 +50,8 @@ class FileViewingMixin(HintMixinBase):
 
         # Mount the hint input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
+        if not detail_container.is_attached:
+            return
         hint_bar = HintInputBar(mode="view", id="hint-input-bar")
         detail_container.mount(hint_bar)
 
@@ -77,6 +79,8 @@ class FileViewingMixin(HintMixinBase):
 
         # Mount the hint input bar in the agent detail container
         detail_container = self.query_one("#agent-detail-container")  # type: ignore[attr-defined]
+        if not detail_container.is_attached:
+            return
         hint_bar = HintInputBar(mode="view", id="hint-input-bar")
         detail_container.mount(hint_bar)
 

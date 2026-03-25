@@ -361,6 +361,8 @@ class ProposalRebaseMixin:
 
         # Mount the accept input bar
         detail_container = self.query_one("#detail-container")  # type: ignore[attr-defined]
+        if not detail_container.is_attached:
+            return
         accept_bar = HintInputBar(
             mode="accept", placeholder=placeholder, id="hint-input-bar"
         )
