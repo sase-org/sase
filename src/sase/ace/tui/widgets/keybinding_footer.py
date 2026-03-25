@@ -453,6 +453,7 @@ class KeybindingFooter(Horizontal):
         # Open tmux window (only if agent has a workspace)
         if agent.workspace_num is not None and agent.workspace_num > 0:
             bindings.append((self._kd("start_tmux_mode"), "tmux"))
+            bindings.append((self._kd("open_tmux"), "tmux (primary)"))
 
         # Jump to CL (for ChangeSpec-level agents, or project agents with meta CL/PR)
         if not agent.is_project_agent:

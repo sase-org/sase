@@ -463,6 +463,13 @@ class AgentInteractionMixin:
         # Refresh footer to reflect new state
         self._refresh_agents_display()  # type: ignore[attr-defined]
 
+    def action_open_tmux(self) -> None:
+        """Open tmux window for primary workspace (agents tab) or default."""
+        if self.current_tab == "agents":
+            self._open_agent_tmux_window(use_primary=True)
+            return
+        super().action_open_tmux()  # type: ignore[misc]
+
     def action_start_tmux_mode(self) -> None:
         """Open tmux window for agent workspace (agents tab) or enter tmux mode."""
         if self.current_tab == "agents":
@@ -470,8 +477,13 @@ class AgentInteractionMixin:
             return
         super().action_start_tmux_mode()  # type: ignore[misc]
 
-    def _open_agent_tmux_window(self) -> None:
-        """Open a new tmux window in the selected agent's workspace directory."""
+    def _open_agent_tmux_window(self, *, use_primary: bool = False) -> None:
+        """Open a new tmux window in the selected agent's workspace directory.
+
+        Args:
+            use_primary: If True, use the primary workspace (num=1) and project
+                name as the tmux window name instead of the agent's workspace.
+        """
         import subprocess
         from pathlib import Path
 
@@ -483,16 +495,17 @@ class AgentInteractionMixin:
 
         from ...widgets.prompt_panel._file_path_hints import resolve_agent_workspace_dir
 
-        effective_ws_num = agent.effective_workspace_num
-        workspace_dir = resolve_agent_workspace_dir(
-            effective_ws_num, agent.project_file
-        )
+        workspace_num = 1 if use_primary else agent.effective_workspace_num
+        workspace_dir = resolve_agent_workspace_dir(workspace_num, agent.project_file)
         if not workspace_dir:
             self.notify("No workspace directory for agent", severity="warning")  # type: ignore[attr-defined]
             return
 
         project_name = Path(agent.project_file).parent.name
-        window_name = f"{project_name}_{effective_ws_num}"
+        if use_primary:
+            window_name = project_name
+        else:
+            window_name = f"{project_name}_{workspace_num}"
         try:
             # Check if a window with this name already exists
             result = subprocess.run(
