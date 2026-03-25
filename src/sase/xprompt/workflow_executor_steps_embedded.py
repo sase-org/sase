@@ -22,7 +22,7 @@ from sase.xprompt.workflow_models import (
 
 # Re-export types for backward compatibility
 from sase.xprompt.workflow_executor_steps_embedded_types import (  # noqa: F401
-    _PendingEmbeddedWorkflow,
+    PendingEmbeddedWorkflow,
     _WORKFLOW_REF_PATTERN,
 )
 
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 __all__ = [
     "EmbeddedWorkflowInfo",
     "EmbeddedWorkflowMixin",
-    "_PendingEmbeddedWorkflow",
+    "PendingEmbeddedWorkflow",
     "_WORKFLOW_REF_PATTERN",
     "map_output_by_type",
 ]

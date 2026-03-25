@@ -43,7 +43,7 @@ class EmbeddedWorkflowInfo:
 
 
 @dataclass
-class _PendingEmbeddedWorkflow:
+class PendingEmbeddedWorkflow:
     """Collected match data for an embedded workflow reference between phases.
 
     Attributes:

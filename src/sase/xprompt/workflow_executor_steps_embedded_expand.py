@@ -19,7 +19,7 @@ from sase.xprompt.models import UNSET
 from sase.xprompt.workflow_executor_steps_embedded_types import (
     EmbeddedWorkflowInfo,
     _DISABLED_REGION_START_RE,
-    _PendingEmbeddedWorkflow,
+    PendingEmbeddedWorkflow,
     _WORKFLOW_REF_PATTERN,
 )
 from sase.xprompt.workflow_executor_utils import render_template
@@ -101,7 +101,7 @@ class EmbeddedWorkflowExpandMixin:
         # ── Phase 1: Collection ──────────────────────────────────────────
         # Iterate matches left-to-right, parse args, build pending list.
         matches = list(re.finditer(_WORKFLOW_REF_PATTERN, prompt, re.MULTILINE))
-        pending: list[_PendingEmbeddedWorkflow] = []
+        pending: list[PendingEmbeddedWorkflow] = []
 
         for match in matches:
             name = match.group(1)
@@ -153,7 +153,7 @@ class EmbeddedWorkflowExpandMixin:
                     args[input_arg.name] = input_arg.default
 
             pending.append(
-                _PendingEmbeddedWorkflow(
+                PendingEmbeddedWorkflow(
                     name=name,
                     workflow=workflow,
                     match_start=match.start(),
