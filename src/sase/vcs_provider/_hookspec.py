@@ -176,6 +176,11 @@ class VCSHookSpec:
     # --- VCS-agnostic operations ---
 
     @hookspec(firstresult=True)
+    def vcs_abandon_change(
+        self, cl: str, revision: str, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
     def vcs_prepare_description_for_reword(self, description: str) -> str: ...
 
     @hookspec(firstresult=True)

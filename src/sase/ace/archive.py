@@ -141,6 +141,14 @@ def archive_changespec(
             diff_path = Path.home() / ".sase" / "archived" / f"{new_name}.diff"
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
+        # Abandon remote change (close PR, drop CL, etc.)
+        success, error = provider.abandon_change(changespec.cl, resolved, workspace_dir)
+        if not success:
+            return (False, f"Failed to abandon remote change: {error}")
+
+        if console:
+            console.print(f"[green]Abandoned remote change: {changespec.cl}[/green]")
+
         # Run sase_hg_archive
         success, error = provider.archive(resolved, workspace_dir)
         if not success:

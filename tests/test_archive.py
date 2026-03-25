@@ -59,6 +59,7 @@ def test_archive_changespec_claims_workspace_100_plus(make_changespec) -> None: 
 
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
+    mock_provider.abandon_change.return_value = (True, None)
     mock_provider.archive.return_value = (True, None)
 
     with patch("sase.ace.archive.find_all_changespecs", return_value=[changespec]):
@@ -107,6 +108,7 @@ def test_archive_changespec_fails_on_archive_error(make_changespec) -> None:  # 
 
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (True, None)
+    mock_provider.abandon_change.return_value = (True, None)
     mock_provider.archive.return_value = (False, "archive failed")
 
     with patch("sase.ace.archive.find_all_changespecs", return_value=[changespec]):

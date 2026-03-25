@@ -154,6 +154,15 @@ def revert_changespec(
         resolved = provider.resolve_revision(
             changespec.name, changespec.project_basename, workspace_dir
         )
+
+        # Abandon remote change (close PR, drop CL, etc.)
+        success, error = provider.abandon_change(changespec.cl, resolved, workspace_dir)
+        if not success:
+            return (False, f"Failed to abandon remote change: {error}")
+
+        if console:
+            console.print(f"[green]Abandoned remote change: {changespec.cl}[/green]")
+
         success, error = provider.prune(resolved, workspace_dir)
         if not success:
             return (False, f"Failed to prune revision: {error}")

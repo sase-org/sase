@@ -266,6 +266,19 @@ class VCSProvider(ABC):
 
     # --- VCS-agnostic methods (default implementations) ---
 
+    def abandon_change(
+        self, cl: str, revision: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        """Abandon/close the remote change (PR, CL) associated with a revision.
+
+        Called during revert/archive before the local revision is pruned.
+        The default implementation is a no-op — providers that manage remote
+        changes (PRs, CLs) should override this.
+
+        Returns ``(True, None)`` on success or no-op.
+        """
+        return (True, None)
+
     def prepare_description_for_reword(self, description: str) -> str:
         """Prepare a description string for the provider's reword command.
 

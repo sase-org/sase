@@ -96,6 +96,7 @@ def test_revert_changespec_success(make_changespec) -> None:  # type: ignore[no-
     console = MagicMock()
 
     mock_provider = MagicMock()
+    mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (True, None)
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
@@ -151,6 +152,7 @@ def test_revert_changespec_fails_on_prune_error(make_changespec) -> None:  # typ
     changespec = make_changespec.create_with_file()
 
     mock_provider = MagicMock()
+    mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (False, "prune failed")
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):
@@ -176,6 +178,7 @@ def test_revert_changespec_calls_kill_and_persist(make_changespec) -> None:  # t
     changespec = make_changespec.create_with_file()
 
     mock_provider = MagicMock()
+    mock_provider.abandon_change.return_value = (True, None)
     mock_provider.prune.return_value = (True, None)
 
     with patch("sase.ace.revert.find_all_changespecs", return_value=[changespec]):

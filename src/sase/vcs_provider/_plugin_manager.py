@@ -215,6 +215,14 @@ class VCSPluginManager(VCSProvider):
 
     # --- VCS-agnostic methods ---
 
+    def abandon_change(
+        self, cl: str, revision: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        result = self._pm.hook.vcs_abandon_change(cl=cl, revision=revision, cwd=cwd)
+        if result is None:
+            return (True, None)
+        return result  # type: ignore[return-value]
+
     def prepare_description_for_reword(self, description: str) -> str:
         result = self._pm.hook.vcs_prepare_description_for_reword(
             description=description
