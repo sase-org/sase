@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# Repo-specific stop hook for sibling repositories.
+# Keeps sibling-repo checks out of the generic, installable sase_commit_stop_hook.
+
+set -u
+
+function resolve_project_dir() {
+    local candidate=""
+
+    for candidate in \
+        "${CLAUDE_PROJECT_DIR:-}" \
+        "${GEMINI_PROJECT_DIR:-}" \
+        "${CODEX_PROJECT_DIR:-}"
+    do
+        if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    pwd
+}
+
+PROJECT_DIR="$(resolve_project_dir)"
+
+if [ -z "${SASE_COMMIT_METHOD:-}" ]; then
+    exit 0
+fi
+
+if [ -n "${SASE_DISABLE_COMMIT_STOP_HOOK:-}" ]; then
+    exit 0
+fi
+
+function is_codex_runtime() {
+    [ -n "${CODEX_THREAD_ID:-}" ] || [ -n "${CODEX_CI:-}" ]
+}
+
+function emit_block() {
+    local reason="$1"
+    local details="${2:-}"
+
+    if is_codex_runtime; then
+        printf '{"decision":"block","reason":"%s"}\n' "$reason"
+        if [ -n "$details" ]; then
+            echo "$details" >&2
+        fi
+        return 0
+    fi
+
+    if [ -n "$details" ]; then
+        echo "$details" >&2
+    else
+        echo "$reason" >&2
+    fi
+    return 2
+}
+
+function resolve_commit_skill() {
+    local provider="${SASE_VCS_PROVIDER:-}"
+
+    if [ -z "$provider" ] || [ "$provider" = "auto" ]; then
+        if [ -d .hg ]; then
+            provider="hg"
+        elif [ -e .git ]; then
+            provider="git"
+        else
+            provider="git"
+        fi
+    fi
+
+    case "$provider" in
+        github | bare_git | git)
+            echo "/sase_git_commit"
+            ;;
+        hg | google)
+            echo "/sase_hg_commit"
+            ;;
+        *)
+            provider=$(echo "$provider" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9_' '_')
+            provider="${provider#_}"
+            provider="${provider%_}"
+            if [ -z "$provider" ]; then
+                provider="git"
+            fi
+            echo "/sase_${provider}_commit"
+            ;;
+    esac
+}
+
+function repo_has_changes() {
+    local repo_dir="$1"
+
+    if [ -e "$repo_dir/.git" ]; then
+        local repo_changes
+        repo_changes=$(cd "$repo_dir" && { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } | sort -u)
+        echo "$repo_changes" | grep -q .
+        return $?
+    fi
+
+    if [ -d "$repo_dir/.hg" ]; then
+        local repo_changes
+        repo_changes=$(cd "$repo_dir" && hg status -man 2>/dev/null)
+        echo "$repo_changes" | grep -q .
+        return $?
+    fi
+
+    return 1
+}
+
+function check_sibling_repos() {
+    local sibling_repos_with_changes=()
+    local repo_dir
+
+    for repo_dir in "$PROJECT_DIR"/../sase-*/ "$HOME/.local/share/chezmoi"; do
+        [ -d "$repo_dir" ] || continue
+        if repo_has_changes "$repo_dir"; then
+            sibling_repos_with_changes+=("$(basename "$repo_dir")")
+        fi
+    done
+
+    if [ ${#sibling_repos_with_changes[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    local repos_list
+    repos_list=$(printf ', %s' "${sibling_repos_with_changes[@]}")
+    repos_list=${repos_list:2}
+
+    local skill
+    skill="$(resolve_commit_skill)"
+
+    emit_block \
+        "Stop hook blocked: sibling repos have uncommitted changes. Run ${skill} now." \
+        "Uncommitted changes detected in sibling repo(s): ${repos_list}. Use your ${skill} skill to commit them before continuing."
+    return $?
+}
+
+cd "$PROJECT_DIR" || exit 1
+check_sibling_repos
+exit $?

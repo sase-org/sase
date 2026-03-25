@@ -71,7 +71,9 @@ def sase_git_commit() -> NoReturn:
 
 
 def sase_commit_stop_hook() -> NoReturn:
-    _exec_script("sase_commit_stop_hook")
+    from sase.scripts.sase_commit_stop_hook import main
+
+    raise SystemExit(main())
 
 
 def sase_git_fix() -> NoReturn:

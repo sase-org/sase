@@ -37,6 +37,11 @@ Quality-check stop hook for the sase repo only. Runs auto-formatting (`just fmt-
 
 This hook moved to `src/sase/scripts/sase_commit_stop_hook` so it can be installed on `PATH` as `sase_commit_stop_hook`.
 
+## `sase_sibling_commit_stop_hook`
+
+Repo-specific stop hook that checks sibling repos (`../sase-*` and `~/.local/share/chezmoi`) for uncommitted changes and
+blocks commit workflows until those sibling repos are committed.
+
 ## `sase_bead`
 
 Thin wrapper that delegates to `sase bead`. Exists for compatibility with tools (like `pyvision`) that expect
