@@ -16,11 +16,6 @@
             "type": "command",
             "command": "\"$GEMINI_PROJECT_DIR\"/tools/sase_sibling_commit_stop_hook",
             "timeout": 60000
-          },
-          {
-            "type": "command",
-            "command": "sase_commit_stop_hook",
-            "timeout": 60000
           }
         ]
       }
