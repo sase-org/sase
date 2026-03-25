@@ -15,6 +15,8 @@ class PromptBarMixin:
     # State for prompt input
     _prompt_context: PromptContext | None = None
 
+    _TRIVIAL_PROMPT_PATTERNS = frozenset({".", ".x"})
+
     def _show_prompt_input_bar(
         self,
         project_name: str | None,
@@ -75,6 +77,11 @@ class PromptBarMixin:
                 self.notify(f"Failed to get workspace: {e}", severity="error")  # type: ignore[attr-defined]
                 return
 
+        # Remove any existing prompt bar before mounting a new one.
+        # Must happen before overwriting _prompt_context so the old bar's
+        # text is saved with the old context's project/branch.
+        self._unmount_prompt_bar()
+
         # Store context for when prompt is submitted
         self._prompt_context = PromptContext(
             project_name=project_name,
@@ -89,19 +96,61 @@ class PromptBarMixin:
             update_target=update_target,
         )
 
-        # Remove any existing prompt bar before mounting a new one
-        self._unmount_prompt_bar()
         # Immediately show prompt input bar (workspace prep happens in runner)
         self.mount(PromptInputBar(id="prompt-input-bar"))  # type: ignore[attr-defined]
 
+    def _save_bar_text_as_cancelled(self, bar: object) -> None:
+        """Extract text from bar and save to history as cancelled.
+
+        Skips empty text and trivial trigger patterns (`.`, `.x`, VCS dot-prompts).
+        Safe to call even if the prompt was already saved — add_or_update_prompt
+        never downgrades a non-cancelled entry to cancelled.
+        """
+        try:
+            text_area = bar.query_one("#prompt-input", PromptTextArea)  # type: ignore[attr-defined]
+            text = text_area.text.strip()
+        except Exception:
+            return
+
+        if not text:
+            return
+
+        # Skip trigger patterns that aren't real prompts
+        if text in self._TRIVIAL_PROMPT_PATTERNS:
+            return
+        # Skip VCS dot-prompts like "#gh:sase ." or "#gh:sase .x"
+        if text.endswith((" .", " .x")) and text.startswith("#"):
+            return
+
+        ctx = self._prompt_context
+        if ctx:
+            from sase.history.prompt import add_or_update_prompt
+
+            add_or_update_prompt(
+                text,
+                project_name=ctx.project_name,
+                branch_or_workspace=ctx.history_sort_key,
+                cancelled=True,
+            )
+        else:
+            from sase.history.prompt import add_or_update_prompt
+
+            add_or_update_prompt(text, cancelled=True)
+
     def _unmount_prompt_bar(self) -> None:
-        """Unmount the prompt input bar if present."""
+        """Unmount the prompt input bar if present, saving any unsaved text."""
         from ...widgets import PromptInputBar
 
         try:
             bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
         except Exception:
             return  # Bar not present
+
+        # Save any non-trivial text as cancelled before removing the bar.
+        # This is the safety net — every code path that dismisses the bar
+        # flows through here, so no prompt text can ever be silently lost.
+        self._save_bar_text_as_cancelled(bar)
+
         # Synchronously detach from parent's node list so the ID is freed
         # immediately. Without this, bar.remove() only schedules async
         # removal and a subsequent mount() would hit DuplicateIds.
@@ -160,13 +209,16 @@ class PromptBarMixin:
         """
         from ...widgets import PromptInputBar
 
+        # Remove any existing prompt bar before mounting a new one.
+        # Must happen before overwriting _prompt_context so the old bar's
+        # text is saved with the old context's project/branch.
+        self._unmount_prompt_bar()
+
         self._setup_home_prompt_context(
             display_name=display_name,
             history_sort_key=history_sort_key,
         )
 
-        # Remove any existing prompt bar before mounting a new one
-        self._unmount_prompt_bar()
         # Show prompt input bar
         self.mount(PromptInputBar(initial_value=initial_text, id="prompt-input-bar"))  # type: ignore[attr-defined]
 
@@ -195,6 +247,10 @@ class PromptBarMixin:
         if prompt:
             self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:
+            if initial_text.strip():
+                from sase.history.prompt import add_or_update_prompt
+
+                add_or_update_prompt(initial_text.strip(), cancelled=True)
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
             self._prompt_context = None
 
@@ -221,19 +277,8 @@ class PromptBarMixin:
         if not isinstance(event, PromptInputBar.Cancelled):
             return
 
-        # Save cancelled prompt to history so it can be recovered via "@ " filter
-        if event.cancelled_text and self._prompt_context:
-            from sase.history.prompt import add_or_update_prompt
-
-            add_or_update_prompt(
-                event.cancelled_text,
-                project_name=self._prompt_context.project_name,
-                branch_or_workspace=self._prompt_context.history_sort_key,
-                cancelled=True,
-            )
-
         self.notify("Prompt input cancelled")  # type: ignore[attr-defined]
-        self._unmount_prompt_bar()
+        self._unmount_prompt_bar()  # saves text automatically
         self._prompt_context = None
 
     def on_prompt_input_bar_editor_requested(self, event: object) -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 18:39:06
-status: wip
+status: done
 ---
 
 # Plan: Make Cancelled Prompt Preservation Bulletproof
