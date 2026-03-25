@@ -157,7 +157,7 @@ def _log_hook_run(project_dir: str) -> None:
     if not claude_dir.is_dir():
         return
 
-    method = os.environ.get("SASE_COMMIT_METHOD", "")
+    method = os.environ.get("SASE_COMMIT_METHOD", "create_commit")
     log_file = claude_dir / "hooks.log"
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(
@@ -167,10 +167,6 @@ def _log_hook_run(project_dir: str) -> None:
 
 
 def main() -> int:
-    method = os.environ.get("SASE_COMMIT_METHOD")
-    if not method:
-        return 0
-
     if os.environ.get("SASE_DISABLE_COMMIT_STOP_HOOK"):
         return 0
 
