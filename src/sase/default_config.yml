@@ -289,6 +289,7 @@ xprompts:
       by that prompt?
 
       ### THE PROMPT
+      {{ prompt }}
   x:
     input: { name: word, cmd: text }
     content: "@$(sase_xcmd {{ name }} {{ cmd }})"
