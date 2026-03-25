@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 16:53:04
-status: wip
+status: done
 ---
 
 # Plan: Fix `#propose` workflow failure when commit_stop_hook pre-commits

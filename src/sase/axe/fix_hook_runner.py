@@ -169,6 +169,11 @@ def main() -> int:
             prompt, artifacts_dir
         )
 
+        # Set SASE_ARTIFACTS_DIR before invoking the agent so that the
+        # commit_stop_hook path (agent commits during response) can write
+        # commit_result.json to the correct location.
+        os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+
         # Run the agent
         print("Running fix-hook agent...")
         print(f"Command: {run_hook_command}")
@@ -195,8 +200,7 @@ def main() -> int:
         display_command = contract_test_target_command(run_hook_command)
         who = f"fix-hook {history_ref} {display_command}"
 
-        # Inject environment variables that embedded workflow post-steps need.
-        os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+        # Inject remaining environment variables for post-steps.
         os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
 
         # Execute post-steps from embedded workflows (proposal creation via #propose)

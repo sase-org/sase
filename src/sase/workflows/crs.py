@@ -173,6 +173,11 @@ class CrsWorkflow(BaseWorkflow):
             prompt, artifacts_dir
         )
 
+        # Set SASE_ARTIFACTS_DIR before invoking the agent so that the
+        # commit_stop_hook path (agent commits during response) can write
+        # commit_result.json to the correct location.
+        os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+
         # Call Gemini
         print_status("Calling Gemini to address change requests...", "progress")
         try:
@@ -196,10 +201,7 @@ class CrsWorkflow(BaseWorkflow):
             f.write(response_content)
         print_artifact_created(self.response_path)
 
-        # Inject environment variables that embedded workflow post-steps need.
-        # The normal workflow executor does this via _inject_environment(), but
-        # the standalone embed path must set them explicitly.
-        os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
+        # Inject remaining environment variables for post-steps.
         os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
 
         # Execute post-steps from embedded workflows (proposal creation via #propose)
