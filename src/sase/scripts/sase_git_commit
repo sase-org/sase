@@ -32,7 +32,7 @@ function jlog() {
     shift
   done
 
-  jq -c -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg event "$event" \
+  jq -c -n --arg ts "$(TZ=America/New_York date +%Y-%m-%dT%H:%M:%S%:z)" --arg event "$event" \
     "${jq_args[@]}" \
     "{timestamp: \$ts, event: \$event${jq_pairs}}" >>"${LOG_FILE}" 2>/dev/null
 }

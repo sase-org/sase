@@ -6,10 +6,11 @@ import os
 import re
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.time import get_timezone
 from sase.vcs_provider import get_vcs_provider
 from sase.vcs_provider._registry import detect_vcs
 
@@ -19,7 +20,7 @@ LOG_FILE = os.path.expanduser("~/.sase_commit_stop_hook.jsonl")
 def _jlog(event: str, **kwargs: Any) -> None:
     """Append a structured JSON log line to ~/.sase_commit_stop_hook.jsonl."""
     record: dict[str, Any] = {
-        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(get_timezone()).replace(microsecond=0).isoformat(),
         "event": event,
         **kwargs,
     }
