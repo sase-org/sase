@@ -126,6 +126,7 @@ class PlanApprovalModal(
         """Commit the plan without running a coder agent."""
         if self._feedback_mode:
             return
+        self._copy_plan_path_to_clipboard()
         self.dismiss(PlanApprovalResult(action="commit"))
 
     def action_reject(self) -> None:
@@ -157,7 +158,7 @@ class PlanApprovalModal(
         else:
             self.notify("Failed to copy to clipboard", severity="error")
 
-    def action_copy_plan_path(self) -> None:
+    def _copy_plan_path_to_clipboard(self) -> None:
         """Copy the plan file path to clipboard (with ~ for home dir)."""
         home = os.path.expanduser("~")
         path = os.path.expanduser(self._plan_file)
@@ -167,6 +168,10 @@ class PlanApprovalModal(
             self.notify(f"Copied: {path}")
         else:
             self.notify("Failed to copy to clipboard", severity="error")
+
+    def action_copy_plan_path(self) -> None:
+        """Copy the plan file path to clipboard (with ~ for home dir)."""
+        self._copy_plan_path_to_clipboard()
 
     def action_feedback(self) -> None:
         """Enter feedback mode to reject with feedback."""
