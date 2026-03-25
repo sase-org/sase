@@ -7,7 +7,8 @@ steps:
   - name: inject
     prompt_part: |
       ---
-      IMPORTANT: You should make the necessary file changes, but should NOT commit or create a proposal yourself.
+      IMPORTANT: You should make the necessary file changes, but should NOT create a commit, branch, or PR / CL yourself.
+      Exception: If a post-completion hook instructs you to commit, you MUST follow those instructions and commit.
 
   - name: check_changes
     use: shared/check_changes
