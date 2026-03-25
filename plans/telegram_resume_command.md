@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-24 22:01:42
-status: wip
+status: done
 ---
 
 # Plan: Add `/resume` Telegram Slash Command
