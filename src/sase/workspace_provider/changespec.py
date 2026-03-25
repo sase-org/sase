@@ -80,6 +80,9 @@ def _save_committed_diff(
     timestamp: str,
 ) -> str | None:
     """Save the diff between *checkout_target* and *branch_name* to disk."""
+    diff_text: str | None = None
+
+    # Try git diff first
     try:
         result = subprocess.run(
             ["git", "diff", f"{checkout_target}...{branch_name}"],
@@ -87,9 +90,26 @@ def _save_committed_diff(
             text=True,
             check=False,
         )
-        if result.returncode != 0 or not result.stdout.strip():
-            return None
+        if result.returncode == 0 and result.stdout.strip():
+            diff_text = result.stdout
     except Exception:
+        pass
+
+    # Fall back to VCS provider's committed_diff()
+    if diff_text is None:
+        try:
+            import os
+
+            from sase.vcs_provider import get_vcs_provider
+
+            provider = get_vcs_provider(os.getcwd())
+            ok, provider_diff = provider.committed_diff(os.getcwd())
+            if ok and provider_diff and provider_diff.strip():
+                diff_text = provider_diff
+        except Exception:
+            pass
+
+    if diff_text is None:
         return None
 
     diffs_dir = ensure_sase_directory("diffs")
@@ -98,8 +118,8 @@ def _save_committed_diff(
     diff_path = f"{diffs_dir}/{filename}"
 
     with open(diff_path, "w", encoding="utf-8") as f:
-        f.write(result.stdout)
-        if not result.stdout.endswith("\n"):
+        f.write(diff_text)
+        if not diff_text.endswith("\n"):
             f.write("\n")
 
     return shorten_path(diff_path)
@@ -116,13 +136,22 @@ def create_changespec_for_workflow(
     cl_url: str | None = None,
     cl_name: str | None = None,
     status: str = "Draft",
+    commit_description: str | None = None,
 ) -> str | None:
     """Create a ChangeSpec for commits produced by an agent workflow.
 
     Returns the suffixed ChangeSpec name on success, or ``None`` when the
-    agent branch has no new commits relative to *checkout_target*.
+    agent branch has no new commits relative to *checkout_target* and no
+    *commit_description* fallback is provided.
+
+    Args:
+        commit_description: Fallback commit description for non-git VCS where
+            ``git log`` is unavailable. When *_get_commits_ahead()* returns
+            empty and this is provided, it is used as a single commit subject.
     """
     commits = _get_commits_ahead(checkout_target, branch_name)
+    if not commits and commit_description:
+        commits = [commit_description]
     if not commits:
         return None
 

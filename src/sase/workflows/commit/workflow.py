@@ -61,6 +61,25 @@ class CommitWorkflow(BaseWorkflow):
         # SASE_PLAN: append PLAN= to message and mark plan as done
         self._handle_sase_plan(cwd)
 
+        # Pre-compute the _<N> suffix for create_pull_request so the CL is
+        # created with the correct suffixed name (important for non-git VCS
+        # where ChangeSpec creation may not be able to rename the CL later).
+        if self._method == "create_pull_request":
+            try:
+                from sase.workflows.commit.changespec_operations import (
+                    compute_suffixed_cl_name,
+                )
+                from sase.workflows.utils import get_project_from_workspace
+
+                project_name = get_project_from_workspace()
+                if project_name:
+                    base_name = self._payload["name"]
+                    suffixed = compute_suffixed_cl_name(project_name, base_name)
+                    if suffixed:
+                        self._payload["name"] = suffixed
+            except Exception:
+                pass  # Best-effort; fall back to unsuffixed name
+
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)
 
@@ -201,6 +220,8 @@ class CommitWorkflow(BaseWorkflow):
                 response="",
                 workflow_name="sase_commit",
                 cl_url=cl_url,
+                cl_name=self._payload.get("name"),
+                commit_description=self._payload.get("message", ""),
             )
             if cs_name:
                 print_status(f"Created ChangeSpec: {cs_name}", "success")

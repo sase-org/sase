@@ -52,6 +52,56 @@ def _find_changespec_end_line(lines: list[str], changespec_name: str) -> int | N
     return None
 
 
+def compute_suffixed_cl_name(project: str, cl_name: str) -> str | None:
+    """Compute the suffixed CL name (e.g., ``eval_foobar_1``) without creating a ChangeSpec.
+
+    Reads existing ChangeSpec names from the project file and archive to find
+    the next available ``_<N>`` suffix.
+
+    Args:
+        project: Project name.
+        cl_name: Base CL name to suffix.
+
+    Returns:
+        The suffixed name, or None if the project file doesn't exist and can't
+        be created.
+    """
+    project_file = get_project_file_path(project)
+
+    if not os.path.isfile(project_file):
+        from sase.workflows.commit.project_file_utils import create_project_file
+
+        if not create_project_file(project):
+            return None
+
+    try:
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            existing_names = set()
+            for line in lines:
+                if line.startswith("NAME: "):
+                    existing_names.add(line[6:].strip())
+
+            from sase.ace.changespec.archive import get_archive_file_path
+
+            archive_file = get_archive_file_path(project_file)
+            if os.path.isfile(archive_file):
+                with open(archive_file, encoding="utf-8") as f:
+                    for line in f.readlines():
+                        if line.startswith("NAME: "):
+                            existing_names.add(line[6:].strip())
+
+            from sase.core.changespec import get_next_suffix_number
+
+            suffix_num = get_next_suffix_number(cl_name, existing_names)
+            return f"{cl_name}_{suffix_num}"
+    except Exception as e:
+        print_status(f"Failed to compute suffixed CL name: {e}", "warning")
+        return None
+
+
 def add_changespec_to_project_file(
     project: str,
     cl_name: str,

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 18:00:25
-status: wip
+status: done
 ---
 
 # Plan: Fix ChangeSpec Creation for Mercurial VCS (`#pr` workflow)

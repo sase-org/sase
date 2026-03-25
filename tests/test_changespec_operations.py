@@ -5,7 +5,10 @@ import tempfile
 from unittest.mock import patch
 
 from sase.ace.changespec.parser import parse_project_file
-from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
+from sase.workflows.commit.changespec_operations import (
+    add_changespec_to_project_file,
+    compute_suffixed_cl_name,
+)
 
 
 def test_add_changespec_inherits_parent_hooks() -> None:
@@ -105,6 +108,63 @@ STATUS: Draft
         assert child_cs.bug == "http://b/12345678"
     finally:
         os.unlink(project_file)
+
+
+def test_compute_suffixed_cl_name_basic() -> None:
+    """Test compute_suffixed_cl_name returns suffixed name."""
+    # Project file with one existing ChangeSpec
+    content = "NAME: eval_foobar_1\nSTATUS: Draft\n"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = compute_suffixed_cl_name("test_project", "eval_foobar")
+        # _1 already exists, so should get _2
+        assert result == "eval_foobar_2"
+    finally:
+        os.unlink(project_file)
+
+
+def test_compute_suffixed_cl_name_no_existing() -> None:
+    """Test compute_suffixed_cl_name starts at _1 when no existing names."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = compute_suffixed_cl_name("test_project", "eval_bar")
+        assert result == "eval_bar_1"
+    finally:
+        os.unlink(project_file)
+
+
+def test_compute_suffixed_cl_name_no_project_file() -> None:
+    """Test compute_suffixed_cl_name returns None when project file can't be created."""
+    with (
+        patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value="/nonexistent/path.gp",
+        ),
+        patch(
+            "sase.workflows.commit.changespec_operations.os.path.isfile",
+            return_value=False,
+        ),
+        patch(
+            "sase.workflows.commit.project_file_utils.create_project_file",
+            return_value=False,
+        ),
+    ):
+        result = compute_suffixed_cl_name("test_project", "eval_baz")
+    assert result is None
 
 
 def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
