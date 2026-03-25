@@ -149,12 +149,6 @@ def _log_hook_run(project_dir: str) -> None:
         f.write(f"sase_commit_stop_hook ran (method={method})\\n")
 
 
-def _marker_file() -> Path:
-    pane = os.environ.get("TMUX_PANE", "default")
-    pane_id = pane.replace("%", "")
-    return Path(tempfile.gettempdir()) / f"sase_commit_stop_hook_{pane_id}"
-
-
 def main() -> int:
     method = os.environ.get("SASE_COMMIT_METHOD")
     if not method:
@@ -168,17 +162,11 @@ def main() -> int:
 
     _log_hook_run(project_dir)
 
-    marker = _marker_file()
-    if marker.exists():
-        marker.unlink(missing_ok=True)
-        return 0
-
     has_changes, changed_files = _get_changed_files(project_dir)
     if not has_changes:
         return 0
 
     skill = _resolve_commit_skill(project_dir)
-    marker.touch()
 
     details = (
         "Uncommitted changes detected:\n"
