@@ -503,13 +503,19 @@ class AgentsMixinCore(
         else:
             agent_detail.show_empty()
 
-        if getattr(self, "_bang_mode_active", False):
+        if getattr(self, "_fold_mode_active", False):
+            footer_widget.update_fold_bindings()
+        elif getattr(self, "_leader_mode_active", False):
+            footer_widget.update_leader_bindings(current_tab="agents")
+        elif getattr(self, "_bang_mode_active", False):
             footer_widget.update_bang_bindings()
         elif getattr(self, "_copy_mode_active", False):
             file_visible = agent_detail.is_file_visible()
             footer_widget.update_copy_bindings(
                 self.current_tab, file_visible=file_visible
             )
+        elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
+            footer_widget.update_custom_mode_bindings(cm)
         else:
             completed_count = sum(
                 1 for a in self._agents if a.status in DISMISSABLE_STATUSES

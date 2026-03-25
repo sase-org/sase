@@ -429,24 +429,32 @@ class ChangeSpecMixin:
                 )
             )
             # Preserve modal mode footers during auto-refresh
-            if getattr(self, "_leader_mode_active", False):
+            if getattr(self, "_fold_mode_active", False):
+                footer_widget.update_fold_bindings()
+            elif getattr(self, "_leader_mode_active", False):
                 footer_widget.update_leader_bindings()
             elif getattr(self, "_bang_mode_active", False):
                 footer_widget.update_bang_bindings()
             elif getattr(self, "_copy_mode_active", False):
                 footer_widget.update_copy_bindings(self.current_tab)
+            elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
+                footer_widget.update_custom_mode_bindings(cm)
             else:
                 footer_widget.update_bindings(
                     changespec, mark_count=len(self.marked_indices)
                 )
         else:
             detail_widget.show_empty(self.canonical_query_string)  # type: ignore[attr-defined]
-            if getattr(self, "_leader_mode_active", False):
+            if getattr(self, "_fold_mode_active", False):
+                pass  # preserve fold mode footer
+            elif getattr(self, "_leader_mode_active", False):
                 pass  # preserve leader mode footer
             elif getattr(self, "_bang_mode_active", False):
                 pass  # preserve bang mode footer
             elif getattr(self, "_copy_mode_active", False):
                 pass  # preserve copy mode footer
+            elif getattr(self, "_custom_mode_active", None) is not None:
+                pass  # preserve custom mode footer
             else:
                 footer_widget.show_empty()
             ancestors_panel.clear()
