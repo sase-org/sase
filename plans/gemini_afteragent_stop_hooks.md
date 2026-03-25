@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 11:56:01
-status: wip
+status: done
 ---
 
 # Fix sase_commit_stop_hook for Gemini Agents (AfterAgent Hooks)

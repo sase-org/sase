@@ -4,7 +4,6 @@ import json
 import os
 import re
 import sys
-import tempfile
 from pathlib import Path
 
 from sase.vcs_provider import get_vcs_provider
@@ -23,11 +22,29 @@ def _is_codex_runtime() -> bool:
     return bool(os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_CI"))
 
 
+def _is_gemini_runtime() -> bool:
+    return bool(os.environ.get("GEMINI_PROJECT_DIR"))
+
+
+def _read_gemini_stdin() -> dict:
+    """Read hook metadata from stdin (Gemini pipes JSON on stdin)."""
+    if sys.stdin.isatty():
+        return {}
+    try:
+        return json.loads(sys.stdin.read())
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
 def _emit_block(reason: str, details: str | None = None) -> int:
     if _is_codex_runtime():
         print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=True))
         if details:
             print(details, file=sys.stderr)
+        return 0
+
+    if _is_gemini_runtime():
+        print(json.dumps({"decision": "deny", "reason": details or reason}))
         return 0
 
     print(details or reason, file=sys.stderr)
@@ -162,19 +179,33 @@ def main() -> int:
 
     _log_hook_run(project_dir)
 
+    gemini = _is_gemini_runtime()
+    gemini_input = _read_gemini_stdin() if gemini else {}
+
+    # Deduplication: Gemini uses stop_hook_active from stdin
+    if gemini and gemini_input.get("stop_hook_active"):
+        return 0
+
     has_changes, changed_files = _get_changed_files(project_dir)
     if not has_changes:
         return 0
 
-    skill = _resolve_commit_skill(project_dir)
+    if gemini:
+        commit_instruction = (
+            "Run: .venv/bin/sase commit create --message '<your commit message>'"
+            " to commit the changes"
+        )
+    else:
+        skill = _resolve_commit_skill(project_dir)
+        commit_instruction = f"Use your {skill} skill to commit these changes now."
 
     details = (
         "Uncommitted changes detected:\n"
         + "\n".join(changed_files)
-        + f"\n\nUse your {skill} skill to commit these changes now."
+        + f"\n\n{commit_instruction}"
     )
     return _emit_block(
-        f"Stop hook blocked: uncommitted changes remain. Run {skill} now.",
+        f"Stop hook blocked: uncommitted changes remain. {commit_instruction}",
         details,
     )
 

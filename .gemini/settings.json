@@ -1,17 +1,26 @@
 {
   "hooks": {
-    "SessionEnd": [
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$GEMINI_PROJECT_DIR\"/tools/sase_core_stop_hook",
+            "timeout": 300000
+          }
+        ]
+      },
       {
         "hooks": [
           {
             "type": "command",
             "command": "\"$GEMINI_PROJECT_DIR\"/tools/sase_sibling_commit_stop_hook",
-            "timeout": 300000
+            "timeout": 60000
           },
           {
             "type": "command",
             "command": "sase_commit_stop_hook",
-            "timeout": 300000
+            "timeout": 60000
           }
         ]
       }

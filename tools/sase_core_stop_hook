@@ -7,6 +7,25 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Gemini runtime globals
+GEMINI_HOOK_INPUT=""
+GEMINI_STOP_HOOK_ACTIVE=""
+
+function read_hook_input() {
+    if [ -t 0 ]; then
+        return
+    fi
+    GEMINI_HOOK_INPUT=$(cat)
+    if [ -n "$GEMINI_HOOK_INPUT" ]; then
+        GEMINI_STOP_HOOK_ACTIVE=$(printf '%s' "$GEMINI_HOOK_INPUT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+if d.get('stop_hook_active', ''):
+    print('true')
+" 2>/dev/null) || true
+    fi
+}
+
 # File patterns for conditional execution
 PYTHON_PATTERN='^(src/sase|tests)/.*\.py$'
 MD_PATTERN='\.md$'
@@ -29,7 +48,7 @@ function has_changes_matching() {
 function print_cmd_to_user() {
     local group="$1"
     local cmd="$2"
-    echo "[sase_core_stop_hook:${group}] Running \`$cmd\`..."
+    echo "[sase_core_stop_hook:${group}] Running \`$cmd\`..." >&2
 }
 
 # Truncate command output to avoid blowing up the Claude Code context window.
@@ -55,8 +74,14 @@ function is_codex_runtime() {
     [ -n "$CODEX_THREAD_ID" ] || [ -n "$CODEX_CI" ]
 }
 
-# Emit a hook "block" response that works for both Codex and Claude.
+# Detect Gemini hook runtime.
+function is_gemini_runtime() {
+    [ -n "$GEMINI_HOOK_INPUT" ]
+}
+
+# Emit a hook "block" response that works for Codex, Gemini, and Claude.
 # - Codex: structured JSON on stdout + exit 0.
+# - Gemini: deny JSON on stdout + exit 0.
 # - Claude: message on stderr + exit 2.
 function emit_block() {
     local reason="$1"
@@ -67,6 +92,12 @@ function emit_block() {
         if [ -n "$details" ]; then
             echo -e "$details" >&2
         fi
+        return 0
+    fi
+
+    if is_gemini_runtime; then
+        local msg="${details:-$reason}"
+        printf '%s' "$msg" | python3 -c "import json,sys; print(json.dumps({'decision':'deny','reason':sys.stdin.read()}))"
         return 0
     fi
 
@@ -100,6 +131,8 @@ function send_failure_notification() {
 # Run quality checks conditionally based on changed files
 function run() {
     cd "$PROJECT_DIR" || return 1
+
+    read_hook_input
 
     # Allow callers to disable this hook entirely
     if [ -n "$SASE_DISABLE_CORE_STOP_HOOK" ]; then

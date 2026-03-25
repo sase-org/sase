@@ -22,11 +22,10 @@ steps:
       if result_file and os.path.isfile(result_file):
           with open(result_file) as f:
               d = json.load(f)
-          print(f"success=true")
+          print("success=true")
           print(f"new_commit={d.get('result', '') or ''}")
-          raise SystemExit(0)
-      print("success=false")
-      raise SystemExit(1)
+      else:
+          print("success=false")
     output:
       success: bool
       new_commit: word

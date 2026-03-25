@@ -5,6 +5,25 @@
 
 set -u
 
+# Gemini runtime globals
+GEMINI_HOOK_INPUT=""
+GEMINI_STOP_HOOK_ACTIVE=""
+
+function read_hook_input() {
+    if [ -t 0 ]; then
+        return
+    fi
+    GEMINI_HOOK_INPUT=$(cat)
+    if [ -n "$GEMINI_HOOK_INPUT" ]; then
+        GEMINI_STOP_HOOK_ACTIVE=$(printf '%s' "$GEMINI_HOOK_INPUT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+if d.get('stop_hook_active', ''):
+    print('true')
+" 2>/dev/null) || true
+    fi
+}
+
 function resolve_project_dir() {
     local candidate=""
 
@@ -36,6 +55,10 @@ function is_codex_runtime() {
     [ -n "${CODEX_THREAD_ID:-}" ] || [ -n "${CODEX_CI:-}" ]
 }
 
+function is_gemini_runtime() {
+    [ -n "$GEMINI_HOOK_INPUT" ]
+}
+
 function emit_block() {
     local reason="$1"
     local details="${2:-}"
@@ -45,6 +68,12 @@ function emit_block() {
         if [ -n "$details" ]; then
             echo "$details" >&2
         fi
+        return 0
+    fi
+
+    if is_gemini_runtime; then
+        local msg="${details:-$reason}"
+        printf '%s' "$msg" | python3 -c "import json,sys; print(json.dumps({'decision':'deny','reason':sys.stdin.read()}))"
         return 0
     fi
 
@@ -88,6 +117,14 @@ function resolve_commit_skill() {
     esac
 }
 
+function resolve_commit_instruction() {
+    if is_gemini_runtime; then
+        echo "Run: .venv/bin/sase commit create --message '<your commit message>' to commit the changes"
+    else
+        echo "Use your $(resolve_commit_skill) skill to commit these changes now."
+    fi
+}
+
 function repo_has_changes() {
     local repo_dir="$1"
 
@@ -127,15 +164,16 @@ function check_sibling_repos() {
     repos_list=$(printf ', %s' "${sibling_repos_with_changes[@]}")
     repos_list=${repos_list:2}
 
-    local skill
-    skill="$(resolve_commit_skill)"
+    local instruction
+    instruction="$(resolve_commit_instruction)"
 
     emit_block \
-        "Stop hook blocked: sibling repos have uncommitted changes. Run ${skill} now." \
-        "Uncommitted changes detected in sibling repo(s): ${repos_list}. Use your ${skill} skill to commit them before continuing."
+        "Stop hook blocked: sibling repos have uncommitted changes. ${instruction}" \
+        "Uncommitted changes detected in sibling repo(s): ${repos_list}. ${instruction}"
     return $?
 }
 
+read_hook_input
 cd "$PROJECT_DIR" || exit 1
 check_sibling_repos
 exit $?
