@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 19:52:32
-status: wip
+status: done
 ---
 
 # Fix: `meta_` xprompt output variables broken in `pr.yml` and `commit.yml`
