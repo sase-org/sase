@@ -280,7 +280,7 @@ xprompts:
     `codex` command). #plan
   plan: |
     Think this through thoroughly and create a plan using your `/sase_plan` skill.
-  review_prompt:
+  prompt/review:
     input:
       prompt: text
     content: |
@@ -290,7 +290,7 @@ xprompts:
 
       ### THE PROMPT
       {{ prompt }}
-  review_prompt/approve:
+  prompt/approve:
     input:
       prompt: text
     content: |
