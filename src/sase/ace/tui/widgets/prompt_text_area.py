@@ -278,8 +278,10 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
 
     def action_open_workflow_editor(self) -> None:
         """Request to open workflow YAML editor."""
-        PromptInputBar = _prompt_bar_class()
         bar = self._find_prompt_bar()
+        if bar and bar._mode == "feedback":
+            return
+        PromptInputBar = _prompt_bar_class()
         if bar:
             bar.post_message(PromptInputBar.WorkflowEditorRequested())
 
@@ -424,7 +426,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self.highlight_cursor_line = True
         bar = self._find_prompt_bar()
         if bar:
-            bar.border_title = "Prompt [NORMAL]"
+            bar.border_title = f"{bar._base_title} [NORMAL]"
             bar.border_subtitle = "[Esc] cancel  [i] insert"
 
     def _enter_insert_mode(self) -> None:
@@ -437,7 +439,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self.highlight_cursor_line = False
         bar = self._find_prompt_bar()
         if bar:
-            bar.border_title = "Prompt"
+            bar.border_title = bar._base_title
             bar.border_subtitle = "[Esc] cancel"
 
     async def _on_key(self, event: Key) -> None:
@@ -479,15 +481,15 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self._try_expand_snippet()
             return
 
-        # Detect '#@' trigger before the '@' is inserted
+        # Detect '#@' trigger before the '@' is inserted (skip in feedback mode)
         if event.character == "@":
-            PromptInputBar = _prompt_bar_class()
-            row, col = self.cursor_location
-            if col > 0:
-                line = self.document.get_line(row)
-                if line[col - 1] == "#":
-                    bar = self._find_prompt_bar()
-                    if bar:
+            bar = self._find_prompt_bar()
+            if bar and bar._mode != "feedback":
+                row, col = self.cursor_location
+                if col > 0:
+                    line = self.document.get_line(row)
+                    if line[col - 1] == "#":
+                        PromptInputBar = _prompt_bar_class()
                         bar.post_message(PromptInputBar.SnippetRequested())
                         event.stop()
                         event.prevent_default()

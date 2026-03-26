@@ -222,6 +222,26 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             )
             return
 
+        # Feedback requested: dismiss modal and mount PromptInputBar in feedback mode
+        if result.action == "feedback_requested":
+            from ._notification_navigation import find_agent_for_notification as _find
+
+            from ...widgets import PromptInputBar
+
+            agent = _find(app, notification)
+            agent_identity = agent.identity if agent is not None else None
+
+            from ._types import PlanFeedbackContext
+
+            app._plan_feedback_context = PlanFeedbackContext(  # type: ignore[attr-defined]
+                notification_id=notification.id,
+                response_path=response_path,
+                agent_identity=agent_identity,
+                plan_file=plan_file,
+            )
+            app.mount(PromptInputBar(mode="feedback", id="prompt-input-bar"))  # type: ignore[attr-defined]
+            return
+
         # Find matching agent for status override updates
         from ._notification_navigation import find_agent_for_notification
 
