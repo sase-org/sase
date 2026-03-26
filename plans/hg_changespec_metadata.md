@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 21:08:46
-status: wip
+status: done
 ---
 
 # Plan: Fix missing ChangeSpec metadata for hg provider in Agents panel

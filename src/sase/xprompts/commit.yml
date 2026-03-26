@@ -70,11 +70,13 @@ steps:
       import json, os, shlex
       with open(os.environ['RESULT_FILE']) as f:
           d = json.load(f)
-      for k in ('result', 'message'):
+      for k in ('result', 'message', 'changespec_name', 'name'):
           print(f'{k}={shlex.quote(d.get(k, \"\") or \"\")}')
       ")"
       [ -n "$result" ] && echo "meta_new_commit=$result"
       [ -n "$message" ] && echo "meta_commit_message=$message"
+      if [ -n "$changespec_name" ]; then echo "meta_changespec=$changespec_name"; elif [ -n "$name" ]; then echo "meta_changespec=$name"; fi
     output:
       meta_new_commit: word
       meta_commit_message: line
+      meta_changespec: word
