@@ -1,7 +1,7 @@
 ---
-status: wip
+status: done
 create_time: 2026-03-26 11:09:34
-status: wip
+status: done
 ---
 
 # Add Agent Info Footer to PR Descriptions

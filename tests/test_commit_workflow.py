@@ -362,6 +362,78 @@ class TestCreateChangespecReturn:
         assert result is None
 
 
+class TestBuildPrBody:
+    """Verify _build_pr_body reads agent_meta.json and sets _pr_body."""
+
+    def test_sets_pr_body_with_full_meta(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            meta = {"name": "my-agent", "model": "opus-4", "llm_provider": "anthropic"}
+            (Path(tmpdir) / "agent_meta.json").write_text(json.dumps(meta))
+
+            payload = {"message": "add feature"}
+            wf = CommitWorkflow(payload, "create_pull_request")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._build_pr_body()
+
+            assert payload["_pr_body"] == (
+                "add feature\n\n---\n"
+                "**Model:** `anthropic/opus-4`\n"
+                "**Agent:** `my-agent`"
+            )
+
+    def test_model_only_when_name_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            meta = {"model": "opus-4", "llm_provider": "anthropic"}
+            (Path(tmpdir) / "agent_meta.json").write_text(json.dumps(meta))
+
+            payload = {"message": "msg"}
+            wf = CommitWorkflow(payload, "create_pull_request")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._build_pr_body()
+
+            assert payload["_pr_body"] == ("msg\n\n---\n**Model:** `anthropic/opus-4`")
+
+    def test_name_only_when_provider_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            meta = {"name": "my-agent", "model": "opus-4"}
+            (Path(tmpdir) / "agent_meta.json").write_text(json.dumps(meta))
+
+            payload = {"message": "msg"}
+            wf = CommitWorkflow(payload, "create_pull_request")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._build_pr_body()
+
+            assert payload["_pr_body"] == "msg\n\n---\n**Agent:** `my-agent`"
+
+    def test_no_pr_body_when_meta_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "agent_meta.json").write_text("{}")
+
+            payload = {"message": "msg"}
+            wf = CommitWorkflow(payload, "create_pull_request")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._build_pr_body()
+
+            assert "_pr_body" not in payload
+
+    def test_no_pr_body_when_no_artifacts_dir(self) -> None:
+        payload = {"message": "msg"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+        with patch.dict("os.environ", {}, clear=True):
+            wf._build_pr_body()
+
+        assert "_pr_body" not in payload
+
+    def test_no_pr_body_when_meta_file_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "msg"}
+            wf = CommitWorkflow(payload, "create_pull_request")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._build_pr_body()
+
+            assert "_pr_body" not in payload
+
+
 class TestGetMetaChangespecName:
     """Verify get_meta_changespec_name with new and legacy variables."""
 

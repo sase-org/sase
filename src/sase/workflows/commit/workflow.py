@@ -85,6 +85,9 @@ class CommitWorkflow(BaseWorkflow):
             except Exception:
                 pass  # Best-effort; fall back to unsuffixed name
 
+        if self._method == "create_pull_request":
+            self._build_pr_body()
+
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)
 
@@ -193,6 +196,33 @@ class CommitWorkflow(BaseWorkflow):
 
         # Record plan file for VCS provider to stage
         self._payload["_plan_path"] = plan_path
+
+    def _build_pr_body(self) -> None:
+        """Append agent info footer to PR body via _pr_body payload field."""
+        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+        if not artifacts_dir:
+            return
+
+        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return
+
+        lines: list[str] = []
+        provider = meta.get("llm_provider")
+        model = meta.get("model")
+        if provider and model:
+            lines.append(f"**Model:** `{provider}/{model}`")
+        name = meta.get("name")
+        if name:
+            lines.append(f"**Agent:** `{name}`")
+
+        if lines:
+            message = self._payload.get("message", "")
+            footer = "\n".join(lines)
+            self._payload["_pr_body"] = f"{message}\n\n---\n{footer}"
 
     def _create_changespec(self, cl_url: str | None) -> str | None:
         """Best-effort ChangeSpec creation after a successful PR flow."""
