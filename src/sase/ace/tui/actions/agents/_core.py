@@ -31,6 +31,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 DISMISSABLE_STATUSES = {
     "DONE",
     "FAILED",
+    "PLAN COMMITTED",
     "PLAN DONE",
 }
 
