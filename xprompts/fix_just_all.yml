@@ -1,5 +1,6 @@
 steps:
-  - name: run_just_all
+  - name: _run_just_all
+    hidden: true
     bash: |
       if just all; then
         echo "success=true"
