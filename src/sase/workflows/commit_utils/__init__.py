@@ -8,6 +8,7 @@ This package provides functions for:
 
 from sase.workflows.commit_utils.entries import (
     add_commit_entry,
+    add_commit_entry_with_id,
     add_proposed_commit_entry,
     get_next_commit_number,
 )
@@ -32,6 +33,7 @@ from sase.workflows.commit_utils.workspace import (
 __all__ = [
     "PostCommitResult",
     "add_commit_entry",
+    "add_commit_entry_with_id",
     "add_proposed_commit_entry",
     "append_post_commit_entry",
     "apply_diff_to_workspace",

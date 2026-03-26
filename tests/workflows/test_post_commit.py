@@ -121,7 +121,7 @@ def test_append_commit_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
     r = append_post_commit_entry(mode="commit")
     assert r.success is True
-    assert r.entry_id is None  # commit mode returns no entry_id
+    assert r.entry_id == "1"  # commit mode now returns entry_id
 
     content = proj.read_text()
     assert "COMMITS:" in content

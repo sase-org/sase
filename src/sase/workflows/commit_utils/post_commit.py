@@ -98,7 +98,7 @@ def append_post_commit_entry(
     response_path = _find_best_response_path(artifacts_dir)
 
     from sase.workflows.commit_utils.entries import (
-        add_commit_entry,
+        add_commit_entry_with_id,
         add_proposed_commit_entry,
     )
 
@@ -112,11 +112,11 @@ def append_post_commit_entry(
         )
         return PostCommitResult(success=ok, entry_id=entry_id)
     else:
-        ok = add_commit_entry(
+        ok, entry_id = add_commit_entry_with_id(
             project_file=project_file,
             cl_name=cl_name,
             note=note,
             diff_path=diff_path,
             chat_path=response_path,
         )
-        return PostCommitResult(success=ok)
+        return PostCommitResult(success=ok, entry_id=entry_id)

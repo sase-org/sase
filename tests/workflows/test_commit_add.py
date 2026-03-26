@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.workflows.commit_utils import (
     add_commit_entry,
+    add_commit_entry_with_id,
     add_proposed_commit_entry,
     get_next_commit_number,
     save_diff,
@@ -198,4 +199,44 @@ def test_add_proposed_commit_entry_nonexistent_file() -> None:
         note="Test",
     )
     assert success is False
+    assert entry_id is None
+
+
+# Tests for add_commit_entry_with_id
+def test_add_commit_entry_with_id_returns_entry_id() -> None:
+    """Test that add_commit_entry_with_id returns the entry ID."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("NAME: test_cl\n")
+        f.write("STATUS: Ready\n")
+        temp_path = f.name
+
+    try:
+        ok, entry_id = add_commit_entry_with_id(
+            project_file=temp_path,
+            cl_name="test_cl",
+            note="First commit",
+        )
+        assert ok is True
+        assert entry_id == "1"
+
+        # Second entry should get ID "2"
+        ok2, entry_id2 = add_commit_entry_with_id(
+            project_file=temp_path,
+            cl_name="test_cl",
+            note="Second commit",
+        )
+        assert ok2 is True
+        assert entry_id2 == "2"
+    finally:
+        os.unlink(temp_path)
+
+
+def test_add_commit_entry_with_id_nonexistent_file() -> None:
+    """Test that add_commit_entry_with_id returns (False, None) for missing file."""
+    ok, entry_id = add_commit_entry_with_id(
+        project_file="/nonexistent/file.gp",
+        cl_name="test_cl",
+        note="Test",
+    )
+    assert ok is False
     assert entry_id is None

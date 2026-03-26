@@ -63,23 +63,32 @@ def format_chat_line_with_duration(
         format_duration,
     )
 
-    timestamp = _extract_timestamp_from_chat_path(chat_path)
-    if timestamp is None:
-        return f"      | CHAT: {chat_path}\n"
+    plain_line = f"      | CHAT: {chat_path}\n"
 
-    # Use provided end_timestamp, or fall back to current time
-    if end_timestamp is not None:
-        current_timestamp = end_timestamp
-    else:
-        current_timestamp = generate_timestamp()
+    try:
+        timestamp = _extract_timestamp_from_chat_path(chat_path)
+        if timestamp is None:
+            return plain_line
 
-    # Calculate duration
-    duration_seconds = calculate_duration_from_timestamps(timestamp, current_timestamp)
-    if duration_seconds is None or duration_seconds < 0:
-        return f"      | CHAT: {chat_path}\n"
+        # Use provided end_timestamp, or fall back to current time
+        if end_timestamp is not None:
+            current_timestamp = end_timestamp
+        else:
+            current_timestamp = generate_timestamp()
 
-    duration_str = format_duration(duration_seconds)
-    return f"      | CHAT: {chat_path} ({duration_str})\n"
+        # Calculate duration
+        duration_seconds = calculate_duration_from_timestamps(
+            timestamp, current_timestamp
+        )
+        if duration_seconds is None or duration_seconds < 0:
+            return plain_line
+
+        duration_str = format_duration(duration_seconds)
+        return f"      | CHAT: {chat_path} ({duration_str})\n"
+    except Exception:
+        # Guard against environments where stdlib modules (e.g. calendar) are
+        # shadowed, which can break datetime.strptime internals.
+        return plain_line
 
 
 def get_next_commit_number(lines: list[str], cl_name: str) -> int:
@@ -325,15 +334,15 @@ def add_proposed_commit_entry(
         return False, None
 
 
-def add_commit_entry(
+def add_commit_entry_with_id(
     project_file: str,
     cl_name: str,
     note: str,
     diff_path: str | None = None,
     chat_path: str | None = None,
     end_timestamp: str | None = None,
-) -> bool:
-    """Add a new COMMITS entry to a ChangeSpec.
+) -> tuple[bool, str | None]:
+    """Add a new COMMITS entry to a ChangeSpec, returning the entry ID.
 
     Acquires a lock for the entire read-modify-write cycle.
 
@@ -346,7 +355,7 @@ def add_commit_entry(
         end_timestamp: Optional end timestamp for duration calculation.
 
     Returns:
-        True if successful, False otherwise.
+        Tuple of (success, entry_id). entry_id is like "1", "2" if successful.
     """
     try:
         with changespec_lock(project_file):
@@ -391,10 +400,11 @@ def add_commit_entry(
 
             if not in_target_changespec and changespec_end_line < 0:
                 # ChangeSpec not found
-                return False
+                return False, None
 
             # Get the next commit number
             next_num = get_next_commit_number(lines, cl_name)
+            entry_id = str(next_num)
 
             # Build the commit entry (2-space indented, sub-fields 6-space indented)
             entry_lines = [f"  ({next_num}) {note}\n"]
@@ -437,9 +447,38 @@ def add_commit_entry(
                 "".join(lines),
                 f"Add commit entry {next_num} for {cl_name}",
             )
-            return True
+            return True, entry_id
     except Exception as exc:
         import sys
 
         print(f"[sase] add_commit_entry failed: {exc}", file=sys.stderr)
-        return False
+        return False, None
+
+
+def add_commit_entry(
+    project_file: str,
+    cl_name: str,
+    note: str,
+    diff_path: str | None = None,
+    chat_path: str | None = None,
+    end_timestamp: str | None = None,
+) -> bool:
+    """Add a new COMMITS entry to a ChangeSpec.
+
+    Compatibility wrapper around :func:`add_commit_entry_with_id`.
+
+    Args:
+        project_file: Path to the project file.
+        cl_name: The CL name to add commit entry to.
+        note: The note for this commit entry.
+        diff_path: Optional path to the diff file.
+        chat_path: Optional path to the chat file.
+        end_timestamp: Optional end timestamp for duration calculation.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    ok, _ = add_commit_entry_with_id(
+        project_file, cl_name, note, diff_path, chat_path, end_timestamp
+    )
+    return ok

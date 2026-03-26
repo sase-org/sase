@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 11:54:48
-status: wip
+status: done
 ---
 
 # Plan: Fix commit post-step entry append + meta_commit_id emission

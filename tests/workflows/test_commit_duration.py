@@ -3,6 +3,8 @@
 import os
 import tempfile
 from datetime import datetime, timedelta
+from unittest.mock import patch
+
 from sase.core.time import get_timezone
 
 from sase.workflows.commit_utils import (
@@ -123,3 +125,16 @@ def test_reject_all_new_proposals_wrong_cl_name() -> None:
         assert result == 0
     finally:
         os.unlink(temp_path)
+
+
+# Regression test: duration fallback when stdlib modules are shadowed
+def test_format_chat_line_with_duration_falls_back_on_exception() -> None:
+    """Ensure graceful fallback when duration calculation raises (e.g. Google3 calendar shadow)."""
+    path = "~/.sase/chats/test-run-251227_143052.md"
+    with patch(
+        "sase.ace.hooks.timestamps.calculate_duration_from_timestamps",
+        side_effect=AttributeError("module 'calendar' has no attribute 'day_abbr'"),
+    ):
+        result = format_chat_line_with_duration(path)
+    # Should fall back to plain CHAT line without duration
+    assert result == f"      | CHAT: {path}\n"
