@@ -290,11 +290,8 @@ xprompts:
 
       ### THE PROMPT
       {{ prompt }}
-  prompt/approve:
-    input:
-      prompt: text
-    content: |
-      I've edited the previous agent's reply with my decisions. Can you help me implement this? #plan
+  prompt/approve: |
+    I've edited the previous agent's reply with my decisions. Can you help me implement this? #plan
   x:
     input: { name: word, cmd: text }
     content: "@$(sase_xcmd {{ name }} {{ cmd }})"
