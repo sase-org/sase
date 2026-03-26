@@ -122,7 +122,7 @@ def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
 
     Reads embedded_workflows.json (written during workflow expansion before
     the agent is killed) and returns a string of workflow references
-    (e.g., ``"#propose "``) to prepend to follow-up agent prompts so their
+    (e.g., ``"#propose "``) to append to follow-up agent prompts so their
     post-steps run after the follow-up agent completes.
     """
     metadata_path = os.path.join(artifacts_dir, "embedded_workflows.json")
@@ -435,7 +435,8 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             vcs_prefix = ctx.vcs_tag or ""
 
             # Reconstruct non-VCS embedded workflow refs (e.g. #propose,
-            # #commit) so their post-steps run after the follow-up agent.
+            # #commit) to append after the main prompt so their post-steps
+            # run after the follow-up agent.
             embedded_refs = _get_embedded_workflow_refs(
                 current_artifacts_dir, ctx.vcs_tag
             )
@@ -475,7 +476,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                     if sdd_plan_name
                     else plan_data["plan_file"]
                 )
-                current_prompt = f"{vcs_prefix}{embedded_refs}#bd/new_epic:{plan_ref}"
+                current_prompt = f"{vcs_prefix}#bd/new_epic:{plan_ref}\n{embedded_refs}"
             else:
                 # Approve: spawn coder with plan as prompt
                 current_role_suffix = ".code"
@@ -509,10 +510,10 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                     workflow_name=ctx.agent_name,
                 )
                 current_prompt = (
-                    f"{vcs_prefix}{embedded_refs}"
+                    f"{vcs_prefix}"
                     f"@{plan_data['plan_file']}\n\n"
                     "The above plan has been reviewed and approved. "
-                    "Implement it now."
+                    f"Implement it now.\n{embedded_refs}"
                 )
             _allow_retry = False
             continue
