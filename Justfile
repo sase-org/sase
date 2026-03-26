@@ -22,7 +22,7 @@ _header NAME:
 install: _setup
     uv pip install -e ".[dev]"
 
-# Run linters (ruff + mypy + pyscripts + keep-sorted)
+# Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     {{ venv_bin }}/ruff check src/ tests/
@@ -30,6 +30,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     {{ venv_bin }}/mypy
     @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
     {{ venv_bin }}/python tools/pyscripts-260314
+    @printf "\n---------- Checking for unused Python definitions... ----------\n"
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260225 src/sase
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
