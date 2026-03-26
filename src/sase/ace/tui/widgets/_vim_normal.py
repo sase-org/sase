@@ -5,6 +5,10 @@ from __future__ import annotations
 from textual.events import Key
 
 from sase.ace.tui.widgets._vim_motions import (
+    find_a_word,
+    find_a_WORD,
+    find_inner_word,
+    find_inner_WORD,
     find_next_word_end,
     find_next_word_start,
     find_next_WORD_end,
@@ -75,6 +79,34 @@ class VimNormalModeMixin(VimNormalOpsMixin):
                     self._pending_operator_count = 1
                     last_row = self.document.line_count - 1
                     self._execute_linewise_operator(0, last_row, op)
+                    self._update_count_display()
+            elif pending in "ai" and key in "wW":
+                # Word text objects: aw, aW, iw, iW
+                if self._pending_operator:
+                    is_inner = pending == "i"
+                    is_WORD = key == "W"
+                    motion_count = pending_count if pending_count is not None else 1
+                    op = self._pending_operator
+                    op_count = self._pending_operator_count
+                    self._pending_operator = ""
+                    self._pending_operator_count = 1
+                    eff = op_count * motion_count
+                    row, col = self.cursor_location
+                    if is_inner:
+                        if is_WORD:
+                            sr, sc, er, ec = find_inner_WORD(
+                                self.document, row, col, eff
+                            )
+                        else:
+                            sr, sc, er, ec = find_inner_word(
+                                self.document, row, col, eff
+                            )
+                    else:
+                        if is_WORD:
+                            sr, sc, er, ec = find_a_WORD(self.document, row, col, eff)
+                        else:
+                            sr, sc, er, ec = find_a_word(self.document, row, col, eff)
+                    self._execute_charwise_operator((sr, sc), (er, ec), op)
                     self._update_count_display()
             return True
 
@@ -359,9 +391,10 @@ class VimNormalModeMixin(VimNormalOpsMixin):
             )
             return True
 
-        # Text object prefix (ae = entire buffer)
-        if key == "a" and self._pending_operator:
-            self._pending_keys = "a"
+        # Text object prefix (a/i + e/w/W)
+        if key in "ai" and self._pending_operator:
+            self._pending_keys = key
+            self._pending_count = count if has_count else None
             return True
 
         # Cancel pending operator on unrecognized motion key
