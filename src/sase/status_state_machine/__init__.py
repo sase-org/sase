@@ -18,10 +18,8 @@ from .field_updates import (
     update_changespec_parent_atomic,
     update_parent_references_atomic,
 )
-from .transitions import (
-    SiblingRevertResult,
-    transition_changespec_status,
-)
+from .siblings import SiblingRevertResult
+from .transitions import transition_changespec_status
 
 __all__ = [
     # Constants

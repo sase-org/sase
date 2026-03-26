@@ -303,7 +303,7 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted() -> None:
             # Also need to mock the functions called after successful transition
             with patch("sase.ace.mentors.clear_mentor_draft_flags"):
                 with patch(
-                    "sase.status_state_machine.transitions._handle_suffix_strip",
+                    "sase.status_state_machine.transitions.handle_suffix_strip",
                     return_value=[],
                 ):
                     success, old_status, error, _ = transition_changespec_status(
