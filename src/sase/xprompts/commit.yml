@@ -53,6 +53,13 @@ steps:
       success: bool
       new_commit: word
 
+  - name: _append_entry
+    hidden: true
+    if: "{{ create.success }}"
+    python: |
+      from sase.workflows.commit_utils.post_commit import append_post_commit_entry
+      append_post_commit_entry(mode="commit")
+
   - name: report
     hidden: true
     if: "{{ check_changes.has_changes or _has_commit_result.exists }}"

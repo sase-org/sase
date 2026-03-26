@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-25 20:12:16
-status: wip
+status: done
 ---
 
 # Plan: Fix #propose/#commit COMMITS entry creation and Proposal Id display

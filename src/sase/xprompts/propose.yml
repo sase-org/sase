@@ -53,6 +53,16 @@ steps:
       success: bool
       proposal_id: word
 
+  - name: _append_entry
+    hidden: true
+    if: "{{ propose.success }}"
+    python: |
+      from sase.workflows.commit_utils.post_commit import append_post_commit_entry
+      r = append_post_commit_entry(mode="proposal")
+      print(f"entry_id={r.entry_id or ''}")
+    output:
+      entry_id: word
+
   - name: report
     hidden: true
     if: "{{ check_changes.has_changes or _has_commit_result.exists }}"
@@ -66,8 +76,27 @@ steps:
       for k in ('result', 'message'):
           print(f'{k}={shlex.quote(d.get(k, \"\") or \"\")}')
       ")"
-      [ -n "$result" ] && echo "meta_proposal_id=$result"
       [ -n "$message" ] && echo "meta_commit_message=$message"
     output:
-      meta_proposal_id: word
       meta_commit_message: line
+
+  - name: _emit_proposal_id
+    hidden: true
+    if: "{{ propose.success }}"
+    python: |
+      entry_id = {{ _append_entry.entry_id | default("") | tojson }}
+      if entry_id:
+          print(f"meta_proposal_id={entry_id}")
+      else:
+          # Fallback to commit result value if entry append failed
+          import json, os
+          artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
+          result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
+          if result_file and os.path.isfile(result_file):
+              with open(result_file) as f:
+                  d = json.load(f)
+              result = d.get("result", "") or ""
+              if result:
+                  print(f"meta_proposal_id={result}")
+    output:
+      meta_proposal_id: word
