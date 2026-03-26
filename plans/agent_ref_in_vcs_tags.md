@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 11:09:01
-status: wip
+status: done
 ---
 
 # Plan: `#<vcs>:@<name>` Agent Reference in VCS Tags

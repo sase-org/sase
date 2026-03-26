@@ -18,6 +18,10 @@ from pathlib import Path
 from sase.core.time import get_timezone
 
 
+class AgentRefError(Exception):
+    """Raised when an @name agent reference cannot be resolved."""
+
+
 @dataclass
 class _NamedAgent:
     """A named agent found in the artifacts directory."""
@@ -186,6 +190,59 @@ def list_running_agents() -> list[_RunningAgentInfo]:
     # Sort by timestamp descending (most recent first)
     agents.sort(key=lambda x: x[0], reverse=True)
     return [info for _, info in agents]
+
+
+def resolve_agent_changespec(name: str) -> str:
+    """Resolve a named agent to its changespec (branch/CL name).
+
+    Raises AgentRefError for all failure modes.
+    """
+    agent = find_named_agent(name)
+    if agent is None:
+        raise AgentRefError(f"No agent found with name '{name}'")
+    if not agent.is_done:
+        raise AgentRefError(
+            f"Agent '{name}' is still running. "
+            f"Use %wait:{name} to wait for it to complete before referencing it with @{name}"
+        )
+    if agent.outcome != "completed":
+        raise AgentRefError(
+            f"Agent '{name}' failed (outcome: {agent.outcome}). "
+            f"Cannot reference a failed agent's PR with @{name}"
+        )
+
+    # Read done.json to get meta_changespec
+    done_path = os.path.join(agent.artifacts_dir, "done.json")
+    try:
+        with open(done_path, encoding="utf-8") as f:
+            done_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+        raise AgentRefError(
+            f"Cannot read done marker for agent '{name}': {exc}"
+        ) from exc
+
+    step_output = done_data.get("step_output")
+    if not step_output or not isinstance(step_output, dict):
+        raise AgentRefError(
+            f"Agent '{name}' has no step output. "
+            f"The agent must have run a #pr workflow to create a PR."
+        )
+
+    changespec = step_output.get("meta_changespec")
+    if not changespec:
+        # Legacy fallback
+        meta_new_cl = step_output.get("meta_new_cl")
+        if meta_new_cl:
+            value = str(meta_new_cl).strip()
+            paren_idx = value.rfind(" (")
+            changespec = value[:paren_idx].strip() if paren_idx > 0 else value
+    if not changespec:
+        raise AgentRefError(
+            f"Agent '{name}' completed but did not create a PR/CL. "
+            f"The agent must have run a #pr workflow to use @{name} syntax."
+        )
+
+    return str(changespec).strip()
 
 
 def find_named_agent(name: str) -> _NamedAgent | None:

@@ -21,6 +21,7 @@ from sase.axe.run_agent_phases import (
     claim_deferred_workspace,
     extract_directives_and_write_meta,
     record_stop_time,
+    resolve_agent_refs_in_prompt,
     wait_for_dependencies,
 )
 from sase.axe.runner_utils import (
@@ -213,6 +214,10 @@ def main() -> None:
                         cl_name,
                         artifacts_timestamp,
                     )
+
+            # Resolve @name agent references in VCS tags (e.g., #gh:@a -> #gh:branch_name).
+            # This runs after wait_for_dependencies() so referenced agents are done.
+            prompt, vcs_tag = resolve_agent_refs_in_prompt(prompt)
 
             if info.approve:
                 os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"

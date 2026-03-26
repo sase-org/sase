@@ -213,6 +213,51 @@ def wait_for_dependencies(
         json.dump(agent_meta, f, indent=2)
 
 
+def resolve_agent_refs_in_prompt(prompt: str) -> tuple[str, str | None]:
+    """Resolve @name agent references in VCS tags.
+
+    Normalizes underscore VCS refs, extracts the VCS tag, checks for
+    @name in the ref portion, and replaces it with the agent's changespec.
+
+    Returns (resolved_prompt, resolved_vcs_tag).
+    """
+    from sase.xprompt._parsing import (
+        extract_project_from_vcs_tag,
+        extract_vcs_workflow_tag,
+        normalize_vcs_underscore_refs,
+    )
+
+    # Normalize #gh_@a -> #gh:@a so downstream only sees colon form
+    prompt = normalize_vcs_underscore_refs(prompt)
+
+    # Extract the VCS tag (handles leading %directives)
+    vcs_tag = extract_vcs_workflow_tag(prompt)
+    if not vcs_tag:
+        return prompt, None
+
+    # Check if the ref portion is an @name reference
+    ref = extract_project_from_vcs_tag(vcs_tag)
+    if not ref or not ref.startswith("@"):
+        return prompt, vcs_tag
+
+    agent_name = ref[1:]  # strip leading @
+    if not agent_name:
+        return prompt, vcs_tag
+
+    # Resolve the agent reference
+    from sase.agent.names import resolve_agent_changespec
+
+    changespec = resolve_agent_changespec(agent_name)
+
+    # Replace @name with the changespec in the VCS tag portion
+    new_tag = vcs_tag.replace(f"@{agent_name}", changespec)
+    resolved_prompt = prompt.replace(vcs_tag, new_tag, 1)
+
+    # Re-extract vcs_tag from the resolved prompt
+    resolved_vcs_tag = extract_vcs_workflow_tag(resolved_prompt)
+    return resolved_prompt, resolved_vcs_tag
+
+
 def claim_deferred_workspace(
     project_file: str,
     project_name: str,
