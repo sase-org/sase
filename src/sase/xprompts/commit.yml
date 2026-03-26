@@ -58,7 +58,20 @@ steps:
     if: "{{ create.success }}"
     python: |
       from sase.workflows.commit_utils.post_commit import append_post_commit_entry
-      append_post_commit_entry(mode="commit")
+      r = append_post_commit_entry(mode="commit")
+      print(f"entry_id={r.entry_id or ''}")
+    output:
+      entry_id: word
+
+  - name: _emit_commit_id
+    hidden: true
+    if: "{{ create.success }}"
+    python: |
+      entry_id = {{ _append_entry.entry_id | default("") | tojson }}
+      if entry_id:
+          print(f"meta_commit_id={entry_id}")
+    output:
+      meta_commit_id: word
 
   - name: report
     hidden: true

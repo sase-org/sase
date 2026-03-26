@@ -87,7 +87,7 @@ def append_post_commit_entry(
     except (json.JSONDecodeError, OSError):
         return PostCommitResult(success=False)
 
-    if not isinstance(commit_result, dict) or not commit_result.get("result"):
+    if not isinstance(commit_result, dict):
         return PostCommitResult(success=False)
 
     # Build note from commit message

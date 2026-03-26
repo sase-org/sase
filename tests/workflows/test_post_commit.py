@@ -76,16 +76,21 @@ def test_append_missing_commit_result(
     assert r.success is False
 
 
-def test_append_commit_result_no_result_field(
+def test_append_commit_result_null_result_succeeds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A commit_result.json with result=null (Mercurial amend) should still succeed."""
+    proj = tmp_path / "proj.gp"
+    proj.write_text("NAME: my_cl\nSTATUS: Draft\n")
+    (tmp_path / "commit_result.json").write_text(
+        json.dumps({"result": None, "message": "Agent changes"})
+    )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))  # type: ignore[union-attr]
-    monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(tmp_path / "proj.gp"))  # type: ignore[union-attr]
+    monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(proj))  # type: ignore[union-attr]
     monkeypatch.setenv("SASE_AGENT_CL_NAME", "my_cl")  # type: ignore[union-attr]
-    (tmp_path / "proj.gp").write_text("NAME: my_cl\nSTATUS: Draft\n")
-    (tmp_path / "commit_result.json").write_text(json.dumps({"result": ""}))
     r = append_post_commit_entry(mode="commit")
-    assert r.success is False
+    assert r.success is True
+    assert "COMMITS:" in proj.read_text()
 
 
 # ---------------------------------------------------------------------------

@@ -318,7 +318,10 @@ def add_proposed_commit_entry(
                 f"Add proposed commit entry {entry_id} for {cl_name}",
             )
             return True, entry_id
-    except Exception:
+    except Exception as exc:
+        import sys
+
+        print(f"[sase] add_proposed_commit_entry failed: {exc}", file=sys.stderr)
         return False, None
 
 
@@ -435,5 +438,8 @@ def add_commit_entry(
                 f"Add commit entry {next_num} for {cl_name}",
             )
             return True
-    except Exception:
+    except Exception as exc:
+        import sys
+
+        print(f"[sase] add_commit_entry failed: {exc}", file=sys.stderr)
         return False
