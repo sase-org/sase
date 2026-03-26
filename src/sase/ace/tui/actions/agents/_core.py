@@ -380,28 +380,23 @@ class AgentsMixinCore(
         # Update the running agent counts on the tab bar.
         # Exclude workflow children — they are sub-steps of a parent agent
         # and should not inflate the top-level running count.
+        # All counts use the final displayed list (self._agents) rather than
+        # the pre-filter always_visible/all_agents — fold-state filtering
+        # removes workflow parents whose children are all hidden steps, so
+        # the pre-filter lists can contain agents not shown in the UI.
+        manual_running = sum(
+            1
+            for a in self._agents
+            if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
+        )
         if self._has_always_visible:
-            manual_running = sum(
-                1
-                for a in always_visible
-                if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
-            )
             hidden_running = sum(
                 1
                 for a in hideable
                 if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
             )
         else:
-            manual_running = sum(
-                1
-                for a in all_agents
-                if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
-            )
             hidden_running = 0
-        # Count done agents from the final displayed list (self._agents),
-        # not the pre-filter always_visible/all_agents — fold-state filtering
-        # removes workflow parents whose children are all hidden steps, so
-        # the pre-filter lists can contain many more done agents than shown.
         done_visible = sum(
             1
             for a in self._agents
