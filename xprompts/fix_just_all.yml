@@ -1,0 +1,14 @@
+steps:
+  - name: run_just_all
+    bash: |
+      if just all; then
+        echo "success=true"
+      else
+        echo "success=false"
+      fi
+    output: { success: bool }
+
+  - name: fix
+    if: "{{ not run_just_all.success }}"
+    agent: |
+      Can you help me fix `just all`?
