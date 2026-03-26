@@ -2,12 +2,29 @@
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from sase.agent.names import _AgentRefError, _NamedAgent, resolve_agent_changespec
 from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
+
+_MOCK_WORKFLOW_NAMES = MagicMock(return_value={"gh", "git", "hg"})
+
+
+@pytest.fixture(autouse=True)
+def _mock_vcs_names():
+    """Ensure VCS workflow names include 'gh' regardless of installed plugins."""
+    with (
+        patch("sase.workspace_provider.get_workflow_names", _MOCK_WORKFLOW_NAMES),
+        patch(
+            "sase.workspace_provider._registry.get_workflow_names",
+            _MOCK_WORKFLOW_NAMES,
+        ),
+        patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
+        patch("sase.xprompt._parsing._VCS_UNDERSCORE_NORMALIZER", None),
+    ):
+        yield
 
 
 # ---------------------------------------------------------------------------
