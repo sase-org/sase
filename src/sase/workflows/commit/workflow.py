@@ -67,7 +67,7 @@ class CommitWorkflow(BaseWorkflow):
         # where ChangeSpec creation may not be able to rename the CL later).
         # Save the base name so _create_changespec can pass it (un-suffixed)
         # to add_changespec_to_project_file, which adds its own suffix.
-        self._base_cl_name: str | None = None
+        self._base_cl_name = None
         if self._method == "create_pull_request":
             base_name: str = self._payload["name"]
             self._base_cl_name = base_name
