@@ -128,6 +128,25 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
         pass
 
 
+def promote_to_workflow(artifacts_dir: str, base_name: str) -> None:
+    """Retroactively rename the initial agent to ``<base_name>.1``.
+
+    Called when the first follow-up agent is created, promoting a
+    single-agent run into a multi-agent workflow.  Sets both
+    ``name`` and ``workflow_name`` in the agent's ``agent_meta.json``.
+    """
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        meta["name"] = f"{base_name}.1"
+        meta["workflow_name"] = base_name
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
 def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
     """Normalize SIGTERM-induced failed state before plan/question handoff.
 
@@ -220,6 +239,8 @@ def create_followup_artifacts(
     prev_artifacts_timestamp: str,
     *,
     workspace_num: int | None = None,
+    agent_name_override: str | None = None,
+    workflow_name: str | None = None,
 ) -> str:
     """Create a new timestamped artifacts directory for a follow-up agent.
 
@@ -236,6 +257,10 @@ def create_followup_artifacts(
     for key in ("model", "llm_provider", "vcs_provider", "name", "approve"):
         if base_meta.get(key):
             followup_meta[key] = base_meta[key]
+    if agent_name_override is not None:
+        followup_meta["name"] = agent_name_override
+    if workflow_name is not None:
+        followup_meta["workflow_name"] = workflow_name
     followup_meta["role_suffix"] = suffix
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp
     if workspace_num is not None:

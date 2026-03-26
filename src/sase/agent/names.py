@@ -249,10 +249,11 @@ def find_named_agent(name: str) -> _NamedAgent | None:
     """Find a named agent by scanning all project artifacts.
 
     Scans ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
-    for an agent whose ``"name"`` field matches *name*.
+    for an agent whose ``"name"`` or ``"workflow_name"`` field matches *name*.
 
-    Prefers running (non-done) agents over completed ones when multiple
-    matches exist.
+    Prefers running (non-done) agents over completed ones.  Exact ``name``
+    matches take priority over ``workflow_name`` matches.  Among workflow
+    matches, the most recent (by timestamp) is preferred.
 
     Args:
         name: The agent name to search for.
@@ -265,6 +266,7 @@ def find_named_agent(name: str) -> _NamedAgent | None:
         return None
 
     best_match: _NamedAgent | None = None
+    best_priority: tuple[int, str] = (0, "")
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -288,7 +290,13 @@ def find_named_agent(name: str) -> _NamedAgent | None:
             except (json.JSONDecodeError, OSError):
                 continue
 
-            if not isinstance(data, dict) or data.get("name") != name:
+            if not isinstance(data, dict):
+                continue
+
+            exact = data.get("name") == name
+            workflow = data.get("workflow_name") == name
+
+            if not exact and not workflow:
                 continue
 
             # Found a named agent — check if it's done
@@ -317,14 +325,21 @@ def find_named_agent(name: str) -> _NamedAgent | None:
             # artifacts (e.g. .plan) share the agent name yet never
             # write done.json; without a liveness check we'd return
             # them as "running" and block wait resolution forever.
+            # For workflow matches, only return the root agent
+            # (no parent_timestamp) to avoid matching intermediate steps.
             if not is_done:
                 if _is_process_alive(data, artifact_dir):
-                    return agent
+                    if exact or not data.get("parent_timestamp"):
+                        return agent
                 continue
 
-            # Otherwise, remember as fallback
-            if best_match is None:
+            # Done agent — prefer exact matches over workflow matches,
+            # and most recent timestamp within each category.
+            ts = artifact_dir.name
+            priority = (1 if exact else 0, ts)
+            if priority > best_priority:
                 best_match = agent
+                best_priority = priority
 
     return best_match
 
@@ -460,15 +475,28 @@ def claim_agent_name(name: str, claiming_dir: str) -> None:
 
 
 def _strip_name_from_json(path: Path, name: str) -> None:
-    """Remove the ``"name"`` key from a JSON file if it matches *name*."""
+    """Remove name-related keys from a JSON file if ``name`` or ``workflow_name`` matches.
+
+    When ``workflow_name`` matches, both ``name`` and ``workflow_name`` are
+    stripped since the child agent's name is derived from the workflow name.
+    """
     try:
         if not path.exists():
             return
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        if not isinstance(data, dict) or data.get("name") != name:
+        if not isinstance(data, dict):
             return
-        del data["name"]
+        changed = False
+        if data.get("name") == name:
+            del data["name"]
+            changed = True
+        if data.get("workflow_name") == name:
+            data.pop("name", None)
+            del data["workflow_name"]
+            changed = True
+        if not changed:
+            return
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
     except (json.JSONDecodeError, OSError, KeyError):
@@ -581,7 +609,9 @@ def _get_active_agent_names() -> set[str]:
             if not isinstance(data, dict):
                 continue
 
-            name = data.get("name")
+            # Prefer workflow_name for multi-agent workflows so the
+            # base name (e.g. "a") is reserved, not the child name ("a.1").
+            name = data.get("workflow_name") or data.get("name")
             if not name:
                 continue
 

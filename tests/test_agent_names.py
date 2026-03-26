@@ -21,6 +21,8 @@ def _make_agent(
     outcome: str | None = None,
     pid: int | None = None,
     appears_as_agent: bool | None = None,
+    parent_timestamp: str | None = None,
+    workflow_name: str | None = None,
 ) -> Path:
     """Create a fake agent artifact directory with agent_meta.json."""
     artifact_dir = (
@@ -30,6 +32,10 @@ def _make_agent(
     meta: dict[str, object] = {"name": name, "model": "test"}
     if pid is not None:
         meta["pid"] = pid
+    if parent_timestamp is not None:
+        meta["parent_timestamp"] = parent_timestamp
+    if workflow_name is not None:
+        meta["workflow_name"] = workflow_name
     (artifact_dir / "agent_meta.json").write_text(json.dumps(meta))
     if done:
         done_data: dict[str, object] = {}
@@ -74,6 +80,45 @@ class TestFindNamedAgent:
         assert not result.is_done
         assert result.artifacts_dir == str(running_dir)
 
+    def test_finds_agent_by_workflow_name(self, tmp_path: Path) -> None:
+        """Resolves workflow name to the most recent done child agent."""
+        _make_agent(tmp_path, "proj", "run1", "a.1", workflow_name="a", pid=_DEAD_PID)
+        child_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run1",
+            done=True,
+            outcome="completed",
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = find_named_agent("a")
+        assert result is not None
+        assert result.is_done
+        assert result.outcome == "completed"
+        assert result.artifacts_dir == str(child_dir)
+
+    def test_exact_name_preferred_over_workflow(self, tmp_path: Path) -> None:
+        """Exact name match takes priority over workflow_name match."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            done=True,
+            outcome="completed",
+        )
+        exact_dir = _make_agent(
+            tmp_path, "proj", "run2", "a", done=True, outcome="completed"
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = find_named_agent("a")
+        assert result is not None
+        assert result.artifacts_dir == str(exact_dir)
+
     def test_skips_dead_agent_without_done(self, tmp_path: Path) -> None:
         """Dead parent phases (no done.json, dead PID) are skipped."""
         _make_agent(tmp_path, "proj", "run-old", "foo", pid=_DEAD_PID)
@@ -115,6 +160,29 @@ class TestClaimAgentName:
         # "bar" agent should be untouched
         other_meta = json.loads((other_dir / "agent_meta.json").read_text())
         assert other_meta["name"] == "bar"
+
+    def test_strips_workflow_name_matches(self, tmp_path: Path) -> None:
+        """Claiming a name strips agents with matching workflow_name."""
+        child_dir = _make_agent(
+            tmp_path,
+            "proj",
+            "run-old",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run-root",
+            done=True,
+        )
+        new_dir = _make_agent(tmp_path, "proj", "run-new", "a")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            claim_agent_name("a", str(new_dir))
+
+        child_meta = json.loads((child_dir / "agent_meta.json").read_text())
+        assert "name" not in child_meta
+        assert "workflow_name" not in child_meta
+
+        new_meta = json.loads((new_dir / "agent_meta.json").read_text())
+        assert new_meta["name"] == "a"
 
     def test_no_projects_dir(self, tmp_path: Path) -> None:
         # Should not raise
@@ -191,6 +259,13 @@ class TestGetNextAutoName:
         _make_agent(tmp_path, "proj", "run2", "b", done=True, appears_as_agent=True)
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
+
+    def test_workflow_name_reserves_base_name(self, tmp_path: Path) -> None:
+        """Promoted initial agent reserves base workflow name, not child name."""
+        _make_agent(tmp_path, "proj", "run1", "a.1", workflow_name="a", pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            # "a" should be reserved (via workflow_name), not "a.1"
+            assert get_next_auto_name() == "b"
 
     def test_dismissed_suffix_does_not_hold_name(self, tmp_path: Path) -> None:
         """Dismissed agent suffixes are excluded from auto-name reservation."""

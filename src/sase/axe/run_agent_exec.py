@@ -21,6 +21,7 @@ from sase.axe.run_agent_helpers import (
     handle_questions_flow,
     is_workflow_noop,
     normalize_handoff_interruption_state,
+    promote_to_workflow,
     read_and_delete_marker,
     update_meta_suffix,
 )
@@ -196,6 +197,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
     _qa_sections: list[str] = []
     _feedback_bullets: list[str] = []
     _feedback_round = 0
+    _agent_step = 1
 
     while True:
         reset_killed()
@@ -365,12 +367,19 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
 
                 suffix = f".{_feedback_round + 1}"
                 current_role_suffix = suffix
+                _agent_step += 1
+                if _agent_step == 2 and ctx.agent_name:
+                    promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
                 current_artifacts_dir = create_followup_artifacts(
                     ctx.project_name,
                     ctx.agent_meta,
                     current_role_suffix,
                     convert_timestamp_to_artifacts_format(ctx.timestamp),
                     workspace_num=ctx.workspace_num,
+                    agent_name_override=f"{ctx.agent_name}.{_agent_step}"
+                    if ctx.agent_name
+                    else None,
+                    workflow_name=ctx.agent_name,
                 )
 
                 # Reconstruct prompt: original + all Q&A + requirements
@@ -445,12 +454,19 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                         commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
                 # Epic: spawn epic agent to create beads
                 current_role_suffix = ".epic"
+                _agent_step += 1
+                if _agent_step == 2 and ctx.agent_name:
+                    promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
                 current_artifacts_dir = create_followup_artifacts(
                     ctx.project_name,
                     ctx.agent_meta,
                     current_role_suffix,
                     convert_timestamp_to_artifacts_format(ctx.timestamp),
                     workspace_num=ctx.workspace_num,
+                    agent_name_override=f"{ctx.agent_name}.{_agent_step}"
+                    if ctx.agent_name
+                    else None,
+                    workflow_name=ctx.agent_name,
                 )
                 plan_ref = (
                     f".sase/sdd/plans/{sdd_plan_name}.md"
@@ -478,12 +494,19 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 else:
                     os.environ["SASE_PLAN"] = plan_data["plan_file"]
 
+                _agent_step += 1
+                if _agent_step == 2 and ctx.agent_name:
+                    promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
                 current_artifacts_dir = create_followup_artifacts(
                     ctx.project_name,
                     ctx.agent_meta,
                     current_role_suffix,
                     convert_timestamp_to_artifacts_format(ctx.timestamp),
                     workspace_num=ctx.workspace_num,
+                    agent_name_override=f"{ctx.agent_name}.{_agent_step}"
+                    if ctx.agent_name
+                    else None,
+                    workflow_name=ctx.agent_name,
                 )
                 current_prompt = (
                     f"{vcs_prefix}{embedded_refs}"
@@ -511,12 +534,19 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             if response is None:
                 loop_outcome = "killed"
                 break
+            _agent_step += 1
+            if _agent_step == 2 and ctx.agent_name:
+                promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
             current_artifacts_dir = create_followup_artifacts(
                 ctx.project_name,
                 ctx.agent_meta,
                 current_role_suffix,
                 convert_timestamp_to_artifacts_format(ctx.timestamp),
                 workspace_num=ctx.workspace_num,
+                agent_name_override=f"{ctx.agent_name}.{_agent_step}"
+                if ctx.agent_name
+                else None,
+                workflow_name=ctx.agent_name,
             )
             qa_text = format_qa_for_prompt(response)
             _qa_sections.append(qa_text)
@@ -557,6 +587,14 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
     # Clean up SASE_ARTIFACTS_DIR and SASE_PLAN env vars
     os.environ.pop("SASE_ARTIFACTS_DIR", None)
     os.environ.pop("SASE_PLAN", None)
+
+    # Compute the final agent name for the done marker.
+    # Multi-agent workflows use the last child name; single-agent keeps original.
+    _done_agent_name = (
+        f"{ctx.agent_name}.{_agent_step}"
+        if _agent_step > 1 and ctx.agent_name
+        else ctx.agent_name
+    )
 
     saved_path: str | None = None
     diff_path: str | None = None
@@ -606,7 +644,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             ctx.workspace_num,
             ctx.output_path,
             completed_outcome,
-            agent_name=ctx.agent_name,
+            agent_name=_done_agent_name,
             agent_model=ctx.agent_model,
             agent_llm_provider=ctx.agent_llm_provider,
             agent_vcs_provider=ctx.agent_vcs_provider,
@@ -631,7 +669,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             ctx.workspace_num,
             ctx.output_path,
             loop_outcome,
-            agent_name=ctx.agent_name,
+            agent_name=_done_agent_name,
             agent_model=ctx.agent_model,
             agent_hidden=ctx.agent_hidden,
             retry_metadata=_retry_meta,
