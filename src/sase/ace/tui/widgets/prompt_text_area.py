@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import difflib
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -140,6 +141,28 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             else:
                 self.cursor_location = (row, col)
 
+    @staticmethod
+    def _map_offset(old_text: str, new_text: str, old_offset: int) -> int:
+        """Map a character offset from *old_text* into *new_text* using diff opcodes.
+
+        Walks the ``difflib.SequenceMatcher`` opcodes to find where
+        *old_offset* lands in the new text:
+
+        - ``equal``: preserve relative position within the matching block.
+        - ``delete`` / ``replace``: clamp to the start of the new-side range.
+        - ``insert``: does not consume old characters; continue scanning.
+        """
+        matcher = difflib.SequenceMatcher(None, old_text, new_text, autojunk=False)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "equal":
+                if old_offset <= i2:
+                    return j1 + (old_offset - i1)
+            elif tag in ("delete", "replace"):
+                if old_offset <= i2:
+                    return min(j1 + max(old_offset - i1, 0), j2)
+            # 'insert' doesn't consume old chars — just advance new pointer
+        return len(new_text)
+
     async def _format_with_prettier(self) -> None:
         """Reflow prompt text using prettier when a line overflows.
 
@@ -208,8 +231,9 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             last_col = len(doc.get_line(last_row))
             self._replace_via_keyboard(formatted, (0, 0), (last_row, last_col))
 
-            # Restore cursor to the equivalent position
-            offset = min(cursor_offset, len(formatted))
+            # Restore cursor using diff-based offset mapping
+            mapped = self._map_offset(text, formatted, cursor_offset)
+            offset = min(mapped, len(formatted))
             remaining = offset
             lines = formatted.split("\n")
             new_row, new_col = len(lines) - 1, len(lines[-1])

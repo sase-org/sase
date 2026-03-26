@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 14:27:33
-status: wip
+status: done
 ---
 
 # Fix prompt auto-wrap cursor drift after prettier reflow
