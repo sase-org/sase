@@ -109,6 +109,10 @@ def main() -> int:
         comments_ref = shorten_path(comments_file) if comments_file else "comments"
         who = f"crs ({comments_ref})"
 
+        # Set CL env vars so #propose post-steps can find the ChangeSpec.
+        os.environ["SASE_AGENT_CL_NAME"] = changespec_name
+        os.environ["SASE_AGENT_PROJECT_FILE"] = project_file
+
         # Run the CRS workflow with timestamp for consistent artifacts directory
         workflow = CrsWorkflow(
             comments_file=comments_file,
