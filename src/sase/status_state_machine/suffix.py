@@ -15,6 +15,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _is_github_project(project_file: str) -> bool:
+    """Return True if *project_file* belongs to a GitHub-hosted project."""
+    try:
+        from sase.workspace_provider import detect_workflow_type
+
+        return detect_workflow_type(project_file) == "gh"
+    except (ValueError, Exception):
+        return False
+
+
 def _push_branch_rename(
     workspace_dir: str,
     new_branch: str,
@@ -117,6 +127,11 @@ def handle_suffix_strip(
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
+            elif _is_github_project(project_file):
+                logger.info(
+                    "Skipping remote branch delete for GitHub project "
+                    "(would close the PR on the old branch)"
+                )
             else:
                 _push_branch_rename(workspace_dir, new_branch, resolved)
     except RuntimeError as e:
@@ -183,6 +198,11 @@ def handle_suffix_append(
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
+            elif _is_github_project(project_file):
+                logger.info(
+                    "Skipping remote branch delete for GitHub project "
+                    "(would close the PR on the old branch)"
+                )
             else:
                 _push_branch_rename(workspace_dir, new_branch, resolved)
     except RuntimeError as e:

@@ -208,6 +208,27 @@ class GitCommon(CommandRunner):
             if out.success:
                 return remote_ref
 
+        # Last resort: if the changespec is a base name (no __N suffix),
+        # look for a unique suffixed remote branch.  This handles the case
+        # where a Ready changespec's branch was previously renamed with a
+        # suffix (e.g. "feature-1") but the changespec name lost the suffix.
+        if branch_without_suffix == branch_with_suffix:
+            pattern = f"refs/remotes/origin/{branch_without_suffix}-*"
+            ref_out = self._run(
+                ["git", "for-each-ref", "--format=%(refname:short)", pattern], cwd
+            )
+            if ref_out.success and ref_out.stdout.strip():
+                import re
+
+                suffix_re = re.compile(
+                    re.escape(f"origin/{branch_without_suffix}") + r"-\d+$"
+                )
+                matches = [
+                    r for r in ref_out.stdout.strip().splitlines() if suffix_re.match(r)
+                ]
+                if len(matches) == 1:
+                    return matches[0]
+
         # Fall back to branch without suffix (may fail at checkout)
         return branch_without_suffix
 

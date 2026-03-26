@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 18:12:34
-status: wip
+status: done
 ---
 
 # Plan: Diagnose and Fix PR Closing After Draft→Ready Transition
