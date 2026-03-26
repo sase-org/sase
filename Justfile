@@ -91,7 +91,7 @@ test-py VER: _setup
 check: fmt-check lint test
 
 # Fix code, run linters, and run tests.
-all: fix lint pylimit pyvision test
+all: fix lint pylimit test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
