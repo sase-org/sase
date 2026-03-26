@@ -7,7 +7,6 @@ vcs_provider:
   default_hooks:
     # keep-sorted start
     - "just lint"
-    - "just pyvision"
     - "just test"
     # keep-sorted end
 
