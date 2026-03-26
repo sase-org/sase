@@ -225,11 +225,6 @@ PlanApprovalModal {
     padding-top: 1;
 }
 
-#plan-approval-feedback {
-    width: 100%;
-    margin-top: 1;
-}
-
 /* Mentor Review Modal styling */
 MentorReviewModal {
     align: center middle;
@@ -605,6 +600,10 @@ PromptInputBar #prompt-input {
 PromptInputBar #prompt-input:focus {
     border: none;
     background: $background;
+}
+
+PromptInputBar.feedback-mode {
+    border: solid $warning;
 }
 
 /* XPrompt select modal styling */

@@ -58,18 +58,31 @@ class PromptInputBar(Static):
 
         pass
 
+    class FeedbackSubmitted(Message):
+        """Message sent when plan feedback is submitted."""
+
+        def __init__(self, value: str) -> None:
+            super().__init__()
+            self.value = value
+
     BINDINGS = []  # type: ignore[assignment]
 
-    def __init__(self, initial_value: str = "", **kwargs: Any) -> None:
+    def __init__(
+        self, initial_value: str = "", mode: str = "prompt", **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
         self._initial_value = initial_value
+        self._mode = mode
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
-        placeholder = (
-            "Type prompt, '.' for history, '#@' for snippets  "
-            "[^G] editor  [^Y] workflow  [^J] newline"
-        )
+        if self._mode == "feedback":
+            placeholder = "Enter feedback for the plan...  [^G] editor  [^J] newline"
+        else:
+            placeholder = (
+                "Type prompt, '.' for history, '#@' for snippets  "
+                "[^G] editor  [^Y] workflow  [^J] newline"
+            )
         yield PromptTextArea(
             self._initial_value,
             language="markdown",
@@ -90,8 +103,13 @@ class PromptInputBar(Static):
             text_area.cursor_location = (last_line, last_col)
 
         # Border title and subtitle
-        self.border_title = "Prompt"
-        self.border_subtitle = "[Esc] cancel"
+        if self._mode == "feedback":
+            self.border_title = "Plan Feedback"
+            self.border_subtitle = "[Esc] cancel  [Enter] submit"
+            self.add_class("feedback-mode")
+        else:
+            self.border_title = "Prompt"
+            self.border_subtitle = "[Esc] cancel"
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update height and line numbers when text changes."""
@@ -145,6 +163,11 @@ class PromptInputBar(Static):
     def _handle_text_submission(self, text: str) -> None:
         """Process text submission from the TextArea."""
         value = text.strip()
+
+        # Feedback mode: submit directly, skip history/snippet triggers
+        if self._mode == "feedback":
+            self.post_message(self.FeedbackSubmitted(value))
+            return
 
         # Check for '.' or '.x' - trigger history picker
         if value in (".", ".x"):

@@ -540,6 +540,33 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             )
             return
 
+        # Handle feedback action: mount PromptInputBar in feedback mode
+        if result.action == "feedback":
+            from ...widgets import PromptInputBar
+
+            # Store feedback context so handlers can write the response
+            app._plan_feedback_context = {  # type: ignore[attr-defined]
+                "notification": notification,
+                "plan_file": plan_file,
+                "response_path": response_path,
+                "on_dismiss": on_dismiss,
+            }
+
+            # Remove any existing feedback bar before mounting
+            try:
+                old_bar = app.query_one("#plan-feedback-bar", PromptInputBar)  # type: ignore[attr-defined]
+                parent = old_bar._parent
+                if parent is not None:
+                    parent._nodes._remove(old_bar)
+                old_bar.remove()
+            except Exception:
+                pass
+
+            app.mount(  # type: ignore[attr-defined]
+                PromptInputBar(mode="feedback", id="plan-feedback-bar")
+            )
+            return
+
         # Find matching agent for status override updates
         agent = find_agent_for_notification(app, notification)
 

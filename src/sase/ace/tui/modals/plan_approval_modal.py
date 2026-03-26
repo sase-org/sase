@@ -7,7 +7,7 @@ from rich.syntax import Syntax
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Input, Static
+from textual.widgets import Static
 
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
@@ -17,7 +17,7 @@ from .base import CopyModeForwardingMixin
 class PlanApprovalResult:
     """Result from the plan approval modal."""
 
-    action: str  # "approve", "reject", "commit", or "epic"
+    action: str  # "approve", "reject", "commit", "epic", or "feedback"
     feedback: str | None = None
 
 
@@ -49,7 +49,6 @@ class PlanApprovalModal(
         """
         super().__init__()
         self._plan_file = plan_file
-        self._feedback_mode = False
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -81,15 +80,6 @@ class PlanApprovalModal(
                 yield Static(syntax, id="plan-approval-content")
 
             yield Static(hints, id="plan-approval-footer")
-            yield Input(
-                placeholder="Enter feedback and press Enter...",
-                id="plan-approval-feedback",
-            )
-
-    def on_mount(self) -> None:
-        """Hide the feedback input initially."""
-        feedback_input = self.query_one("#plan-approval-feedback", Input)
-        feedback_input.add_class("hidden")
 
     def _read_plan_file(self) -> str:
         """Read the plan file content."""
@@ -118,33 +108,23 @@ class PlanApprovalModal(
 
     def action_approve(self) -> None:
         """Approve the plan."""
-        if self._feedback_mode:
-            return
         self.dismiss(PlanApprovalResult(action="approve"))
 
     def action_commit(self) -> None:
         """Commit the plan without running a coder agent."""
-        if self._feedback_mode:
-            return
         self._copy_plan_path_to_clipboard()
         self.dismiss(PlanApprovalResult(action="commit"))
 
     def action_reject(self) -> None:
         """Reject the plan without feedback."""
-        if self._feedback_mode:
-            return
         self.dismiss(PlanApprovalResult(action="reject"))
 
     def action_edit(self) -> None:
         """Edit the plan file in an external editor."""
-        if self._feedback_mode:
-            return
         self.dismiss(PlanApprovalResult(action="edit"))
 
     def action_epic(self) -> None:
         """Create an epic from the plan."""
-        if self._feedback_mode:
-            return
         self.dismiss(PlanApprovalResult(action="epic"))
 
     def action_copy_plan(self) -> None:
@@ -174,39 +154,5 @@ class PlanApprovalModal(
         self._copy_plan_path_to_clipboard()
 
     def action_feedback(self) -> None:
-        """Enter feedback mode to reject with feedback."""
-        if self._feedback_mode:
-            return
-        self._feedback_mode = True
-        feedback_input = self.query_one("#plan-approval-feedback", Input)
-        feedback_input.remove_class("hidden")
-        feedback_input.focus()
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle feedback submission."""
-        if event.input.id == "plan-approval-feedback":
-            feedback = event.value.strip()
-            if feedback:
-                self.dismiss(PlanApprovalResult(action="reject", feedback=feedback))
-            else:
-                # Empty feedback - exit feedback mode
-                self._feedback_mode = False
-                event.input.add_class("hidden")
-
-    def on_key(self, event: object) -> None:
-        """Handle escape in feedback mode."""
-        from textual import events
-
-        if not isinstance(event, events.Key):
-            super().on_key(event)  # type: ignore[arg-type]
-            return
-
-        if self._feedback_mode and event.key == "escape":
-            self._feedback_mode = False
-            feedback_input = self.query_one("#plan-approval-feedback", Input)
-            feedback_input.add_class("hidden")
-            event.prevent_default()
-            event.stop()
-            return
-
-        super().on_key(event)  # type: ignore[arg-type]
+        """Dismiss modal to enter feedback mode via PromptInputBar."""
+        self.dismiss(PlanApprovalResult(action="feedback"))

@@ -277,6 +277,18 @@ class PromptBarMixin:
         if not isinstance(event, PromptInputBar.Cancelled):
             return
 
+        # If we're in plan feedback mode, cancel → re-open the plan modal
+        ctx = getattr(self, "_plan_feedback_context", None)
+        if ctx is not None:
+            self._unmount_plan_feedback_bar()
+            from ...modals import PlanApprovalModal
+
+            self.push_screen(  # type: ignore[attr-defined]
+                PlanApprovalModal(ctx["plan_file"]),
+                ctx["on_dismiss"],
+            )
+            return
+
         self.notify("Prompt input cancelled")  # type: ignore[attr-defined]
         self._unmount_prompt_bar()  # saves text automatically
         self._prompt_context = None
@@ -441,6 +453,77 @@ class PromptBarMixin:
             XPromptSelectModal(project=project, extra_prompts=extra_prompts),
             on_xprompt_select,
         )
+
+    def _unmount_plan_feedback_bar(self) -> None:
+        """Unmount the plan feedback bar and clear feedback context."""
+        from ...widgets import PromptInputBar
+
+        try:
+            bar = self.query_one("#plan-feedback-bar", PromptInputBar)  # type: ignore[attr-defined]
+            parent = bar._parent
+            if parent is not None:
+                parent._nodes._remove(bar)
+            bar.remove()
+        except Exception:
+            pass
+        self._plan_feedback_context = None  # type: ignore[attr-defined]
+
+    def on_prompt_input_bar_feedback_submitted(self, event: object) -> None:
+        """Handle plan feedback submission from the feedback bar."""
+        import json
+
+        from sase.notifications import mark_dismissed
+
+        from ...widgets import PromptInputBar
+        from ..agents._notification_actions import find_agent_for_notification
+
+        if not isinstance(event, PromptInputBar.FeedbackSubmitted):
+            return
+
+        ctx = getattr(self, "_plan_feedback_context", None)
+        if ctx is None:
+            return
+
+        feedback = event.value
+        if not feedback:
+            # Empty feedback — cancel back to modal
+            self._unmount_plan_feedback_bar()
+            from ...modals import PlanApprovalModal
+
+            self.push_screen(  # type: ignore[attr-defined]
+                PlanApprovalModal(ctx["plan_file"]),
+                ctx["on_dismiss"],
+            )
+            return
+
+        notification = ctx["notification"]
+        response_path = ctx["response_path"]
+
+        # Write the plan response JSON with reject + feedback
+        plan_response_path = response_path / "plan_response.json"
+        response_data: dict[str, object] = {
+            "action": "reject",
+            "feedback": feedback,
+        }
+        try:
+            with open(plan_response_path, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, indent=2)
+            self.notify("Sent plan reject response with feedback")  # type: ignore[attr-defined]
+        except Exception as e:
+            self.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
+            self._unmount_plan_feedback_bar()
+            return
+
+        # Dismiss notification
+        mark_dismissed(notification.id)
+
+        # Update agent status to RUNNING (feedback means agent resumes)
+        agent = find_agent_for_notification(self, notification)
+        if agent is not None:
+            self._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
+            self._load_agents()  # type: ignore[attr-defined]
+
+        self._unmount_plan_feedback_bar()
 
     def on_prompt_input_bar_workflow_editor_requested(self, event: object) -> None:
         """Handle request to open workflow YAML editor (Ctrl+Y)."""

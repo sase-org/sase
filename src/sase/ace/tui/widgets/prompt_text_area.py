@@ -413,6 +413,13 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self.cursor_location = (last_row, len(self.document.get_line(last_row)))
         return True
 
+    def _get_bar_title(self) -> str:
+        """Get the base border title based on the bar's mode."""
+        bar = self._find_prompt_bar()
+        if bar and bar._mode == "feedback":
+            return "Plan Feedback"
+        return "Prompt"
+
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._vim_mode = "normal"
@@ -424,7 +431,8 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self.highlight_cursor_line = True
         bar = self._find_prompt_bar()
         if bar:
-            bar.border_title = "Prompt [NORMAL]"
+            title = self._get_bar_title()
+            bar.border_title = f"{title} [NORMAL]"
             bar.border_subtitle = "[Esc] cancel  [i] insert"
 
     def _enter_insert_mode(self) -> None:
@@ -437,7 +445,8 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self.highlight_cursor_line = False
         bar = self._find_prompt_bar()
         if bar:
-            bar.border_title = "Prompt"
+            title = self._get_bar_title()
+            bar.border_title = title
             bar.border_subtitle = "[Esc] cancel"
 
     async def _on_key(self, event: Key) -> None:
