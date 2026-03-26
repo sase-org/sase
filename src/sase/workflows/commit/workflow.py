@@ -18,6 +18,7 @@ class CommitWorkflow(BaseWorkflow):
     def __init__(self, payload: dict, method: str) -> None:
         self._payload = payload
         self._method = method
+        self._base_cl_name: str | None = None
 
     @property
     def name(self) -> str:
