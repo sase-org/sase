@@ -22,6 +22,8 @@ from sase.agent.names import (
     find_named_agent,
     get_most_recent_agent_name,
     get_next_auto_name,
+)
+from sase.agent.running import (
     kill_named_agent,
     list_running_agents,
 )
