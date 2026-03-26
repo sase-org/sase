@@ -319,7 +319,12 @@ def execute_standalone_steps(
     import subprocess
     import sys
 
-    from sase.xprompt.workflow_executor_utils import parse_bash_output, render_template
+    from sase.xprompt.workflow_executor_types import output_types_from_step
+    from sase.xprompt.workflow_executor_utils import (
+        coerce_output_types,
+        parse_bash_output,
+        render_template,
+    )
     from sase.xprompt.workflow_models import WorkflowExecutionError
 
     for step in steps:
@@ -363,6 +368,9 @@ def execute_standalone_steps(
                     f.write(result.stdout)
 
             output = parse_bash_output(result.stdout)
+            step_output_types = output_types_from_step(step)
+            if step_output_types:
+                coerce_output_types(output, step_output_types)
             # Handle _chdir special output: change executor's working directory
             if "_chdir" in output:
                 chdir_path = str(output.pop("_chdir"))
@@ -405,6 +413,9 @@ def execute_standalone_steps(
                     f.write(result.stdout)
 
             output = parse_bash_output(result.stdout)
+            step_output_types = output_types_from_step(step)
+            if step_output_types:
+                coerce_output_types(output, step_output_types)
             # Handle _chdir special output: change executor's working directory
             if "_chdir" in output:
                 chdir_path = str(output.pop("_chdir"))

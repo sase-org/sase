@@ -202,6 +202,8 @@ def main() -> int:
 
         # Inject remaining environment variables for post-steps.
         os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
+        os.environ["SASE_AGENT_CL_NAME"] = changespec_name
+        os.environ["SASE_AGENT_PROJECT_FILE"] = project_file
 
         # Execute post-steps from embedded workflows (proposal creation via #propose)
         for ewf_result in post_workflows:
