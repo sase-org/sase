@@ -42,13 +42,13 @@ def add_create_time_frontmatter(
 
         create_time = datetime.now(get_timezone())
     ts = create_time.strftime("%Y-%m-%d %H:%M:%S")
-    fields = f"create_time: {ts}\nstatus: wip"
 
     # Already has frontmatter?
     if content.startswith("---\n"):
         end = content.find("\n---\n", 4)
         if end != -1:
             fm_body = content[4 : end + 1]  # includes trailing \n
+            has_status = bool(re.search(r"^status:", fm_body, re.MULTILINE))
             # Overwrite existing create_time field if present.
             if re.search(r"^create_time:", fm_body, re.MULTILINE):
                 fm_body = re.sub(
@@ -57,11 +57,17 @@ def add_create_time_frontmatter(
                     fm_body,
                     flags=re.MULTILINE,
                 )
+                if not has_status:
+                    fm_body += "status: wip\n"
                 return f"---\n{fm_body}---\n{content[end + 5 :]}"
-            # Insert the fields at the end of the frontmatter block.
-            return f"---\n{fm_body}{fields}\n---\n{content[end + 5 :]}"
+            # Insert fields at the end of the frontmatter block.
+            extra = f"create_time: {ts}"
+            if not has_status:
+                extra += "\nstatus: wip"
+            return f"---\n{fm_body}{extra}\n---\n{content[end + 5 :]}"
 
     # No frontmatter — prepend a new block.
+    fields = f"create_time: {ts}\nstatus: wip"
     return f"---\n{fields}\n---\n{content}"
 
 

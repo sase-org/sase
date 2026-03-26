@@ -1,7 +1,6 @@
 ---
 status: done
 create_time: 2026-03-24 20:33:48
-status: done
 ---
 
 # Bug Bash: commit / propose / PR xprompt workflows

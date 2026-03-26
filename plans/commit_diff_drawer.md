@@ -1,7 +1,6 @@
 ---
 status: wip
 create_time: 2026-03-26 19:18:31
-status: wip
 ---
 
 # Plan: Fix missing DIFF drawer for commits created via `#commit` workflow

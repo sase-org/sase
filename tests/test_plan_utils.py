@@ -56,11 +56,21 @@ def test_add_create_time_frontmatter_existing_frontmatter() -> None:
 
 
 def test_add_create_time_frontmatter_overwrites_existing_field() -> None:
-    """Overwrites an existing create_time field with the correct format."""
+    """Overwrites an existing create_time field and adds status if missing."""
     content = "---\ncreate_time: 2025-01-01\n---\n# Plan"
     dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=ZoneInfo("America/New_York"))
     result = add_create_time_frontmatter(content, dt)
-    assert result == "---\ncreate_time: 2026-03-20 14:30:00\n---\n# Plan"
+    assert result == "---\ncreate_time: 2026-03-20 14:30:00\nstatus: wip\n---\n# Plan"
+
+
+def test_add_create_time_frontmatter_no_duplicate_status() -> None:
+    """Does not duplicate status when it already exists in frontmatter."""
+    content = "---\nstatus: wip\n---\n# Plan"
+    dt = datetime(2026, 3, 20, 14, 30, 0, tzinfo=ZoneInfo("America/New_York"))
+    result = add_create_time_frontmatter(content, dt)
+    assert result == "---\nstatus: wip\ncreate_time: 2026-03-20 14:30:00\n---\n# Plan"
+    # Exactly one status field
+    assert result.count("status:") == 1
 
 
 def test_handle_plan_approval_auto_approve() -> None:

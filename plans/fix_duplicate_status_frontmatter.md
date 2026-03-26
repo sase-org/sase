@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 19:45:27
-status: wip
+status: done
 ---
 
 # Fix Duplicate `status` Field in Plan File Frontmatter
@@ -29,9 +29,9 @@ Result when frontmatter already has `status: wip`:
 
 ```yaml
 ---
-status: wip
+status: done
 create_time: 2026-03-26 19:21:26
-status: wip
+status: done
 ---
 ```
 
