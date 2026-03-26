@@ -499,9 +499,9 @@ class EntryPointsMixin:
         formatted_prompt = _format_prompt_with_prettier(raw_prompt, screen_width)
 
         # Show prompt input bar with the formatted prompt
-        self.mount(
+        self.mount(  # type: ignore[attr-defined]
             PromptInputBar(initial_value=formatted_prompt, id="prompt-input-bar")
-        )  # type: ignore[attr-defined]
+        )
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.
