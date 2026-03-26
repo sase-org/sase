@@ -14,6 +14,9 @@ _CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
 _CHANGESPEC_TARGET = "sase.workspace_provider.changespec.create_changespec_for_workflow"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 _PROJECT_FILE_TARGET = "sase.workflows.utils.get_project_file_path"
+_SUFFIXED_CL_TARGET = (
+    "sase.workflows.commit.changespec_operations.compute_suffixed_cl_name"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -91,6 +94,7 @@ class TestCommitWorkflowDispatch:
 class TestCommitWorkflowChangeSpec:
     """Verify ChangeSpec creation after create_pull_request."""
 
+    @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
@@ -101,6 +105,7 @@ class TestCommitWorkflowChangeSpec:
         mock_proj_name: MagicMock,
         mock_proj_file: MagicMock,
         mock_cs: MagicMock,
+        mock_suffixed: MagicMock,
         mock_provider: MagicMock,
     ) -> None:
         mock_provider.create_pull_request.return_value = (
@@ -116,11 +121,13 @@ class TestCommitWorkflowChangeSpec:
             project_name="proj",
             project_file="/fake/proj.gp",
             checkout_target="HEAD~1",
-            branch_name="feat-x",
+            branch_name="feat-x_1",
             prompt="",
             response="",
             workflow_name="sase_commit",
             cl_url="https://github.com/org/repo/pull/1",
+            cl_name="feat-x",
+            commit_description="add feature",
         )
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
