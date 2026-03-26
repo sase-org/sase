@@ -15,16 +15,18 @@ class PromptInputBar(Static):
     class Submitted(Message):
         """Message sent when prompt is submitted."""
 
-        def __init__(self, value: str) -> None:
+        def __init__(self, value: str, mode: str = "prompt") -> None:
             super().__init__()
             self.value = value
+            self.mode = mode
 
     class Cancelled(Message):
         """Message sent when input is cancelled."""
 
-        def __init__(self, cancelled_text: str = "") -> None:
+        def __init__(self, cancelled_text: str = "", mode: str = "prompt") -> None:
             super().__init__()
             self.cancelled_text = cancelled_text
+            self.mode = mode
 
     class EditorRequested(Message):
         """Message sent when user requests external editor (Ctrl+G)."""
@@ -60,16 +62,27 @@ class PromptInputBar(Static):
 
     BINDINGS = []  # type: ignore[assignment]
 
-    def __init__(self, initial_value: str = "", **kwargs: Any) -> None:
+    def __init__(
+        self, initial_value: str = "", mode: str = "prompt", **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
         self._initial_value = initial_value
+        self._mode = mode
+
+    @property
+    def _base_title(self) -> str:
+        """Return the base border title based on mode."""
+        return "Plan Feedback" if self._mode == "feedback" else "Prompt"
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
-        placeholder = (
-            "Type prompt, '.' for history, '#@' for snippets  "
-            "[^G] editor  [^Y] workflow  [^J] newline"
-        )
+        if self._mode == "feedback":
+            placeholder = "Type plan feedback...  [^G] editor  [^J] newline"
+        else:
+            placeholder = (
+                "Type prompt, '.' for history, '#@' for snippets  "
+                "[^G] editor  [^Y] workflow  [^J] newline"
+            )
         yield PromptTextArea(
             self._initial_value,
             language="markdown",
@@ -90,8 +103,12 @@ class PromptInputBar(Static):
             text_area.cursor_location = (last_line, last_col)
 
         # Border title and subtitle
-        self.border_title = "Prompt"
-        self.border_subtitle = "[Esc] cancel"
+        self.border_title = self._base_title
+        if self._mode == "feedback":
+            self.border_subtitle = "[Enter] send  [Esc] cancel"
+            self.add_class("feedback-mode")
+        else:
+            self.border_subtitle = "[Esc] cancel"
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update height and line numbers when text changes."""
@@ -146,30 +163,31 @@ class PromptInputBar(Static):
         """Process text submission from the TextArea."""
         value = text.strip()
 
-        # Check for '.' or '.x' - trigger history picker
-        if value in (".", ".x"):
-            self.post_message(self.HistoryRequested(show_cancelled=value == ".x"))
-            return
+        if self._mode != "feedback":
+            # Check for '.' or '.x' - trigger history picker
+            if value in (".", ".x"):
+                self.post_message(self.HistoryRequested(show_cancelled=value == ".x"))
+                return
 
-        # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .x")
-        if value.endswith((" .", " .x")) and value[0] == "#":
-            show_cancelled = value.endswith(" .x")
-            vcs_prefix = value.rsplit(" ", 1)[0].rstrip()
-            self.post_message(
-                self.HistoryRequested(
-                    vcs_prefix=vcs_prefix, show_cancelled=show_cancelled
+            # Check for VCS dot-prompt (e.g., "#gh:sase ." or "#git:repo .x")
+            if value.endswith((" .", " .x")) and value[0] == "#":
+                show_cancelled = value.endswith(" .x")
+                vcs_prefix = value.rsplit(" ", 1)[0].rstrip()
+                self.post_message(
+                    self.HistoryRequested(
+                        vcs_prefix=vcs_prefix, show_cancelled=show_cancelled
+                    )
                 )
-            )
-            return
+                return
 
         # Normal submission
-        self.post_message(self.Submitted(value))
+        self.post_message(self.Submitted(value, mode=self._mode))
 
     def action_cancel(self) -> None:
         """Cancel the input bar."""
         text_area = self.query_one("#prompt-input", PromptTextArea)
         stripped = text_area.text.strip()
-        self.post_message(self.Cancelled(cancelled_text=stripped))
+        self.post_message(self.Cancelled(cancelled_text=stripped, mode=self._mode))
 
     def insert_snippet(self, snippet_name: str) -> None:
         """Insert a snippet reference at the cursor position.

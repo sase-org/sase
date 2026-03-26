@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
     from ...models import Agent
     from ...models.agent import AgentType
+    from ._types import PlanFeedbackContext
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -28,6 +29,7 @@ class AgentNotificationMixin:
     _hidden_count: int
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+    _plan_feedback_context: PlanFeedbackContext | None
 
     def _poll_agent_completions(self) -> None:
         """Poll notification store for new unread notifications.

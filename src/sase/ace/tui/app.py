@@ -238,6 +238,11 @@ class AceApp(
             tuple[AgentType, str, str | None], str | None
         ] = {}
 
+        # Plan feedback context (set when user presses 'f' in plan approval modal)
+        from sase.ace.tui.actions.agents._types import PlanFeedbackContext
+
+        self._plan_feedback_context: PlanFeedbackContext | None = None
+
         # Debounce timer for j/k navigation detail panel updates
         self._detail_update_timer: Timer | None = None
 

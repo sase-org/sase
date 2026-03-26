@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._types import PromptContext
+
+if TYPE_CHECKING:
+    from sase.ace.tui.actions.agents._types import PlanFeedbackContext
 
 
 class PromptBarMixin:
@@ -14,6 +18,7 @@ class PromptBarMixin:
 
     # State for prompt input
     _prompt_context: PromptContext | None = None
+    _plan_feedback_context: PlanFeedbackContext | None
 
     _TRIVIAL_PROMPT_PATTERNS = frozenset({".", ".x"})
 
@@ -261,6 +266,10 @@ class PromptBarMixin:
         if not isinstance(event, PromptInputBar.Submitted):
             return
 
+        if event.mode == "feedback":
+            self._handle_plan_feedback_submitted(event.value)
+            return
+
         prompt = event.value
         if not prompt:
             self.notify("Empty prompt - cancelled", severity="warning")  # type: ignore[attr-defined]
@@ -277,9 +286,57 @@ class PromptBarMixin:
         if not isinstance(event, PromptInputBar.Cancelled):
             return
 
+        if event.mode == "feedback":
+            self._handle_plan_feedback_cancelled()
+            return
+
         self.notify("Prompt input cancelled")  # type: ignore[attr-defined]
         self._unmount_prompt_bar()  # saves text automatically
         self._prompt_context = None
+
+    def _handle_plan_feedback_submitted(self, feedback: str) -> None:
+        """Handle submission of plan feedback via the PromptInputBar."""
+        import json
+
+        from sase.notifications import mark_dismissed
+
+        ctx = self._plan_feedback_context  # type: ignore[attr-defined]
+        if ctx is None:
+            self.notify("No plan feedback context", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Write plan_response.json with reject + feedback
+        plan_response_path = ctx.response_path / "plan_response.json"
+        response_data: dict[str, object] = {
+            "action": "reject",
+            "feedback": feedback,
+        }
+        try:
+            with open(plan_response_path, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, indent=2)
+            self.notify("Sent plan feedback")  # type: ignore[attr-defined]
+        except Exception as e:
+            self.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
+            return
+
+        # Dismiss notification
+        mark_dismissed(ctx.notification_id)
+
+        # Update agent status override to RUNNING
+        if ctx.agent_identity is not None:
+            self._agent_status_overrides[ctx.agent_identity] = "RUNNING"  # type: ignore[attr-defined]
+            self._load_agents()  # type: ignore[attr-defined]
+
+        # Clean up
+        self._plan_feedback_context = None  # type: ignore[attr-defined]
+        self._unmount_prompt_bar()
+        self._refresh_notification_count()  # type: ignore[attr-defined]
+
+    def _handle_plan_feedback_cancelled(self) -> None:
+        """Handle cancellation of plan feedback."""
+        self._plan_feedback_context = None  # type: ignore[attr-defined]
+        self._unmount_prompt_bar()
+        self.notify("Plan feedback cancelled")  # type: ignore[attr-defined]
 
     def on_prompt_input_bar_editor_requested(self, event: object) -> None:
         """Handle request to open external editor (Ctrl+G)."""
