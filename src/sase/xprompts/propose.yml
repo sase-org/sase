@@ -40,7 +40,8 @@ steps:
       from sase.workflows.commit import CommitWorkflow
       method = os.environ.get("SASE_COMMIT_METHOD", "create_proposal")
       who = {{ who | default("agent") | tojson }}
-      wf = CommitWorkflow(payload={"message": f"[{who}] Agent changes"}, method=method)
+      cl_name = os.environ.get("SASE_AGENT_CL_NAME", "")
+      wf = CommitWorkflow(payload={"message": f"[{who}] Agent changes", "_cl_name": cl_name}, method=method)
       ok = wf.run()
       if ok and result_file and os.path.isfile(result_file):
           with open(result_file) as f:

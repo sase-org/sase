@@ -205,6 +205,11 @@ def main() -> int:
         os.environ["SASE_AGENT_CL_NAME"] = changespec_name
         os.environ["SASE_AGENT_PROJECT_FILE"] = project_file
 
+        # Set chat path for post-commit entry (the chat file exists after the agent runs)
+        chat_path = find_chat_by_timestamp(timestamp)
+        if chat_path:
+            os.environ["SASE_AGENT_CHAT_PATH"] = chat_path
+
         # Execute post-steps from embedded workflows (proposal creation via #propose)
         for ewf_result in post_workflows:
             ewf_result.context["_prompt"] = expanded_prompt
@@ -231,6 +236,13 @@ def main() -> int:
                 "true",
             ):
                 proposal_id = create_result.get("proposal_id")
+                exit_code = 0
+
+            # Prefer entry_id from _append_entry (correct entry ID like "6d")
+            # over proposal_id from propose (which may be a CL URL or diff path)
+            append_result = ewf_result.context.get("_append_entry", {})
+            if isinstance(append_result, dict) and append_result.get("entry_id"):
+                proposal_id = append_result["entry_id"]
                 exit_code = 0
 
         # Fallback: if context extraction failed, check ChangeSpec directly

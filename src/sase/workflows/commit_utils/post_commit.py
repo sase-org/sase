@@ -95,7 +95,16 @@ def append_post_commit_entry(
 
     # Locate diff_path and response_path from prompt_step markers
     diff_path = _find_best_diff_path(artifacts_dir)
+    if not diff_path:
+        # Fallback: check commit_result.json result if it's a diff path
+        result_value = commit_result.get("result", "") or ""
+        if result_value.endswith(".diff"):
+            diff_path = result_value
+
     response_path = _find_best_response_path(artifacts_dir)
+    if not response_path:
+        # Fallback: check SASE_AGENT_CHAT_PATH env var
+        response_path = os.environ.get("SASE_AGENT_CHAT_PATH")
 
     from sase.workflows.commit_utils.entries import (
         add_commit_entry_with_id,

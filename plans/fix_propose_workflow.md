@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 15:26:15
-status: wip
+status: done
 ---
 
 # Plan: Fix fix-hook proposal creation
