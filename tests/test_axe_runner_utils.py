@@ -72,6 +72,34 @@ def test_all_steps_hidden_missing_file() -> None:
         assert all_steps_hidden(tmpdir) is False
 
 
+def test_all_steps_hidden_skipped_steps_ignored() -> None:
+    """Test returns True when non-hidden steps were all skipped."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state = {
+            "steps": [
+                {"name": "a", "hidden": True, "status": "completed"},
+                {"name": "b", "hidden": False, "status": "skipped"},
+            ]
+        }
+        with open(os.path.join(tmpdir, "workflow_state.json"), "w") as f:
+            json.dump(state, f)
+        assert all_steps_hidden(tmpdir) is True
+
+
+def test_all_steps_hidden_visible_completed_step() -> None:
+    """Test returns False when a non-hidden step actually ran."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state = {
+            "steps": [
+                {"name": "a", "hidden": True, "status": "completed"},
+                {"name": "b", "hidden": False, "status": "completed"},
+            ]
+        }
+        with open(os.path.join(tmpdir, "workflow_state.json"), "w") as f:
+            json.dump(state, f)
+        assert all_steps_hidden(tmpdir) is False
+
+
 # Tests for finalize_axe_runner
 
 

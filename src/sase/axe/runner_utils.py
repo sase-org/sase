@@ -98,11 +98,13 @@ def prepare_workspace(
 
 
 def all_steps_hidden(artifacts_dir: str) -> bool:
-    """Check if every step in a workflow was hidden.
+    """Check if every step that actually ran in a workflow was hidden.
 
     Reads workflow_state.json from the artifacts directory and returns True
-    when all steps have ``hidden: true``.  Returns False when the state file
-    is missing, unreadable, or contains at least one visible step.
+    when all steps that ran have ``hidden: true``.  Skipped steps (e.g. due
+    to an ``if`` condition evaluating to false) are not considered since they
+    did not actually run.  Returns False when the state file is missing,
+    unreadable, or contains at least one visible step that ran.
     """
     state_path = os.path.join(artifacts_dir, "workflow_state.json")
     try:
@@ -113,7 +115,9 @@ def all_steps_hidden(artifacts_dir: str) -> bool:
     steps = data.get("steps", [])
     if not steps:
         return False
-    return all(step.get("hidden", False) for step in steps)
+    return all(
+        step.get("hidden", False) or step.get("status") == "skipped" for step in steps
+    )
 
 
 def _write_agent_meta(
