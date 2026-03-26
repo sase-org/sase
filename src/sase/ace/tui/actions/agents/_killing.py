@@ -62,8 +62,11 @@ def _dismiss_notifications_for_agent(agent: Agent) -> None:
             if n.action_data.get("agent_cl_name") != agent.cl_name:
                 continue
             n_timestamp = n.action_data.get("agent_timestamp")
-            if n_timestamp is not None and n_timestamp != agent.raw_suffix:
-                continue
+            if n_timestamp is not None:
+                from ...models._timestamps import normalize_to_14_digit
+
+                if normalize_to_14_digit(n_timestamp) != agent.raw_suffix:
+                    continue
             mark_dismissed(n.id)
 
 
