@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 17:23:51
-status: wip
+status: done
 ---
 
 # Fix non-primary SDD writes for workspace-suffixed parent dirs

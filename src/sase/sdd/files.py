@@ -41,8 +41,11 @@ def get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
         return workspace_dir
     suffix = f"_{workspace_num}"
     stripped = workspace_dir.rstrip("/")
-    if stripped.endswith(suffix):
-        return stripped[: -len(suffix)]
+    parts = stripped.split("/")
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i].endswith(suffix):
+            parts[i] = parts[i][: -len(suffix)]
+            return "/".join(parts)
     return workspace_dir
 
 

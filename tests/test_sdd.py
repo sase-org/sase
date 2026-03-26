@@ -42,6 +42,12 @@ def test_primary_workspace_dir_ws3() -> None:
     assert result == "/home/user/myproject"
 
 
+def test_primary_workspace_dir_suffix_in_parent_component() -> None:
+    """Suffix in a parent path component, not the final one."""
+    result = get_primary_workspace_dir("/google/src/cloud/bbugyi/pat_102/google3", 102)
+    assert result == "/google/src/cloud/bbugyi/pat/google3"
+
+
 def test_primary_workspace_dir_no_suffix() -> None:
     """If workspace dir doesn't end with _N suffix, return as-is."""
     result = get_primary_workspace_dir("/home/user/myproject", 2)
@@ -84,6 +90,13 @@ def test_get_sdd_dir_not_version_controlled() -> None:
 def test_get_sdd_dir_not_version_controlled_ws2() -> None:
     result = get_sdd_dir("/home/user/project_2", 2, version_controlled=False)
     assert result == Path("/home/user/project/.sase/sdd")
+
+
+def test_get_sdd_dir_not_version_controlled_suffix_in_parent() -> None:
+    result = get_sdd_dir(
+        "/google/src/cloud/bbugyi/pat_102/google3", 102, version_controlled=False
+    )
+    assert result == Path("/google/src/cloud/bbugyi/pat/google3/.sase/sdd")
 
 
 # ---------------------------------------------------------------------------
