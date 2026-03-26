@@ -621,7 +621,9 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             elif result.action == "epic":
                 app._agent_status_overrides[agent.identity] = "EPIC CREATED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent)
-            # For reject with feedback: keep "PLANNING" override (no change)
+            elif result.feedback is not None:
+                # Reject with feedback: agent is resuming, mark as RUNNING
+                app._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
             app._load_agents()  # type: ignore[attr-defined]
 
     app.push_screen(  # type: ignore[attr-defined]

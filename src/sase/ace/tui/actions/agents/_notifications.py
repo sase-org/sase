@@ -181,8 +181,8 @@ class AgentNotificationMixin:
                     self._agent_status_overrides[agent.identity] = "PLAN APPROVED"
                     persist_plan_approved(agent)
                 else:
-                    # Reject with feedback: clear PLANNING override
-                    self._agent_status_overrides.pop(agent.identity, None)
+                    # Reject with feedback: agent is resuming, mark as RUNNING
+                    self._agent_status_overrides[agent.identity] = "RUNNING"
                 self._load_agents()  # type: ignore[attr-defined]
 
             return True
