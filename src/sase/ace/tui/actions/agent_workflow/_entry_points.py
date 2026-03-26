@@ -29,6 +29,52 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
     return f"#{workflow_type}:{name} "
 
 
+def _format_prompt_with_prettier(text: str, screen_width: int) -> str:
+    """Format prompt text with prettier for display in the prompt input bar.
+
+    Uses the same ``prettier --prose-wrap always`` invocation as
+    :meth:`PromptTextArea._format_with_prettier` for auto-wrap.
+
+    Args:
+        text: The prompt text to format.
+        screen_width: The terminal screen width for calculating wrap width.
+
+    Returns:
+        The formatted text, or the original text if prettier fails.
+    """
+    import subprocess
+
+    # Approximate the PromptTextArea wrap width:
+    # screen - border (2) - gutter - scrollbar (2) - cursor (1)
+    line_count = text.count("\n") + 1
+    gutter_width = len(str(max(line_count, 2))) + 2
+    wrap_width = max(screen_width - 2 - gutter_width - 2 - 1, 1)
+
+    try:
+        result = subprocess.run(
+            [
+                "prettier",
+                "--parser",
+                "markdown",
+                "--prose-wrap",
+                "always",
+                "--print-width",
+                str(wrap_width),
+            ],
+            input=text.encode(),
+            capture_output=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            formatted = result.stdout.decode()
+            if formatted.endswith("\n"):
+                formatted = formatted[:-1]
+            return formatted
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return text
+
+
 class EntryPointsMixin:
     """Mixin providing agent start entry points."""
 
@@ -309,10 +355,11 @@ class EntryPointsMixin:
                 )
 
     def _retry_edit_agent(self) -> None:
-        """Open the selected agent's prompt in the editor for re-launch.
+        """Show the selected agent's prompt in the prompt input bar for re-launch.
 
         Like :meth:`_kill_and_edit_agent` but without killing or dismissing
-        the existing agent.
+        the existing agent.  The user can press ``Ctrl+G`` to open their
+        editor from the prompt input bar.
         """
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
@@ -330,11 +377,12 @@ class EntryPointsMixin:
         )
 
     def _kill_and_edit_agent(self) -> None:
-        """Kill the selected agent, then open its prompt in the editor for re-launch.
+        """Kill the selected agent, then show its prompt in the prompt input bar.
 
         Reads the agent's raw xprompt content, kills the agent (with
-        confirmation if running), opens the prompt in ``$EDITOR``, and
-        launches a new agent with the edited content.
+        confirmation if running), and shows the prompt in the prompt input
+        bar for editing.  The user can press ``Ctrl+G`` to open their
+        editor, or submit directly from the bar.
         """
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
@@ -355,7 +403,7 @@ class EntryPointsMixin:
         from ..agents._core import DISMISSABLE_STATUSES
 
         if agent.status in DISMISSABLE_STATUSES or agent.pid is None:
-            # No confirmation needed - dismiss and open editor
+            # No confirmation needed - dismiss and show prompt bar
             self._dismiss_done_agent(agent)  # type: ignore[attr-defined]
             self._edit_and_relaunch_agent(
                 raw_prompt, agent_project_file, agent_cl_name, agent_is_project_agent
@@ -391,19 +439,24 @@ class EntryPointsMixin:
         cl_name: str,
         is_project_agent: bool,
     ) -> None:
-        """Open agent prompt in editor and relaunch on save.
+        """Show agent prompt in the prompt input bar for editing and relaunch.
+
+        The prompt is formatted with prettier before loading into the bar.
+        The user can edit inline and submit, or press ``Ctrl+G`` to open
+        their editor.
 
         Args:
             raw_prompt: The agent's raw xprompt content.
-            project_file: The killed agent's project file path.
-            cl_name: The killed agent's CL name.
-            is_project_agent: Whether the killed agent was a project-level agent.
+            project_file: The agent's project file path.
+            cl_name: The agent's CL name.
+            is_project_agent: Whether the agent was a project-level agent.
         """
         from pathlib import Path
 
         from sase.core.time import generate_timestamp
 
         from ...modals import SelectionItem
+        from ...widgets import PromptInputBar
 
         project_name = Path(project_file).parent.name
         timestamp = generate_timestamp()
@@ -420,6 +473,9 @@ class EntryPointsMixin:
 
         save_last_agent_selection(self._last_custom_agent_selection)
 
+        # Remove any existing prompt bar before mounting a new one.
+        self._unmount_prompt_bar()  # type: ignore[attr-defined]
+
         # Set up prompt context (home mode, same as ,<space>)
         self._prompt_context = PromptContext(
             project_name="home",
@@ -435,13 +491,17 @@ class EntryPointsMixin:
             is_home_mode=True,
         )
 
-        # Open editor with the agent's prompt
-        edited_prompt = self._open_editor_for_agent_prompt(raw_prompt)  # type: ignore[attr-defined]
-        if edited_prompt:
-            self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
-        else:
-            self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
-            self._prompt_context = None
+        # Format prompt with prettier for nice wrapping in the input bar
+        try:
+            screen_width = self.screen.size.width  # type: ignore[attr-defined]
+        except Exception:
+            screen_width = 80
+        formatted_prompt = _format_prompt_with_prettier(raw_prompt, screen_width)
+
+        # Show prompt input bar with the formatted prompt
+        self.mount(  # type: ignore[attr-defined]
+            PromptInputBar(initial_value=formatted_prompt, id="prompt-input-bar")
+        )
 
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked ChangeSpecs.
