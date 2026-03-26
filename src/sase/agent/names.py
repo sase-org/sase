@@ -18,7 +18,7 @@ from pathlib import Path
 from sase.core.time import get_timezone
 
 
-class AgentRefError(Exception):
+class _AgentRefError(Exception):
     """Raised when an @name agent reference cannot be resolved."""
 
 
@@ -195,18 +195,18 @@ def list_running_agents() -> list[_RunningAgentInfo]:
 def resolve_agent_changespec(name: str) -> str:
     """Resolve a named agent to its changespec (branch/CL name).
 
-    Raises AgentRefError for all failure modes.
+    Raises _AgentRefError for all failure modes.
     """
     agent = find_named_agent(name)
     if agent is None:
-        raise AgentRefError(f"No agent found with name '{name}'")
+        raise _AgentRefError(f"No agent found with name '{name}'")
     if not agent.is_done:
-        raise AgentRefError(
+        raise _AgentRefError(
             f"Agent '{name}' is still running. "
             f"Use %wait:{name} to wait for it to complete before referencing it with @{name}"
         )
     if agent.outcome != "completed":
-        raise AgentRefError(
+        raise _AgentRefError(
             f"Agent '{name}' failed (outcome: {agent.outcome}). "
             f"Cannot reference a failed agent's PR with @{name}"
         )
@@ -217,13 +217,13 @@ def resolve_agent_changespec(name: str) -> str:
         with open(done_path, encoding="utf-8") as f:
             done_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
-        raise AgentRefError(
+        raise _AgentRefError(
             f"Cannot read done marker for agent '{name}': {exc}"
         ) from exc
 
     step_output = done_data.get("step_output")
     if not step_output or not isinstance(step_output, dict):
-        raise AgentRefError(
+        raise _AgentRefError(
             f"Agent '{name}' has no step output. "
             f"The agent must have run a #pr workflow to create a PR."
         )
@@ -237,7 +237,7 @@ def resolve_agent_changespec(name: str) -> str:
             paren_idx = value.rfind(" (")
             changespec = value[:paren_idx].strip() if paren_idx > 0 else value
     if not changespec:
-        raise AgentRefError(
+        raise _AgentRefError(
             f"Agent '{name}' completed but did not create a PR/CL. "
             f"The agent must have run a #pr workflow to use @{name} syntax."
         )
