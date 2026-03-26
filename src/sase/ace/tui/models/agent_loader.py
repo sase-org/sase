@@ -241,11 +241,10 @@ def _sort_and_reorder(
 
     sorted_agents = agents_with_time + agents_without_time
 
-    # Reorder follow-up agents (parent_timestamp set, no parent_workflow)
-    # to appear immediately after their parent workflow.
-    # Without this, follow-ups sort before their parent by start_time
-    # (since follow-ups start later and we sort most-recent-first),
-    # causing them to render as orphaned children above their parent.
+    # Separate follow-up agents (parent_timestamp set, no parent_workflow)
+    # from regular agents so they can be grouped with their parent's main
+    # agent step (plan → feedback rounds → coder) instead of scattering
+    # by start time.
     followups_by_parent: dict[str, list[Agent]] = {}
     non_followup: list[Agent] = []
     for agent in sorted_agents:
@@ -254,19 +253,17 @@ def _sort_and_reorder(
         else:
             non_followup.append(agent)
 
-    if followups_by_parent:
-        reordered: list[Agent] = []
-        for agent in non_followup:
-            reordered.append(agent)
-            if agent.raw_suffix and agent.raw_suffix in followups_by_parent:
-                reordered.extend(followups_by_parent.pop(agent.raw_suffix))
-        # Append any orphaned follow-ups (parent not found)
-        for remaining in followups_by_parent.values():
-            reordered.extend(remaining)
-        sorted_agents = reordered
+    # Sort follow-ups chronologically (oldest first) so the display reads
+    # plan → feedback → coder in natural order.
+    for followups in followups_by_parent.values():
+        followups.sort(key=lambda a: a.start_time or "")
 
-    # Insert workflow agent steps immediately after their parent workflows
-    if workflow_agent_steps:
+    sorted_agents = non_followup
+
+    # Insert workflow agent steps and follow-ups after their parent workflows.
+    # Follow-ups are interleaved right after the main agent step (before
+    # embedded steps) so plan-related agents appear as a cohesive group.
+    if workflow_agent_steps or followups_by_parent:
         # Pre-index steps by parent_timestamp for O(1) lookup
         steps_by_parent: dict[str, list[Agent]] = {}
         for step in workflow_agent_steps:
@@ -305,41 +302,50 @@ def _sort_and_reorder(
                         step.total_steps or 1,
                     )
                     break
-        for agent in sorted_agents:
-            if (
-                agent.parent_timestamp
-                and not agent.parent_workflow
-                and agent.role_suffix
-                and agent.step_index is None
-            ):
-                info = prompt_step_by_parent.get(agent.parent_timestamp)
-                if info:
-                    agent.step_index = info[0]
-                    agent.total_steps = info[1]
+        for parent_ts, followups in followups_by_parent.items():
+            info = prompt_step_by_parent.get(parent_ts)
+            if info:
+                for agent in followups:
+                    if agent.role_suffix and agent.step_index is None:
+                        agent.step_index = info[0]
+                        agent.total_steps = info[1]
 
         result: list[Agent] = []
         for agent in sorted_agents:
             result.append(agent)
-            # Don't insert child steps for follow-up agents — they're
-            # already nested under their parent workflow, so showing
-            # their internal steps creates visual duplicates at the
-            # same indent level (the flat list only supports one level
-            # of nesting).
-            if agent.parent_timestamp and not agent.parent_workflow:
+            suffix = agent.raw_suffix
+            if not suffix:
                 continue
-            if agent.raw_suffix and (
-                agent.agent_type == AgentType.WORKFLOW
-                or (
-                    agent.workflow
-                    and (
-                        agent.workflow.startswith("workflow-")
-                        or agent.workflow.startswith("ace(run)")
-                    )
+            if agent.agent_type == AgentType.WORKFLOW or (
+                agent.workflow
+                and (
+                    agent.workflow.startswith("workflow-")
+                    or agent.workflow.startswith("ace(run)")
                 )
             ):
-                matching = steps_by_parent.get(agent.raw_suffix)
-                if matching:
-                    result.extend(matching)
+                steps = steps_by_parent.get(suffix, [])
+                followups = followups_by_parent.pop(suffix, [])
+                # Separate main agent steps from embedded/other steps so
+                # follow-ups (feedback, coder) appear right after the plan.
+                main_agent_steps = [
+                    s
+                    for s in steps
+                    if s.step_type == "agent" and s.parent_step_index is None
+                ]
+                other_steps = [
+                    s
+                    for s in steps
+                    if not (s.step_type == "agent" and s.parent_step_index is None)
+                ]
+                result.extend(main_agent_steps)
+                result.extend(followups)
+                result.extend(other_steps)
+            elif suffix in followups_by_parent:
+                # Non-workflow parent with follow-ups
+                result.extend(followups_by_parent.pop(suffix))
+        # Append any orphaned follow-ups (parent not found)
+        for remaining in followups_by_parent.values():
+            result.extend(remaining)
         return result
 
     return sorted_agents
