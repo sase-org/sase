@@ -1,15 +1,30 @@
 steps:
-  - name: _run_just_all
+  - name: _just_lint
     hidden: true
     bash: |
-      if just all; then
+      if just lint; then
         echo "success=true"
       else
         echo "success=false"
       fi
     output: { success: bool }
 
-  - name: fix
-    if: "{{ not run_just_all.success }}"
+  - name: _just_test
+    hidden: true
+    bash: |
+      if just test; then
+        echo "success=true"
+      else
+        echo "success=false"
+      fi
+    output: { success: bool }
+
+  - name: fix_linters
+    if: "{{ not _just_lint.success }}"
     agent: |
-      Can you help me fix `just all`?
+      #gh:sase Can you help me fix the `just lint` command?
+
+  - name: fix_tests
+    if: "{{ not _just_test.success }}"
+    agent: |
+      #gh:sase Can you help me fix the `just test` command?
