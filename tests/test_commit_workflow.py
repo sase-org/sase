@@ -21,8 +21,11 @@ _SUFFIXED_CL_TARGET = (
 
 @pytest.fixture(autouse=True)
 def _no_precommit():  # type: ignore[no-untyped-def]
-    """Prevent precommit commands from running in tests."""
-    with patch(_CONFIG_TARGET, return_value={"precommit_command": ""}):
+    """Prevent precommit commands and SASE_PLAN from running in tests."""
+    with (
+        patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
+        patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
+    ):
         yield
 
 
@@ -290,6 +293,7 @@ class TestWriteResultMarker:
                 "name": "feat-x",
                 "bead_id": "",
                 "changespec_name": "proj_feat_1",
+                "entry_id": None,
             }
 
     def test_writes_none_values(self) -> None:
@@ -302,6 +306,17 @@ class TestWriteResultMarker:
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert data["result"] is None
             assert data["changespec_name"] is None
+            assert data["entry_id"] is None
+
+    def test_writes_marker_with_entry_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug"}
+            wf = CommitWorkflow(payload, "create_commit")
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                wf._write_result_marker("abc123", None, entry_id="entry_42")
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert data["entry_id"] == "entry_42"
 
     def test_skips_when_no_artifacts_dir(self) -> None:
         payload = {"message": "test"}
@@ -495,3 +510,82 @@ class TestGetMetaChangespecName:
 
         agent = self._make_agent(None)
         assert get_meta_changespec_name(agent) is None
+
+
+_POST_COMMIT_TARGET = "sase.workflows.commit_utils.post_commit.append_post_commit_entry"
+
+
+class TestProposalSkipsBeadsAndPlan:
+    """Verify that create_proposal skips bead and plan handling."""
+
+    @patch(_PROVIDER_TARGET)
+    def test_proposal_skips_handle_beads(
+        self, mock_get: MagicMock, mock_provider: MagicMock
+    ) -> None:
+        mock_get.return_value = mock_provider
+        payload = {"message": "propose: change", "bead_id": "b123"}
+        wf = CommitWorkflow(payload, "create_proposal")
+
+        with (
+            patch.object(wf, "_handle_beads") as mock_beads,
+            patch.object(wf, "_handle_sase_plan") as mock_plan,
+            patch(
+                _POST_COMMIT_TARGET,
+                return_value=MagicMock(success=False, entry_id=None),
+            ),
+        ):
+            assert wf.run() is True
+            mock_beads.assert_not_called()
+            mock_plan.assert_not_called()
+
+    @patch(_PROVIDER_TARGET)
+    def test_commit_still_calls_beads_and_plan(
+        self, mock_get: MagicMock, mock_provider: MagicMock
+    ) -> None:
+        mock_get.return_value = mock_provider
+        payload = {"message": "fix: bug"}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        with (
+            patch.object(wf, "_handle_beads") as mock_beads,
+            patch.object(wf, "_handle_sase_plan") as mock_plan,
+            patch(
+                _POST_COMMIT_TARGET,
+                return_value=MagicMock(success=False, entry_id=None),
+            ),
+        ):
+            assert wf.run() is True
+            mock_beads.assert_called_once()
+            mock_plan.assert_called_once()
+
+
+class TestAppendCommitsEntry:
+    """Verify _append_commits_entry delegates correctly."""
+
+    def test_returns_entry_id_on_success(self) -> None:
+        wf = CommitWorkflow({"message": "test"}, "create_commit")
+        with patch(
+            _POST_COMMIT_TARGET,
+            return_value=MagicMock(success=True, entry_id="entry_99"),
+        ) as mock_append:
+            result = wf._append_commits_entry()
+            assert result == "entry_99"
+            mock_append.assert_called_once_with(mode="commit")
+
+    def test_returns_none_on_failure(self) -> None:
+        wf = CommitWorkflow({"message": "test"}, "create_commit")
+        with patch(
+            _POST_COMMIT_TARGET,
+            return_value=MagicMock(success=False, entry_id=None),
+        ):
+            assert wf._append_commits_entry() is None
+
+    def test_uses_proposal_mode_for_create_proposal(self) -> None:
+        wf = CommitWorkflow({"message": "test"}, "create_proposal")
+        with patch(
+            _POST_COMMIT_TARGET,
+            return_value=MagicMock(success=True, entry_id="entry_50"),
+        ) as mock_append:
+            result = wf._append_commits_entry()
+            assert result == "entry_50"
+            mock_append.assert_called_once_with(mode="proposal")

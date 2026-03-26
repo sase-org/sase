@@ -1,13 +1,16 @@
 """Tests for the git VCS provider — core operations.
 
 Covers: registry detection, private helpers, checkout, diff, diff_revision,
-apply_patch, apply_patches, add_remove, clean_workspace.
+apply_patch, apply_patches, add_remove, clean_workspace, create_proposal.
 """
 
 import subprocess
 from unittest.mock import MagicMock, patch
 
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
+
+_SAVE_DIFF_TARGET = "sase.workflows.commit_utils.workspace.save_diff"
+_CLEAN_WS_TARGET = "sase.workflows.commit_utils.workspace.clean_workspace"
 
 # === Tests for registry detection ===
 
@@ -293,3 +296,49 @@ def test_git_clean_workspace_clean_fails(mock_run: MagicMock) -> None:
     assert success is False
     assert error is not None
     assert "git clean -fd failed" in error
+
+
+# === Tests for create_proposal ===
+
+
+@patch(_CLEAN_WS_TARGET)
+@patch(_SAVE_DIFF_TARGET, return_value="~/diffs/my_cl_20260326_120000.diff")
+def test_git_create_proposal_saves_diff_and_cleans(
+    mock_save: MagicMock, mock_clean: MagicMock
+) -> None:
+    """create_proposal saves a diff, cleans workspace, returns diff path."""
+    plugin = BareGitPlugin()
+    ok, result = plugin.vcs_create_proposal(
+        {"name": "my_cl", "message": "propose"}, "/workspace"
+    )
+
+    assert ok is True
+    assert result == "~/diffs/my_cl_20260326_120000.diff"
+    mock_save.assert_called_once_with("my_cl", target_dir="/workspace")
+    mock_clean.assert_called_once_with("/workspace")
+
+
+@patch(_SAVE_DIFF_TARGET, return_value=None)
+def test_git_create_proposal_no_changes(mock_save: MagicMock) -> None:
+    """create_proposal returns failure when save_diff finds no changes."""
+    plugin = BareGitPlugin()
+    ok, error = plugin.vcs_create_proposal({"message": "propose"}, "/workspace")
+
+    assert ok is False
+    assert error is not None
+    assert "No changes" in error
+
+
+@patch(_CLEAN_WS_TARGET)
+@patch(_SAVE_DIFF_TARGET, return_value="~/diffs/cl_20260326.diff")
+def test_git_create_proposal_uses_cl_name_fallback(
+    mock_save: MagicMock, mock_clean: MagicMock
+) -> None:
+    """create_proposal falls back to _cl_name when name is absent."""
+    plugin = BareGitPlugin()
+    ok, _ = plugin.vcs_create_proposal(
+        {"_cl_name": "fallback_cl", "message": "propose"}, "/workspace"
+    )
+
+    assert ok is True
+    mock_save.assert_called_once_with("fallback_cl", target_dir="/workspace")

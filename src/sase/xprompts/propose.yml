@@ -29,21 +29,7 @@ steps:
       import json, os
       artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
       result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
-      # If stop hook already handled the commit, read the existing result
       if result_file and os.path.isfile(result_file):
-          with open(result_file) as f:
-              d = json.load(f)
-          print("success=true")
-          print(f"proposal_id={d.get('result', '') or ''}")
-          raise SystemExit(0)
-      # Create the proposal ourselves (fallback path)
-      from sase.workflows.commit import CommitWorkflow
-      method = os.environ.get("SASE_COMMIT_METHOD", "create_proposal")
-      who = {{ who | default("agent") | tojson }}
-      cl_name = os.environ.get("SASE_AGENT_CL_NAME", "")
-      wf = CommitWorkflow(payload={"message": f"[{who}] Agent changes", "_cl_name": cl_name}, method=method)
-      ok = wf.run()
-      if ok and result_file and os.path.isfile(result_file):
           with open(result_file) as f:
               d = json.load(f)
           print("success=true")
@@ -53,16 +39,6 @@ steps:
     output:
       success: bool
       proposal_id: word
-
-  - name: _append_entry
-    hidden: true
-    if: "{{ propose.success }}"
-    python: |
-      from sase.workflows.commit_utils.post_commit import append_post_commit_entry
-      r = append_post_commit_entry(mode="proposal")
-      print(f"entry_id={r.entry_id or ''}")
-    output:
-      entry_id: word
 
   - name: report
     hidden: true
@@ -85,19 +61,14 @@ steps:
     hidden: true
     if: "{{ propose.success }}"
     python: |
-      entry_id = {{ _append_entry.entry_id | default("") | tojson }}
-      if entry_id:
-          print(f"meta_proposal_id={entry_id}")
-      else:
-          # Fallback to commit result value if entry append failed
-          import json, os
-          artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
-          result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
-          if result_file and os.path.isfile(result_file):
-              with open(result_file) as f:
-                  d = json.load(f)
-              result = d.get("result", "") or ""
-              if result:
-                  print(f"meta_proposal_id={result}")
+      import json, os
+      artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
+      result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
+      if result_file and os.path.isfile(result_file):
+          with open(result_file) as f:
+              d = json.load(f)
+          entry_id = d.get("entry_id", "") or ""
+          if entry_id:
+              print(f"meta_proposal_id={entry_id}")
     output:
       meta_proposal_id: word

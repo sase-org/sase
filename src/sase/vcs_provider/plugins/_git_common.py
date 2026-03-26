@@ -600,7 +600,16 @@ class GitCommon(CommandRunner):
 
     @hookimpl
     def vcs_create_proposal(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
-        return self.vcs_create_commit({**payload, "_skip_bead_amend": True}, cwd)
+        """Save diff and clean workspace - proposals don't commit."""
+        from sase.workflows.commit_utils.workspace import clean_workspace, save_diff
+
+        cl_name = payload.get("name", "") or payload.get("_cl_name", "")
+        diff_path = save_diff(cl_name, target_dir=cwd)
+        if not diff_path:
+            return (False, "No changes to save as proposal diff")
+
+        clean_workspace(cwd)
+        return (True, diff_path)
 
     @hookimpl
     def vcs_create_pull_request(

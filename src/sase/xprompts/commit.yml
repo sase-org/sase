@@ -29,20 +29,7 @@ steps:
       import json, os
       artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
       result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
-      # If stop hook already handled the commit, read the existing result
       if result_file and os.path.isfile(result_file):
-          with open(result_file) as f:
-              d = json.load(f)
-          print("success=true")
-          print(f"new_commit={d.get('result', '') or ''}")
-          raise SystemExit(0)
-      # Create the commit ourselves (fallback path)
-      from sase.workflows.commit import CommitWorkflow
-      method = os.environ.get("SASE_COMMIT_METHOD", "create_commit")
-      who = {{ who | default("agent") | tojson }}
-      wf = CommitWorkflow(payload={"message": f"[{who}] Agent changes"}, method=method)
-      ok = wf.run()
-      if ok and result_file and os.path.isfile(result_file):
           with open(result_file) as f:
               d = json.load(f)
           print("success=true")
@@ -53,23 +40,19 @@ steps:
       success: bool
       new_commit: word
 
-  - name: _append_entry
-    hidden: true
-    if: "{{ create.success }}"
-    python: |
-      from sase.workflows.commit_utils.post_commit import append_post_commit_entry
-      r = append_post_commit_entry(mode="commit")
-      print(f"entry_id={r.entry_id or ''}")
-    output:
-      entry_id: word
-
   - name: _emit_commit_id
     hidden: true
     if: "{{ create.success }}"
     python: |
-      entry_id = {{ _append_entry.entry_id | default("") | tojson }}
-      if entry_id:
-          print(f"meta_commit_id={entry_id}")
+      import json, os
+      artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
+      result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
+      if result_file and os.path.isfile(result_file):
+          with open(result_file) as f:
+              d = json.load(f)
+          entry_id = d.get("entry_id", "") or ""
+          if entry_id:
+              print(f"meta_commit_id={entry_id}")
     output:
       meta_commit_id: word
 

@@ -151,17 +151,24 @@ def test_vcs_create_commit_push_fails(
     assert isinstance(err, str)
 
 
-@patch(_MOCK_TARGET)
-def test_vcs_create_proposal_delegates(
-    mock_run: MagicMock, bare_git_provider: VCSPluginManager
+@patch("sase.workflows.commit_utils.workspace.clean_workspace")
+@patch(
+    "sase.workflows.commit_utils.workspace.save_diff", return_value="~/diffs/test.diff"
+)
+def test_vcs_create_proposal_saves_diff(
+    mock_save: MagicMock,
+    mock_clean: MagicMock,
+    bare_git_provider: VCSPluginManager,
 ) -> None:
-    """create_proposal delegates to create_commit (same behavior for bare git)."""
-    mock_run.side_effect = _git_cmd_handler(stdout="abc1234")
+    """create_proposal saves a diff and cleans workspace instead of committing."""
     ok, result = bare_git_provider.create_proposal(
-        {"message": "propose: change"}, "/ws"
+        {"name": "my_cl", "message": "propose: change"}, "/ws"
     )
 
     assert ok is True
+    assert result == "~/diffs/test.diff"
+    mock_save.assert_called_once_with("my_cl", target_dir="/ws")
+    mock_clean.assert_called_once_with("/ws")
 
 
 @patch(_MOCK_TARGET)

@@ -1,7 +1,7 @@
 ---
-status: wip
+status: done
 create_time: 2026-03-26 19:21:26
-status: wip
+status: done
 ---
 
 # Plan: Remove Commit Fallbacks & Proper Proposal Support

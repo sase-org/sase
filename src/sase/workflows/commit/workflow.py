@@ -56,11 +56,10 @@ class CommitWorkflow(BaseWorkflow):
         if not self._run_precommit(cwd):
             return False
 
-        # Bead lifecycle: close, sync, inject ID into commit message
-        self._handle_beads(cwd)
-
-        # SASE_PLAN: append PLAN= to message and mark plan as done
-        self._handle_sase_plan(cwd)
+        # Bead lifecycle and SASE_PLAN: skip for proposals
+        if self._method != "create_proposal":
+            self._handle_beads(cwd)
+            self._handle_sase_plan(cwd)
 
         # Pre-compute the _<N> suffix for create_pull_request so the CL is
         # created with the correct suffixed name (important for non-git VCS
@@ -103,7 +102,16 @@ class CommitWorkflow(BaseWorkflow):
         if self._method == "create_pull_request":
             cs_name = self._create_changespec(cl_url=result)
 
+        # Write initial result marker (needed by append_post_commit_entry)
         self._write_result_marker(result, cs_name)
+
+        # Append COMMITS entry for commit/proposal (not PR - it uses ChangeSpec)
+        entry_id: str | None = None
+        if self._method in ("create_commit", "create_proposal"):
+            entry_id = self._append_commits_entry()
+            if entry_id:
+                self._write_result_marker(result, cs_name, entry_id=entry_id)
+
         return True
 
     def _run_precommit(self, cwd: str) -> bool:
@@ -267,8 +275,20 @@ class CommitWorkflow(BaseWorkflow):
             print_status(f"Skipping ChangeSpec: {exc}", "warning")
             return None
 
+    def _append_commits_entry(self) -> str | None:
+        """Append a COMMITS entry after successful commit/proposal. Returns entry_id."""
+        from sase.workflows.commit_utils.post_commit import append_post_commit_entry
+
+        mode = "proposal" if self._method == "create_proposal" else "commit"
+        result = append_post_commit_entry(mode=mode)
+        return result.entry_id if result.success else None
+
     def _write_result_marker(
-        self, result: str | None, changespec_name: str | None
+        self,
+        result: str | None,
+        changespec_name: str | None,
+        *,
+        entry_id: str | None = None,
     ) -> None:
         """Write commit result to a marker file for xprompt post-steps."""
         artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
@@ -282,6 +302,7 @@ class CommitWorkflow(BaseWorkflow):
             "name": self._payload.get("name", ""),
             "bead_id": self._payload.get("bead_id", ""),
             "changespec_name": changespec_name,
+            "entry_id": entry_id,
         }
         marker_path = os.path.join(artifacts_dir, "commit_result.json")
         with open(marker_path, "w") as f:
