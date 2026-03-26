@@ -318,9 +318,6 @@ class AgentDisplayMixin:
         if agent.is_workflow_child and agent.step_name:
             header_text.append("Step: ", style="bold #87D7FF")
             header_text.append(f"{agent.step_name}\n", style="#00D7AF")
-        elif meta_project:
-            header_text.append("Project: ", style="bold #87D7FF")
-            header_text.append(f"{meta_project}\n", style="#00D7AF")
         elif meta_changespec:
             header_text.append("ChangeSpec: ", style="bold #87D7FF")
             header_text.append(f"{meta_changespec}", style="#00D7AF")
@@ -329,6 +326,9 @@ class AgentDisplayMixin:
                 header_text.append(agent.cl_num, style="bold underline #569CD6")
                 header_text.append(")")
             header_text.append("\n")
+        elif meta_project:
+            header_text.append("Project: ", style="bold #87D7FF")
+            header_text.append(f"{meta_project}\n", style="#00D7AF")
         elif agent.is_project_agent:
             header_text.append("Project: ", style="bold #87D7FF")
             header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
