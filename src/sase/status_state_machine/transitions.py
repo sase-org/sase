@@ -5,6 +5,7 @@ This module contains the core transition_changespec_status function and related 
 """
 
 import logging
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -129,6 +130,54 @@ def _revert_sibling_draft_changespecs(
     return results
 
 
+def _push_branch_rename(
+    workspace_dir: str,
+    new_branch: str,
+    old_resolved: str,
+) -> None:
+    """Push a renamed branch to origin and delete the old remote branch.
+
+    After a local ``git branch -m``, the remote still has the old name.
+    Since workspaces are independent clones, the rename is invisible to
+    other workspaces until we sync with origin.
+
+    Args:
+        workspace_dir: Path to the workspace directory.
+        new_branch: The new branch name (already renamed locally).
+        old_resolved: The resolved name returned by ``resolve_revision``
+            (may include ``origin/`` prefix).
+    """
+    old_remote_branch = old_resolved.removeprefix("origin/")
+
+    # Push the newly renamed branch
+    push_out = subprocess.run(
+        ["git", "push", "origin", new_branch],
+        cwd=workspace_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if push_out.returncode != 0:
+        logger.warning(
+            f"Failed to push renamed branch {new_branch}: {push_out.stderr.strip()}"
+        )
+
+    # Delete the old branch from origin
+    if old_remote_branch != new_branch:
+        del_out = subprocess.run(
+            ["git", "push", "origin", "--delete", old_remote_branch],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if del_out.returncode != 0:
+            logger.warning(
+                f"Failed to delete old remote branch {old_remote_branch}: "
+                f"{del_out.stderr.strip()}"
+            )
+
+
 def _handle_suffix_strip(
     project_file: str,
     suffixed_name: str,
@@ -183,6 +232,8 @@ def _handle_suffix_strip(
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
+            else:
+                _push_branch_rename(workspace_dir, new_branch, resolved)
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
 
@@ -247,6 +298,8 @@ def _handle_suffix_append(
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
+            else:
+                _push_branch_rename(workspace_dir, new_branch, resolved)
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
 
