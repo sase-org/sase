@@ -262,11 +262,12 @@ class AgentNotificationMixin:
         self._show_notification_modal()
 
     def _jump_to_agent_notification(self) -> None:
-        """Open the notification modal pre-selected to the current agent's notification.
+        """Directly trigger the action for the current agent's notification.
 
         Finds the PlanApproval or UserQuestion notification matching the
-        currently selected agent and opens the modal with it highlighted.
-        If the target agent is hidden, auto-unhides agents first.
+        currently selected agent and directly invokes its handler, skipping
+        the NotificationModal. If the target agent is hidden, auto-unhides
+        agents first.
         """
         # Try current agent first
         agent: Agent | None = None
@@ -301,8 +302,8 @@ class AgentNotificationMixin:
         unread = [n for n in notifications if not n.read]
 
         # Find the notification matching this agent
-        initial_index = 0
-        for i, notification in enumerate(unread):
+        matched: Notification | None = None
+        for notification in unread:
             if notification.action not in ("PlanApproval", "UserQuestion"):
                 continue
             cl_name = notification.action_data.get("agent_cl_name")
@@ -312,10 +313,25 @@ class AgentNotificationMixin:
             agent_timestamp = normalize_to_14_digit(agent_timestamp)
             if agent_timestamp and agent.raw_suffix != agent_timestamp:
                 continue
-            initial_index = i
+            matched = notification
             break
 
-        self._show_notification_modal(initial_index=initial_index)
+        if matched is None:
+            return
+
+        # Directly dispatch the notification action, skipping the modal
+        from ._notification_actions import handle_plan_approval, handle_user_question
+
+        if matched.action == "PlanApproval":
+            handle_plan_approval(self, matched)
+        elif matched.action == "UserQuestion":
+            handle_user_question(self, matched)
+        else:
+            # Defensive fallback: open the modal for unexpected action types
+            self._show_notification_modal()
+            return
+
+        self._refresh_notification_count()
 
     def _show_notification_modal(self, *, initial_index: int = 0) -> None:
         """Show the notification modal with optional pre-selection.
