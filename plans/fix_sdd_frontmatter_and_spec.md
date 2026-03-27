@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 13:29:30
-status: wip
+status: done
 ---
 
 # Plan: Fix plan frontmatter and spec file not being committed when SDD block fails

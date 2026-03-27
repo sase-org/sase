@@ -212,6 +212,14 @@ class CommitWorkflow(BaseWorkflow):
             shutil.copy2(plan_path, dest)
             plan_path = dest
 
+        # Ensure plan has frontmatter (may be missing if SDD block failed)
+        plan_content = open(plan_path, encoding="utf-8").read()
+        if not plan_content.startswith("---\n"):
+            from sase.llm_provider._plan_utils import add_create_time_frontmatter
+
+            with open(plan_path, "w", encoding="utf-8") as f:
+                f.write(add_create_time_frontmatter(plan_content))
+
         # Compute repo-root-relative path
         if repo_root and plan_path.startswith(repo_root + "/"):
             plan_rel = plan_path[len(repo_root) + 1 :]

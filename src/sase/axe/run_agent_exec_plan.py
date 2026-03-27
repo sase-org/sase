@@ -214,7 +214,13 @@ def handle_plan_marker(
         version_controlled = get_sdd_config()
         sdd_dir = get_sdd_dir(ctx.workspace_dir, ctx.workspace_num, version_controlled)
         sdd_plan_name = os.path.splitext(os.path.basename(plan_result.plan_file))[0]
-        expanded = expand_prompt_for_spec(state.original_prompt)
+        try:
+            expanded = expand_prompt_for_spec(state.original_prompt)
+        except Exception:
+            logger.warning(
+                "Spec prompt expansion failed, using raw prompt", exc_info=True
+            )
+            expanded = state.original_prompt
         sdd_spec_path_obj, _ = write_sdd_files(
             sdd_dir, sdd_plan_name, expanded, plan_result.plan_file
         )
