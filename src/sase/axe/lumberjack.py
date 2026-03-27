@@ -78,7 +78,7 @@ class Lumberjack:
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(self.parsed_query, self._log)
-        # Track running agent processes per chop (multiple allowed)
+        # Track running agent processes per chop (singleton per chop)
         self._agent_pids: dict[str, set[int]] = {}
         # Load persisted chop last-run timestamps for time-based run_every
         self._chop_timestamps: dict[str, datetime] = {}
@@ -205,6 +205,10 @@ class Lumberjack:
                 pass
         if still_alive:
             self._agent_pids[chop.name] = still_alive
+            self._log(
+                f"Skipping agent chop '{chop.name}': already running (PIDs {still_alive})"
+            )
+            return False
         else:
             self._agent_pids.pop(chop.name, None)
 

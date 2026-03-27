@@ -236,6 +236,69 @@ def test_chops_without_run_every_run_every_tick(
     assert mock_run.call_count == 3
 
 
+# --- Agent Chop Dedup Tests ---
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_skips_when_already_running(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that a second agent chop launch is skipped when one is already running."""
+    config = LumberjackConfig(
+        name="dedup",
+        interval=10,
+        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
+    )
+    lumberjack = Lumberjack("dedup", config, axe_config)
+
+    # Simulate a still-alive PID
+    lumberjack._agent_pids["my_agent"] = {99999}
+
+    with patch("os.kill") as mock_kill:
+        # os.kill(pid, 0) succeeds → process is alive
+        mock_kill.return_value = None
+        with patch("sase.agent.launcher.launch_agent_from_cwd") as mock_launch:
+            result = lumberjack._run_agent_chop(config.chops[0])
+
+    assert result is False
+    mock_launch.assert_not_called()
+
+
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_agent_chop_launches_after_previous_completes(
+    mock_find: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that a new agent launches once the previous one has exited."""
+    config = LumberjackConfig(
+        name="dedup2",
+        interval=10,
+        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
+    )
+    lumberjack = Lumberjack("dedup2", config, axe_config)
+
+    # Simulate a dead PID
+    lumberjack._agent_pids["my_agent"] = {99999}
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 12345
+
+    with (
+        patch("os.kill", side_effect=OSError("No such process")),
+        patch(
+            "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
+        ) as mock_launch,
+    ):
+        result = lumberjack._run_agent_chop(config.chops[0])
+
+    assert result is True
+    mock_launch.assert_called_once_with("some_agent")
+    assert 12345 in lumberjack._agent_pids["my_agent"]
+
+
 # --- Status/Metrics Writing Tests ---
 
 
