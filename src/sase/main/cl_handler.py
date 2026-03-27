@@ -15,16 +15,22 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     Args:
         args: Parsed command-line arguments.
     """
-    import json
     import os
 
-    try:
-        payload = json.loads(args.payload)
-    except json.JSONDecodeError as exc:
-        print(f"Error: invalid JSON payload: {exc}", file=sys.stderr)
-        sys.exit(1)
-
     method = args.method or os.environ.get("SASE_COMMIT_METHOD", "create_commit")
+
+    payload: dict[str, object] = {
+        "message": args.message or "",
+        "files": args.files or [],
+    }
+    if args.name:
+        payload["name"] = args.name
+    if args.bead_id:
+        payload["bead_id"] = args.bead_id
+    if args.checkout_target != "HEAD~1":
+        payload["checkout_target"] = args.checkout_target
+    if args.note:
+        payload["note"] = args.note
 
     workflow = CommitWorkflow(payload=payload, method=method)
     success = workflow.run()
