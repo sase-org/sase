@@ -403,6 +403,7 @@ def main() -> None:
             # For failures with an error report, use ViewErrorReport action
             # so <enter> opens the report in $EDITOR. Otherwise JumpToAgent.
             commit_message = (step_output or {}).get("meta_commit_message")
+            pr_url = (step_output or {}).get("meta_pr_url")
 
             if not success and error_report_path:
                 action = "ViewErrorReport"
@@ -412,6 +413,7 @@ def main() -> None:
                     "raw_suffix": artifacts_timestamp,
                     **({"agent_name": agent_name} if agent_name else {}),
                     **({"commit_message": commit_message} if commit_message else {}),
+                    **({"pr_url": pr_url} if pr_url else {}),
                 }
             else:
                 action = "JumpToAgent"
@@ -427,6 +429,7 @@ def main() -> None:
                     ),
                     "prompt": prompt,
                     **({"commit_message": commit_message} if commit_message else {}),
+                    **({"pr_url": pr_url} if pr_url else {}),
                 }
 
             notify_workflow_complete(
