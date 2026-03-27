@@ -11,6 +11,34 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
+def _resolve_vcs_tag(agent: Agent, name: str) -> str | None:
+    """Resolve a VCS workflow tag for the given agent, applying smart ref replacement.
+
+    Returns the tag string (with trailing space) or None if no VCS tag found.
+    """
+    from sase.xprompt import extract_vcs_workflow_tag, replace_ref_in_vcs_tag
+
+    raw_content = agent.get_raw_xprompt_content()
+    if not raw_content:
+        return None
+
+    vcs_tag = extract_vcs_workflow_tag(raw_content)
+    if not vcs_tag:
+        return None
+
+    # Use actual branch name if agent has one (not just the project name)
+    if not agent.is_project_agent:
+        return replace_ref_in_vcs_tag(vcs_tag, agent.cl_name)
+
+    # Use @<name> if prompt contains #pr (will resolve to agent's branch)
+    from sase.xprompt.workflow_validator_extract import extract_xprompt_calls
+
+    if any(call.name == "pr" for call in extract_xprompt_calls(raw_content)):
+        return replace_ref_in_vcs_tag(vcs_tag, f"@{name}")
+
+    return vcs_tag
+
+
 class AgentInteractionMixin:
     """Mixin providing agent user interaction methods (kill, diff, edit, layout).
 
@@ -340,13 +368,9 @@ class AgentInteractionMixin:
             name = agent.agent_name
             prefix = f"#resume:{name} %w:{name} "
 
-            from sase.xprompt import extract_vcs_workflow_tag
-
-            raw_content = agent.get_raw_xprompt_content()
-            if raw_content:
-                vcs_tag = extract_vcs_workflow_tag(raw_content)
-                if vcs_tag:
-                    prefix = f"{vcs_tag}{prefix}"
+            vcs_tag = _resolve_vcs_tag(agent, name)
+            if vcs_tag:
+                prefix = f"{vcs_tag}{prefix}"
 
             self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                 initial_text=prefix,
@@ -366,13 +390,9 @@ class AgentInteractionMixin:
         name = agent.agent_name
         prefix = f"#resume:{name} "
 
-        from sase.xprompt import extract_vcs_workflow_tag
-
-        raw_content = agent.get_raw_xprompt_content()
-        if raw_content:
-            vcs_tag = extract_vcs_workflow_tag(raw_content)
-            if vcs_tag:
-                prefix = f"{vcs_tag}{prefix}"
+        vcs_tag = _resolve_vcs_tag(agent, name)
+        if vcs_tag:
+            prefix = f"{vcs_tag}{prefix}"
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
@@ -398,13 +418,9 @@ class AgentInteractionMixin:
         name = agent.agent_name
         prefix = f"%w:{name} "
 
-        from sase.xprompt import extract_vcs_workflow_tag
-
-        raw_content = agent.get_raw_xprompt_content()
-        if raw_content:
-            vcs_tag = extract_vcs_workflow_tag(raw_content)
-            if vcs_tag:
-                prefix = f"{vcs_tag}{prefix}"
+        vcs_tag = _resolve_vcs_tag(agent, name)
+        if vcs_tag:
+            prefix = f"{vcs_tag}{prefix}"
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
