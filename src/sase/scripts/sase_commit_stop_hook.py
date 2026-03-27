@@ -91,6 +91,10 @@ def _normalize_provider(provider: str | None) -> str:
 
 
 def _build_name_instruction() -> str | None:
+    # Only PRs are named, since we need a branch name to associated with them.
+    if os.environ.get("SASE_COMMIT_METHOD") != "create_pull_request":
+        return None
+
     sase_name = os.environ.get("SASE_PR_NAME")
     sase_pr_name_is_set = True
     if not sase_name or sase_name == "None":
@@ -238,9 +242,7 @@ def main() -> int:
     runtime = (
         "gemini"
         if _is_gemini_runtime()
-        else "codex"
-        if _is_codex_runtime()
-        else "claude"
+        else "codex" if _is_codex_runtime() else "claude"
     )
     commit_method = os.environ.get("SASE_COMMIT_METHOD", "")
 
