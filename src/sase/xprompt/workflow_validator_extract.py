@@ -11,11 +11,13 @@ from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
 from sase.xprompt.models import UNSET, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
-# Pattern to match xprompt references (same as processor.py)
+# Pattern to match xprompt references (based on processor.py, extended for templates)
+# The colon-arg group adds \{\{[^}]*\}\} to handle Jinja2 template vars like {{ file_path }}
+# which appear in workflows before template rendering.
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|\{\{[^}]*\}\}|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
 )
 
 # Pattern to find {{ ... }} and {% ... %} blocks (variable references)
