@@ -14,6 +14,7 @@ from sase.workflows.commit.changespec_operations import (
 )
 from sase.workflows.commit.changespec_queries import changespec_exists
 from sase.workflows.commit.editor_utils import get_editor
+from sase.workflows.commit.workflow import CommitWorkflow
 
 
 def test_changespec_exists_no_project_file() -> None:
@@ -192,3 +193,84 @@ def test_get_cl_description_empty_file_falls_back() -> None:
         assert result == "Summarized description"
     finally:
         Path(desc_file).unlink()
+
+
+# --- _detect_parent_changespec ---
+
+
+def _make_workflow(name: str = "child_cl") -> CommitWorkflow:
+    """Create a CommitWorkflow configured for create_pull_request."""
+    return CommitWorkflow(payload={"name": name}, method="create_pull_request")
+
+
+def test_detect_parent_returns_branch_cl_when_changespec_exists() -> None:
+    """Returns branch name when it matches an existing ChangeSpec."""
+    wf = _make_workflow()
+    wf._base_cl_name = "child_cl"
+    mock_cs = MagicMock()
+    mock_cs.name = "parent_feature"
+    with (
+        patch(
+            "sase.workflows.utils.get_cl_name_from_branch",
+            return_value="parent_feature",
+        ),
+        patch(
+            "sase.workflows.utils.get_project_from_workspace",
+            return_value="proj",
+        ),
+        patch(
+            "sase.workflows.utils.get_project_file_path",
+            return_value="/fake/proj.gp",
+        ),
+        patch(
+            "sase.workflows.utils.get_changespec_from_file",
+            return_value=mock_cs,
+        ),
+    ):
+        assert wf._detect_parent_changespec() == "parent_feature"
+
+
+def test_detect_parent_returns_none_when_no_branch() -> None:
+    """Returns None when get_cl_name_from_branch fails."""
+    wf = _make_workflow()
+    with patch(
+        "sase.workflows.utils.get_cl_name_from_branch",
+        return_value=None,
+    ):
+        assert wf._detect_parent_changespec() is None
+
+
+def test_detect_parent_returns_none_when_no_changespec() -> None:
+    """Returns None when branch has no ChangeSpec."""
+    wf = _make_workflow()
+    wf._base_cl_name = "child_cl"
+    with (
+        patch(
+            "sase.workflows.utils.get_cl_name_from_branch",
+            return_value="some_branch",
+        ),
+        patch(
+            "sase.workflows.utils.get_project_from_workspace",
+            return_value="proj",
+        ),
+        patch(
+            "sase.workflows.utils.get_project_file_path",
+            return_value="/fake/proj.gp",
+        ),
+        patch(
+            "sase.workflows.utils.get_changespec_from_file",
+            return_value=None,
+        ),
+    ):
+        assert wf._detect_parent_changespec() is None
+
+
+def test_detect_parent_returns_none_when_self_parent() -> None:
+    """Returns None when branch name matches the new CL name."""
+    wf = _make_workflow(name="same_name")
+    wf._base_cl_name = "same_name"
+    with patch(
+        "sase.workflows.utils.get_cl_name_from_branch",
+        return_value="same_name",
+    ):
+        assert wf._detect_parent_changespec() is None

@@ -221,6 +221,51 @@ def test_create_changespec_for_workflow_no_commits_no_fallback() -> None:
         assert result is None
 
 
+def test_create_changespec_for_workflow_passes_parent() -> None:
+    """Parent argument is forwarded to add_changespec_to_project_file."""
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["feat: add thing"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/f.md",
+        ),
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value=None,
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="proj_child_1",
+        ) as mock_add,
+    ):
+        result = create_changespec_for_workflow(
+            project_name="proj",
+            project_file="/fake/proj.gp",
+            checkout_target="HEAD~1",
+            branch_name="foobar",
+            prompt="",
+            response="",
+            workflow_name="sase_commit",
+            cl_name="proj_child",
+            parent="proj_parent_feature",
+        )
+        assert result == "proj_child_1"
+        mock_add.assert_called_once()
+        assert mock_add.call_args.kwargs["parent"] == "proj_parent_feature"
+
+
 def test_create_changespec_for_workflow_success() -> None:
     with (
         patch(

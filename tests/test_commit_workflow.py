@@ -131,6 +131,7 @@ class TestCommitWorkflowChangeSpec:
             cl_url="https://github.com/org/repo/pull/1",
             cl_name="feat-x",
             commit_description="add feature",
+            parent=None,
         )
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")

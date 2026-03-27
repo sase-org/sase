@@ -137,6 +137,7 @@ def create_changespec_for_workflow(
     cl_name: str | None = None,
     status: str = "Draft",
     commit_description: str | None = None,
+    parent: str | None = None,
 ) -> str | None:
     """Create a ChangeSpec for commits produced by an agent workflow.
 
@@ -169,7 +170,7 @@ def create_changespec_for_workflow(
         project_name,
         cl_name,
         description,
-        parent=None,
+        parent=parent,
         cl_url=cl_url,
         initial_hooks=hooks,
         initial_commits=[(1, "[run] Initial Commit", chat_path, diff_path)],

@@ -19,6 +19,7 @@ class CommitWorkflow(BaseWorkflow):
         self._payload = payload
         self._method = method
         self._base_cl_name: str | None = None
+        self._parent_cl_name: str | None = None
 
     @property
     def name(self) -> str:
@@ -83,6 +84,10 @@ class CommitWorkflow(BaseWorkflow):
                         self._payload["name"] = suffixed
             except Exception:
                 pass  # Best-effort; fall back to unsuffixed name
+
+        # Detect parent ChangeSpec from current branch (before VCS may change it)
+        if self._method == "create_pull_request":
+            self._parent_cl_name = self._detect_parent_changespec()
 
         if self._method == "create_pull_request":
             self._build_pr_body()
@@ -232,6 +237,39 @@ class CommitWorkflow(BaseWorkflow):
             footer = "\n".join(lines)
             self._payload["_pr_body"] = f"{message}\n\n---\n{footer}"
 
+    def _detect_parent_changespec(self) -> str | None:
+        """Detect the parent ChangeSpec from the current branch.
+
+        Returns the ChangeSpec name if the current branch corresponds to an
+        existing ChangeSpec, None otherwise.
+        """
+        try:
+            from sase.workflows.utils import (
+                get_changespec_from_file,
+                get_cl_name_from_branch,
+                get_project_file_path,
+                get_project_from_workspace,
+            )
+
+            branch_cl = get_cl_name_from_branch()
+            if not branch_cl:
+                return None
+
+            # Don't set parent to self
+            new_cl = self._base_cl_name or self._payload.get("name")
+            if branch_cl == new_cl:
+                return None
+
+            project_name = get_project_from_workspace()
+            if not project_name:
+                return None
+
+            project_file = get_project_file_path(project_name)
+            cs = get_changespec_from_file(project_file, branch_cl)
+            return branch_cl if cs is not None else None
+        except Exception:
+            return None
+
     def _create_changespec(self, cl_url: str | None) -> str | None:
         """Best-effort ChangeSpec creation after a successful PR flow."""
         try:
@@ -265,6 +303,7 @@ class CommitWorkflow(BaseWorkflow):
                 cl_url=cl_url,
                 cl_name=self._base_cl_name or self._payload.get("name"),
                 commit_description=self._payload.get("message", ""),
+                parent=self._parent_cl_name,
             )
             if cs_name:
                 print_status(f"Created ChangeSpec: {cs_name}", "success")
