@@ -6,6 +6,8 @@ launching a script and the script reads it to discover its environment.
 """
 
 import json
+import os
+import tempfile
 from dataclasses import asdict, dataclass
 
 from sase.ace.changespec import (
@@ -33,6 +35,26 @@ class ChopScriptContext:
     filtered_changespecs_file: str
 
 
+def _atomic_json_write(data: object, path: str) -> None:
+    """Write JSON data atomically using write-to-temp-then-rename.
+
+    Prevents readers from seeing partial/corrupted JSON when multiple
+    processes access the same file concurrently.
+    """
+    from pathlib import Path
+
+    parent = Path(path).parent
+    parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=str(parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
+
+
 def write_chop_context(ctx: ChopScriptContext, path: str) -> None:
     """Write a ChopScriptContext to a JSON file.
 
@@ -42,11 +64,7 @@ def write_chop_context(ctx: ChopScriptContext, path: str) -> None:
         ctx: The context to serialize.
         path: Destination file path.
     """
-    from pathlib import Path
-
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(asdict(ctx), f, indent=2)
+    _atomic_json_write(asdict(ctx), path)
 
 
 def read_chop_context(path: str) -> ChopScriptContext:
@@ -71,11 +89,7 @@ def serialize_changespecs(changespecs: list[ChangeSpec], path: str) -> None:
         changespecs: The changespecs to serialize.
         path: Destination file path.
     """
-    from pathlib import Path
-
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump([asdict(cs) for cs in changespecs], f, indent=2)
+    _atomic_json_write([asdict(cs) for cs in changespecs], path)
 
 
 def load_changespecs_from_file(path: str) -> list[ChangeSpec]:
