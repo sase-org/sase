@@ -6,6 +6,7 @@ prompt_part content.
 """
 
 import json
+import logging
 import os
 import re
 from typing import Any
@@ -28,6 +29,9 @@ from sase.xprompt.workflow_models import (
     WorkflowExecutionError,
     WorkflowState,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddedWorkflowExpandMixin:
@@ -112,6 +116,12 @@ class EmbeddedWorkflowExpandMixin:
             workflow = workflows[name]
 
             if not workflow.has_prompt_part():
+                logger.warning(
+                    "_expand_embedded_workflows_in_prompt: skipping #%s — "
+                    "workflow found but has no prompt_part (standalone workflow "
+                    "cannot be embedded). It will pass through as literal text.",
+                    name,
+                )
                 continue
 
             # Extract arguments

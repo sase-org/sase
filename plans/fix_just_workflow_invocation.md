@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 02:07:41
-status: wip
+status: done
 ---
 
 # Plan: Fix `sase/fix_just` xprompt workflow not being invoked from chop

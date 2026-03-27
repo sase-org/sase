@@ -1,6 +1,7 @@
 """Workflow execution and embedding for xprompt workflows."""
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -175,10 +176,13 @@ def _flatten_anonymous_workflow(
 
     prompts = get_all_prompts(project=project)
     logger.debug(
-        "_flatten_anonymous_workflow: project=%r, prompt=%r, prompt_keys_sample=%r",
+        "_flatten_anonymous_workflow: project=%r, cwd=%r, prompt=%r, "
+        "prompt_keys_sample=%r, sase_prefix_keys=%r",
         project,
+        os.getcwd(),
         prompt_text[:120],
         list(prompts.keys())[:20],
+        [k for k in prompts if k.startswith("sase/")],
     )
 
     def _attach_wrapper_model(named: dict[str, str]) -> dict[str, str]:
@@ -218,6 +222,16 @@ def _flatten_anonymous_workflow(
                 if standalone is not None:
                     ref_wf, pos, named = standalone
                     return ref_wf, pos, _attach_wrapper_model(named)
+                logger.warning(
+                    "_flatten_anonymous_workflow: fast-path has_prompt_part branch "
+                    "returning None (workflow NOT flattened). prompt=%r, "
+                    "first_ref=%r (has_prompt_part=True), standalone_scan=no match, "
+                    "sase_prefix_keys=%r, all_keys_count=%d",
+                    prompt_text[:200],
+                    wf_name,
+                    [k for k in prompts if k.startswith("sase/")],
+                    len(prompts),
+                )
                 workflow.name = wf_name
                 return None
         else:
