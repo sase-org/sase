@@ -27,7 +27,7 @@ String matches search across these ChangeSpec fields (combined):
 
 - **name** -- the ChangeSpec name
 - **description** -- the ChangeSpec description text
-- **status** -- base status string (e.g. "Drafted", "WIP")
+- **status** -- base status string (e.g. "Draft", "WIP")
 - **project** -- project directory basename (derived from file path)
 - **parent** -- parent ChangeSpec name (if set)
 - **cl** -- CL identifier (if set)
@@ -66,11 +66,12 @@ Valid property keys: `status`, `project`, `ancestor`, `name`, `sibling`. Values 
 
 | Shorthand | Expands To         |
 | --------- | ------------------ |
-| `%d`      | `status:DRAFTED`   |
+| `%d`      | `status:DRAFT`     |
 | `%m`      | `status:MAILED`    |
 | `%r`      | `status:REVERTED`  |
 | `%s`      | `status:SUBMITTED` |
 | `%w`      | `status:WIP`       |
+| `%y`      | `status:READY`     |
 
 Status shorthands are case-insensitive (`%D` and `%d` are equivalent).
 

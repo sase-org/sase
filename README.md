@@ -324,6 +324,7 @@ just build         # Build wheel + sdist
 - [`docs/plugins.md`](docs/plugins.md) — Plugin system and extension guide
 - [`docs/project_spec.md`](docs/project_spec.md) — ProjectSpec format
 - [`docs/query_language.md`](docs/query_language.md) — Query language reference
+- [`docs/sdd.md`](docs/sdd.md) — Spec-Driven Development (SDD)
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation
 - [`docs/workspace.md`](docs/workspace.md) — Workspace provider documentation
 - [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format

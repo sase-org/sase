@@ -464,6 +464,18 @@ without an explicit `%name` directive. Names are allocated sequentially, reusing
 enables the resume-by-name workflow: press `r` on a running named agent to queue a follow-up that waits for it to finish
 and then loads its conversation history.
 
+### Per-Step Naming for Multi-Agent Workflows
+
+When a workflow spawns follow-up agents (e.g., plan approval followed by a coder step), the agents receive dotted names
+derived from the base name. For example, if the initial agent is named `a`:
+
+1. When the first follow-up is created, the initial agent is renamed from `a` to `a.1`
+2. The follow-up agent becomes `a.2`
+3. Subsequent follow-ups become `a.3`, `a.4`, etc.
+
+The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve correctly. Single-
+agent workflows (no follow-ups) keep their original name unchanged.
+
 ## Agents Tab Metadata Panel
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:

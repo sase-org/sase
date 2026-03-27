@@ -2,8 +2,7 @@ A ProjectSpec is a sase format specification for a project plan consisting of mu
 starts with a BUG field, followed by a collection of ChangeSpecs (see change_spec.md), each separated by two blank
 lines.
 
-The ProjectSpec file is created by the `sase create-project` workflow and saved to
-`~/.sase/projects/<filename>/<filename>.gp`.
+ProjectSpec files are stored at `~/.sase/projects/<filename>/<filename>.gp`.
 
 ## Format
 
@@ -66,9 +65,8 @@ Each ChangeSpec within a ProjectSpec must contain the following fields:
    - Plain ID: `CL: 12345`
    - Legacy format: `CL: cl/12345`
    - URL format: `CL: http://cl/12345` or `CL: https://cl/12345`
-5. **STATUS**: Must be "Blocked" (if the ChangeSpec has a PARENT) or "Unstarted" (if PARENT is None) when created by the
-   workflow (can be updated to "In Progress", "Drafted", "Mailed", or "Submitted" during tracking). A ChangeSpec should
-   remain "Blocked" until its PARENT has reached "Drafted" status or beyond.
+5. **STATUS**: Must be one of the valid statuses: WIP, Draft, Ready, Mailed, Submitted, Reverted, Archived. New
+   ChangeSpecs typically start as "WIP". See [`change_spec.md`](change_spec.md) for the full status lifecycle.
 
 ## Example
 
@@ -88,7 +86,7 @@ DESCRIPTION:
   file handling.
 PARENT: None
 CL: None
-STATUS: Unstarted
+STATUS: WIP
 
 
 NAME: my-project_integrate_parser
@@ -102,7 +100,7 @@ DESCRIPTION:
   valid and invalid config scenarios.
 PARENT: my-project_add_config_parser
 CL: None
-STATUS: Blocked
+STATUS: WIP
 
 
 NAME: my-project_add_docs
@@ -115,7 +113,7 @@ DESCRIPTION:
   and document all available configuration options.
 PARENT: my-project_integrate_parser
 CL: None
-STATUS: Blocked
+STATUS: WIP
 ```
 
 ## Important Notes
@@ -124,9 +122,9 @@ STATUS: Blocked
 - **Blank lines between ChangeSpecs**: Each ChangeSpec must be separated by exactly two blank lines
 - **NAME field**: All ChangeSpecs in a project MUST start with `<basename>_` where basename is the project filename
   (without .gp), followed by a descriptive suffix (words separated by underscores, strive for shorter names)
-- **CL field**: Always set to "None" when created by the workflow (updated later when CL is created)
-- **STATUS field**: Set to "Blocked" when created by the workflow if the ChangeSpec has a PARENT, otherwise "Unstarted"
+- **CL field**: Set to "None" initially (updated later when the CL is created)
+- **STATUS field**: Must be a valid status (WIP, Draft, Ready, Mailed, Submitted, Reverted, Archived). New ChangeSpecs
+  typically start as "WIP"
 - **PARENT field**: Used to establish dependencies between CLs in the project plan
-- **Filename requirement**: The filename argument to `sase create-project` must NOT include the .gp extension
-- **No file modifications**: The DESCRIPTION should NOT include specific file modification lists - that will be handled
+- **No file modifications**: The DESCRIPTION should NOT include specific file modification lists — that will be handled
   by a different workflow

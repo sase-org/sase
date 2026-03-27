@@ -161,6 +161,17 @@ For VCS workspace references, underscores can be used as an alternative to colon
 `#gh:sase`. The underscore is normalized to a colon before pattern matching, so both forms work identically. This is
 useful in contexts where colons are inconvenient.
 
+VCS references also support `@name` agent references in the ref portion. The `@name` is resolved at runtime to the named
+agent's ChangeSpec (branch name), allowing one agent's prompt to target another agent's workspace:
+
+```
+#gh:@planner     resolves to e.g. #gh:planner_add_config_parser
+#gh_@reviewer    same, underscore form
+```
+
+This is useful when chaining agents — for example, a review agent can target the branch created by a prior agent using
+`@name` instead of hardcoding the branch name.
+
 Double underscores (`__`) in xprompt names are treated as forward slashes (`/`), enabling flat references to namespaced
 xprompts. For example, `#foo__bar` resolves to the xprompt registered as `foo/bar`, and `#a__b__c` resolves to `a/b/c`.
 Single underscores are not affected. This is useful when `/` is inconvenient in certain input contexts (e.g., shell
