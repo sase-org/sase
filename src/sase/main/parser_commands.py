@@ -59,11 +59,6 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Branch point for create_pull_request (default: HEAD~1)",
     )
     commit_parser.add_argument(
-        "-N",
-        "--note",
-        help="COMMITS note (used by Mercurial create_commit)",
-    )
-    commit_parser.add_argument(
         "-M",
         "--method",
         choices=["create_commit", "create_proposal", "create_pull_request"],

@@ -87,11 +87,6 @@ class TestCommitCLI:
         payload, _ = _run_handler(["-m", msg_file])
         assert "checkout_target" not in payload
 
-    def test_note(self, tmp_path: Path) -> None:
-        msg_file = _write_msg(tmp_path, "msg")
-        payload, _ = _run_handler(["-m", msg_file, "--note", "my note"])
-        assert payload["note"] == "my note"
-
     def test_method_flag(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         _, method = _run_handler(["-m", msg_file, "--method", "create_proposal"])

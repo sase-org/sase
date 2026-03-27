@@ -281,36 +281,15 @@ def test_detect_parent_returns_none_when_self_parent() -> None:
 
 def _make_commit_workflow(
     message: str = "Fix a bug",
-    note: str | None = None,
     method: str = "create_commit",
 ) -> CommitWorkflow:
     """Create a CommitWorkflow for commit/proposal tests."""
     payload: dict = {"message": message}
-    if note is not None:
-        payload["note"] = note
     return CommitWorkflow(payload=payload, method=method)
 
 
-def test_append_commits_entry_human_cli_uses_note(tmp_path: Path) -> None:
-    """--note value is used as the COMMITS entry text (no env vars)."""
-    project_file = tmp_path / "proj.gp"
-    project_file.write_text(
-        "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
-    )
-
-    wf = _make_commit_workflow(note="[man] Revert BUILD changes")
-    wf._cl_name = "my_branch"
-    wf._project_file = str(project_file)
-
-    entry_id = wf._append_commits_entry()
-    assert entry_id == "1"
-
-    content = project_file.read_text()
-    assert "[man] Revert BUILD changes" in content
-
-
-def test_append_commits_entry_human_cli_falls_back_to_message(tmp_path: Path) -> None:
-    """First line of commit message is used when --note is absent."""
+def test_append_commits_entry_uses_message_first_line(tmp_path: Path) -> None:
+    """First line of commit message is used as the COMMITS entry text."""
     project_file = tmp_path / "proj.gp"
     project_file.write_text(
         "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
@@ -358,7 +337,7 @@ def test_append_commits_entry_includes_diff_path(tmp_path: Path) -> None:
     diff_file = tmp_path / "my.diff"
     diff_file.write_text("diff content")
 
-    wf = _make_commit_workflow(note="with diff")
+    wf = _make_commit_workflow(message="with diff")
     wf._cl_name = "my_branch"
     wf._project_file = str(project_file)
     wf._diff_path = str(diff_file)

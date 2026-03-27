@@ -450,21 +450,15 @@ class CommitWorkflow(BaseWorkflow):
         ):
             return None
 
-        # Build note + body: --note payload → commit message → fallback
+        # Build note + body from the commit message.
         # The header is the first line; everything after the first blank line is
         # the body.
-        explicit_note = self._payload.get("note")
-        if explicit_note:
-            note = explicit_note
-            body: list[str] | None = None
-        else:
-            message = self._payload.get("message", "")
-            parts = message.split("\n\n", 1)
-            note = (parts[0].split("\n")[0]) or "Manual changes"
-            if len(parts) > 1 and parts[1].strip():
-                body = parts[1].splitlines()
-            else:
-                body = None
+        message = self._payload.get("message", "")
+        parts = message.split("\n\n", 1)
+        note = (parts[0].split("\n")[0]) or "Manual changes"
+        body: list[str] | None = None
+        if len(parts) > 1 and parts[1].strip():
+            body = parts[1].splitlines()
 
         # For proposals, prepend workflow identifier if available
         if self._method == "create_proposal":
