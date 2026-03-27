@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.history.chat import (
-    _generate_chat_filename,
+    generate_chat_filename,
     _get_branch_or_workspace_name,
-    _get_chat_file_path,
+    get_chat_file_path,
     list_chat_histories,
     load_chat_for_resume,
     _load_chat_history,
@@ -40,8 +40,8 @@ def test_get_branch_or_workspace_name_failure() -> None:
             _get_branch_or_workspace_name()
 
 
-def test_generate_chat_filename_with_agent() -> None:
-    """Test _generate_chat_filename with agent name."""
+def testgenerate_chat_filename_with_agent() -> None:
+    """Test generate_chat_filename with agent name."""
     with (
         patch(
             "sase.history.chat._get_branch_or_workspace_name", return_value="my-branch"
@@ -49,13 +49,13 @@ def test_generate_chat_filename_with_agent() -> None:
         patch("sase.history.chat.generate_timestamp", return_value="251128_120000"),
     ):
         # Workflow dashes are normalized to underscores in filename
-        result = _generate_chat_filename("crs", agent="planner")
+        result = generate_chat_filename("crs", agent="planner")
         assert result == "my-branch-crs-planner-251128_120000"
 
 
-def test_generate_chat_filename_with_explicit_values() -> None:
-    """Test _generate_chat_filename with explicit branch and timestamp."""
-    result = _generate_chat_filename(
+def testgenerate_chat_filename_with_explicit_values() -> None:
+    """Test generate_chat_filename with explicit branch and timestamp."""
+    result = generate_chat_filename(
         "rerun",
         branch_or_workspace="feature-branch",
         timestamp="251128130000",
@@ -63,9 +63,9 @@ def test_generate_chat_filename_with_explicit_values() -> None:
     assert result == "feature-branch-rerun-251128130000"
 
 
-def test_get_chat_file_path_with_extension() -> None:
-    """Test _get_chat_file_path when extension is already present."""
-    result = _get_chat_file_path("my-branch-run-251128120000.md")
+def testget_chat_file_path_with_extension() -> None:
+    """Test get_chat_file_path when extension is already present."""
+    result = get_chat_file_path("my-branch-run-251128120000.md")
     assert result == os.path.expanduser("~/.sase/chats/my-branch-run-251128120000.md")
 
 

@@ -178,6 +178,25 @@ class CrsWorkflow(BaseWorkflow):
         # commit_result.json to the correct location.
         os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
 
+        # Pre-set SASE_AGENT_WHO so the commit stop hook can prefix the
+        # COMMITS note with the workflow identifier (e.g. "[crs (ref)] ...").
+        if self._who:
+            os.environ["SASE_AGENT_WHO"] = self._who
+
+        # Pre-set SASE_AGENT_CHAT_PATH so the commit stop hook (which fires
+        # during invoke_agent) can record the chat path in the COMMITS entry.
+        # The file won't exist yet, but the entry only stores the path string.
+        from sase.history.chat import generate_chat_filename, get_chat_file_path
+        from pathlib import Path
+
+        chat_basename = generate_chat_filename(
+            workflow="crs", timestamp=self._timestamp
+        )
+        predicted_chat_path = get_chat_file_path(chat_basename).replace(
+            str(Path.home()), "~"
+        )
+        os.environ["SASE_AGENT_CHAT_PATH"] = predicted_chat_path
+
         # Call Gemini
         print_status("Calling Gemini to address change requests...", "progress")
         try:

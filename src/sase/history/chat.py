@@ -24,7 +24,7 @@ def _get_branch_or_workspace_name() -> str:
     return strip_reverted_suffix(result.stdout.strip())
 
 
-def _generate_chat_filename(
+def generate_chat_filename(
     workflow: str,
     agent: str | None = None,
     branch_or_workspace: str | None = None,
@@ -61,7 +61,7 @@ def _generate_chat_filename(
     return basename
 
 
-def _get_chat_file_path(basename: str) -> str:
+def get_chat_file_path(basename: str) -> str:
     """Get the full path to a chat history file.
 
     Args:
@@ -103,10 +103,10 @@ def save_chat_history(
     """
     ensure_sase_directory("chats")
 
-    basename = _generate_chat_filename(
+    basename = generate_chat_filename(
         workflow, agent, branch_or_workspace=branch_or_workspace, timestamp=timestamp
     )
-    file_path = _get_chat_file_path(basename)
+    file_path = get_chat_file_path(basename)
 
     display_timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S %Z")
 
@@ -284,7 +284,7 @@ def _load_chat_history(file_ref: str, increment_headings: bool = False) -> str:
         file_path = os.path.expanduser(file_ref)
     else:
         # Treat as basename
-        file_path = _get_chat_file_path(file_ref)
+        file_path = get_chat_file_path(file_ref)
 
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Chat history file not found: {file_path}")
@@ -320,7 +320,7 @@ def list_chat_histories() -> list[str]:
 
     # Sort by modification time (most recent first)
     files.sort(
-        key=lambda x: os.path.getmtime(_get_chat_file_path(x)),
+        key=lambda x: os.path.getmtime(get_chat_file_path(x)),
         reverse=True,
     )
 

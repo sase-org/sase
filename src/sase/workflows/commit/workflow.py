@@ -451,6 +451,12 @@ class CommitWorkflow(BaseWorkflow):
             or "Manual changes"
         )
 
+        # For proposals, prepend workflow identifier if available
+        if self._method == "create_proposal":
+            who = os.environ.get("SASE_AGENT_WHO")
+            if who:
+                note = f"[{who}] {note}"
+
         chat_path = os.environ.get("SASE_AGENT_CHAT_PATH")
 
         from sase.workflows.commit_utils.entries import (

@@ -53,7 +53,7 @@ def get_mentor_chat_path(cl_name: str, mentor_name: str, timestamp: str) -> str:
         Full path to the chat file (e.g., ~/.sase/chats/{cl_name}-mentor_{mentor_name}-{timestamp}.md)
     """
     chats_dir = get_sase_directory("chats")
-    # Format matches chat_history._generate_chat_filename() with:
+    # Format matches chat_history.generate_chat_filename() with:
     # - branch_or_workspace = cl_name (used as-is, NOT stripped)
     # - workflow = "mentor-{mentor_name}" (normalized to "mentor_{mentor_name}")
     # NOTE: Do NOT apply strip_reverted_suffix here — save_chat_history() uses

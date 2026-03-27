@@ -33,7 +33,7 @@ steps:
           with open(result_file) as f:
               d = json.load(f)
           print("success=true")
-          print(f"proposal_id={d.get('result', '') or ''}")
+          print(f"proposal_id={d.get('entry_id', '') or ''}")
       else:
           print("success=false")
     output:
