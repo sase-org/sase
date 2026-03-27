@@ -16,9 +16,9 @@ steps:
   - name: split_src_files
     for: { file_path: "{{ find_src_files.files }}" }
     agent: |
-      #sase/pysplit {{ file_path }}
+      #sase/pysplit:{{ file_path }}
 
   - name: split_tests_files
     for: { file_path: "{{ find_tests_files.files }}" }
     agent: |
-      #sase/pysplit {{ file_path }}
+      #sase/pysplit:{{ file_path }}
