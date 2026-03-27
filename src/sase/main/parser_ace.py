@@ -82,13 +82,19 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "axe",
         help="Schedule-based daemon for continuous ChangeSpec status updates",
     )
-    # Only --vcs-provider lives on the root axe parser (applies globally)
+    # Only --vcs-provider and --restart-axe live on the root axe parser (apply globally)
     axe_parser.add_argument(
         "-v",
         "--vcs-provider",
         choices=["git", "hg", "auto"],
         default=None,
         help="Override VCS provider ('git', 'hg', or 'auto' for auto-detection)",
+    )
+    axe_parser.add_argument(
+        "--restart-axe",
+        action="store_true",
+        default=False,
+        help="Restart the axe daemon in the background (no-op if not running)",
     )
 
     # Nested subparsers for axe

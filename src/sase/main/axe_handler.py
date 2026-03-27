@@ -14,6 +14,10 @@ def handle_axe_command(args: argparse.Namespace) -> None:
     if vcs_provider is not None:
         os.environ["SASE_VCS_PROVIDER"] = vcs_provider
 
+    if getattr(args, "restart_axe", False):
+        _handle_restart_axe()
+        return
+
     axe_sub = getattr(args, "axe_subcommand", None)
 
     if axe_sub == "chop":
@@ -27,6 +31,24 @@ def handle_axe_command(args: argparse.Namespace) -> None:
     else:
         print("Usage: sase axe {start,stop,chop,lumberjack}")
         sys.exit(1)
+
+
+def _handle_restart_axe() -> None:
+    """Handle 'sase axe --restart-axe'."""
+    from rich.console import Console
+
+    from sase.axe.process import restart_axe_daemon
+
+    console = Console()
+    if restart_axe_daemon():
+        console.print(
+            "[bold green]Axe restart initiated[/bold green] — "
+            "stopping and restarting in background"
+        )
+    else:
+        console.print(
+            "[bold yellow]Axe is not running — nothing to restart.[/bold yellow]"
+        )
 
 
 def _handle_chop(args: argparse.Namespace) -> None:

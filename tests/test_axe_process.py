@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sase.axe.process import (
     get_axe_status,
+    restart_axe_daemon,
     stop_axe_daemon,
 )
 
@@ -24,6 +25,58 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
         patch("sase.axe.process.ORCHESTRATOR_PID_FILE", orch_pid_file),
     ):
         yield state_dir
+
+
+# --- restart_axe_daemon Tests ---
+
+
+@patch("sase.axe.process.is_process_running")
+def test_restart_axe_daemon_returns_false_when_not_running(
+    mock_is_running: MagicMock,
+    temp_state_dir: Path,
+) -> None:
+    """Test restart_axe_daemon returns False when axe is not running."""
+    mock_is_running.return_value = False
+    assert restart_axe_daemon() is False
+
+
+@patch("sase.axe.process.subprocess.Popen")
+@patch("sase.axe.process.is_process_running")
+def test_restart_axe_daemon_returns_false_no_subprocess_when_not_running(
+    mock_is_running: MagicMock,
+    mock_popen: MagicMock,
+    temp_state_dir: Path,
+) -> None:
+    """Test restart_axe_daemon does not spawn subprocess when not running."""
+    mock_is_running.return_value = False
+    restart_axe_daemon()
+    mock_popen.assert_not_called()
+
+
+@patch("sase.axe.process.subprocess.Popen")
+@patch("sase.axe.process.is_process_running")
+def test_restart_axe_daemon_spawns_subprocess_when_running(
+    mock_is_running: MagicMock,
+    mock_popen: MagicMock,
+    temp_state_dir: Path,
+) -> None:
+    """Test restart_axe_daemon spawns a detached subprocess when running."""
+    # PID file exists and process is running
+    orch_pid_file = temp_state_dir / "orchestrator.pid"
+    orch_pid_file.write_text("99999")
+    mock_is_running.return_value = True
+
+    assert restart_axe_daemon() is True
+    mock_popen.assert_called_once()
+
+    call_kwargs = mock_popen.call_args
+    # Verify start_new_session=True for detached process
+    assert call_kwargs.kwargs["start_new_session"] is True
+    # Verify the command imports and calls stop then start
+    cmd = call_kwargs.args[0]
+    assert cmd[1] == "-c"
+    assert "stop_axe_daemon" in cmd[2]
+    assert "start_axe_daemon" in cmd[2]
 
 
 # --- is_axe_running Tests ---

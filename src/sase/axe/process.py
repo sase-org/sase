@@ -25,6 +25,38 @@ from .state import (
 )
 
 
+def restart_axe_daemon() -> bool:
+    """Restart axe in the background (stop then start).
+
+    Spawns a detached process that stops the current daemon and starts
+    a fresh one. Has no effect if axe is not currently running.
+
+    Returns:
+        True if restart was initiated, False if axe was not running.
+    """
+    if not is_axe_running():
+        return False
+
+    log_dir = AXE_STATE_DIR / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "axe.log"
+
+    with open(log_file, "a") as log:
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "from sase.axe.process import stop_axe_daemon, start_axe_daemon; "
+                "stop_axe_daemon(); start_axe_daemon()",
+            ],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    return True
+
+
 def is_axe_running() -> bool:
     """Check if the axe orchestrator is currently running.
 
