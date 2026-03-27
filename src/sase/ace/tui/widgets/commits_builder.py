@@ -167,12 +167,38 @@ def build_commits_section(
             else:
                 suffix_width = len(f" - ({entry.suffix})")
 
-        # Determine display note (possibly truncated)
+        # Pre-compute fold state for this entry (needed for truncation calc)
+        show_drawers = _should_show_commits_drawers(entry, changespec, commits_fold)
+        show_chat = _should_show_chat_drawer(entry, changespec, commits_fold)
+        show_body = entry.body and commits_fold != FoldLevel.COLLAPSED
+        rejected_proposals = (
+            _get_rejected_proposals_for_entry(entry, changespec.commits, max_number)
+            if hide_rejected
+            else []
+        )
+        has_folded_chat = not show_chat and entry.chat
+        has_folded_diff = not show_drawers and entry.diff
+        has_folded_content = has_folded_chat or has_folded_diff or rejected_proposals
+
+        # Determine display note (truncated only when collapsed)
         display_note = entry.note
-        if max_width is not None:
-            available = max_width - len(prefix_str) - suffix_width
-            # Account for body/folded indicators that may follow
-            if entry.body and commits_fold == FoldLevel.COLLAPSED:
+        if max_width is not None and commits_fold == FoldLevel.COLLAPSED:
+            # Calculate folded indicator width
+            folded_width = 0
+            if has_folded_content:
+                parts_strs: list[str] = []
+                if has_folded_chat:
+                    parts_strs.append("CHAT")
+                if has_folded_diff:
+                    parts_strs.append("DIFF")
+                if rejected_proposals:
+                    count = len(rejected_proposals)
+                    parts_strs.append(f"{count} proposal{'s' if count > 1 else ''}")
+                folded_width = len("  [folded: " + " + ".join(parts_strs) + "]")
+
+            available = max_width - len(prefix_str) - suffix_width - folded_width
+            # Account for body fold indicator
+            if entry.body:
                 available -= len(f"  [+{len(entry.body)} lines]")
             display_note = _truncate_note(entry.note, available)
 
@@ -219,23 +245,8 @@ def build_commits_section(
                 text.append(f"({entry.suffix})")
 
         # Body fold indicator (shown when body exists but is collapsed)
-        show_body = entry.body and commits_fold != FoldLevel.COLLAPSED
         if entry.body and not show_body:
             text.append(f"  [+{len(entry.body)} lines]", style="italic #808080")
-
-        # Determine if drawers should be shown for this entry
-        show_drawers = _should_show_commits_drawers(entry, changespec, commits_fold)
-        show_chat = _should_show_chat_drawer(entry, changespec, commits_fold)
-
-        # Add folded suffix if drawers are hidden or proposals are folded
-        rejected_proposals = (
-            _get_rejected_proposals_for_entry(entry, changespec.commits, max_number)
-            if hide_rejected
-            else []
-        )
-        has_folded_chat = not show_chat and entry.chat
-        has_folded_diff = not show_drawers and entry.diff
-        has_folded_content = has_folded_chat or has_folded_diff or rejected_proposals
 
         if has_folded_content:
             text.append("  [folded: ", style="italic #808080")
