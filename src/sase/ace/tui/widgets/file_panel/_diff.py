@@ -30,6 +30,13 @@ def get_agent_diff(agent: Agent) -> str | None:
         except OSError:
             pass
 
+    # For completed agents, the diff_path is the only reliable source.
+    # The workspace may have been released and reused by another agent,
+    # so falling back to `git diff HEAD~1..HEAD` would show an unrelated
+    # commit's diff.
+    if agent.status in ("DONE", "FAILED"):
+        return None
+
     try:
         # Get project basename from file path
         project_basename = Path(agent.project_file).stem
@@ -47,10 +54,6 @@ def get_agent_diff(agent: Agent) -> str | None:
             provider = get_vcs_provider(workspace_dir)
         except VCSProviderNotFoundError:
             return None
-
-        if agent.status in ("DONE", "FAILED"):
-            _, committed = provider.committed_diff(workspace_dir, timeout=10)
-            return committed
 
         _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
         return diff_text if diff_text else None
