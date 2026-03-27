@@ -39,14 +39,11 @@ def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
     files = [f for f in (spec_file, plan_file) if os.path.exists(f)]
     if not files:
         return
-    payload = json.dumps(
-        {
-            "message": f"chore: Add SDD spec and plan for {plan_name}",
-            "files": files,
-        }
-    )
+    cmd = ["sase", "commit", "-m", f"chore: Add SDD spec and plan for {plan_name}"]
+    for f in files:
+        cmd.extend(["-f", f])
     subprocess.run(
-        ["sase", "commit", payload],
+        cmd,
         cwd=workspace_dir,
         capture_output=True,
         text=True,
