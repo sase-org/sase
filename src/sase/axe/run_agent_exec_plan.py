@@ -99,7 +99,7 @@ def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     for wf in workflows:
         name = wf["name"]
         wf_tags = wf.get("tags", [])
-        if name == vcs_name or "vcs" in wf_tags:
+        if name == vcs_name or (vcs_tag and "vcs" in wf_tags):
             continue
         if has_any_tags and "rollover" not in wf_tags:
             continue
