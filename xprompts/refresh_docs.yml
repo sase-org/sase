@@ -33,7 +33,7 @@ steps:
   - name: run_docs
     if: "{{ count_commits.count >= threshold }}"
     agent: |
-      #docs
+      #gh:sase #docs
 
   - name: update_marker
     if: "{{ count_commits.count >= threshold }}"
