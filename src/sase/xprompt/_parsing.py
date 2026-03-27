@@ -442,6 +442,55 @@ def replace_vcs_workflow_tags(prompt: str, new_vcs_prefix: str) -> str:
     return result
 
 
+def replace_ref_in_vcs_tag(tag: str, new_ref: str) -> str:
+    """Replace the ref portion of a VCS workflow tag with *new_ref*.
+
+    Strips HITL suffixes (``!!`` / ``??``) since this is used for resume
+    scenarios where HITL overrides should not carry over.
+
+    Handles colon format (``#gh:sase `` → ``#gh:new_ref ``),
+    parenthesized format (``#git(repo) `` → ``#git(new_ref) ``),
+    and underscore format (``#gh_sase `` → ``#gh:new_ref ``).
+
+    Args:
+        tag: The VCS tag string as returned by :func:`extract_vcs_workflow_tag`.
+        new_ref: The new ref to use (e.g. a branch name).
+
+    Returns:
+        The tag with the ref replaced and HITL suffixes stripped.
+    """
+    stripped = tag.rstrip()
+    if not stripped.startswith("#"):
+        return tag
+
+    body = stripped[1:]  # strip leading #
+
+    # Strip HITL suffixes (!! or ??)
+    for suffix in ("!!", "??"):
+        idx = body.find(suffix)
+        if idx != -1:
+            body = body[:idx] + body[idx + len(suffix) :]
+            break
+
+    # Parenthesized ref: #git(repo) → #git(new_ref)
+    if "(" in body:
+        paren_start = body.index("(")
+        return f"#{body[:paren_start]}({new_ref}) "
+
+    # Colon ref: #gh:sase → #gh:new_ref
+    if ":" in body:
+        prefix = body.split(":", 1)[0]
+        return f"#{prefix}:{new_ref} "
+
+    # Underscore ref: #gh_sase → #gh:new_ref
+    if "_" in body:
+        prefix = body.split("_", 1)[0]
+        return f"#{prefix}:{new_ref} "
+
+    # No ref (bare #gh) — append with colon
+    return f"#{body}:{new_ref} "
+
+
 def extract_project_from_vcs_tag(tag: str) -> str | None:
     """Extract the project/ref name from a VCS workflow tag.
 

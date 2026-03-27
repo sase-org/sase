@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 09:58:37
-status: wip
+status: done
 ---
 
 # Plan: Fix Telegram Resume Button to Use Branch Name Instead of Project Name
