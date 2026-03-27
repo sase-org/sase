@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 20:34:51
-status: wip
+status: done
 ---
 
 # Plan: Fix `just lint` / `just test` in all plugin repos
