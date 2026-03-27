@@ -31,8 +31,8 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     commit_parser.add_argument(
         "-m",
-        "--message",
-        help="Commit message (tag prefix + description)",
+        "--message-file",
+        help="Path to file containing the commit message / PR description",
     )
     commit_parser.add_argument(
         "-f",

@@ -17,10 +17,24 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     """
     import os
 
+    # Read message from file if provided
+    message = ""
+    if args.message_file:
+        path = args.message_file
+        if not os.path.isfile(path):
+            print(f"Error: message file not found: {path}", file=sys.stderr)
+            sys.exit(1)
+        with open(path) as f:
+            message = f.read().rstrip()
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
     method = args.method or os.environ.get("SASE_COMMIT_METHOD", "create_commit")
 
     payload: dict[str, object] = {
-        "message": args.message or "",
+        "message": message,
         "files": args.files or [],
     }
     if args.name:
