@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -25,6 +26,8 @@ from sase.axe.runner_utils import reset_killed, was_killed
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
+
+logger = logging.getLogger(__name__)
 
 
 def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
@@ -219,7 +222,7 @@ def handle_plan_marker(
         if not version_controlled:
             commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
     except Exception:
-        pass  # Best effort — don't block the workflow
+        logger.warning("SDD file generation failed", exc_info=True)
 
     if plan_result.action == "commit":
         # Commit SDD files but do NOT spawn a follow-up agent

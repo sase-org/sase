@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 13:12:40
-status: wip
+status: done
 ---
 
 # Plan: Fix plan file not being committed to PR branch after approval

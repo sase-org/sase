@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -186,30 +187,40 @@ class CommitWorkflow(BaseWorkflow):
     def _handle_sase_plan(self, cwd: str) -> None:
         """Append PLAN= to commit message and mark plan as done."""
         plan_path = os.environ.get("SASE_PLAN", "")
-        if not plan_path or not os.path.isfile(plan_path):
+        if not plan_path:
             return
 
-        # Compute repo-root-relative path
-        repo_root = ""
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True,
-                text=True,
-                cwd=cwd,
-                check=False,
-            )
-            if result.returncode == 0:
-                repo_root = result.stdout.strip()
-        except Exception:
-            pass
+        # Determine repo root
+        repo_root = self._get_repo_root(cwd)
+        in_repo = bool(repo_root) and plan_path.startswith(repo_root + "/")
 
+        # If plan file doesn't exist at the expected path, try the ~/.sase/plans/ archive
+        if not os.path.isfile(plan_path):
+            archive_fallback = os.path.join(
+                os.path.expanduser("~"), ".sase", "plans", os.path.basename(plan_path)
+            )
+            if os.path.isfile(archive_fallback):
+                plan_path = archive_fallback
+                in_repo = False
+            else:
+                return  # truly missing
+
+        # If plan is outside repo, copy it in
+        if not in_repo:
+            dest = os.path.join(cwd, "plans", os.path.basename(plan_path))
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.copy2(plan_path, dest)
+            plan_path = dest
+
+        # Compute repo-root-relative path
         if repo_root and plan_path.startswith(repo_root + "/"):
             plan_rel = plan_path[len(repo_root) + 1 :]
-        elif os.path.isfile(plan_path):
-            plan_rel = f".sase/sdd/plans/{os.path.basename(plan_path)}"
         else:
-            plan_rel = f"plans/{os.path.basename(plan_path)}"
+            plan_rel = (
+                os.path.relpath(plan_path, repo_root)
+                if repo_root
+                else os.path.basename(plan_path)
+            )
 
         # Append PLAN= to commit message
         message = self._payload.get("message", "")
@@ -224,6 +235,23 @@ class CommitWorkflow(BaseWorkflow):
 
         # Record plan file for VCS provider to stage
         self._payload["_plan_path"] = plan_path
+
+    @staticmethod
+    def _get_repo_root(cwd: str) -> str:
+        """Return the repo root directory, or empty string on failure."""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                check=False,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return ""
 
     def _build_pr_body(self) -> None:
         """Append agent info footer to PR body via _pr_body payload field."""
