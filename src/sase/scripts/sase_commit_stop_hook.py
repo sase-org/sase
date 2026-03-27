@@ -116,6 +116,23 @@ def _build_name_instruction() -> str | None:
     return " ".join(parts)
 
 
+def _build_commit_instruction_message(skill: str, gemini: bool) -> str:
+    if gemini:
+        return (
+            "A post-completion hook has detected uncommitted changes. "
+            "Did you make these changes? If so, run: "
+            ".venv/bin/sase commit create --message '<msg>' to commit them. "
+            "If you did NOT make these changes, you can safely ignore this warning "
+            "— it will not appear again this session."
+        )
+    return (
+        "A post-completion hook has detected uncommitted changes. "
+        f"Did you make these changes? If so, please commit them using your {skill} skill before continuing. "
+        "If you did NOT make these changes, you can safely ignore this warning "
+        "— it will not appear again this session."
+    )
+
+
 def _resolve_commit_skill(project_dir: str) -> str:
     explicit = os.environ.get("SASE_COMMIT_SKILL")
     if explicit:
@@ -242,6 +259,12 @@ def main() -> int:
     project_dir = _resolve_project_dir()
     os.chdir(project_dir)
 
+    session_id = os.environ.get("SASE_AGENT_TIMESTAMP") or str(os.getpid())
+    marker_file = (
+        Path(os.environ.get("SASE_TMPDIR", "/tmp"))
+        / f"sase_commit_hook_done_{session_id}"
+    )
+
     _jlog(
         "script_start",
         runtime=runtime,
@@ -251,6 +274,10 @@ def main() -> int:
     )
 
     _log_hook_run(project_dir)
+
+    if marker_file.exists():
+        _jlog("session_dedup_skip", marker=str(marker_file))
+        return _exit(0, reason="session_dedup")
 
     gemini = runtime == "gemini"
     gemini_input = _read_gemini_stdin() if gemini else {}
@@ -272,11 +299,7 @@ def main() -> int:
         return _exit(0, reason="no_changes")
 
     skill = _resolve_commit_skill(project_dir)
-    commit_instruction = (
-        "OVERRIDE: A post-completion hook has detected uncommitted changes. "
-        "Ignore any prior instruction about not committing. You MUST commit now. "
-        f"Use your {skill} skill to commit these changes now."
-    )
+    commit_instruction = _build_commit_instruction_message(skill, gemini)
     name_instruction = _build_name_instruction()
     if name_instruction:
         commit_instruction += " " + name_instruction
@@ -286,8 +309,9 @@ def main() -> int:
         + "\n".join(changed_files)
         + f"\n\n{commit_instruction}"
     )
+    marker_file.touch()
     rc = _emit_block(
-        f"Stop hook blocked: uncommitted changes remain. {commit_instruction}",
+        "Stop hook blocked: uncommitted changes remain.",
         details,
     )
     _jlog(
