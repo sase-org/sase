@@ -63,6 +63,19 @@ Any change to `sase commit` CLI arguments must include same-turn updates to:
 - Relevant skill `SKILL.md` files that document or demonstrate those arguments
 - Tests validating both CLI parsing and skill invocation examples
 
+## Commit Skills per Runtime
+
+The commit stop hook dynamically resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider.
+However, not every runtime has every skill installed:
+
+| Skill              | Claude | Gemini | Codex |
+| ------------------ | ------ | ------ | ----- |
+| `/sase_git_commit` | Yes    | Yes    | Yes   |
+| `/sase_hg_commit`  | No     | Yes    | No    |
+
+Claude does NOT have the `/sase_hg_commit` skill — it is only relevant for Gemini, which runs on machines using the
+Mercurial VCS provider (sase-google plugin). Do not re-add `/sase_hg_commit` to Claude.
+
 ## Code Conventions
 
 - Use **absolute imports**: `from sase.foo import bar` (not relative)

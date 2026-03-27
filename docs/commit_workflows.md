@@ -192,7 +192,8 @@ workflow. It runs as a post-completion hook in Claude, Gemini, and Codex runtime
 1. Detect the project directory from runtime-specific env vars
 2. Check for uncommitted changes via the VCS provider
 3. If changes exist, emit a blocking instruction telling the agent to use its commit skill
-4. The commit skill resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider
+4. The commit skill resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider (note:
+   `/sase_hg_commit` is only installed for Gemini — see AGENTS.md "Commit Skills per Runtime")
 
 The hook supports deduplication (Gemini), structured JSON output (Codex), and stderr messaging (Claude).
 
