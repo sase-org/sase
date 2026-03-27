@@ -81,43 +81,13 @@ function emit_block() {
     return 2
 }
 
-function resolve_commit_skill() {
-    local provider="${SASE_VCS_PROVIDER:-}"
+function commit_instruction_message() {
+    local repos_list="$1"
 
-    if [ -z "$provider" ] || [ "$provider" = "auto" ]; then
-        if [ -d .hg ]; then
-            provider="hg"
-        elif [ -e .git ]; then
-            provider="git"
-        else
-            provider="git"
-        fi
-    fi
-
-    case "$provider" in
-        github | bare_git | git)
-            echo "/sase_git_commit"
-            ;;
-        hg | google)
-            echo "/sase_hg_commit"
-            ;;
-        *)
-            provider=$(echo "$provider" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9_' '_')
-            provider="${provider#_}"
-            provider="${provider%_}"
-            if [ -z "$provider" ]; then
-                provider="git"
-            fi
-            echo "/sase_${provider}_commit"
-            ;;
-    esac
-}
-
-function resolve_commit_instruction() {
     if is_gemini_runtime; then
-        echo "Run: .venv/bin/sase commit create --message '<your commit message>' to commit the changes"
+        printf 'Uncommitted changes detected in sibling repo(s): %s.\nDid you make these changes? If so, run: .venv/bin/sase commit create --message '"'"'<msg>'"'"' to commit them.\nIf you did NOT make these changes, you can safely ignore this warning — it will not appear again this session.' "$repos_list"
     else
-        echo "Use your $(resolve_commit_skill) skill to commit these changes now."
+        printf 'Uncommitted changes detected in sibling repo(s): %s.\nDid you make these changes? If so, please commit them using your /sase_git_commit skill before continuing.\nIf you did NOT make these changes, you can safely ignore this warning — it will not appear again this session.' "$repos_list"
     fi
 }
 
@@ -131,24 +101,32 @@ function repo_has_changes() {
         return $?
     fi
 
-    if [ -d "$repo_dir/.hg" ]; then
-        local repo_changes
-        repo_changes=$(cd "$repo_dir" && hg status -man 2>/dev/null)
-        echo "$repo_changes" | grep -q .
-        return $?
-    fi
-
     return 1
 }
 
 function check_sibling_repos() {
+    local session_id="${SASE_AGENT_TIMESTAMP:-$$}"
+    local marker_file="${SASE_TMPDIR:-/tmp}/sase_sibling_hook_done_${session_id}"
+
+    if [ -f "$marker_file" ]; then
+        exit 0
+    fi
+
     local sibling_repos_with_changes=()
     local repo_dir
 
     for repo_dir in "$PROJECT_DIR"/../sase-*/ "$HOME/.local/share/chezmoi"; do
         [ -d "$repo_dir" ] || continue
+
+        # Skip ephemeral workspace directories (e.g., sase-telegram_100)
+        local repo_basename
+        repo_basename=$(basename "$repo_dir")
+        if [[ "$repo_basename" =~ _[0-9]+$ ]]; then
+            continue
+        fi
+
         if repo_has_changes "$repo_dir"; then
-            sibling_repos_with_changes+=("$(basename "$repo_dir")")
+            sibling_repos_with_changes+=("$repo_basename")
         fi
     done
 
@@ -160,12 +138,14 @@ function check_sibling_repos() {
     repos_list=$(printf ', %s' "${sibling_repos_with_changes[@]}")
     repos_list=${repos_list:2}
 
-    local instruction
-    instruction="$(resolve_commit_instruction)"
+    local message
+    message="$(commit_instruction_message "$repos_list")"
+
+    touch "$marker_file"
 
     emit_block \
-        "Stop hook blocked: sibling repos have uncommitted changes. ${instruction}" \
-        "Uncommitted changes detected in sibling repo(s): ${repos_list}. ${instruction}"
+        "Stop hook blocked: sibling repos have uncommitted changes." \
+        "$message"
     return $?
 }
 

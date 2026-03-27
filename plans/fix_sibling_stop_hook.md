@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 21:17:09
-status: wip
+status: done
 ---
 
 # Plan: Fix sase_sibling_commit_stop_hook
