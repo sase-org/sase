@@ -43,10 +43,6 @@ function resolve_project_dir() {
 
 PROJECT_DIR="$(resolve_project_dir)"
 
-if [ -z "${SASE_COMMIT_METHOD:-}" ]; then
-    exit 0
-fi
-
 if [ -n "${SASE_DISABLE_COMMIT_STOP_HOOK:-}" ]; then
     exit 0
 fi
