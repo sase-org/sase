@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 14:33:09
-status: wip
+status: done
 ---
 
 # Plan: Fix broken `#sase/fix_just` workflow's `fix_fmt` step
