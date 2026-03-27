@@ -1,5 +1,6 @@
 """Workflow execution and embedding for xprompt workflows."""
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -14,6 +15,8 @@ from ._parsing import (
 from .loader import get_all_workflows
 from .models import UNSET
 from .workflow_models import WorkflowStep, WorkflowValidationError
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .workflow_models import Workflow
@@ -171,6 +174,12 @@ def _flatten_anonymous_workflow(
         return None
 
     prompts = get_all_prompts(project=project)
+    logger.debug(
+        "_flatten_anonymous_workflow: project=%r, prompt=%r, prompt_keys_sample=%r",
+        project,
+        prompt_text[:120],
+        list(prompts.keys())[:20],
+    )
 
     def _attach_wrapper_model(named: dict[str, str]) -> dict[str, str]:
         if not wrapper_directives.model:
@@ -218,10 +227,18 @@ def _flatten_anonymous_workflow(
     # The prompt may mix xprompt parts (e.g., #gh:sase) with a single
     # standalone workflow (no prompt_part). Scan for exactly one standalone
     # workflow reference and flatten to it.
+    logger.debug(
+        "_flatten_anonymous_workflow: fast path miss for %r, trying slow path",
+        wf_name,
+    )
     standalone = _find_standalone_workflow_ref(prompt_text, prompts)
     if standalone is None:
+        logger.debug(
+            "_flatten_anonymous_workflow: no standalone ref found, returning None"
+        )
         return None
     ref_wf, pos, named = standalone
+    logger.debug("_flatten_anonymous_workflow: flattened to %r", ref_wf.name)
     return ref_wf, pos, _attach_wrapper_model(named)
 
 

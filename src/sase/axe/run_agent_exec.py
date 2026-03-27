@@ -214,6 +214,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 artifacts_dir=current_artifacts_dir,
                 silent=True,
                 workflow_obj=anon_workflow,
+                project=ctx.project_name,
             )
         except Exception as wf_exc:
             if not was_killed():

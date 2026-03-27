@@ -1,6 +1,7 @@
 """Shared utilities for axe runner scripts."""
 
 import json
+import logging
 import os
 import signal
 import sys
@@ -8,6 +9,8 @@ from collections.abc import Callable
 
 from sase.ace.changespec import ChangeSpec, parse_project_file
 from sase.vcs_provider import get_vcs_provider
+
+logger = logging.getLogger(__name__)
 
 # Global state for SIGTERM handler
 _killed_state: dict[str, bool] = {"killed": False}
@@ -111,13 +114,23 @@ def all_steps_hidden(artifacts_dir: str) -> bool:
         with open(state_path, encoding="utf-8") as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
+        logger.debug(
+            "all_steps_hidden: state file missing or unreadable: %s", state_path
+        )
         return False
     steps = data.get("steps", [])
     if not steps:
+        logger.debug("all_steps_hidden: no steps in %s", state_path)
         return False
-    return all(
+    result = all(
         step.get("hidden", False) or step.get("status") == "skipped" for step in steps
     )
+    logger.debug(
+        "all_steps_hidden: %s — steps: %s",
+        result,
+        [(s.get("name"), s.get("status"), s.get("hidden")) for s in steps],
+    )
+    return result
 
 
 def _write_agent_meta(

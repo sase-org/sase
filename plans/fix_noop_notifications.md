@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-26 22:10:17
-status: wip
+status: done
 ---
 
 # Fix: Suppress notifications for noop workflow runs
