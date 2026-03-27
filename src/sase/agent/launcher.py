@@ -300,9 +300,11 @@ def launch_agent_from_cwd(query: str) -> AgentLaunchResult:
 
     # --- Determine display name / sort key ---
     if vcs_ref is not None:
+        from sase.vcs_provider import VCS_DEFAULT_REVISION
+
         cl_name = vcs_ref[1]
         history_sort_key = vcs_ref[1]
-        update_target = ""
+        update_target = VCS_DEFAULT_REVISION
     else:
         cl_name = project_name
         history_sort_key = ""

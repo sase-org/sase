@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 02:26:36
-status: wip
+status: done
 ---
 
 # Plan: Debug and fix `sase/fix_just` workflow flattening failure
