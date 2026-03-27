@@ -27,17 +27,42 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'commit' subcommand parser."""
     commit_parser = subparsers.add_parser(
         "commit",
-        help="Dispatch a VCS commit operation via JSON payload",
-    )
-    commit_parser.add_argument(
-        "payload",
-        help="JSON string describing the commit operation",
+        help="Dispatch a VCS commit operation",
     )
     commit_parser.add_argument(
         "-m",
+        "--message",
+        help="Commit message (tag prefix + description)",
+    )
+    commit_parser.add_argument(
+        "-f",
+        "--file",
+        action="append",
+        default=[],
+        dest="files",
+        help="File to stage (repeat for multiple; omit to stage all changes)",
+    )
+    commit_parser.add_argument(
+        "--name",
+        help="Branch/CL name (required for create_pull_request)",
+    )
+    commit_parser.add_argument(
+        "--bead-id",
+        help="Bead ID to close and associate with the commit",
+    )
+    commit_parser.add_argument(
+        "--checkout-target",
+        default="HEAD~1",
+        help="Branch point for create_pull_request (default: HEAD~1)",
+    )
+    commit_parser.add_argument(
+        "--note",
+        help="COMMITS note (used by Mercurial create_commit)",
+    )
+    commit_parser.add_argument(
         "--method",
-        help="Commit method: create_commit, create_proposal, or create_pull_request. "
-        "Overrides $SASE_COMMIT_METHOD env var.",
+        choices=["create_commit", "create_proposal", "create_pull_request"],
+        help="Commit method (default: $SASE_COMMIT_METHOD or create_commit)",
     )
 
 
