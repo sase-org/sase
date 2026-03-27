@@ -9,9 +9,11 @@ steps:
       import os
       from sase.agent.names import find_named_agent
       name = {{ name | tojson }}
-      agent = find_named_agent(name)
+      agent = find_named_agent(name, only_done=True)
       if agent is None:
-          raise RuntimeError(f"No agent found with name: {name}")
+          raise RuntimeError(f"No completed agent found with name: {name}")
+      if not agent.is_done:
+          raise RuntimeError(f"Agent '{name}' is still running — cannot resume")
       done_path = os.path.join(agent.artifacts_dir, "done.json")
       with open(done_path, encoding="utf-8") as f:
           done_data = json.load(f)

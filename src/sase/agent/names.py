@@ -80,7 +80,7 @@ def resolve_agent_changespec(name: str) -> str:
     return str(changespec).strip()
 
 
-def find_named_agent(name: str) -> _NamedAgent | None:
+def find_named_agent(name: str, *, only_done: bool = False) -> _NamedAgent | None:
     """Find a named agent by scanning all project artifacts.
 
     Scans ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
@@ -163,7 +163,7 @@ def find_named_agent(name: str) -> _NamedAgent | None:
             # For workflow matches, only return the root agent
             # (no parent_timestamp) to avoid matching intermediate steps.
             if not is_done:
-                if is_process_alive(data, artifact_dir):
+                if not only_done and is_process_alive(data, artifact_dir):
                     if exact or not data.get("parent_timestamp"):
                         return agent
                 continue
@@ -213,6 +213,11 @@ def claim_agent_name(name: str, claiming_dir: str) -> None:
                 continue
 
             if artifact_dir.resolve() == claiming:
+                continue
+
+            # Don't strip names from completed agents — they need their
+            # identity for #resume and historical lookups.
+            if (artifact_dir / "done.json").exists():
                 continue
 
             # Strip name from agent_meta.json

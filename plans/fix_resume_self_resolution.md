@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 01:43:46
-status: wip
+status: done
 ---
 
 # Plan: Fix `#resume:name` resolving to the current agent instead of the previous one

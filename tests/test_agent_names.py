@@ -132,19 +132,55 @@ class TestFindNamedAgent:
         assert result.outcome == "completed"
         assert result.artifacts_dir == str(done_dir)
 
+    def test_only_done_skips_running(self, tmp_path: Path) -> None:
+        """only_done=True skips running agents and returns done one."""
+        _make_agent(tmp_path, "proj", "run-new", "foo", pid=os.getpid())
+        done_dir = _make_agent(
+            tmp_path, "proj", "run-old", "foo", done=True, outcome="completed"
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = find_named_agent("foo", only_done=True)
+        assert result is not None
+        assert result.is_done
+        assert result.artifacts_dir == str(done_dir)
+
+    def test_only_done_returns_none_when_no_done(self, tmp_path: Path) -> None:
+        """only_done=True returns None when only running agents exist."""
+        _make_agent(tmp_path, "proj", "run1", "foo", pid=os.getpid())
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = find_named_agent("foo", only_done=True)
+        assert result is None
+
 
 class TestClaimAgentName:
-    def test_strips_name_from_other_agents(self, tmp_path: Path) -> None:
+    def test_preserves_done_agent_names(self, tmp_path: Path) -> None:
+        """Completed agents keep their name when another agent claims it."""
         old_dir = _make_agent(tmp_path, "proj", "run-old", "foo", done=True)
         new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
 
         with patch.object(Path, "home", return_value=tmp_path):
             claim_agent_name("foo", str(new_dir))
 
-        # Old agent should have name stripped
+        # Done agent should keep its name
         old_meta = json.loads((old_dir / "agent_meta.json").read_text())
-        assert "name" not in old_meta
-        assert old_meta["model"] == "test"  # other fields preserved
+        assert old_meta["name"] == "foo"
+
+        # New agent keeps name too
+        new_meta = json.loads((new_dir / "agent_meta.json").read_text())
+        assert new_meta["name"] == "foo"
+
+    def test_strips_name_from_stale_agents(self, tmp_path: Path) -> None:
+        """Non-done agents (dead PID) still have their name stripped."""
+        stale_dir = _make_agent(tmp_path, "proj", "run-old", "foo", pid=_DEAD_PID)
+        new_dir = _make_agent(tmp_path, "proj", "run-new", "foo")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            claim_agent_name("foo", str(new_dir))
+
+        # Stale agent should have name stripped
+        stale_meta = json.loads((stale_dir / "agent_meta.json").read_text())
+        assert "name" not in stale_meta
+        assert stale_meta["model"] == "test"  # other fields preserved
 
         # New agent keeps name
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
@@ -161,8 +197,8 @@ class TestClaimAgentName:
         other_meta = json.loads((other_dir / "agent_meta.json").read_text())
         assert other_meta["name"] == "bar"
 
-    def test_strips_workflow_name_matches(self, tmp_path: Path) -> None:
-        """Claiming a name strips agents with matching workflow_name."""
+    def test_preserves_done_workflow_name_matches(self, tmp_path: Path) -> None:
+        """Claiming a name preserves done agents with matching workflow_name."""
         child_dir = _make_agent(
             tmp_path,
             "proj",
@@ -177,9 +213,9 @@ class TestClaimAgentName:
         with patch.object(Path, "home", return_value=tmp_path):
             claim_agent_name("a", str(new_dir))
 
+        # Done child keeps its workflow_name
         child_meta = json.loads((child_dir / "agent_meta.json").read_text())
-        assert "name" not in child_meta
-        assert "workflow_name" not in child_meta
+        assert child_meta["workflow_name"] == "a"
 
         new_meta = json.loads((new_dir / "agent_meta.json").read_text())
         assert new_meta["name"] == "a"
