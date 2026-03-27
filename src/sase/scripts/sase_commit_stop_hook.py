@@ -120,13 +120,16 @@ def _build_name_instruction() -> str | None:
     return " ".join(parts)
 
 
-def _build_commit_instruction_message(skill: str) -> str:
-    return (
-        "A post-completion hook has detected uncommitted changes. "
-        f"Did you make these changes? If so, please commit them using your {skill} skill before continuing. "
-        "If you did NOT make these changes, you can safely ignore this warning "
-        "— it will not appear again this session."
-    )
+def _build_commit_instruction_message(skill: str, commit_method: str) -> str:
+    method = commit_method or "create_commit"
+    parts = [
+        "A post-completion hook has detected uncommitted changes.",
+        f"Did you make these changes? If so, please commit them using your {skill} skill before continuing.",
+        f"The commit method type is `{method}`.",
+        "If you did NOT make these changes, you can safely ignore this warning"
+        " — it will not appear again this session.",
+    ]
+    return " ".join(parts)
 
 
 def _resolve_commit_skill(project_dir: str) -> str:
@@ -295,7 +298,7 @@ def main() -> int:
         return _exit(0, reason="no_changes")
 
     skill = _resolve_commit_skill(project_dir)
-    commit_instruction = _build_commit_instruction_message(skill)
+    commit_instruction = _build_commit_instruction_message(skill, commit_method)
     name_instruction = _build_name_instruction()
     if name_instruction:
         commit_instruction += " " + name_instruction
