@@ -317,6 +317,7 @@ just build         # Build wheel + sdist
 - [`docs/beads.md`](docs/beads.md) — Bead issue tracking system
 - [`docs/axe.md`](docs/axe.md) — Axe background automation daemon
 - [`docs/change_spec.md`](docs/change_spec.md) — ChangeSpec field reference
+- [`docs/commit_workflows.md`](docs/commit_workflows.md) — Commit, propose, and PR workflow reference
 - [`docs/configuration.md`](docs/configuration.md) — Configuration reference
 - [`docs/llms.md`](docs/llms.md) — LLM provider documentation
 - [`docs/mentors.md`](docs/mentors.md) — Automated code review mentor system

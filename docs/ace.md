@@ -476,6 +476,36 @@ derived from the base name. For example, if the initial agent is named `a`:
 The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve correctly. Single-
 agent workflows (no follow-ups) keep their original name unchanged.
 
+## Agent Statuses
+
+Each agent in the Agents tab displays a status label indicating its current state. Statuses fall into two categories:
+active (the agent is still running or awaiting input) and completed (the agent has finished).
+
+### Active Statuses
+
+| Status            | Color        | Description                                                       |
+| ----------------- | ------------ | ----------------------------------------------------------------- |
+| **RUNNING**       | Gold         | Agent subprocess is executing                                     |
+| **WAITING**       | Light blue   | Agent is queued, waiting for another agent to complete (`%wait`)  |
+| **WAITING INPUT** | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step             |
+| **PLANNING**      | Pink/magenta | Agent has produced a plan and is waiting for user approval        |
+| **PLAN APPROVED** | Cyan         | Plan was approved; follow-up agent has been spawned               |
+| **QUESTION**      | Amber        | Agent is asking the user a question (via `/sase_questions`)       |
+| **RETRYING**      | Orange       | Agent hit a retryable error and is in a countdown before retrying |
+
+Only agents in an interruptable status (RUNNING, PLAN APPROVED, PLANNING, WAITING, QUESTION) can receive mid-execution
+messages via `m`.
+
+### Completed Statuses
+
+| Status        | Color | Description                               |
+| ------------- | ----- | ----------------------------------------- |
+| **DONE**      | Green | Agent completed successfully              |
+| **PLAN DONE** | Green | Plan workflow fully completed (all steps) |
+| **FAILED**    | Red   | Agent exited with an error                |
+
+Completed agents can be dismissed with `x` (single) or `X` (all completed).
+
 ## Agents Tab Metadata Panel
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
