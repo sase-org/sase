@@ -11,11 +11,12 @@ just install       # Install in editable mode with dev deps
 just lint          # ruff check + mypy
 just fmt           # Auto-format code
 just test          # pytest with coverage
-just check         # All checks (fmt-check + lint + test)
-just test-tox      # Multi-version testing (3.12, 3.13, 3.14)
 .venv/bin/sase     # Run CLI (use this for non-bead commands)
 sase bead          # Use bare `sase bead` for bead workflows
 ```
+
+IMPORTANT: If you made file changes in this repo, make sure to run the `just lint` and `just test` commands before
+terminating / replying to the user.
 
 ## Ephemeral `sase_<N>` Workspace Directories
 
@@ -108,8 +109,8 @@ chezmoi files will not be applied to the system (i.e. copied to their proper loc
 - The ../sase-nvim directory is a git repository that contains a plugin for Neovim integration (ex: for project spec
   file syntax highlighting).
 
-IMPORTANT: You can edit files in these repos if necessary. Just make sure to run `just lint && just test` in each plugin
-repo that you've modified before terminating / replying to the user.
+IMPORTANT: You can edit files in these repos if necessary. Just make sure to run `just lint` and `just test` in each
+plugin repo that you've modified before terminating / replying to the user.
 
 ## Config Changes
 
