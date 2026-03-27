@@ -73,13 +73,18 @@ class AxeDisplayMixin:
         # Check if axe is running
         self.axe_running = proc.is_axe_running()
 
-        # Clear starting state once confirmed running
-        if self.axe_running:
+        # Clear transitional states.  When no axe worker is active the
+        # operation is done — clear both to prevent stuck STARTING/STOPPING
+        # after a failed start or stop.  While a worker IS running, only
+        # clear when the actual process state confirms the transition.
+        if getattr(self, "_axe_worker", None) is None:
             self._set_axe_starting(False)
-
-        # Clear stopping state once confirmed stopped
-        if not self.axe_running:
             self._set_axe_stopping(False)
+        else:
+            if self.axe_running:
+                self._set_axe_starting(False)
+            if not self.axe_running:
+                self._set_axe_stopping(False)
 
         # Load status data
         if self.axe_running:
