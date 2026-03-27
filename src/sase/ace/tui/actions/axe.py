@@ -253,6 +253,24 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
 
         self._axe_worker = self.run_worker(_do_stop, thread=True)  # type: ignore[attr-defined]
 
+    def _restart_axe_daemon(self) -> None:
+        """Restart axe daemon: stop then start in a background worker."""
+        if self._axe_worker is not None:
+            return
+        self._set_axe_stopping(True)
+
+        def _do_restart() -> tuple[bool, str]:
+            proc = get_axe_process_module()
+            stopped = proc.stop_axe_daemon()
+            if not stopped:
+                return (False, "Axe was not running")
+            pid = proc.start_axe_daemon()
+            if pid is not None:
+                return (True, f"Axe restarted (pid {pid})")
+            return (False, "Failed to restart axe")
+
+        self._axe_worker = self.run_worker(_do_restart, thread=True)  # type: ignore[attr-defined]
+
     def _on_axe_worker_done(self, worker: Worker[Any], state: WorkerState) -> None:
         """Handle axe start/stop worker completion."""
         self._axe_worker = None
