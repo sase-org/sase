@@ -226,6 +226,20 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
     from sase.xprompt.models import create_anonymous_workflow
     from sase.xprompt.workflow_runner import execute_workflow
 
+    # Pre-set SASE_AGENT_CHAT_PATH so the commit stop hook (and
+    # create_changespec_for_workflow) can reference the ace-run chat file.
+    # The file won't exist yet — it's written in _finalize_loop — but the
+    # COMMITS entry only stores the path string.
+    from pathlib import Path
+
+    from sase.history.chat import generate_chat_filename, get_chat_file_path
+
+    chat_basename = generate_chat_filename(workflow="ace-run", timestamp=ctx.timestamp)
+    predicted_chat_path = get_chat_file_path(chat_basename).replace(
+        str(Path.home()), "~"
+    )
+    os.environ["SASE_AGENT_CHAT_PATH"] = predicted_chat_path
+
     tracker = RetryTracker(
         retry_cfg=get_retry_config(ctx.agent_llm_provider)
         if ctx.agent_llm_provider

@@ -1,5 +1,6 @@
 """Create a ChangeSpec after an agent workflow pushes commits."""
 
+import os
 import re
 import subprocess
 
@@ -98,8 +99,6 @@ def _save_committed_diff(
     # Fall back to VCS provider's committed_diff()
     if diff_text is None:
         try:
-            import os
-
             from sase.vcs_provider import get_vcs_provider
 
             provider = get_vcs_provider(os.getcwd())
@@ -161,7 +160,12 @@ def create_changespec_for_workflow(
     description = _build_description(commits)
     ts = generate_timestamp()
 
-    chat_path = save_chat_history(prompt, response, workflow_name, timestamp=ts)
+    # Prefer the agent's own chat file (pre-set by ace-run or CRS) over
+    # creating a new one.  The file may not exist yet (it's written after
+    # the agent finishes), but the COMMITS entry only stores the path string.
+    chat_path = os.environ.get("SASE_AGENT_CHAT_PATH")
+    if not chat_path:
+        chat_path = save_chat_history(prompt, response, workflow_name, timestamp=ts)
     diff_path = _save_committed_diff(cl_name, checkout_target, branch_name, ts)
     hooks = get_initial_hooks_for_changespec(verbose=False)
     cl_label = get_change_label(project_file)

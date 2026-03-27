@@ -266,7 +266,106 @@ def test_create_changespec_for_workflow_passes_parent() -> None:
         assert mock_add.call_args.kwargs["parent"] == "proj_parent_feature"
 
 
-def test_create_changespec_for_workflow_success() -> None:
+def test_create_changespec_uses_agent_chat_path_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When SASE_AGENT_CHAT_PATH is set, use it instead of creating a new chat file."""
+    monkeypatch.setenv("SASE_AGENT_CHAT_PATH", "~/chats/ace-run-260101_120000.md")
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["feat: add thing"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+        ) as mock_save_chat,
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value=None,
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="proj_add_thing_1",
+        ) as mock_add,
+    ):
+        result = create_changespec_for_workflow(
+            project_name="proj",
+            project_file="/fake/proj.gp",
+            checkout_target="origin/main",
+            branch_name="agent_1",
+            prompt="",
+            response="",
+            workflow_name="sase_commit",
+        )
+        assert result == "proj_add_thing_1"
+        # save_chat_history should NOT have been called
+        mock_save_chat.assert_not_called()
+        # The env var path should be used in the COMMITS entry
+        mock_add.assert_called_once()
+        initial_commits = mock_add.call_args.kwargs["initial_commits"]
+        assert initial_commits[0][2] == "~/chats/ace-run-260101_120000.md"
+
+
+def test_create_changespec_falls_back_without_agent_chat_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When SASE_AGENT_CHAT_PATH is not set, fall back to save_chat_history."""
+    monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["feat: add thing"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/fallback.md",
+        ) as mock_save_chat,
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value=None,
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="proj_add_thing_1",
+        ) as mock_add,
+    ):
+        result = create_changespec_for_workflow(
+            project_name="proj",
+            project_file="/fake/proj.gp",
+            checkout_target="origin/main",
+            branch_name="agent_1",
+            prompt="do stuff",
+            response="done",
+            workflow_name="gh",
+        )
+        assert result == "proj_add_thing_1"
+        mock_save_chat.assert_called_once()
+        initial_commits = mock_add.call_args.kwargs["initial_commits"]
+        assert initial_commits[0][2] == "~/chats/fallback.md"
+
+
+def test_create_changespec_for_workflow_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
     with (
         patch(
             "sase.workspace_provider.changespec._get_commits_ahead",
