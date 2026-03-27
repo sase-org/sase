@@ -1,9 +1,10 @@
 """Tests for the load_all_agents function."""
 
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from sase.ace.tui.models.agent import AgentType
-from sase.ace.tui.models.agent_loader import load_all_agents
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_loader import _apply_status_overrides, load_all_agents
 
 
 def test_load_all_agents_with_running_claims() -> None:
@@ -325,3 +326,56 @@ def test_workflow_waiting_hitl_dead_pid_marked_as_failed() -> None:
 
         assert len(entries) == 1
         assert entries[0].status == "FAILED"
+
+
+def test_apply_status_overrides_propagates_code_time() -> None:
+    """_apply_status_overrides sets parent.code_time from .code child."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 10, 5),
+        parent_timestamp="20250615100000",
+        role_suffix=".code",
+    )
+    agents = [parent, child]
+    _apply_status_overrides(agents)
+
+    assert parent.code_time == datetime(2025, 6, 15, 10, 10, 5)
+
+
+def test_apply_status_overrides_code_time_falls_back_to_start_time() -> None:
+    """code_time uses start_time when run_start_time is None."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        raw_suffix="20250615100000",
+        role_suffix=".plan",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 10, 0),
+        parent_timestamp="20250615100000",
+        role_suffix=".code",
+    )
+    agents = [parent, child]
+    _apply_status_overrides(agents)
+
+    assert parent.code_time == datetime(2025, 6, 15, 10, 10, 0)

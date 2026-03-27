@@ -8,7 +8,27 @@ from sase.axe.run_agent_helpers import (
     create_followup_artifacts,
     normalize_handoff_interruption_state,
     promote_to_workflow,
+    update_meta_field,
 )
+
+
+def test_update_meta_field_sets_key(tmp_path) -> None:
+    """update_meta_field reads, sets a key, and writes back."""
+    meta_path = tmp_path / "agent_meta.json"
+    meta_path.write_text(json.dumps({"pid": 123}))
+
+    update_meta_field(str(tmp_path), "plan_submitted_at", "2025-06-15T10:05:00+00:00")
+
+    meta = json.loads(meta_path.read_text())
+    assert meta["plan_submitted_at"] == "2025-06-15T10:05:00+00:00"
+    assert meta["pid"] == 123
+
+
+def test_update_meta_field_missing_file(tmp_path) -> None:
+    """update_meta_field is a no-op when agent_meta.json is missing."""
+    update_meta_field(str(tmp_path), "key", "value")
+    # No error raised, no file created
+    assert not (tmp_path / "agent_meta.json").exists()
 
 
 def test_promote_to_workflow_renames_and_adds_workflow_name(tmp_path) -> None:

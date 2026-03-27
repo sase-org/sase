@@ -23,6 +23,7 @@ from sase.axe.run_agent_helpers import (
     normalize_handoff_interruption_state,
     promote_to_workflow,
     read_and_delete_marker,
+    update_meta_field,
     update_meta_suffix,
 )
 from sase.axe.run_agent_phases import build_done_marker
@@ -338,6 +339,13 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             # feedback round agents (suffix ".2", ".3", …) keep theirs.
             if _feedback_round == 0:
                 update_meta_suffix(current_artifacts_dir, ".plan")
+            from datetime import UTC, datetime as _dt
+
+            update_meta_field(
+                current_artifacts_dir,
+                "plan_submitted_at",
+                _dt.now(UTC).isoformat(),
+            )
             from sase.llm_provider._plan_utils import handle_plan_approval
 
             # Clear the killed flag set by the plan command's SIGTERM

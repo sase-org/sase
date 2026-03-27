@@ -331,6 +331,79 @@ def test_bundle_round_trip_agent_type_serialized_as_string() -> None:
     assert restored.agent_type == AgentType.WORKFLOW
 
 
+def test_timestamps_display_with_plan_and_code() -> None:
+    """Test timestamps_display includes PLAN and CODE lines when set."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 0, 5),
+        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        code_time=datetime(2025, 6, 15, 10, 10, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    # Strip indent from continuation lines
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["WAIT", "BEGIN", "PLAN", "CODE", "END"]
+
+
+def test_timestamps_display_plan_only() -> None:
+    """Test timestamps_display shows PLAN without CODE when code_time is None."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["BEGIN", "PLAN", "END"]
+
+
+def test_timestamps_display_no_plan_or_code() -> None:
+    """Test timestamps_display unchanged when plan_time and code_time are None."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["BEGIN", "END"]
+
+
+def test_bundle_round_trip_plan_and_code_time() -> None:
+    """Test that plan_time and code_time survive bundle round-trip."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        code_time=datetime(2025, 6, 15, 10, 10, 0),
+    )
+    bundle = agent.to_bundle_dict()
+    assert bundle["plan_time"] == "2025-06-15T10:05:00"
+    assert bundle["code_time"] == "2025-06-15T10:10:00"
+
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.plan_time == datetime(2025, 6, 15, 10, 5, 0)
+    assert restored.code_time == datetime(2025, 6, 15, 10, 10, 0)
+
+
 def test_bundle_round_trip_list_fields() -> None:
     """Test that list fields (extra_files, waiting_for) survive round-trip."""
     agent = Agent(

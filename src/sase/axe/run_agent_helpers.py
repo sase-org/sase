@@ -115,6 +115,19 @@ def read_and_delete_marker(artifacts_dir: str, filename: str) -> dict[str, Any] 
         return None
 
 
+def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
+    """Read agent_meta.json, set a single key, and write it back."""
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        meta[key] = value
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
 def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
     """Read agent_meta.json, set role_suffix, and write it back."""
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
