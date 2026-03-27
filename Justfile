@@ -23,7 +23,7 @@ install: _setup
     uv pip install -e ".[dev]"
 
 # Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted)
-lint: _setup (_header "lint") lint-keep-sorted fmt-check
+lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     {{ venv_bin }}/ruff check src/ tests/
     @printf "\n---------- Running mypy type checker... ----------\n"

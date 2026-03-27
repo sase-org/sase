@@ -15,8 +15,8 @@ just test          # pytest with coverage
 sase bead          # Use bare `sase bead` for bead workflows
 ```
 
-IMPORTANT: If you made file changes in this repo, make sure to run the `just lint` and `just test` commands before
-terminating / replying to the user.
+IMPORTANT: If you made file changes in this repo, make sure to run the `just check` command before terminating /
+replying to the user.
 
 ## Ephemeral `sase_<N>` Workspace Directories
 
@@ -27,8 +27,8 @@ virtual environments. So, for example, if you need to run `sase`, make sure to r
 `sase_<N>` directory. Exception: for bead commands, run `sase bead ...`.
 
 **IMPORTANT**: One consequence of this is that you need to run `just install` before running other commands like
-`just lint` or `just test` (since it is possible we haven't used this workspace directory in a long time and package
-dependencies may have changed).
+`just check` (since it is possible we haven't used this workspace directory in a long time and package dependencies may
+have changed).
 
 ## Architecture
 
@@ -109,8 +109,8 @@ chezmoi files will not be applied to the system (i.e. copied to their proper loc
 - The ../sase-nvim directory is a git repository that contains a plugin for Neovim integration (ex: for project spec
   file syntax highlighting).
 
-IMPORTANT: You can edit files in these repos if necessary. Just make sure to run `just lint` and `just test` in each
-plugin repo that you've modified before terminating / replying to the user.
+IMPORTANT: You can edit files in these repos if necessary. Just make sure to run the `just check` command in each plugin
+repo that you've modified before terminating / replying to the user.
 
 ## Config Changes
 

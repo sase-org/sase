@@ -1,4 +1,14 @@
 steps:
+  - name: _just_fmt_check
+    hidden: true
+    bash: |
+      if just fmt-check; then
+        echo "success=true"
+      else
+        echo "success=false"
+      fi
+    output: { success: bool }
+
   - name: _just_lint
     hidden: true
     bash: |
@@ -18,6 +28,11 @@ steps:
         echo "success=false"
       fi
     output: { success: bool }
+
+  - name: fix_fmt
+    if: "{{ not _just_fmt_check.success }}"
+    bash: |
+      just fix && git commit -m "chore: run `just fmt`" && git push
 
   - name: fix_linters
     if: "{{ not _just_lint.success }}"
