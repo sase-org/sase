@@ -22,6 +22,7 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)   |
 | `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                |
 | `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                 |
+| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator) |
 | `-a`, `--agent`            | Run in headless agent mode (returns JSON to stdout)            |
 | `-k`, `--keys`             | Key names to press in agent mode (e.g., `j j Enter`)           |
 | `-s`, `--size`             | Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40) |
@@ -101,6 +102,17 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | `z` `m` | Cycle mentors section (expand → collapse) |
 | `z` `z` | Cycle all sections                        |
 | `z` `Z` | Toggle all sections (expand ↔ collapse)   |
+
+COMMITS, HOOKS, and MENTORS sections each cycle through three fold levels:
+
+| Level              | Behavior                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| **Collapsed**      | Notes truncated to fit; multi-line body shown as `[+N lines]`; only latest drawers |
+| **Expanded**       | Full notes; body shown in dimmed text; all CHAT/DIFF drawers visible               |
+| **Fully Expanded** | Everything visible including rejected proposals                                    |
+
+When collapsed, a `[folded: CHAT + DIFF + N proposals]` indicator appears on entries with hidden content. The indicator
+width is pre-calculated so that note truncation accounts for it.
 
 ### Workflows and Agents
 
@@ -222,6 +234,13 @@ Press `w` on the Agents tab to open the WaitModal. Behavior depends on the agent
   useful for redirecting an agent to wait on a different dependency.
 
 The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
+
+### VCS Tag Resolution in Resume/Wait
+
+When resuming or waiting on an agent, VCS tags in the prompt (e.g., `#git(ref)`, `#gh:ref`) are automatically updated to
+point to the correct branch. For non-project agents, the ref is replaced with the agent's CL name (branch). For project
+agents using `#pr`, the ref is replaced with `@<name>` which resolves to the agent's branch. HITL suffixes (`!!`, `??`)
+are stripped during replacement since resume scenarios should not carry over HITL overrides.
 
 ### Workflow Folding
 
@@ -346,6 +365,20 @@ These work on all tabs:
 | `y`                 | Refresh current tab                                                               |
 | `q`                 | Quit                                                                              |
 | `?`                 | Show help modal                                                                   |
+
+## Notification Actions
+
+Some notifications carry an `action` field that triggers a handler when the notification is selected. The following
+notification action types are supported:
+
+| Action            | Source     | Behavior                                                     |
+| ----------------- | ---------- | ------------------------------------------------------------ |
+| `ViewErrorReport` | Axe daemon | Opens the error digest file in `$EDITOR` for review          |
+| `plan`            | Agent      | Jumps to the agent's plan notification in the Agents tab     |
+| `question`        | Agent      | Jumps to the agent's question notification in the Agents tab |
+
+The `ViewErrorReport` action is created by the axe `error_digest` chop when errors accumulate. The digest file
+summarizing recent errors is stored at `~/.sase/axe/error_digests/digest_<timestamp>.txt`.
 
 ## XPrompt Browser
 
@@ -492,6 +525,16 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | **PLAN APPROVED** | Cyan         | Plan was approved; follow-up agent has been spawned               |
 | **QUESTION**      | Amber        | Agent is asking the user a question (via `/sase_questions`)       |
 | **RETRYING**      | Orange       | Agent hit a retryable error and is in a countdown before retrying |
+
+The footer also shows axe daemon status indicators:
+
+| Status         | Color         | Description                                                  |
+| -------------- | ------------- | ------------------------------------------------------------ |
+| **RUNNING**    | Green         | Axe daemon is running normally                               |
+| **STOPPED**    | Red           | Axe daemon is not running                                    |
+| **STARTING**   | Yellow        | Axe daemon is starting up                                    |
+| **STOPPING**   | Yellow        | Axe daemon is shutting down                                  |
+| **RESTARTING** | Deep sky blue | Axe daemon is restarting (triggered by `--restart-axe` flag) |
 
 Only agents in an interruptable status (RUNNING, PLAN APPROVED, PLANNING, WAITING, QUESTION) can receive mid-execution
 messages via `m`.

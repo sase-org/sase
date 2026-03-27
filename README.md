@@ -184,6 +184,8 @@ generating workflow DAGs (`graph`).
 ```
 src/sase/
 ├── main/                  # CLI entry point and argument parsing
+│   ├── parser*.py         # Argument parsing (ace, bead, commit subcommands)
+│   ├── *_handler.py       # Subcommand handlers (ace, axe, cl, config, etc.)
 │   ├── plugin_discovery.py # Entry-point-based plugin discovery
 │   └── query_handler/     # Query execution handler
 ├── ace/                   # Interactive TUI and ChangeSpec engine
@@ -240,8 +242,10 @@ src/sase/
 │   └── beads.py           # SDD bead integration
 ├── workflows/             # All change-lifecycle workflows
 │   ├── accept/            # Change acceptance workflows
-│   ├── commit/            # Commit creation workflows
+│   ├── commit/            # Commit creation and CommitWorkflow orchestration
 │   ├── commit_utils/      # COMMITS entry management
+│   ├── crs.py             # Code review summary (CRS) workflow
+│   ├── mentor.py          # Mentor execution workflow
 │   └── rewind/            # Revert and restore operations
 ├── xprompts/              # Built-in xprompt workflows and schema
 ├── xprompt/               # Prompt templates and workflow execution

@@ -28,7 +28,20 @@ with an instruction to use its `/sase_git_commit` or `/sase_hg_commit` skill. Th
 sase commit '<json_payload>' -m <method>
 ```
 
-The method defaults to `$SASE_COMMIT_METHOD` if the `-m` flag is omitted.
+The method defaults to `$SASE_COMMIT_METHOD` if the `-M` flag is omitted.
+
+### CLI Arguments
+
+| Short | Long                | Description                                                               |
+| ----- | ------------------- | ------------------------------------------------------------------------- |
+| `-m`  | `--message-file`    | Path to file containing the commit message                                |
+| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                             |
+| `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                       |
+| `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                            |
+| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                   |
+| `-M`  | `--method`          | Commit method (`create_commit`, `create_proposal`, `create_pull_request`) |
+
+The COMMITS entry note is always derived from the first line of the commit message — there is no separate `--note` flag.
 
 ### 3. CommitWorkflow orchestrates
 
@@ -192,7 +205,11 @@ workflow. It runs as a post-completion hook in Claude, Gemini, and Codex runtime
 1. Detect the project directory from runtime-specific env vars
 2. Check for uncommitted changes via the VCS provider
 3. If changes exist, emit a blocking instruction telling the agent to use its commit skill
-4. The commit skill resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider (note:
+4. The instruction message includes the commit method type (e.g., "The commit method type is `create_pull_request`") so
+   the agent knows which method to use
+5. For `create_pull_request`, the instruction also includes the PR name (from `SASE_PR_NAME` or a placeholder) and the
+   project prefix if available
+6. The commit skill resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider (note:
    `/sase_hg_commit` is only installed for Gemini — see AGENTS.md "Commit Skills per Runtime")
 
 The hook supports deduplication (Gemini), structured JSON output (Codex), and stderr messaging (Claude).

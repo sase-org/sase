@@ -95,6 +95,9 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple CLs" } }
 
 Parameters without a `default` are required. Parameters with `default: null` or `default: ""` are optional.
 
+Default values preserve their native Python types from YAML parsing — `3` stays an `int`, `true` stays a `bool`, and
+`"text"` stays a `str`. This means downstream steps receive properly typed defaults without needing explicit conversion.
+
 ## Environment
 
 Workflows can declare environment variables that are set once before any steps run and persist for the entire agent
@@ -718,6 +721,47 @@ steps:
   if: "{{ setup.dir }}"
   bash: rm -rf {{ setup.dir }}
 ```
+
+## Completion Markers
+
+When a multi-step workflow finishes, a `done.json` marker is written to track completion status. For multi-agent
+workflows (workflows that spawn follow-up agents), `done.json` is written to both the current step's artifacts directory
+and the root artifacts directory. The root copy ensures that:
+
+- `%wait` dependencies resolve correctly (the workflow name is recognized as done)
+- Agent name allocation preserves the workflow's reserved name
+- `find_named_agent()` can discover the completed workflow from the root
+
+**Structure:**
+
+```json
+{
+  "cl_name": "branch-name",
+  "project_file": "/path/to/project.spec",
+  "timestamp": "260327_143000",
+  "artifacts_timestamp": "260327_143000",
+  "outcome": "completed",
+  "workspace_num": 1,
+  "name": "agent-name",
+  "model": "opus",
+  "llm_provider": "claude",
+  "vcs_provider": "git"
+}
+```
+
+The `outcome` field is either `"completed"` or `"failed"`. Failed markers additionally include `"error"` and
+`"traceback"` fields.
+
+### Workflow-Aware Wait Completion
+
+The `%wait` directive uses a two-tier check for multi-agent workflows:
+
+1. Find all agents belonging to the workflow (matching `workflow_name`)
+2. Check that the root agent (no `parent_timestamp`) has `done.json`
+3. Check that no child agents are alive without `done.json`
+
+If a workflow name is not recognized (no agents with that `workflow_name`), the system falls back to single-agent
+completion checking.
 
 ## Examples
 

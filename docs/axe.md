@@ -108,9 +108,13 @@ Comment polling:
 
 Periodic maintenance:
 
-| Chop           | Description                     |
-| -------------- | ------------------------------- |
-| `error_digest` | Send error notification digests |
+| Chop           | Description                                                                     |
+| -------------- | ------------------------------------------------------------------------------- |
+| `error_digest` | Send error notification digests (creates `ViewErrorReport` notification action) |
+
+The `error_digest` chop summarizes recent errors into a digest file stored at
+`~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a `ViewErrorReport` action that opens the
+digest in `$EDITOR` when selected in the ACE notification modal.
 
 ## Configuration
 
@@ -168,6 +172,8 @@ control over background resource usage.
 │           └── output.log          # Lumberjack output log
 ├── shared/
 │   └── runner_count                # Cross-process runner counter
+├── error_digests/                   # Error digest files for ViewErrorReport
+│   └── digest_<timestamp>.txt      # Summarized error reports
 └── recent_errors.json              # Last 100 errors encountered
 ```
 
@@ -188,5 +194,9 @@ The Axe tab in the ACE TUI provides live monitoring of the daemon:
 - Read lumberjack output logs
 - Start/stop the orchestrator (`X` key or `!x`)
 - See current runner counts
+- Footer shows daemon status: RUNNING, STOPPED, STARTING, STOPPING, or RESTARTING
+
+The RESTARTING indicator appears when `sase ace --restart-axe` (`-R`) is used — the daemon restarts in the background
+while the TUI starts up normally.
 
 See [`docs/ace.md`](ace.md) for the full Axe tab keybinding reference.
