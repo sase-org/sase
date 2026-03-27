@@ -28,11 +28,6 @@ said, there are a few exceptions:
   `--exclude-decorator <name>` option. This can be repeated for multiple decorator names. The decorator is matched by
   its simple name (e.g. `--exclude-decorator hook` matches `@hook`, `@hook(...)`, and `@hook.sub`).
 
-## `sase_core_stop_hook`
-
-Quality-check stop hook for the sase repo only. Runs auto-formatting (`just fmt-py`, `just fmt-md`), linting
-(`just lint`), testing (`just test`), pyvision, and pylimit. Blocks the agent if any checks fail.
-
 ## `sase_commit_stop_hook`
 
 This hook moved to `src/sase/scripts/sase_commit_stop_hook` so it can be installed on `PATH` as `sase_commit_stop_hook`.
