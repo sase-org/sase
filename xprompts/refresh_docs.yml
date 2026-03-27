@@ -1,0 +1,47 @@
+input:
+  threshold: { type: int, default: 10 }
+
+steps:
+  - name: count_commits
+    hidden: true
+    python: |
+      import subprocess
+      from pathlib import Path
+
+      marker = Path.home() / ".sase" / "projects" / "sase" / "refresh_docs_marker"
+      head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+
+      if marker.exists():
+          last_sha = marker.read_text().strip()
+          check = subprocess.run(["git", "cat-file", "-t", last_sha], capture_output=True)
+          if check.returncode == 0:
+              result = subprocess.check_output(
+                  ["git", "rev-list", "--count", f"{last_sha}..HEAD"], text=True
+              )
+              count = int(result.strip())
+          else:
+              count = 999  # SHA no longer valid, force a refresh
+      else:
+          count = 999  # First run, force a refresh
+
+      print(f"count={count}")
+      print(f"head={head}")
+    output:
+      count: int
+      head: line
+
+  - name: run_docs
+    if: "{{ count_commits.count >= threshold }}"
+    agent: |
+      #docs
+
+  - name: update_marker
+    if: "{{ count_commits.count >= threshold }}"
+    python: |
+      from pathlib import Path
+
+      marker = Path.home() / ".sase" / "projects" / "sase" / "refresh_docs_marker"
+      marker.parent.mkdir(parents=True, exist_ok=True)
+      marker.write_text("{{ count_commits.head }}")
+      print("updated=true")
+    output: { updated: bool }
