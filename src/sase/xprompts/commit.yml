@@ -2,7 +2,6 @@ tags: rollover, commit
 
 environment:
   SASE_COMMIT_METHOD: create_commit
-  SASE_DEFER_COMMITS_ENTRY: "1"
 
 steps:
   - name: inject
@@ -40,23 +39,6 @@ steps:
     output:
       success: bool
       new_commit: word
-
-  - name: _append_entry
-    hidden: true
-    if: "{{ create.success }}"
-    python: |
-      import json, os
-      from sase.workflows.commit_utils.post_commit import append_post_commit_entry
-      result = append_post_commit_entry(mode="commit")
-      if result.success and result.entry_id:
-          artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
-          result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
-          if result_file and os.path.isfile(result_file):
-              with open(result_file) as f:
-                  d = json.load(f)
-              d["entry_id"] = result.entry_id
-              with open(result_file, "w") as f:
-                  json.dump(d, f)
 
   - name: _emit_commit_id
     hidden: true

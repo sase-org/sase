@@ -1,13 +1,14 @@
 """Post-commit utility for appending COMMITS entries after commit/proposal creation.
 
-Used by #commit and #propose xprompt workflows to record entries in the
-ChangeSpec after CommitWorkflow (or the stop-hook) writes commit_result.json.
+Called by CommitWorkflow after a successful commit or proposal to record the
+entry in the ChangeSpec.  Reads ``commit_result.json`` (written by
+CommitWorkflow) for the diff path and ``SASE_AGENT_CHAT_PATH`` for the chat
+transcript path.
 """
 
 import json
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 
 @dataclass
@@ -18,38 +19,6 @@ class PostCommitResult:
     entry_id: str | None = None
 
 
-def _find_best_diff_path(artifacts_dir: str) -> str | None:
-    """Scan prompt_step_*.json markers for the best diff_path.
-
-    Iterates all markers and returns the diff_path from the last marker
-    (by filename sort order) that has one set.
-    """
-    best: str | None = None
-    for marker_path in sorted(Path(artifacts_dir).glob("prompt_step_*.json")):
-        try:
-            with open(marker_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            continue
-        if isinstance(data, dict) and data.get("diff_path"):
-            best = str(data["diff_path"])
-    return best
-
-
-def _find_best_response_path(artifacts_dir: str) -> str | None:
-    """Scan prompt_step_*.json markers for the best response_path."""
-    best: str | None = None
-    for marker_path in sorted(Path(artifacts_dir).glob("prompt_step_*.json")):
-        try:
-            with open(marker_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            continue
-        if isinstance(data, dict) and data.get("response_path"):
-            best = str(data["response_path"])
-    return best
-
-
 def append_post_commit_entry(
     *,
     mode: str,
@@ -57,7 +26,7 @@ def append_post_commit_entry(
     """Append a COMMITS entry after a successful commit or proposal creation.
 
     Reads environment variables and ``commit_result.json`` to determine what
-    happened, then delegates to :func:`add_commit_entry` or
+    happened, then delegates to :func:`add_commit_entry_with_id` or
     :func:`add_proposed_commit_entry`.
 
     Args:
@@ -76,7 +45,7 @@ def append_post_commit_entry(
     if not os.path.isfile(project_file):
         return PostCommitResult(success=False)
 
-    # Load commit_result.json
+    # Load commit_result.json (written by CommitWorkflow._write_result_marker)
     result_path = os.path.join(artifacts_dir, "commit_result.json")
     if not os.path.isfile(result_path):
         return PostCommitResult(success=False)
@@ -93,22 +62,12 @@ def append_post_commit_entry(
     # Build note from commit message
     note = (commit_result.get("message") or "Agent changes").split("\n")[0]
 
-    # Locate diff_path from prompt_step markers, then commit_result.json
-    diff_path = _find_best_diff_path(artifacts_dir)
-    if not diff_path:
-        # CommitWorkflow captures the diff before the VCS commit and records
-        # the path in commit_result.json so it survives the commit.
-        diff_path = commit_result.get("diff_path")
-    if not diff_path:
-        # Legacy fallback: check if the result field itself is a diff path
-        result_value = commit_result.get("result", "") or ""
-        if result_value.endswith(".diff"):
-            diff_path = result_value
+    # diff_path comes from commit_result.json (captured pre-commit by
+    # CommitWorkflow._capture_pre_commit_diff)
+    diff_path = commit_result.get("diff_path")
 
-    response_path = _find_best_response_path(artifacts_dir)
-    if not response_path:
-        # Fallback: check SASE_AGENT_CHAT_PATH env var
-        response_path = os.environ.get("SASE_AGENT_CHAT_PATH")
+    # chat_path comes from SASE_AGENT_CHAT_PATH env var
+    response_path = os.environ.get("SASE_AGENT_CHAT_PATH")
 
     from sase.workflows.commit_utils.entries import (
         add_commit_entry_with_id,

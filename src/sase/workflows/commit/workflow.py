@@ -123,15 +123,11 @@ class CommitWorkflow(BaseWorkflow):
         self._write_result_marker(result, cs_name)
 
         # Append COMMITS entry for commit/proposal (not PR - it uses ChangeSpec).
-        # When SASE_DEFER_COMMITS_ENTRY is set (by #commit / #propose xprompts),
-        # skip appending here; the xprompt post-step will do it after the agent
-        # finishes so that diff_path and response_path are available.
         entry_id: str | None = None
         if self._method in ("create_commit", "create_proposal"):
-            if not os.environ.get("SASE_DEFER_COMMITS_ENTRY"):
-                entry_id = self._append_commits_entry()
-                if entry_id:
-                    self._write_result_marker(result, cs_name, entry_id=entry_id)
+            entry_id = self._append_commits_entry()
+            if entry_id:
+                self._write_result_marker(result, cs_name, entry_id=entry_id)
 
         return True
 

@@ -7,48 +7,8 @@ import pytest
 
 from sase.workflows.commit_utils.post_commit import (
     PostCommitResult,
-    _find_best_diff_path,
-    _find_best_response_path,
     append_post_commit_entry,
 )
-
-
-# ---------------------------------------------------------------------------
-# _find_best_diff_path / _find_best_response_path
-# ---------------------------------------------------------------------------
-
-
-def test_find_best_diff_path_empty_dir(tmp_path: Path) -> None:
-    assert _find_best_diff_path(str(tmp_path)) is None
-
-
-def test_find_best_diff_path_picks_last(tmp_path: Path) -> None:
-    (tmp_path / "prompt_step_a.json").write_text(
-        json.dumps({"diff_path": "/first.diff"})
-    )
-    (tmp_path / "prompt_step_b.json").write_text(
-        json.dumps({"diff_path": "/second.diff"})
-    )
-    assert _find_best_diff_path(str(tmp_path)) == "/second.diff"
-
-
-def test_find_best_diff_path_skips_empty(tmp_path: Path) -> None:
-    (tmp_path / "prompt_step_a.json").write_text(
-        json.dumps({"diff_path": "/good.diff"})
-    )
-    (tmp_path / "prompt_step_b.json").write_text(json.dumps({"diff_path": None}))
-    assert _find_best_diff_path(str(tmp_path)) == "/good.diff"
-
-
-def test_find_best_response_path(tmp_path: Path) -> None:
-    (tmp_path / "prompt_step_x.json").write_text(
-        json.dumps({"response_path": "/resp.json"})
-    )
-    assert _find_best_response_path(str(tmp_path)) == "/resp.json"
-
-
-def test_find_best_response_path_empty(tmp_path: Path) -> None:
-    assert _find_best_response_path(str(tmp_path)) is None
 
 
 # ---------------------------------------------------------------------------
@@ -108,11 +68,9 @@ def test_append_commit_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
                 "method": "create_commit",
                 "result": "abc123",
                 "message": "Fix bug in parser",
+                "diff_path": "~/.sase/diffs/test.diff",
             }
         )
-    )
-    (tmp_path / "prompt_step_create.json").write_text(
-        json.dumps({"diff_path": "~/.sase/diffs/test.diff"})
     )
 
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))  # type: ignore[union-attr]
@@ -206,11 +164,9 @@ def test_append_proposal_with_diff_path(
                 "method": "create_proposal",
                 "result": "http://cl/123",
                 "message": "Add tests",
+                "diff_path": "~/.sase/diffs/prop.diff",
             }
         )
-    )
-    (tmp_path / "prompt_step_propose.json").write_text(
-        json.dumps({"diff_path": "~/.sase/diffs/prop.diff"})
     )
 
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))  # type: ignore[union-attr]
