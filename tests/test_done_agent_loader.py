@@ -98,7 +98,7 @@ def test_extract_diff_path_from_non_last_step(tmp_path: Path) -> None:
                     "diff_path": "/tmp/sase-gh-abc123.diff",
                     "meta_commit_message": "feat: add feature",
                 },
-                "output_types": {"diff_path": "path", "meta_commit_message": "line"},
+                "output_types": {"diff_path": "path", "meta_commit_message": "text"},
             },
             {
                 "name": "pr.create_changespec",

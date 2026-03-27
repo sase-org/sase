@@ -59,20 +59,29 @@ steps:
   - name: report
     hidden: true
     if: "{{ check_changes.has_changes or _has_commit_result.exists }}"
-    bash: |
-      RESULT_FILE="${SASE_ARTIFACTS_DIR}/commit_result.json"
-      [ -f "$RESULT_FILE" ] || exit 0
-      eval "$(RESULT_FILE="$RESULT_FILE" python3 -c "
-      import json, os, shlex
-      with open(os.environ['RESULT_FILE']) as f:
-          d = json.load(f)
-      for k in ('result', 'message', 'changespec_name', 'name'):
-          print(f'{k}={shlex.quote(d.get(k, \"\") or \"\")}')
-      ")"
-      [ -n "$result" ] && echo "meta_new_commit=$result"
-      [ -n "$message" ] && echo "meta_commit_message=$message"
-      if [ -n "$changespec_name" ]; then echo "meta_changespec=$changespec_name"; elif [ -n "$name" ]; then echo "meta_changespec=$name"; fi
+    python: |
+      import json, os
+      artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
+      result_file = os.path.join(artifacts_dir, "commit_result.json") if artifacts_dir else ""
+      if not result_file or not os.path.isfile(result_file):
+          print("{}")
+      else:
+          with open(result_file) as f:
+              d = json.load(f)
+          out: dict[str, str] = {}
+          result = d.get("result", "") or ""
+          message = d.get("message", "") or ""
+          changespec_name = d.get("changespec_name", "") or ""
+          name = d.get("name", "") or ""
+          if result:
+              out["meta_new_commit"] = result
+          if message:
+              out["meta_commit_message"] = message
+          cs = changespec_name or name
+          if cs:
+              out["meta_changespec"] = cs
+          print(json.dumps(out))
     output:
       meta_new_commit: word
-      meta_commit_message: line
+      meta_commit_message: text
       meta_changespec: word
