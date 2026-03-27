@@ -194,6 +194,10 @@ class CommitWorkflow(BaseWorkflow):
         if not plan_path:
             return
 
+        from sase.sdd.beads import get_sdd_config
+
+        version_controlled = get_sdd_config()
+
         # Determine repo root
         repo_root = self._get_repo_root(cwd)
         in_repo = bool(repo_root) and plan_path.startswith(repo_root + "/")
@@ -209,20 +213,21 @@ class CommitWorkflow(BaseWorkflow):
             else:
                 return  # truly missing
 
-        # If plan is outside repo, copy it in
-        if not in_repo:
+        # Only copy plan into repo for version-controlled SDD projects
+        if version_controlled and not in_repo:
             dest = os.path.join(cwd, "plans", os.path.basename(plan_path))
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             shutil.copy2(plan_path, dest)
             plan_path = dest
 
-        # Ensure plan has frontmatter (may be missing if SDD block failed)
-        plan_content = open(plan_path, encoding="utf-8").read()
-        if not plan_content.startswith("---\n"):
-            from sase.llm_provider._plan_utils import add_create_time_frontmatter
+        # Only add frontmatter for version-controlled plans
+        if version_controlled:
+            plan_content = open(plan_path, encoding="utf-8").read()
+            if not plan_content.startswith("---\n"):
+                from sase.llm_provider._plan_utils import add_create_time_frontmatter
 
-            with open(plan_path, "w", encoding="utf-8") as f:
-                f.write(add_create_time_frontmatter(plan_content))
+                with open(plan_path, "w", encoding="utf-8") as f:
+                    f.write(add_create_time_frontmatter(plan_content))
 
         # Compute repo-root-relative path
         if repo_root and plan_path.startswith(repo_root + "/"):
@@ -245,8 +250,9 @@ class CommitWorkflow(BaseWorkflow):
             capture_output=True,
         )
 
-        # Record plan file for VCS provider to stage
-        self._payload["_plan_path"] = plan_path
+        # Only stage plan file if version-controlled
+        if version_controlled:
+            self._payload["_plan_path"] = plan_path
 
     @staticmethod
     def _get_repo_root(cwd: str) -> str:

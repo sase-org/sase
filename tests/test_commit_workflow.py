@@ -11,6 +11,7 @@ from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
+_SDD_CONFIG_TARGET = "sase.sdd.beads.get_sdd_config"
 _CHANGESPEC_TARGET = "sase.workspace_provider.changespec.create_changespec_for_workflow"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 _PROJECT_FILE_TARGET = "sase.workflows.utils.get_project_file_path"
@@ -596,3 +597,107 @@ class TestAppendCommitsEntry:
             result = wf._append_commits_entry()
             assert result == "0a"
             mock_add.assert_called_once()
+
+
+class TestHandleSasePlan:
+    """Verify _handle_sase_plan gates copy/frontmatter/staging on version_controlled."""
+
+    def test_vc_true_copies_plan_into_repo(self, tmp_path: Path) -> None:
+        """version_controlled=True: plan is copied into plans/, _plan_path set."""
+        plan_file = tmp_path / "my_plan.md"
+        plan_file.write_text("# Plan\nstatus: wip\n")
+
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        payload: dict = {"message": "fix: bug"}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch(_SDD_CONFIG_TARGET, return_value=True),
+            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+        ):
+            wf._handle_sase_plan(str(repo_dir))
+
+        assert "_plan_path" in payload
+        dest = repo_dir / "plans" / "my_plan.md"
+        assert dest.exists()
+        assert "PLAN=plans/my_plan.md" in payload["message"]
+
+    def test_vc_false_does_not_copy_plan(self, tmp_path: Path) -> None:
+        """version_controlled=False: plan NOT copied, no _plan_path, PLAN= still appended."""
+        plan_file = tmp_path / "my_plan.md"
+        plan_file.write_text("# Plan\nstatus: wip\n")
+
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        payload: dict = {"message": "fix: bug"}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch(_SDD_CONFIG_TARGET, return_value=False),
+            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+        ):
+            wf._handle_sase_plan(str(repo_dir))
+
+        assert "_plan_path" not in payload
+        assert not (repo_dir / "plans").exists()
+        assert "PLAN=" in payload["message"]
+
+    def test_archive_fallback_vc_true_copies(self, tmp_path: Path) -> None:
+        """Archive fallback + version_controlled=True: copies into repo."""
+        archive_dir = tmp_path / ".sase" / "plans"
+        archive_dir.mkdir(parents=True)
+        archive_plan = archive_dir / "my_plan.md"
+        archive_plan.write_text("# Plan\nstatus: wip\n")
+
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        payload: dict = {"message": "fix: bug"}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        with (
+            patch.dict(
+                "os.environ",
+                {"SASE_PLAN": "/nonexistent/my_plan.md"},
+            ),
+            patch(_SDD_CONFIG_TARGET, return_value=True),
+            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch("os.path.expanduser", return_value=str(tmp_path)),
+        ):
+            wf._handle_sase_plan(str(repo_dir))
+
+        assert "_plan_path" in payload
+        assert (repo_dir / "plans" / "my_plan.md").exists()
+
+    def test_archive_fallback_vc_false_no_copy(self, tmp_path: Path) -> None:
+        """Archive fallback + version_controlled=False: does NOT copy into repo."""
+        archive_dir = tmp_path / ".sase" / "plans"
+        archive_dir.mkdir(parents=True)
+        archive_plan = archive_dir / "my_plan.md"
+        archive_plan.write_text("# Plan\nstatus: wip\n")
+
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        payload: dict = {"message": "fix: bug"}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        with (
+            patch.dict(
+                "os.environ",
+                {"SASE_PLAN": "/nonexistent/my_plan.md"},
+            ),
+            patch(_SDD_CONFIG_TARGET, return_value=False),
+            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch("os.path.expanduser", return_value=str(tmp_path)),
+        ):
+            wf._handle_sase_plan(str(repo_dir))
+
+        assert "_plan_path" not in payload
+        assert not (repo_dir / "plans").exists()
+        assert "PLAN=" in payload["message"]
