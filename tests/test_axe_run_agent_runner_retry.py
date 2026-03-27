@@ -86,6 +86,7 @@ class _WorkflowResult:
 
 _RUNNER = "sase.axe.run_agent_runner"
 _EXEC = "sase.axe.run_agent_exec"
+_RETRY = "sase.axe.run_agent_exec_retry"
 
 
 def _base_patches(artifacts_dir: str) -> dict[str, Any]:
@@ -110,9 +111,11 @@ def _base_patches(artifacts_dir: str) -> dict[str, Any]:
         f"{_RUNNER}.was_killed": was_killed_mock,
         f"{_RUNNER}.all_steps_hidden": MagicMock(return_value=True),
         # --- exec module (execution loop) ---
-        f"{_EXEC}.prepare_workspace": prepare_ws_mock,
         f"{_EXEC}.was_killed": was_killed_mock,
         f"{_EXEC}.reset_killed": MagicMock(),
+        # --- retry module (error/retry handler) ---
+        f"{_RETRY}.prepare_workspace": prepare_ws_mock,
+        f"{_RETRY}.was_killed": was_killed_mock,
         f"{_EXEC}.save_chat_history": MagicMock(return_value="/tmp/history.md"),
         f"{_EXEC}.format_extra_sections": MagicMock(return_value=""),
         f"{_EXEC}.extract_step_output_and_diff_path": MagicMock(
@@ -213,7 +216,7 @@ class TestRetryLoop:
         )
         patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_EXEC}.time.sleep"] = MagicMock()
+        patches[f"{_RETRY}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -241,7 +244,7 @@ class TestRetryLoop:
         )
         patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_EXEC}.time.sleep"] = capture_sleep
+        patches[f"{_RETRY}.time.sleep"] = capture_sleep
 
         _run_main(patches, tmp_path)
 
@@ -260,7 +263,7 @@ class TestRetryLoop:
         )
         patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_EXEC}.time.sleep"] = MagicMock()
+        patches[f"{_RETRY}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -283,7 +286,7 @@ class TestRetryLoop:
         )
         patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_EXEC}.time.sleep"] = MagicMock()
+        patches[f"{_RETRY}.time.sleep"] = MagicMock()
 
         env_overrides: list[str] = []
         original_setitem = os.environ.__class__.__setitem__
@@ -318,10 +321,11 @@ class TestRetryLoop:
             kill_calls += 1
             return kill_calls >= 2
 
-        # Override in both modules (runner finally block + exec loop)
+        # Override in all modules (runner finally block + exec loop + retry handler)
         patches[f"{_RUNNER}.was_killed"] = mock_was_killed
         patches[f"{_EXEC}.was_killed"] = mock_was_killed
-        patches[f"{_EXEC}.time.sleep"] = MagicMock()
+        patches[f"{_RETRY}.was_killed"] = mock_was_killed
+        patches[f"{_RETRY}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -340,7 +344,7 @@ class TestRetryLoop:
         )
         patches[f"{_EXEC}.get_retry_config"] = MagicMock(return_value=config)
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_EXEC}.time.sleep"] = MagicMock()
+        patches[f"{_RETRY}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
@@ -386,7 +390,7 @@ class TestRetryLoop:
             error_patterns=["An unexpected critical error occurred:"],
             wait_times=[0],
         )
-        patches[f"{_EXEC}.find_retry_config_for_error"] = MagicMock(
+        patches[f"{_RETRY}.find_retry_config_for_error"] = MagicMock(
             return_value=gemini_cfg
         )
 
@@ -399,7 +403,7 @@ class TestRetryLoop:
             ]
         )
         patches["sase.xprompt.workflow_runner.execute_workflow"] = execute_mock
-        patches[f"{_EXEC}.time.sleep"] = MagicMock()
+        patches[f"{_RETRY}.time.sleep"] = MagicMock()
 
         _run_main(patches, tmp_path)
 
