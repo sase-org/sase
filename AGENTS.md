@@ -118,6 +118,24 @@ repo that you've modified before terminating / replying to the user.
 When changing keymaps, leader mode keys, or any configuration values, don't forget to update the keymap configuration in
 the `src/sase/default_config.yml` file if necessary.
 
+## Workspace State is Ephemeral
+
+Sase workspaces (`sase_<N>` directories) are reused across agent runs. Do not assume:
+
+- That the current git state (HEAD, diff, working tree) in a workspace belongs to the current agent
+- That files from the main repo are up-to-date in a stale workspace
+
+When workspace state matters (e.g., reading diffs, checking file existence), verify the workspace has been synced to the
+expected revision first. For completed/failed agents, only trust artifact paths (like `diff_path`) — never fall back to
+live workspace state.
+
+## Multi-Step Workflow Artifacts
+
+For multi-step xprompt workflows, completion artifacts (like `done.json`) must be written to the **root** artifacts
+directory, not just the last step's directory. Other agents waiting on workflow completion (via `%wait`) check the root
+— if `done.json` is only in a child step's directory, the workflow name may be recycled by auto-naming and the wait will
+never resolve.
+
 ## Plan Mode and Questions
 
 - You do NOT have access to plan mode (`EnterPlanMode`/`ExitPlanMode`). Use the `/sase_plan` skill instead.
