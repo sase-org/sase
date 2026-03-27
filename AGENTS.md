@@ -48,6 +48,12 @@ dependencies may have changed).
   multiple steps of any (ex: `prompt_part` allows you to expand `#foo` into some pre-defined content, `python` or `bash`
   let you run code, etc.).
 
+## Runtime Parity
+
+All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabilities: they all support hooks, skills,
+and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
+runtime lacks a capability that others have. Treat all runtimes uniformly.
+
 ## Code Conventions
 
 - Use **absolute imports**: `from sase.foo import bar` (not relative)
