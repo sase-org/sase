@@ -44,6 +44,12 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Auto-refresh interval in seconds (default: 10, 0 to disable)",
     )
     ace_parser.add_argument(
+        "-R",
+        "--restart-axe",
+        action="store_true",
+        help="Restart the axe daemon on startup (no-op if axe is not running)",
+    )
+    ace_parser.add_argument(
         "-a",
         "--agent",
         action="store_true",

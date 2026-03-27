@@ -132,6 +132,7 @@ class AceApp(
         model_tier_override: Literal["large", "small"] | None = None,
         refresh_interval: int = 10,
         auto_start_axe: bool = True,
+        restart_axe: bool = False,
     ) -> None:
         """Initialize the ace TUI app.
 
@@ -140,11 +141,13 @@ class AceApp(
             model_tier_override: Override model tier for all LLM provider instances
             refresh_interval: Auto-refresh interval in seconds (0 to disable)
             auto_start_axe: Whether to auto-start the axe daemon on startup
+            restart_axe: Whether to restart the axe daemon on startup
         """
         super().__init__()
         self._init_task_queue()
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe
+        self._restart_axe = restart_axe
         self.query_string = query
         self.parsed_query: QueryExpr = parse_query(query)
         self.refresh_interval = refresh_interval
@@ -431,8 +434,11 @@ class AceApp(
         # Initialize axe status
         self._load_axe_status()
 
-        # Auto-start axe if enabled and not already running
-        if self._auto_start_axe and not self.axe_running:
+        # Restart axe if requested and currently running
+        if self._restart_axe and self.axe_running:
+            self._restart_axe_daemon()
+        # Auto-start axe if enabled and not already running (skip if restart was triggered)
+        elif self._auto_start_axe and not self.axe_running:
             self._start_axe()
 
         # Write initial activity timestamp, idle state, and PID file.

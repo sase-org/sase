@@ -57,6 +57,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             ),
             refresh_interval=args.refresh_interval,
             auto_start_axe=not getattr(args, "no_axe", False),
+            restart_axe=getattr(args, "restart_axe", False),
         )
     except QueryParseError as e:
         print(f"Error: Invalid query: {e}")
