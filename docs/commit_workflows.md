@@ -1,0 +1,220 @@
+# Commit Workflows
+
+Sase provides three unified workflows for landing code changes: **commit**, **propose**, and **pull request**. All three
+share the same CLI command (`sase commit`), the same `CommitWorkflow` orchestrator, and the same VCS provider
+abstraction, but differ in what they produce and how they track the result.
+
+## Overview
+
+| Workflow    | XPrompt    | Method                | What it produces             | Tracking      |
+| ----------- | ---------- | --------------------- | ---------------------------- | ------------- |
+| **Commit**  | `#commit`  | `create_commit`       | Git commit on current branch | COMMITS entry |
+| **Propose** | `#propose` | `create_proposal`     | Saved diff file              | COMMITS entry |
+| **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | ChangeSpec    |
+
+## How It Works
+
+### 1. Agent makes code changes
+
+The agent receives an xprompt (`#commit`, `#propose`, or `#pr`) which sets the `SASE_COMMIT_METHOD` environment variable
+and injects an instruction telling the agent **not** to create commits directly.
+
+### 2. Stop hook triggers the commit
+
+When the agent finishes, the **stop hook** (`sase_commit_stop_hook`) detects uncommitted changes and blocks the agent
+with an instruction to use its `/sase_git_commit` or `/sase_hg_commit` skill. The skill calls:
+
+```bash
+sase commit '<json_payload>' -m <method>
+```
+
+The method defaults to `$SASE_COMMIT_METHOD` if the `-m` flag is omitted.
+
+### 3. CommitWorkflow orchestrates
+
+`CommitWorkflow` (`src/sase/workflows/commit/workflow.py`) is the central dispatcher. It runs through these stages:
+
+```
+Precommit command  (e.g. `just fix`)
+    |
+Bead lifecycle     (close bead, sync beads, inject bead ID into message)  [skip for proposals]
+    |
+Plan handling      (append PLAN= to message, mark plan done)              [skip for proposals]
+    |
+PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
+    |
+VCS dispatch       (call provider.create_commit / create_proposal / create_pull_request)
+    |
+ChangeSpec         (create ChangeSpec entry in project file)              [PR only]
+    |
+Result marker      (write commit_result.json for xprompt post-steps)
+    |
+COMMITS entry      (append entry to project file)                         [commit/propose only]
+```
+
+### 4. XPrompt reads the result
+
+The xprompt post-steps read `commit_result.json` from `$SASE_ARTIFACTS_DIR` and emit metadata outputs
+(`meta_new_commit`, `meta_commit_message`, `meta_changespec`, etc.) for downstream consumption.
+
+## Payload Format
+
+All three methods accept the same JSON payload structure:
+
+```json
+{
+  "message": "Commit message (required for commit/propose)",
+  "name": "Branch or PR name (required for PR)",
+  "files": ["optional", "list", "of", "specific", "files"],
+  "bead_id": "optional-bead-id-to-close"
+}
+```
+
+Internal fields added by `CommitWorkflow`:
+
+| Field              | Set by              | Purpose                                 |
+| ------------------ | ------------------- | --------------------------------------- |
+| `_cl_name`         | Environment         | Fallback CL name for proposals          |
+| `_plan_path`       | `_handle_sase_plan` | Plan file path for VCS staging          |
+| `_pr_body`         | `_build_pr_body`    | Enriched PR description with agent info |
+| `_skip_bead_amend` | Internal            | Skip post-commit bead amend             |
+
+## Result Format
+
+After a successful dispatch, `commit_result.json` contains:
+
+```json
+{
+  "method": "create_commit",
+  "result": "<commit_hash | diff_path | null>",
+  "message": "The commit message",
+  "name": "Branch/CL name",
+  "bead_id": "Bead ID if provided",
+  "changespec_name": "ChangeSpec name (PR only)",
+  "entry_id": "COMMITS entry ID (commit/propose only)"
+}
+```
+
+## Workflow Details
+
+### Commit (`#commit`)
+
+Creates an actual git commit on the current branch and pushes it.
+
+**Git operations:**
+
+1. Stage files (`git add -A` or specific files)
+2. Stage `.sase_beads/` directory and plan file
+3. Validate staged changes exist
+4. Merge with `origin/master` to keep branch current
+5. `git commit -m <message>`
+6. Post-commit bead amend (append bead note)
+7. Push to remote with retry on failure
+
+**Returns:** `(True, commit_hash)`
+
+**Tracking:** Appends a COMMITS entry to the project file with the commit note and diff path.
+
+### Propose (`#propose`)
+
+Saves the current diff without committing and cleans the workspace. This is useful for parking work-in-progress changes
+that aren't ready to land.
+
+**Git operations:**
+
+1. Save diff to `~/.sase/diffs/<cl_name>-<timestamp>.diff`
+2. Clean workspace (`git reset --hard HEAD` + `git clean -fd`)
+
+**Returns:** `(True, diff_path)`
+
+**Tracking:** Appends a proposal COMMITS entry to the project file. Bead lifecycle and plan handling are skipped because
+proposals don't represent landed changes.
+
+### Pull Request (`#pr`)
+
+Creates a new branch, commits changes, pushes, and creates a PR (via the GitHub plugin or equivalent).
+
+**Input parameters:**
+
+```yaml
+input:
+  - name: name # Branch/PR name (required)
+    type: word
+  - name: bug_id # Bug ID (optional, default: 0)
+    type: int
+```
+
+**Git operations:**
+
+1. `git checkout -b <name>` (create new branch)
+2. Stage files and bead/plan paths
+3. `git commit -m <message>`
+4. `git push -u origin <name>`
+5. (GitHub plugin creates the actual PR via `gh`)
+
+**Returns:** `(True, pr_url)` after GitHub plugin processing
+
+**Tracking:** Creates a ChangeSpec in the project file (not a COMMITS entry). The PR name is automatically suffixed with
+`_<N>` if a ChangeSpec with the same base name already exists.
+
+## VCS Provider Abstraction
+
+The three dispatch methods are defined in `VCSHookSpec` and implemented by each VCS plugin:
+
+| Plugin          | `create_commit`    | `create_proposal` | `create_pull_request`     |
+| --------------- | ------------------ | ----------------- | ------------------------- |
+| `BareGitPlugin` | Commit + push      | Save diff + clean | Branch + commit + push    |
+| `GitHubPlugin`  | Inherits from git  | Inherits from git | + creates PR via `gh` CLI |
+| `HgPlugin`      | `hg commit` + mail | `sase_hg_clean`   | Not supported natively    |
+
+All methods return `tuple[bool, str | None]` (success flag and optional result string).
+
+## Environment Variables
+
+| Variable                  | Purpose                                                 |
+| ------------------------- | ------------------------------------------------------- |
+| `SASE_COMMIT_METHOD`      | Dispatch method (set by xprompt `environment:` section) |
+| `SASE_ARTIFACTS_DIR`      | Directory for `commit_result.json` and other artifacts  |
+| `SASE_PLAN`               | Plan file path for staging and status update            |
+| `SASE_AGENT_PROJECT_FILE` | Project file for COMMITS/ChangeSpec tracking            |
+| `SASE_AGENT_CL_NAME`      | CL name used for proposal diff naming                   |
+| `SASE_PR_NAME`            | PR name (set by `#pr` xprompt input)                    |
+| `SASE_BUG_ID`             | Bug ID for PR metadata                                  |
+| `SASE_VCS_PROVIDER`       | Override VCS provider detection (see [vcs.md](vcs.md))  |
+
+## Stop Hook
+
+The `sase_commit_stop_hook` (`src/sase/scripts/sase_commit_stop_hook.py`) is the bridge between the agent and the commit
+workflow. It runs as a post-completion hook in Claude, Gemini, and Codex runtimes.
+
+**Flow:**
+
+1. Detect the project directory from runtime-specific env vars
+2. Check for uncommitted changes via the VCS provider
+3. If changes exist, emit a blocking instruction telling the agent to use its commit skill
+4. The commit skill resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider
+
+The hook supports deduplication (Gemini), structured JSON output (Codex), and stderr messaging (Claude).
+
+## Diff Storage
+
+Diffs saved by proposals (and other operations) are stored in:
+
+```
+~/.sase/diffs/<name>-<timestamp>.diff     # Active diffs
+~/.sase/reverted/<name>.diff              # Reverted CLs
+~/.sase/archived/<name>.diff              # Archived CLs
+```
+
+Diffs can be re-applied to a workspace with `apply_diff_to_workspace()` from `sase.workflows.commit_utils.workspace`.
+
+## Design Principles
+
+- **Fail-fast:** If `commit_result.json` is missing when the xprompt post-steps run, the workflow fails explicitly
+  rather than silently retrying. The stop hook is the only path to commit creation.
+- **Single responsibility:** `CommitWorkflow` owns all orchestration (precommit, beads, plans, VCS dispatch, tracking).
+  XPrompt steps only read and report results.
+- **Proper proposal semantics:** Proposals save diffs and clean the workspace without creating commits. Bead lifecycle
+  and plan handling are skipped because proposals don't represent landed changes.
+- **VCS agnostic:** The same `CommitWorkflow` and xprompt definitions work across Git, GitHub, and Mercurial backends.
+  Only the VCS plugin implementation differs.

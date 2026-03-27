@@ -184,7 +184,8 @@ Pushes changes for review. The flow differs significantly between providers.
 2. Prompt user to confirm push
 3. `git push -u origin <branch>`
 4. Check if PR exists via `gh pr view`
-5. If no PR: `gh pr create --fill`
+5. If no PR: `gh pr create --fill` with an agent info footer appended to the PR body (model and agent name from
+   `agent_meta.json`, if available)
 6. Update ChangeSpec with PR URL
 
 **Mercurial flow:**
