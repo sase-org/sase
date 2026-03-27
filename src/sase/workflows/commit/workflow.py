@@ -1,13 +1,19 @@
 """CommitWorkflow class for dispatching VCS commit operations."""
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess
+from typing import TYPE_CHECKING
 
 from sase.config.core import load_merged_config
 from sase.output import print_status
 from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
+
+if TYPE_CHECKING:
+    from sase.vcs_provider._base import VCSProvider
 
 VALID_METHODS = ("create_commit", "create_proposal", "create_pull_request")
 
@@ -20,6 +26,7 @@ class CommitWorkflow(BaseWorkflow):
         self._method = method
         self._base_cl_name: str | None = None
         self._parent_cl_name: str | None = None
+        self._diff_path: str | None = None
 
     @property
     def name(self) -> str:
@@ -95,6 +102,10 @@ class CommitWorkflow(BaseWorkflow):
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)
 
+        # Capture diff before VCS commit so it can be recorded in the
+        # COMMITS entry.  After the commit the working-tree diff is empty.
+        self._capture_pre_commit_diff(provider, cwd)
+
         print_status(f"Dispatching {self._method} to VCS provider...", "progress")
         ok, result = dispatch(self._payload, cwd)
         if not ok:
@@ -110,12 +121,16 @@ class CommitWorkflow(BaseWorkflow):
         # Write initial result marker (needed by append_post_commit_entry)
         self._write_result_marker(result, cs_name)
 
-        # Append COMMITS entry for commit/proposal (not PR - it uses ChangeSpec)
+        # Append COMMITS entry for commit/proposal (not PR - it uses ChangeSpec).
+        # When SASE_DEFER_COMMITS_ENTRY is set (by #commit / #propose xprompts),
+        # skip appending here; the xprompt post-step will do it after the agent
+        # finishes so that diff_path and response_path are available.
         entry_id: str | None = None
         if self._method in ("create_commit", "create_proposal"):
-            entry_id = self._append_commits_entry()
-            if entry_id:
-                self._write_result_marker(result, cs_name, entry_id=entry_id)
+            if not os.environ.get("SASE_DEFER_COMMITS_ENTRY"):
+                entry_id = self._append_commits_entry()
+                if entry_id:
+                    self._write_result_marker(result, cs_name, entry_id=entry_id)
 
         return True
 
@@ -314,6 +329,30 @@ class CommitWorkflow(BaseWorkflow):
             print_status(f"Skipping ChangeSpec: {exc}", "warning")
             return None
 
+    def _capture_pre_commit_diff(self, provider: VCSProvider, cwd: str) -> None:
+        """Capture VCS diff before committing and save it for the COMMITS entry.
+
+        After the VCS commit the working-tree diff is empty, so this must run
+        beforehand.  The saved path is included in ``commit_result.json`` so
+        that :func:`append_post_commit_entry` can attach it to the entry.
+        """
+        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+        if not artifacts_dir:
+            return
+        try:
+            ok, diff_text = provider.diff(cwd)  # type: ignore[union-attr]
+        except Exception:
+            return
+        if not ok or not diff_text:
+            return
+        diff_path = os.path.join(artifacts_dir, "commit_diff.diff")
+        try:
+            with open(diff_path, "w", encoding="utf-8") as f:
+                f.write(diff_text)
+            self._diff_path = diff_path
+        except Exception:
+            pass
+
     def _append_commits_entry(self) -> str | None:
         """Append a COMMITS entry after successful commit/proposal. Returns entry_id."""
         from sase.workflows.commit_utils.post_commit import append_post_commit_entry
@@ -342,6 +381,7 @@ class CommitWorkflow(BaseWorkflow):
             "bead_id": self._payload.get("bead_id", ""),
             "changespec_name": changespec_name,
             "entry_id": entry_id,
+            "diff_path": self._diff_path,
         }
         marker_path = os.path.join(artifacts_dir, "commit_result.json")
         with open(marker_path, "w") as f:

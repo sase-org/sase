@@ -93,10 +93,14 @@ def append_post_commit_entry(
     # Build note from commit message
     note = (commit_result.get("message") or "Agent changes").split("\n")[0]
 
-    # Locate diff_path and response_path from prompt_step markers
+    # Locate diff_path from prompt_step markers, then commit_result.json
     diff_path = _find_best_diff_path(artifacts_dir)
     if not diff_path:
-        # Fallback: check commit_result.json result if it's a diff path
+        # CommitWorkflow captures the diff before the VCS commit and records
+        # the path in commit_result.json so it survives the commit.
+        diff_path = commit_result.get("diff_path")
+    if not diff_path:
+        # Legacy fallback: check if the result field itself is a diff path
         result_value = commit_result.get("result", "") or ""
         if result_value.endswith(".diff"):
             diff_path = result_value

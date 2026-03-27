@@ -295,6 +295,7 @@ class TestWriteResultMarker:
                 "bead_id": "",
                 "changespec_name": "proj_feat_1",
                 "entry_id": None,
+                "diff_path": None,
             }
 
     def test_writes_none_values(self) -> None:
