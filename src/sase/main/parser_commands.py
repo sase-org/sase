@@ -43,23 +43,28 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         help="File to stage (repeat for multiple; omit to stage all changes)",
     )
     commit_parser.add_argument(
+        "-n",
         "--name",
         help="Branch/CL name (required for create_pull_request)",
     )
     commit_parser.add_argument(
+        "-b",
         "--bead-id",
         help="Bead ID to close and associate with the commit",
     )
     commit_parser.add_argument(
+        "-c",
         "--checkout-target",
         default="HEAD~1",
         help="Branch point for create_pull_request (default: HEAD~1)",
     )
     commit_parser.add_argument(
+        "-N",
         "--note",
         help="COMMITS note (used by Mercurial create_commit)",
     )
     commit_parser.add_argument(
+        "-M",
         "--method",
         choices=["create_commit", "create_proposal", "create_pull_request"],
         help="Commit method (default: $SASE_COMMIT_METHOD or create_commit)",
