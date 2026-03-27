@@ -36,7 +36,10 @@ class TaskActionsMixin:
         """Update the top-bar task indicator with the current running count."""
         try:
             indicator = self.query_one("#task-indicator", TaskIndicator)  # type: ignore[attr-defined]
-            indicator.set_count(self._task_queue.running_count)
+            count = self._task_queue.running_count
+            if getattr(self, "_axe_worker", None) is not None:
+                count += 1
+            indicator.set_count(count)
         except Exception:
             pass
 

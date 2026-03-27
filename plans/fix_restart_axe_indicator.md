@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 13:32:35
-status: wip
+status: done
 ---
 
 # Plan: Fix `--restart-axe` missing TaskIndicator and success notification

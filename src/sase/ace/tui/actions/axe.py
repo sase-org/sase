@@ -237,6 +237,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             return (False, "Failed to start axe")
 
         self._axe_worker = self.run_worker(_do_start, thread=True)  # type: ignore[attr-defined]
+        self._update_task_indicator()  # type: ignore[attr-defined]
 
     def _stop_axe(self) -> None:
         """Stop the axe daemon in a background worker thread."""
@@ -252,6 +253,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             return (False, "Axe was not running")
 
         self._axe_worker = self.run_worker(_do_stop, thread=True)  # type: ignore[attr-defined]
+        self._update_task_indicator()  # type: ignore[attr-defined]
 
     def _restart_axe_daemon(self) -> None:
         """Restart axe daemon: stop then start in a background worker."""
@@ -270,6 +272,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
             return (False, "Failed to restart axe")
 
         self._axe_worker = self.run_worker(_do_restart, thread=True)  # type: ignore[attr-defined]
+        self._update_task_indicator()  # type: ignore[attr-defined]
 
     def _on_axe_worker_done(self, worker: Worker[Any], state: WorkerState) -> None:
         """Handle axe start/stop worker completion."""
@@ -277,13 +280,13 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
 
         if state == WorkerState.SUCCESS and worker.result is not None:
             success, message = worker.result
-            if not success:
-                self.notify(message, severity="error")  # type: ignore[attr-defined]
+            self.notify(message, severity="information" if success else "error")  # type: ignore[attr-defined]
         elif state == WorkerState.ERROR:
             error_msg = str(worker.error) if worker.error else "Unknown error"
             self.notify(f"Axe operation failed: {error_msg}", severity="error")  # type: ignore[attr-defined]
 
         self._load_axe_status()
+        self._update_task_indicator()  # type: ignore[attr-defined]
 
     def action_show_runners(self) -> None:
         """Show the runners modal with all current runners."""
