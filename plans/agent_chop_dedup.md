@@ -2,6 +2,7 @@
 create_time: 2026-03-27 17:21:42
 status: done
 ---
+
 # Plan: Prevent Duplicate Agent Chop Instances
 
 ## Problem
@@ -19,8 +20,8 @@ In `src/sase/axe/lumberjack.py`, `_run_agent_chop()` (line 189):
 3. The comment on line 81 says `# Track running agent processes per chop (multiple allowed)` — confirming this was
    deliberately designed without a singleton guard
 
-The `run_every` timer (lines 138-144) gates on elapsed time since last *launch*, not on whether the previous run
-*completed*. So once 60 minutes pass, a second agent spawns even though the first is still running.
+The `run_every` timer (lines 138-144) gates on elapsed time since last _launch_, not on whether the previous run
+_completed_. So once 60 minutes pass, a second agent spawns even though the first is still running.
 
 ## Fix
 
