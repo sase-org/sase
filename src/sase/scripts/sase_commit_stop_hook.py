@@ -207,7 +207,7 @@ def _get_changed_files(project_dir: str) -> tuple[bool, list[str]]:
     try:
         ok, value = provider.has_local_changes(project_dir)
         if ok and (value or "").strip().lower() == "true":
-            return (True, ["(unable to list changed files for this VCS provider)"])
+            return (True, [ "(unable to list changed files for this VCS provider)"])
     except NotImplementedError:
         pass
     except Exception:
