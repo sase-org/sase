@@ -102,8 +102,8 @@ chezmoi files will not be applied to the system (i.e. copied to their proper loc
 - The ../sase-nvim directory is a git repository that contains a plugin for Neovim integration (ex: for project spec
   file syntax highlighting).
 
-IMPORTANT: You can edit files in these repos if necessary. Just make sure to commit your changes to the corresponding
-repo using your `/sase_git_commit` skill (NOT `git commit`) after making them.
+IMPORTANT: You can edit files in these repos if necessary. Just make sure to run `just lint && just test` in each plugin
+repo that you've modified before terminating / replying to the user.
 
 ## Config Changes
 
