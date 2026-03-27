@@ -2,6 +2,7 @@
 create_time: 2026-03-27 17:32:33
 status: done
 ---
+
 # Plan: Remove `--note` option and fix commit message scope
 
 ## Problem
@@ -13,8 +14,8 @@ Two related issues with the `sase commit` workflow:
    agents never use it, and the message-file approach is strictly more capable (supports multi-line body).
 
 2. **Agents redescribe the entire PR on every commit.** The skills currently say "for `create_commit`, a single-line
-   `<tag>: <description>` is sufficient" but don't clarify that the description should cover *only this commit's
-   changes*. In practice, agents write a commit message summarizing all PR work, not just their delta. This produces
+   `<tag>: <description>` is sufficient" but don't clarify that the description should cover _only this commit's
+   changes_. In practice, agents write a commit message summarizing all PR work, not just their delta. This produces
    noisy COMMITS entries and redundant git history.
 
 ## Changes
@@ -24,6 +25,7 @@ Two related issues with the `sase commit` workflow:
 #### 1a. `src/sase/main/parser_commands.py`
 
 Remove the `-N, --note` argument (lines 61-65):
+
 ```python
 # DELETE these lines:
 commit_parser.add_argument(
@@ -36,6 +38,7 @@ commit_parser.add_argument(
 #### 1b. `src/sase/main/cl_handler.py`
 
 Remove the note passthrough (lines 46-47):
+
 ```python
 # DELETE these lines:
 if args.note:
@@ -45,6 +48,7 @@ if args.note:
 #### 1c. `src/sase/workflows/commit/workflow.py` (lines 453-467)
 
 Remove the `explicit_note` branch. Always derive note+body from the message:
+
 ```python
 # BEFORE:
 explicit_note = self._payload.get("note")
@@ -84,8 +88,8 @@ if len(parts) > 1 and parts[1].strip():
 
 ### Phase 2: Update skill files to scope commit messages correctly
 
-All 5 commit skill files need the same conceptual change: clarify that `create_commit`/`create_proposal` messages
-should describe **only the changes in this commit**, not the overall PR.
+All 5 commit skill files need the same conceptual change: clarify that `create_commit`/`create_proposal` messages should
+describe **only the changes in this commit**, not the overall PR.
 
 #### Files (all in chezmoi — `~/.local/share/chezmoi/home/`):
 
@@ -120,11 +124,13 @@ should describe **only the changes in this commit**, not the overall PR.
 **Step 5 flags** — remove the `--note` flag from the list and example:
 
 Remove:
+
 ```
 - `--note`: Optional note for COMMITS entry (used by `create_commit`).
 ```
 
 Update example:
+
 ```bash
 sase commit -m commit_message.md -f auth.py -f login.py --bead-id sase-42
 ```
@@ -132,11 +138,13 @@ sase commit -m commit_message.md -f auth.py -f login.py --bead-id sase-42
 ### Phase 3: Apply chezmoi and run checks
 
 After committing the chezmoi changes:
+
 ```bash
 chezmoi apply
 ```
 
 After committing the sase_101 changes:
+
 ```bash
 just install && just check
 ```
