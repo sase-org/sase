@@ -374,6 +374,14 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 _feedback_round += 1
                 _feedback_bullets.append(plan_result.feedback)
 
+                from datetime import UTC, datetime as _dt
+
+                update_meta_field(
+                    current_artifacts_dir,
+                    "feedback_submitted_at",
+                    _dt.now(UTC).isoformat(),
+                )
+
                 suffix = f".{_feedback_round + 1}"
                 current_role_suffix = suffix
                 _agent_step += 1
@@ -533,6 +541,13 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             update_meta_suffix(
                 current_artifacts_dir,
                 current_role_suffix or ".q",
+            )
+            from datetime import UTC, datetime as _dt
+
+            update_meta_field(
+                current_artifacts_dir,
+                "questions_submitted_at",
+                _dt.now(UTC).isoformat(),
             )
             # Clear the killed flag set by the questions command's
             # SIGTERM so the poll loop only exits on a NEW kill signal.

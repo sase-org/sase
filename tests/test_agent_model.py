@@ -351,6 +351,62 @@ def test_timestamps_display_with_plan_and_code() -> None:
     assert tags == ["WAIT", "BEGIN", "PLAN", "CODE", "END"]
 
 
+def test_timestamps_display_full_with_feedback_and_questions() -> None:
+    """Test timestamps_display includes FBACK and QUEST in correct order."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        run_start_time=datetime(2025, 6, 15, 10, 0, 5),
+        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
+        questions_time=datetime(2025, 6, 15, 10, 7, 0),
+        code_time=datetime(2025, 6, 15, 10, 10, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["WAIT", "BEGIN", "PLAN", "FBACK", "QUEST", "CODE", "END"]
+
+
+def test_timestamps_display_feedback_only() -> None:
+    """Test timestamps_display shows FBACK without QUEST."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["BEGIN", "PLAN", "FBACK", "END"]
+
+
+def test_timestamps_display_questions_only() -> None:
+    """Test timestamps_display shows QUEST without FBACK."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        questions_time=datetime(2025, 6, 15, 10, 7, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["BEGIN", "QUEST", "END"]
+
+
 def test_timestamps_display_plan_only() -> None:
     """Test timestamps_display shows PLAN without CODE when code_time is None."""
     agent = Agent(
@@ -402,6 +458,26 @@ def test_bundle_round_trip_plan_and_code_time() -> None:
     restored = Agent.from_bundle_dict(bundle)
     assert restored.plan_time == datetime(2025, 6, 15, 10, 5, 0)
     assert restored.code_time == datetime(2025, 6, 15, 10, 10, 0)
+
+
+def test_bundle_round_trip_feedback_and_questions_time() -> None:
+    """Test that feedback_time and questions_time survive bundle round-trip."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
+        questions_time=datetime(2025, 6, 15, 10, 7, 0),
+    )
+    bundle = agent.to_bundle_dict()
+    assert bundle["feedback_time"] == "2025-06-15T10:06:00"
+    assert bundle["questions_time"] == "2025-06-15T10:07:00"
+
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.feedback_time == datetime(2025, 6, 15, 10, 6, 0)
+    assert restored.questions_time == datetime(2025, 6, 15, 10, 7, 0)
 
 
 def test_bundle_round_trip_list_fields() -> None:

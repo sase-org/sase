@@ -159,6 +159,10 @@ class Agent:
     plan_time: datetime | None = None
     # When the coder agent was launched after plan approval (plan agents only)
     code_time: datetime | None = None
+    # When feedback was submitted on the plan
+    feedback_time: datetime | None = None
+    # When the agent submitted questions for user review
+    questions_time: datetime | None = None
 
     @property
     def effective_workspace_num(self) -> int | None:
@@ -263,6 +267,12 @@ class Agent:
 
         if self.plan_time is not None:
             parts.append(_fmt("PLAN", self.plan_time.strftime(fmt)))
+
+        if self.feedback_time is not None:
+            parts.append(_fmt("FBACK", self.feedback_time.strftime(fmt)))
+
+        if self.questions_time is not None:
+            parts.append(_fmt("QUEST", self.questions_time.strftime(fmt)))
 
         if self.code_time is not None:
             parts.append(_fmt("CODE", self.code_time.strftime(fmt)))
@@ -505,7 +515,14 @@ class Agent:
         }
 
         # Populate all optional fields from the bundle
-        _DATETIME_FIELDS = {"run_start_time", "stop_time", "plan_time", "code_time"}
+        _DATETIME_FIELDS = {
+            "run_start_time",
+            "stop_time",
+            "plan_time",
+            "code_time",
+            "feedback_time",
+            "questions_time",
+        }
         for f in dataclasses.fields(Agent):
             if f.name in kwargs:
                 continue
