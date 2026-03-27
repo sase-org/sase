@@ -198,6 +198,17 @@ def _finalize_loop(
             json.dump(done_marker, f, indent=2)
         print(f"Done marker written to: {done_path} (outcome: {state.loop_outcome})")
 
+    # For multi-step workflows the root artifacts directory (ctx.artifacts_dir)
+    # differs from the last step's directory (state.current_artifacts_dir).
+    # Write done.json to the root as well so that:
+    #   - _get_active_agent_names counts the root as done → name stays reserved
+    #   - claim_agent_name skips done artifacts → workflow_name is preserved
+    #   - find_named_agent can discover the completed workflow from the root
+    if state.current_artifacts_dir != ctx.artifacts_dir:
+        root_done_path = os.path.join(ctx.artifacts_dir, "done.json")
+        with open(root_done_path, "w", encoding="utf-8") as f:
+            json.dump(done_marker, f, indent=2)
+
     return _AgentExecResult(
         success=state.loop_outcome == "completed",
         saved_path=saved_path,
