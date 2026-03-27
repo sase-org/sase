@@ -338,7 +338,7 @@ class AgentList(OptionList):
         elif agent.status == "PLAN APPROVED":
             text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
         elif agent.status == "WAITING":
-            text.append(agent.status, style="bold #FF87D7")  # Pink
+            text.append(agent.status, style="bold #87D7FF")  # Light blue
         elif agent.status == "QUESTION":
             text.append(agent.status, style="bold #FFAF00")  # Amber/orange
         elif agent.status == "RETRYING":
