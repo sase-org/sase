@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 15:36:19
-status: wip
+status: done
 ---
 
 # Plan: Make `%wait:a` Work With Multi-Agent Workflows

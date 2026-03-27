@@ -10,7 +10,7 @@ import argparse
 import json
 from pathlib import Path
 
-from sase.agent.names import find_named_agent
+from sase.agent.names import find_named_agent, is_workflow_complete
 from sase.axe.chop_script_context import read_chop_context
 
 
@@ -65,10 +65,16 @@ def main() -> None:
             # Check if all dependencies are done
             all_done = True
             for name in waiting_for:
-                agent = find_named_agent(name)
-                if agent is None or not agent.is_done:
-                    all_done = False
-                    break
+                workflow_status = is_workflow_complete(name)
+                if workflow_status is not None:
+                    if not workflow_status:
+                        all_done = False
+                        break
+                else:
+                    agent = find_named_agent(name)
+                    if agent is None or not agent.is_done:
+                        all_done = False
+                        break
 
             if all_done:
                 cl_name = data.get("cl_name", "unknown")

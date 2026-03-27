@@ -179,6 +179,84 @@ def find_named_agent(name: str, *, only_done: bool = False) -> _NamedAgent | Non
     return best_match
 
 
+def is_workflow_complete(name: str) -> bool | None:
+    """Check whether all agents in a multi-agent workflow have completed.
+
+    Scans ``~/.sase/projects/*/artifacts/ace-run/*/agent_meta.json``
+    for agents whose ``workflow_name`` matches *name*.
+
+    Returns:
+        ``True`` — root has ``done.json`` and no child is still alive without one.
+        ``False`` — workflow exists but isn't fully complete.
+        ``None`` — no agents with ``workflow_name == name`` found (not a workflow).
+    """
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return None
+
+    # Collect all agents in this workflow
+    workflow_agents: list[tuple[Path, dict[str, object]]] = []
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        ace_run_dir = project_dir / "artifacts" / "ace-run"
+        if not ace_run_dir.exists():
+            continue
+
+        for artifact_dir in ace_run_dir.iterdir():
+            if not artifact_dir.is_dir():
+                continue
+
+            meta_path = artifact_dir / "agent_meta.json"
+            if not meta_path.exists():
+                continue
+
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            if data.get("workflow_name") == name:
+                workflow_agents.append((artifact_dir, data))
+
+    if not workflow_agents:
+        return None
+
+    # Find the root agent (no parent_timestamp)
+    root: tuple[Path, dict[str, object]] | None = None
+    children: list[tuple[Path, dict[str, object]]] = []
+    for artifact_dir, meta in workflow_agents:
+        if meta.get("parent_timestamp"):
+            children.append((artifact_dir, meta))
+        else:
+            root = (artifact_dir, meta)
+
+    if root is None:
+        # No root found — shouldn't happen, but treat as incomplete
+        return False
+
+    root_dir, _ = root
+    root_done = (root_dir / "done.json").exists()
+
+    if not root_done:
+        # Root not done — workflow is incomplete regardless
+        return False
+
+    # Root is done — check all children
+    for child_dir, child_meta in children:
+        child_done = (child_dir / "done.json").exists()
+        if not child_done and is_process_alive(child_meta, child_dir):
+            # Child is still alive and hasn't finished
+            return False
+
+    return True
+
+
 def claim_agent_name(name: str, claiming_dir: str) -> None:
     """Enforce agent name uniqueness by clearing stale name entries.
 

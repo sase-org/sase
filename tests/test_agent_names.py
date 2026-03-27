@@ -5,7 +5,12 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent.names import claim_agent_name, find_named_agent, get_next_auto_name
+from sase.agent.names import (
+    claim_agent_name,
+    find_named_agent,
+    get_next_auto_name,
+    is_workflow_complete,
+)
 
 # A PID that is guaranteed not to exist (beyond kernel PID_MAX_LIMIT)
 _DEAD_PID = 99_999_999
@@ -315,3 +320,125 @@ class TestGetNextAutoName:
             patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", dismissed_file),
         ):
             assert get_next_auto_name() == "a"
+
+
+class TestIsWorkflowComplete:
+    def test_no_workflow_agents_returns_none(self, tmp_path: Path) -> None:
+        """Returns None when no agents have matching workflow_name."""
+        _make_agent(tmp_path, "proj", "run1", "b", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is None
+
+    def test_no_projects_dir_returns_none(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is None
+
+    def test_root_alive_no_done(self, tmp_path: Path) -> None:
+        """Root alive without done.json → False."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=os.getpid(),
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is False
+
+    def test_root_done_all_children_done(self, tmp_path: Path) -> None:
+        """Root + coder both have done.json → True."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=_DEAD_PID,
+            done=True,
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run1",
+            pid=_DEAD_PID,
+            done=True,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is True
+
+    def test_root_done_child_alive(self, tmp_path: Path) -> None:
+        """Root done but coder still alive without done.json → False."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=_DEAD_PID,
+            done=True,
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run1",
+            pid=os.getpid(),
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is False
+
+    def test_root_done_child_dead_no_done(self, tmp_path: Path) -> None:
+        """Root done, intermediate child dead without done.json → True."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=_DEAD_PID,
+            done=True,
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run1",
+            pid=_DEAD_PID,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is True
+
+    def test_root_dead_no_done(self, tmp_path: Path) -> None:
+        """Root dead without done.json → False (crashed)."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=_DEAD_PID,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is False
+
+    def test_single_root_with_done(self, tmp_path: Path) -> None:
+        """Promoted root with no children yet, has done.json → True."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=_DEAD_PID,
+            done=True,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is True
