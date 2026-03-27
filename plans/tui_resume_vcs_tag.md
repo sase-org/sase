@@ -2,6 +2,7 @@
 create_time: 2026-03-27 19:03:08
 status: done
 ---
+
 # Plan: Improve TUI Resume Keymap VCS Tag References
 
 ## Problem
@@ -9,8 +10,8 @@ status: done
 The `r` (resume) keymap on the Agents tab prepends VCS workflow tags verbatim (e.g., `#gh:sase`). Two recent
 improvements to the Telegram Resume button (sase-telegram commits `43b6d08` and `f961d4b`) made the VCS tag smarter:
 
-1. **Branch name substitution**: When the agent has a specific branch/CL name, the VCS tag ref is swapped to that
-   branch name (e.g., `#gh:sase` → `#gh:sase_foobar_1`).
+1. **Branch name substitution**: When the agent has a specific branch/CL name, the VCS tag ref is swapped to that branch
+   name (e.g., `#gh:sase` → `#gh:sase_foobar_1`).
 2. **`@<name>` for PR agents**: When the agent's prompt contains `#pr`, the VCS tag ref becomes `@<name>` (e.g.,
    `#gh:sase` → `#gh:@foo`), which resolves to the agent's branch at runtime.
 
