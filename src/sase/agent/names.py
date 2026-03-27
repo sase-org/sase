@@ -518,14 +518,25 @@ def is_process_alive(meta: dict[str, object], artifact_dir: Path) -> bool:
     if not isinstance(pid, int):
         return False
 
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
+    # If the agent was explicitly stopped, it's dead regardless of PID state
+    if meta.get("stopped_at"):
         return False
-    except PermissionError:
-        # Process exists but owned by another user
-        return True
+
+    # Delegate zombie detection to the shared helper
+    from sase.ace.hooks.processes import is_process_running
+
+    if not is_process_running(pid):
+        return False
+
+    # Guard against PID recycling: verify the process is actually a sase agent
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+        if b"sase" not in cmdline and b"python" not in cmdline:
+            return False
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+
+    return True
 
 
 def _name_sequence() -> Iterator[str]:
