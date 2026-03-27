@@ -10,6 +10,7 @@ from sase.xprompt._parsing import (
     normalize_vcs_underscore_refs,
     parse_workflow_reference,
     preprocess_shorthand_syntax,
+    replace_ref_in_vcs_tag,
     replace_vcs_workflow_tags,
     strip_hitl_suffix,
 )
@@ -232,6 +233,39 @@ def test_extract_vcs_workflow_tag_directive_mixed_lines() -> None:
     with _patch_vcs_pattern():
         result = extract_vcs_workflow_tag("%plan\n%n:a #gh:sase Fix the bug")
         assert result == "#gh:sase "
+
+
+# Tests for replace_ref_in_vcs_tag
+
+
+def test_replace_ref_in_vcs_tag_colon() -> None:
+    """Test replacing ref in colon format: #gh:sase → #gh:new_branch."""
+    assert replace_ref_in_vcs_tag("#gh:sase ", "sase_foobar_1") == "#gh:sase_foobar_1 "
+
+
+def test_replace_ref_in_vcs_tag_paren() -> None:
+    """Test replacing ref in parenthesized format: #git(repo) → #git(new_branch)."""
+    assert replace_ref_in_vcs_tag("#git(repo) ", "new_branch") == "#git(new_branch) "
+
+
+def test_replace_ref_in_vcs_tag_hitl_bang() -> None:
+    """Test that !! HITL suffix is stripped: #gh!!:sase → #gh:new_branch."""
+    assert replace_ref_in_vcs_tag("#gh!!:sase ", "new_branch") == "#gh:new_branch "
+
+
+def test_replace_ref_in_vcs_tag_hitl_question() -> None:
+    """Test that ?? HITL suffix is stripped: #hg??:cl → #hg:new_branch."""
+    assert replace_ref_in_vcs_tag("#hg??:cl ", "new_branch") == "#hg:new_branch "
+
+
+def test_replace_ref_in_vcs_tag_underscore() -> None:
+    """Test replacing ref in underscore format: #gh_sase → #gh:new_branch."""
+    assert replace_ref_in_vcs_tag("#gh_sase ", "sase_foobar_1") == "#gh:sase_foobar_1 "
+
+
+def test_replace_ref_in_vcs_tag_bare() -> None:
+    """Test replacing ref on bare tag: #gh → #gh:new_branch."""
+    assert replace_ref_in_vcs_tag("#gh ", "new_branch") == "#gh:new_branch "
 
 
 # Tests for normalize_vcs_underscore_refs
