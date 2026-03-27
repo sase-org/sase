@@ -73,9 +73,10 @@ class AxeDisplayMixin:
         # Check if axe is running
         self.axe_running = proc.is_axe_running()
 
-        # Clear starting state once confirmed running
+        # Clear starting/restarting state once confirmed running
         if self.axe_running:
             self._set_axe_starting(False)
+            self._set_axe_restarting(False)
 
         # Clear stopping state once confirmed stopped
         if not self.axe_running:
@@ -440,5 +441,19 @@ class AxeDisplayMixin:
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             footer.set_axe_stopping(stopping)
+        except Exception:
+            pass
+
+    def _set_axe_restarting(self, restarting: bool) -> None:
+        """Set axe restarting state and update footer.
+
+        Args:
+            restarting: Whether axe is currently restarting.
+        """
+        from ..widgets import KeybindingFooter
+
+        try:
+            footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+            footer.set_axe_restarting(restarting)
         except Exception:
             pass

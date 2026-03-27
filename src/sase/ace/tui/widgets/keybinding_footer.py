@@ -45,6 +45,7 @@ class KeybindingFooter(Horizontal):
         self._axe_running: bool = False
         self._axe_starting: bool = False
         self._axe_stopping: bool = False
+        self._axe_restarting: bool = False
         self._bgcmd_running_count: int = 0
         self._bgcmd_done_count: int = 0
         self._runner_count: int = 0
@@ -89,6 +90,15 @@ class KeybindingFooter(Horizontal):
         self._axe_stopping = stopping
         self._update_status()
 
+    def set_axe_restarting(self, restarting: bool) -> None:
+        """Update the axe restarting state.
+
+        Args:
+            restarting: Whether axe daemon is currently restarting.
+        """
+        self._axe_restarting = restarting
+        self._update_status()
+
     def set_bgcmd_count(self, running_count: int, done_count: int) -> None:
         """Update the background command counts.
 
@@ -123,7 +133,9 @@ class KeybindingFooter(Horizontal):
             Formatted Text object for the status indicator.
         """
         text = Text()
-        if self._axe_starting:
+        if self._axe_restarting:
+            text.append(" RESTARTING ", style="bold black on rgb(0,191,255)")
+        elif self._axe_starting:
             text.append(" STARTING ", style="bold black on rgb(255,255,0)")
         elif self._axe_stopping:
             text.append(" STOPPING ", style="bold black on rgb(255,165,0)")

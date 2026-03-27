@@ -257,7 +257,7 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
         """Restart axe daemon: stop then start in a background worker."""
         if self._axe_worker is not None:
             return
-        self._set_axe_stopping(True)
+        self._set_axe_restarting(True)
 
         def _do_restart() -> tuple[bool, str]:
             proc = get_axe_process_module()
