@@ -116,15 +116,7 @@ def _build_name_instruction() -> str | None:
     return " ".join(parts)
 
 
-def _build_commit_instruction_message(skill: str, gemini: bool) -> str:
-    if gemini:
-        return (
-            "A post-completion hook has detected uncommitted changes. "
-            "Did you make these changes? If so, run: "
-            ".venv/bin/sase commit create --message '<msg>' to commit them. "
-            "If you did NOT make these changes, you can safely ignore this warning "
-            "— it will not appear again this session."
-        )
+def _build_commit_instruction_message(skill: str) -> str:
     return (
         "A post-completion hook has detected uncommitted changes. "
         f"Did you make these changes? If so, please commit them using your {skill} skill before continuing. "
@@ -299,7 +291,7 @@ def main() -> int:
         return _exit(0, reason="no_changes")
 
     skill = _resolve_commit_skill(project_dir)
-    commit_instruction = _build_commit_instruction_message(skill, gemini)
+    commit_instruction = _build_commit_instruction_message(skill)
     name_instruction = _build_name_instruction()
     if name_instruction:
         commit_instruction += " " + name_instruction
