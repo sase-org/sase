@@ -55,6 +55,14 @@ All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabil
 and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
 runtime lacks a capability that others have. Treat all runtimes uniformly.
 
+## CLI/Skill Contract Synchronization
+
+Any change to `sase commit` CLI arguments must include same-turn updates to:
+
+- In-repo callers/wrappers that invoke the changed arguments
+- Relevant skill `SKILL.md` files that document or demonstrate those arguments
+- Tests validating both CLI parsing and skill invocation examples
+
 ## Code Conventions
 
 - Use **absolute imports**: `from sase.foo import bar` (not relative)
