@@ -233,6 +233,7 @@ def load_agents_from_running_field(
 
 _DONE_AGENT_WORKFLOW_DIRS = [
     "ace-run",
+    "run",
     "fix-hook",
     "crs",
     "summarize-hook",

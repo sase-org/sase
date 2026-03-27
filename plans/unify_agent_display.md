@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 15:00:32
-status: wip
+status: done
 ---
 
 # Plan: Unify Agent Display Across Run Modes

@@ -485,6 +485,15 @@ def run_query(
     # Get project info for workspace claiming (creates project file if needed)
     project_file, workspace_num, _ = ensure_project_file_and_get_workspace_num()
 
+    # Resolve cl_name from project context for TUI display
+    cl_name = vcs_project
+    if cl_name is None and project_file:
+        cl_name = os.path.basename(os.path.dirname(project_file))
+
+    agent_model: str | None = None
+    agent_llm_provider: str | None = None
+    agent_vcs_provider: str | None = None
+
     # Resolve aliases before saving so history stores canonical names
     from sase.xprompt import resolve_xprompt_aliases
 
@@ -538,6 +547,54 @@ def run_query(
             # Not in a recognized project - skip artifacts
             artifacts_dir = None
 
+        # Save raw prompt for TUI display (matches daemon runner behavior)
+        if artifacts_dir:
+            raw_xprompt_path = os.path.join(artifacts_dir, "raw_xprompt.md")
+            with open(raw_xprompt_path, "w", encoding="utf-8") as f:
+                f.write(query)
+
+        # Write agent_meta.json for TUI model/provider display
+        if artifacts_dir:
+            from sase.xprompt.directives import extract_prompt_directives
+
+            _, directives = extract_prompt_directives(full_prompt)
+
+            from sase.llm_provider.registry import (
+                get_default_provider_name,
+                get_provider,
+                resolve_model_provider,
+            )
+
+            if directives.model:
+                resolved_provider, agent_model = resolve_model_provider(
+                    directives.model
+                )
+                agent_llm_provider = resolved_provider or get_default_provider_name()
+            else:
+                agent_llm_provider = get_default_provider_name()
+                provider = get_provider()
+                agent_model = provider.resolve_model_name()
+
+            from sase.vcs_provider._registry import detect_vcs
+
+            vcs_name = detect_vcs(os.getcwd())
+            if vcs_name:
+                from sase.workspace_provider import get_display_name_by_vcs
+
+                agent_vcs_provider = get_display_name_by_vcs(vcs_name)
+
+            agent_meta: dict[str, Any] = {"pid": os.getpid()}
+            if agent_model:
+                agent_meta["model"] = agent_model
+            if agent_llm_provider:
+                agent_meta["llm_provider"] = agent_llm_provider
+            if agent_vcs_provider:
+                agent_meta["vcs_provider"] = agent_vcs_provider
+
+            meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(agent_meta, f, indent=2)
+
         # Claim workspace with artifacts timestamp for prompt lookup
         if project_file and workspace_num:
             claim_workspace(
@@ -545,7 +602,7 @@ def run_query(
                 workspace_num,
                 "run",
                 os.getpid(),
-                None,
+                cl_name,
                 artifacts_timestamp=artifacts_timestamp,
             )
 
@@ -553,14 +610,61 @@ def run_query(
         anon_workflow = create_anonymous_workflow(full_prompt)
         if local_xprompts:
             anon_workflow.xprompts = local_xprompts
-        result = execute_workflow(
-            anon_workflow.name,
-            [],
-            {},
-            artifacts_dir=artifacts_dir,
-            workflow_obj=anon_workflow,
-            project=vcs_project,
-        )
+
+        workflow_error: Exception | None = None
+        try:
+            result = execute_workflow(
+                anon_workflow.name,
+                [],
+                {},
+                artifacts_dir=artifacts_dir,
+                workflow_obj=anon_workflow,
+                project=vcs_project,
+            )
+        except Exception as e:
+            workflow_error = e
+            result = None
+
+        # Write done.json completion marker for TUI visibility
+        if artifacts_dir:
+            from sase.axe.run_agent_phases import build_done_marker
+
+            outcome = "failed" if workflow_error else "completed"
+            done_marker = build_done_marker(
+                cl_name or "unknown",
+                project_file or "",
+                shared_timestamp,
+                artifacts_timestamp or "",
+                workspace_num or 0,
+                "",  # no output log for inline runs
+                outcome,
+                agent_model=agent_model,
+                agent_llm_provider=agent_llm_provider,
+                agent_vcs_provider=agent_vcs_provider,
+            )
+            if result and result.response_text:
+                response_path = os.path.join(artifacts_dir, "response.md")
+                with open(response_path, "w", encoding="utf-8") as f:
+                    f.write(result.response_text)
+                done_marker["response_path"] = response_path
+            if workflow_error:
+                import traceback
+
+                done_marker["error"] = (
+                    f"{type(workflow_error).__qualname__}: {workflow_error}"
+                )
+                done_marker["traceback"] = "".join(
+                    traceback.format_exception(workflow_error)
+                )
+
+            done_path = os.path.join(artifacts_dir, "done.json")
+            with open(done_path, "w", encoding="utf-8") as f:
+                json.dump(done_marker, f, indent=2)
+
+        # Re-raise workflow errors after writing done.json
+        if workflow_error:
+            raise workflow_error
+        assert result is not None
 
         # Extract response text for chat history
         response_content = result.response_text or ""
@@ -578,4 +682,4 @@ def run_query(
     finally:
         # Release workspace when done
         if project_file and workspace_num:
-            release_workspace(project_file, workspace_num, "run", None)
+            release_workspace(project_file, workspace_num, "run", cl_name)
