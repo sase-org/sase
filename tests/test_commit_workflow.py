@@ -178,17 +178,18 @@ class TestCommitWorkflowChangeSpec:
 
         assert wf.run() is True
 
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
     def test_no_changespec_for_create_commit(
-        self, mock_get: MagicMock, mock_provider: MagicMock
+        self, mock_get: MagicMock, mock_proj: MagicMock, mock_provider: MagicMock
     ) -> None:
         """ChangeSpec is only created for create_pull_request, not create_commit."""
         mock_get.return_value = mock_provider
         wf = CommitWorkflow({"message": "test", "files": []}, "create_commit")
 
-        with patch(_PROJECT_NAME_TARGET) as mock_proj:
+        with patch(_CHANGESPEC_TARGET) as mock_cs:
             wf.run()
-            mock_proj.assert_not_called()
+            mock_cs.assert_not_called()
 
 
 class TestCommitWorkflowValidation:
