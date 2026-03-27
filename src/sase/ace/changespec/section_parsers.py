@@ -26,6 +26,7 @@ class CommitEntryDict(TypedDict, total=False):
     proposal_letter: str | None
     suffix: str | None
     suffix_type: str | None
+    body: list[str] | None
 
 
 def build_commit_entry(
@@ -55,6 +56,11 @@ def build_commit_entry(
     suffix_type_val = entry_dict.get("suffix_type")
     suffix_type = str(suffix_type_val) if suffix_type_val is not None else None
 
+    body_val = entry_dict.get("body")
+    body: list[str] | None = (
+        list(body_val) if isinstance(body_val, list) and body_val else None
+    )
+
     return CommitEntry(
         number=number,
         note=note,
@@ -63,6 +69,7 @@ def build_commit_entry(
         proposal_letter=proposal_letter,
         suffix=suffix,
         suffix_type=suffix_type,
+        body=body,
     )
 
 
@@ -286,7 +293,7 @@ def parse_mentors_line(
 
 
 def parse_commits_line(
-    _line: str,
+    line: str,
     stripped: str,
     current_commit_entry: CommitEntryDict | None,
     commit_entries: list[CommitEntry],
@@ -349,6 +356,7 @@ def parse_commits_line(
             diff=None,
             suffix=suffix_msg,
             suffix_type=suffix_type_val,
+            body=None,
         )
     elif stripped.startswith("| CHAT:"):
         if current_commit_entry is not None:
@@ -356,6 +364,21 @@ def parse_commits_line(
     elif stripped.startswith("| DIFF:"):
         if current_commit_entry is not None:
             current_commit_entry["diff"] = stripped[7:].strip()
+    elif (
+        current_commit_entry is not None
+        and line.startswith("      ")
+        and not stripped.startswith("| ")
+    ):
+        # Body continuation line: 6-space indent, not a drawer line
+        body = current_commit_entry.get("body")
+        if body is None:
+            body = []
+            current_commit_entry["body"] = body
+        if stripped == ".":
+            # Blank line marker -> empty string in body list
+            body.append("")
+        else:
+            body.append(stripped)
     # If line doesn't match commit format, stay in commits mode
     # (blank lines or other content will be ignored)
 

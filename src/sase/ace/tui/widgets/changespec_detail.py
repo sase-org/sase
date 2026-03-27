@@ -240,7 +240,12 @@ class ChangeSpecDetail(Static):
             mentor_hint_to_info=mentor_hint_to_info,
         )
         hint_tracker = build_commits_section(
-            text, changespec, show_history_hints, commits_collapsed, hint_tracker
+            text,
+            changespec,
+            show_history_hints,
+            commits_collapsed,
+            hint_tracker,
+            max_width=self.size.width,
         )
 
         # Build HOOKS section

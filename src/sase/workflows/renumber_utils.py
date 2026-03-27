@@ -78,7 +78,8 @@ def build_commits_section(entries: list[dict[str, Any]]) -> list[str]:
     """Build the COMMITS section lines from a list of entry dicts.
 
     Args:
-        entries: List of entry dicts with keys: number, letter, note, chat, diff.
+        entries: List of entry dicts with keys: number, letter, note, chat, diff,
+            and optionally body.
 
     Returns:
         List of lines including the "COMMITS:" header.
@@ -89,6 +90,13 @@ def build_commits_section(entries: list[dict[str, Any]]) -> list[str]:
         letter = str(entry["letter"]) if entry["letter"] else ""
         note = entry["note"]
         new_commit_lines.append(f"  ({num}{letter}) {note}\n")
+        body = entry.get("body")
+        if body:
+            for body_line in body:
+                if body_line == "":
+                    new_commit_lines.append("      .\n")
+                else:
+                    new_commit_lines.append(f"      {body_line}\n")
         if entry["chat"]:
             new_commit_lines.append(f"      | CHAT: {entry['chat']}\n")
         if entry["diff"]:
@@ -145,6 +153,7 @@ def parse_commit_entries(
                 "note": entry_match.group(3),
                 "chat": None,
                 "diff": None,
+                "body": None,
             }
             if include_raw_lines:
                 current_entry["raw_lines"] = [line]
@@ -154,6 +163,20 @@ def parse_commit_entries(
                 current_entry["raw_lines"].append(line)
         elif stripped.startswith("| DIFF:") and current_entry:
             current_entry["diff"] = stripped[7:].strip()
+            if include_raw_lines:
+                current_entry["raw_lines"].append(line)
+        elif (
+            current_entry
+            and line.startswith("      ")
+            and not stripped.startswith("| ")
+        ):
+            # Body continuation line: 6-space indent, not a drawer line
+            if current_entry.get("body") is None:
+                current_entry["body"] = []
+            if stripped == ".":
+                current_entry["body"].append("")
+            else:
+                current_entry["body"].append(stripped)
             if include_raw_lines:
                 current_entry["raw_lines"].append(line)
         elif current_entry and stripped == "":
@@ -200,6 +223,9 @@ def find_commits_section(lines: list[str], cl_name: str) -> tuple[int, int]:
                 # Check if still in COMMITS section
                 if re.match(r"^\(\d+[a-z]?\)", stripped) or stripped.startswith("| "):
                     commits_end = i + 1  # Track last commit line
+                elif line.startswith("      ") and not stripped.startswith("| "):
+                    # Body continuation line (6-space indent, not a drawer)
+                    commits_end = i + 1
                 elif stripped and not stripped.startswith("#"):
                     # Non-commit content
                     break

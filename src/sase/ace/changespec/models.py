@@ -159,6 +159,9 @@ class CommitEntry:
     proposal_letter: str | None = None  # e.g., 'a', 'b', 'c' for proposed entries
     suffix: str | None = None  # e.g., "NEW PROPOSAL" (message without prefix)
     suffix_type: str | None = None  # "error" for !:, None for plain
+    body: list[str] | None = (
+        None  # Multi-line note body (empty strings = paragraph breaks)
+    )
 
     @property
     def is_proposed(self) -> bool:

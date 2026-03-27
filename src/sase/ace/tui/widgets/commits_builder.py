@@ -90,20 +90,32 @@ def _should_hide_rejected_proposals(commits_fold: FoldLevel) -> bool:
     return commits_fold != FoldLevel.FULLY_EXPANDED
 
 
+def _truncate_note(note: str, available: int) -> str:
+    """Truncate a note to fit within the available width, adding ellipsis if needed."""
+    if available <= 0:
+        return "\u2026"
+    if len(note) <= available:
+        return note
+    return note[: available - 1] + "\u2026"
+
+
 def build_commits_section(
     text: Text,
     changespec: ChangeSpec,
     show_history_hints: bool,
     commits_fold: FoldLevel,
     hint_tracker: HintTracker,
+    max_width: int | None = None,
 ) -> HintTracker:
     """Build the COMMITS section of the display.
 
     Fold levels:
     - COLLAPSED: Show CHAT/DIFF only for latest entry. Hide rejected proposals.
+      Body hidden, show [+N lines] indicator.
     - EXPANDED: Show CHAT/DIFF for all entries. Hide rejected proposals.
-      Fold summary only shows proposals.
+      Body shown in dimmer style.
     - FULLY_EXPANDED: Show everything including rejected proposals.
+      Body shown in dimmer style.
 
     Args:
         text: The Rich Text object to append to.
@@ -111,6 +123,7 @@ def build_commits_section(
         show_history_hints: Whether to show file path hints.
         commits_fold: Fold level for the commits section.
         hint_tracker: Current hint tracking state.
+        max_width: Optional maximum display width for truncation.
 
     Returns:
         Updated HintTracker with new hint mappings.
@@ -136,17 +149,42 @@ def build_commits_section(
             continue
 
         entry_style = "bold #D7AF5F"
-        text.append(f"  ({entry.display_number}) ", style=entry_style)
+        prefix_str = f"  ({entry.display_number}) "
+        text.append(prefix_str, style=entry_style)
+
+        # Calculate suffix width for truncation
+        suffix_width = 0
+        if entry.suffix:
+            # Approximate suffix display width: " - (PREFIX: MSG)" or " - (MSG)"
+            if entry.suffix_type == "error":
+                suffix_width = len(f" - (!: {entry.suffix})")
+            elif entry.suffix_type == "running_agent":
+                suffix_width = len(f" - (@: {entry.suffix})")
+            elif entry.suffix_type == "running_process":
+                suffix_width = len(f" - ($: {entry.suffix})")
+            elif entry.suffix_type == "rejected_proposal":
+                suffix_width = len(f" - (~!: {entry.suffix})")
+            else:
+                suffix_width = len(f" - ({entry.suffix})")
+
+        # Determine display note (possibly truncated)
+        display_note = entry.note
+        if max_width is not None:
+            available = max_width - len(prefix_str) - suffix_width
+            # Account for body/folded indicators that may follow
+            if entry.body and commits_fold == FoldLevel.COLLAPSED:
+                available -= len(f"  [+{len(entry.body)} lines]")
+            display_note = _truncate_note(entry.note, available)
 
         # Check if note contains a file path in parentheses
-        note_path_match = re.search(r"\((~/[^)]+)\)", entry.note)
+        note_path_match = re.search(r"\((~/[^)]+)\)", display_note)
         if show_history_hints and note_path_match:
             # Split the note around the path and add hint
             note_path = note_path_match.group(1)
             full_path = os.path.expanduser(note_path)
             hint_mappings[hint_counter] = full_path
-            before_path = entry.note[: note_path_match.start()]
-            after_path = entry.note[note_path_match.end() :]
+            before_path = display_note[: note_path_match.start()]
+            after_path = display_note[note_path_match.end() :]
             text.append(before_path, style="#D7D7AF")
             text.append("(", style="#D7D7AF")
             text.append(f"[{hint_counter}] ", style="bold #FFFF00")
@@ -154,7 +192,7 @@ def build_commits_section(
             text.append(f"){after_path}", style="#D7D7AF")
             hint_counter += 1
         else:
-            text.append(f"{entry.note}", style="#D7D7AF")
+            text.append(f"{display_note}", style="#D7D7AF")
 
         if entry.suffix:
             text.append(" - ")
@@ -179,6 +217,11 @@ def build_commits_section(
                 text.append(f"(~!: {entry.suffix})", style="bold #FF5F5F on #444444")
             else:
                 text.append(f"({entry.suffix})")
+
+        # Body fold indicator (shown when body exists but is collapsed)
+        show_body = entry.body and commits_fold != FoldLevel.COLLAPSED
+        if entry.body and not show_body:
+            text.append(f"  [+{len(entry.body)} lines]", style="italic #808080")
 
         # Determine if drawers should be shown for this entry
         show_drawers = _should_show_commits_drawers(entry, changespec, commits_fold)
@@ -213,6 +256,14 @@ def build_commits_section(
             text.append("]", style="italic #808080")
 
         text.append("\n")
+
+        # Render body lines when expanded
+        if entry.body and show_body:
+            for body_line in entry.body:
+                if body_line == "":
+                    text.append("\n")
+                else:
+                    text.append(f"      {body_line}\n", style="#B8B890")
 
         # CHAT field - only show if chat drawer visible
         if entry.chat and show_chat:

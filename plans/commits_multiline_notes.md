@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 17:06:30
-status: wip
+status: done
 ---
 
 # Plan: Multi-line COMMITS Notes with Truncation and Folding

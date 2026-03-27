@@ -212,6 +212,7 @@ def add_proposed_commit_entry(
     diff_path: str | None = None,
     chat_path: str | None = None,
     end_timestamp: str | None = None,
+    body: list[str] | None = None,
 ) -> tuple[bool, str | None]:
     """Add a proposed COMMITS entry to a ChangeSpec.
 
@@ -270,6 +271,11 @@ def add_proposed_commit_entry(
                             "| "
                         ):
                             last_commit_entry_line = i
+                        elif line.startswith("      ") and not stripped.startswith(
+                            "| "
+                        ):
+                            # Body continuation line (6-space indent, not a drawer)
+                            last_commit_entry_line = i
                         elif stripped and not stripped.startswith("#"):
                             # Non-commit, non-empty line - commits section ended
                             in_commits_section = False
@@ -287,6 +293,12 @@ def add_proposed_commit_entry(
             # Build the commit entry (2-space indented, sub-fields 6-space indented)
             # Add "(!: NEW PROPOSAL)" suffix to mark this as a new proposal needing attention
             entry_lines = [f"  ({entry_id}) {note} - (!: NEW PROPOSAL)\n"]
+            if body:
+                for body_line in body:
+                    if body_line == "":
+                        entry_lines.append("      .\n")
+                    else:
+                        entry_lines.append(f"      {body_line}\n")
             if chat_path:
                 entry_lines.append(
                     format_chat_line_with_duration(chat_path, end_timestamp)
@@ -341,6 +353,7 @@ def add_commit_entry_with_id(
     diff_path: str | None = None,
     chat_path: str | None = None,
     end_timestamp: str | None = None,
+    body: list[str] | None = None,
 ) -> tuple[bool, str | None]:
     """Add a new COMMITS entry to a ChangeSpec, returning the entry ID.
 
@@ -388,6 +401,11 @@ def add_commit_entry_with_id(
                             "| "
                         ):
                             last_commit_entry_line = i
+                        elif line.startswith("      ") and not stripped.startswith(
+                            "| "
+                        ):
+                            # Body continuation line (6-space indent, not a drawer)
+                            last_commit_entry_line = i
                         elif stripped and not stripped.startswith("#"):
                             # Non-commit, non-empty line - commits section ended
                             in_commits_section = False
@@ -408,6 +426,12 @@ def add_commit_entry_with_id(
 
             # Build the commit entry (2-space indented, sub-fields 6-space indented)
             entry_lines = [f"  ({next_num}) {note}\n"]
+            if body:
+                for body_line in body:
+                    if body_line == "":
+                        entry_lines.append("      .\n")
+                    else:
+                        entry_lines.append(f"      {body_line}\n")
             if chat_path:
                 entry_lines.append(
                     format_chat_line_with_duration(chat_path, end_timestamp)
@@ -462,6 +486,7 @@ def add_commit_entry(
     diff_path: str | None = None,
     chat_path: str | None = None,
     end_timestamp: str | None = None,
+    body: list[str] | None = None,
 ) -> bool:
     """Add a new COMMITS entry to a ChangeSpec.
 
@@ -474,11 +499,12 @@ def add_commit_entry(
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.
         end_timestamp: Optional end timestamp for duration calculation.
+        body: Optional multi-line note body.
 
     Returns:
         True if successful, False otherwise.
     """
     ok, _ = add_commit_entry_with_id(
-        project_file, cl_name, note, diff_path, chat_path, end_timestamp
+        project_file, cl_name, note, diff_path, chat_path, end_timestamp, body
     )
     return ok

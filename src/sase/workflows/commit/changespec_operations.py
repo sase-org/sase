@@ -109,7 +109,7 @@ def add_changespec_to_project_file(
     parent: str | None,
     cl_url: str | None = None,
     initial_hooks: list[str] | None = None,
-    initial_commits: list[tuple[int, str, str | None, str | None]] | None = None,
+    initial_commits: list[tuple] | None = None,
     bug: str | None = None,
     cl_label: str = "CL",
     status: str = "Draft",
@@ -165,8 +165,18 @@ def add_changespec_to_project_file(
         from sase.workflows.commit_utils.entries import format_chat_line_with_duration
 
         commits_lines = ["COMMITS:\n"]
-        for num, note, chat_path, diff_path in initial_commits:
+        for commit_tuple in initial_commits:
+            num, note, chat_path, diff_path = commit_tuple[:4]
+            commit_body: list[str] | None = (
+                commit_tuple[4] if len(commit_tuple) > 4 else None
+            )
             commits_lines.append(f"  ({num}) {note}\n")
+            if commit_body:
+                for body_line in commit_body:
+                    if body_line == "":
+                        commits_lines.append("      .\n")
+                    else:
+                        commits_lines.append(f"      {body_line}\n")
             if chat_path:
                 commits_lines.append(format_chat_line_with_duration(chat_path))
             if diff_path:

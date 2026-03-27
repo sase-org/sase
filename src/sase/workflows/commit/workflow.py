@@ -450,12 +450,21 @@ class CommitWorkflow(BaseWorkflow):
         ):
             return None
 
-        # Build note: --note payload → first line of commit message → fallback
-        note = (
-            self._payload.get("note")
-            or (self._payload.get("message", "").split("\n")[0])
-            or "Manual changes"
-        )
+        # Build note + body: --note payload → commit message → fallback
+        # The header is the first line; everything after the first blank line is
+        # the body.
+        explicit_note = self._payload.get("note")
+        if explicit_note:
+            note = explicit_note
+            body: list[str] | None = None
+        else:
+            message = self._payload.get("message", "")
+            parts = message.split("\n\n", 1)
+            note = (parts[0].split("\n")[0]) or "Manual changes"
+            if len(parts) > 1 and parts[1].strip():
+                body = parts[1].splitlines()
+            else:
+                body = None
 
         # For proposals, prepend workflow identifier if available
         if self._method == "create_proposal":
@@ -477,6 +486,7 @@ class CommitWorkflow(BaseWorkflow):
                 note=note,
                 diff_path=self._diff_path,
                 chat_path=chat_path,
+                body=body,
             )
         else:
             ok, entry_id = add_commit_entry_with_id(
@@ -485,6 +495,7 @@ class CommitWorkflow(BaseWorkflow):
                 note=note,
                 diff_path=self._diff_path,
                 chat_path=chat_path,
+                body=body,
             )
         return entry_id if ok else None
 

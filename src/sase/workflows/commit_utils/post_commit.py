@@ -59,8 +59,13 @@ def append_post_commit_entry(
     if not isinstance(commit_result, dict):
         return PostCommitResult(success=False)
 
-    # Build note from commit message
-    note = (commit_result.get("message") or "Agent changes").split("\n")[0]
+    # Build note + body from commit message
+    message = commit_result.get("message") or "Agent changes"
+    parts = message.split("\n\n", 1)
+    note = parts[0].split("\n")[0]
+    body: list[str] | None = None
+    if len(parts) > 1 and parts[1].strip():
+        body = list(parts[1].splitlines())
 
     # diff_path comes from commit_result.json (captured pre-commit by
     # CommitWorkflow._capture_pre_commit_diff)
@@ -81,6 +86,7 @@ def append_post_commit_entry(
             note=note,
             diff_path=diff_path,
             chat_path=response_path,
+            body=body,
         )
         return PostCommitResult(success=ok, entry_id=entry_id)
     else:
@@ -90,5 +96,6 @@ def append_post_commit_entry(
             note=note,
             diff_path=diff_path,
             chat_path=response_path,
+            body=body,
         )
         return PostCommitResult(success=ok, entry_id=entry_id)
