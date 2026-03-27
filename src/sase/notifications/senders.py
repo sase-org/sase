@@ -83,8 +83,8 @@ def notify_axe_error_digest(
         sender="axe",
         notes=[f"{len(errors)} error(s) in the last hour"],
         files=[str(digest_file)],
-        action=None,
-        action_data={},
+        action="ViewErrorReport",
+        action_data={"error_report_path": str(digest_file)},
     )
     append_notification(n)
 
