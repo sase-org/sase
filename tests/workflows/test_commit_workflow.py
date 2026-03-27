@@ -274,3 +274,140 @@ def test_detect_parent_returns_none_when_self_parent() -> None:
         return_value="same_name",
     ):
         assert wf._detect_parent_changespec() is None
+
+
+# --- _append_commits_entry (human CLI path, no env vars) ---
+
+
+def _make_commit_workflow(
+    message: str = "Fix a bug",
+    note: str | None = None,
+    method: str = "create_commit",
+) -> CommitWorkflow:
+    """Create a CommitWorkflow for commit/proposal tests."""
+    payload: dict = {"message": message}
+    if note is not None:
+        payload["note"] = note
+    return CommitWorkflow(payload=payload, method=method)
+
+
+def test_append_commits_entry_human_cli_uses_note(tmp_path: Path) -> None:
+    """--note value is used as the COMMITS entry text (no env vars)."""
+    project_file = tmp_path / "proj.gp"
+    project_file.write_text(
+        "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
+    )
+
+    wf = _make_commit_workflow(note="[man] Revert BUILD changes")
+    wf._cl_name = "my_branch"
+    wf._project_file = str(project_file)
+
+    entry_id = wf._append_commits_entry()
+    assert entry_id == "1"
+
+    content = project_file.read_text()
+    assert "[man] Revert BUILD changes" in content
+
+
+def test_append_commits_entry_human_cli_falls_back_to_message(tmp_path: Path) -> None:
+    """First line of commit message is used when --note is absent."""
+    project_file = tmp_path / "proj.gp"
+    project_file.write_text(
+        "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
+    )
+
+    wf = _make_commit_workflow(message="First line\nSecond line")
+    wf._cl_name = "my_branch"
+    wf._project_file = str(project_file)
+
+    entry_id = wf._append_commits_entry()
+    assert entry_id == "1"
+
+    content = project_file.read_text()
+    assert "First line" in content
+    assert "Second line" not in content
+
+
+def test_append_commits_entry_returns_none_without_project_file() -> None:
+    """Returns None when project file cannot be resolved."""
+    wf = _make_commit_workflow()
+    wf._cl_name = "my_branch"
+    wf._project_file = None
+
+    assert wf._append_commits_entry() is None
+
+
+def test_append_commits_entry_returns_none_without_cl_name(tmp_path: Path) -> None:
+    """Returns None when CL name cannot be resolved."""
+    project_file = tmp_path / "proj.gp"
+    project_file.write_text("NAME: x\nSTATUS: Pending\n")
+
+    wf = _make_commit_workflow()
+    wf._cl_name = None
+    wf._project_file = str(project_file)
+
+    assert wf._append_commits_entry() is None
+
+
+def test_append_commits_entry_includes_diff_path(tmp_path: Path) -> None:
+    """Diff path captured pre-commit is included in the COMMITS entry."""
+    project_file = tmp_path / "proj.gp"
+    project_file.write_text(
+        "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
+    )
+    diff_file = tmp_path / "my.diff"
+    diff_file.write_text("diff content")
+
+    wf = _make_commit_workflow(note="with diff")
+    wf._cl_name = "my_branch"
+    wf._project_file = str(project_file)
+    wf._diff_path = str(diff_file)
+
+    entry_id = wf._append_commits_entry()
+    assert entry_id == "1"
+
+    content = project_file.read_text()
+    assert f"DIFF: {diff_file}" in content
+
+
+# --- _capture_pre_commit_diff fallback ---
+
+
+def test_capture_pre_commit_diff_fallback_to_sase_diffs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Diff is saved to ~/.sase/diffs/ when SASE_ARTIFACTS_DIR is not set."""
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    wf = _make_commit_workflow()
+    wf._cl_name = "my_branch"
+
+    mock_provider = MagicMock()
+    mock_provider.diff.return_value = (True, "diff --git a/f b/f\n+hello\n")
+
+    wf._capture_pre_commit_diff(mock_provider, str(tmp_path))
+
+    assert wf._diff_path is not None
+    assert wf._diff_path.startswith(str(fake_home / ".sase" / "diffs"))
+    assert wf._diff_path.endswith(".diff")
+    assert "my_branch" in wf._diff_path
+    assert Path(wf._diff_path).read_text() == "diff --git a/f b/f\n+hello\n"
+
+
+def test_capture_pre_commit_diff_skips_without_cl_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Diff capture is skipped when neither SASE_ARTIFACTS_DIR nor cl_name is available."""
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    wf = _make_commit_workflow()
+    wf._cl_name = None
+
+    mock_provider = MagicMock()
+    wf._capture_pre_commit_diff(mock_provider, "/tmp")
+
+    assert wf._diff_path is None
+    mock_provider.diff.assert_not_called()

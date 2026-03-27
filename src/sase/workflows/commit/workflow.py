@@ -28,6 +28,8 @@ class CommitWorkflow(BaseWorkflow):
         self._base_cl_name: str | None = None
         self._parent_cl_name: str | None = None
         self._diff_path: str | None = None
+        self._cl_name: str | None = None
+        self._project_file: str | None = None
 
     @property
     def name(self) -> str:
@@ -102,6 +104,12 @@ class CommitWorkflow(BaseWorkflow):
 
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)
+
+        # Resolve CL name and project file for COMMITS entries and diff
+        # capture.  Cached on self so both _capture_pre_commit_diff and
+        # _append_commits_entry use the same values without double resolution.
+        self._cl_name = self._resolve_cl_name()
+        self._project_file = self._resolve_project_file()
 
         # Capture diff before VCS commit so it can be recorded in the
         # COMMITS entry.  After the commit the working-tree diff is empty.
@@ -361,23 +369,65 @@ class CommitWorkflow(BaseWorkflow):
             print_status(f"Skipping ChangeSpec: {exc}", "warning")
             return None
 
+    def _resolve_cl_name(self) -> str | None:
+        """Resolve the CL name from env var or current branch."""
+        cl_name = os.environ.get("SASE_AGENT_CL_NAME")
+        if cl_name:
+            return cl_name
+        try:
+            from sase.workflows.utils import get_cl_name_from_branch
+
+            return get_cl_name_from_branch()
+        except Exception:
+            return None
+
+    def _resolve_project_file(self) -> str | None:
+        """Resolve the project file path from env var or workspace detection."""
+        project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+        if project_file:
+            return project_file
+        try:
+            from sase.workflows.utils import (
+                get_project_file_path,
+                get_project_from_workspace,
+            )
+
+            project_name = get_project_from_workspace()
+            if not project_name:
+                return None
+            return get_project_file_path(project_name)
+        except Exception:
+            return None
+
     def _capture_pre_commit_diff(self, provider: VCSProvider, cwd: str) -> None:
         """Capture VCS diff before committing and save it for the COMMITS entry.
 
         After the VCS commit the working-tree diff is empty, so this must run
-        beforehand.  The saved path is included in ``commit_result.json`` so
-        that :func:`append_post_commit_entry` can attach it to the entry.
+        beforehand.  When ``SASE_ARTIFACTS_DIR`` is set (agent context), the
+        diff is saved there.  Otherwise it falls back to
+        ``~/.sase/diffs/<cl_name>-<timestamp>.diff`` so human CLI commits get
+        diffs too.
         """
         artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-        if not artifacts_dir:
-            return
+        if artifacts_dir:
+            diff_path = os.path.join(artifacts_dir, "commit_diff.diff")
+        else:
+            if not self._cl_name:
+                return
+            from sase.core.time import generate_timestamp
+
+            diffs_dir = os.path.expanduser("~/.sase/diffs")
+            os.makedirs(diffs_dir, exist_ok=True)
+            diff_path = os.path.join(
+                diffs_dir, f"{self._cl_name}-{generate_timestamp()}.diff"
+            )
+
         try:
             ok, diff_text = provider.diff(cwd)  # type: ignore[union-attr]
         except Exception:
             return
         if not ok or not diff_text:
             return
-        diff_path = os.path.join(artifacts_dir, "commit_diff.diff")
         try:
             with open(diff_path, "w", encoding="utf-8") as f:
                 f.write(diff_text)
@@ -387,11 +437,44 @@ class CommitWorkflow(BaseWorkflow):
 
     def _append_commits_entry(self) -> str | None:
         """Append a COMMITS entry after successful commit/proposal. Returns entry_id."""
-        from sase.workflows.commit_utils.post_commit import append_post_commit_entry
+        if (
+            not self._project_file
+            or not self._cl_name
+            or not os.path.isfile(self._project_file)
+        ):
+            return None
 
-        mode = "proposal" if self._method == "create_proposal" else "commit"
-        result = append_post_commit_entry(mode=mode)
-        return result.entry_id if result.success else None
+        # Build note: --note payload → first line of commit message → fallback
+        note = (
+            self._payload.get("note")
+            or (self._payload.get("message", "").split("\n")[0])
+            or "Manual changes"
+        )
+
+        chat_path = os.environ.get("SASE_AGENT_CHAT_PATH")
+
+        from sase.workflows.commit_utils.entries import (
+            add_commit_entry_with_id,
+            add_proposed_commit_entry,
+        )
+
+        if self._method == "create_proposal":
+            ok, entry_id = add_proposed_commit_entry(
+                project_file=self._project_file,
+                cl_name=self._cl_name,
+                note=note,
+                diff_path=self._diff_path,
+                chat_path=chat_path,
+            )
+        else:
+            ok, entry_id = add_commit_entry_with_id(
+                project_file=self._project_file,
+                cl_name=self._cl_name,
+                note=note,
+                diff_path=self._diff_path,
+                chat_path=chat_path,
+            )
+        return entry_id if ok else None
 
     def _write_result_marker(
         self,

@@ -514,9 +514,6 @@ class TestGetMetaChangespecName:
         assert get_meta_changespec_name(agent) is None
 
 
-_POST_COMMIT_TARGET = "sase.workflows.commit_utils.post_commit.append_post_commit_entry"
-
-
 class TestProposalSkipsBeadsAndPlan:
     """Verify that create_proposal skips bead and plan handling."""
 
@@ -531,10 +528,7 @@ class TestProposalSkipsBeadsAndPlan:
         with (
             patch.object(wf, "_handle_beads") as mock_beads,
             patch.object(wf, "_handle_sase_plan") as mock_plan,
-            patch(
-                _POST_COMMIT_TARGET,
-                return_value=MagicMock(success=False, entry_id=None),
-            ),
+            patch.object(wf, "_append_commits_entry", return_value=None),
         ):
             assert wf.run() is True
             mock_beads.assert_not_called()
@@ -551,10 +545,7 @@ class TestProposalSkipsBeadsAndPlan:
         with (
             patch.object(wf, "_handle_beads") as mock_beads,
             patch.object(wf, "_handle_sase_plan") as mock_plan,
-            patch(
-                _POST_COMMIT_TARGET,
-                return_value=MagicMock(success=False, entry_id=None),
-            ),
+            patch.object(wf, "_append_commits_entry", return_value=None),
         ):
             assert wf.run() is True
             mock_beads.assert_called_once()
@@ -562,32 +553,45 @@ class TestProposalSkipsBeadsAndPlan:
 
 
 class TestAppendCommitsEntry:
-    """Verify _append_commits_entry delegates correctly."""
+    """Verify _append_commits_entry calls entry functions directly."""
 
-    def test_returns_entry_id_on_success(self) -> None:
+    _COMMIT_ENTRY_TARGET = (
+        "sase.workflows.commit_utils.entries.add_commit_entry_with_id"
+    )
+    _PROPOSAL_ENTRY_TARGET = (
+        "sase.workflows.commit_utils.entries.add_proposed_commit_entry"
+    )
+
+    def test_returns_entry_id_on_success(self, tmp_path: Path) -> None:
+        project_file = tmp_path / "proj.gp"
+        project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
         wf = CommitWorkflow({"message": "test"}, "create_commit")
+        wf._cl_name = "branch"
+        wf._project_file = str(project_file)
         with patch(
-            _POST_COMMIT_TARGET,
-            return_value=MagicMock(success=True, entry_id="entry_99"),
-        ) as mock_append:
+            self._COMMIT_ENTRY_TARGET,
+            return_value=(True, "99"),
+        ) as mock_add:
             result = wf._append_commits_entry()
-            assert result == "entry_99"
-            mock_append.assert_called_once_with(mode="commit")
+            assert result == "99"
+            mock_add.assert_called_once()
 
     def test_returns_none_on_failure(self) -> None:
         wf = CommitWorkflow({"message": "test"}, "create_commit")
-        with patch(
-            _POST_COMMIT_TARGET,
-            return_value=MagicMock(success=False, entry_id=None),
-        ):
-            assert wf._append_commits_entry() is None
+        wf._cl_name = None
+        wf._project_file = None
+        assert wf._append_commits_entry() is None
 
-    def test_uses_proposal_mode_for_create_proposal(self) -> None:
+    def test_uses_proposal_mode_for_create_proposal(self, tmp_path: Path) -> None:
+        project_file = tmp_path / "proj.gp"
+        project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
         wf = CommitWorkflow({"message": "test"}, "create_proposal")
+        wf._cl_name = "branch"
+        wf._project_file = str(project_file)
         with patch(
-            _POST_COMMIT_TARGET,
-            return_value=MagicMock(success=True, entry_id="entry_50"),
-        ) as mock_append:
+            self._PROPOSAL_ENTRY_TARGET,
+            return_value=(True, "0a"),
+        ) as mock_add:
             result = wf._append_commits_entry()
-            assert result == "entry_50"
-            mock_append.assert_called_once_with(mode="proposal")
+            assert result == "0a"
+            mock_add.assert_called_once()
