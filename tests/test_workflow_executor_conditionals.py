@@ -5,6 +5,7 @@ import tempfile
 from typing import Any
 
 from sase.xprompt.workflow_executor import WorkflowExecutor
+from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import (
     StepStatus,
     Workflow,
@@ -82,6 +83,37 @@ def test_if_condition_empty_string_skips() -> None:
 # ============================================================================
 # TestEvaluateCondition - _evaluate_condition method
 # ============================================================================
+
+
+def test_int_default_compared_to_int_output_not_skipped() -> None:
+    """Test that an int default is preserved so int-vs-int conditions work.
+
+    Regression test: str() wrapping of defaults caused Jinja2 TypeError
+    on int >= str comparisons, which _evaluate_condition caught as False.
+    """
+    steps = [
+        WorkflowStep(
+            name="produce_count",
+            python='import json; print(json.dumps({"count": 45}))',
+        ),
+        WorkflowStep(
+            name="guarded",
+            bash="echo ran",
+            condition="{{ produce_count.count >= threshold }}",
+        ),
+    ]
+    workflow = Workflow(
+        name="test_int_default",
+        inputs=[InputArg(name="threshold", type=InputType.INT, default=10)],
+        steps=steps,
+    )
+    # Pass threshold as int (the fixed runner preserves the int default)
+    executor = _create_executor(workflow, {"threshold": 10})
+
+    success = executor.execute()
+
+    assert success
+    assert executor.state.steps[1].status == StepStatus.COMPLETED
 
 
 # ============================================================================

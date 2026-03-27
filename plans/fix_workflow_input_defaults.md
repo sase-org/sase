@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-27 16:42:05
-status: wip
+status: done
 ---
 
 # Plan: Fix workflow input default type coercion

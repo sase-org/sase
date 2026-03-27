@@ -400,9 +400,7 @@ def execute_workflow(
         # Apply defaults for missing inputs
         for input_arg in workflow.inputs:
             if input_arg.name not in render_ctx and input_arg.default is not UNSET:
-                render_ctx[input_arg.name] = (
-                    "null" if input_arg.default is None else str(input_arg.default)
-                )
+                render_ctx[input_arg.name] = input_arg.default
 
         content = workflow.get_prompt_part_content()
         rendered = render_template(content, render_ctx)
@@ -458,10 +456,7 @@ def execute_workflow(
     # Apply defaults for missing args
     for input_arg in workflow.inputs:
         if input_arg.name not in args and input_arg.default is not UNSET:
-            if input_arg.default is None:
-                args[input_arg.name] = "null"
-            else:
-                args[input_arg.name] = str(input_arg.default)
+            args[input_arg.name] = input_arg.default
 
     # Process step inputs: load from @file or parse inline YAML/JSON
     # Step inputs allow users to skip steps by providing their outputs directly
@@ -575,10 +570,7 @@ def expand_workflow_for_embedding(
     # Apply defaults for missing args
     for input_arg in workflow.inputs:
         if input_arg.name not in args and input_arg.default is not UNSET:
-            if input_arg.default is None:
-                args[input_arg.name] = "null"
-            else:
-                args[input_arg.name] = str(input_arg.default)
+            args[input_arg.name] = input_arg.default
 
     # Get pre and post steps
     pre_steps = workflow.get_pre_prompt_steps()
