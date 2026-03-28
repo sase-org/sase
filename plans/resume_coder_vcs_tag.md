@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 17:21:04
-status: wip
+status: done
 ---
 
 # Plan: Fix resume VCS tag for coder agents

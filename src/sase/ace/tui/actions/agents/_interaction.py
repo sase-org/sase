@@ -11,14 +11,24 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
-def _resolve_vcs_tag(agent: Agent, name: str) -> str | None:
+def _resolve_vcs_tag(
+    agent: Agent, name: str, agents: list[Agent] | None = None
+) -> str | None:
     """Resolve a VCS workflow tag for the given agent, applying smart ref replacement.
+
+    Falls back to the parent agent's raw_xprompt when the current agent (e.g. a
+    coder follow-up) doesn't have its own raw_xprompt.md.
 
     Returns the tag string (with trailing space) or None if no VCS tag found.
     """
     from sase.xprompt import extract_vcs_workflow_tag, replace_ref_in_vcs_tag
 
     raw_content = agent.get_raw_xprompt_content()
+    if not raw_content and agent.parent_timestamp and agents:
+        for parent in agents:
+            if parent.raw_suffix == agent.parent_timestamp:
+                raw_content = parent.get_raw_xprompt_content()
+                break
     if not raw_content:
         return None
 
@@ -368,7 +378,7 @@ class AgentInteractionMixin:
             name = agent.agent_name
             prefix = f"#resume:{name} %w:{name} "
 
-            vcs_tag = _resolve_vcs_tag(agent, name)
+            vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
             if vcs_tag:
                 prefix = f"{vcs_tag}{prefix}"
 
@@ -390,7 +400,7 @@ class AgentInteractionMixin:
         name = agent.agent_name
         prefix = f"#resume:{name} "
 
-        vcs_tag = _resolve_vcs_tag(agent, name)
+        vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
         if vcs_tag:
             prefix = f"{vcs_tag}{prefix}"
 
@@ -418,7 +428,7 @@ class AgentInteractionMixin:
         name = agent.agent_name
         prefix = f"%w:{name} "
 
-        vcs_tag = _resolve_vcs_tag(agent, name)
+        vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
         if vcs_tag:
             prefix = f"{vcs_tag}{prefix}"
 
