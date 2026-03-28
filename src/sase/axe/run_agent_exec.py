@@ -78,6 +78,7 @@ class LoopState:
     feedback_round: int = 0
     agent_step: int = 1
     allow_retry: bool = True
+    saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
 
 
 def _finalize_loop(
@@ -134,6 +135,22 @@ def _finalize_loop(
             extra_sections=extra,
         )
         print(f"\nChat history saved to: {saved_path}")
+
+        # Cross-link all chat files in multi-step workflows
+        state.saved_chat_paths.append(
+            (state.current_role_suffix or ".code", saved_path)
+        )
+        if len(state.saved_chat_paths) > 1:
+            from sase.history.chat_links import (
+                append_links_to_chat,
+                build_linked_chats_section,
+            )
+
+            for role, path in state.saved_chat_paths:
+                links_section = build_linked_chats_section(
+                    state.saved_chat_paths, current_role=role
+                )
+                append_links_to_chat(os.path.expanduser(path), links_section)
 
         # Read plan_path from plan_path.json if written by claude.py
         plan_path: str | None = None

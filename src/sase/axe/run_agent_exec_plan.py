@@ -159,6 +159,27 @@ def handle_plan_marker(
     # in the file panel for the .plan agent entry.
     _write_plan_path_artifact(state.current_artifacts_dir, plan_result.plan_file)
 
+    # Save a chat file for the planner step (the LLM response was lost
+    # to SIGTERM, so we use a plan-file preview as the synthetic response).
+    from sase.history.chat import save_chat_history
+    from sase.history.chat_extras import format_extra_sections
+    from sase.history.chat_links import format_plan_as_response
+
+    plan_response = format_plan_as_response(plan_result.plan_file)
+    planner_agent = f"{ctx.agent_name}.plan" if ctx.agent_name else None
+    _planner_extra = format_extra_sections(state.current_artifacts_dir)
+    _planner_chat = save_chat_history(
+        prompt=state.current_prompt,
+        response=plan_response,
+        workflow="ace-run",
+        agent=planner_agent,
+        timestamp=ctx.timestamp,
+        extra_sections=_planner_extra,
+    )
+    _planner_suffix = state.current_role_suffix or ".plan"
+    state.saved_chat_paths.append((_planner_suffix, _planner_chat))
+    update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)
+
     # Feedback: spawn a new agent with the original prompt +
     # accumulated "Additional Requirements" section.
     if plan_result.action == "feedback":
@@ -358,6 +379,24 @@ def handle_questions_marker(
     )
     if response is None:
         return "killed"
+
+    # Save a chat file for the questions step
+    from sase.history.chat import save_chat_history
+    from sase.history.chat_extras import format_extra_sections
+
+    _q_agent = f"{ctx.agent_name}.q" if ctx.agent_name else None
+    _q_extra = format_extra_sections(state.current_artifacts_dir)
+    _q_chat = save_chat_history(
+        prompt=state.current_prompt,
+        response=format_qa_for_prompt(response),
+        workflow="ace-run",
+        agent=_q_agent,
+        timestamp=ctx.timestamp,
+        extra_sections=_q_extra,
+    )
+    _q_suffix = state.current_role_suffix or ".q"
+    state.saved_chat_paths.append((_q_suffix, _q_chat))
+    update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
 
     state.agent_step += 1
     if state.agent_step == 2 and ctx.agent_name:
