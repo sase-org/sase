@@ -26,6 +26,19 @@ def get_vcs_provider_config() -> dict[str, Any]:
         return {}
 
 
+def get_pr_tags() -> dict[str, str]:
+    """Read ``vcs_provider.pr_tags`` from the merged config.
+
+    Returns:
+        A dict of TAG → VALUE pairs (empty if unset).
+    """
+    config = get_vcs_provider_config()
+    tags = config.get("pr_tags")
+    if not isinstance(tags, dict):
+        return {}
+    return {str(k): str(v) for k, v in tags.items()}
+
+
 def get_workspace_root() -> str | None:
     """Get the workspace root directory.
 

@@ -100,6 +100,7 @@ class CommitWorkflow(BaseWorkflow):
             self._parent_cl_name = self._detect_parent_changespec()
 
         if self._method == "create_pull_request":
+            self._append_pr_tags()
             self._build_pr_body()
 
         provider = get_vcs_provider(cwd)
@@ -270,6 +271,18 @@ class CommitWorkflow(BaseWorkflow):
         except Exception:
             pass
         return ""
+
+    def _append_pr_tags(self) -> None:
+        """Append configured pr_tags to the commit message."""
+        from sase.vcs_provider.config import get_pr_tags
+
+        tags = get_pr_tags()
+        if not tags:
+            return
+
+        tag_lines = "\n".join(f"{k}={v}" for k, v in tags.items())
+        message = self._payload.get("message", "")
+        self._payload["message"] = f"{message}\n\n{tag_lines}"
 
     def _build_pr_body(self) -> None:
         """Append agent info footer to PR body via _pr_body payload field."""
