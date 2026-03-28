@@ -208,13 +208,16 @@ vcs_provider:
   default_hooks: # optional list overriding built-in default hooks
     - "!$my_presubmit"
     - "$my_lint"
+  pr_tags: # optional key-value tags appended to PR commit messages
+    Bug: "b/12345"
 ```
 
-| Field                         | Type         | Default  | Description                                                         |
-| ----------------------------- | ------------ | -------- | ------------------------------------------------------------------- |
-| `vcs_provider.provider`       | string       | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection. |
-| `vcs_provider.workspace_root` | string       | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
-| `vcs_provider.default_hooks`  | list[string] | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
+| Field                         | Type              | Default  | Description                                                         |
+| ----------------------------- | ----------------- | -------- | ------------------------------------------------------------------- |
+| `vcs_provider.provider`       | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection. |
+| `vcs_provider.workspace_root` | string            | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
+| `vcs_provider.default_hooks`  | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
+| `vcs_provider.pr_tags`        | dict[string, str] | `{}`     | Key-value tags appended as `TAG=VALUE` lines to PR commit messages. |
 
 When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (e.g., the
 `sase-google` plugin supplies Mercurial-specific hooks). The core `sase` package has no built-in default hooks.

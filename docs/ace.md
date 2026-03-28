@@ -108,11 +108,11 @@ COMMITS, HOOKS, and MENTORS sections each cycle through three fold levels:
 | Level              | Behavior                                                                           |
 | ------------------ | ---------------------------------------------------------------------------------- |
 | **Collapsed**      | Notes truncated to fit; multi-line body shown as `[+N lines]`; only latest drawers |
-| **Expanded**       | Full notes; body shown in dimmed text; all CHAT/DIFF drawers visible               |
+| **Expanded**       | Full notes; body shown in dimmed text; all CHAT/DIFF/PLAN drawers visible          |
 | **Fully Expanded** | Everything visible including rejected proposals                                    |
 
-When collapsed, a `[folded: CHAT + DIFF + N proposals]` indicator appears on entries with hidden content. The indicator
-width is pre-calculated so that note truncation accounts for it.
+When collapsed, a `[folded: CHAT + DIFF + PLAN + N proposals]` indicator appears on entries with hidden content. The
+indicator width is pre-calculated so that note truncation accounts for it.
 
 ### Workflows and Agents
 

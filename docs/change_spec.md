@@ -245,8 +245,47 @@ KICKSTART:
 
 ### COMMITS
 
-Tracks the commit history associated with this CL. Each entry records a commit hash, message, and optional metadata.
-This section is managed automatically by `sase commit` and `sase amend`.
+Tracks the commit history associated with this CL. This section is managed automatically by `sase commit`.
+
+**Entry format:**
+
+```
+COMMITS:
+  (1) First commit note
+      | CHAT: ~/.sase/chats/mybranch-commit-260328_143052.md (2m15s)
+      | DIFF: ~/.sase/diffs/mybranch-260328_143052.diff
+      | PLAN: plans/my_plan.md
+  (2) Second commit note
+      Multi-line body continues here with 6-space indent.
+      Blank body lines use a dot (.) placeholder.
+      .
+      Another paragraph after the blank line.
+      | CHAT: ~/.sase/chats/mybranch-commit-260328_153012.md (1m42s)
+      | DIFF: ~/.sase/diffs/mybranch-260328_153012.diff
+  (2a) Proposed alternative - (!: NEW PROPOSAL)
+      | DIFF: ~/.sase/diffs/mybranch-260328_160000.diff
+```
+
+**Entry numbering:**
+
+- Regular entries use sequential integers: `(1)`, `(2)`, `(3)`, ...
+- Proposal entries use the last regular number plus a letter suffix: `(2a)`, `(2b)`, ...
+- Proposals are marked with `(!: NEW PROPOSAL)` to flag them for review.
+
+**Multi-line body:** The first line of the commit message becomes the note. Subsequent paragraphs (separated by a blank
+line in the original message) become 6-space-indented body lines below the note. Empty body lines are stored as a dot
+(`.`) placeholder to preserve structure.
+
+**Drawers:** Each entry can have zero or more drawer lines (6-space indent, `| ` prefix):
+
+| Drawer | Format                         | Description                                     |
+| ------ | ------------------------------ | ----------------------------------------------- |
+| `CHAT` | `\| CHAT: <path> (<duration>)` | Agent chat log file with optional run duration  |
+| `DIFF` | `\| DIFF: <path>`              | Saved diff file                                 |
+| `PLAN` | `\| PLAN: <path>`              | Plan file associated with this commit (via SDD) |
+
+The CHAT drawer's duration (e.g., `2m15s`) is calculated from the chat filename timestamp to the commit time. The PLAN
+drawer is emitted when the `SASE_PLAN` environment variable is set during the commit workflow.
 
 ### HOOKS
 

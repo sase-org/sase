@@ -2,6 +2,7 @@
 create_time: 2026-03-28 11:57:50
 status: done
 ---
+
 # Fix: `#pr` bug_id not propagated to ChangeSpec BUG field
 
 ## Problem
