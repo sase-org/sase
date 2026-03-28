@@ -121,6 +121,11 @@ def _base_patches(artifacts_dir: str) -> dict[str, Any]:
         f"{_EXEC}.extract_step_output_and_diff_path": MagicMock(
             return_value=(None, None)
         ),
+        # --- chat history (patched at source so shell commands are skipped) ---
+        "sase.history.chat.generate_chat_filename": MagicMock(return_value="test_chat"),
+        "sase.history.chat.get_chat_file_path": MagicMock(
+            return_value="/tmp/test_chat.md"
+        ),
         # --- xprompt (patched at source) ---
         "sase.xprompt.resolve_xprompt_aliases": MagicMock(side_effect=lambda x: x),
         "sase.xprompt._parsing.extract_vcs_workflow_tag": MagicMock(return_value=None),
