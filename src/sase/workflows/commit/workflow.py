@@ -240,9 +240,10 @@ class CommitWorkflow(BaseWorkflow):
                 else os.path.basename(plan_path)
             )
 
-        # Append PLAN= to commit message
-        message = self._payload.get("message", "")
-        self._payload["message"] = f"{message}\n\nPLAN={plan_rel}"
+        # Append PLAN= to commit message (only for version-controlled projects)
+        if version_controlled:
+            message = self._payload.get("message", "")
+            self._payload["message"] = f"{message}\n\nPLAN={plan_rel}"
 
         # Mark plan as done
         subprocess.run(

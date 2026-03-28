@@ -221,7 +221,7 @@ class TestHandleSasePlan:
         assert "PLAN=plans/my_plan.md" in payload["message"]
 
     def test_vc_false_does_not_copy_plan(self, tmp_path: Path) -> None:
-        """version_controlled=False: plan NOT copied, no _plan_path, PLAN= still appended."""
+        """version_controlled=False: plan NOT copied, no _plan_path, no PLAN= tag."""
         plan_file = tmp_path / "my_plan.md"
         plan_file.write_text("# Plan\nstatus: wip\n")
 
@@ -240,7 +240,7 @@ class TestHandleSasePlan:
 
         assert "_plan_path" not in payload
         assert not (repo_dir / "plans").exists()
-        assert "PLAN=" in payload["message"]
+        assert "PLAN=" not in payload["message"]
 
     def test_archive_fallback_vc_true_copies(self, tmp_path: Path) -> None:
         """Archive fallback + version_controlled=True: copies into repo."""
@@ -295,4 +295,4 @@ class TestHandleSasePlan:
 
         assert "_plan_path" not in payload
         assert not (repo_dir / "plans").exists()
-        assert "PLAN=" in payload["message"]
+        assert "PLAN=" not in payload["message"]
