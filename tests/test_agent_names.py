@@ -416,8 +416,53 @@ class TestIsWorkflowComplete:
         with patch.object(Path, "home", return_value=tmp_path):
             assert is_workflow_complete("a") is True
 
-    def test_root_dead_no_done(self, tmp_path: Path) -> None:
-        """Root dead without done.json → False (crashed)."""
+    def test_root_dead_no_done_children_done(self, tmp_path: Path) -> None:
+        """Root dead without done.json but all children done → True."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=_DEAD_PID,
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run1",
+            pid=_DEAD_PID,
+            done=True,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is True
+
+    def test_root_dead_no_done_child_alive(self, tmp_path: Path) -> None:
+        """Root dead without done.json, child still alive → False."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run1",
+            "a.1",
+            workflow_name="a",
+            pid=_DEAD_PID,
+        )
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run1",
+            pid=os.getpid(),
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is False
+
+    def test_root_dead_no_done_no_children(self, tmp_path: Path) -> None:
+        """Root dead without done.json and no children → False."""
         _make_agent(
             tmp_path,
             "proj",
@@ -442,3 +487,18 @@ class TestIsWorkflowComplete:
         )
         with patch.object(Path, "home", return_value=tmp_path):
             assert is_workflow_complete("a") is True
+
+    def test_no_root_children_exist(self, tmp_path: Path) -> None:
+        """Children exist but no root agent found → None."""
+        _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "a.2",
+            workflow_name="a",
+            parent_timestamp="run1",
+            pid=_DEAD_PID,
+            done=True,
+        )
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert is_workflow_complete("a") is None

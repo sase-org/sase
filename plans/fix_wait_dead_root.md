@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 14:20:34
-status: wip
+status: done
 ---
 
 # Plan: Fix `%wait` Resolution When Root Agent Is Dead Without `done.json`

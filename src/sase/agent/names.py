@@ -244,14 +244,21 @@ def is_workflow_complete(name: str) -> bool | None:
         # resolution via find_named_agent.
         return None
 
-    root_dir, _ = root
+    root_dir, root_meta = root
     root_done = (root_dir / "done.json").exists()
 
     if not root_done:
-        # Root not done — workflow is incomplete regardless
-        return False
+        if is_process_alive(root_meta, root_dir):
+            # Root still running — may write done.json later
+            return False
+        # Root is dead without done.json (crashed/killed between
+        # workflow_state.json write and done.json write).  Fall through
+        # to check children so the workflow can still resolve as complete
+        # when all children are done/dead.
+        if not children:
+            return False
 
-    # Root is done — check all children
+    # Root is done (or dead without done.json) — check all children
     for child_dir, child_meta in children:
         child_done = (child_dir / "done.json").exists()
         if not child_done and is_process_alive(child_meta, child_dir):
