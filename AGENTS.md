@@ -39,13 +39,15 @@ have changed).
 
 ### Glossary
 
-- **xprompt** : Triggered with strings like `#foo` in agent prompts, where foo must be in an xprompts/ directory
-  (several location supported) or in a ~/.config/sase/sase.yml file (see the `xprompts` field). If definded in an
-  xprompts/ directory, it must be a .md file or a .yml file.
-- **xprompt part** : If defined by a .md file, an xprompt is considered to be an "xprompt part" and is equivalent to
+- **ChangeSpec COMMITS Drawer**: A line of the form `| <NAME>: <FILE_PATH>` that goes underneith a ChangeSpec COMMITS
+  entry. There can be one or more of these.
+- **xprompt**: Triggered with strings like `#foo` in agent prompts, where foo must be in an xprompts/ directory (several
+  location supported) or in a ~/.config/sase/sase.yml file (see the `xprompts` field). If definded in an xprompts/
+  directory, it must be a .md file or a .yml file.
+- **xprompt Part**: If defined by a .md file, an xprompt is considered to be an "xprompt part" and is equivalent to
   defining the same prompt in a .yml file in a xprompts/ directory where the only step is a `prompt_part` step that has
   the same content as the .md file.
-- **xprompt workflow** : If defined by a .yml file, an xprompt is considered to be an "xprompt workflow" and can have
+- **xprompt Workflow**: If defined by a .yml file, an xprompt is considered to be an "xprompt workflow" and can have
   multiple steps of any (ex: `prompt_part` allows you to expand `#foo` into some pre-defined content, `python` or `bash`
   let you run code, etc.).
 
