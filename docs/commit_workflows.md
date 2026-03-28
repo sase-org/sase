@@ -54,6 +54,8 @@ Bead lifecycle     (close bead, sync beads, inject bead ID into message)  [skip 
     |
 Plan handling      (append PLAN= to message, mark plan done)              [skip for proposals]
     |
+Detect parent CL   (auto-set PARENT from current branch's ChangeSpec)     [PR only]
+    |
 PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
     |
 VCS dispatch       (call provider.create_commit / create_proposal / create_pull_request)
@@ -126,7 +128,9 @@ Creates an actual git commit on the current branch and pushes it.
 
 **Returns:** `(True, commit_hash)`
 
-**Tracking:** Appends a COMMITS entry to the project file with the commit note and diff path.
+**Tracking:** Appends a COMMITS entry to the project file with the commit note and diff path. Multi-line commit messages
+are supported: the first paragraph becomes the note, and subsequent paragraphs (separated by a blank line) become an
+indented body below the note. Empty body lines are stored as a dot (`.`) placeholder to preserve structure.
 
 ### Propose (`#propose`)
 
@@ -166,6 +170,9 @@ input:
 5. (GitHub plugin creates the actual PR via `gh`)
 
 **Returns:** `(True, pr_url)` after GitHub plugin processing
+
+**Parent detection:** If the current branch corresponds to an existing ChangeSpec, that ChangeSpec is automatically set
+as the PARENT of the new PR ChangeSpec. This creates a chain of related changes without manual bookkeeping.
 
 **Tracking:** Creates a ChangeSpec in the project file (not a COMMITS entry). The PR name is automatically suffixed with
 `_<N>` if a ChangeSpec with the same base name already exists.

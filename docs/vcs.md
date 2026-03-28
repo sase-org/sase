@@ -41,14 +41,17 @@ The hooks are organized into several groups:
   `vcs_add_remove`, `vcs_clean_workspace`, `vcs_commit`, `vcs_amend`, `vcs_rename_branch`, `vcs_rebase`, `vcs_archive`,
   `vcs_prune`, `vcs_stash_and_clean`
 - **Optional core** — `vcs_resolve_revision`, `vcs_show_revision`, `vcs_diff_with_untracked`, `vcs_committed_diff`,
-  `vcs_get_default_parent_revision`
+  `vcs_get_default_parent_revision`, `vcs_file_at_revision`
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`, `vcs_get_conflicted_files`,
   `vcs_continue_sync`, `vcs_abort_sync`
+- **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`, `vcs_create_pull_request` (the three commit workflow
+  methods dispatched by `CommitWorkflow`)
+- **VCS-agnostic operations** — `vcs_abandon_change`, `vcs_prepare_description_for_reword`, `vcs_get_change_url`
+- **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`, `vcs_get_branch_name`,
+  `vcs_get_cl_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`,
+  `vcs_upload`, `vcs_find_reviewers`, `vcs_rewind`
 - **Classification hooks** — `vcs_detect_repo_type` (detect VCS markers like `.hg/` or `.git/`) and `vcs_classify_repo`
   (classify git repos by remote URL, e.g. GitHub vs bare)
-- **Info and review hooks** — `vcs_reword`, `vcs_get_description`, `vcs_get_branch_name`, `vcs_get_cl_number`,
-  `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`, `vcs_upload`,
-  `vcs_find_reviewers`, `vcs_rewind`, `vcs_get_change_url`
 
 ### Disabling Plugins
 
@@ -119,45 +122,19 @@ family.
 
 ### `sase commit`
 
-Creates a new commit with formatted CL description and metadata tracking.
+Dispatches to one of three VCS methods (`create_commit`, `create_proposal`, `create_pull_request`) via the
+`CommitWorkflow` orchestrator. See [`docs/commit_workflows.md`](commit_workflows.md) for the full workflow reference.
 
-**VCS operations performed:**
+**Key VCS operations used:**
 
-1. **Get bug number** — `get_bug_number()` to populate the BUG= tag
-2. **Get workspace name** — `get_workspace_name()` to determine the project prefix
-3. **Save diff** — `diff()` + `add_remove()` to capture the pre-commit diff
-4. **Checkout parent** — `checkout(parent_branch)` to handle rebasing onto the correct parent
-5. **Create commit** — `commit(name, logfile)` to create the actual commit
-6. **Run fixes** — `fix()` to run automatic code fixes
-7. **Upload** — `upload()` to upload the change for review
-8. **Get change URL** — `get_change_url()` to retrieve the CL/PR URL
-9. **Rename branch** — `rename_branch(suffixed_name)` if a naming suffix was added
-
-| Operation      | Git                                                       | Mercurial                                         |
-| -------------- | --------------------------------------------------------- | ------------------------------------------------- |
-| Bug number     | Returns empty string (not applicable)                     | `sase_hg_branch_bug` command                      |
-| Workspace name | `git config --get remote.origin.url` (extracts repo name) | `workspace_name` command                          |
-| Create commit  | `git checkout -b <name>` + `git commit -F <logfile>`      | `hg commit --name "<name>" --logfile "<logfile>"` |
-| Fix            | No-op (returns success)                                   | `hg fix`                                          |
-| Upload         | No-op (returns success)                                   | `hg upload tree`                                  |
-| Change URL     | `gh pr view --json url -q .url`                           | `http://cl/<branch_number>`                       |
-| Rename branch  | `git branch -m <new_name>`                                | `sase_hg_rename <new_name>`                       |
-
-### `sase amend`
-
-Amends the current commit with COMMITS tracking. Has a **propose mode** that saves changes without amending.
-
-**VCS operations performed:**
-
-1. **Get branch name** — `get_branch_name()` to determine the current CL
-2. **Save diff** — captures uncommitted changes before amending
-3. **Amend commit** — `amend(note)` to amend the current revision
-4. In **propose mode**: `clean_workspace()` instead of amending
-
-| Operation       | Git                                       | Mercurial                            |
-| --------------- | ----------------------------------------- | ------------------------------------ |
-| Amend           | `git commit --amend -m <note>`            | `sase_hg_amend [--no-upload] <note>` |
-| Clean workspace | `git reset --hard HEAD` + `git clean -fd` | `hg update --clean .` + `hg clean`   |
+| Operation       | Git                                                       | Mercurial                                         |
+| --------------- | --------------------------------------------------------- | ------------------------------------------------- |
+| Bug number      | Returns empty string (not applicable)                     | `sase_hg_branch_bug` command                      |
+| Workspace name  | `git config --get remote.origin.url` (extracts repo name) | `workspace_name` command                          |
+| Create commit   | `git add` + `git commit` + `git push`                     | `hg commit --name "<name>" --logfile "<logfile>"` |
+| Create proposal | Save diff + `git reset --hard` + `git clean -fd`          | `sase_hg_clean <diff_name>`                       |
+| Create PR       | Branch + commit + push + `gh pr create`                   | Not supported natively                            |
+| Change URL      | `gh pr view --json url -q .url`                           | `http://cl/<branch_number>`                       |
 
 ### `sase ace` TUI Actions
 

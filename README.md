@@ -135,7 +135,20 @@ sase
 | `sase axe lumberjack`      | List, run, or check status of lumberjacks                                        |
 | `sase axe start`           | Start the lumberjack-based daemon (orchestrator mode)                            |
 | `sase axe stop`            | Stop the running axe orchestrator                                                |
-| `sase bead`                | Lightweight git-native issue tracking (plans, phases, dependencies)              |
+| `sase bead blocked`        | Show blocked issues                                                              |
+| `sase bead close`          | Close an issue (with optional reason)                                            |
+| `sase bead create`         | Create a new issue (plan or phase)                                               |
+| `sase bead dep add`        | Add a dependency between issues                                                  |
+| `sase bead doctor`         | Run health checks on the bead database                                           |
+| `sase bead init`           | Initialize `.sase_beads/` in the current directory                               |
+| `sase bead list`           | List issues (with optional status/type filters)                                  |
+| `sase bead onboard`        | Show quick-start guide                                                           |
+| `sase bead ready`          | Show issues ready to work (unblocked, open)                                      |
+| `sase bead rm`             | Remove an issue                                                                  |
+| `sase bead show`           | Show issue details                                                               |
+| `sase bead stats`          | Show project statistics                                                          |
+| `sase bead sync`           | Sync bead database with git                                                      |
+| `sase bead update`         | Update an issue (title, description, status, assignee, etc.)                     |
 | `sase comments`            | Preview mentor comments from JSON with syntax-highlighted code context           |
 | `sase commit`              | Create a commit with formatted CL description and metadata                       |
 | `sase config layers`       | Show per-layer breakdown of the configuration merge chain                        |
@@ -149,7 +162,7 @@ sase
 | `sase questions`           | Ask the user questions (used by `/sase_questions` skill)                         |
 | `sase restore`             | Restore a reverted ChangeSpec by re-applying its diff                            |
 | `sase revert`              | Revert a ChangeSpec by pruning its CL and archiving its diff                     |
-| `sase run`                 | Execute workflows, resume agents, run queries, or open editor/history picker     |
+| `sase run`                 | Run a workflow, execute a query, resume a conversation, or list chat history     |
 | `sase search`              | Search and filter ChangeSpecs with query expressions                             |
 | `sase xprompt expand`      | Expand prompt templates with sase references (supports `--trace`)                |
 | `sase xprompt explain`     | Dry-run visualization of a workflow's execution plan                             |

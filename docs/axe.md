@@ -179,7 +179,8 @@ control over background resource usage.
 
 ## Process Lifecycle
 
-1. `sase axe start` spawns the orchestrator as a detached background process
+1. `sase axe start` checks for an existing orchestrator via PID file. If one is running, it sends SIGTERM (waits 15
+   seconds) then SIGKILL if needed, preventing duplicate orchestrators from corrupting shared state
 2. The orchestrator spawns all configured lumberjacks as child processes
 3. Each lumberjack runs its chops on its configured interval
 4. The orchestrator monitors children and restarts any that exit unexpectedly

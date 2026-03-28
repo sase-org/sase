@@ -213,6 +213,21 @@ Execute Python code:
 
 Python steps run in a subprocess with access to installed packages.
 
+### Hidden Steps
+
+Any step can be marked `hidden: true` to suppress it from the ACE TUI Agents tab. Hidden steps execute normally but
+don't appear as visible agents. This is useful for internal bookkeeping steps (e.g., report steps that emit metadata
+outputs) that would clutter the agent list:
+
+```yaml
+- name: report
+  hidden: true
+  python: |
+    import json
+    print(json.dumps({"meta_commit_message": "..."}))
+  output: { meta_commit_message: text }
+```
+
 ### Parallel Steps
 
 Execute multiple nested steps concurrently:
