@@ -41,20 +41,20 @@ class TestResolveVcsTag:
         agent = _make_agent(
             cl_name="my_feature_branch",
             project_dir="my_project",
-            raw_content="#gh:my_project do stuff",
+            raw_content="#git:my_project do stuff",
         )
         result = _resolve_vcs_tag(agent, "agentname")
         assert result is not None
         assert "my_feature_branch" in result
         # Should NOT contain the original ref
-        assert "#gh:my_project " not in result
+        assert "#git:my_project " not in result
 
     def test_pr_agent_uses_at_name(self) -> None:
         """Project agent with #pr in prompt uses @<name>."""
         agent = _make_agent(
             cl_name="my_project",
             project_dir="my_project",
-            raw_content="#gh:my_project #pr do stuff",
+            raw_content="#git:my_project #pr do stuff",
         )
         result = _resolve_vcs_tag(agent, "agentname")
         assert result is not None
@@ -65,11 +65,11 @@ class TestResolveVcsTag:
         agent = _make_agent(
             cl_name="my_project",
             project_dir="my_project",
-            raw_content="#gh:my_project do stuff",
+            raw_content="#git:my_project do stuff",
         )
         result = _resolve_vcs_tag(agent, "agentname")
         assert result is not None
-        assert "#gh:my_project " == result
+        assert "#git:my_project " == result
 
     def test_paren_format_branch_substitution(self) -> None:
         """Parenthesized VCS tag format also gets branch substitution."""
