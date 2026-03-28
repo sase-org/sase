@@ -240,3 +240,55 @@ def test_add_commit_entry_with_id_nonexistent_file() -> None:
     )
     assert ok is False
     assert entry_id is None
+
+
+def test_add_commit_entry_with_plan_path() -> None:
+    """Test that add_commit_entry_with_id emits | PLAN: when given a plan_path."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("NAME: test_cl\n")
+        f.write("STATUS: Ready\n")
+        temp_path = f.name
+
+    try:
+        ok, entry_id = add_commit_entry_with_id(
+            project_file=temp_path,
+            cl_name="test_cl",
+            note="Implement plan",
+            diff_path="~/.sase/diffs/test.diff",
+            plan_path="~/.sase/plans/plan_foo.md",
+        )
+        assert ok is True
+        assert entry_id == "1"
+
+        with open(temp_path) as f:
+            content = f.read()
+        assert "      | DIFF: ~/.sase/diffs/test.diff" in content
+        assert "      | PLAN: ~/.sase/plans/plan_foo.md" in content
+    finally:
+        os.unlink(temp_path)
+
+
+def test_add_proposed_commit_entry_with_plan_path() -> None:
+    """Test that add_proposed_commit_entry emits | PLAN: when given a plan_path."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("NAME: test_cl\n")
+        f.write("STATUS: Ready\n")
+        f.write("COMMITS:\n")
+        f.write("  (1) First commit\n")
+        temp_path = f.name
+
+    try:
+        success, entry_id = add_proposed_commit_entry(
+            project_file=temp_path,
+            cl_name="test_cl",
+            note="Proposed with plan",
+            plan_path="~/.sase/plans/plan_bar.md",
+        )
+        assert success is True
+        assert entry_id == "1a"
+
+        with open(temp_path) as f:
+            content = f.read()
+        assert "      | PLAN: ~/.sase/plans/plan_bar.md" in content
+    finally:
+        os.unlink(temp_path)

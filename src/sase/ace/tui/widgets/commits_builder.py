@@ -178,7 +178,10 @@ def build_commits_section(
         )
         has_folded_chat = not show_chat and entry.chat
         has_folded_diff = not show_drawers and entry.diff
-        has_folded_content = has_folded_chat or has_folded_diff or rejected_proposals
+        has_folded_plan = not show_drawers and entry.plan
+        has_folded_content = (
+            has_folded_chat or has_folded_diff or has_folded_plan or rejected_proposals
+        )
 
         # Determine display note (truncated only when collapsed)
         display_note = entry.note
@@ -191,6 +194,8 @@ def build_commits_section(
                     parts_strs.append("CHAT")
                 if has_folded_diff:
                     parts_strs.append("DIFF")
+                if has_folded_plan:
+                    parts_strs.append("PLAN")
                 if rejected_proposals:
                     count = len(rejected_proposals)
                     parts_strs.append(f"{count} proposal{'s' if count > 1 else ''}")
@@ -255,6 +260,8 @@ def build_commits_section(
                 parts.append(("CHAT", "bold #87D7FF"))
             if has_folded_diff:
                 parts.append(("DIFF", "bold #87D7FF"))
+            if has_folded_plan:
+                parts.append(("PLAN", "bold #87D7FF"))
             if rejected_proposals:
                 count = len(rejected_proposals)
                 label = f"{count} proposal{'s' if count > 1 else ''}"
@@ -310,6 +317,19 @@ def build_commits_section(
             text.append("DIFF: ", style="bold #87D7FF")
             diff_path = entry.diff.replace(str(Path.home()), "~")
             text.append(f"{diff_path}\n", style="#87AFFF")
+
+        # PLAN field - only show if drawers visible
+        if entry.plan and show_drawers:
+            text.append("      ", style="")
+            if show_history_hints:
+                full_plan_path = os.path.expanduser(entry.plan)
+                hint_mappings[hint_counter] = full_plan_path
+                text.append(f"[{hint_counter}] ", style="bold #FFFF00")
+                hint_counter += 1
+            text.append("| ", style="#808080")
+            text.append("PLAN: ", style="bold #87D7FF")
+            plan_path = entry.plan.replace(str(Path.home()), "~")
+            text.append(f"{plan_path}\n", style="#87AFFF")
 
     return HintTracker(
         counter=hint_counter,

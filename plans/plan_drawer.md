@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 13:01:29
-status: wip
+status: done
 ---
 
 # Plan: Add PLAN Drawer to COMMITS Entries

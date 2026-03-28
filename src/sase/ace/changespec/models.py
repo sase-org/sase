@@ -156,6 +156,7 @@ class CommitEntry:
     note: str
     chat: str | None = None
     diff: str | None = None
+    plan: str | None = None
     proposal_letter: str | None = None  # e.g., 'a', 'b', 'c' for proposed entries
     suffix: str | None = None  # e.g., "NEW PROPOSAL" (message without prefix)
     suffix_type: str | None = None  # "error" for !:, None for plain

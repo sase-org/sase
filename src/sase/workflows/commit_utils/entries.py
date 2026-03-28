@@ -213,6 +213,7 @@ def add_proposed_commit_entry(
     chat_path: str | None = None,
     end_timestamp: str | None = None,
     body: list[str] | None = None,
+    plan_path: str | None = None,
 ) -> tuple[bool, str | None]:
     """Add a proposed COMMITS entry to a ChangeSpec.
 
@@ -226,6 +227,7 @@ def add_proposed_commit_entry(
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.
         end_timestamp: Optional end timestamp for duration calculation.
+        plan_path: Optional path to the plan file.
 
     Returns:
         Tuple of (success, entry_id). entry_id is like "2a" if successful.
@@ -305,6 +307,8 @@ def add_proposed_commit_entry(
                 )
             if diff_path:
                 entry_lines.append(f"      | DIFF: {diff_path}\n")
+            if plan_path:
+                entry_lines.append(f"      | PLAN: {plan_path}\n")
 
             # Determine insertion point
             if commits_field_line >= 0:
@@ -354,6 +358,7 @@ def add_commit_entry_with_id(
     chat_path: str | None = None,
     end_timestamp: str | None = None,
     body: list[str] | None = None,
+    plan_path: str | None = None,
 ) -> tuple[bool, str | None]:
     """Add a new COMMITS entry to a ChangeSpec, returning the entry ID.
 
@@ -366,6 +371,7 @@ def add_commit_entry_with_id(
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.
         end_timestamp: Optional end timestamp for duration calculation.
+        plan_path: Optional path to the plan file.
 
     Returns:
         Tuple of (success, entry_id). entry_id is like "1", "2" if successful.
@@ -438,6 +444,8 @@ def add_commit_entry_with_id(
                 )
             if diff_path:
                 entry_lines.append(f"      | DIFF: {diff_path}\n")
+            if plan_path:
+                entry_lines.append(f"      | PLAN: {plan_path}\n")
 
             # Determine insertion point
             if commits_field_line >= 0:
@@ -487,6 +495,7 @@ def add_commit_entry(
     chat_path: str | None = None,
     end_timestamp: str | None = None,
     body: list[str] | None = None,
+    plan_path: str | None = None,
 ) -> bool:
     """Add a new COMMITS entry to a ChangeSpec.
 
@@ -500,11 +509,19 @@ def add_commit_entry(
         chat_path: Optional path to the chat file.
         end_timestamp: Optional end timestamp for duration calculation.
         body: Optional multi-line note body.
+        plan_path: Optional path to the plan file.
 
     Returns:
         True if successful, False otherwise.
     """
     ok, _ = add_commit_entry_with_id(
-        project_file, cl_name, note, diff_path, chat_path, end_timestamp, body
+        project_file,
+        cl_name,
+        note,
+        diff_path,
+        chat_path,
+        end_timestamp,
+        body,
+        plan_path,
     )
     return ok

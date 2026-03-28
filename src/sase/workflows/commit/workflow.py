@@ -486,6 +486,15 @@ class CommitWorkflow(BaseWorkflow):
 
         chat_path = os.environ.get("SASE_AGENT_CHAT_PATH")
 
+        # Compute display path for plan (replace $HOME with ~)
+        plan_display: str | None = None
+        raw_plan = os.environ.get("SASE_PLAN", "")
+        if raw_plan:
+            home = os.path.expanduser("~")
+            plan_display = (
+                raw_plan.replace(home, "~") if raw_plan.startswith(home) else raw_plan
+            )
+
         from sase.workflows.commit_utils.entries import (
             add_commit_entry_with_id,
             add_proposed_commit_entry,
@@ -499,6 +508,7 @@ class CommitWorkflow(BaseWorkflow):
                 diff_path=self._diff_path,
                 chat_path=chat_path,
                 body=body,
+                plan_path=plan_display,
             )
         else:
             ok, entry_id = add_commit_entry_with_id(
@@ -508,6 +518,7 @@ class CommitWorkflow(BaseWorkflow):
                 diff_path=self._diff_path,
                 chat_path=chat_path,
                 body=body,
+                plan_path=plan_display,
             )
         return entry_id if ok else None
 

@@ -23,6 +23,7 @@ class CommitEntryDict(TypedDict, total=False):
     note: str
     chat: str | None
     diff: str | None
+    plan: str | None
     proposal_letter: str | None
     suffix: str | None
     suffix_type: str | None
@@ -45,6 +46,9 @@ def build_commit_entry(
     diff_val = entry_dict.get("diff")
     diff = str(diff_val) if diff_val is not None else None
 
+    plan_val = entry_dict.get("plan")
+    plan = str(plan_val) if plan_val is not None else None
+
     proposal_letter_val = entry_dict.get("proposal_letter")
     proposal_letter = (
         str(proposal_letter_val) if proposal_letter_val is not None else None
@@ -66,6 +70,7 @@ def build_commit_entry(
         note=note,
         chat=chat,
         diff=diff,
+        plan=plan,
         proposal_letter=proposal_letter,
         suffix=suffix,
         suffix_type=suffix_type,
@@ -354,6 +359,7 @@ def parse_commits_line(
             note=note_without_suffix,
             chat=None,
             diff=None,
+            plan=None,
             suffix=suffix_msg,
             suffix_type=suffix_type_val,
             body=None,
@@ -364,6 +370,9 @@ def parse_commits_line(
     elif stripped.startswith("| DIFF:"):
         if current_commit_entry is not None:
             current_commit_entry["diff"] = stripped[7:].strip()
+    elif stripped.startswith("| PLAN:"):
+        if current_commit_entry is not None:
+            current_commit_entry["plan"] = stripped[7:].strip()
     elif (
         current_commit_entry is not None
         and line.startswith("      ")

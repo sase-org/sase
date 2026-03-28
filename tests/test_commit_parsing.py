@@ -53,5 +53,46 @@ def test_history_entry_dataclass_defaults() -> None:
     assert entry.diff is None
 
 
+def test_parse_changespec_plan_drawer() -> None:
+    """Test parsing COMMITS entry with PLAN drawer."""
+    lines = [
+        "## ChangeSpec\n",
+        "NAME: test_cl\n",
+        "DESCRIPTION:\n",
+        "  Test description\n",
+        "STATUS: Ready\n",
+        "COMMITS:\n",
+        "  (1) Implement plan\n",
+        "      | DIFF: ~/.sase/diffs/test.diff\n",
+        "      | PLAN: ~/.sase/plans/plan_foo.md\n",
+        "\n",
+    ]
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    assert changespec is not None
+    assert changespec.commits is not None
+    assert len(changespec.commits) == 1
+    assert changespec.commits[0].plan == "~/.sase/plans/plan_foo.md"
+    assert changespec.commits[0].diff == "~/.sase/diffs/test.diff"
+
+
+def test_parse_changespec_plan_drawer_absent() -> None:
+    """Test that plan is None when no PLAN drawer exists."""
+    lines = [
+        "## ChangeSpec\n",
+        "NAME: test_cl\n",
+        "DESCRIPTION:\n",
+        "  Test description\n",
+        "STATUS: Ready\n",
+        "COMMITS:\n",
+        "  (1) Manual commit\n",
+        "      | DIFF: ~/.sase/diffs/test.diff\n",
+        "\n",
+    ]
+    changespec, _ = _parse_changespec_from_lines(lines, 0, "/test/file.gp")
+    assert changespec is not None
+    assert changespec.commits is not None
+    assert changespec.commits[0].plan is None
+
+
 # Tests for CommitEntry proposal properties
 # Tests for parsing proposed COMMITS entries
