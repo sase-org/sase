@@ -150,9 +150,11 @@ def create_changespec_for_workflow(
             ``git log`` is unavailable. When *_get_commits_ahead()* returns
             empty and this is provided, it is used as a single commit subject.
     """
+    from sase.vcs_provider.config import strip_pr_tags
+
     commits = _get_commits_ahead(checkout_target, branch_name)
     if not commits and commit_description:
-        commits = [commit_description]
+        commits = [strip_pr_tags(commit_description)]
     if not commits:
         return None
 

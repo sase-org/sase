@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 14:38:38
-status: wip
+status: done
 ---
 
 # Plan: Strip PR Tags from ChangeSpec DESCRIPTION
