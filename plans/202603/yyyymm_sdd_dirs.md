@@ -1,8 +1,7 @@
 ---
-create_time: 2026-03-28 17:17:28
-status: wip
+create_time: 2026-03-28 17:29:01
+status: done
 ---
-
 # Plan: Organize Plans and Specs into YYYYMM Subdirectories
 
 ## Problem
@@ -23,21 +22,21 @@ file's `create_time` frontmatter field if present, otherwise fall back to curren
 
 ### Lookup Helper
 
-Add a `find_sdd_file(base_dir, kind, name)` helper to `sase/sdd/files.py` that searches for `{kind}/{name}` first (exact
-path), then `{kind}/*/{name}` (YYYYMM subdirs), returning the first match. This makes lookups backward-compatible with
-existing flat files.
+Add a `find_sdd_file(base_dir, kind, name)` helper to `sase/sdd/files.py` that searches for
+`{kind}/{name}` first (exact path), then `{kind}/*/{name}` (YYYYMM subdirs), returning the first match. This makes
+lookups backward-compatible with existing flat files.
 
 ### Xprompt Template References
 
-The `bd/review/plan` and `bd/review/prompt` xprompts use `@specs/{{ file_base }}.md` and `@plans/{{ file_base }}.md`.
-These need to use the new `find_sdd_file` approach. Since these are agent prompts with `@file` references, the simplest
-fix is to use glob-style references: `@specs/**/{{ file_base }}.md` and `@plans/**/{{ file_base }}.md`. This way the `@`
-file reference resolver will find files in any YYYYMM subdirectory.
+The `bd/review/plan` and `bd/review/prompt` xprompts use `@specs/{{ file_base }}.md` and
+`@plans/{{ file_base }}.md`. These need to use the new `find_sdd_file` approach. Since these are agent prompts with
+`@file` references, the simplest fix is to use glob-style references: `@specs/**/{{ file_base }}.md` and
+`@plans/**/{{ file_base }}.md`. This way the `@` file reference resolver will find files in any YYYYMM subdirectory.
 
 ### bd/land_epic Instructions
 
-Update the `bd/land_epic` xprompt text to say "plans/ directory (in a YYYYMM subdirectory)" instead of just "plans/
-directory".
+Update the `bd/land_epic` xprompt text to say "plans/ directory (in a YYYYMM subdirectory)" instead of just
+"plans/ directory".
 
 ## Changes
 
