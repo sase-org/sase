@@ -86,10 +86,13 @@ class AgentDisplayMixin:
                 response_content = agent.get_response_content()
 
                 # Fallback: for workflow step agents, try step_output if no response file
+                # Only use step_output when it has displayable content (_raw/_data),
+                # not when it only contains meta_* metadata fields.
                 if (
                     response_content is None
                     and agent.is_workflow_child
-                    and agent.step_output
+                    and isinstance(agent.step_output, dict)
+                    and ("_raw" in agent.step_output or "_data" in agent.step_output)
                 ):
                     response_content = format_output(agent.step_output)
 
@@ -238,10 +241,13 @@ class AgentDisplayMixin:
             # AGENT CHAT section for completed agents (with hints)
             if agent.status in ("DONE", "FAILED"):
                 response_content = agent.get_response_content()
+                # Only use step_output when it has displayable content (_raw/_data),
+                # not when it only contains meta_* metadata fields.
                 if (
                     response_content is None
                     and agent.is_workflow_child
-                    and agent.step_output
+                    and isinstance(agent.step_output, dict)
+                    and ("_raw" in agent.step_output or "_data" in agent.step_output)
                 ):
                     response_content = format_output(agent.step_output)
 

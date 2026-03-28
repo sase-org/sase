@@ -245,6 +245,35 @@ def normalize_handoff_interruption_state(artifacts_dir: str) -> None:
             continue
 
 
+def update_step_marker_chat_path(artifacts_dir: str, chat_path: str) -> None:
+    """Set response_path on step markers missing it after a handoff chat save.
+
+    After ``sase plan``/``sase questions`` SIGTERMs the agent, the step marker
+    never gets its ``response_path`` updated.  This backfills it so the TUI can
+    display the chat file instead of falling back to raw step_output JSON.
+
+    Skips embedded workflow markers (filenames containing ``__``).
+    """
+    for marker_path in Path(artifacts_dir).glob("prompt_step_*.json"):
+        if "__" in marker_path.name:
+            continue
+        try:
+            with open(marker_path, encoding="utf-8") as f:
+                marker_data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(marker_data, dict):
+            continue
+        if marker_data.get("response_path") is not None:
+            continue
+        marker_data["response_path"] = chat_path
+        try:
+            with open(marker_path, "w", encoding="utf-8") as f:
+                json.dump(marker_data, f, indent=2)
+        except OSError:
+            continue
+
+
 def create_followup_artifacts(
     project_name: str,
     base_meta: dict[str, Any],

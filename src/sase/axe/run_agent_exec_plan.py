@@ -21,6 +21,7 @@ from sase.axe.run_agent_helpers import (
     promote_to_workflow,
     update_meta_field,
     update_meta_suffix,
+    update_step_marker_chat_path,
 )
 from sase.axe.runner_utils import reset_killed, was_killed
 
@@ -179,6 +180,7 @@ def handle_plan_marker(
     _planner_suffix = state.current_role_suffix or ".plan"
     state.saved_chat_paths.append((_planner_suffix, _planner_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)
+    update_step_marker_chat_path(state.current_artifacts_dir, _planner_chat)
 
     # Feedback: spawn a new agent with the original prompt +
     # accumulated "Additional Requirements" section.
@@ -397,6 +399,7 @@ def handle_questions_marker(
     _q_suffix = state.current_role_suffix or ".q"
     state.saved_chat_paths.append((_q_suffix, _q_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
+    update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
 
     state.agent_step += 1
     if state.agent_step == 2 and ctx.agent_name:
