@@ -40,6 +40,7 @@ steps:
         git stash push --include-untracked -m "git-workflow-$(date +%s)" --quiet
       fi
       git fetch --quiet
+      git pull --rebase --quiet 2>/dev/null || true
 
   - name: checkout
     python: |
@@ -129,8 +130,3 @@ steps:
             done
       fi
     artifact: stdout
-
-  - name: sync
-    finally: true
-    bash: |
-      git pull --rebase --quiet 2>/dev/null || true
