@@ -237,8 +237,12 @@ def is_workflow_complete(name: str) -> bool | None:
             root = (artifact_dir, meta)
 
     if root is None:
-        # No root found — shouldn't happen, but treat as incomplete
-        return False
+        # No root found — the root's workflow_name may have been
+        # stripped by claim_agent_name (it only preserves names on
+        # artifacts with done.json, and the root may lack one).
+        # Return None so the caller falls through to name-based
+        # resolution via find_named_agent.
+        return None
 
     root_dir, _ = root
     root_done = (root_dir / "done.json").exists()
