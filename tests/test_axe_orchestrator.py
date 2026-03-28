@@ -96,6 +96,78 @@ def test_remove_pid_no_file(temp_state_dir: Path, axe_config: AxeConfig) -> None
 # --- SIGTERM Forwarding Tests ---
 
 
+# --- Kill Existing Orchestrator Tests ---
+
+
+def test_kill_existing_no_pid_file(temp_state_dir: Path, axe_config: AxeConfig) -> None:
+    """No-op when there is no PID file."""
+    orch = Orchestrator(axe_config)
+    orch._kill_existing_orchestrator()  # Should not raise
+
+
+@patch("os.kill")
+def test_kill_existing_dead_process(
+    mock_kill: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """No-op when the PID file points to a dead process."""
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("99999")
+    mock_kill.side_effect = ProcessLookupError
+
+    orch = Orchestrator(axe_config)
+    orch._kill_existing_orchestrator()
+
+    # Should have probed with signal 0
+    mock_kill.assert_called_once_with(99999, 0)
+
+
+@patch("time.sleep")
+@patch("os.kill")
+def test_kill_existing_sends_sigterm(
+    mock_kill: MagicMock,
+    mock_sleep: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Sends SIGTERM and waits for the old orchestrator to exit."""
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("12345")
+
+    # First call: signal 0 probe (alive), second: SIGTERM, third: signal 0 (dead)
+    mock_kill.side_effect = [None, None, ProcessLookupError]
+
+    orch = Orchestrator(axe_config)
+    orch._kill_existing_orchestrator()
+
+    calls = mock_kill.call_args_list
+    assert calls[0] == ((12345, 0),)
+    assert calls[1] == ((12345, signal.SIGTERM),)
+    assert calls[2] == ((12345, 0),)
+
+
+@patch("os.kill")
+def test_kill_existing_skips_own_pid(
+    mock_kill: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Skips killing when PID file contains our own PID."""
+    import os
+
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text(str(os.getpid()))
+
+    orch = Orchestrator(axe_config)
+    orch._kill_existing_orchestrator()
+
+    mock_kill.assert_not_called()
+
+
+# --- SIGTERM Forwarding Tests ---
+
+
 @patch("os.kill")
 def test_handle_shutdown_forwards_sigterm(
     mock_kill: MagicMock,

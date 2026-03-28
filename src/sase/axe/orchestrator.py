@@ -85,6 +85,60 @@ class Orchestrator:
         self._running = False
         self._terminate_children()
 
+    def _kill_existing_orchestrator(self) -> None:
+        """Kill any existing orchestrator and its children before starting.
+
+        Reads the PID file to find a running orchestrator, sends SIGTERM,
+        and waits for it to exit.  Escalates to SIGKILL if needed.
+        """
+        if not ORCHESTRATOR_PID_FILE.exists():
+            return
+
+        try:
+            old_pid = int(ORCHESTRATOR_PID_FILE.read_text().strip())
+        except (ValueError, OSError):
+            return
+
+        if old_pid == os.getpid():
+            return
+
+        # Check if the old orchestrator is still running
+        try:
+            os.kill(old_pid, 0)
+        except (ProcessLookupError, PermissionError):
+            return
+
+        # Send SIGTERM and wait for graceful shutdown
+        try:
+            os.kill(old_pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            return
+
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            try:
+                os.kill(old_pid, 0)
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                return
+            time.sleep(0.2)
+
+        # Escalate to SIGKILL
+        try:
+            os.kill(old_pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            return
+
+        # Brief wait for SIGKILL to take effect
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                os.kill(old_pid, 0)
+            except (ProcessLookupError, PermissionError):
+                return
+            time.sleep(0.2)
+
     def run(self) -> bool:
         """Run the orchestrator main loop.
 
@@ -95,6 +149,7 @@ class Orchestrator:
             True if exited normally.
         """
         signal.signal(signal.SIGTERM, self._handle_shutdown)
+        self._kill_existing_orchestrator()
         self._write_pid()
 
         # Spawn all lumberjacks
