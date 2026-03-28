@@ -137,27 +137,41 @@ def add_or_update_prompt(
     current_workspace = project_name if project_name else _get_workspace_name()
 
     # Check if prompt already exists (by exact text match)
-    for prompt in prompts:
-        if prompt.text == text:
-            # Update existing prompt's last_used timestamp
-            prompt.last_used = current_timestamp
-            # Only upgrade from cancelled to non-cancelled, never downgrade
-            if not cancelled:
-                prompt.cancelled = False
-            _save_prompt_history(prompts)
-            return
+    existing = next((p for p in prompts if p.text == text), None)
+    if existing:
+        # Update existing prompt's last_used timestamp
+        existing.last_used = current_timestamp
+        # Only upgrade from cancelled to non-cancelled, never downgrade
+        if not cancelled:
+            existing.cancelled = False
+        _save_prompt_history(prompts)
+    else:
+        # Add new prompt
+        new_entry = PromptEntry(
+            text=text,
+            branch_or_workspace=current_branch,
+            timestamp=current_timestamp,
+            last_used=current_timestamp,
+            workspace=current_workspace,
+            cancelled=cancelled,
+        )
+        prompts.append(new_entry)
+        _save_prompt_history(prompts)
 
-    # Add new prompt
-    new_entry = PromptEntry(
-        text=text,
-        branch_or_workspace=current_branch,
-        timestamp=current_timestamp,
-        last_used=current_timestamp,
-        workspace=current_workspace,
-        cancelled=cancelled,
-    )
-    prompts.append(new_entry)
-    _save_prompt_history(prompts)
+    # Also save individual segments for multi-agent prompts
+    from sase.agent.multi_prompt import is_multi_prompt, parse_multi_prompt
+
+    if is_multi_prompt(text):
+        multi = parse_multi_prompt(text)
+        for segment in multi.segments:
+            # Recursive call for each segment (won't re-trigger since
+            # individual segments aren't multi-prompts)
+            add_or_update_prompt(
+                segment,
+                project_name=project_name,
+                branch_or_workspace=branch_or_workspace,
+                cancelled=cancelled,
+            )
 
 
 def _format_prompt_for_display(

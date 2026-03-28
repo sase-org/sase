@@ -302,6 +302,122 @@ def test_cancelled_field_backward_compat(tmp_path: Path) -> None:
         assert result[0].cancelled is False
 
 
+def test_multi_prompt_saves_combined_and_segments(tmp_path: Path) -> None:
+    """Test that a multi-agent prompt saves both the combined and individual segments."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt(
+            "Fix the auth bug\n---\n%wait Review the fix and add tests"
+        )
+        result = _load_prompt_history()
+        texts = {e.text for e in result}
+        assert len(result) == 3
+        assert "Fix the auth bug\n---\n%wait Review the fix and add tests" in texts
+        assert "Fix the auth bug" in texts
+        assert "%wait Review the fix and add tests" in texts
+
+
+def test_multi_prompt_segment_dedup(tmp_path: Path) -> None:
+    """Test that a segment already in history just gets last_used bumped."""
+    test_file = tmp_path / "prompt_history.json"
+    with patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file):
+        # Pre-existing segment from standalone use
+        entry = PromptEntry(
+            text="Fix the auth bug",
+            branch_or_workspace="main",
+            timestamp="251231_100000",
+            last_used="251231_100000",
+            workspace="myproject",
+        )
+        _save_prompt_history([entry])
+
+        with (
+            patch(
+                "sase.history.prompt._get_current_branch_or_workspace",
+                return_value="main",
+            ),
+            patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+            patch(
+                "sase.history.prompt.generate_timestamp", return_value="251231_200000"
+            ),
+        ):
+            add_or_update_prompt("Fix the auth bug\n---\nAdd tests")
+
+        result = _load_prompt_history()
+        # 3 entries: pre-existing segment (deduped), combined, and second segment
+        assert len(result) == 3
+        # The pre-existing segment should have bumped last_used
+        segment_entry = next(e for e in result if e.text == "Fix the auth bug")
+        assert segment_entry.timestamp == "251231_100000"
+        assert segment_entry.last_used == "251231_200000"
+
+
+def test_cancelled_multi_prompt_saves_cancelled_segments(tmp_path: Path) -> None:
+    """Test that a cancelled multi-agent prompt saves each segment as cancelled."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt("Draft fix\n---\nDraft tests", cancelled=True)
+        result = _load_prompt_history()
+        assert len(result) == 3
+        for entry in result:
+            assert entry.cancelled is True
+
+
+def test_single_segment_with_frontmatter_does_not_split(tmp_path: Path) -> None:
+    """Test that a single-segment prompt with frontmatter does NOT split."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        prompt = (
+            "---\nxprompts:\n  _style:\n    - prompt_part: Be concise\n---\nFix the bug"
+        )
+        add_or_update_prompt(prompt)
+        result = _load_prompt_history()
+        # Only the combined prompt, no splitting
+        assert len(result) == 1
+        assert result[0].text == prompt
+
+
+def test_multi_prompt_segments_preserve_directives(tmp_path: Path) -> None:
+    """Test that segments with directives (%wait, %name) are preserved as-is."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt._get_current_branch_or_workspace", return_value="main"
+        ),
+        patch("sase.history.prompt._get_workspace_name", return_value="myproject"),
+        patch("sase.history.prompt.generate_timestamp", return_value="251231_143052"),
+    ):
+        add_or_update_prompt(
+            "%name builder Fix the bug\n---\n%wait\n%name reviewer Review the fix"
+        )
+        result = _load_prompt_history()
+        texts = {e.text for e in result}
+        assert "%name builder Fix the bug" in texts
+        assert "%wait\n%name reviewer Review the fix" in texts
+
+
 def test_handles_missing_fields_in_json(tmp_path: Path) -> None:
     """Test that JSON entries with missing fields are filtered out."""
     test_file = tmp_path / "prompt_history.json"

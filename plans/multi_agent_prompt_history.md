@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 16:55:18
-status: wip
+status: done
 ---
 
 # Plan: Save Multi-Agent Prompts to History Separately
