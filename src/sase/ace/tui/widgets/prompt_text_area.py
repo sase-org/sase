@@ -341,6 +341,20 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         cleaned_parts.append(template[last_end:])
         expanded = "".join(cleaned_parts)
 
+        # Indent continuation lines to match line indentation
+        indent_len = len(line) - len(line.lstrip())
+        indent = line[:indent_len]
+        if "\n" in expanded and indent:
+            pre_indent = expanded
+            exp_lines = expanded.split("\n")
+            expanded = exp_lines[0] + "".join(
+                "\n" + indent + el for el in exp_lines[1:]
+            )
+            markers = [
+                (num, offset + pre_indent[:offset].count("\n") * len(indent))
+                for num, offset in markers
+            ]
+
         # Replace trigger word with expanded text
         self._replace_via_keyboard(expanded, (row, word_start), (row, col))
 

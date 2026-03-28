@@ -134,6 +134,72 @@ class TestMultiLineExpansion:
         assert ta.cursor_location == (1, 5)
 
 
+class TestMultiLineIndentation:
+    async def test_continuation_lines_indented(self) -> None:
+        """Multi-line expansion indents continuation lines to match trigger."""
+        ta, expanded = await _setup(
+            snippets={"foo": "(\n  foo\n  bar\n)"},
+            text="  foo",
+            cursor=(0, 5),
+        )
+        assert expanded is True
+        assert ta.text == "  (\n    foo\n    bar\n  )"
+
+    async def test_no_indent_at_column_zero(self) -> None:
+        """No extra indentation when trigger line has no leading whitespace."""
+        ta, expanded = await _setup(
+            snippets={"foo": "(\n  foo\n)"},
+            text="foo",
+            cursor=(0, 3),
+        )
+        assert expanded is True
+        assert ta.text == "(\n  foo\n)"
+
+    async def test_indented_with_preceding_lines(self) -> None:
+        """Indentation works when trigger is on a later line."""
+        ta, expanded = await _setup(
+            snippets={"foo": "(\n  foo\n  bar\n)"},
+            text="prefix\n\n  foo",
+            cursor=(2, 5),
+        )
+        assert expanded is True
+        assert ta.text == "prefix\n\n  (\n    foo\n    bar\n  )"
+
+    async def test_tabstop_on_indented_continuation(self) -> None:
+        """Tabstop on a continuation line accounts for added indentation."""
+        app = _SnippetTestApp({"blk": "{\n  $1\n}"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("    blk")
+            ta.cursor_location = (0, 7)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.text == "    {\n      \n    }"
+            assert ta.cursor_location == (1, 6)
+
+    async def test_advance_tabstop_on_indented_expansion(self) -> None:
+        """Tab advances correctly in indented multi-line expansion."""
+        app = _SnippetTestApp({"blk": "{\n  $1\n}$0"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("    blk")
+            ta.cursor_location = (0, 7)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.text == "    {\n      \n    }"
+            assert ta.cursor_location == (1, 6)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (2, 5)
+
+
 class TestTabstopExpansion:
     async def test_dollar_one_places_cursor(self) -> None:
         """$1 places cursor at first tabstop on expansion."""
