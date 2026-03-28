@@ -129,3 +129,8 @@ steps:
             done
       fi
     artifact: stdout
+
+  - name: sync
+    finally: true
+    bash: |
+      git pull --rebase --quiet 2>/dev/null || true
