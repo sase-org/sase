@@ -16,21 +16,21 @@ SAMPLE_LINKS = [
 
 
 class TestBuildLinkedChatsSection:
-    def test_basic_table(self) -> None:
+    def test_basic_list(self) -> None:
         result = build_linked_chats_section(SAMPLE_LINKS)
         assert "## Linked Chats" in result
-        assert "| 1 | .plan |" in result
-        assert "| 2 | .code |" in result
+        assert "- 1. .plan" in result
+        assert "- 2. .code" in result
 
     def test_highlights_current(self) -> None:
         result = build_linked_chats_section(SAMPLE_LINKS, current_role=".plan")
-        assert "| **1** | **.plan** |" in result
-        # Other row should NOT be bold
-        assert "| 2 | .code |" in result
+        assert "- **1. .plan**" in result
+        # Other entry should NOT be bold
+        assert "- 2. .code" in result
 
     def test_single_entry(self) -> None:
         result = build_linked_chats_section([(".plan", "~/path.md")])
-        assert "| 1 | .plan | `~/path.md` |" in result
+        assert "- 1. .plan — `~/path.md`" in result
 
 
 class TestAppendLinksToChat:
@@ -73,9 +73,7 @@ class TestAppendLinksToChat:
 
             ## Linked Chats
 
-            | Step | Role | Chat |
-            |------|------|------|
-            | 1 | .plan | `~/old.md` |
+            - 1. .plan — `~/old.md`
 
             ## Prompt
 

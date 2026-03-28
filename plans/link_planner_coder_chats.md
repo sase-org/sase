@@ -2,26 +2,25 @@
 create_time: 2026-03-27 20:08:48
 status: done
 ---
+
 # Plan: Link Planner and Coder Agent Chat Files
 
 ## Problem
 
-In multi-step execution loops (planner -> approval -> coder), only the **final** agent
-step's chat history is saved to `~/.sase/chats/`. The planner's conversation is lost
-entirely. There are no cross-references between related chat files, making it hard to
-trace the full planner-to-coder pipeline from the chat history.
+In multi-step execution loops (planner -> approval -> coder), only the **final** agent step's chat history is saved to
+`~/.sase/chats/`. The planner's conversation is lost entirely. There are no cross-references between related chat files,
+making it hard to trace the full planner-to-coder pipeline from the chat history.
 
 ## Current State
 
-- `_finalize_loop()` in `run_agent_exec.py` saves ONE chat file per execution loop,
-  containing only the last step's prompt/response
-- The planner agent is killed by SIGTERM when `sase plan` runs; its response text is
-  not captured, but the plan file on disk IS the meaningful output
-- `agent_meta.json` tracks relationships via `parent_timestamp` and `role_suffix`
-  (`.plan`, `.code`, `.2`, `.3`, `.epic`, `.q`), but this metadata isn't reflected in
-  chat files
-- `done.json` has a `response_path` field pointing to the saved chat file, but only
-  the final step writes `done.json` with this field
+- `_finalize_loop()` in `run_agent_exec.py` saves ONE chat file per execution loop, containing only the last step's
+  prompt/response
+- The planner agent is killed by SIGTERM when `sase plan` runs; its response text is not captured, but the plan file on
+  disk IS the meaningful output
+- `agent_meta.json` tracks relationships via `parent_timestamp` and `role_suffix` (`.plan`, `.code`, `.2`, `.3`,
+  `.epic`, `.q`), but this metadata isn't reflected in chat files
+- `done.json` has a `response_path` field pointing to the saved chat file, but only the final step writes `done.json`
+  with this field
 
 ## Goal
 
@@ -33,24 +32,21 @@ trace the full planner-to-coder pipeline from the chat history.
 
 ### Chat file per step
 
-When the execution loop transitions between steps (plan approval, feedback, questions),
-save a chat file for the step that just completed before creating follow-up artifacts.
+When the execution loop transitions between steps (plan approval, feedback, questions), save a chat file for the step
+that just completed before creating follow-up artifacts.
 
-**For planner steps** (killed by `sase plan`): the full LLM response is unavailable. The
-chat "response" will be a formatted reference to the plan file with the first ~10 lines
-as a preview excerpt. This gives enough context to understand the planner's output.
+**For planner steps** (killed by `sase plan`): the full LLM response is unavailable. The chat "response" will be a
+formatted reference to the plan file with the first ~10 lines as a preview excerpt. This gives enough context to
+understand the planner's output.
 
-**For feedback/question steps**: same approach - save the prompt and reference to the
-updated plan.
+**For feedback/question steps**: same approach - save the prompt and reference to the updated plan.
 
-**For the final step** (coder/epic): behavior is unchanged - the full response is saved
-as today.
+**For the final step** (coder/epic): behavior is unchanged - the full response is saved as today.
 
 ### Filename differentiation
 
-Chat filenames already support an `agent` parameter. Intermediate steps will pass
-`agent_name.role_suffix` (e.g., `a.plan`, `a.2`, `a.code`) to `generate_chat_filename`,
-producing unique filenames like:
+Chat filenames already support an `agent` parameter. Intermediate steps will pass `agent_name.role_suffix` (e.g.,
+`a.plan`, `a.2`, `a.code`) to `generate_chat_filename`, producing unique filenames like:
 
 ```
 branch-ace_run-a.plan-260327_152207.md    # planner
@@ -65,15 +61,14 @@ Each chat file includes a `## Linked Chats` section (after timestamp, before ext
 ```markdown
 ## Linked Chats
 
-| Step | Role | Chat |
-|------|------|------|
-| 1 | .plan | `~/.sase/chats/branch-ace_run-a.plan-260327_152207.md` |
-| 2 | .code | `~/.sase/chats/branch-ace_run-a.code-260327_153045.md` |
+| Step | Role  | Chat                                                   |
+| ---- | ----- | ------------------------------------------------------ |
+| 1    | .plan | `~/.sase/chats/branch-ace_run-a.plan-260327_152207.md` |
+| 2    | .code | `~/.sase/chats/branch-ace_run-a.code-260327_153045.md` |
 ```
 
-Since forward links (planner -> coder) aren't available when the planner chat is first
-saved, the **final step retroactively updates** earlier chat files with the complete
-link table.
+Since forward links (planner -> coder) aren't available when the planner chat is first saved, the **final step
+retroactively updates** earlier chat files with the complete link table.
 
 ### State tracking
 
@@ -103,6 +98,7 @@ Small helper module with three functions:
 3. **`format_plan_as_response(plan_file: str) -> str`**
    - Reads the plan file, extracts first ~10 content lines as preview
    - Returns formatted response like:
+
      ```
      *Plan submitted for review.*
 
@@ -139,6 +135,7 @@ update_meta_field(state.current_artifacts_dir, "chat_path", saved)
 ```
 
 **For feedback rounds** (inside the `if plan_result.action == "feedback":` block):
+
 - Save a chat for the feedback round before creating follow-up artifacts
 - Use the feedback content as the response
 
@@ -191,22 +188,20 @@ class LoopState:
 
 ## Edge Cases
 
-- **Single-step runs** (no plan/feedback): No intermediate chats saved, no links section
-  added. Behavior unchanged from today.
-- **Plan rejected**: Planner chat is saved but no coder chat exists. Links section shows
-  only the planner entry.
+- **Single-step runs** (no plan/feedback): No intermediate chats saved, no links section added. Behavior unchanged from
+  today.
+- **Plan rejected**: Planner chat is saved but no coder chat exists. Links section shows only the planner entry.
 - **Plan committed** (no coder spawn): Same as rejected - just the planner entry.
 - **Multiple feedback rounds**: Each round gets its own chat file. All are linked.
 - **Epic agents**: `.epic` step gets a chat file just like `.code`.
 - **Question flows**: `.q` steps get chat files with the Q&A as response content.
-- **Agent has no name**: Use `None` for the agent parameter (existing behavior).
-  Links still work via role suffix.
+- **Agent has no name**: Use `None` for the agent parameter (existing behavior). Links still work via role suffix.
 
 ## Files Changed
 
-| File | Change |
-|------|--------|
-| `src/sase/history/chat_links.py` | **New** - link building, insertion, plan summary |
-| `src/sase/axe/run_agent_exec.py` | Add `saved_chat_paths` to `LoopState`, cross-link in `_finalize_loop` |
-| `src/sase/axe/run_agent_exec_plan.py` | Save planner/feedback chats in `handle_plan_marker` |
-| `tests/history/test_chat_links.py` | **New** - unit tests for chat_links module |
+| File                                  | Change                                                                |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| `src/sase/history/chat_links.py`      | **New** - link building, insertion, plan summary                      |
+| `src/sase/axe/run_agent_exec.py`      | Add `saved_chat_paths` to `LoopState`, cross-link in `_finalize_loop` |
+| `src/sase/axe/run_agent_exec_plan.py` | Save planner/feedback chats in `handle_plan_marker`                   |
+| `tests/history/test_chat_links.py`    | **New** - unit tests for chat_links module                            |

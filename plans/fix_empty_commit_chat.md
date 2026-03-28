@@ -6,8 +6,8 @@ status: done
 
 ## Problem
 
-When the ace-run agent runs `sase commit --method create_pull_request` (e.g. Gemini on Mercurial via sase-google),
-the resulting ChangeSpec's COMMITS entry references a chat file that has empty Prompt and Response sections:
+When the ace-run agent runs `sase commit --method create_pull_request` (e.g. Gemini on Mercurial via sase-google), the
+resulting ChangeSpec's COMMITS entry references a chat file that has empty Prompt and Response sections:
 
 ```
 # Chat History - sase_commit
@@ -36,8 +36,8 @@ cs_name = create_changespec_for_workflow(
 )
 ```
 
-`create_changespec_for_workflow()` (`src/sase/workspace_provider/changespec.py:164`) then creates a new chat file
-with these empty strings:
+`create_changespec_for_workflow()` (`src/sase/workspace_provider/changespec.py:164`) then creates a new chat file with
+these empty strings:
 
 ```python
 chat_path = save_chat_history(prompt, response, workflow_name, timestamp=ts)
@@ -49,13 +49,14 @@ The CRS workflow (`src/sase/workflows/crs.py:186-198`) pre-sets `SASE_AGENT_CHAT
 invoking the agent, so `_append_commits_entry()` can reference the right chat file. The ace-run workflow
 (`src/sase/axe/run_agent_exec.py`) does **not** pre-set this env var.
 
-Even if it did, `create_changespec_for_workflow()` doesn't check `SASE_AGENT_CHAT_PATH` — it unconditionally creates
-a new (empty) chat file.
+Even if it did, `create_changespec_for_workflow()` doesn't check `SASE_AGENT_CHAT_PATH` — it unconditionally creates a
+new (empty) chat file.
 
 ### Why this only affects `create_pull_request`
 
 - `create_commit` / `create_proposal`: uses `_append_commits_entry()` which reads `SASE_AGENT_CHAT_PATH`
-- `create_pull_request`: uses `_create_changespec()` → `create_changespec_for_workflow()` which creates its own chat file
+- `create_pull_request`: uses `_create_changespec()` → `create_changespec_for_workflow()` which creates its own chat
+  file
 
 On Mercurial (sase-google), `create_pull_request` is the method used for new CLs, so this bug surfaces there.
 
@@ -93,19 +94,20 @@ if not chat_path:
     chat_path = save_chat_history(prompt, response, workflow_name, timestamp=ts)
 ```
 
-This keeps backward compatibility: when `SASE_AGENT_CHAT_PATH` is not set (e.g. human CLI usage or other callers),
-it falls back to creating a chat file as before.
+This keeps backward compatibility: when `SASE_AGENT_CHAT_PATH` is not set (e.g. human CLI usage or other callers), it
+falls back to creating a chat file as before.
 
 ### Step 3: Update tests
 
 - **`tests/workspace_provider/test_changespec.py`**: Test that `create_changespec_for_workflow` uses
   `SASE_AGENT_CHAT_PATH` when set, and falls back to creating a file when not set.
-- **`tests/test_commit_workflow_changespec.py`**: If it exists and covers `_create_changespec`, verify chat path behavior.
+- **`tests/test_commit_workflow_changespec.py`**: If it exists and covers `_create_changespec`, verify chat path
+  behavior.
 
 ## Files to modify
 
-| File | Change |
-|------|--------|
-| `src/sase/axe/run_agent_exec.py` | Pre-set `SASE_AGENT_CHAT_PATH` in `run_execution_loop()` |
-| `src/sase/workspace_provider/changespec.py` | Check `SASE_AGENT_CHAT_PATH` before creating chat file |
-| `tests/workspace_provider/test_changespec.py` | Test new env var behavior |
+| File                                          | Change                                                   |
+| --------------------------------------------- | -------------------------------------------------------- |
+| `src/sase/axe/run_agent_exec.py`              | Pre-set `SASE_AGENT_CHAT_PATH` in `run_execution_loop()` |
+| `src/sase/workspace_provider/changespec.py`   | Check `SASE_AGENT_CHAT_PATH` before creating chat file   |
+| `tests/workspace_provider/test_changespec.py` | Test new env var behavior                                |

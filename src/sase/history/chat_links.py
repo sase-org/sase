@@ -1,6 +1,6 @@
 """Cross-linking helpers for multi-step agent chat history files.
 
-Builds markdown link tables connecting planner, feedback, and coder chat
+Builds markdown link lists connecting planner, feedback, and coder chat
 files, and formats plan-file previews as synthetic responses for
 intermediate steps.
 """
@@ -12,26 +12,21 @@ def build_linked_chats_section(
     links: list[tuple[str, str]],
     current_role: str | None = None,
 ) -> str:
-    """Build a ``## Linked Chats`` markdown table.
+    """Build a ``## Linked Chats`` markdown list.
 
     Args:
         links: List of ``(role_suffix, chat_path)`` pairs.
-        current_role: If given, bold the matching row.
+        current_role: If given, bold the matching entry.
 
     Returns:
-        A markdown section string including the heading and table.
+        A markdown section string including the heading and list.
     """
-    lines = [
-        "## Linked Chats",
-        "",
-        "| Step | Role | Chat |",
-        "|------|------|------|",
-    ]
+    lines = ["## Linked Chats", ""]
     for step, (role, path) in enumerate(links, 1):
         if current_role is not None and role == current_role:
-            lines.append(f"| **{step}** | **{role}** | **`{path}`** |")
+            lines.append(f"- **{step}. {role}** — `{path}`")
         else:
-            lines.append(f"| {step} | {role} | `{path}` |")
+            lines.append(f"- {step}. {role} — `{path}`")
     return "\n".join(lines) + "\n"
 
 
