@@ -52,7 +52,7 @@ function is_codex_runtime() {
 }
 
 function is_gemini_runtime() {
-    [ -n "$GEMINI_HOOK_INPUT" ]
+    [ -n "${GEMINI_PROJECT_DIR:-}" ]
 }
 
 function emit_block() {
