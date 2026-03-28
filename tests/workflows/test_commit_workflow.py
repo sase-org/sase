@@ -390,3 +390,33 @@ def test_capture_pre_commit_diff_skips_without_cl_name(
 
     assert wf._diff_path is None
     mock_provider.diff.assert_not_called()
+
+
+# --- Precommit runs for SDD commits ---
+
+
+def test_precommit_runs_during_sdd_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: _run_precommit() must execute when sase commit is used for SDD files."""
+    monkeypatch.delenv("SASE_PLAN", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    payload = {
+        "message": "chore: Add SDD spec and plan for my_plan",
+        "files": [
+            str(tmp_path / "specs" / "my_plan.md"),
+            str(tmp_path / "plans" / "my_plan.md"),
+        ],
+    }
+    wf = CommitWorkflow(payload=payload, method="create_commit")
+
+    # Make _run_precommit fail so the workflow exits early — we only
+    # need to confirm it was called, not that the full workflow succeeds.
+    mock_precommit = MagicMock(return_value=False)
+
+    with patch.object(wf, "_run_precommit", mock_precommit):
+        wf.run()
+
+    mock_precommit.assert_called_once()
+    assert isinstance(mock_precommit.call_args[0][0], str)  # cwd arg

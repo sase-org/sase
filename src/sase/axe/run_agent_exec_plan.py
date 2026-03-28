@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,16 +44,30 @@ def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
     files = [f for f in (spec_file, plan_file) if os.path.exists(f)]
     if not files:
         return
-    cmd = ["sase", "commit", "-m", f"chore: Add SDD spec and plan for {plan_name}"]
+    message = f"chore: Add SDD spec and plan for {plan_name}"
+    # -m / --message-file expects a file path, not a raw string.
+    # handle_commit_command deletes the file after reading it.
+    msg_fd, msg_path = tempfile.mkstemp(suffix=".txt", prefix="sase_sdd_msg_")
+    try:
+        os.write(msg_fd, message.encode())
+    finally:
+        os.close(msg_fd)
+    cmd = ["sase", "commit", "-m", msg_path]
     for f in files:
         cmd.extend(["-f", f])
-    subprocess.run(
+    result = subprocess.run(
         cmd,
         cwd=workspace_dir,
         capture_output=True,
         text=True,
         check=False,
     )
+    if result.returncode != 0:
+        logger.warning(
+            "sase commit for SDD files failed (exit %d): %s",
+            result.returncode,
+            result.stderr,
+        )
 
 
 def _write_plan_path_artifact(artifacts_dir: str, plan_path: str) -> None:

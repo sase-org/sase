@@ -1,10 +1,12 @@
 """Tests for sdd/ subpackage - SDD file writing utilities."""
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from sase.axe.run_agent_exec_plan import _commit_sdd_files
 from sase.sdd.beads import init_beads
 from sase.sdd.files import (
     get_primary_workspace_dir,
@@ -272,3 +274,133 @@ def test_commit_sdd_files_not_git_repo() -> None:
         sdd_dir = Path(tmpdir)
         commit_sdd_files(sdd_dir, "Should not error")
         # Should not raise
+
+
+# ---------------------------------------------------------------------------
+# _commit_sdd_files (run_agent_exec_plan)
+# ---------------------------------------------------------------------------
+
+
+def test_commit_sdd_files_passes_tempfile_to_m() -> None:
+    """_commit_sdd_files writes the message to a temp file and passes its path to -m."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = tmpdir
+        specs = Path(ws) / "specs"
+        plans = Path(ws) / "plans"
+        specs.mkdir()
+        plans.mkdir()
+        (specs / "my_plan.md").write_text("spec", encoding="utf-8")
+        (plans / "my_plan.md").write_text("plan", encoding="utf-8")
+
+        captured_msg_content: list[str] = []
+
+        def fake_run(
+            cmd: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            # Find -m arg and read the file it points to
+            m_idx = cmd.index("-m")
+            msg_path = cmd[m_idx + 1]
+            assert os.path.isfile(msg_path), (
+                f"-m should point to a file, got: {msg_path}"
+            )
+            with open(msg_path, encoding="utf-8") as f:
+                captured_msg_content.append(f.read())
+            return subprocess.CompletedProcess(cmd, 0)
+
+        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+            _commit_sdd_files(ws, "my_plan")
+
+        assert len(captured_msg_content) == 1
+        assert captured_msg_content[0] == "chore: Add SDD spec and plan for my_plan"
+
+
+def test_commit_sdd_files_passes_f_flags() -> None:
+    """_commit_sdd_files passes -f for each existing spec/plan file."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = tmpdir
+        specs = Path(ws) / "specs"
+        plans = Path(ws) / "plans"
+        specs.mkdir()
+        plans.mkdir()
+        spec_file = specs / "my_plan.md"
+        plan_file = plans / "my_plan.md"
+        spec_file.write_text("spec", encoding="utf-8")
+        plan_file.write_text("plan", encoding="utf-8")
+
+        captured_cmd: list[list[str]] = []
+
+        def fake_run(
+            cmd: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_cmd.append(list(cmd))
+            return subprocess.CompletedProcess(cmd, 0)
+
+        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+            _commit_sdd_files(ws, "my_plan")
+
+        cmd = captured_cmd[0]
+        # Collect all -f values
+        f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
+        assert str(spec_file) in f_values
+        assert str(plan_file) in f_values
+
+
+def test_commit_sdd_files_spec_only() -> None:
+    """Only spec file exists — should still invoke sase commit with one -f."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = tmpdir
+        specs = Path(ws) / "specs"
+        specs.mkdir()
+        (specs / "only_spec.md").write_text("spec", encoding="utf-8")
+
+        captured_cmd: list[list[str]] = []
+
+        def fake_run(
+            cmd: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_cmd.append(list(cmd))
+            return subprocess.CompletedProcess(cmd, 0)
+
+        with patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run):
+            _commit_sdd_files(ws, "only_spec")
+
+        assert len(captured_cmd) == 1
+        cmd = captured_cmd[0]
+        f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
+        assert len(f_values) == 1
+
+
+def test_commit_sdd_files_noop_no_files() -> None:
+    """No-op when neither spec nor plan file exists."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        mock_run = MagicMock()
+        with patch("sase.axe.run_agent_exec_plan.subprocess.run", mock_run):
+            _commit_sdd_files(tmpdir, "nonexistent")
+        mock_run.assert_not_called()
+
+
+def test_commit_sdd_files_logs_failure() -> None:
+    """Non-zero exit code from sase commit is logged."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ws = tmpdir
+        specs = Path(ws) / "specs"
+        specs.mkdir()
+        (specs / "fail.md").write_text("spec", encoding="utf-8")
+
+        def fake_run(
+            cmd: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(cmd, 1, stderr="boom")
+
+        with (
+            patch("sase.axe.run_agent_exec_plan.subprocess.run", side_effect=fake_run),
+            patch("sase.axe.run_agent_exec_plan.logger") as mock_logger,
+        ):
+            _commit_sdd_files(ws, "fail")
+
+        mock_logger.warning.assert_called_once()
+        assert (
+            "exit 1"
+            in mock_logger.warning.call_args[0][0]
+            % mock_logger.warning.call_args[0][1:]
+        )
