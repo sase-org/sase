@@ -200,6 +200,40 @@ class TestMultiLineIndentation:
             assert ta.cursor_location == (2, 5)
 
 
+class TestSnippetPriority:
+    async def test_expand_snippet_takes_priority_over_tabstop(self) -> None:
+        """Typing a trigger at an active tabstop expands instead of advancing."""
+        app = _SnippetTestApp({"wrap": "($1)$0", "inner": "INNER"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("wrap")
+            ta.cursor_location = (0, 4)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            # Now at $1 inside "()" with $0 still pending
+            assert ta.text == "()"
+            assert ta.cursor_location == (0, 1)
+            assert ta._snippet_tabstops is not None
+
+            # Simulate typing a second trigger word at the $1 position
+            ta.load_text("(inner)")
+            ta.cursor_location = (0, 6)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                expanded = ta._try_expand_snippet()
+            assert expanded is True
+            assert ta.text == "(INNER)"
+            # Old tabstops replaced by new snippet (no remaining stops)
+            assert not ta._snippet_tabstops
+
+
 class TestTabstopExpansion:
     async def test_dollar_one_places_cursor(self) -> None:
         """$1 places cursor at first tabstop on expansion."""

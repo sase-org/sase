@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 13:36:47
-status: wip
+status: done
 ---
 
 # Fix: Snippet Expansion Takes Priority Over Tabstop Advance

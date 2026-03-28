@@ -486,13 +486,13 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self._enter_normal_mode()
             return
 
-        # Tab in INSERT mode: advance tabstop or expand snippet (never insert literal tab)
+        # Tab in INSERT mode: expand snippet or advance tabstop (never insert literal tab)
         if event.key == "tab":
             event.stop()
             event.prevent_default()
-            if self._try_advance_tabstop():
+            if self._try_expand_snippet():
                 return
-            self._try_expand_snippet()
+            self._try_advance_tabstop()
             return
 
         # Detect '#@' trigger before the '@' is inserted (skip in feedback mode)
