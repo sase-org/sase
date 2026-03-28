@@ -9,7 +9,9 @@ from unittest.mock import MagicMock, patch
 from sase.axe.run_agent_exec_plan import _commit_sdd_files
 from sase.sdd.beads import init_beads
 from sase.sdd.files import (
+    find_sdd_file,
     get_primary_workspace_dir,
+    get_yyyymm,
     commit_sdd_files,
     get_sdd_dir,
     update_spec_with_qa,
@@ -112,12 +114,15 @@ def test_write_sdd_files() -> None:
         plan_file = sdd_dir / "source_plan.yaml"
         plan_file.write_text("steps:\n  - do stuff\n", encoding="utf-8")
 
-        spec_path, plan_path = write_sdd_files(
-            sdd_dir, "my_plan", "# My Spec\nDetails here", str(plan_file)
-        )
+        with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
+            spec_path, plan_path = write_sdd_files(
+                sdd_dir, "my_plan", "# My Spec\nDetails here", str(plan_file)
+            )
 
         assert spec_path.exists()
         assert plan_path.exists()
+        assert spec_path.parent.name == "202603"
+        assert plan_path.parent.name == "202603"
         assert spec_path.read_text(encoding="utf-8") == "# My Spec\nDetails here"
         plan_text = plan_path.read_text(encoding="utf-8")
         assert plan_text.startswith("---\ncreate_time:")
@@ -128,9 +133,10 @@ def test_write_sdd_files_missing_plan() -> None:
     """If source plan file doesn't exist, plan_path is not written."""
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir)
-        spec_path, plan_path = write_sdd_files(
-            sdd_dir, "my_plan", "spec content", "/nonexistent/plan.yaml"
-        )
+        with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
+            spec_path, plan_path = write_sdd_files(
+                sdd_dir, "my_plan", "spec content", "/nonexistent/plan.yaml"
+            )
         assert spec_path.exists()
         assert not plan_path.exists()
 
@@ -141,9 +147,10 @@ def test_write_sdd_files_creates_dirs() -> None:
         plan_file = Path(tmpdir) / "plan.yaml"
         plan_file.write_text("plan", encoding="utf-8")
 
-        write_sdd_files(sdd_dir, "test", "spec", str(plan_file))
-        assert (sdd_dir / "specs").is_dir()
-        assert (sdd_dir / "plans").is_dir()
+        with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
+            write_sdd_files(sdd_dir, "test", "spec", str(plan_file))
+        assert (sdd_dir / "specs" / "202603").is_dir()
+        assert (sdd_dir / "plans" / "202603").is_dir()
 
 
 # ---------------------------------------------------------------------------
@@ -285,10 +292,10 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
     """_commit_sdd_files writes the message to a temp file and passes its path to -m."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs"
-        plans = Path(ws) / "plans"
-        specs.mkdir()
-        plans.mkdir()
+        specs = Path(ws) / "specs" / "202603"
+        plans = Path(ws) / "plans" / "202603"
+        specs.mkdir(parents=True)
+        plans.mkdir(parents=True)
         (specs / "my_plan.md").write_text("spec", encoding="utf-8")
         (plans / "my_plan.md").write_text("plan", encoding="utf-8")
 
@@ -318,10 +325,10 @@ def test_commit_sdd_files_passes_f_flags() -> None:
     """_commit_sdd_files passes -f for each existing spec/plan file."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs"
-        plans = Path(ws) / "plans"
-        specs.mkdir()
-        plans.mkdir()
+        specs = Path(ws) / "specs" / "202603"
+        plans = Path(ws) / "plans" / "202603"
+        specs.mkdir(parents=True)
+        plans.mkdir(parents=True)
         spec_file = specs / "my_plan.md"
         plan_file = plans / "my_plan.md"
         spec_file.write_text("spec", encoding="utf-8")
@@ -349,8 +356,8 @@ def test_commit_sdd_files_spec_only() -> None:
     """Only spec file exists — should still invoke sase commit with one -f."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs"
-        specs.mkdir()
+        specs = Path(ws) / "specs" / "202603"
+        specs.mkdir(parents=True)
         (specs / "only_spec.md").write_text("spec", encoding="utf-8")
 
         captured_cmd: list[list[str]] = []
@@ -383,8 +390,8 @@ def test_commit_sdd_files_logs_failure() -> None:
     """Non-zero exit code from sase commit is logged."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
-        specs = Path(ws) / "specs"
-        specs.mkdir()
+        specs = Path(ws) / "specs" / "202603"
+        specs.mkdir(parents=True)
         (specs / "fail.md").write_text("spec", encoding="utf-8")
 
         def fake_run(
@@ -404,3 +411,73 @@ def test_commit_sdd_files_logs_failure() -> None:
             in mock_logger.warning.call_args[0][0]
             % mock_logger.warning.call_args[0][1:]
         )
+
+
+# ---------------------------------------------------------------------------
+# get_yyyymm
+# ---------------------------------------------------------------------------
+
+
+def test_get_yyyymm_default() -> None:
+    """get_yyyymm returns a 6-digit YYYYMM string."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    dt = datetime(2025, 11, 15, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+    assert get_yyyymm(dt) == "202511"
+
+
+def test_get_yyyymm_january() -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    dt = datetime(2026, 1, 5, 0, 0, 0, tzinfo=ZoneInfo("UTC"))
+    assert get_yyyymm(dt) == "202601"
+
+
+# ---------------------------------------------------------------------------
+# find_sdd_file
+# ---------------------------------------------------------------------------
+
+
+def test_find_sdd_file_flat() -> None:
+    """find_sdd_file returns flat path when it exists."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "specs").mkdir()
+        (base / "specs" / "my_plan.md").write_text("spec", encoding="utf-8")
+        result = find_sdd_file(base, "specs", "my_plan.md")
+        assert result == base / "specs" / "my_plan.md"
+
+
+def test_find_sdd_file_yyyymm() -> None:
+    """find_sdd_file finds file in YYYYMM subdirectory."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "plans" / "202603").mkdir(parents=True)
+        (base / "plans" / "202603" / "my_plan.md").write_text("plan", encoding="utf-8")
+        result = find_sdd_file(base, "plans", "my_plan.md")
+        assert result == base / "plans" / "202603" / "my_plan.md"
+
+
+def test_find_sdd_file_prefers_flat() -> None:
+    """find_sdd_file prefers flat path over YYYYMM when both exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "specs").mkdir()
+        (base / "specs" / "my_plan.md").write_text("flat", encoding="utf-8")
+        (base / "specs" / "202603").mkdir()
+        (base / "specs" / "202603" / "my_plan.md").write_text(
+            "yyyymm", encoding="utf-8"
+        )
+        result = find_sdd_file(base, "specs", "my_plan.md")
+        assert result == base / "specs" / "my_plan.md"
+
+
+def test_find_sdd_file_missing() -> None:
+    """find_sdd_file returns None when file doesn't exist anywhere."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        (base / "specs").mkdir()
+        result = find_sdd_file(base, "specs", "nonexistent.md")
+        assert result is None

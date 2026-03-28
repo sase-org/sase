@@ -198,7 +198,7 @@ class TestHandleSasePlan:
     """Verify _handle_sase_plan gates copy/frontmatter/staging on version_controlled."""
 
     def test_vc_true_copies_plan_into_repo(self, tmp_path: Path) -> None:
-        """version_controlled=True: plan is copied into plans/, _plan_path set."""
+        """version_controlled=True: plan is copied into plans/<YYYYMM>/, _plan_path set."""
         plan_file = tmp_path / "my_plan.md"
         plan_file.write_text("# Plan\nstatus: wip\n")
 
@@ -212,13 +212,14 @@ class TestHandleSasePlan:
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patch(_SDD_CONFIG_TARGET, return_value=True),
             patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
             wf._handle_sase_plan(str(repo_dir))
 
         assert "_plan_path" in payload
-        dest = repo_dir / "plans" / "my_plan.md"
+        dest = repo_dir / "plans" / "202603" / "my_plan.md"
         assert dest.exists()
-        assert "PLAN=plans/my_plan.md" in payload["message"]
+        assert "PLAN=plans/202603/my_plan.md" in payload["message"]
 
     def test_vc_false_does_not_copy_plan(self, tmp_path: Path) -> None:
         """version_controlled=False: plan NOT copied, no _plan_path, no PLAN= tag."""
@@ -243,7 +244,7 @@ class TestHandleSasePlan:
         assert "PLAN=" not in payload["message"]
 
     def test_archive_fallback_vc_true_copies(self, tmp_path: Path) -> None:
-        """Archive fallback + version_controlled=True: copies into repo."""
+        """Archive fallback + version_controlled=True: copies into YYYYMM subdir."""
         archive_dir = tmp_path / ".sase" / "plans"
         archive_dir.mkdir(parents=True)
         archive_plan = archive_dir / "my_plan.md"
@@ -263,11 +264,12 @@ class TestHandleSasePlan:
             patch(_SDD_CONFIG_TARGET, return_value=True),
             patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
+            patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
             wf._handle_sase_plan(str(repo_dir))
 
         assert "_plan_path" in payload
-        assert (repo_dir / "plans" / "my_plan.md").exists()
+        assert (repo_dir / "plans" / "202603" / "my_plan.md").exists()
 
     def test_archive_fallback_vc_false_no_copy(self, tmp_path: Path) -> None:
         """Archive fallback + version_controlled=False: does NOT copy into repo."""
@@ -296,3 +298,24 @@ class TestHandleSasePlan:
         assert "_plan_path" not in payload
         assert not (repo_dir / "plans").exists()
         assert "PLAN=" not in payload["message"]
+
+    def test_vc_true_extracts_yyyymm_from_frontmatter(self, tmp_path: Path) -> None:
+        """version_controlled=True: YYYYMM is extracted from create_time frontmatter."""
+        plan_file = tmp_path / "my_plan.md"
+        plan_file.write_text("---\ncreate_time: 2025-11-15 10:30:00\n---\n# Plan\n")
+
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+
+        payload: dict = {"message": "fix: bug"}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch(_SDD_CONFIG_TARGET, return_value=True),
+            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+        ):
+            wf._handle_sase_plan(str(repo_dir))
+
+        dest = repo_dir / "plans" / "202511" / "my_plan.md"
+        assert dest.exists()

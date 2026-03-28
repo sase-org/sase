@@ -39,9 +39,13 @@ def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
     wipes uncommitted files.  Committing (and pushing) the SDD files first
     ensures the epic agent can still read them.
     """
-    spec_file = os.path.join(workspace_dir, "specs", f"{plan_name}.md")
-    plan_file = os.path.join(workspace_dir, "plans", f"{plan_name}.md")
-    files = [f for f in (spec_file, plan_file) if os.path.exists(f)]
+    from sase.sdd.files import find_sdd_file
+
+    base = Path(workspace_dir)
+    fname = f"{plan_name}.md"
+    spec_found = find_sdd_file(base, "specs", fname)
+    plan_found = find_sdd_file(base, "plans", fname)
+    files = [str(f) for f in (spec_found, plan_found) if f is not None]
     if not files:
         return
     message = f"chore: Add SDD spec and plan for {plan_name}"
@@ -246,6 +250,7 @@ def handle_plan_marker(
     )
 
     sdd_plan_name: str | None = None
+    sdd_plan_path: Path | None = None
     version_controlled = True  # safe default (VC path is the no-op path)
     sdd_dir = Path(ctx.workspace_dir)
     try:
@@ -259,7 +264,7 @@ def handle_plan_marker(
                 "Spec prompt expansion failed, using raw prompt", exc_info=True
             )
             expanded = state.original_prompt
-        sdd_spec_path_obj, _ = write_sdd_files(
+        sdd_spec_path_obj, sdd_plan_path = write_sdd_files(
             sdd_dir, sdd_plan_name, expanded, plan_result.plan_file
         )
         state.sdd_spec_path = str(sdd_spec_path_obj)
@@ -316,13 +321,14 @@ def handle_plan_marker(
             else None,
             workflow_name=ctx.agent_name,
         )
-        plan_ref = (
-            f".sase/sdd/plans/{sdd_plan_name}.md"
-            if sdd_plan_name and not version_controlled
-            else f"plans/{sdd_plan_name}.md"
-            if sdd_plan_name
-            else plan_data["plan_file"]
-        )
+        if sdd_plan_path and sdd_plan_path.exists():
+            plan_ref = str(sdd_plan_path.relative_to(Path(ctx.workspace_dir)))
+        elif sdd_plan_name and not version_controlled:
+            plan_ref = f".sase/sdd/plans/{sdd_plan_name}.md"
+        elif sdd_plan_name:
+            plan_ref = f"plans/{sdd_plan_name}.md"
+        else:
+            plan_ref = plan_data["plan_file"]
         state.current_prompt = f"{vcs_prefix}#bd/new_epic:{plan_ref}\n{embedded_refs}"
     else:
         # Approve: spawn coder with plan as prompt
@@ -335,8 +341,8 @@ def handle_plan_marker(
 
         # Point SASE_PLAN at the committed in-repo plan file so
         # the commit workflow can update its frontmatter without copying.
-        if sdd_plan_name:
-            os.environ["SASE_PLAN"] = str(sdd_dir / "plans" / f"{sdd_plan_name}.md")
+        if sdd_plan_path and sdd_plan_path.exists():
+            os.environ["SASE_PLAN"] = str(sdd_plan_path)
         else:
             os.environ["SASE_PLAN"] = plan_data["plan_file"]
 

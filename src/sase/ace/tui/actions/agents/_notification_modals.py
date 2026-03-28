@@ -286,8 +286,11 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
                     )
                     from sase.running_field import get_workspace_directory
 
+                    from sase.sdd.files import get_yyyymm
+
                     workspace_dir = get_workspace_directory(project_basename, 1)
-                    plans_dir = Path(workspace_dir) / ".sase" / "plans"
+                    yyyymm = get_yyyymm()
+                    plans_dir = Path(workspace_dir) / ".sase" / "plans" / yyyymm
                     plans_dir.mkdir(parents=True, exist_ok=True)
                     src_plan = Path(notification.files[0])
                     dest_plan = plans_dir / src_plan.name

@@ -231,7 +231,7 @@ xprompts:
       Finally, run the `just pyvision` command AFTER closing the epic bead (some symbols can be ignored while an epic is open)
       to make sure we didn't leave any unused code behind.
 
-      Finally, find the plan file associated with this work (should be in the plans/ directory) and then look for a file of
+      Finally, find the plan file associated with this work (should be in the plans/ directory, in a YYYYMM subdirectory) and then look for a file of
       the same name in the specs/ directory. If found, a `status` field should be added (or updated if it already exists) to
       the frontmatter of the plan file with a value of `done`.
   bd/new_epic:
@@ -260,7 +260,7 @@ xprompts:
     input:
       file_base: word
     content: |
-      Can you review the requirements in the @specs/{{ file_base }}.md file against the plan in the @plans/{{ file_base }}.md
+      Can you review the requirements in the @specs/**/{{ file_base }}.md file against the plan in the @plans/**/{{ file_base }}.md
       file and ensure that the following qualities are met?:
 
         1. ALL requirements in the prompt file have been satisified.
@@ -272,7 +272,7 @@ xprompts:
     input:
       file_base: word
     content: |
-      Can you help me review the prompt I've prepared in the @specs/{{ file_base }}.md file and look for gaps / ambiguity
+      Can you help me review the prompt I've prepared in the @specs/**/{{ file_base }}.md file and look for gaps / ambiguity
       in the requirements? In particular, what design decisions would you need from me if I were to ask you to implement the
       functionality described in that file?
   epic: |

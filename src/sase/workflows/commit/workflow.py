@@ -19,6 +19,30 @@ if TYPE_CHECKING:
 VALID_METHODS = ("create_commit", "create_proposal", "create_pull_request")
 
 
+def _extract_yyyymm_from_plan(plan_path: str) -> str | None:
+    """Extract YYYYMM from a plan file's ``create_time`` frontmatter field.
+
+    Returns ``None`` if the file has no frontmatter or no ``create_time`` field.
+    """
+    import re
+
+    try:
+        with open(plan_path, encoding="utf-8") as f:
+            content = f.read(512)  # frontmatter is near the top
+    except OSError:
+        return None
+    if not content.startswith("---\n"):
+        return None
+    end = content.find("\n---\n", 4)
+    if end == -1:
+        return None
+    fm = content[4:end]
+    m = re.search(r"^create_time:\s*(\d{4})-(\d{2})", fm, re.MULTILINE)
+    if m:
+        return f"{m.group(1)}{m.group(2)}"
+    return None
+
+
 class CommitWorkflow(BaseWorkflow):
     """A workflow that dispatches commit operations to VCS provider hooks."""
 
@@ -216,7 +240,10 @@ class CommitWorkflow(BaseWorkflow):
 
         # Only copy plan into repo for version-controlled SDD projects
         if version_controlled and not in_repo:
-            dest = os.path.join(cwd, "plans", os.path.basename(plan_path))
+            from sase.sdd.files import get_yyyymm
+
+            yyyymm = _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
+            dest = os.path.join(cwd, "plans", yyyymm, os.path.basename(plan_path))
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             shutil.copy2(plan_path, dest)
             plan_path = dest

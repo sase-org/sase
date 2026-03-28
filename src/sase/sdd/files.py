@@ -3,10 +3,38 @@
 import logging
 import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 _logger = logging.getLogger(__name__)
+
+
+def get_yyyymm(dt: datetime | None = None) -> str:
+    """Return a YYYYMM string for SDD subdirectory organization.
+
+    Uses the configured timezone (same as ``add_create_time_frontmatter``).
+    """
+    if dt is None:
+        from sase.core.time import get_timezone
+
+        dt = datetime.now(get_timezone())
+    return dt.strftime("%Y%m")
+
+
+def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
+    """Search for an SDD file, supporting both flat and YYYYMM layouts.
+
+    Checks ``base_dir/{kind}/{name}`` first (flat), then
+    ``base_dir/{kind}/*/{name}`` (YYYYMM subdirs).
+
+    Returns the first match, or ``None`` if not found.
+    """
+    flat = base_dir / kind / name
+    if flat.exists():
+        return flat
+    matches = sorted((base_dir / kind).glob(f"*/{name}"))
+    return matches[0] if matches else None
 
 
 def get_sdd_dir(
@@ -104,12 +132,13 @@ def write_sdd_files(
     spec_content: str,
     plan_file: str,
 ) -> tuple[Path, Path]:
-    """Write specs/<name>.md and plans/<name>.md to sdd_dir.
+    """Write specs/<YYYYMM>/<name>.md and plans/<YYYYMM>/<name>.md to sdd_dir.
 
     Returns (spec_path, plan_path).
     """
-    specs_dir = sdd_dir / "specs"
-    plans_dir = sdd_dir / "plans"
+    yyyymm = get_yyyymm()
+    specs_dir = sdd_dir / "specs" / yyyymm
+    plans_dir = sdd_dir / "plans" / yyyymm
     specs_dir.mkdir(parents=True, exist_ok=True)
     plans_dir.mkdir(parents=True, exist_ok=True)
 
