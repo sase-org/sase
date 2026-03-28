@@ -95,9 +95,9 @@ function repo_has_changes() {
     local repo_dir="$1"
 
     if [ -e "$repo_dir/.git" ]; then
-        local repo_changes
-        repo_changes=$(cd "$repo_dir" && { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } | sort -u)
-        echo "$repo_changes" | grep -q .
+        local repo_status
+        repo_status=$(cd "$repo_dir" && git status --porcelain 2>/dev/null)
+        [ -n "$repo_status" ]
         return $?
     fi
 
