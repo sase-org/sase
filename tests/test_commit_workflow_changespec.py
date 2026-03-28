@@ -74,6 +74,7 @@ class TestCommitWorkflowChangeSpec:
             cl_name="feat-x",
             commit_description="add feature",
             parent=None,
+            bug=None,
         )
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
@@ -132,6 +133,97 @@ class TestCommitWorkflowChangeSpec:
         with patch(_CHANGESPEC_TARGET) as mock_cs:
             wf.run()
             mock_cs.assert_not_called()
+
+
+class TestCommitWorkflowBugId:
+    """Verify SASE_BUG_ID env var propagation to ChangeSpec."""
+
+    @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
+    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    @patch(_PROVIDER_TARGET)
+    def test_bug_id_propagated_to_changespec(
+        self,
+        mock_get: MagicMock,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_cs: MagicMock,
+        mock_suffixed: MagicMock,
+        mock_provider: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When SASE_BUG_ID is set, bug=http://b/<id> is passed to create_changespec_for_workflow."""
+        monkeypatch.setenv("SASE_BUG_ID", "12345")
+        mock_provider.create_pull_request.return_value = (
+            True,
+            "https://github.com/org/repo/pull/1",
+        )
+        mock_get.return_value = mock_provider
+        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        assert wf.run() is True
+        mock_cs.assert_called_once()
+        assert mock_cs.call_args.kwargs["bug"] == "http://b/12345"
+
+    @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
+    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    @patch(_PROVIDER_TARGET)
+    def test_bug_id_not_set_passes_none(
+        self,
+        mock_get: MagicMock,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_cs: MagicMock,
+        mock_suffixed: MagicMock,
+        mock_provider: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When SASE_BUG_ID is not set, bug=None is passed."""
+        monkeypatch.delenv("SASE_BUG_ID", raising=False)
+        mock_provider.create_pull_request.return_value = (
+            True,
+            "https://github.com/org/repo/pull/1",
+        )
+        mock_get.return_value = mock_provider
+        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        assert wf.run() is True
+        mock_cs.assert_called_once()
+        assert mock_cs.call_args.kwargs["bug"] is None
+
+    @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
+    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    @patch(_PROVIDER_TARGET)
+    def test_bug_id_zero_passes_none(
+        self,
+        mock_get: MagicMock,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_cs: MagicMock,
+        mock_suffixed: MagicMock,
+        mock_provider: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When SASE_BUG_ID is '0', bug=None is passed (falsy value)."""
+        monkeypatch.setenv("SASE_BUG_ID", "0")
+        mock_provider.create_pull_request.return_value = (
+            True,
+            "https://github.com/org/repo/pull/1",
+        )
+        mock_get.return_value = mock_provider
+        payload = {"name": "feat-x", "message": "add feature", "files": []}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        assert wf.run() is True
+        mock_cs.assert_called_once()
+        assert mock_cs.call_args.kwargs["bug"] is None
 
 
 class TestCommitWorkflowChangeSpecErrorHandling:

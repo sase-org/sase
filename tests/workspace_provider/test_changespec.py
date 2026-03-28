@@ -362,6 +362,54 @@ def test_create_changespec_falls_back_without_agent_chat_path(
         assert initial_commits[0][2] == "~/chats/fallback.md"
 
 
+def test_create_changespec_for_workflow_passes_bug(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """bug parameter is forwarded to add_changespec_to_project_file."""
+    monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["feat: add thing"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/f.md",
+        ),
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value=None,
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="proj_add_thing_1",
+        ) as mock_add,
+    ):
+        result = create_changespec_for_workflow(
+            project_name="proj",
+            project_file="/fake/proj.gp",
+            checkout_target="HEAD~1",
+            branch_name="foobar",
+            prompt="",
+            response="",
+            workflow_name="sase_commit",
+            cl_name="proj_add_thing",
+            bug="http://b/12345",
+        )
+        assert result == "proj_add_thing_1"
+        mock_add.assert_called_once()
+        assert mock_add.call_args.kwargs["bug"] == "http://b/12345"
+
+
 def test_create_changespec_for_workflow_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -417,6 +465,7 @@ def test_create_changespec_for_workflow_success(
             initial_commits=[
                 (1, "[run] Initial Commit", "~/chats/f.md", "~/diffs/f.diff")
             ],
+            bug=None,
             cl_label="PR",
             status="Draft",
         )

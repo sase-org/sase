@@ -366,6 +366,9 @@ class CommitWorkflow(BaseWorkflow):
             branch_name = self._payload.get("name", "")
             checkout_target = self._payload.get("checkout_target", "HEAD~1")
 
+            bug_id = os.environ.get("SASE_BUG_ID", "").strip()
+            bug = f"http://b/{bug_id}" if bug_id and bug_id != "0" else None
+
             cs_name = create_changespec_for_workflow(
                 project_name=project_name,
                 project_file=project_file,
@@ -378,6 +381,7 @@ class CommitWorkflow(BaseWorkflow):
                 cl_name=self._base_cl_name or self._payload.get("name"),
                 commit_description=self._payload.get("message", ""),
                 parent=self._parent_cl_name,
+                bug=bug,
             )
             if cs_name:
                 print_status(f"Created ChangeSpec: {cs_name}", "success")
