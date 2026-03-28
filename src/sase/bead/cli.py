@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -148,19 +149,48 @@ def handle_bead_init(args: argparse.Namespace) -> None:
     print(f"Initialized {beads_dirname}/ in {root}")
 
 
-def handle_bead_create(args: argparse.Namespace) -> None:
-    plan_path: str | None = args.plan
-    parent_id: str | None = args.parent
+def _parse_type_arg(value: str) -> tuple[IssueType, str | None, str | None]:
+    """Parse the ``--type`` argument into (issue_type, plan_path, parent_id).
 
-    if not plan_path and not parent_id:
+    Accepted forms:
+    - ``plan(<path>)``                → PLAN, design=path, parent_id=None
+    - ``plan(<path>,<parent_id>)``    → PLAN, design=path, parent_id=parent_id
+    - ``phase(<parent_id>)``          → PHASE, design=None, parent_id=parent_id
+    """
+    m = re.match(r"^(plan|phase)\((.+)\)$", value)
+    if not m:
         print(
-            "Error: at least one of --plan or --parent is required.",
+            f"Error: invalid --type value: {value}\n"
+            "Expected: plan(<plan_file>), plan(<plan_file>,<parent_id>), or phase(<parent_id>)",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    # Determine type: plan if --plan provided, phase otherwise
-    issue_type = IssueType.PLAN if plan_path else IssueType.PHASE
+    kind, inner = m.group(1), m.group(2)
+    parts = [p.strip() for p in inner.split(",")]
+
+    if kind == "plan":
+        if len(parts) == 1:
+            return IssueType.PLAN, parts[0], None
+        if len(parts) == 2:
+            return IssueType.PLAN, parts[0], parts[1]
+        print(
+            f"Error: plan() expects 1 or 2 arguments, got {len(parts)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    else:  # phase
+        if len(parts) == 1:
+            return IssueType.PHASE, None, parts[0]
+        print(
+            f"Error: phase() expects exactly 1 argument, got {len(parts)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def handle_bead_create(args: argparse.Namespace) -> None:
+    issue_type, plan_path, parent_id = _parse_type_arg(args.type)
 
     # Validate plan file exists and resolve path for the design field
     design = ""
@@ -403,9 +433,9 @@ def handle_bead_onboard(args: argparse.Namespace) -> None:
 
 Quick Start:
   sase bead init                                 Create .sase_beads/ in current directory
-  sase bead create --title="Fix bug" --parent=<plan-id>
-  sase bead create --title="New feature" --plan=plan.md
-  sase bead create --title="Sub-plan" --plan=plan.md --parent=<plan-id>
+  sase bead create -t "Fix bug" --type phase(<plan-id>)
+  sase bead create -t "New feature" --type plan(plan.md)
+  sase bead create -t "Sub-plan" --type plan(plan.md,<plan-id>)
   sase bead list                                 List all issues
   sase bead list --status=open                   List open issues
   sase bead ready                                Show issues ready to work

@@ -27,14 +27,10 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_create_parser = bead_subparsers.add_parser("create", help="Create a new issue")
     bead_create_parser.add_argument("-t", "--title", required=True, help="Issue title")
     bead_create_parser.add_argument(
-        "-p",
-        "--plan",
-        help="Path to plan file (creates a plan bead linked to this file)",
-    )
-    bead_create_parser.add_argument(
-        "-P",
-        "--parent",
-        help="Parent bead ID (creates a phase bead as child of this parent)",
+        "-T",
+        "--type",
+        required=True,
+        help="Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), or phase(<parent_id>)",
     )
     bead_create_parser.add_argument("-d", "--description", help="Issue description")
     bead_create_parser.add_argument("-a", "--assignee", help="Assignee")

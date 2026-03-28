@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 17:07:24
-status: wip
+status: done
 ---
 
 # Plan: Migrate `sase bead create` to `--type` flag

@@ -729,13 +729,12 @@ No flags. Outputs a JSON array of all available xprompts with name, type, source
 
 #### `sase bead create`
 
-| Flag                | Values | Default    | Description                                      |
-| ------------------- | ------ | ---------- | ------------------------------------------------ |
-| `-t, --title`       | string | (required) | Issue title                                      |
-| `-p, --plan`        | path   | -          | Path to plan file (creates a plan bead)          |
-| `-P, --parent`      | string | -          | Parent bead ID (creates a phase under this plan) |
-| `-d, --description` | string | -          | Issue description                                |
-| `-a, --assignee`    | string | -          | Assignee name                                    |
+| Flag                | Values | Default    | Description                                                                 |
+| ------------------- | ------ | ---------- | --------------------------------------------------------------------------- |
+| `-t, --title`       | string | (required) | Issue title                                                                 |
+| `-T, --type`        | string | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
+| `-d, --description` | string | -          | Issue description                                                           |
+| `-a, --assignee`    | string | -          | Assignee name                                                               |
 
 #### `sase bead list`
 

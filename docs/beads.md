@@ -23,8 +23,8 @@ hierarchy: **Plans** (epics) group related work, and **Phases** (child tasks) br
 
 ```bash
 sase bead init                                          # Initialize beads in current project
-sase bead create --title="New feature" --plan=plan.md   # Create a plan linked to a plan file
-sase bead create --title="Sub-task" --parent=beads-001  # Create a phase under a plan
+sase bead create -t "New feature" --type plan(plan.md)   # Create a plan linked to a plan file
+sase bead create -t "Sub-task" --type phase(beads-001)   # Create a phase under a plan
 sase bead list                                          # List all issues
 sase bead list --status=open                            # List open issues
 sase bead ready                                         # Show issues ready to work on
@@ -111,15 +111,12 @@ Initialize the beads directory in the current project.
 
 Create a new issue.
 
-| Flag                | Required | Description                                      |
-| ------------------- | -------- | ------------------------------------------------ |
-| `-t, --title`       | yes      | Issue title                                      |
-| `-p, --plan`        | no       | Path to plan file (creates a plan bead)          |
-| `-P, --parent`      | no       | Parent bead ID (creates a phase under this plan) |
-| `-d, --description` | no       | Issue description                                |
-| `-a, --assignee`    | no       | Assignee name                                    |
-
-Type is determined automatically: providing `--plan` creates a plan; providing `--parent` creates a phase.
+| Flag                | Required | Description                                                                 |
+| ------------------- | -------- | --------------------------------------------------------------------------- |
+| `-t, --title`       | yes      | Issue title                                                                 |
+| `-T, --type`        | yes      | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
+| `-d, --description` | no       | Issue description                                                           |
+| `-a, --assignee`    | no       | Assignee name                                                               |
 
 ### `sase bead list`
 
@@ -212,8 +209,8 @@ unified view of all work.
 
 ### Plan File Linking
 
-When creating a plan bead with `--plan PATH`, the file path is stored in the `design` field. The ACE TUI can navigate
-from a bead to its linked plan file.
+When creating a plan bead with `--type plan(PATH)`, the file path is stored in the `design` field. The ACE TUI can
+navigate from a bead to its linked plan file.
 
 ### Epic Approval Flow
 
