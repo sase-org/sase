@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 14:50:42
-status: wip
+status: done
 ---
 
 # Fix Missing BUG=<bug_id> PR Tag in #pr Xprompt Workflow

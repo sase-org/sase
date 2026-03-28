@@ -1,5 +1,6 @@
 """Tests for pr_tags config reading and commit message appending."""
 
+import os
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
@@ -98,6 +99,131 @@ class TestAppendPrTags:
 
         sent_payload = provider.create_pull_request.call_args[0][0]
         assert "R=startblock" in sent_payload.get("_pr_body", "")
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_bug_tag_from_env(
+        self,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Fix bug"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with (
+            patch("sase.vcs_provider.config.get_pr_tags", return_value={}),
+            patch.dict("os.environ", {"SASE_BUG_ID": "12345"}),
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "BUG=12345" in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_bug_tag_zero_skipped(
+        self,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Add feature"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with (
+            patch("sase.vcs_provider.config.get_pr_tags", return_value={}),
+            patch.dict("os.environ", {"SASE_BUG_ID": "0"}),
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "BUG=" not in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_bug_tag_unset_skipped(
+        self,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Add feature"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        env = {k: v for k, v in os.environ.items() if k != "SASE_BUG_ID"}
+        with (
+            patch("sase.vcs_provider.config.get_pr_tags", return_value={}),
+            patch.dict("os.environ", env, clear=True),
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "BUG=" not in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_bug_tag_alongside_config_tags(
+        self,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Fix bug"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        tags = {"AUTOSUBMIT_BEHAVIOR": "SYNC_SUBMIT", "MARKDOWN": "true"}
+        with (
+            patch("sase.vcs_provider.config.get_pr_tags", return_value=tags),
+            patch.dict("os.environ", {"SASE_BUG_ID": "99"}),
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        msg = sent["message"]
+        assert "BUG=99" in msg
+        assert "AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT" in msg
+        assert "MARKDOWN=true" in msg
+        # BUG should appear before other tags
+        assert msg.index("BUG=99") < msg.index("AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT")
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_bug_tag_env_overrides_static_config(
+        self,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Fix bug"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        tags = {"BUG": "static-111", "MARKDOWN": "true"}
+        with (
+            patch("sase.vcs_provider.config.get_pr_tags", return_value=tags),
+            patch.dict("os.environ", {"SASE_BUG_ID": "222"}),
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        msg = sent["message"]
+        assert "BUG=222" in msg
+        assert "BUG=static-111" not in msg
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)

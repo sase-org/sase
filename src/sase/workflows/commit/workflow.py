@@ -278,6 +278,11 @@ class CommitWorkflow(BaseWorkflow):
         from sase.vcs_provider.config import get_pr_tags
 
         tags = get_pr_tags()
+
+        bug_id = os.environ.get("SASE_BUG_ID", "")
+        if bug_id and bug_id != "0":
+            tags = {"BUG": bug_id, **{k: v for k, v in tags.items() if k != "BUG"}}
+
         if not tags:
             return
 
