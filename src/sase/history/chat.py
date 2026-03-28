@@ -16,6 +16,118 @@ from sase.core.time import generate_timestamp, get_timezone
 from sase.core.shell import run_shell_command
 
 
+# Matches #resume:name, #resume(`name`), #resume(name),
+# #resume_by_chat:path, #resume_by_chat(`path`), #resume_by_chat(path)
+_RESUME_REF_RE = re.compile(
+    r"#(resume|resume_by_chat)"  # xprompt name
+    r"(?:"
+    r":(`[^`]+`|[^\s,)]+)"  # colon syntax (backtick-quoted or bare)
+    r"|"
+    r"\((`[^`]+`|[^)]+)\)"  # paren syntax
+    r")"
+)
+
+
+def _find_resume_refs(text: str) -> list[tuple[str, str, str]]:
+    """Find all #resume references in text.
+
+    Returns:
+        List of (full_match, xprompt_name, argument) tuples.
+    """
+    results = []
+    for m in _RESUME_REF_RE.finditer(text):
+        full_match = m.group(0)
+        xprompt_name = m.group(1)
+        # Argument is in group 2 (colon syntax) or group 3 (paren syntax)
+        raw_arg = m.group(2) or m.group(3)
+        # Strip backtick quoting
+        arg = raw_arg.strip("`")
+        results.append((full_match, xprompt_name, arg))
+    return results
+
+
+def _resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None:
+    """Resolve a #resume ref to a chat file path.
+
+    For ``resume``: looks up the named agent and reads its done.json.
+    For ``resume_by_chat``: returns the argument directly.
+
+    Returns:
+        Absolute chat file path, or None on any failure.
+    """
+    if xprompt_name == "resume_by_chat":
+        path = os.path.expanduser(argument)
+        if not path.endswith(".md"):
+            path = get_chat_file_path(path)
+        return path if os.path.exists(path) else None
+
+    # resume — resolve via agent name
+    try:
+        from sase.agent.names import find_named_agent
+
+        agent = find_named_agent(argument, only_done=True)
+        if agent is None:
+            return None
+        import json
+
+        done_path = os.path.join(agent.artifacts_dir, "done.json")
+        with open(done_path, encoding="utf-8") as f:
+            done_data = json.load(f)
+        response_path = done_data.get("response_path")
+        if not response_path:
+            return None
+        expanded = os.path.expanduser(response_path)
+        return expanded if os.path.exists(expanded) else None
+    except Exception:
+        return None
+
+
+def _parse_flat_turns(text: str) -> list[tuple[str, str]]:
+    """Parse **User:**/**Assistant:** formatted text into (prompt, response) tuples."""
+    # Split on **User:** markers
+    chunks = re.split(r"\*\*User:\*\*\s*", text)
+    turns = []
+    for chunk in chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        # Split on **Assistant:** marker
+        parts = re.split(r"\*\*Assistant:\*\*\s*", chunk, maxsplit=1)
+        if len(parts) == 2:
+            prompt = parts[0].strip()
+            response = re.sub(r"\n---\s*$", "", parts[1]).strip()
+            turns.append((prompt, response))
+    return turns
+
+
+def _extract_previous_conversation_turns(
+    content: str,
+) -> list[tuple[str, str]]:
+    """Extract turns from ## Previous Conversation sections in raw chat content."""
+    # Match "## Previous Conversation" or deeper heading variants
+    pattern = re.compile(r"^#{2,6}\s+Previous Conversation\s*$", re.MULTILINE)
+    matches = list(pattern.finditer(content))
+    if not matches:
+        return []
+
+    all_turns: list[tuple[str, str]] = []
+    for m in matches:
+        # Extract body until next same-or-higher-level heading or end
+        start = m.end()
+        heading_level = m.group(0).lstrip().split()[0]  # e.g. "##"
+        next_heading = re.search(
+            rf"^#{{{1},{len(heading_level)}}}\s",
+            content[start:],
+            re.MULTILINE,
+        )
+        end = start + next_heading.start() if next_heading else len(content)
+        body = content[start:end].strip()
+        # Strip trailing --- separator
+        body = re.sub(r"\n---\s*$", "", body).strip()
+        all_turns.extend(_parse_flat_turns(body))
+    return all_turns
+
+
 def _get_branch_or_workspace_name() -> str:
     """Get the current branch name or workspace name."""
     result = run_shell_command("branch_or_workspace_name", capture_output=True)
@@ -242,27 +354,65 @@ def extract_response_from_chat_file(file_ref: str) -> str | None:
     return turns[-1][1]  # last turn = most recent response
 
 
-def load_chat_for_resume(file_ref: str) -> str:
+def load_chat_for_resume(
+    file_ref: str,
+    _visited: set[str] | None = None,
+) -> str:
     """Load a chat history file and format it as flat turns for resume.
 
     Loads the file without heading increment, parses all (prompt, response)
     turns in chronological order, and formats them with bold markers instead
     of heading levels to prevent heading inflation on repeated resumes.
 
+    Recursively expands any ``#resume`` or ``#resume_by_chat`` references
+    found in prompt text, inlining the referenced conversation history.
+
     Args:
         file_ref: Either a basename or full path to the chat history file.
+        _visited: Internal cycle-detection set of resolved file paths.
 
     Returns:
         Formatted string with flat **User:**/**Assistant:** turns.
     """
+    if _visited is None:
+        _visited = set()
+
     content = _load_chat_history(file_ref)
+
+    # Resolve file_ref to an absolute path for cycle detection
+    if file_ref.startswith("/") or file_ref.startswith("~"):
+        abs_path = os.path.expanduser(file_ref)
+    else:
+        abs_path = get_chat_file_path(file_ref)
+    _visited.add(abs_path)
+
     turns = _parse_chat_turns(content)
 
     if not turns:
         return content  # Fallback to raw content if parsing fails
 
-    parts = []
+    expanded_turns: list[tuple[str, str]] = []
     for prompt, response in turns:
+        refs = _find_resume_refs(prompt)
+        for full_match, xprompt_name, argument in refs:
+            resolved_path = _resolve_resume_to_chat_path(xprompt_name, argument)
+            if resolved_path and resolved_path not in _visited:
+                # Recursively load and parse the referenced history
+                nested_text = load_chat_for_resume(resolved_path, _visited)
+                nested_turns = _parse_flat_turns(nested_text)
+                expanded_turns.extend(nested_turns)
+            elif resolved_path is None:
+                # Fallback: extract from ## Previous Conversation in this file
+                fallback_turns = _extract_previous_conversation_turns(content)
+                expanded_turns.extend(fallback_turns)
+            # Strip the #resume ref from the prompt text
+            prompt = prompt.replace(full_match, "").strip()
+
+        if prompt or response:
+            expanded_turns.append((prompt, response))
+
+    parts = []
+    for prompt, response in expanded_turns:
         parts.append(f"**User:**\n\n{prompt}\n\n**Assistant:**\n\n{response}")
 
     return "\n\n---\n\n".join(parts)

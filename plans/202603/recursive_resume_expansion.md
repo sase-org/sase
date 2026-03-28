@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 18:22:03
-status: wip
+status: done
 ---
 
 # Plan: Recursive `#resume` Expansion in Chat History
