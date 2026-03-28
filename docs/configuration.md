@@ -810,9 +810,9 @@ Supported date range formats:
 
 ### `sase path`
 
-| Flag   | Values                                             | Default    | Description         |
-| ------ | -------------------------------------------------- | ---------- | ------------------- |
-| `name` | `xprompts-dir`, `xprompts-schema`, `config-schema` | (required) | Which path to print |
+| Flag   | Values                                                                           | Default    | Description         |
+| ------ | -------------------------------------------------------------------------------- | ---------- | ------------------- |
+| `name` | `xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema` | (required) | Which path to print |
 
 ### `sase notify`
 

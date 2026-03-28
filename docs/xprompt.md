@@ -511,12 +511,14 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive | Alias | Description                                        |
-| --------- | ----- | -------------------------------------------------- |
-| `%model`  | `%m`  | Override the LLM model for this prompt             |
-| `%name`   | `%n`  | Assign a name to the agent                         |
-| `%wait`   | `%w`  | Wait for another agent to finish (can repeat)      |
-| `%hide`   | `%h`  | Hide the agent from the default Agents tab display |
+| Directive  | Alias | Description                                        |
+| ---------- | ----- | -------------------------------------------------- |
+| `%model`   | `%m`  | Override the LLM model for this prompt             |
+| `%name`    | `%n`  | Assign a name to the agent                         |
+| `%wait`    | `%w`  | Wait for another agent to finish (can repeat)      |
+| `%hide`    | `%h`  | Hide the agent from the default Agents tab display |
+| `%approve` | `%a`  | Run the agent fully autonomously (skip approval)   |
+| `%plan`    | `%p`  | Enable plan mode (plan first, then execute)        |
 
 ### Syntax
 
@@ -534,6 +536,10 @@ Directives use the same argument syntax as xprompt references:
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
+%approve                     # Run fully autonomously
+%a                           # Same, using alias
+%plan                        # Enable plan mode
+%p                           # Same, using alias
 ```
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
@@ -542,6 +548,8 @@ The `%model` directive also supports automatic provider resolution: known model 
 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a unique name for the
 agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
+
+The `%approve` and `%plan` directives are boolean flags — they take no arguments and are simply present or absent.
 
 ### Example
 
@@ -565,6 +573,29 @@ monitoring:
 %hide
 %name:background-checker
 Run periodic health checks.
+```
+
+### Approve Directive
+
+The `%approve` directive marks an agent as fully autonomous. The agent runs without requiring human approval for plan
+steps or other checkpoints that would normally pause for user input:
+
+```
+%approve
+%name:auto-fixer
+Fix the lint errors in the codebase.
+```
+
+### Plan Directive
+
+The `%plan` directive enables plan mode for the agent. The agent first creates a plan and pauses for user approval
+before proceeding with execution. In the TUI, the agent shows a PLANNING status while creating the plan, then PLAN
+APPROVED once the user approves it:
+
+```
+%plan
+%name:refactorer
+Refactor the authentication module to use the new middleware.
 ```
 
 ### Multi-Model Directive
