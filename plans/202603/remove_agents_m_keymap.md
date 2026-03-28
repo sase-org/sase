@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-28 18:22:12
-status: wip
+status: done
 ---
 
 # Plan: Remove `m` (message) keymap from Agents tab

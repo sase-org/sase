@@ -1,6 +1,5 @@
 """Modal dialogs for the ace TUI."""
 
-from .agent_interrupt_modal import AgentInterruptModal
 from .agent_name_modal import AgentNameModal
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
@@ -65,7 +64,6 @@ __all__ = [
     "MentorRunResult",
     "build_mentor_review_data",
     "AddXPromptModal",
-    "AgentInterruptModal",
     "AgentNameModal",
     "AgentRunLogModal",
     "CommandHistoryModal",

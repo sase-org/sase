@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Literal
 
 from ._folding import AgentFoldingMixin
 from ._interaction import AgentInteractionMixin
-from ._interrupt import AgentInterruptMixin
 from ._killing import AgentKillingMixin
 from ._notifications import AgentNotificationMixin
 from ._revive import AgentRevivalMixin
@@ -86,7 +85,6 @@ def _is_axe_spawned_agent(agent: Agent) -> bool:
 class AgentsMixinCore(
     AgentFoldingMixin,
     AgentInteractionMixin,
-    AgentInterruptMixin,
     AgentWorkflowHITLMixin,
     AgentNotificationMixin,
     AgentKillingMixin,
