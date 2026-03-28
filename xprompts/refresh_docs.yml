@@ -1,5 +1,5 @@
 input:
-  threshold: { type: int, default: 10 }
+  threshold: { type: int, default: 20 }
 
 steps:
   - name: count_commits
