@@ -564,10 +564,11 @@ variable is used as a fallback. Values are split on whitespace and appended to t
 
 ### VCS Provider
 
-| Variable              | Description                                                              |
-| --------------------- | ------------------------------------------------------------------------ |
-| `SASE_VCS_PROVIDER`   | Override VCS provider selection (`git`, `hg`, or `auto`).                |
-| `SASE_WORKSPACE_ROOT` | Override the workspace root directory (takes priority over config file). |
+| Variable              | Description                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| `SASE_VCS_PROVIDER`   | Override VCS provider selection (`git`, `hg`, or `auto`).                                       |
+| `SASE_WORKSPACE_ROOT` | Override the workspace root directory (takes priority over config file).                        |
+| `SASE_BUG_ID`         | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec. |
 
 ### Plugin System
 
@@ -651,18 +652,6 @@ No flags. Stops the running axe orchestrator.
 | `-p, --project`       | string | auto-detected      | Project name prefix.                                          |
 | `-t, --timestamp`     | string | -                  | Shared timestamp (YYmmdd_HHMMSS format).                      |
 | `-e, --end-timestamp` | string | -                  | End timestamp for duration calculation.                       |
-
-### `sase amend`
-
-| Flag               | Values | Default | Description                                                 |
-| ------------------ | ------ | ------- | ----------------------------------------------------------- |
-| `[note...]`        | string | -       | Amend note (or proposal entries when using `--accept`).     |
-| `-a, --accept`     | flag   | -       | Accept proposed COMMITS entries by applying their diffs.    |
-| `-c, --chat`       | path   | -       | Chat file path for this amend.                              |
-| `-C, --cl`         | string | -       | CL name (defaults to current branch). Used with `--accept`. |
-| `-p, --propose`    | flag   | -       | Create a proposed COMMITS entry without amending.           |
-| `-t, --target-dir` | path   | CWD     | Directory to run commands in.                               |
-| `-T, --timestamp`  | string | -       | Shared timestamp (YYmmdd_HHMMSS format).                    |
 
 ### `sase search`
 

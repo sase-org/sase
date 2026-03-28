@@ -72,6 +72,11 @@ A comprehensive description of what the CL does and why.
   - High-level approach or implementation details
   - What will be tested (if applicable)
 
+**PR tag stripping:** When a ChangeSpec is created from a PR workflow or its description is synced after a reword, any
+trailing `KEY=VALUE` metadata lines (matching `^[A-Z][A-Z0-9_]*=`) are automatically stripped. This prevents
+provider-specific tags like `AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT` or `MARKDOWN=true` from polluting the description. See
+[commit_workflows.md](commit_workflows.md#pull-request-pr) for details.
+
 **Example**:
 
 ```

@@ -775,6 +775,10 @@ The `%wait` directive uses a two-tier check for multi-agent workflows:
 2. Check that the root agent (no `parent_timestamp`) has `done.json`
 3. Check that no child agents are alive without `done.json`
 
+If the root agent dies without writing `done.json` (e.g., crash or kill), the check falls through to examine child
+agents. If all children are done or dead, the workflow is considered complete. If some children are still alive, the
+workflow remains incomplete. This prevents `%wait` from deadlocking when the root agent terminates abnormally.
+
 If a workflow name is not recognized (no agents with that `workflow_name`), the system falls back to single-agent
 completion checking.
 

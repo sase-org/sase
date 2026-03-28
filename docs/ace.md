@@ -813,6 +813,12 @@ ace:
    advance to `$2`, then `$3`, and so on. `$0` marks the final cursor position after all tabstops are visited. If there
    are no tabstop markers, the cursor moves to the end of the expanded text.
 
+**Tab priority:** Snippet expansion always takes priority over tabstop advancement. If you type a trigger word at an
+active tabstop and press `Tab`, the snippet expands rather than jumping to the next tabstop.
+
+**Multi-line indentation:** When a multi-line snippet is expanded on an indented line, continuation lines automatically
+inherit the leading whitespace of the trigger line. Tabstop positions are adjusted accordingly.
+
 Trigger words are matched against the alphanumeric/underscore word immediately before the cursor. If no snippet matches,
 `Tab` advances to the next tabstop (if any are remaining from a previous expansion), or behaves normally.
 

@@ -178,12 +178,18 @@ input:
 **Parent detection:** If the current branch corresponds to an existing ChangeSpec, that ChangeSpec is automatically set
 as the PARENT of the new PR ChangeSpec. This creates a chain of related changes without manual bookkeeping.
 
-**BUG propagation:** When `SASE_BUG_ID` is set in the environment, the value is propagated to the BUG field of the
-created ChangeSpec.
+**BUG propagation:** When `SASE_BUG_ID` is set in the environment and non-zero, the value is propagated to two places:
+the BUG field of the created ChangeSpec (as `http://b/<bug_id>`), and a `BUG=<bug_id>` line prepended to the PR tag
+block (taking precedence over any static `BUG` key in `vcs_provider.pr_tags` config).
 
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as `TAG=VALUE` lines to the commit
 message before building the PR body. This supports provider-specific metadata (e.g., Google CL tags) without manual
 entry. See [configuration.md](configuration.md#vcs_provider) for the config format.
+
+**PR tag stripping:** When PR tags are present in the commit description (trailing lines matching `^[A-Z][A-Z0-9_]*=`),
+they are automatically stripped before writing the DESCRIPTION field of the created ChangeSpec. This prevents
+provider-specific metadata (e.g., `AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`, `MARKDOWN=true`) from polluting the human-readable
+description. The same stripping is applied when syncing descriptions after a reword operation.
 
 **Tracking:** Creates a ChangeSpec in the project file (not a COMMITS entry). The PR name is automatically suffixed with
 `_<N>` if a ChangeSpec with the same base name already exists.
