@@ -21,6 +21,7 @@ from .models import (
     HookStatusLine,
     MentorEntry,
     MentorStatusLine,
+    TimestampEntry,
     extract_pid_from_agent_suffix,
     get_base_status,
     is_error_suffix,
@@ -61,6 +62,7 @@ __all__ = [
     "CommentEntry",
     "MentorEntry",
     "MentorStatusLine",
+    "TimestampEntry",
     # Constants
     "ERROR_SUFFIX_MESSAGES",
     # Locking

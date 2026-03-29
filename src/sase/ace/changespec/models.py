@@ -403,6 +403,22 @@ class CommentEntry:
 
 
 @dataclass
+class TimestampEntry:
+    """Represents a single entry in the TIMESTAMPS field.
+
+    Format in file:
+      [YYYY-MM-DD HH:MM:SS] COMMIT  (1)
+      [YYYY-MM-DD HH:MM:SS] STATUS  WIP -> Draft
+      [YYYY-MM-DD HH:MM:SS] SYNC    (2)
+      [YYYY-MM-DD HH:MM:SS] REWORD  description
+    """
+
+    timestamp: str  # "YYYY-MM-DD HH:MM:SS"
+    event_type: str  # "COMMIT", "STATUS", "SYNC", "REWORD"
+    detail: str  # Event-specific detail string
+
+
+@dataclass
 class ChangeSpec:
     """Represents a single ChangeSpec."""
 
@@ -420,6 +436,7 @@ class ChangeSpec:
     hooks: list[HookEntry] | None = None
     comments: list[CommentEntry] | None = None
     mentors: list[MentorEntry] | None = None
+    timestamps: list[TimestampEntry] | None = None
 
     @property
     def project_basename(self) -> str:

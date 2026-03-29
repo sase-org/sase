@@ -342,7 +342,13 @@ def add_proposed_commit_entry(
                 "".join(lines),
                 f"Add proposed commit entry {entry_id} for {cl_name}",
             )
-            return True, entry_id
+
+        # Record COMMIT timestamp (outside lock — uses its own lock)
+        from sase.ace.timestamps.recording import add_timestamp_entry_atomic
+
+        add_timestamp_entry_atomic(project_file, cl_name, "COMMIT", f"({entry_id})")
+
+        return True, entry_id
     except Exception as exc:
         import sys
 
@@ -479,7 +485,13 @@ def add_commit_entry_with_id(
                 "".join(lines),
                 f"Add commit entry {next_num} for {cl_name}",
             )
-            return True, entry_id
+
+        # Record COMMIT timestamp (outside lock — uses its own lock)
+        from sase.ace.timestamps.recording import add_timestamp_entry_atomic
+
+        add_timestamp_entry_atomic(project_file, cl_name, "COMMIT", f"({entry_id})")
+
+        return True, entry_id
     except Exception as exc:
         import sys
 

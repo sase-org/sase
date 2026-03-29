@@ -23,6 +23,7 @@ from .section_builders import (
     build_commits_section,
     build_hooks_section,
     build_mentors_section,
+    build_timestamps_section,
 )
 
 
@@ -112,6 +113,7 @@ class ChangeSpecDetail(Static):
         hooks_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> None:
         """Update the detail view with a new changespec.
 
@@ -121,6 +123,7 @@ class ChangeSpecDetail(Static):
             hooks_collapsed: Fold level for hook status lines
             commits_collapsed: Fold level for COMMITS drawer lines
             mentors_collapsed: Fold level for MENTORS entries
+            timestamps_collapsed: Fold level for TIMESTAMPS section
         """
         content, _, _, _, _ = self._build_display_content(
             changespec,
@@ -128,6 +131,7 @@ class ChangeSpecDetail(Static):
             hooks_collapsed=hooks_collapsed,
             commits_collapsed=commits_collapsed,
             mentors_collapsed=mentors_collapsed,
+            timestamps_collapsed=timestamps_collapsed,
         )
         self.update(content)
 
@@ -139,6 +143,7 @@ class ChangeSpecDetail(Static):
         hooks_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> tuple[
         dict[int, str], dict[int, int], dict[int, str], dict[int, tuple[str, str]]
     ]:
@@ -154,6 +159,7 @@ class ChangeSpecDetail(Static):
             hooks_collapsed: Fold level for hook status lines
             commits_collapsed: Fold level for COMMITS drawer lines
             mentors_collapsed: Fold level for MENTORS entries
+            timestamps_collapsed: Fold level for TIMESTAMPS section
 
         Returns:
             Tuple of:
@@ -176,6 +182,7 @@ class ChangeSpecDetail(Static):
             hooks_collapsed=hooks_collapsed,
             commits_collapsed=commits_collapsed,
             mentors_collapsed=mentors_collapsed,
+            timestamps_collapsed=timestamps_collapsed,
         )
         self.update(content)
         return hint_mappings, hook_hint_to_idx, hint_to_entry_id, mentor_hint_to_info
@@ -203,6 +210,7 @@ class ChangeSpecDetail(Static):
         hooks_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         commits_collapsed: FoldLevel = FoldLevel.COLLAPSED,
         mentors_collapsed: FoldLevel = FoldLevel.COLLAPSED,
+        timestamps_collapsed: FoldLevel = FoldLevel.COLLAPSED,
     ) -> tuple[
         Panel,
         dict[int, str],
@@ -273,6 +281,14 @@ class ChangeSpecDetail(Static):
             mentors_collapsed,
             show_mentor_hints,
             hints_for,
+            hint_tracker,
+        )
+
+        # Build TIMESTAMPS section
+        hint_tracker = build_timestamps_section(
+            text,
+            changespec,
+            timestamps_collapsed,
             hint_tracker,
         )
 

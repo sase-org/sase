@@ -149,4 +149,15 @@ def transition_changespec_status(
             else:
                 move_changespec_to_file(archive_file, main_file, changespec_name)
 
+    # Record STATUS timestamp on successful transition
+    if result[0] and result[1] is not None:
+        from sase.ace.timestamps.recording import add_timestamp_entry_atomic
+
+        add_timestamp_entry_atomic(
+            project_file,
+            changespec_name,
+            "STATUS",
+            f"{result[1]} -> {new_status}",
+        )
+
     return (result[0], result[1], result[2], sibling_results)

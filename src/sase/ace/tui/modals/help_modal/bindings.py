@@ -99,6 +99,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Cycle mentors folding",
                 ),
                 (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_timestamps'))}",
+                    "Cycle timestamps folding",
+                ),
+                (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_all'))}",
                     "Cycle all sections",
                 ),

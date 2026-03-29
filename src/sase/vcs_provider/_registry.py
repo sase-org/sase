@@ -34,9 +34,8 @@ def _classify_git_repo(git_dir: str, pm: pluggy.PluginManager | None = None) -> 
     1. Ask all registered ``sase_vcs`` plugins via the
        :meth:`~VCSHookSpec.vcs_classify_repo` hook.  The first plugin to
        return a non-``None`` name wins.
-    2. Fall back to URL-based heuristics: local filesystem path →
-       ``"bare_git"``, unrecognized URLs raise
-       :class:`VCSProviderNotFoundError`.
+    2. Fall back to URL-based heuristics: any resolvable remote URL
+       (local or hosted) → ``"bare_git"``.
 
     Args:
         git_dir: A directory inside the git working tree (used as *cwd*
@@ -72,8 +71,10 @@ def _classify_via_plugins(
 def _classify_by_url(git_dir: str) -> str:
     """Classify a git repo using its origin remote URL.
 
-    Local filesystem path → ``"bare_git"``, unrecognized URLs raise
-    :class:`VCSProviderNotFoundError`.
+    Returns ``"bare_git"`` for any resolvable remote URL (local path or
+    hosted) when no plugin claimed the repo.  Only raises
+    :class:`VCSProviderNotFoundError` for truly indeterminate states
+    (cannot read origin, no origin configured).
     """
     try:
         result = subprocess.run(
@@ -99,13 +100,13 @@ def _classify_by_url(git_dir: str) -> str:
         )
 
     url = result.stdout.strip()
-    if url and not url.startswith(("http://", "https://", "git@", "ssh://")):
-        return "bare_git"
-    raise VCSProviderNotFoundError(
-        git_dir,
-        f"No VCS plugin claimed the remote URL '{url}'. "
-        f"Install the appropriate plugin (e.g. sase-github for GitHub repos).",
-    )
+    if not url:
+        raise VCSProviderNotFoundError(
+            git_dir,
+            "Remote 'origin' URL is empty. Install a VCS plugin "
+            "(e.g. sase-github) for this repository.",
+        )
+    return "bare_git"
 
 
 def detect_vcs(cwd: str) -> str | None:

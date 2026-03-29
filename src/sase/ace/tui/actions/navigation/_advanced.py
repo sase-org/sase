@@ -36,21 +36,30 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.hooks_collapsed = cycle_forward(self.hooks_collapsed)
         elif key == fold_keys["cycle_mentors"]:
             self.mentors_collapsed = cycle_forward(self.mentors_collapsed)
+        elif key == fold_keys["cycle_timestamps"]:
+            self.timestamps_collapsed = cycle_forward(self.timestamps_collapsed)
         elif key == fold_keys["cycle_all"]:
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
-            if self.commits_collapsed == self.hooks_collapsed == self.mentors_collapsed:
+            if (
+                self.commits_collapsed
+                == self.hooks_collapsed
+                == self.mentors_collapsed
+                == self.timestamps_collapsed
+            ):
                 new_state = cycle_forward(self.commits_collapsed)
             else:
                 new_state = FoldLevel.COLLAPSED
             self.commits_collapsed = new_state
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
+            self.timestamps_collapsed = new_state
         elif key == fold_keys["toggle_all"]:
             # Toggle: if not fully collapsed, collapse all; otherwise fully expand
             all_collapsed = (
                 self.commits_collapsed
                 == self.hooks_collapsed
                 == self.mentors_collapsed
+                == self.timestamps_collapsed
                 == FoldLevel.COLLAPSED
             )
             new_state = (
@@ -59,6 +68,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.commits_collapsed = new_state
             self.hooks_collapsed = new_state
             self.mentors_collapsed = new_state
+            self.timestamps_collapsed = new_state
         else:
             # Invalid key - cancel fold mode and restore footer
             self._refresh_current_tab()  # type: ignore[attr-defined]
@@ -88,6 +98,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 self.commits_collapsed,
                 self.hooks_collapsed,
                 self.mentors_collapsed,
+                self.timestamps_collapsed,
             )
         except Exception:
             pass

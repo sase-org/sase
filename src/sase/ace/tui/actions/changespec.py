@@ -27,6 +27,7 @@ class ChangeSpecMixin:
     hooks_collapsed: FoldLevel
     commits_collapsed: FoldLevel
     mentors_collapsed: FoldLevel
+    timestamps_collapsed: FoldLevel
     hide_reverted: bool
     hide_submitted: bool
     marked_indices: set[int]
@@ -407,6 +408,7 @@ class ChangeSpecMixin:
                         hooks_collapsed=self.hooks_collapsed,
                         commits_collapsed=self.commits_collapsed,
                         mentors_collapsed=self.mentors_collapsed,
+                        timestamps_collapsed=self.timestamps_collapsed,
                     )
                 )
                 self._hint_mappings = hint_mappings
@@ -419,6 +421,7 @@ class ChangeSpecMixin:
                     hooks_collapsed=self.hooks_collapsed,
                     commits_collapsed=self.commits_collapsed,
                     mentors_collapsed=self.mentors_collapsed,
+                    timestamps_collapsed=self.timestamps_collapsed,
                 )
             # Update ancestors/children/siblings panel with hide_reverted
             self._ancestor_keys, self._children_keys, self._sibling_keys = (

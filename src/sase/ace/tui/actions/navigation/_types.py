@@ -31,6 +31,7 @@ class NavigationMixinBase:
     hooks_collapsed: FoldLevel
     commits_collapsed: FoldLevel
     mentors_collapsed: FoldLevel
+    timestamps_collapsed: FoldLevel
     _agents: list[Agent]
     _fold_mode_active: bool
     _changespecs_last_idx: int

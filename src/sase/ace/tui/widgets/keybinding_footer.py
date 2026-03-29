@@ -232,6 +232,7 @@ class KeybindingFooter(Horizontal):
             (k("cycle_commits"), "commits"),
             (k("cycle_hooks"), "hooks"),
             (k("cycle_mentors"), "mentors"),
+            (k("cycle_timestamps"), "timestamps"),
             (k("cycle_all"), "all"),
             (k("toggle_all"), "toggle"),
         ]

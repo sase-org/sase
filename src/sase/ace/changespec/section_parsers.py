@@ -12,6 +12,7 @@ from .models import (
     HookStatusLine,
     MentorEntry,
     MentorStatusLine,
+    TimestampEntry,
 )
 from .suffix_utils import parse_suffix_prefix
 
@@ -392,3 +393,38 @@ def parse_commits_line(
     # (blank lines or other content will be ignored)
 
     return current_commit_entry, commit_entries
+
+
+def parse_timestamps_line(
+    line: str,
+    stripped: str,
+    timestamp_entries: list[TimestampEntry],
+) -> list[TimestampEntry]:
+    """Parse a single line in TIMESTAMPS section.
+
+    Args:
+        line: The original line (with leading whitespace)
+        stripped: The stripped line content
+        timestamp_entries: List of completed timestamp entries
+
+    Returns:
+        Updated timestamp_entries list.
+    """
+    if line.startswith("  "):
+        # Pattern: [YYYY-MM-DD HH:MM:SS] EVENT  detail
+        ts_match = re.match(
+            r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s+"
+            r"(COMMIT|STATUS|SYNC|REWORD)\s+"
+            r"(.+)$",
+            stripped,
+        )
+        if ts_match:
+            timestamp_entries.append(
+                TimestampEntry(
+                    timestamp=ts_match.group(1),
+                    event_type=ts_match.group(2),
+                    detail=ts_match.group(3).rstrip(),
+                )
+            )
+
+    return timestamp_entries

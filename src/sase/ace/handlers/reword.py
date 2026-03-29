@@ -237,6 +237,14 @@ def add_tag_task(
         print(f"Adding tag {tag_name}={tag_value}...")
         tag_ok, tag_err = provider.reword_add_tag(tag_name, tag_value, workspace_dir)
         if tag_ok:
+            from sase.ace.timestamps.recording import add_timestamp_entry_atomic
+
+            add_timestamp_entry_atomic(
+                changespec_file_path,
+                changespec_name,
+                "REWORD",
+                f'tag "{tag_name}"',
+            )
             return (True, f"Tag {tag_name}={tag_value} added to {changespec_name}")
         else:
             return (False, f"sase_hg_reword --add-tag failed: {tag_err}")
@@ -352,6 +360,15 @@ def reword_execute_task(
 
         # Sync description to project file
         _sync_description_bg(workspace_dir, changespec_file_path, changespec_name)
+
+        from sase.ace.timestamps.recording import add_timestamp_entry_atomic
+
+        add_timestamp_entry_atomic(
+            changespec_file_path,
+            changespec_name,
+            "REWORD",
+            "description",
+        )
 
         return (True, f"Reworded {changespec_name}")
 

@@ -30,6 +30,7 @@ class HookEditingMixin(HintMixinBase):
                 hooks_collapsed=self.hooks_collapsed,  # type: ignore[attr-defined]
                 commits_collapsed=self.commits_collapsed,  # type: ignore[attr-defined]
                 mentors_collapsed=self.mentors_collapsed,  # type: ignore[attr-defined]
+                timestamps_collapsed=self.timestamps_collapsed,  # type: ignore[attr-defined]
             )
         )
 
