@@ -38,10 +38,12 @@ steps:
   - name: update_marker
     if: "{{ count_commits.count >= threshold }}"
     python: |
+      import subprocess
       from pathlib import Path
 
+      head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
       marker = Path.home() / ".sase" / "projects" / "sase" / "refresh_docs_marker"
       marker.parent.mkdir(parents=True, exist_ok=True)
-      marker.write_text("{{ count_commits.head }}")
+      marker.write_text(head)
       print("updated=true")
     output: { updated: bool }

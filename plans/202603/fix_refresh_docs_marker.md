@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 10:28:03
-status: wip
+status: done
 ---
 
 # Fix refresh_docs marker to account for agent-created commits
