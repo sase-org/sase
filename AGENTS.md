@@ -110,8 +110,9 @@ keystrokes and `--size` to control terminal dimensions.
 
 ## Chezmoi Repo
 
-Some files associated with this project live in the ~/.local/share/chezmoi/ directory. Chezmoi files related to sase
-that I know about:
+Some files associated with this project live in the ~/.local/share/chezmoi/ directory. If you modify files in this repo,
+make sure to run `just check` (in the chezmoi repo) before terminating / replying to the user. Chezmoi files related to
+sase that I know about:
 
 - The sase.yml files that I use to configure sase can be found in the ~/.local/share/chezmoi/home/dot_config/sase/
   directory.
