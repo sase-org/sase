@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pytest
-from sase.main.query_handler._query import _evaluate_standalone_condition
+from sase.main.query_handler._standalone_steps import _evaluate_standalone_condition
 from sase.content import dump_yaml
 from sase.xprompt._exceptions import XPromptArgumentError
 from sase.xprompt._jinja import (
@@ -227,7 +227,7 @@ def test_validate_and_convert_args_null_value_no_default_skipped() -> None:
 
 def test_skipped_step_accessible_via_jinja2_default_filter() -> None:
     """Test that a subsequent step can reference a skipped step via default filter."""
-    from sase.main.query_handler._query import execute_standalone_steps
+    from sase.main.query_handler._standalone_steps import execute_standalone_steps
     from sase.xprompt.workflow_models import WorkflowStep
 
     steps = [
@@ -262,7 +262,7 @@ def test_render_template_bool_tojson_produces_python() -> None:
 
 def test_chdir_handling_in_standalone_steps(tmp_path: Path) -> None:
     """Test that _chdir special output changes the working directory."""
-    from sase.main.query_handler._query import execute_standalone_steps
+    from sase.main.query_handler._standalone_steps import execute_standalone_steps
     from sase.xprompt.workflow_models import WorkflowStep
 
     target_dir = str(tmp_path)

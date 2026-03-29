@@ -146,7 +146,9 @@ class TestQueryExpandInjectsEnv:
 
     def test_embedded_workflow_injects_environment(self) -> None:
         """Embedded workflow with environment: {FOO: bar} sets os.environ."""
-        from sase.main.query_handler._query import expand_embedded_workflows_in_query
+        from sase.main.query_handler._embedded_workflows import (
+            expand_embedded_workflows_in_query,
+        )
 
         wf = _make_workflow_with_env("test_wf", {"FOO": "bar"})
 
@@ -160,7 +162,9 @@ class TestQueryExpandInjectsEnv:
 
     def test_environment_template_rendering(self) -> None:
         """Environment values are rendered as Jinja2 templates with args."""
-        from sase.main.query_handler._query import expand_embedded_workflows_in_query
+        from sase.main.query_handler._embedded_workflows import (
+            expand_embedded_workflows_in_query,
+        )
         from sase.xprompt.models import InputArg
 
         wf = _make_workflow_with_env("mywf", {"MY_VAR": "{{ method }}"})
@@ -176,7 +180,9 @@ class TestQueryExpandInjectsEnv:
 
     def test_multiple_env_vars_injected(self) -> None:
         """Multiple environment variables are all injected."""
-        from sase.main.query_handler._query import expand_embedded_workflows_in_query
+        from sase.main.query_handler._embedded_workflows import (
+            expand_embedded_workflows_in_query,
+        )
 
         wf = _make_workflow_with_env("mywf", {"VAR_A": "alpha", "VAR_B": "beta"})
 
