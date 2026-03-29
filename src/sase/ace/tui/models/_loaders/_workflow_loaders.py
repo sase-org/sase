@@ -26,7 +26,7 @@ _ACTIVE_STATUSES = frozenset(
 def _iter_workflow_timestamp_dirs() -> Iterator[tuple[Path, Path]]:
     """Yield (project_dir, timestamp_dir) for all workflow artifact directories.
 
-    Scans ~/.sase/projects/*/artifacts/(workflow-*|ace-run)/*/ once.
+    Scans ~/.sase/projects/*/artifacts/(workflow-*|ace-run|run)/*/ once.
     Both load_workflow_states() and load_workflow_agent_steps() use this
     shared iterator to avoid redundant directory traversal.
     """
@@ -49,6 +49,7 @@ def _iter_workflow_timestamp_dirs() -> Iterator[tuple[Path, Path]]:
             if not (
                 workflow_dir.name.startswith("workflow-")
                 or workflow_dir.name == "ace-run"
+                or workflow_dir.name == "run"
             ):
                 continue
 

@@ -595,6 +595,22 @@ def run_query(
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(agent_meta, f, indent=2)
 
+        # Write initial workflow_state.json so the TUI can discover
+        # this run immediately (before WorkflowExecutor overwrites it).
+        if artifacts_dir:
+            initial_state: dict[str, Any] = {
+                "status": "running",
+                "appears_as_agent": True,
+                "pid": os.getpid(),
+                "context": {"cl_name": cl_name or "unknown"},
+                "steps": [],
+                "current_step_index": 0,
+                "workflow_name": "run",
+            }
+            init_state_path = os.path.join(artifacts_dir, "workflow_state.json")
+            with open(init_state_path, "w", encoding="utf-8") as f:
+                json.dump(initial_state, f, indent=2)
+
         # Claim workspace with artifacts timestamp for prompt lookup
         if project_file and workspace_num:
             claim_workspace(
