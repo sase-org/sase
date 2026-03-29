@@ -102,11 +102,14 @@ def strip_pr_tags(description: str) -> str:
     while last_non_blank >= 0 and lines[last_non_blank].strip() == "":
         last_non_blank -= 1
 
-    # Scan upward to find contiguous tag block
+    # Scan upward to find tag block (skipping blank lines between tags)
     tags_start_idx = last_non_blank + 1
     for idx in range(last_non_blank, -1, -1):
-        if _TAG_PATTERN.match(lines[idx].strip()):
+        stripped = lines[idx].strip()
+        if _TAG_PATTERN.match(stripped):
             tags_start_idx = idx
+        elif stripped == "":
+            continue
         else:
             break
 

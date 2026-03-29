@@ -45,3 +45,19 @@ def test_tag_like_line_in_middle_not_stripped() -> None:
 def test_single_tag() -> None:
     desc = "Update docs\n\nMARKDOWN=true"
     assert strip_pr_tags(desc) == "Update docs"
+
+
+def test_tags_separated_by_blank_line() -> None:
+    desc = (
+        "Fix bug\n\n"
+        "BUG=483686843\n\n"
+        "AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT\n"
+        "R=startblock\n"
+        "MARKDOWN=true"
+    )
+    assert strip_pr_tags(desc) == "Fix bug"
+
+
+def test_multiple_blank_line_separated_tag_groups() -> None:
+    desc = "Fix bug\n\nBUG=483686843\n\nFIXES=123\n\nR=startblock\nWANT_LGTM=all"
+    assert strip_pr_tags(desc) == "Fix bug"
