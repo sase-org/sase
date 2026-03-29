@@ -261,7 +261,11 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
         if (
             agent.agent_type == AgentType.RUNNING
             and agent.workflow is not None
-            and (agent.workflow.startswith("ace(run)") or agent.workflow == "ace-run")
+            and (
+                agent.workflow.startswith("ace(run)")
+                or agent.workflow == "ace-run"
+                or agent.workflow == "run"
+            )
             and agent.raw_suffix
             and agent.raw_suffix in workflow_by_suffix
         ):
