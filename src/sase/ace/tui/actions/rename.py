@@ -158,14 +158,28 @@ class RenameMixin:
                         f"sase_hg_update failed: {checkout_err}",
                     )
 
-                # Rename the CL in Mercurial
+                # Rename the branch (or write alias for immutable providers)
                 print(f"Renaming to {new_name}...")
-                rename_ok, rename_err = provider.rename_branch(new_name, workspace_dir)
-                if not rename_ok:
-                    return (
-                        False,
-                        f"sase_hg_rename failed: {rename_err}",
+                if not provider.can_rename_branch(workspace_dir):
+                    # Branch is immutable (e.g. GitHub PR) — persist alias
+                    # instead of renaming.
+                    from sase.core.branch_map import write_branch_alias
+
+                    old_branch = resolved.removeprefix("origin/")
+                    write_branch_alias(project_basename, new_name, old_branch)
+                else:
+                    rename_ok, rename_err = provider.rename_branch(
+                        new_name, workspace_dir
                     )
+                    if not rename_ok:
+                        return (
+                            False,
+                            f"sase_hg_rename failed: {rename_err}",
+                        )
+                    # Clean up any stale alias from a previous immutable cycle
+                    from sase.core.branch_map import remove_branch_alias
+
+                    remove_branch_alias(project_basename, new_name)
 
                 # Update spec file references
                 print("Updating spec file references...")
