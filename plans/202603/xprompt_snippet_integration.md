@@ -2,6 +2,7 @@
 create_time: 2026-03-29 14:01:41
 status: done
 ---
+
 # Plan: XPrompt Snippet Integration (Option D)
 
 ## Goal
