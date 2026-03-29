@@ -1,10 +1,6 @@
 """Tests for the mentor_checks module."""
 
-from typing import Any
-
 from sase.ace.changespec import (
-    ChangeSpec,
-    CommitEntry,
     HookEntry,
     HookStatusLine,
     MentorEntry,
@@ -14,84 +10,21 @@ from sase.ace.scheduler.mentor_checks import (
     _all_non_skip_hooks_ready,
     _get_started_mentors_for_entry,
 )
-from sase.ace.scheduler.mentor_profile_matching import (
-    _extract_changed_files_from_diff,
-    _get_commits_since_last_mentors,
-)
-from test_utils import make_mentor_config
+from test_utils import build_changespec
 
 
-def _make_changespec(**kwargs: Any) -> ChangeSpec:
-    """Helper to create a ChangeSpec with defaults."""
-    defaults = {
-        "name": "test-cl",
-        "description": "Test description",
-        "parent": None,
-        "cl": None,
-        "status": "Ready",
-        "test_targets": None,
-        "kickstart": None,
-        "file_path": "/tmp/test.md",
-        "line_number": 1,
-        "commits": None,
-        "hooks": None,
-        "comments": None,
-        "mentors": None,
-    }
-    defaults.update(kwargs)
-    return ChangeSpec(**defaults)  # type: ignore[arg-type]
-
-
-def test_extract_changed_files_from_diff_git_format() -> None:
-    """Test extracting files from git diff format."""
-    diff_content = """diff --git a/src/main.py b/src/main.py
-index 123456..789abc 100644
---- a/src/main.py
-+++ b/src/main.py
-@@ -1,3 +1,4 @@
- def main():
-     pass
-+    return 0
-diff --git a/tests/test_main.py b/tests/test_main.py
-index aaaaaa..bbbbbb 100644
---- a/tests/test_main.py
-+++ b/tests/test_main.py
-@@ -1 +1,2 @@
- def test_main(): pass
-+def test_other(): pass
-"""
-    files = _extract_changed_files_from_diff(diff_content)
-    assert files == ["src/main.py", "tests/test_main.py"]
-
-
-def test_extract_changed_files_from_diff_hg_format() -> None:
-    """Test extracting files from hg diff format."""
-    diff_content = """diff -r abc123 src/main.py
---- a/src/main.py
-+++ b/src/main.py
-@@ -1,3 +1,4 @@
- def main():
-     pass
-+    return 0
-diff -r abc123 tests/test_main.py
---- a/tests/test_main.py
-+++ b/tests/test_main.py
-@@ -1 +1,2 @@
- def test_main(): pass
-"""
-    files = _extract_changed_files_from_diff(diff_content)
-    assert files == ["src/main.py", "tests/test_main.py"]
+# Tests for _get_started_mentors_for_entry
 
 
 def test_get_started_mentors_empty_mentors() -> None:
     """Test with empty MENTORS list returns empty set."""
-    cs = _make_changespec(mentors=[])
+    cs = build_changespec(mentors=[])
     assert _get_started_mentors_for_entry(cs, "1") == set()
 
 
 def test_get_started_mentors_different_entry_id() -> None:
     """Test that only mentors for the specified entry_id are returned."""
-    cs = _make_changespec(
+    cs = build_changespec(
         mentors=[
             MentorEntry(
                 entry_id="1",
@@ -113,7 +46,7 @@ def test_get_started_mentors_different_entry_id() -> None:
 
 def test_get_started_mentors_multiple() -> None:
     """Test with multiple started mentors from same profile."""
-    cs = _make_changespec(
+    cs = build_changespec(
         mentors=[
             MentorEntry(
                 entry_id="1",
@@ -170,13 +103,13 @@ def _make_hook(
 
 def test_all_non_skip_hooks_ready_empty_hooks() -> None:
     """Test that empty hooks list blocks mentors (hooks not yet added)."""
-    cs = _make_changespec(hooks=[])
+    cs = build_changespec(hooks=[])
     assert _all_non_skip_hooks_ready(cs, "1") is False
 
 
 def test_all_non_skip_hooks_ready_hook_running() -> None:
     """Test mentors blocked when hook is RUNNING for latest entry."""
-    cs = _make_changespec(
+    cs = build_changespec(
         hooks=[
             _make_hook("make test", "1", "RUNNING"),
         ]
@@ -186,7 +119,7 @@ def test_all_non_skip_hooks_ready_hook_running() -> None:
 
 def test_all_non_skip_hooks_ready_failed_with_plain_entry_id() -> None:
     """Test mentors allowed when FAILED hook has plain entry ID suffix."""
-    cs = _make_changespec(
+    cs = build_changespec(
         hooks=[
             _make_hook("make test", "1", "FAILED", suffix="2"),
         ]
@@ -196,7 +129,7 @@ def test_all_non_skip_hooks_ready_failed_with_plain_entry_id() -> None:
 
 def test_all_non_skip_hooks_ready_failed_with_running_agent() -> None:
     """Test mentors allowed when FAILED hook has running_agent suffix_type."""
-    cs = _make_changespec(
+    cs = build_changespec(
         hooks=[
             _make_hook(
                 "make test",
@@ -212,7 +145,7 @@ def test_all_non_skip_hooks_ready_failed_with_running_agent() -> None:
 
 def test_all_non_skip_hooks_ready_only_skip_hooks() -> None:
     """Test only !-prefixed hooks blocks mentors (non-! hooks not yet added)."""
-    cs = _make_changespec(
+    cs = build_changespec(
         hooks=[
             _make_hook("!$sase_hg_presubmit", "1", "PASSED"),
         ]
@@ -223,7 +156,7 @@ def test_all_non_skip_hooks_ready_only_skip_hooks() -> None:
 
 def test_all_non_skip_hooks_ready_status_for_different_entry() -> None:
     """Test hook that only has status for a different entry blocks mentors."""
-    cs = _make_changespec(
+    cs = build_changespec(
         hooks=[
             _make_hook("make test", "1", "PASSED"),  # Passed on entry 1
         ]
@@ -234,508 +167,10 @@ def test_all_non_skip_hooks_ready_status_for_different_entry() -> None:
 
 def test_all_non_skip_hooks_ready_one_blocking() -> None:
     """Test that one non-ready hook blocks mentors."""
-    cs = _make_changespec(
+    cs = build_changespec(
         hooks=[
             _make_hook("make test", "1", "PASSED"),
             _make_hook("make lint", "1", "FAILED", suffix=None),  # No proposal yet
         ]
     )
     assert _all_non_skip_hooks_ready(cs, "1") is False
-
-
-# Tests for _get_commits_since_last_mentors
-
-
-def test_get_commits_since_last_mentors_excludes_earlier() -> None:
-    """Test that commits before last mentor entry are excluded."""
-    cs = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="First"),
-            CommitEntry(number=2, note="Second"),
-            CommitEntry(number=3, note="Third"),
-        ],
-        mentors=[
-            MentorEntry(entry_id="2", profiles=["code"], status_lines=None),
-        ],
-    )
-    result = _get_commits_since_last_mentors(cs)
-    # Should include commits 2 and 3, exclude commit 1
-    assert len(result) == 2
-    assert result[0].display_number == "2"
-    assert result[1].display_number == "3"
-
-
-def test_get_commits_since_last_mentors_skips_proposals() -> None:
-    """Test that proposals (entries like 1a, 2b) are skipped."""
-    cs = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="First"),
-            CommitEntry(number=1, proposal_letter="a", note="Fix from hook"),
-            CommitEntry(number=1, proposal_letter="b", note="Another fix"),
-        ],
-        mentors=None,
-    )
-    result = _get_commits_since_last_mentors(cs)
-    # Should only include commit 1, not 1a or 1b
-    assert len(result) == 1
-    assert result[0].display_number == "1"
-
-
-def test_get_commits_since_last_mentors_no_commits() -> None:
-    """Test with no commits returns empty list."""
-    cs = _make_changespec(commits=None)
-    result = _get_commits_since_last_mentors(cs)
-    assert result == []
-
-
-# Tests for get_profiles_registered_for_entry
-
-
-def testget_profiles_registered_for_entry_no_mentors() -> None:
-    """Test with no MENTORS returns empty set."""
-    from sase.ace.scheduler.mentor_profile_matching import (
-        get_profiles_registered_for_entry,
-    )
-
-    cs = _make_changespec(mentors=None)
-    result = get_profiles_registered_for_entry(cs, "1")
-    assert result == set()
-
-
-# Tests for _get_matching_profiles_for_entry
-
-
-def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
-    monkeypatch: Any,
-) -> None:
-    """Test that commits with existing MENTORS entries don't trigger new profiles.
-
-    This is a regression test for the bug where old commits (e.g., commit 3 with
-    note "[mentor:complete]") would trigger the feature profile to be added to
-    a newer entry (e.g., entry 5) even though commits 4 and 5 don't match.
-    """
-    from unittest.mock import MagicMock
-
-    from sase.ace.scheduler.mentor_profile_matching import (
-        _get_matching_profiles_for_entry,
-    )
-
-    # Create a mock profile that matches "[mentor:complete]" in amend note
-    mock_profile = MagicMock()
-    mock_profile.profile_name = "feature"
-    mock_profile.mentors = [make_mentor_config(mentor_name="complete")]
-    mock_profile.file_globs = []
-    mock_profile.diff_regexes = []
-    mock_profile.amend_note_regexes = [r"\[mentor:complete\]"]
-    mock_profile.projects = None
-
-    # Mock get_all_mentor_profiles to return our test profile
-    monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        lambda: [mock_profile],
-    )
-
-    # Scenario: commits 3, 4, 5 exist, MENTORS entry for 3 exists
-    # Commit 3 has note that matches "[mentor:complete]"
-    # Commits 4 and 5 do NOT match
-    cs = _make_changespec(
-        commits=[
-            CommitEntry(number=3, note="[mentor:complete] Added feature"),
-            CommitEntry(number=4, note="[fix-hook] Fixed lint"),
-            CommitEntry(number=5, note="[mentor:vision] Reduced visibility"),
-        ],
-        mentors=[
-            MentorEntry(entry_id="3", profiles=["code", "feature"], status_lines=None),
-        ],
-    )
-
-    # The bug: without the fix, commit 3 would be included in commits_to_check
-    # and the feature profile would match (due to "[mentor:complete]" in note)
-    # The fix: commit 3 should be excluded because it has a MENTORS entry
-    result = _get_matching_profiles_for_entry(cs)
-
-    # Should return empty - only commits 4 and 5 are checked, neither matches
-    assert result == []
-
-
-def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
-    monkeypatch: Any,
-) -> None:
-    """Test that latest commit with partial coverage is still checked.
-
-    This ensures the fix from fe712c83 still works - we should still detect
-    additional profiles for the current commit even if it has a MENTORS entry.
-    """
-    from unittest.mock import MagicMock
-
-    from sase.ace.scheduler.mentor_profile_matching import (
-        _get_matching_profiles_for_entry,
-    )
-
-    # Create two mock profiles
-    mock_profile_code = MagicMock()
-    mock_profile_code.profile_name = "code"
-    mock_profile_code.mentors = [make_mentor_config(mentor_name="vision")]
-    mock_profile_code.file_globs = []
-    mock_profile_code.diff_regexes = []
-    mock_profile_code.amend_note_regexes = [r"Initial Commit"]
-    mock_profile_code.projects = None
-
-    mock_profile_feature = MagicMock()
-    mock_profile_feature.profile_name = "feature"
-    mock_profile_feature.mentors = [make_mentor_config(mentor_name="complete")]
-    mock_profile_feature.file_globs = []
-    mock_profile_feature.diff_regexes = []
-    mock_profile_feature.amend_note_regexes = [r"Initial Commit"]
-    mock_profile_feature.projects = None
-
-    monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        lambda: [mock_profile_code, mock_profile_feature],
-    )
-
-    # Scenario: single commit 1 with "Initial Commit" note
-    # MENTORS entry exists with only "code" profile (partial coverage)
-    # "feature" profile should still be detected
-    cs = _make_changespec(
-        commits=[
-            CommitEntry(number=1, note="Initial Commit"),
-        ],
-        mentors=[
-            MentorEntry(entry_id="1", profiles=["code"], status_lines=None),
-        ],
-    )
-
-    result = _get_matching_profiles_for_entry(cs)
-
-    # Should return feature profile - commit 1 is latest so still checked
-    assert len(result) == 1
-    assert result[0][0] == "1"  # entry_id
-    assert result[0][1].profile_name == "feature"  # profile
-
-
-# Tests for first_commit matching
-
-
-def test_first_commit_matches_on_commit_1() -> None:
-    """Test that first_commit profile matches when commit 1 is in the list."""
-    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="complete",
-        mentors=[make_mentor_config(mentor_name="complete")],
-        first_commit=True,
-        amend_note_regexes=[r"\[mentor:complete\]"],
-    )
-    commits = [CommitEntry(number=1, note="Initial commit")]
-    assert profile_matches_any_commit(profile, commits) is True
-
-
-def test_first_commit_does_not_match_on_later_commits() -> None:
-    """Test that first_commit profile does NOT match when commit 1 is filtered out."""
-    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="complete",
-        mentors=[make_mentor_config(mentor_name="complete")],
-        first_commit=True,
-        amend_note_regexes=[r"\[mentor:complete\]"],
-    )
-    # Only later commits remain (commit 1 already has MENTORS entry, filtered out)
-    commits = [
-        CommitEntry(number=2, note="Second commit"),
-        CommitEntry(number=3, note="Third commit"),
-    ]
-    assert profile_matches_any_commit(profile, commits) is False
-
-
-def test_first_commit_matches_later_via_amend_note_regexes() -> None:
-    """Test that first_commit profile matches later commits via amend_note_regexes."""
-    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="complete",
-        mentors=[make_mentor_config(mentor_name="complete")],
-        first_commit=True,
-        amend_note_regexes=[r"\[mentor:complete\]"],
-    )
-    # Commit 1 filtered out, but commit 2 has amend note that matches
-    commits = [CommitEntry(number=2, note="[mentor:complete] Review complete")]
-    assert profile_matches_any_commit(profile, commits) is True
-
-
-# --- trace_profile_matching tests ---
-
-
-def test_trace_profile_matching_first_commit_match() -> None:
-    """Trace correctly reports first_commit match."""
-    from unittest.mock import patch
-
-    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="init_review",
-        mentors=[make_mentor_config()],
-        first_commit=True,
-    )
-    cs = _make_changespec(
-        commits=[CommitEntry(number=1, note="Initial commit")],
-    )
-    with patch(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        return_value=[profile],
-    ):
-        traces = trace_profile_matching(cs)
-
-    assert len(traces) == 1
-    assert traces[0].overall_match is True
-    first_cr = next(
-        cr for cr in traces[0].criteria_results if cr.criterion == "first_commit"
-    )
-    assert first_cr.configured is True
-    assert first_cr.matched is True
-
-
-def test_trace_profile_matching_no_match() -> None:
-    """Trace correctly reports no match when criteria don't apply."""
-    from unittest.mock import patch
-
-    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="init_review",
-        mentors=[make_mentor_config()],
-        first_commit=True,
-    )
-    cs = _make_changespec(
-        commits=[CommitEntry(number=2, note="Second commit")],
-    )
-    with patch(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        return_value=[profile],
-    ):
-        traces = trace_profile_matching(cs)
-
-    assert len(traces) == 1
-    assert traces[0].overall_match is False
-
-
-def test_trace_profile_matching_amend_note_match() -> None:
-    """Trace correctly reports amend_note_regexes match."""
-    from unittest.mock import patch
-
-    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="note_matcher",
-        mentors=[make_mentor_config()],
-        amend_note_regexes=[r"fix.*bug"],
-    )
-    cs = _make_changespec(
-        commits=[CommitEntry(number=1, note="fix the bug in parser")],
-    )
-    with patch(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        return_value=[profile],
-    ):
-        traces = trace_profile_matching(cs)
-
-    assert len(traces) == 1
-    assert traces[0].overall_match is True
-    note_cr = next(
-        cr for cr in traces[0].criteria_results if cr.criterion == "amend_note_regexes"
-    )
-    assert note_cr.configured is True
-    assert note_cr.matched is True
-    assert "fix.*bug" in note_cr.details
-
-
-def test_trace_profile_matching_empty_profiles() -> None:
-    """Trace returns empty list when no profiles loaded."""
-    from unittest.mock import patch
-
-    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
-
-    cs = _make_changespec(
-        commits=[CommitEntry(number=1, note="commit")],
-    )
-    with patch(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        return_value=[],
-    ):
-        traces = trace_profile_matching(cs)
-
-    assert traces == []
-
-
-# Tests for project scoping
-
-
-def test_get_matching_profiles_skips_wrong_project(monkeypatch: Any) -> None:
-    """Test that profiles scoped to a project skip changespecs from other projects."""
-    from unittest.mock import MagicMock
-
-    from sase.ace.scheduler.mentor_profile_matching import (
-        _get_matching_profiles_for_entry,
-    )
-
-    mock_profile = MagicMock()
-    mock_profile.profile_name = "gotchas"
-    mock_profile.mentors = [make_mentor_config(mentor_name="gotcha")]
-    mock_profile.file_globs = []
-    mock_profile.diff_regexes = []
-    mock_profile.amend_note_regexes = [r".*"]
-    mock_profile.projects = ["sase"]  # Scoped to sase project
-    mock_profile.first_commit = False
-
-    monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        lambda: [mock_profile],
-    )
-
-    # ChangeSpec from the "bug" project
-    cs = _make_changespec(
-        file_path="/home/user/.sase/projects/bug/bug.gp",
-        commits=[CommitEntry(number=1, note="Fix something")],
-    )
-
-    result = _get_matching_profiles_for_entry(cs)
-    assert result == []
-
-
-def test_get_matching_profiles_matches_correct_project(monkeypatch: Any) -> None:
-    """Test that profiles scoped to a project match changespecs from that project."""
-    from unittest.mock import MagicMock
-
-    from sase.ace.scheduler.mentor_profile_matching import (
-        _get_matching_profiles_for_entry,
-    )
-
-    mock_profile = MagicMock()
-    mock_profile.profile_name = "gotchas"
-    mock_profile.mentors = [make_mentor_config(mentor_name="gotcha")]
-    mock_profile.file_globs = []
-    mock_profile.diff_regexes = []
-    mock_profile.amend_note_regexes = [r".*"]
-    mock_profile.projects = ["sase"]
-    mock_profile.first_commit = False
-
-    monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        lambda: [mock_profile],
-    )
-
-    # ChangeSpec from the "sase" project
-    cs = _make_changespec(
-        file_path="/home/user/.sase/projects/sase/sase.gp",
-        commits=[CommitEntry(number=1, note="Add feature")],
-    )
-
-    result = _get_matching_profiles_for_entry(cs)
-    assert len(result) == 1
-    assert result[0][1].profile_name == "gotchas"
-
-
-def test_get_matching_profiles_none_projects_matches_any(monkeypatch: Any) -> None:
-    """Test that profiles with projects=None match any changespec (backwards compat)."""
-    from unittest.mock import MagicMock
-
-    from sase.ace.scheduler.mentor_profile_matching import (
-        _get_matching_profiles_for_entry,
-    )
-
-    mock_profile = MagicMock()
-    mock_profile.profile_name = "universal"
-    mock_profile.mentors = [make_mentor_config(mentor_name="checker")]
-    mock_profile.file_globs = []
-    mock_profile.diff_regexes = []
-    mock_profile.amend_note_regexes = [r".*"]
-    mock_profile.projects = None
-    mock_profile.first_commit = False
-
-    monkeypatch.setattr(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        lambda: [mock_profile],
-    )
-
-    cs = _make_changespec(
-        file_path="/home/user/.sase/projects/bug/bug.gp",
-        commits=[CommitEntry(number=1, note="Fix bug")],
-    )
-
-    result = _get_matching_profiles_for_entry(cs)
-    assert len(result) == 1
-
-
-def test_trace_profile_matching_projects_mismatch() -> None:
-    """Trace correctly reports projects mismatch and short-circuits."""
-    from unittest.mock import patch
-
-    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="scoped",
-        mentors=[make_mentor_config()],
-        first_commit=True,
-        projects=["sase"],
-    )
-    cs = _make_changespec(
-        file_path="/home/user/.sase/projects/bug/bug.gp",
-        commits=[CommitEntry(number=1, note="commit")],
-    )
-    with patch(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        return_value=[profile],
-    ):
-        traces = trace_profile_matching(cs)
-
-    assert len(traces) == 1
-    assert traces[0].overall_match is False
-    proj_cr = next(
-        cr for cr in traces[0].criteria_results if cr.criterion == "projects"
-    )
-    assert proj_cr.configured is True
-    assert proj_cr.matched is False
-    assert "not in" in proj_cr.details
-
-
-def test_trace_profile_matching_projects_match() -> None:
-    """Trace correctly reports projects match and continues to other criteria."""
-    from unittest.mock import patch
-
-    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
-    from sase.config.mentor import MentorProfileConfig
-
-    profile = MentorProfileConfig(
-        profile_name="scoped",
-        mentors=[make_mentor_config()],
-        first_commit=True,
-        projects=["sase"],
-    )
-    cs = _make_changespec(
-        file_path="/home/user/.sase/projects/sase/sase.gp",
-        commits=[CommitEntry(number=1, note="commit")],
-    )
-    with patch(
-        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
-        return_value=[profile],
-    ):
-        traces = trace_profile_matching(cs)
-
-    assert len(traces) == 1
-    assert traces[0].overall_match is True
-    proj_cr = next(
-        cr for cr in traces[0].criteria_results if cr.criterion == "projects"
-    )
-    assert proj_cr.configured is True
-    assert proj_cr.matched is True
-
-
-# Tests for WIP status being skipped entirely by mentor checks

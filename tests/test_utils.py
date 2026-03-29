@@ -2,10 +2,12 @@
 
 from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 from unittest.mock import patch
 
 import yaml
 
+from sase.ace.changespec import ChangeSpec
 from sase.config.mentor import MentorConfig, _MentorFocusArea
 
 
@@ -24,6 +26,27 @@ def make_mentor_config(
         role=role,
         focus_areas=focus_areas,
     )
+
+
+def build_changespec(**kwargs: Any) -> ChangeSpec:
+    """Create a ChangeSpec with sensible defaults for tests."""
+    defaults: dict[str, Any] = {
+        "name": "test-cl",
+        "description": "Test description",
+        "parent": None,
+        "cl": None,
+        "status": "Ready",
+        "test_targets": None,
+        "kickstart": None,
+        "file_path": "/tmp/test.md",
+        "line_number": 1,
+        "commits": None,
+        "hooks": None,
+        "comments": None,
+        "mentors": None,
+    }
+    defaults.update(kwargs)
+    return ChangeSpec(**defaults)  # type: ignore[arg-type]
 
 
 @contextmanager
