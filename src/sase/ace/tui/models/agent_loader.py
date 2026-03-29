@@ -166,18 +166,27 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
         if agent.raw_suffix and not agent.is_workflow_child:
             parent_by_suffix[agent.raw_suffix] = agent
 
-    # Propagate plan_times from feedback round children (.2, .3, …) to parent
-    # so the metadata panel shows one PLAN timestamp per proposal.
+    # Propagate timestamps from feedback round children (.2, .3, …) to parent
+    # so the metadata panel shows one entry per proposal/feedback/question round.
     for agent in agents:
         if (
             agent.parent_timestamp
             and not agent.parent_workflow
             and _is_feedback_suffix(agent.role_suffix)
-            and agent.plan_times
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
-                parent.plan_times.extend(agent.plan_times)
+                if agent.plan_times:
+                    parent.plan_times.extend(agent.plan_times)
+                if agent.feedback_times:
+                    parent.feedback_times.extend(agent.feedback_times)
+                if agent.questions_times:
+                    parent.questions_times.extend(agent.questions_times)
+                # Active feedback round → parent is processing feedback, not
+                # waiting for plan review.
+                if agent.status not in completed_statuses:
+                    if parent.status == "PLANNING":
+                        parent.status = "RUNNING"
 
     parents_with_followup: set[str] = set()
     for agent in agents:

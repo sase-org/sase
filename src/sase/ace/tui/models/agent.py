@@ -159,10 +159,10 @@ class Agent:
     plan_times: list[datetime] = field(default_factory=list)
     # When the coder agent was launched after plan approval (plan agents only)
     code_time: datetime | None = None
-    # When feedback was submitted on the plan
-    feedback_time: datetime | None = None
-    # When the agent submitted questions for user review
-    questions_time: datetime | None = None
+    # When feedback was submitted on the plan (one per feedback round)
+    feedback_times: list[datetime] = field(default_factory=list)
+    # When the agent submitted questions for user review (one per round)
+    questions_times: list[datetime] = field(default_factory=list)
 
     @property
     def effective_workspace_num(self) -> int | None:
@@ -269,10 +269,10 @@ class Agent:
         middle: list[tuple[datetime, str]] = []
         for pt in self.plan_times:
             middle.append((pt, "PLAN"))
-        if self.feedback_time is not None:
-            middle.append((self.feedback_time, "FBACK"))
-        if self.questions_time is not None:
-            middle.append((self.questions_time, "QUEST"))
+        for ft in self.feedback_times:
+            middle.append((ft, "FBACK"))
+        for qt in self.questions_times:
+            middle.append((qt, "QUEST"))
         if self.code_time is not None:
             middle.append((self.code_time, "CODE"))
         middle.sort(key=lambda t: t[0])
@@ -518,21 +518,24 @@ class Agent:
             "start_time": start_time,
         }
 
-        # Backward compat: old bundles stored plan_time as a single ISO string
-        if "plan_time" in data and "plan_times" not in data:
-            raw = data.pop("plan_time")
-            if isinstance(raw, str):
-                data["plan_times"] = [raw]
+        # Backward compat: old bundles stored singular datetime fields
+        for old, new in (
+            ("plan_time", "plan_times"),
+            ("feedback_time", "feedback_times"),
+            ("questions_time", "questions_times"),
+        ):
+            if old in data and new not in data:
+                raw = data.pop(old)
+                if isinstance(raw, str):
+                    data[new] = [raw]
 
         # Populate all optional fields from the bundle
         _DATETIME_FIELDS = {
             "run_start_time",
             "stop_time",
             "code_time",
-            "feedback_time",
-            "questions_time",
         }
-        _DATETIME_LIST_FIELDS = {"plan_times"}
+        _DATETIME_LIST_FIELDS = {"plan_times", "feedback_times", "questions_times"}
         for f in dataclasses.fields(Agent):
             if f.name in kwargs:
                 continue

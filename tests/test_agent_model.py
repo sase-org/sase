@@ -361,8 +361,8 @@ def test_timestamps_display_full_with_feedback_and_questions() -> None:
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         run_start_time=datetime(2025, 6, 15, 10, 0, 5),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
-        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
-        questions_time=datetime(2025, 6, 15, 10, 7, 0),
+        feedback_times=[datetime(2025, 6, 15, 10, 6, 0)],
+        questions_times=[datetime(2025, 6, 15, 10, 7, 0)],
         code_time=datetime(2025, 6, 15, 10, 10, 0),
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
     )
@@ -381,7 +381,7 @@ def test_timestamps_display_feedback_only() -> None:
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
-        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
+        feedback_times=[datetime(2025, 6, 15, 10, 6, 0)],
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
     )
     display = agent.timestamps_display
@@ -398,7 +398,7 @@ def test_timestamps_display_questions_only() -> None:
         project_file="/tmp/test.gp",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
-        questions_time=datetime(2025, 6, 15, 10, 7, 0),
+        questions_times=[datetime(2025, 6, 15, 10, 7, 0)],
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
     )
     display = agent.timestamps_display
@@ -436,7 +436,7 @@ def test_timestamps_display_multiple_plans() -> None:
             datetime(2025, 6, 15, 10, 5, 0),
             datetime(2025, 6, 15, 10, 8, 0),
         ],
-        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
+        feedback_times=[datetime(2025, 6, 15, 10, 6, 0)],
         code_time=datetime(2025, 6, 15, 10, 10, 0),
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
     )
@@ -497,24 +497,40 @@ def test_bundle_backward_compat_plan_time_to_plan_times() -> None:
     assert restored.plan_times == [datetime(2025, 6, 15, 10, 5, 0)]
 
 
-def test_bundle_round_trip_feedback_and_questions_time() -> None:
-    """Test that feedback_time and questions_time survive bundle round-trip."""
+def test_bundle_round_trip_feedback_and_questions_times() -> None:
+    """Test that feedback_times and questions_times survive bundle round-trip."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
         project_file="/tmp/test.gp",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
-        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
-        questions_time=datetime(2025, 6, 15, 10, 7, 0),
+        feedback_times=[datetime(2025, 6, 15, 10, 6, 0)],
+        questions_times=[datetime(2025, 6, 15, 10, 7, 0)],
     )
     bundle = agent.to_bundle_dict()
-    assert bundle["feedback_time"] == "2025-06-15T10:06:00"
-    assert bundle["questions_time"] == "2025-06-15T10:07:00"
+    assert bundle["feedback_times"] == ["2025-06-15T10:06:00"]
+    assert bundle["questions_times"] == ["2025-06-15T10:07:00"]
 
     restored = Agent.from_bundle_dict(bundle)
-    assert restored.feedback_time == datetime(2025, 6, 15, 10, 6, 0)
-    assert restored.questions_time == datetime(2025, 6, 15, 10, 7, 0)
+    assert restored.feedback_times == [datetime(2025, 6, 15, 10, 6, 0)]
+    assert restored.questions_times == [datetime(2025, 6, 15, 10, 7, 0)]
+
+
+def test_bundle_backward_compat_feedback_time_to_feedback_times() -> None:
+    """Test that old bundles with feedback_time/questions_time are migrated."""
+    bundle = {
+        "agent_type": "run",
+        "cl_name": "test",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": "2025-06-15T10:00:00",
+        "feedback_time": "2025-06-15T10:06:00",
+        "questions_time": "2025-06-15T10:07:00",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.feedback_times == [datetime(2025, 6, 15, 10, 6, 0)]
+    assert restored.questions_times == [datetime(2025, 6, 15, 10, 7, 0)]
 
 
 def test_bundle_round_trip_list_fields() -> None:

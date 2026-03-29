@@ -77,7 +77,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     feedback_submitted_at = data.get("feedback_submitted_at")
     if isinstance(feedback_submitted_at, str):
         try:
-            agent.feedback_time = _parse_utc_to_eastern(feedback_submitted_at)
+            agent.feedback_times.append(_parse_utc_to_eastern(feedback_submitted_at))
         except ValueError:
             pass
 
@@ -85,7 +85,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     questions_submitted_at = data.get("questions_submitted_at")
     if isinstance(questions_submitted_at, str):
         try:
-            agent.questions_time = _parse_utc_to_eastern(questions_submitted_at)
+            agent.questions_times.append(_parse_utc_to_eastern(questions_submitted_at))
         except ValueError:
             pass
 
