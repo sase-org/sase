@@ -106,13 +106,26 @@ def _sync_task(
                     status = "error"
                     message = "Failed to parse workflow output"
 
-                if status == "success":
-                    return (True, f"Synced {changespec_name}: {message}")
-                elif status == "resolved":
-                    from sase.notifications.senders import notify_sync_result
+                if status in ("success", "resolved"):
+                    if status == "resolved":
+                        from sase.notifications.senders import notify_sync_result
 
-                    notify_sync_result(
-                        status, changespec_name, workspace_dir, changespec_file_path
+                        notify_sync_result(
+                            status,
+                            changespec_name,
+                            workspace_dir,
+                            changespec_file_path,
+                        )
+
+                    from sase.ace.timestamps.recording import (
+                        add_timestamp_entry_atomic,
+                    )
+
+                    add_timestamp_entry_atomic(
+                        changespec_file_path,
+                        changespec_name,
+                        "SYNC",
+                        status,
                     )
                     return (True, f"Synced {changespec_name}: {message}")
                 else:

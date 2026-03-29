@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 13:40:13
-status: wip
+status: done
 ---
 
 # Plan: TIMESTAMPS ChangeSpec Field

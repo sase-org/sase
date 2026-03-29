@@ -40,6 +40,7 @@ class ChangeSpecInfoPanel(Static):
         self._fold_commits: FoldLevel = FoldLevel.COLLAPSED
         self._fold_hooks: FoldLevel = FoldLevel.COLLAPSED
         self._fold_mentors: FoldLevel = FoldLevel.COLLAPSED
+        self._fold_timestamps: FoldLevel = FoldLevel.COLLAPSED
 
     def update_position(self, position: int, total: int, marked_count: int = 0) -> None:
         """Update the current position and total count.
@@ -82,6 +83,7 @@ class ChangeSpecInfoPanel(Static):
         commits: FoldLevel,
         hooks: FoldLevel,
         mentors: FoldLevel,
+        timestamps: FoldLevel = FoldLevel.COLLAPSED,
     ) -> None:
         """Update the fold state indicators.
 
@@ -89,15 +91,18 @@ class ChangeSpecInfoPanel(Static):
             commits: Fold level for the commits section.
             hooks: Fold level for the hooks section.
             mentors: Fold level for the mentors section.
+            timestamps: Fold level for the timestamps section.
         """
         if (
             self._fold_commits != commits
             or self._fold_hooks != hooks
             or self._fold_mentors != mentors
+            or self._fold_timestamps != timestamps
         ):
             self._fold_commits = commits
             self._fold_hooks = hooks
             self._fold_mentors = mentors
+            self._fold_timestamps = timestamps
             self._refresh_content()
 
     def _build_content(self) -> Text:
@@ -127,6 +132,7 @@ class ChangeSpecInfoPanel(Static):
             self._fold_commits == FoldLevel.COLLAPSED
             and self._fold_hooks == FoldLevel.COLLAPSED
             and self._fold_mentors == FoldLevel.COLLAPSED
+            and self._fold_timestamps == FoldLevel.COLLAPSED
         )
         if has_fold:
             text.append("   ", style="")
@@ -134,6 +140,7 @@ class ChangeSpecInfoPanel(Static):
                 ("c", self._fold_commits),
                 ("h", self._fold_hooks),
                 ("m", self._fold_mentors),
+                ("t", self._fold_timestamps),
             ]:
                 text.append(label, style=_LABEL_STYLE)
                 text.append(_FOLD_CHARS[level], style=_FOLD_STYLES[level])
