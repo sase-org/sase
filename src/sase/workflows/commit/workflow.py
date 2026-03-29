@@ -124,6 +124,7 @@ class CommitWorkflow(BaseWorkflow):
             self._parent_cl_name = self._detect_parent_changespec()
 
         if self._method == "create_pull_request":
+            self._apply_project_pr_prefix()
             self._append_pr_tags()
             self._build_pr_body()
 
@@ -299,6 +300,21 @@ class CommitWorkflow(BaseWorkflow):
         except Exception:
             pass
         return ""
+
+    def _apply_project_pr_prefix(self) -> None:
+        """Set ``_pr_title_prefix`` if ``use_project_pr_prefix`` is enabled."""
+        from sase.vcs_provider.config import get_use_project_pr_prefix
+
+        if not get_use_project_pr_prefix():
+            return
+        try:
+            from sase.workflows.utils import get_project_from_workspace
+
+            project_name = get_project_from_workspace()
+        except Exception:
+            project_name = None
+        if project_name:
+            self._payload["_pr_title_prefix"] = f"[{project_name}] "
 
     def _append_pr_tags(self) -> None:
         """Append configured pr_tags to the commit message."""

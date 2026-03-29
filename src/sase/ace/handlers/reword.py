@@ -36,7 +36,7 @@ def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
         name: The ChangeSpec name.
     """
     from sase.status_state_machine import update_changespec_description_atomic
-    from sase.vcs_provider.config import strip_pr_tags
+    from sase.vcs_provider.config import strip_project_pr_prefix, strip_pr_tags
 
     provider = get_vcs_provider(workspace_dir)
     success, desc_output = provider.get_description("", workspace_dir, short=True)
@@ -45,6 +45,7 @@ def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
         return
 
     new_description = strip_pr_tags(desc_output.strip()) if desc_output else ""
+    new_description = strip_project_pr_prefix(new_description)
     if not new_description:
         print("Warning: cl_desc -s returned empty output, skipping DESCRIPTION sync")
         return

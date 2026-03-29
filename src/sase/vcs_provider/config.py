@@ -40,6 +40,31 @@ def get_pr_tags() -> dict[str, str]:
     return {str(k): str(v) for k, v in tags.items()}
 
 
+def get_use_project_pr_prefix() -> bool:
+    """Read ``vcs_provider.use_project_pr_prefix`` from the merged config.
+
+    Returns:
+        True if the project PR prefix feature is enabled.
+    """
+    config = get_vcs_provider_config()
+    return bool(config.get("use_project_pr_prefix", False))
+
+
+def strip_project_pr_prefix(description: str) -> str:
+    """Remove a leading ``[...] `` prefix from the first line of *description*.
+
+    Only strips when ``use_project_pr_prefix`` is enabled in the config.
+    Returns the description unchanged otherwise.
+    """
+    if not get_use_project_pr_prefix():
+        return description
+    lines = description.split("\n", 1)
+    first_line = _PREFIX_PATTERN.sub("", lines[0])
+    if len(lines) == 1:
+        return first_line
+    return first_line + "\n" + lines[1]
+
+
 def get_workspace_root() -> str | None:
     """Get the workspace root directory.
 
@@ -57,6 +82,7 @@ def get_workspace_root() -> str | None:
     return config.get("workspace_root") or None
 
 
+_PREFIX_PATTERN = re.compile(r"^\[.+?\] ")
 _TAG_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*=")
 
 
