@@ -215,6 +215,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `W`                 | New agent waiting for current (populate prompt with `%w`)    |
 | `x`                 | Kill / dismiss agent                                         |
 | `X`                 | Dismiss all completed agents (with confirmation)             |
+| `P`                 | Pin / unpin completed agent (protects from dismiss-all)      |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)     |
 | `e`                 | Edit chat in editor                                          |
 | `E`                 | Edit panel content in editor                                 |
@@ -549,6 +550,12 @@ The footer also shows axe daemon status indicators:
 | **FAILED**    | Red   | Agent exited with an error                |
 
 Completed agents can be dismissed with `x` (single) or `X` (all completed).
+
+### Pinned Agents
+
+Press `P` on a completed agent to toggle its pinned state. Pinned agents are shown with a 📌 icon and are excluded from
+the `X` (dismiss all) operation. This lets you preserve specific completed agents for reference while bulk-dismissing
+the rest. Pinned state is persisted across TUI sessions in `~/.sase/pinned_agents.json`.
 
 ## Agents Tab Metadata Panel
 
