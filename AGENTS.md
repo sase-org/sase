@@ -15,8 +15,8 @@ just test          # pytest with coverage
 sase bead          # Use bare `sase bead` for bead workflows
 ```
 
-IMPORTANT: If you made file changes in this repo, make sure to run the `just check` command before terminating /
-replying to the user.
+IMPORTANT: If you made file changes in this repo (the sase repo), make sure to run the `just check` command before
+terminating / replying to the user.
 
 ## Ephemeral `sase_<N>` Workspace Directories
 
