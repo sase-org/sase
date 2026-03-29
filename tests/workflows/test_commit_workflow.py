@@ -2,6 +2,7 @@
 
 import importlib.machinery
 import importlib.util
+import os
 import tempfile
 import types
 from pathlib import Path
@@ -420,3 +421,62 @@ def test_precommit_runs_during_sdd_commit(
 
     mock_precommit.assert_called_once()
     assert isinstance(mock_precommit.call_args[0][0], str)  # cwd arg
+
+
+# --- PLAN drawer fallback from plan_path.json ---
+
+
+def test_append_commits_entry_plan_fallback_from_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PLAN drawer is added via plan_path.json when SASE_PLAN env var is unset."""
+    import json
+
+    monkeypatch.delenv("SASE_PLAN", raising=False)
+
+    # Set up artifacts dir with plan_path.json
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    plan_json = artifacts_dir / "plan_path.json"
+    home = os.path.expanduser("~")
+    plan_path = os.path.join(home, "plans", "my_plan.md")
+    plan_json.write_text(json.dumps({"plan_path": plan_path}))
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    project_file = tmp_path / "proj.gp"
+    project_file.write_text(
+        "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
+    )
+
+    wf = _make_commit_workflow(message="Implement the plan")
+    wf._cl_name = "my_branch"
+    wf._project_file = str(project_file)
+
+    entry_id = wf._append_commits_entry()
+    assert entry_id is not None
+
+    content = project_file.read_text()
+    assert "PLAN: ~/plans/my_plan.md" in content
+
+
+def test_append_commits_entry_plan_no_fallback_when_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PLAN drawer is absent when both SASE_PLAN and plan_path.json are missing."""
+    monkeypatch.delenv("SASE_PLAN", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    project_file = tmp_path / "proj.gp"
+    project_file.write_text(
+        "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
+    )
+
+    wf = _make_commit_workflow(message="No plan available")
+    wf._cl_name = "my_branch"
+    wf._project_file = str(project_file)
+
+    entry_id = wf._append_commits_entry()
+    assert entry_id is not None
+
+    content = project_file.read_text()
+    assert "PLAN:" not in content

@@ -537,6 +537,16 @@ class CommitWorkflow(BaseWorkflow):
         # Compute display path for plan (replace $HOME with ~)
         plan_display: str | None = None
         raw_plan = os.environ.get("SASE_PLAN", "")
+        if not raw_plan:
+            # Fallback: read from artifacts directory
+            artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR", "")
+            if artifacts_dir:
+                plan_path_file = os.path.join(artifacts_dir, "plan_path.json")
+                try:
+                    with open(plan_path_file, encoding="utf-8") as f:
+                        raw_plan = json.load(f).get("plan_path", "")
+                except (FileNotFoundError, json.JSONDecodeError, OSError):
+                    pass
         if raw_plan:
             home = os.path.expanduser("~")
             plan_display = (

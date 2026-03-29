@@ -360,6 +360,12 @@ def handle_plan_marker(
             else None,
             workflow_name=ctx.agent_name,
         )
+        # Write plan_path.json to the coder's artifacts dir so the
+        # commit workflow can fall back to it when SASE_PLAN env is lost.
+        _write_plan_path_artifact(
+            state.current_artifacts_dir, os.environ.get("SASE_PLAN", "")
+        )
+
         state.current_prompt = (
             f"{vcs_prefix}"
             f"@{plan_data['plan_file']}\n\n"
