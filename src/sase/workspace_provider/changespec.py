@@ -4,6 +4,8 @@ import os
 import re
 import subprocess
 
+from sase.ace.changespec.models import TimestampEntry
+from sase.ace.timestamps.recording import get_current_display_timestamp
 from sase.history.chat import save_chat_history
 from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
 from sase.workspace_provider import get_change_label
@@ -173,6 +175,14 @@ def create_changespec_for_workflow(
     hooks = get_initial_hooks_for_changespec(verbose=False)
     cl_label = get_change_label(project_file)
 
+    initial_timestamps = [
+        TimestampEntry(
+            timestamp=get_current_display_timestamp(),
+            event_type="COMMIT",
+            detail="(1)",
+        )
+    ]
+
     result = add_changespec_to_project_file(
         project_name,
         cl_name,
@@ -181,6 +191,7 @@ def create_changespec_for_workflow(
         cl_url=cl_url,
         initial_hooks=hooks,
         initial_commits=[(1, "[run] Initial Commit", chat_path, diff_path)],
+        initial_timestamps=initial_timestamps,
         bug=bug,
         cl_label=cl_label,
         status=status,

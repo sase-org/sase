@@ -3,6 +3,8 @@
 import os
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.changespec.models import TimestampEntry
+from sase.ace.timestamps.formatting import format_timestamps_field
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
 
@@ -110,6 +112,7 @@ def add_changespec_to_project_file(
     cl_url: str | None = None,
     initial_hooks: list[str] | None = None,
     initial_commits: list[tuple] | None = None,
+    initial_timestamps: list[TimestampEntry] | None = None,
     bug: str | None = None,
     cl_label: str = "CL",
     status: str = "Draft",
@@ -134,6 +137,8 @@ def add_changespec_to_project_file(
         initial_commits: List of (number, note, chat_path, diff_path) tuples
             for the COMMITS field. chat_path and diff_path are optional drawer
             paths. If None or empty, no COMMITS field is added.
+        initial_timestamps: List of TimestampEntry objects for the TIMESTAMPS
+            field. If None or empty, no TIMESTAMPS field is added.
         bug: BUG field value (e.g., "http://b/12345"). If None, no BUG field
             is added.
         status: STATUS field value (e.g., "Draft", "WIP"). Defaults to "Draft".
@@ -262,6 +267,13 @@ def add_changespec_to_project_file(
                     hooks_lines.append(f"  {hook_cmd}\n")
                 hooks_block = "".join(hooks_lines)
 
+            # Build TIMESTAMPS field if initial_timestamps provided
+            timestamps_block = (
+                format_timestamps_field(initial_timestamps)
+                if initial_timestamps
+                else ""
+            )
+
             # Build the ChangeSpec block with the suffixed name
             cl_line = f"{cl_label}: {cl_url}\n" if cl_url else ""
             changespec_block = f"""
@@ -270,7 +282,7 @@ NAME: {cl_name}
 DESCRIPTION:
 {formatted_description}
 {parent_line}{bug_line}{cl_line}STATUS: {status}
-{commits_block}{hooks_block}"""
+{commits_block}{hooks_block}{timestamps_block}"""
 
             # Insert the new ChangeSpec
             lines.insert(insert_index, changespec_block)

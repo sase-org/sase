@@ -4,6 +4,7 @@ import os
 import tempfile
 from unittest.mock import patch
 
+from sase.ace.changespec.models import TimestampEntry
 from sase.ace.changespec.parser import parse_project_file
 from sase.workflows.commit.changespec_operations import (
     add_changespec_to_project_file,
@@ -194,5 +195,75 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
 
         # Should have no BUG since no parent and no explicit bug
         assert cs.bug is None
+    finally:
+        os.unlink(project_file)
+
+
+def test_add_changespec_with_initial_timestamps() -> None:
+    """ChangeSpec created with initial_timestamps gets a TIMESTAMPS section."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="ts_feature",
+                description="Timestamps test",
+                parent=None,
+                initial_commits=[(1, "[run] Initial Commit", None, None)],
+                initial_timestamps=[
+                    TimestampEntry(
+                        timestamp="2026-03-29 12:00:00",
+                        event_type="COMMIT",
+                        detail="(1)",
+                    )
+                ],
+            )
+
+        assert result is not None
+
+        changespecs = parse_project_file(project_file)
+        cs = next(c for c in changespecs if c.name == "ts_feature_1")
+
+        # Should have exactly one TIMESTAMPS entry
+        assert cs.timestamps is not None
+        assert len(cs.timestamps) == 1
+        assert cs.timestamps[0].event_type == "COMMIT"
+        assert cs.timestamps[0].detail == "(1)"
+        assert cs.timestamps[0].timestamp == "2026-03-29 12:00:00"
+    finally:
+        os.unlink(project_file)
+
+
+def test_add_changespec_without_timestamps_has_no_section() -> None:
+    """ChangeSpec created without initial_timestamps has no TIMESTAMPS section."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="no_ts_feature",
+                description="No timestamps",
+                parent=None,
+            )
+
+        assert result is not None
+
+        changespecs = parse_project_file(project_file)
+        cs = next(c for c in changespecs if c.name == "no_ts_feature_1")
+
+        # Should have no TIMESTAMPS entries
+        assert not cs.timestamps
     finally:
         os.unlink(project_file)

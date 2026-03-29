@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.ace.changespec.models import TimestampEntry
 from sase.workspace_provider.changespec import (
     _build_description,
     _derive_cl_name,
@@ -441,6 +442,10 @@ def test_create_changespec_for_workflow_success(
             return_value="proj_add_thing_1",
         ) as mock_add,
         patch(
+            "sase.workspace_provider.changespec.get_current_display_timestamp",
+            return_value="2026-03-29 12:00:00",
+        ),
+        patch(
             "sase.workspace_provider.changespec.subprocess.run"
         ),  # Prevent real git branch -m
     ):
@@ -464,6 +469,13 @@ def test_create_changespec_for_workflow_success(
             initial_hooks=[],
             initial_commits=[
                 (1, "[run] Initial Commit", "~/chats/f.md", "~/diffs/f.diff")
+            ],
+            initial_timestamps=[
+                TimestampEntry(
+                    timestamp="2026-03-29 12:00:00",
+                    event_type="COMMIT",
+                    detail="(1)",
+                )
             ],
             bug=None,
             cl_label="PR",
