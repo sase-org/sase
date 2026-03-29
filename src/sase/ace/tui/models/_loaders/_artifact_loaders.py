@@ -69,7 +69,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
     plan_submitted_at = data.get("plan_submitted_at")
     if isinstance(plan_submitted_at, str):
         try:
-            agent.plan_time = _parse_utc_to_eastern(plan_submitted_at)
+            agent.plan_times.append(_parse_utc_to_eastern(plan_submitted_at))
         except ValueError:
             pass
 

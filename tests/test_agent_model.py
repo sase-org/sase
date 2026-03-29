@@ -340,7 +340,7 @@ def test_timestamps_display_with_plan_and_code() -> None:
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         run_start_time=datetime(2025, 6, 15, 10, 0, 5),
-        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
         code_time=datetime(2025, 6, 15, 10, 10, 0),
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
     )
@@ -360,7 +360,7 @@ def test_timestamps_display_full_with_feedback_and_questions() -> None:
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
         run_start_time=datetime(2025, 6, 15, 10, 0, 5),
-        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
         feedback_time=datetime(2025, 6, 15, 10, 6, 0),
         questions_time=datetime(2025, 6, 15, 10, 7, 0),
         code_time=datetime(2025, 6, 15, 10, 10, 0),
@@ -380,7 +380,7 @@ def test_timestamps_display_feedback_only() -> None:
         project_file="/tmp/test.gp",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
-        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
         feedback_time=datetime(2025, 6, 15, 10, 6, 0),
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
     )
@@ -415,7 +415,7 @@ def test_timestamps_display_plan_only() -> None:
         project_file="/tmp/test.gp",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
-        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
         stop_time=datetime(2025, 6, 15, 10, 20, 0),
     )
     display = agent.timestamps_display
@@ -424,8 +424,30 @@ def test_timestamps_display_plan_only() -> None:
     assert tags == ["BEGIN", "PLAN", "END"]
 
 
+def test_timestamps_display_multiple_plans() -> None:
+    """Test timestamps_display shows one PLAN per proposal (feedback rounds)."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+        plan_times=[
+            datetime(2025, 6, 15, 10, 5, 0),
+            datetime(2025, 6, 15, 10, 8, 0),
+        ],
+        feedback_time=datetime(2025, 6, 15, 10, 6, 0),
+        code_time=datetime(2025, 6, 15, 10, 10, 0),
+        stop_time=datetime(2025, 6, 15, 10, 20, 0),
+    )
+    display = agent.timestamps_display
+    lines = display.split("\n")
+    tags = [line.strip().split(" | ")[0].strip() for line in lines]
+    assert tags == ["BEGIN", "PLAN", "PLAN", "FBACK", "CODE", "END"]
+
+
 def test_timestamps_display_no_plan_or_code() -> None:
-    """Test timestamps_display unchanged when plan_time and code_time are None."""
+    """Test timestamps_display unchanged when plan_times is empty and code_time is None."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
@@ -441,23 +463,37 @@ def test_timestamps_display_no_plan_or_code() -> None:
 
 
 def test_bundle_round_trip_plan_and_code_time() -> None:
-    """Test that plan_time and code_time survive bundle round-trip."""
+    """Test that plan_times and code_time survive bundle round-trip."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="test",
         project_file="/tmp/test.gp",
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 0, 0),
-        plan_time=datetime(2025, 6, 15, 10, 5, 0),
+        plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
         code_time=datetime(2025, 6, 15, 10, 10, 0),
     )
     bundle = agent.to_bundle_dict()
-    assert bundle["plan_time"] == "2025-06-15T10:05:00"
+    assert bundle["plan_times"] == ["2025-06-15T10:05:00"]
     assert bundle["code_time"] == "2025-06-15T10:10:00"
 
     restored = Agent.from_bundle_dict(bundle)
-    assert restored.plan_time == datetime(2025, 6, 15, 10, 5, 0)
+    assert restored.plan_times == [datetime(2025, 6, 15, 10, 5, 0)]
     assert restored.code_time == datetime(2025, 6, 15, 10, 10, 0)
+
+
+def test_bundle_backward_compat_plan_time_to_plan_times() -> None:
+    """Test that old bundles with plan_time are migrated to plan_times."""
+    bundle = {
+        "agent_type": "run",
+        "cl_name": "test",
+        "project_file": "/tmp/test.gp",
+        "status": "DONE",
+        "start_time": "2025-06-15T10:00:00",
+        "plan_time": "2025-06-15T10:05:00",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.plan_times == [datetime(2025, 6, 15, 10, 5, 0)]
 
 
 def test_bundle_round_trip_feedback_and_questions_time() -> None:

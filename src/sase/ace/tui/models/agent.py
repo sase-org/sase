@@ -155,8 +155,8 @@ class Agent:
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
-    # When the plan was submitted for review (plan agents only)
-    plan_time: datetime | None = None
+    # When plans were submitted for review (one per proposal; plan agents only)
+    plan_times: list[datetime] = field(default_factory=list)
     # When the coder agent was launched after plan approval (plan agents only)
     code_time: datetime | None = None
     # When feedback was submitted on the plan
@@ -265,8 +265,8 @@ class Agent:
         else:
             parts.append(_fmt("BEGIN", "Unknown"))
 
-        if self.plan_time is not None:
-            parts.append(_fmt("PLAN", self.plan_time.strftime(fmt)))
+        for pt in self.plan_times:
+            parts.append(_fmt("PLAN", pt.strftime(fmt)))
 
         if self.feedback_time is not None:
             parts.append(_fmt("FBACK", self.feedback_time.strftime(fmt)))
@@ -486,6 +486,8 @@ class Agent:
                 value = value.value
             elif isinstance(value, datetime):
                 value = value.isoformat()
+            elif isinstance(value, list) and value and isinstance(value[0], datetime):
+                value = [v.isoformat() for v in value]
             result[f.name] = value
         return result
 
@@ -514,15 +516,21 @@ class Agent:
             "start_time": start_time,
         }
 
+        # Backward compat: old bundles stored plan_time as a single ISO string
+        if "plan_time" in data and "plan_times" not in data:
+            raw = data.pop("plan_time")
+            if isinstance(raw, str):
+                data["plan_times"] = [raw]
+
         # Populate all optional fields from the bundle
         _DATETIME_FIELDS = {
             "run_start_time",
             "stop_time",
-            "plan_time",
             "code_time",
             "feedback_time",
             "questions_time",
         }
+        _DATETIME_LIST_FIELDS = {"plan_times"}
         for f in dataclasses.fields(Agent):
             if f.name in kwargs:
                 continue
@@ -535,6 +543,11 @@ class Agent:
             # Deserialize ISO datetime strings for datetime fields
             if f.name in _DATETIME_FIELDS and isinstance(value, str):
                 value = datetime.fromisoformat(value)
+            elif f.name in _DATETIME_LIST_FIELDS and isinstance(value, list):
+                value = [
+                    datetime.fromisoformat(v) if isinstance(v, str) else v
+                    for v in value
+                ]
             kwargs[f.name] = value
 
         return Agent(**kwargs)
