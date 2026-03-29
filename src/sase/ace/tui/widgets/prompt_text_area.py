@@ -152,7 +152,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         - ``delete`` / ``replace``: clamp to the start of the new-side range.
         - ``insert``: does not consume old characters; continue scanning.
         """
-        matcher = difflib.SequenceMatcher(None, old_text, new_text, autojunk=False)
+        matcher = difflib.SequenceMatcher(None, old_text, new_text)
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
             if tag == "equal":
                 if old_offset <= i2:
@@ -225,6 +225,16 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             if self.text != text:
                 return
 
+            # Compute cursor mapping off the event loop (CPU-bound O(n^2) diff)
+            loop = asyncio.get_running_loop()
+            mapped = await loop.run_in_executor(
+                None, self._map_offset, text, formatted, cursor_offset
+            )
+
+            # Re-check stale input since we yielded control to the event loop
+            if self.text != text:
+                return
+
             # Replace entire content with the reflowed version
             doc = self.document
             last_row = doc.line_count - 1
@@ -232,7 +242,6 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self._replace_via_keyboard(formatted, (0, 0), (last_row, last_col))
 
             # Restore cursor using diff-based offset mapping
-            mapped = self._map_offset(text, formatted, cursor_offset)
             offset = min(mapped, len(formatted))
             remaining = offset
             lines = formatted.split("\n")
