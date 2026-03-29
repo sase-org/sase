@@ -532,6 +532,65 @@ def test_create_changespec_for_workflow_passes_plan(
         assert commit_tuple[5] == "~/.sase/plans/my_plan.md"
 
 
+def test_create_changespec_for_workflow_plan_outside_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SASE_PLAN path not under HOME is passed through unchanged."""
+    monkeypatch.delenv("SASE_AGENT_CHAT_PATH", raising=False)
+    monkeypatch.setenv("SASE_PLAN", "/opt/plans/my_plan.md")
+    monkeypatch.setenv("HOME", "/home/user")
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["feat: add thing"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/f.md",
+        ),
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value="~/diffs/f.diff",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="proj_plan_2",
+        ) as mock_add,
+        patch("sase.workspace_provider.changespec.subprocess.run"),
+    ):
+        result = create_changespec_for_workflow(
+            project_name="proj",
+            project_file="/fake/proj.gp",
+            checkout_target="origin/main",
+            branch_name="swift-falcon",
+            prompt="do stuff",
+            response="done",
+            workflow_name="gh",
+        )
+        assert result == "proj_plan_2"
+        initial_commits = mock_add.call_args.kwargs["initial_commits"]
+        assert len(initial_commits) == 1
+        commit_tuple = initial_commits[0]
+        assert commit_tuple[:4] == (
+            1,
+            "[run] Initial Commit",
+            "~/chats/f.md",
+            "~/diffs/f.diff",
+        )
+        # Position 4: commit_body (None), position 5: plan_path (unchanged)
+        assert commit_tuple[4] is None
+        assert commit_tuple[5] == "/opt/plans/my_plan.md"
+
+
 def test_create_changespec_for_workflow_no_plan_when_env_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
