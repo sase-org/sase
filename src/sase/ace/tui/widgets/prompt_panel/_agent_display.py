@@ -1,5 +1,6 @@
 """Agent display mixin for the agent prompt panel."""
 
+from datetime import datetime
 from pathlib import Path
 
 from rich.console import Group
@@ -101,7 +102,19 @@ class AgentDisplayMixin:
                     renderables.append(error_tb_syntax)
                 renderables.append(prompt_syntax)
 
-                if response_content:
+                chunks = agent.get_timestamped_reply_chunks()
+                if chunks:
+                    renderables.append(reply_header)
+                    for ts, chunk_text in chunks:
+                        renderables.append(self._render_timestamp_divider(ts))
+                        content = chunk_text.strip()
+                        if content:
+                            renderables.append(
+                                Syntax(
+                                    content, "markdown", theme="monokai", word_wrap=True
+                                )
+                            )
+                elif response_content:
                     response_syntax = Syntax(
                         response_content,
                         "markdown",
@@ -129,7 +142,22 @@ class AgentDisplayMixin:
                 reply_header.append("\n")
 
                 live_reply = agent.get_live_reply_content()
-                if live_reply:
+                chunks = agent.get_timestamped_reply_chunks()
+                if chunks:
+                    renderables_other.append(reply_header)
+                    for ts, chunk_text in chunks:
+                        renderables_other.append(self._render_timestamp_divider(ts))
+                        content = chunk_text.strip()
+                        if content:
+                            renderables_other.append(
+                                Syntax(
+                                    content,
+                                    "markdown",
+                                    theme="monokai",
+                                    word_wrap=True,
+                                )
+                            )
+                elif live_reply:
                     reply_syntax = Syntax(
                         live_reply,
                         "markdown",
@@ -257,7 +285,21 @@ class AgentDisplayMixin:
                 header_text.append("AGENT CHAT\n", style="bold #D7AF5F underline")
                 header_text.append("\n")
 
-                if response_content:
+                chunks = agent.get_timestamped_reply_chunks()
+                if chunks:
+                    for ts, chunk_text in chunks:
+                        header_text.append_text(self._render_timestamp_divider(ts))
+                        content = chunk_text.strip()
+                        if content:
+                            hint_counter = append_text_with_file_hints(
+                                header_text,
+                                content + "\n",
+                                hint_counter,
+                                hint_mappings,
+                                workspace_dir,
+                            )
+                            header_text.append("\n")
+                elif response_content:
                     hint_counter = append_text_with_file_hints(
                         header_text,
                         response_content + "\n",
@@ -276,7 +318,21 @@ class AgentDisplayMixin:
                 header_text.append("\n")
 
                 live_reply = agent.get_live_reply_content()
-                if live_reply:
+                chunks = agent.get_timestamped_reply_chunks()
+                if chunks:
+                    for ts, chunk_text in chunks:
+                        header_text.append_text(self._render_timestamp_divider(ts))
+                        content = chunk_text.strip()
+                        if content:
+                            hint_counter = append_text_with_file_hints(
+                                header_text,
+                                content + "\n",
+                                hint_counter,
+                                hint_mappings,
+                                workspace_dir,
+                            )
+                            header_text.append("\n")
+                elif live_reply:
                     hint_counter = append_text_with_file_hints(
                         header_text,
                         live_reply + "\n",
@@ -294,6 +350,21 @@ class AgentDisplayMixin:
 
         self.update(header_text)  # type: ignore[attr-defined]
         return hint_mappings
+
+    @staticmethod
+    def _render_timestamp_divider(iso_timestamp: str) -> Text:
+        """Create a styled timestamp divider: ``─── HH:MM:SS ───…───``."""
+        try:
+            dt = datetime.fromisoformat(iso_timestamp)
+            local_dt = dt.astimezone()
+            time_str = local_dt.strftime("%H:%M:%S")
+        except (ValueError, OSError):
+            time_str = "??:??:??"
+        prefix = f"─── {time_str} "
+        suffix_len = 50 - len(prefix)
+        divider = Text()
+        divider.append(prefix + "─" * suffix_len + "\n", style="dim #D7D7FF")
+        return divider
 
     def _build_header_text(self, agent: Agent) -> tuple[Text, "Syntax | None"]:
         """Build the AGENT DETAILS header section with trailing separator.

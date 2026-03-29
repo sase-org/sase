@@ -1,6 +1,7 @@
 """Agent data model for the Agents tab."""
 
 import dataclasses
+import json
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -588,6 +589,55 @@ class Agent:
                 return f.read()
         except (FileNotFoundError, OSError):
             return None
+
+    def get_timestamped_reply_chunks(self) -> list[tuple[str, str]] | None:
+        """Load live reply split into timestamped chunks.
+
+        Returns:
+            List of (iso_timestamp, content_text) tuples, or None if timestamps
+            unavailable. Falls back to None so callers can use the un-timestamped
+            path.
+        """
+        artifacts_dir = self.get_artifacts_dir()
+        if artifacts_dir is None:
+            return None
+
+        timestamps_path = os.path.join(artifacts_dir, "live_reply_timestamps.jsonl")
+        reply_path = os.path.join(artifacts_dir, "live_reply.md")
+
+        try:
+            with open(timestamps_path, encoding="utf-8") as f:
+                lines = f.readlines()
+        except (FileNotFoundError, OSError):
+            return None
+
+        entries: list[tuple[int, str]] = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                entries.append((data["byte_offset"], data["timestamp"]))
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        if not entries:
+            return None
+
+        try:
+            with open(reply_path, "rb") as f:
+                content_bytes = f.read()
+        except (FileNotFoundError, OSError):
+            return None
+
+        chunks: list[tuple[str, str]] = []
+        for i, (offset, timestamp) in enumerate(entries):
+            end = entries[i + 1][0] if i + 1 < len(entries) else len(content_bytes)
+            chunk_text = content_bytes[offset:end].decode("utf-8", errors="replace")
+            chunks.append((timestamp, chunk_text))
+
+        return chunks if chunks else None
 
     def get_response_content(self) -> str | None:
         """Get the response content for DONE agents.

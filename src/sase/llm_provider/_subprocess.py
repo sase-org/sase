@@ -40,6 +40,15 @@ def _open_live_reply_file() -> IO[str] | None:
     return open(path, "w", encoding="utf-8")
 
 
+def _open_live_reply_timestamps_file() -> IO[str] | None:
+    """Open the live reply timestamps JSONL file if SASE_ARTIFACTS_DIR is set."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return None
+    path = os.path.join(artifacts_dir, "live_reply_timestamps.jsonl")
+    return open(path, "w", encoding="utf-8")
+
+
 def stream_process_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
@@ -61,6 +70,8 @@ def stream_process_output(
     stdout_lines: list[str] = []
     stderr_lines: list[str] = []
     live_reply_file = _open_live_reply_file()
+    timestamps_file = _open_live_reply_timestamps_file()
+    first_output_written = False
 
     try:
         # Set stdout and stderr to non-blocking mode
@@ -94,6 +105,14 @@ def stream_process_output(
                         line = _strip_ansi(line)
                     stdout_lines.append(line)
                     if live_reply_file:
+                        if timestamps_file and not first_output_written:
+                            entry = {
+                                "byte_offset": 0,
+                                "timestamp": datetime.now(tz=UTC).isoformat(),
+                            }
+                            timestamps_file.write(json.dumps(entry) + "\n")
+                            timestamps_file.flush()
+                            first_output_written = True
                         live_reply_file.write(line)
                         live_reply_file.flush()
                     if not suppress_output:
@@ -117,6 +136,14 @@ def stream_process_output(
                                 line = _strip_ansi(line)
                             stdout_lines.append(line)
                             if live_reply_file:
+                                if timestamps_file and not first_output_written:
+                                    entry = {
+                                        "byte_offset": 0,
+                                        "timestamp": datetime.now(tz=UTC).isoformat(),
+                                    }
+                                    timestamps_file.write(json.dumps(entry) + "\n")
+                                    timestamps_file.flush()
+                                    first_output_written = True
                                 live_reply_file.write(line)
                                 live_reply_file.flush()
                             if not suppress_output:
@@ -132,6 +159,8 @@ def stream_process_output(
     finally:
         if live_reply_file:
             live_reply_file.close()
+        if timestamps_file:
+            timestamps_file.close()
 
     return_code = process.wait()
     stdout_content = "".join(stdout_lines)
@@ -161,6 +190,7 @@ def stream_and_parse_json_output(
     error_events: list[str] = []
     stderr_lines: list[str] = []
     live_reply_file = _open_live_reply_file()
+    timestamps_file = _open_live_reply_timestamps_file()
 
     try:
         # Set stdout and stderr to non-blocking mode
@@ -190,6 +220,7 @@ def stream_and_parse_json_output(
                         suppress_output,
                         error_events,
                         live_reply_file,
+                        timestamps_file,
                     )
 
             if process.stderr and process.stderr in ready:
@@ -208,6 +239,7 @@ def stream_and_parse_json_output(
                             suppress_output,
                             error_events,
                             live_reply_file,
+                            timestamps_file,
                         )
                 if process.stderr:
                     for line in process.stderr:
@@ -218,6 +250,8 @@ def stream_and_parse_json_output(
     finally:
         if live_reply_file:
             live_reply_file.close()
+        if timestamps_file:
+            timestamps_file.close()
 
     return_code = process.wait()
     combined_text = "\n\n".join(assistant_texts)
@@ -270,6 +304,7 @@ def stream_and_parse_codex_json_output(
     stderr_lines: list[str] = []
     pending_reasoning: list[dict[str, object]] = []
     live_reply_file = _open_live_reply_file()
+    timestamps_file = _open_live_reply_timestamps_file()
     thinking_file = _open_codex_thinking_file()
 
     try:
@@ -301,6 +336,7 @@ def stream_and_parse_codex_json_output(
                         live_reply_file,
                         thinking_file,
                         pending_reasoning,
+                        timestamps_file,
                     )
 
             if process.stderr and process.stderr in ready:
@@ -321,6 +357,7 @@ def stream_and_parse_codex_json_output(
                             live_reply_file,
                             thinking_file,
                             pending_reasoning,
+                            timestamps_file,
                         )
                 if process.stderr:
                     for line in process.stderr:
@@ -335,6 +372,8 @@ def stream_and_parse_codex_json_output(
     finally:
         if live_reply_file:
             live_reply_file.close()
+        if timestamps_file:
+            timestamps_file.close()
         if thinking_file:
             thinking_file.close()
 
@@ -360,6 +399,7 @@ def _process_codex_json_line(
     live_reply_file: IO[str] | None = None,
     thinking_file: IO[str] | None = None,
     pending_reasoning: list[dict[str, object]] | None = None,
+    timestamps_file: IO[str] | None = None,
 ) -> None:
     """Parse a single Codex NDJSON line and extract assistant text.
 
@@ -397,6 +437,13 @@ def _process_codex_json_line(
                     _flush_codex_reasoning(pending_reasoning, thinking_file, action)
 
                 if live_reply_file:
+                    if timestamps_file:
+                        ts_entry = {
+                            "byte_offset": live_reply_file.tell(),
+                            "timestamp": datetime.now(tz=UTC).isoformat(),
+                        }
+                        timestamps_file.write(json.dumps(ts_entry) + "\n")
+                        timestamps_file.flush()
                     if assistant_texts:
                         live_reply_file.write("\n\n")
                     live_reply_file.write(text)
@@ -522,6 +569,7 @@ def _process_json_line(
     suppress_output: bool,
     error_events: list[str] | None = None,
     live_reply_file: IO[str] | None = None,
+    timestamps_file: IO[str] | None = None,
 ) -> None:
     """Parse a single JSON line and extract assistant text if present.
 
@@ -542,10 +590,19 @@ def _process_json_line(
     if event_type == "assistant":
         message = event.get("message", {})
         content_blocks = message.get("content", [])
+        recorded_turn_ts = False
         for block in content_blocks:
             if block.get("type") == "text":
                 text = block["text"]
                 if live_reply_file:
+                    if timestamps_file and not recorded_turn_ts:
+                        ts_entry = {
+                            "byte_offset": live_reply_file.tell(),
+                            "timestamp": datetime.now(tz=UTC).isoformat(),
+                        }
+                        timestamps_file.write(json.dumps(ts_entry) + "\n")
+                        timestamps_file.flush()
+                        recorded_turn_ts = True
                     if assistant_texts:
                         live_reply_file.write("\n\n")
                     live_reply_file.write(text)

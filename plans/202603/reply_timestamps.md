@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 17:08:56
-status: wip
+status: done
 ---
 
 # Plan: Reply Timestamps in Agent Metadata Panel
