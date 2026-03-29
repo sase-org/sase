@@ -220,6 +220,45 @@ TIMESTAMPS:
         os.unlink(path)
 
 
+def test_initial_commits_record_timestamps() -> None:
+    """add_changespec_to_project_file records COMMIT timestamps for initial commits."""
+    # Create a minimal project file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        f.flush()
+        path = f.name
+
+    try:
+        from unittest.mock import patch
+
+        from sase.workflows.commit.changespec_operations import (
+            add_changespec_to_project_file,
+        )
+
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=path,
+        ):
+            cl_name = add_changespec_to_project_file(
+                project="test-proj",
+                cl_name="test_cl",
+                description="Test description",
+                parent=None,
+                initial_commits=[(1, "[run] Initial Commit", None, None)],
+            )
+
+        assert cl_name is not None
+
+        with open(path) as f:
+            content = f.read()
+
+        assert "TIMESTAMPS:" in content
+        assert "COMMIT" in content
+        assert "(1)" in content
+    finally:
+        os.unlink(path)
+
+
 def test_add_timestamp_entry_wrong_cl_returns_false() -> None:
     """Returns False when CL name not found."""
     content = """\
