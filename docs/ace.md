@@ -243,6 +243,12 @@ point to the correct branch. For non-project agents, the ref is replaced with th
 agents using `#pr`, the ref is replaced with `@<name>` which resolves to the agent's branch. HITL suffixes (`!!`, `??`)
 are stripped during replacement since resume scenarios should not carry over HITL overrides.
 
+### Workflow Visibility
+
+Workflows launched via `sase run` are visible in the Agents tab alongside ACE-launched workflows. The TUI scans
+`artifacts/run/*` directories in addition to `workflow-*` and `ace-run` directories, and writes an initial
+`workflow_state.json` before execution so that step data appears immediately rather than showing a bare RUNNING entry.
+
 ### Workflow Folding
 
 | Key       | Action                           |
@@ -561,10 +567,17 @@ the rest. Pinned state is persisted across TUI sessions in `~/.sase/pinned_agent
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
 
-- **Agent details**: Name, status, model, provider, CL association, timestamps (including per-proposal PLAN timestamps
-  when multiple plan rounds occur)
+- **Agent details**: Name, status, model, provider, CL association, and chronologically sorted timestamps:
+  - `WAIT` — when the agent was spawned (waiting for a slot)
+  - `BEGIN` — when execution started
+  - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)
+  - `FBACK` — each time the agent requested feedback from the user
+  - `QUEST` — each time the agent asked the user a question
+  - `CODE` — when the agent began writing code
+  - `END` — when execution completed
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
-  from the artifacts directory after completion
+  from the artifacts directory after completion. When per-turn reply timestamps are available (recorded in
+  `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn
 
 When the file or thinking panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
 
