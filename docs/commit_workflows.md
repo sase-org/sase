@@ -182,6 +182,11 @@ as the PARENT of the new PR ChangeSpec. This creates a chain of related changes 
 the BUG field of the created ChangeSpec (as `http://b/<bug_id>`), and a `BUG=<bug_id>` line prepended to the PR tag
 block (taking precedence over any static `BUG` key in `vcs_provider.pr_tags` config).
 
+**Project prefix:** When `vcs_provider.use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to the PR
+title (GitHub) or CL description (Mercurial). This prefix is only applied to the external representation — it does not
+appear in the ChangeSpec DESCRIPTION or git commit message, and is automatically stripped when reading descriptions
+back.
+
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as `TAG=VALUE` lines to the commit
 message before building the PR body. This supports provider-specific metadata (e.g., Google CL tags) without manual
 entry. See [configuration.md](configuration.md#vcs_provider) for the config format.

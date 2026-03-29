@@ -22,6 +22,8 @@ KICKSTART:
   <KICKSTART_TEXT>
 COMMITS:
   <COMMIT_ENTRIES>
+TIMESTAMPS:
+  <TIMESTAMP_ENTRIES>
 HOOKS:
   <HOOK_ENTRIES>
 COMMENTS:
@@ -291,6 +293,32 @@ line in the original message) become 6-space-indented body lines below the note.
 
 The CHAT drawer's duration (e.g., `2m15s`) is calculated from the chat filename timestamp to the commit time. The PLAN
 drawer is emitted when the `SASE_PLAN` environment variable is set during the commit workflow.
+
+### TIMESTAMPS
+
+Records a chronological audit trail of lifecycle events. Each entry includes a timestamp, event type, and detail string.
+
+**Entry format:**
+
+```
+TIMESTAMPS:
+  [2026-03-28 14:30:52] COMMIT  Add JWT token validation
+  [2026-03-28 15:12:03] STATUS  WIP -> Draft
+  [2026-03-28 15:15:10] SYNC    Synced with remote
+  [2026-03-28 16:00:44] REWORD  Updated description title
+```
+
+**Event types:**
+
+| Type     | Description                                    |
+| -------- | ---------------------------------------------- |
+| `COMMIT` | A commit was added to the ChangeSpec           |
+| `STATUS` | A status transition occurred (e.g., WIP→Draft) |
+| `SYNC`   | A sync operation was performed                 |
+| `REWORD` | The description was edited                     |
+
+Timestamps use the format `YYYY-MM-DD HH:MM:SS` and are recorded atomically by sase — this section is not manually
+edited. Multiple events of the same type may appear (e.g., multiple COMMITs or STATUS transitions).
 
 ### HOOKS
 

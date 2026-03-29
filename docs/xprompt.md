@@ -24,6 +24,7 @@ Use xprompts when you want to:
 - [Jinja2 Integration](#jinja2-integration)
 - [Legacy Placeholders](#legacy-placeholders)
 - [Tags](#tags)
+- [Snippet Field](#snippet-field)
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
@@ -136,10 +137,11 @@ Hello, {{ user_name }}! Welcome aboard.
 
 ### Front Matter Fields
 
-| Field   | Required | Description                                                     |
-| ------- | -------- | --------------------------------------------------------------- |
-| `name`  | No       | XPrompt name (defaults to filename stem)                        |
-| `input` | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs)) |
+| Field     | Required | Description                                                                 |
+| --------- | -------- | --------------------------------------------------------------------------- |
+| `name`    | No       | XPrompt name (defaults to filename stem)                                    |
+| `input`   | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))             |
+| `snippet` | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below) |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
 
@@ -462,6 +464,41 @@ The legacy `wraps_all: true` field on workflows is still supported — it automa
 should use `tags: vcs` instead.
 
 Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
+
+## Snippet Field
+
+XPrompts can opt-in to ACE TUI snippet expansion by setting the `snippet` field in their front matter. When set, the
+xprompt's content is converted into a snippet template and merged into the ACE snippet registry at startup, so users can
+expand it by typing the trigger word and pressing `Tab`.
+
+```markdown
+---
+name: review
+snippet: true
+input:
+  language: word
+---
+
+Review this {{ language }} code for correctness and style.
+```
+
+**Values:**
+
+| Value           | Behavior                                                     |
+| --------------- | ------------------------------------------------------------ |
+| `true`          | Use the xprompt's base name (part after last `/`) as trigger |
+| `"custom_name"` | Use the custom string as the trigger word                    |
+
+**Conversion rules:**
+
+- `{{ input_name }}` placeholders for required inputs become snippet tabstops (`$1`, `$2`, etc.)
+- Legacy `{N}` placeholders are also converted
+- XPrompts with complex Jinja2 control flow (`{% %}` or `{# #}`) are skipped
+- User-defined snippets in `ace.snippets` take precedence over xprompt-derived snippets on name collision
+
+See [docs/ace.md — Snippets](ace.md#snippets) for snippet usage in the prompt input widget.
+
+Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 
 ## Config-Based XPrompts
 

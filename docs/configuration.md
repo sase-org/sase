@@ -210,17 +210,23 @@ vcs_provider:
     - "$my_lint"
   pr_tags: # optional key-value tags appended to PR commit messages
     Bug: "b/12345"
+  use_project_pr_prefix: false # prepend [<project>] to PR titles (default: false)
 ```
 
-| Field                         | Type              | Default  | Description                                                         |
-| ----------------------------- | ----------------- | -------- | ------------------------------------------------------------------- |
-| `vcs_provider.provider`       | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection. |
-| `vcs_provider.workspace_root` | string            | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
-| `vcs_provider.default_hooks`  | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
-| `vcs_provider.pr_tags`        | dict[string, str] | `{}`     | Key-value tags appended as `TAG=VALUE` lines to PR commit messages. |
+| Field                                | Type              | Default  | Description                                                         |
+| ------------------------------------ | ----------------- | -------- | ------------------------------------------------------------------- |
+| `vcs_provider.provider`              | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection. |
+| `vcs_provider.workspace_root`        | string            | -        | Root directory for workspaces. Overridden by `SASE_WORKSPACE_ROOT`. |
+| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults. |
+| `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `TAG=VALUE` lines to PR commit messages. |
+| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / CL descriptions (see below).  |
 
 When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (e.g., the
 `sase-google` plugin supplies Mercurial-specific hooks). The core `sase` package has no built-in default hooks.
+
+When `use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to PR titles (GitHub) or CL descriptions
+(Mercurial) without polluting the ChangeSpec DESCRIPTION or git commit message. The prefix is automatically stripped
+when reading descriptions back.
 
 Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
 
@@ -610,7 +616,7 @@ These are set automatically by sase when launching agent subprocesses and are no
 | `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.        |
 | `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.   |
 | `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.           |
-| `-r, --refresh-interval` | int (seconds)       | `10`                      | Auto-refresh interval (0 to disable).          |
+| `-r, --refresh-interval` | int (seconds)       | `7`                       | Auto-refresh interval (0 to disable).          |
 | `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.          |
 | `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                         |
 | `-a, --agent`            | flag                | -                         | Run in headless agent mode (returns JSON).     |

@@ -19,7 +19,7 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | -------------------------- | -------------------------------------------------------------- |
 | `QUERY` (positional)       | Query string for filtering ChangeSpecs                         |
 | `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`) |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)   |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 7, 0 to disable)    |
 | `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                |
 | `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                 |
 | `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator) |
@@ -156,6 +156,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,r`       | Show runners info                                              |
 | `,<space>` | Run agent from current CL (skips project selection)            |
 | `,.`       | Open prompt history modal for the last CL                      |
+| `,>`       | Open prompt history modal with cancelled prompts visible       |
 
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
 > [Agents Tab Leader Mode](#leader-mode--prefix-1).
@@ -258,6 +259,7 @@ are stripped during replacement since resume scenarios should not carry over HIT
 | `,x`       | Kill agent & edit prompt                                              |
 | `,<space>` | Run agent from current agent's CL (skips selection)                   |
 | `,.`       | Open prompt history modal for the last CL                             |
+| `,>`       | Open prompt history modal with cancelled prompts visible              |
 
 ### Bang Mode (`!` prefix)
 

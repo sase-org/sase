@@ -50,6 +50,8 @@ The hooks are organized into several groups:
 - **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`, `vcs_get_branch_name`,
   `vcs_get_cl_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`,
   `vcs_upload`, `vcs_find_reviewers`, `vcs_rewind`
+- **Branch naming hooks** — `vcs_derive_branch_name`, `vcs_derive_branch_name_with_suffix` (compute branch names from
+  ChangeSpec names), `vcs_can_rename_branch` (check if branch renaming is supported)
 - **Classification hooks** — `vcs_detect_repo_type` (detect VCS markers like `.hg/` or `.git/`) and `vcs_classify_repo`
   (classify git repos by remote URL, e.g. GitHub vs bare)
 
@@ -112,6 +114,8 @@ current working directory looking for `.hg/` or `.git/` directories. The first o
 - `.hg/` found first → Mercurial provider (`"hg"`)
 - `.git/` found first → Git provider. If a GitHub remote is detected, uses `"github"` (requires `sase-github` plugin);
   otherwise uses `"bare_git"`.
+- `.git/` found with a hosted remote (e.g., GitHub) but no VCS plugin claims the repo → falls back to `"bare_git"`. This
+  preserves baseline commit capability even without provider-specific plugins like `sase-github`.
 - Neither found → **Error**: `VCSProviderNotFoundError`
 
 The `detect_vcs()` function returns one of three values: `"github"`, `"bare_git"`, or `"hg"`. A convenience function
@@ -261,10 +265,24 @@ Standalone command to restore a reverted ChangeSpec:
 The Git provider is split into two plugins: **BareGitPlugin** (bundled with core sase) handles standard `git` commands,
 while **GitHubPlugin** (from the `sase-github` package) adds **GitHub CLI (`gh`)** support for PR operations.
 
+### Branch Naming
+
+Git branch names match ChangeSpec names exactly — no prefix stripping or underscore-to-hyphen conversion. Two VCS hooks
+control branch name derivation:
+
+- `vcs_derive_branch_name()` — returns the base branch name (ChangeSpec name without `__<N>` suffix)
+- `vcs_derive_branch_name_with_suffix()` — returns the full branch name including suffix
+
+**Immutable branch aliases:** When a provider cannot rename branches (e.g., GitHub with open PRs), sase persists branch
+aliases in `~/.sase/projects/<project>/branch_map.json`. This maps the current ChangeSpec name to the actual git branch
+name. The `vcs_can_rename_branch()` hook tells the system whether renaming is possible — GitHub returns `False` for
+branches with open PRs, so alias mappings are used instead of `git branch -m`.
+
 ### Branch Management
 
 - Creates feature branches with `git checkout -b <name>` during commit
-- Renames branches with `git branch -m <new_name>`
+- Renames branches with `git branch -m <new_name>` (when `vcs_can_rename_branch()` returns `True`)
+- Falls back to branch alias mapping when renaming is not possible
 - Current branch detected via `git rev-parse --abbrev-ref HEAD`
 
 ### PR Integration
