@@ -265,17 +265,19 @@ class Agent:
         else:
             parts.append(_fmt("BEGIN", "Unknown"))
 
+        # Collect remaining timestamps and sort chronologically
+        middle: list[tuple[datetime, str]] = []
         for pt in self.plan_times:
-            parts.append(_fmt("PLAN", pt.strftime(fmt)))
-
+            middle.append((pt, "PLAN"))
         if self.feedback_time is not None:
-            parts.append(_fmt("FBACK", self.feedback_time.strftime(fmt)))
-
+            middle.append((self.feedback_time, "FBACK"))
         if self.questions_time is not None:
-            parts.append(_fmt("QUEST", self.questions_time.strftime(fmt)))
-
+            middle.append((self.questions_time, "QUEST"))
         if self.code_time is not None:
-            parts.append(_fmt("CODE", self.code_time.strftime(fmt)))
+            middle.append((self.code_time, "CODE"))
+        middle.sort(key=lambda t: t[0])
+        for ts, tag in middle:
+            parts.append(_fmt(tag, ts.strftime(fmt)))
 
         if self.stop_time is not None:
             parts.append(_fmt("END", self.stop_time.strftime(fmt)))

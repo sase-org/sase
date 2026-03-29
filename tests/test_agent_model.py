@@ -443,7 +443,8 @@ def test_timestamps_display_multiple_plans() -> None:
     display = agent.timestamps_display
     lines = display.split("\n")
     tags = [line.strip().split(" | ")[0].strip() for line in lines]
-    assert tags == ["BEGIN", "PLAN", "PLAN", "FBACK", "CODE", "END"]
+    # Chronological: PLAN(10:05) → FBACK(10:06) → PLAN(10:08) → CODE(10:10)
+    assert tags == ["BEGIN", "PLAN", "FBACK", "PLAN", "CODE", "END"]
 
 
 def test_timestamps_display_no_plan_or_code() -> None:
