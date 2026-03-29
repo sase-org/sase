@@ -81,6 +81,16 @@ class AgentLaunchMixin:
 
         has_wait = has_wait_directive(prompt)
 
+        # Resolve @name agent references in VCS tags (e.g. #gh:@d → #gh:sase)
+        # so the VCS ref pattern can match the resolved name for display_name.
+        _vcs_prompt = prompt
+        try:
+            from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
+
+            _vcs_prompt, _ = resolve_agent_refs_in_prompt(prompt)
+        except Exception:
+            pass  # Agent not found — runner will resolve later
+
         # --- Early multi-prompt detection ---
         # Detect multi-prompts BEFORE VCS resolution to match the CLI
         # (sase run) behavior: each segment handles its own VCS resolution
@@ -93,7 +103,7 @@ class AgentLaunchMixin:
             mp_vcs_ref: tuple[str, str] | None = None
             ref_patterns = get_ref_patterns()
             for wf_name, pattern in ref_patterns.items():
-                match = pattern.search(prompt)
+                match = pattern.search(_vcs_prompt)
                 if match is not None:
                     ref_value = match.group(1) or match.group(2)
                     if ref_value:
@@ -109,7 +119,7 @@ class AgentLaunchMixin:
         if ctx.is_home_mode:
             for wf_name in get_workflow_names():
                 resolved = self._resolve_vcs_from_prompt(  # type: ignore[attr-defined]
-                    prompt, wf_name, skip_workspace=has_wait
+                    _vcs_prompt, wf_name, skip_workspace=has_wait
                 )
                 if resolved is not None:
                     (
@@ -159,7 +169,7 @@ class AgentLaunchMixin:
         if vcs_ref is None:
             ref_patterns = get_ref_patterns()
             for wf_name, pattern in ref_patterns.items():
-                match = pattern.search(prompt)
+                match = pattern.search(_vcs_prompt)
                 if match is not None:
                     ref_value = match.group(1) or match.group(2)
                     if ref_value:
