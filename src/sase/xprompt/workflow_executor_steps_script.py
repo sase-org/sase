@@ -116,15 +116,12 @@ class ScriptStepMixin:
             ) from e
 
         if result.returncode != 0:
-            error_msg = (
-                result.stderr.strip()
-                if result.stderr
-                else (
-                    result.stdout.strip()
-                    if result.stdout
-                    else f"Exit code {result.returncode}"
-                )
-            )
+            parts = []
+            if result.stderr.strip():
+                parts.append(result.stderr.strip())
+            if result.stdout.strip():
+                parts.append(result.stdout.strip())
+            error_msg = "\n".join(parts) if parts else f"Exit code {result.returncode}"
             raise WorkflowExecutionError(f"Bash step '{step.name}' failed: {error_msg}")
 
         # Save stdout artifact before parsing key=value output

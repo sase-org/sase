@@ -32,7 +32,13 @@ steps:
   - name: fix_fmt
     if: "{{ not _just_fmt_check.success }}"
     bash: |
-      just fmt && git add -A && git commit -m "chore: run \`just fmt\`" && git pull && git push
+      just fmt
+      git add -A
+      if ! git diff --cached --quiet; then
+        git commit -m "chore: run \`just fmt\`"
+        git pull --rebase
+        git push
+      fi
 
   - name: fix_linters
     if: "{{ not _just_lint.success }}"
