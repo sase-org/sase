@@ -504,30 +504,6 @@ streams in, and remains available after execution completes for the metadata pan
 When `suppress_output=True`, lines are still captured but not printed to the console. This is used for background
 invocations where the caller only needs the final result.
 
-### Mid-Execution Interrupt
-
-Both the Claude and Gemini providers support mid-execution user interrupts. A monitor thread polls for an
-`interrupt_request.json` file in the agent's artifacts directory (1-second interval). When detected:
-
-1. The current LLM subprocess is terminated
-2. The user's message is read from the file
-3. The provider resumes with the message injected into the conversation
-
-**Claude Code**: Reuses the same session ID, so the user message becomes a follow-up conversation turn with full context
-preserved.
-
-**Gemini**: Reconstructs the prompt by appending the accumulated response so far and the user's message, since Gemini
-has no session persistence.
-
-Interrupt events are logged to `interrupt_log.jsonl` in the artifacts directory. The interrupt file format is:
-
-```json
-{ "message": "user text", "timestamp": 1234567890.123 }
-```
-
-The interrupt is triggered from the ACE TUI via the `m` key on the Agents tab. See
-[`docs/ace.md`](ace.md#mid-execution-user-interrupt) for the user-facing workflow.
-
 ## Postprocessing
 
 After a provider returns (or raises an error), the orchestration layer runs postprocessing steps.
@@ -617,6 +593,9 @@ The `sase run --resume` flag resumes a previous conversation by agent name. The 
 name to its artifacts directory, extracts the response path from `done.json`, and delegates to `#resume_by_chat` which
 loads the chat history and prepends it to the new conversation. The `--resume` flag also accepts a history file basename
 or full path for direct chat-file-based resumption via the `#resume_by_chat` workflow.
+
+Resume expansion is recursive: if the loaded chat history itself contains `#resume` or `#resume_by_chat` references,
+those are expanded inline as well. Cycle detection prevents infinite loops when chat histories reference each other.
 
 ## Invocation Lifecycle
 

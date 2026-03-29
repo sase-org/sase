@@ -357,14 +357,15 @@ mentor_profiles:
 
 **Profile fields:**
 
-| Field                | Type         | Required | Description                                              |
-| -------------------- | ------------ | -------- | -------------------------------------------------------- |
-| `profile_name`       | string       | yes      | Unique name identifying this profile.                    |
-| `mentors`            | list         | yes      | List of mentor definitions (see below).                  |
-| `file_globs`         | list[string] | no\*     | Glob patterns matched against changed file paths.        |
-| `diff_regexes`       | list[string] | no\*     | Regex patterns matched against the diff content.         |
-| `amend_note_regexes` | list[string] | no\*     | Regex patterns matched against commit/amend notes.       |
-| `first_commit`       | bool         | no       | If true, match only on the first commit of a ChangeSpec. |
+| Field                | Type         | Required | Description                                                                       |
+| -------------------- | ------------ | -------- | --------------------------------------------------------------------------------- |
+| `profile_name`       | string       | yes      | Unique name identifying this profile.                                             |
+| `mentors`            | list         | yes      | List of mentor definitions (see below).                                           |
+| `file_globs`         | list[string] | no\*     | Glob patterns matched against changed file paths.                                 |
+| `diff_regexes`       | list[string] | no\*     | Regex patterns matched against the diff content.                                  |
+| `amend_note_regexes` | list[string] | no\*     | Regex patterns matched against commit/amend notes.                                |
+| `first_commit`       | bool         | no       | If true, match only on the first commit of a ChangeSpec.                          |
+| `projects`           | list[string] | no       | Only match ChangeSpecs in these projects. Auto-set for local `sase.yml` profiles. |
 
 \*At least one of `file_globs`, `diff_regexes`, `amend_note_regexes`, or `first_commit` must be provided per profile.
 

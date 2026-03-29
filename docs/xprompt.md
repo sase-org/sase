@@ -765,6 +765,8 @@ share the `_common` local xprompt.
 - If there is no frontmatter, ALL `---` lines are segment separators.
 - A prompt with frontmatter but only one segment is a single-agent prompt with local xprompts (not multi-agent).
 - `---` inside fenced code blocks is not treated as a separator.
+- When a multi-agent prompt is saved to prompt history, each individual segment is also saved as a separate entry. This
+  allows segments to appear independently in the prompt history picker for reuse.
 
 ## Relationship to Workflows
 

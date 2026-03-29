@@ -63,6 +63,31 @@ Each profile must have at least one matching criterion:
 
 When multiple criteria are present on a profile, they are combined with OR logic — any match triggers the profile.
 
+### Project Scoping
+
+Mentor profiles from a project-local `sase.yml` are automatically scoped to that project. This means a profile defined
+in `/home/user/myproject/sase.yml` will only match ChangeSpecs belonging to `myproject`, preventing local profiles from
+firing on unrelated projects.
+
+You can also explicitly set the `projects` field on any profile to restrict it to specific projects:
+
+```yaml
+mentor_profiles:
+  - profile_name: backend_review
+    projects: ["myproject", "other_project"]
+    file_globs:
+      - "*.py"
+    mentors:
+      - mentor_name: reviewer
+        role: "Python expert"
+        focus_areas:
+          - focus_name: correctness
+            description: "Logic and correctness"
+```
+
+Profiles defined in user-level config (`~/.config/sase/sase.yml`) remain unscoped by default and apply to all projects
+unless `projects` is explicitly set.
+
 ### Mentor Definition
 
 Each mentor in a profile requires:

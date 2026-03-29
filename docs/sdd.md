@@ -28,9 +28,11 @@ Files are stored in a standalone git repo inside the primary workspace:
   .git/                     # Standalone git repo for SDD tracking
   .gitignore                # Ignores beads.db
   specs/
-    {plan_name}.md          # Expanded prompt (xprompts resolved, directives stripped)
+    {YYYYMM}/
+      {plan_name}.md        # Expanded prompt (xprompts resolved, directives stripped)
   plans/
-    {plan_name}.md          # Formatted plan with create_time frontmatter
+    {YYYYMM}/
+      {plan_name}.md        # Formatted plan with create_time frontmatter
   beads/                    # Bead database (SQLite + JSONL)
     beads.db
     issues.jsonl
@@ -51,9 +53,11 @@ Files are stored at the project root and tracked in the project's own git repo:
     issues.jsonl
     config.json
   specs/
-    {plan_name}.md
+    {YYYYMM}/
+      {plan_name}.md
   plans/
-    {plan_name}.md
+    {YYYYMM}/
+      {plan_name}.md
 ```
 
 In this mode, specs and plans are committed alongside code changes via `sase commit`.
@@ -74,9 +78,12 @@ The result is a clean, self-contained document showing exactly what the agent wa
 
 The plan file produced by the agent is:
 
-1. Formatted with prettier for consistent markdown
-2. Annotated with a `create_time` frontmatter field
-3. Written to `plans/{plan_name}.md`
+1. Annotated with a `create_time` frontmatter field
+2. Written to `plans/{YYYYMM}/{plan_name}.md`, where `{YYYYMM}` is derived from the current date
+
+Specs and plans are organized into `YYYYMM` subdirectories (e.g., `202603/`) based on the creation date. This keeps the
+directories manageable as the number of specs and plans grows over time. Both flat and `YYYYMM` layouts are supported
+for backwards compatibility — SDD searches both when resolving files.
 
 Plan files may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to the bead
 issue tracker.
