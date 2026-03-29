@@ -50,6 +50,7 @@ class CommitWorkflow(BaseWorkflow):
         self._payload = payload
         self._method = method
         self._base_cl_name: str | None = None
+        self._reserved_name: str | None = None
         self._parent_cl_name: str | None = None
         self._diff_path: str | None = None
         self._cl_name: str | None = None
@@ -117,6 +118,7 @@ class CommitWorkflow(BaseWorkflow):
                     suffixed = compute_suffixed_cl_name(project_name, base_name)
                     if suffixed:
                         self._payload["name"] = suffixed
+                        self._reserved_name = suffixed
             except Exception:
                 pass  # Best-effort; fall back to unsuffixed name
 
@@ -146,6 +148,7 @@ class CommitWorkflow(BaseWorkflow):
         ok, result = dispatch(self._payload, cwd)
         if not ok:
             print_status(f"{self._method} failed: {result}", "error")
+            self._cleanup_reservation()
             return False
 
         print_status(f"{self._method} completed successfully!", "success")
@@ -432,6 +435,7 @@ class CommitWorkflow(BaseWorkflow):
                 commit_description=self._payload.get("message", ""),
                 parent=self._parent_cl_name,
                 bug=bug,
+                reserved_name=self._reserved_name,
             )
             if cs_name:
                 print_status(f"Created ChangeSpec: {cs_name}", "success")
@@ -441,6 +445,20 @@ class CommitWorkflow(BaseWorkflow):
         except Exception as exc:
             print_status(f"Skipping ChangeSpec: {exc}", "warning")
             return None
+
+    def _cleanup_reservation(self) -> None:
+        """Remove the reservation entry on VCS failure (best-effort)."""
+        if not self._reserved_name:
+            return
+        try:
+            from sase.workflows.commit.changespec_operations import remove_reservation
+            from sase.workflows.utils import get_project_from_workspace
+
+            project_name = get_project_from_workspace()
+            if project_name:
+                remove_reservation(project_name, self._reserved_name)
+        except Exception:
+            pass
 
     def _resolve_cl_name(self) -> str | None:
         """Resolve the CL name from env var or current branch."""

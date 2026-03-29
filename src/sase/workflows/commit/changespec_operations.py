@@ -52,11 +52,73 @@ def _find_changespec_end_line(lines: list[str], changespec_name: str) -> int | N
     return None
 
 
+def _remove_reservation_lines(lines: list[str], reserved_name: str) -> list[str]:
+    """Remove a ``Reserved`` ChangeSpec stub from a list of file lines.
+
+    Returns a new list with the reservation block (NAME + STATUS lines and
+    surrounding blank lines) stripped out.
+    """
+    name_line = f"NAME: {reserved_name}\n"
+    status_line = "STATUS: Reserved\n"
+    result: list[str] = []
+    i = 0
+    while i < len(lines):
+        if lines[i] == name_line:
+            # Check if the next non-blank line is STATUS: Reserved
+            j = i + 1
+            while j < len(lines) and lines[j].strip() == "":
+                j += 1
+            if j < len(lines) and lines[j] == status_line:
+                # Skip trailing blank lines after STATUS line
+                j += 1
+                while j < len(lines) and lines[j].strip() == "":
+                    j += 1
+                # Also remove leading blank lines before NAME
+                while result and result[-1].strip() == "":
+                    result.pop()
+                i = j
+                continue
+        result.append(lines[i])
+        i += 1
+    return result
+
+
+def remove_reservation(project: str, reserved_name: str) -> None:
+    """Remove a ``Reserved`` ChangeSpec entry from the project file.
+
+    Called when the VCS push fails so stale reservations don't accumulate.
+
+    Args:
+        project: Project name.
+        reserved_name: The suffixed name that was reserved.
+    """
+    project_file = get_project_file_path(project)
+    if not os.path.isfile(project_file):
+        return
+
+    try:
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                lines = f.readlines()
+
+            new_lines = _remove_reservation_lines(lines, reserved_name)
+            if len(new_lines) != len(lines):
+                write_changespec_atomic(
+                    project_file,
+                    "".join(new_lines),
+                    f"Remove reservation {reserved_name}",
+                )
+    except Exception as e:
+        print_status(f"Failed to remove reservation {reserved_name}: {e}", "warning")
+
+
 def compute_suffixed_cl_name(project: str, cl_name: str) -> str | None:
-    """Compute the suffixed CL name (e.g., ``eval_foobar_1``) without creating a ChangeSpec.
+    """Compute the suffixed CL name and write a reservation to the project file.
 
     Reads existing ChangeSpec names from the project file and archive to find
-    the next available ``_<N>`` suffix.
+    the next available ``_<N>`` suffix, then writes a minimal ``Reserved``
+    ChangeSpec entry **within the same lock** to prevent concurrent agents from
+    picking the same suffix (TOCTOU race).
 
     Args:
         project: Project name.
@@ -96,7 +158,19 @@ def compute_suffixed_cl_name(project: str, cl_name: str) -> str | None:
             from sase.core.changespec import get_next_suffix_number
 
             suffix_num = get_next_suffix_number(cl_name, existing_names)
-            return f"{cl_name}_{suffix_num}"
+            suffixed_name = f"{cl_name}_{suffix_num}"
+
+            # Write a minimal reservation entry so concurrent agents see this
+            # name as taken before the lock is released.
+            reservation_block = f"\n\nNAME: {suffixed_name}\nSTATUS: Reserved\n"
+            lines.append(reservation_block)
+            write_changespec_atomic(
+                project_file,
+                "".join(lines),
+                f"Reserve {suffixed_name}",
+            )
+
+            return suffixed_name
     except Exception as e:
         print_status(f"Failed to compute suffixed CL name: {e}", "warning")
         return None
@@ -113,6 +187,7 @@ def add_changespec_to_project_file(
     bug: str | None = None,
     cl_label: str = "CL",
     status: str = "Draft",
+    reserved_name: str | None = None,
 ) -> str | None:
     """Add a new ChangeSpec to the project file.
 
@@ -138,6 +213,10 @@ def add_changespec_to_project_file(
         bug: BUG field value (e.g., "http://b/12345"). If None, no BUG field
             is added.
         status: STATUS field value (e.g., "Draft", "WIP"). Defaults to "Draft".
+        reserved_name: Pre-computed suffixed name from a prior reservation.
+            When provided, the existing ``Reserved`` entry for this name is
+            replaced in-place with the full ChangeSpec, skipping suffix
+            recomputation.
 
     Returns:
         The suffixed cl_name (e.g., "foo_bar_1") on success, None on failure.
@@ -192,27 +271,33 @@ def add_changespec_to_project_file(
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
 
-            # Extract existing names to compute unique suffix
-            existing_names = set()
-            for line in lines:
-                if line.startswith("NAME: "):
-                    existing_names.add(line[6:].strip())
+            if reserved_name:
+                # Use the pre-computed reserved name and remove the
+                # reservation stub so we can replace it with the full block.
+                cl_name = reserved_name
+                lines = _remove_reservation_lines(lines, reserved_name)
+            else:
+                # Extract existing names to compute unique suffix
+                existing_names = set()
+                for line in lines:
+                    if line.startswith("NAME: "):
+                        existing_names.add(line[6:].strip())
 
-            # Also check archive file for existing names
-            from sase.ace.changespec.archive import get_archive_file_path
+                # Also check archive file for existing names
+                from sase.ace.changespec.archive import get_archive_file_path
 
-            archive_file = get_archive_file_path(project_file)
-            if os.path.isfile(archive_file):
-                with open(archive_file, encoding="utf-8") as f:
-                    for line in f.readlines():
-                        if line.startswith("NAME: "):
-                            existing_names.add(line[6:].strip())
+                archive_file = get_archive_file_path(project_file)
+                if os.path.isfile(archive_file):
+                    with open(archive_file, encoding="utf-8") as f:
+                        for line in f.readlines():
+                            if line.startswith("NAME: "):
+                                existing_names.add(line[6:].strip())
 
-            # Add _<N> suffix to make name unique (for WIP ChangeSpecs)
-            from sase.core.changespec import get_next_suffix_number
+                # Add _<N> suffix to make name unique (for WIP ChangeSpecs)
+                from sase.core.changespec import get_next_suffix_number
 
-            suffix_num = get_next_suffix_number(cl_name, existing_names)
-            cl_name = f"{cl_name}_{suffix_num}"
+                suffix_num = get_next_suffix_number(cl_name, existing_names)
+                cl_name = f"{cl_name}_{suffix_num}"
 
             # Determine insertion point and collect parent hooks
             parent_hooks_to_add: list[str] = []

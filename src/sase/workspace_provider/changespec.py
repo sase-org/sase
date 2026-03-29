@@ -138,6 +138,7 @@ def create_changespec_for_workflow(
     commit_description: str | None = None,
     parent: str | None = None,
     bug: str | None = None,
+    reserved_name: str | None = None,
 ) -> str | None:
     """Create a ChangeSpec for commits produced by an agent workflow.
 
@@ -149,6 +150,9 @@ def create_changespec_for_workflow(
         commit_description: Fallback commit description for non-git VCS where
             ``git log`` is unavailable. When *_get_commits_ahead()* returns
             empty and this is provided, it is used as a single commit subject.
+        reserved_name: Pre-computed suffixed name from a prior reservation.
+            Passed through to ``add_changespec_to_project_file`` to replace
+            the reservation in-place.
     """
     from sase.vcs_provider.config import strip_pr_tags
 
@@ -197,6 +201,7 @@ def create_changespec_for_workflow(
         bug=bug,
         cl_label=cl_label,
         status=status,
+        reserved_name=reserved_name,
     )
 
     return result
