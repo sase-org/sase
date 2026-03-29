@@ -39,6 +39,11 @@ have changed).
 
 ### Glossary
 
+- **ChangeSpec**: A structured specification that represents a single code change list (CL) or pull request (PR). Stored
+  in `.gp` files at `~/.sase/projects/<project>/`, ChangeSpecs track what code changes are being made, why, their
+  dependencies (via PARENT), and their lifecycle status. Key sections include NAME, DESCRIPTION, PARENT, CL/PR, STATUS,
+  COMMITS, HOOKS, COMMENTS, and MENTORS. Active ChangeSpecs live in `<project>.gp`; terminal ones (Submitted, Archived,
+  Reverted) are moved to `<project>-archive.gp`. Status lifecycle: WIP → Draft → Ready → Mailed → Submitted.
 - **ChangeSpec COMMITS Drawer**: A line of the form `| <NAME>: <FILE_PATH>` that goes underneith a ChangeSpec COMMITS
   entry. There can be one or more of these.
 - **xprompt**: Triggered with strings like `#foo` in agent prompts, where foo must be in an xprompts/ directory (several
