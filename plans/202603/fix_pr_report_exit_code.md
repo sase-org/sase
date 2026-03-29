@@ -2,6 +2,7 @@
 create_time: 2026-03-29 18:10:10
 status: done
 ---
+
 # Fix: pr.yml report bash step exits non-zero when optional metadata is empty
 
 ## Problem
