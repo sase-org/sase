@@ -54,7 +54,13 @@ def build_timestamps_section(
         mentor_hint_to_info={},
     )
 
-    if not changespec.timestamps or timestamps_fold == FoldLevel.COLLAPSED:
+    if not changespec.timestamps:
+        return tracker
+
+    if timestamps_fold == FoldLevel.COLLAPSED:
+        text.append("TIMESTAMPS:", style=_COLOR_HEADER)
+        text.append(f" [folded: {len(changespec.timestamps)}]", style="italic #808080")
+        text.append("\n")
         return tracker
 
     text.append("TIMESTAMPS:\n", style=_COLOR_HEADER)
