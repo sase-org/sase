@@ -3,6 +3,9 @@ tags: rollover
 input:
   - name: name
     type: word
+  - name: output_type
+    type: line
+    default: "response"
 
 steps:
   - name: generate_path
@@ -17,9 +20,9 @@ steps:
   - name: inject
     prompt_part: |
       ### File Output Requirements
-      You MUST write your complete response to the following file: {{ generate_path.file_path }}
+      You MUST write your complete {{ output_type }} to the following file: {{ generate_path.file_path }}
 
-      IMPORTANT: The file MUST contain your full response as markdown. Do NOT skip writing to the file--this is a
+      IMPORTANT: The file MUST contain your full {{ output_type }} as markdown. Do NOT skip writing to the file--this is a
       required step.
 
   - name: verify_file
