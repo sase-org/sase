@@ -216,7 +216,9 @@ src/sase/
 │   │       └── prompt_text_area.py # Multiline prompt input (vim NORMAL/INSERT modes)
 │   ├── handlers/          # Event and action handlers
 │   ├── hooks/             # Lifecycle hooks (execution, formatting, persistence)
+│   ├── mentors/           # Mentor system integration (entries, formatting, status)
 │   ├── comments/          # Comment management
+│   ├── timestamps/        # Timestamp formatting and lifecycle recording
 │   ├── scheduler/         # Task scheduling within ACE
 │   └── workflows/         # ACE-specific workflow integrations
 ├── agent/                 # Agent subprocess management

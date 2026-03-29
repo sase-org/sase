@@ -95,15 +95,16 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Fold Mode (`z` prefix)
 
-| Key     | Action                                    |
-| ------- | ----------------------------------------- |
-| `z` `c` | Cycle commits section (expand → collapse) |
-| `z` `h` | Cycle hooks section (expand → collapse)   |
-| `z` `m` | Cycle mentors section (expand → collapse) |
-| `z` `z` | Cycle all sections                        |
-| `z` `Z` | Toggle all sections (expand ↔ collapse)   |
+| Key     | Action                                       |
+| ------- | -------------------------------------------- |
+| `z` `c` | Cycle commits section (expand → collapse)    |
+| `z` `h` | Cycle hooks section (expand → collapse)      |
+| `z` `m` | Cycle mentors section (expand → collapse)    |
+| `z` `t` | Cycle timestamps section (expand → collapse) |
+| `z` `z` | Cycle all sections                           |
+| `z` `Z` | Toggle all sections (expand ↔ collapse)      |
 
-COMMITS, HOOKS, and MENTORS sections each cycle through three fold levels:
+COMMITS, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
 
 | Level              | Behavior                                                                           |
 | ------------------ | ---------------------------------------------------------------------------------- |
@@ -111,8 +112,9 @@ COMMITS, HOOKS, and MENTORS sections each cycle through three fold levels:
 | **Expanded**       | Full notes; body shown in dimmed text; all CHAT/DIFF/PLAN drawers visible          |
 | **Fully Expanded** | Everything visible including rejected proposals                                    |
 
-When collapsed, a `[folded: CHAT + DIFF + PLAN + N proposals]` indicator appears on entries with hidden content. The
-indicator width is pre-calculated so that note truncation accounts for it.
+When collapsed, a `[folded: CHAT + DIFF + PLAN + N proposals]` indicator appears on COMMITS entries with hidden content.
+The indicator width is pre-calculated so that note truncation accounts for it. TIMESTAMPS shows a `[folded: N]` count
+when collapsed.
 
 ### Workflows and Agents
 

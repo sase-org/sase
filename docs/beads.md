@@ -23,8 +23,8 @@ hierarchy: **Plans** (epics) group related work, and **Phases** (child tasks) br
 
 ```bash
 sase bead init                                          # Initialize beads in current project
-sase bead create -t "New feature" --type plan(plan.md)   # Create a plan linked to a plan file
-sase bead create -t "Sub-task" --type phase(beads-001)   # Create a phase under a plan
+sase bead create -t "New feature" --type "plan(plan.md)"   # Create a plan linked to a plan file
+sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
 sase bead list                                          # List all issues
 sase bead list --status=open                            # List open issues
 sase bead ready                                         # Show issues ready to work on
