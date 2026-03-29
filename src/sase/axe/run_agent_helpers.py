@@ -313,6 +313,23 @@ def create_followup_artifacts(
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(followup_meta, f, indent=2)
 
+    # Write initial workflow_state.json so the TUI can merge follow-up agents
+    # as WORKFLOW entries immediately, before WorkflowExecutor overwrites it.
+    _initial_state: dict[str, object] = {
+        "workflow_name": "run",
+        "status": "running",
+        "current_step_index": 0,
+        "steps": [],
+        "context": {"cl_name": followup_meta.get("name", "")},
+        "artifacts_dir": new_artifacts_dir,
+        "pid": os.getpid(),
+        "appears_as_agent": True,
+    }
+    with open(
+        os.path.join(new_artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(_initial_state, f, indent=2)
+
     return new_artifacts_dir
 
 

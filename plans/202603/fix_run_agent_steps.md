@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 17:08:04
-status: wip
+status: done
 ---
 
 # Fix: `sase run` agents show no workflow steps in TUI

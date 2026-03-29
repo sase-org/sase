@@ -119,6 +119,23 @@ def main() -> None:
         timestamp=timestamp,
     )
 
+    # Write initial workflow_state.json so the TUI can merge this entry as a
+    # WORKFLOW immediately, before WorkflowExecutor.execute() overwrites it.
+    _initial_state: dict[str, object] = {
+        "workflow_name": "run",
+        "status": "running",
+        "current_step_index": 0,
+        "steps": [],
+        "context": {"cl_name": cl_name},
+        "artifacts_dir": artifacts_dir,
+        "pid": os.getpid(),
+        "appears_as_agent": True,
+    }
+    with open(
+        os.path.join(artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
+    ) as f:
+        json.dump(_initial_state, f, indent=2)
+
     # Resolve aliases before saving so the TUI shows canonical names
     from sase.xprompt import resolve_xprompt_aliases
 
