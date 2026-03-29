@@ -188,6 +188,14 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
                     if parent.status == "PLANNING":
                         parent.status = "RUNNING"
 
+    # Active workflow step child → parent is running a step, not planning.
+    for agent in agents:
+        if agent.parent_workflow and agent.parent_timestamp:
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent and agent.status not in completed_statuses:
+                if parent.status == "PLANNING":
+                    parent.status = "RUNNING"
+
     parents_with_followup: set[str] = set()
     for agent in agents:
         if (
