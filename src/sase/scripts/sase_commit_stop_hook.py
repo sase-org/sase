@@ -274,10 +274,6 @@ def main() -> int:
 
     _log_hook_run(project_dir)
 
-    if marker_file.exists():
-        _jlog("session_dedup_skip", marker=str(marker_file))
-        return _exit(0, reason="session_dedup")
-
     gemini = runtime == "gemini"
     gemini_input = _read_gemini_stdin() if gemini else {}
 
@@ -295,6 +291,7 @@ def main() -> int:
     )
 
     if not has_changes:
+        marker_file.touch()
         return _exit(0, reason="no_changes")
 
     skill = _resolve_commit_skill(project_dir)
@@ -303,12 +300,14 @@ def main() -> int:
     if name_instruction:
         commit_instruction += " " + name_instruction
 
+    if marker_file.exists():
+        _jlog("stale_marker_ignored", marker=str(marker_file))
+
     details = (
         "Uncommitted changes detected:\n"
         + "\n".join(changed_files)
         + f"\n\n{commit_instruction}"
     )
-    marker_file.touch()
     rc = _emit_block(
         "Stop hook blocked: uncommitted changes remain.",
         details,
