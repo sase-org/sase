@@ -247,9 +247,12 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
 
         agent = find_agent_for_notification(app, notification)
 
-        # Reject without feedback: kill agent, no response file needed
-        # (killing the process group also kills the plan_approve_handler)
+        # Reject without feedback: write response file so external watchers
+        # (e.g. Telegram) can detect the rejection, then kill the agent.
         if result.action == "reject" and result.feedback is None:
+            plan_response_path = response_path / "plan_response.json"
+            plan_response_path.write_text(json.dumps({"action": "reject"}))
+
             from sase.notifications import mark_dismissed
 
             mark_dismissed(notification.id)

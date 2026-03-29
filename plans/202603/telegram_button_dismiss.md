@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 14:18:39
-status: wip
+status: done
 ---
 
 # Plan: Fix Telegram plan buttons not dismissed on TUI rejection
