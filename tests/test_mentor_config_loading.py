@@ -1,5 +1,9 @@
 """Tests for _load_mentor_profiles() function including error cases."""
 
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
 import pytest
 from sase.config.mentor import _load_mentor_profiles
 from test_utils import mentor_config_from_yaml
@@ -208,3 +212,112 @@ mentor_profiles:
             ValueError, match="must have 'focus_name' and 'description' fields"
         ):
             _load_mentor_profiles()
+
+
+def test_load_mentor_profiles_parses_explicit_projects() -> None:
+    """Test that explicit projects field is parsed from YAML."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: code
+    mentors:
+      - mentor_name: quality
+        role: "code reviewer"
+        focus_areas:
+          - focus_name: style
+            description: "Check style"
+    file_globs:
+      - "*.py"
+    projects:
+      - sase
+      - bug
+"""
+    with mentor_config_from_yaml(yaml_content):
+        profiles = _load_mentor_profiles()
+
+    assert len(profiles) == 1
+    assert profiles[0].projects == ["sase", "bug"]
+
+
+def test_load_mentor_profiles_auto_tags_local_profiles(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Test that local config profiles get auto-tagged with detected project."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: gotchas
+    mentors:
+      - mentor_name: gotcha_checker
+        role: "gotcha reviewer"
+        focus_areas:
+          - focus_name: gotchas
+            description: "Check for gotchas"
+    file_globs:
+      - "*.py"
+"""
+    (tmp_path / "sase.yml").write_text(yaml_content)
+    monkeypatch.chdir(tmp_path)
+
+    with mentor_config_from_yaml(yaml_content):
+        with patch("sase.xprompt.loader.detect_project", return_value="sase"):
+            profiles = _load_mentor_profiles()
+
+    assert len(profiles) == 1
+    assert profiles[0].projects == ["sase"]
+
+
+def test_load_mentor_profiles_no_auto_tag_for_non_local_profiles(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Test that non-local profiles don't get auto-tagged."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: plugin_profile
+    mentors:
+      - mentor_name: checker
+        role: "reviewer"
+        focus_areas:
+          - focus_name: check
+            description: "Check things"
+    file_globs:
+      - "*.py"
+"""
+    # Local sase.yml has no mentor profiles matching "plugin_profile"
+    (tmp_path / "sase.yml").write_text("other_key: value\n")
+    monkeypatch.chdir(tmp_path)
+
+    with mentor_config_from_yaml(yaml_content):
+        with patch("sase.xprompt.loader.detect_project", return_value="sase"):
+            profiles = _load_mentor_profiles()
+
+    assert len(profiles) == 1
+    assert profiles[0].projects is None
+
+
+def test_load_mentor_profiles_no_auto_tag_when_project_not_detected(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """Test that local profiles aren't auto-tagged when detect_project returns None."""
+    yaml_content = """
+mentor_profiles:
+  - profile_name: gotchas
+    mentors:
+      - mentor_name: gotcha_checker
+        role: "gotcha reviewer"
+        focus_areas:
+          - focus_name: gotchas
+            description: "Check for gotchas"
+    file_globs:
+      - "*.py"
+"""
+    (tmp_path / "sase.yml").write_text(yaml_content)
+    monkeypatch.chdir(tmp_path)
+
+    with mentor_config_from_yaml(yaml_content):
+        with patch("sase.xprompt.loader.detect_project", return_value=None):
+            profiles = _load_mentor_profiles()
+
+    assert len(profiles) == 1
+    assert profiles[0].projects is None

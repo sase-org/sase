@@ -52,3 +52,26 @@ def test_mentor_profile_config_first_commit_alone_is_valid() -> None:
         first_commit=True,
     )
     assert profile.first_commit is True
+
+
+def test_mentor_profile_config_projects_defaults_to_none() -> None:
+    """Test MentorProfileConfig.projects defaults to None."""
+    mentors = [make_mentor_config(mentor_name="mentor1")]
+    profile = MentorProfileConfig(
+        profile_name="test",
+        mentors=mentors,
+        file_globs=["*.py"],
+    )
+    assert profile.projects is None
+
+
+def test_mentor_profile_config_projects_can_be_set() -> None:
+    """Test MentorProfileConfig.projects can be explicitly set."""
+    mentors = [make_mentor_config(mentor_name="mentor1")]
+    profile = MentorProfileConfig(
+        profile_name="test",
+        mentors=mentors,
+        file_globs=["*.py"],
+        projects=["sase", "bug"],
+    )
+    assert profile.projects == ["sase", "bug"]

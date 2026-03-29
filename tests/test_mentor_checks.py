@@ -327,6 +327,7 @@ def test_get_matching_profiles_for_entry_excludes_old_mentored_commits(
     mock_profile.file_globs = []
     mock_profile.diff_regexes = []
     mock_profile.amend_note_regexes = [r"\[mentor:complete\]"]
+    mock_profile.projects = None
 
     # Mock get_all_mentor_profiles to return our test profile
     monkeypatch.setattr(
@@ -378,6 +379,7 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     mock_profile_code.file_globs = []
     mock_profile_code.diff_regexes = []
     mock_profile_code.amend_note_regexes = [r"Initial Commit"]
+    mock_profile_code.projects = None
 
     mock_profile_feature = MagicMock()
     mock_profile_feature.profile_name = "feature"
@@ -385,6 +387,7 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     mock_profile_feature.file_globs = []
     mock_profile_feature.diff_regexes = []
     mock_profile_feature.amend_note_regexes = [r"Initial Commit"]
+    mock_profile_feature.projects = None
 
     monkeypatch.setattr(
         "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
@@ -569,6 +572,170 @@ def test_trace_profile_matching_empty_profiles() -> None:
         traces = trace_profile_matching(cs)
 
     assert traces == []
+
+
+# Tests for project scoping
+
+
+def test_get_matching_profiles_skips_wrong_project(monkeypatch: Any) -> None:
+    """Test that profiles scoped to a project skip changespecs from other projects."""
+    from unittest.mock import MagicMock
+
+    from sase.ace.scheduler.mentor_profile_matching import (
+        _get_matching_profiles_for_entry,
+    )
+
+    mock_profile = MagicMock()
+    mock_profile.profile_name = "gotchas"
+    mock_profile.mentors = [make_mentor_config(mentor_name="gotcha")]
+    mock_profile.file_globs = []
+    mock_profile.diff_regexes = []
+    mock_profile.amend_note_regexes = [r".*"]
+    mock_profile.projects = ["sase"]  # Scoped to sase project
+    mock_profile.first_commit = False
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [mock_profile],
+    )
+
+    # ChangeSpec from the "bug" project
+    cs = _make_changespec(
+        file_path="/home/user/.sase/projects/bug/bug.gp",
+        commits=[CommitEntry(number=1, note="Fix something")],
+    )
+
+    result = _get_matching_profiles_for_entry(cs)
+    assert result == []
+
+
+def test_get_matching_profiles_matches_correct_project(monkeypatch: Any) -> None:
+    """Test that profiles scoped to a project match changespecs from that project."""
+    from unittest.mock import MagicMock
+
+    from sase.ace.scheduler.mentor_profile_matching import (
+        _get_matching_profiles_for_entry,
+    )
+
+    mock_profile = MagicMock()
+    mock_profile.profile_name = "gotchas"
+    mock_profile.mentors = [make_mentor_config(mentor_name="gotcha")]
+    mock_profile.file_globs = []
+    mock_profile.diff_regexes = []
+    mock_profile.amend_note_regexes = [r".*"]
+    mock_profile.projects = ["sase"]
+    mock_profile.first_commit = False
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [mock_profile],
+    )
+
+    # ChangeSpec from the "sase" project
+    cs = _make_changespec(
+        file_path="/home/user/.sase/projects/sase/sase.gp",
+        commits=[CommitEntry(number=1, note="Add feature")],
+    )
+
+    result = _get_matching_profiles_for_entry(cs)
+    assert len(result) == 1
+    assert result[0][1].profile_name == "gotchas"
+
+
+def test_get_matching_profiles_none_projects_matches_any(monkeypatch: Any) -> None:
+    """Test that profiles with projects=None match any changespec (backwards compat)."""
+    from unittest.mock import MagicMock
+
+    from sase.ace.scheduler.mentor_profile_matching import (
+        _get_matching_profiles_for_entry,
+    )
+
+    mock_profile = MagicMock()
+    mock_profile.profile_name = "universal"
+    mock_profile.mentors = [make_mentor_config(mentor_name="checker")]
+    mock_profile.file_globs = []
+    mock_profile.diff_regexes = []
+    mock_profile.amend_note_regexes = [r".*"]
+    mock_profile.projects = None
+    mock_profile.first_commit = False
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [mock_profile],
+    )
+
+    cs = _make_changespec(
+        file_path="/home/user/.sase/projects/bug/bug.gp",
+        commits=[CommitEntry(number=1, note="Fix bug")],
+    )
+
+    result = _get_matching_profiles_for_entry(cs)
+    assert len(result) == 1
+
+
+def test_trace_profile_matching_projects_mismatch() -> None:
+    """Trace correctly reports projects mismatch and short-circuits."""
+    from unittest.mock import patch
+
+    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
+    from sase.config.mentor import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="scoped",
+        mentors=[make_mentor_config()],
+        first_commit=True,
+        projects=["sase"],
+    )
+    cs = _make_changespec(
+        file_path="/home/user/.sase/projects/bug/bug.gp",
+        commits=[CommitEntry(number=1, note="commit")],
+    )
+    with patch(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        return_value=[profile],
+    ):
+        traces = trace_profile_matching(cs)
+
+    assert len(traces) == 1
+    assert traces[0].overall_match is False
+    proj_cr = next(
+        cr for cr in traces[0].criteria_results if cr.criterion == "projects"
+    )
+    assert proj_cr.configured is True
+    assert proj_cr.matched is False
+    assert "not in" in proj_cr.details
+
+
+def test_trace_profile_matching_projects_match() -> None:
+    """Trace correctly reports projects match and continues to other criteria."""
+    from unittest.mock import patch
+
+    from sase.ace.scheduler.mentor_profile_matching import trace_profile_matching
+    from sase.config.mentor import MentorProfileConfig
+
+    profile = MentorProfileConfig(
+        profile_name="scoped",
+        mentors=[make_mentor_config()],
+        first_commit=True,
+        projects=["sase"],
+    )
+    cs = _make_changespec(
+        file_path="/home/user/.sase/projects/sase/sase.gp",
+        commits=[CommitEntry(number=1, note="commit")],
+    )
+    with patch(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        return_value=[profile],
+    ):
+        traces = trace_profile_matching(cs)
+
+    assert len(traces) == 1
+    assert traces[0].overall_match is True
+    proj_cr = next(
+        cr for cr in traces[0].criteria_results if cr.criterion == "projects"
+    )
+    assert proj_cr.configured is True
+    assert proj_cr.matched is True
 
 
 # Tests for WIP status being skipped entirely by mentor checks

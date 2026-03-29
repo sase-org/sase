@@ -229,6 +229,12 @@ def _get_matching_profiles_for_entry(
         # Skip profiles already registered
         if profile.profile_name in registered_profiles:
             continue
+        # Skip profiles scoped to other projects
+        if (
+            profile.projects is not None
+            and changespec.project_basename not in profile.projects
+        ):
+            continue
         # Check if profile matches any commit
         if profile_matches_any_commit(profile, commits_to_check):
             result.append((latest_entry_id, profile))
@@ -313,9 +319,34 @@ class _ProfileMatchTrace:
 def _trace_profile_match(
     profile: MentorProfileConfig,
     commits: list[CommitEntry],
+    changespec: ChangeSpec | None = None,
 ) -> _ProfileMatchTrace:
     """Trace how a profile matches against a set of commits, returning details."""
     trace = _ProfileMatchTrace(profile_name=profile.profile_name)
+
+    # projects scope
+    if profile.projects is not None and changespec is not None:
+        project_matched = changespec.project_basename in profile.projects
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="projects",
+                configured=True,
+                matched=project_matched,
+                details=(
+                    f"project '{changespec.project_basename}' "
+                    f"{'in' if project_matched else 'not in'} {profile.projects}"
+                ),
+            )
+        )
+        if not project_matched:
+            trace.overall_match = False
+            return trace
+    else:
+        trace.criteria_results.append(
+            _CriterionResult(
+                criterion="projects", configured=False, matched=False, details=""
+            )
+        )
 
     # first_commit
     has_first = any(c.display_number == "1" for c in commits)
@@ -451,4 +482,4 @@ def trace_profile_matching(
     if not profiles:
         return []
 
-    return [_trace_profile_match(profile, commits) for profile in profiles]
+    return [_trace_profile_match(profile, commits, changespec) for profile in profiles]

@@ -1,6 +1,7 @@
 """Mentor configuration loading and validation."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from sase.config.core import load_merged_config
 
@@ -36,6 +37,7 @@ class MentorProfileConfig:
     diff_regexes: list[str] | None = None  # Regex patterns to match diff content
     amend_note_regexes: list[str] | None = None  # Regex patterns to match commit notes
     first_commit: bool = False  # Whether to match on the first commit of a ChangeSpec
+    projects: list[str] | None = None  # Only match changespecs in these projects
 
     def __post_init__(self) -> None:
         """Validate that at least one matching criterion is provided."""
@@ -49,6 +51,24 @@ class MentorProfileConfig:
                 f"MentorProfile '{self.profile_name}' must have at least one of: "
                 "file_globs, diff_regexes, amend_note_regexes, or first_commit"
             )
+
+
+def _get_local_profile_names() -> set[str]:
+    """Return the set of mentor profile names defined in the local sase.yml."""
+    local_path = Path.cwd() / "sase.yml"
+    if not local_path.is_file():
+        return set()
+    import yaml  # type: ignore[import-untyped]
+
+    text = local_path.read_text(encoding="utf-8")
+    local_data = yaml.safe_load(text)
+    if not isinstance(local_data, dict):
+        return set()
+    names: set[str] = set()
+    for item in local_data.get("mentor_profiles", []):
+        if isinstance(item, dict) and "profile_name" in item:
+            names.add(item["profile_name"])
+    return names
 
 
 def _load_mentor_profiles() -> list[MentorProfileConfig]:
@@ -72,6 +92,14 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
     # mentor_profiles is optional - return empty list if not present
     if "mentor_profiles" not in data:
         return []
+
+    # Detect local profile names and CWD project for auto-scoping
+    local_profile_names = _get_local_profile_names()
+    detected_project: str | None = None
+    if local_profile_names:
+        from sase.xprompt.loader import detect_project
+
+        detected_project = detect_project()
 
     profiles = []
     for item in data["mentor_profiles"]:
@@ -149,6 +177,17 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
                 )
             )
 
+        # Determine projects scope: explicit YAML > auto-tag for local profiles
+        explicit_projects = item.get("projects")
+        if explicit_projects is not None:
+            projects = explicit_projects
+        elif (
+            item["profile_name"] in local_profile_names and detected_project is not None
+        ):
+            projects = [detected_project]
+        else:
+            projects = None
+
         profiles.append(
             MentorProfileConfig(
                 profile_name=item["profile_name"],
@@ -157,6 +196,7 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
                 diff_regexes=item.get("diff_regexes"),
                 amend_note_regexes=item.get("amend_note_regexes"),
                 first_commit=item.get("first_commit", False),
+                projects=projects,
             )
         )
 
