@@ -12,15 +12,22 @@ steps:
       head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
       if marker.exists():
-          last_sha = marker.read_text().strip()
+          parts = marker.read_text().strip().split()
+          last_sha = parts[0]
+          last_ts = parts[1] if len(parts) > 1 else None
           check = subprocess.run(["git", "cat-file", "-t", last_sha], capture_output=True)
           if check.returncode == 0:
               result = subprocess.check_output(
                   ["git", "rev-list", "--count", f"{last_sha}..HEAD"], text=True
               )
               count = int(result.strip())
+          elif last_ts:
+              result = subprocess.check_output(
+                  ["git", "rev-list", "--count", f"--after={last_ts}", "HEAD"], text=True
+              )
+              count = int(result.strip())
           else:
-              count = 999  # SHA no longer valid, force a refresh
+              count = 999  # Old-format marker with no timestamp, force a refresh
       else:
           count = 999  # First run, force a refresh
 
@@ -42,8 +49,9 @@ steps:
       from pathlib import Path
 
       head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+      ts = subprocess.check_output(["git", "log", "-1", "--format=%ct", "HEAD"], text=True).strip()
       marker = Path.home() / ".sase" / "projects" / "sase" / "refresh_docs_marker"
       marker.parent.mkdir(parents=True, exist_ok=True)
-      marker.write_text(head)
+      marker.write_text(f"{head} {ts}")
       print("updated=true")
     output: { updated: bool }

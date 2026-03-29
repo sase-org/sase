@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 17:30:03
-status: wip
+status: done
 ---
 
 # Fix: refresh_docs workflow showing 999 for commit count
