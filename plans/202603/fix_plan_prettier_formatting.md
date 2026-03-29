@@ -2,6 +2,7 @@
 create_time: 2026-03-29 18:02:35
 status: done
 ---
+
 # Fix: Plan files not formatted by prettier before commit
 
 ## Problem
@@ -22,9 +23,9 @@ the plan file, and it gets committed unformatted.
 
 ## Fix
 
-Move `_handle_beads()` and `_handle_sase_plan()` to run **before** `_run_precommit()`. This way the plan file is
-already in `plans/YYYYMM/` when `just fix` → `fmt-md` → prettier runs, and it gets formatted along with all other
-markdown files.
+Move `_handle_beads()` and `_handle_sase_plan()` to run **before** `_run_precommit()`. This way the plan file is already
+in `plans/YYYYMM/` when `just fix` → `fmt-md` → prettier runs, and it gets formatted along with all other markdown
+files.
 
 This reordering is safe because:
 
