@@ -20,6 +20,11 @@ before making any file changes.
 
 Think this through thoroughly and create a plan using your `/sase_plan` skill before making any file changes.
 
+### Additional Requirements
+
+- Make sure you make this work with the ../sase-google repo, but do NOT change any of the behavior for that VCS
+  provider. It's fine if you need to make code changes to that repo, but none of the behavior should change.
+
 ### `sase ace` Snapshot
 
 ```
