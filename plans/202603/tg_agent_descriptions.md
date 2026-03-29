@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 12:52:51
-status: wip
+status: done
 ---
 
 # Plan: Add Agent Descriptions to Telegram /kill and /resume Buttons
