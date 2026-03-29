@@ -49,6 +49,7 @@ def _iter_workflow_timestamp_dirs() -> Iterator[tuple[Path, Path]]:
             if not (
                 workflow_dir.name.startswith("workflow-")
                 or workflow_dir.name == "ace-run"
+                or workflow_dir.name == "run"
             ):
                 continue
 

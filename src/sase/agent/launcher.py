@@ -4,6 +4,7 @@ Extracts the common subprocess-spawning logic used by both
 ``sase run --daemon`` and the TUI ``@`` keymap into reusable functions.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -120,6 +121,31 @@ def spawn_agent_subprocess(
             start_new_session=True,
             env=subprocess_env,
         )
+
+    # Write initial workflow_state.json in the parent process so the TUI can
+    # show workflow steps immediately, without waiting for the child to start.
+    _artifacts_dir = os.path.join(
+        os.path.expanduser("~/.sase/projects"),
+        project_name or "home",
+        "artifacts",
+        "ace-run",
+        convert_timestamp_to_artifacts_format(timestamp),
+    )
+    os.makedirs(_artifacts_dir, exist_ok=True)
+    _initial_state = {
+        "workflow_name": "run",
+        "status": "running",
+        "current_step_index": 0,
+        "steps": [],
+        "context": {"cl_name": cl_name},
+        "artifacts_dir": _artifacts_dir,
+        "pid": process.pid,
+        "appears_as_agent": True,
+    }
+    with open(
+        os.path.join(_artifacts_dir, "workflow_state.json"), "w", encoding="utf-8"
+    ) as _f:
+        json.dump(_initial_state, _f, indent=2)
 
     # Claim workspace so agent appears in Agents tab while running.
     # For deferred-workspace agents (%wait), claim with workspace_num=0
