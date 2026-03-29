@@ -167,6 +167,79 @@ def test_compute_suffixed_cl_name_no_project_file() -> None:
     assert result is None
 
 
+def test_add_changespec_initial_commit_plan_drawer() -> None:
+    """Plan path in position 5 of initial_commits tuple emits PLAN drawer."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="plan_feature",
+                description="Has plan",
+                parent=None,
+                cl_url="http://cl/99999",
+                initial_commits=[
+                    (
+                        1,
+                        "[run] Initial Commit",
+                        "~/chats/c.md",
+                        "~/diffs/d.diff",
+                        None,
+                        "~/.sase/plans/my_plan.md",
+                    )
+                ],
+            )
+
+        assert result is not None
+
+        changespecs = parse_project_file(project_file)
+        cs = next(c for c in changespecs if c.name == "plan_feature_1")
+        assert cs.commits is not None
+        assert len(cs.commits) == 1
+        assert cs.commits[0].plan == "~/.sase/plans/my_plan.md"
+    finally:
+        os.unlink(project_file)
+
+
+def test_add_changespec_initial_commit_no_plan_drawer() -> None:
+    """4-element tuple (no plan_path) does not emit PLAN drawer."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="no_plan_feature",
+                description="No plan",
+                parent=None,
+                cl_url="http://cl/88888",
+                initial_commits=[
+                    (1, "[run] Initial Commit", "~/chats/c.md", "~/diffs/d.diff")
+                ],
+            )
+
+        assert result is not None
+
+        changespecs = parse_project_file(project_file)
+        cs = next(c for c in changespecs if c.name == "no_plan_feature_1")
+        assert cs.commits is not None
+        assert len(cs.commits) == 1
+        assert cs.commits[0].plan is None
+    finally:
+        os.unlink(project_file)
+
+
 def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
     """Test that no BUG is inherited when there's no parent."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:

@@ -173,6 +173,19 @@ def create_changespec_for_workflow(
     hooks = get_initial_hooks_for_changespec(verbose=False)
     cl_label = get_change_label(project_file)
 
+    # Compute display path for plan (replace $HOME with ~)
+    plan_display: str | None = None
+    raw_plan = os.environ.get("SASE_PLAN", "")
+    if raw_plan:
+        home = os.path.expanduser("~")
+        plan_display = (
+            raw_plan.replace(home, "~") if raw_plan.startswith(home) else raw_plan
+        )
+
+    initial_commit: tuple = (1, "[run] Initial Commit", chat_path, diff_path)
+    if plan_display:
+        initial_commit = (*initial_commit, None, plan_display)
+
     result = add_changespec_to_project_file(
         project_name,
         cl_name,
@@ -180,7 +193,7 @@ def create_changespec_for_workflow(
         parent=parent,
         cl_url=cl_url,
         initial_hooks=hooks,
-        initial_commits=[(1, "[run] Initial Commit", chat_path, diff_path)],
+        initial_commits=[initial_commit],
         bug=bug,
         cl_label=cl_label,
         status=status,
