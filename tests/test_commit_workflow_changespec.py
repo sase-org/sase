@@ -75,6 +75,7 @@ class TestCommitWorkflowChangeSpec:
             commit_description="add feature",
             parent=None,
             bug=None,
+            reserved_name="feat-x_1",
         )
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
