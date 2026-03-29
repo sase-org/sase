@@ -476,7 +476,6 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             if self._handle_normal_mode_key(event):
                 event.stop()
                 event.prevent_default()
-                await self._format_with_prettier()
             return
 
         # INSERT mode: Escape enters NORMAL mode

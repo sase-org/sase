@@ -145,8 +145,8 @@ async def test_dot_repeats_join() -> None:
 # =============================================================================
 
 
-async def test_join_triggers_prettier_formatting() -> None:
-    """J triggers prettier formatting after joining lines."""
+async def test_join_does_not_trigger_prettier_formatting() -> None:
+    """J does not trigger prettier formatting (NORMAL mode never formats)."""
     app = _TestApp()
     async with app.run_test() as pilot:
         ta = app.query_one("#ta", PromptTextArea)
@@ -159,4 +159,4 @@ async def test_join_triggers_prettier_formatting() -> None:
         ) as mock_fmt:
             await pilot.press("J")
             assert ta.text == "hello world"
-            mock_fmt.assert_called_once()
+            mock_fmt.assert_not_called()
