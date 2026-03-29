@@ -12,7 +12,11 @@ from sase.vcs_provider import (
     VCSProviderNotFoundError,
     get_vcs_provider,
 )
-from sase.vcs_provider._registry import _resolve_vcs_name, detect_vcs_family
+from sase.vcs_provider._registry import (
+    _classify_by_url,
+    _resolve_vcs_name,
+    detect_vcs_family,
+)
 from sase.vcs_provider.config import get_workspace_root
 
 # === Tests for CommandOutput ===
@@ -275,3 +279,53 @@ def test_resolve_vcs_name_config_git_reclassifies() -> None:
                     return_value="github",
                 ):
                     assert _resolve_vcs_name(tmpdir) == "github"
+
+
+# === Tests for _classify_by_url hosted URL fallback ===
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "git@github.com:sase-org/sase.git",
+        "https://github.com/sase-org/sase.git",
+        "ssh://git@github.com/sase-org/sase.git",
+        "http://example.com/repo.git",
+    ],
+)
+def test_classify_by_url_hosted_falls_back_to_bare_git(url: str) -> None:
+    """Hosted remote URLs fall back to bare_git when no plugin claimed the repo."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = url
+            assert _classify_by_url(tmpdir) == "bare_git"
+
+
+def test_classify_by_url_local_path_returns_bare_git() -> None:
+    """Local filesystem remote paths still return bare_git."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "/home/user/repos/myrepo.git"
+            assert _classify_by_url(tmpdir) == "bare_git"
+
+
+def test_classify_by_url_no_origin_raises() -> None:
+    """Missing origin remote still raises VCSProviderNotFoundError."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stdout = ""
+            with pytest.raises(VCSProviderNotFoundError):
+                _classify_by_url(tmpdir)
+
+
+def test_classify_by_url_empty_url_raises() -> None:
+    """Empty origin URL raises VCSProviderNotFoundError."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = ""
+            with pytest.raises(VCSProviderNotFoundError):
+                _classify_by_url(tmpdir)

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 13:56:59
-status: wip
+status: done
 ---
 
 # Fix `sase commit` failure when GitHub plugin is absent
