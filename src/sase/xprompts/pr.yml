@@ -68,6 +68,7 @@ steps:
       fi
       [ -n "$result" ] && echo "meta_pr_url=$result"
       [ -n "$changespec_name" ] && echo "meta_changespec=$changespec_name"
+      exit 0
     output:
       meta_pr_header: line
       meta_pr_url: line
