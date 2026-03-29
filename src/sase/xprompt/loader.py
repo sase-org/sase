@@ -51,6 +51,7 @@ def _namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         inputs=xp.inputs,
         source_path=xp.source_path,
         tags=xp.tags,
+        snippet=xp.snippet,
     )
 
 
@@ -103,12 +104,16 @@ def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     # Parse tags if present
     tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
 
+    # Parse snippet field if present
+    snippet = front_matter.get("snippet") if front_matter else None
+
     return XPrompt(
         name=name,
         content=body,
         inputs=inputs,
         source_path=str(file_path),
         tags=tags,
+        snippet=snippet,
     )
 
 
@@ -274,6 +279,7 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
 
             tags = parse_tags(front_matter.get("tags")) if front_matter else frozenset()
 
+            snippet = front_matter.get("snippet") if front_matter else None
             source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
             xprompts[name] = XPrompt(
                 name=name,
@@ -281,6 +287,7 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 inputs=inputs,
                 source_path=source,
                 tags=tags,
+                snippet=snippet,
             )
 
     return xprompts
