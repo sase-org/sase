@@ -87,14 +87,15 @@ class CommitWorkflow(BaseWorkflow):
 
         cwd = os.getcwd()
 
-        # Run precommit command (e.g. `just fix`) before any VCS operations
-        if not self._run_precommit(cwd):
-            return False
-
-        # Bead lifecycle and SASE_PLAN: skip for proposals
+        # Bead lifecycle and SASE_PLAN: skip for proposals.
+        # Must run before precommit so plan files are in place for formatting.
         if self._method != "create_proposal":
             self._handle_beads(cwd)
             self._handle_sase_plan(cwd)
+
+        # Run precommit command (e.g. `just fix`) after all files are staged
+        if not self._run_precommit(cwd):
+            return False
 
         # Pre-compute the _<N> suffix for create_pull_request so the CL is
         # created with the correct suffixed name (important for non-git VCS
