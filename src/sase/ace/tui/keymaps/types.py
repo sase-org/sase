@@ -333,6 +333,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "activity_info": "i",
             "clear_comments": "c",
             "prompt_history": "full_stop",
+            "prompt_history_cancelled": "greater_than_sign",
         }
     )
 

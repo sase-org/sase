@@ -106,7 +106,9 @@ class EntryPointsMixin:
             return
         self._start_custom_agent_from_selection(last)
 
-    def _start_prompt_history_from_last_selection(self) -> None:
+    def _start_prompt_history_from_last_selection(
+        self, *, show_cancelled: bool = False
+    ) -> None:
         """Show prompt history modal for the last agent selection (bound to ,.)."""
         from pathlib import Path
 
@@ -190,6 +192,7 @@ class EntryPointsMixin:
             PromptHistoryModal(
                 sort_by=self._prompt_context.history_sort_key,
                 workspace=self._prompt_context.project_name,
+                show_cancelled=show_cancelled,
             ),
             on_history_select,
         )

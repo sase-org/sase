@@ -135,6 +135,7 @@ ace:
           clear_comments: "c"
           jump_to_notification: "n"
           prompt_history: "full_stop"
+          prompt_history_cancelled: "greater_than_sign"
       bang_mode:
         prefix: "exclamation_mark"
         keys:

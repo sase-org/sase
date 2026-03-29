@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 14:29:12
-status: wip
+status: done
 ---
 
 # Plan: Add `,>` keymap for prompt history with cancelled prompts visible

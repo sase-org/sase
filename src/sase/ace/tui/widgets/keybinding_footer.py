@@ -280,6 +280,7 @@ class KeybindingFooter(Horizontal):
         if current_tab in ("changespecs", "agents"):
             bindings.append((k("agent_from_cl"), "run agent (CL)"))
         bindings.append((k("prompt_history"), "prompt history"))
+        bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
         if current_tab == "agents":
             bindings.append((k("kill_and_edit"), "kill & edit"))
             bindings.append((k("retry_edit"), "retry (edit)"))
