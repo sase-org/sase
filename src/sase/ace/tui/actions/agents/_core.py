@@ -437,7 +437,10 @@ class AgentsMixinCore(
 
         if list_changed:
             agent_list.update_list(
-                self._agents, self.current_idx, fold_counts=self._fold_counts
+                self._agents,
+                self.current_idx,
+                fold_counts=self._fold_counts,
+                pinned_agents=self._pinned_agents,
             )
         else:
             agent_list.update_highlight(self.current_idx)
@@ -514,8 +517,14 @@ class AgentsMixinCore(
             completed_count = sum(
                 1 for a in self._agents if a.status in DISMISSABLE_STATUSES
             )
+            agent_is_pinned = (
+                current_agent is not None
+                and current_agent.identity in self._pinned_agents
+            )
             footer_widget.update_agent_bindings(
-                current_agent, completed_count=completed_count
+                current_agent,
+                completed_count=completed_count,
+                is_pinned=agent_is_pinned,
             )
 
     def _toggle_hide_non_run_agents(self) -> None:

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ...models import Agent
+    from ...models.agent import AgentType
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -50,7 +51,7 @@ def _resolve_vcs_tag(
 
 
 class AgentInteractionMixin:
-    """Mixin providing agent user interaction methods (kill, diff, edit, layout).
+    """Mixin providing agent user interaction methods (kill, diff, edit, layout, pin).
 
     Type hints below declare attributes that are defined at runtime by AceApp.
     """
@@ -58,6 +59,7 @@ class AgentInteractionMixin:
     current_tab: TabName
     current_idx: int
     _agents: list[Agent]
+    _pinned_agents: set[tuple[AgentType, str, str | None]]
     refresh_interval: int
     hide_non_run_agents: bool
 
@@ -106,6 +108,36 @@ class AgentInteractionMixin:
                 self._do_kill_agent(agent)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+
+    def action_pin_agent(self) -> None:
+        """Toggle pinned state on a completed agent."""
+        if self.current_tab != "agents":
+            return
+
+        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent = self._agents[self.current_idx]
+
+        from ._core import DISMISSABLE_STATUSES
+
+        if agent.status not in DISMISSABLE_STATUSES:
+            self.notify("Only completed agents can be pinned", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if agent.raw_suffix is None:
+            self.notify("Cannot pin agent: no timestamp", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ....pinned_agents import save_pinned_agents, toggle_pinned_agent
+
+        now_pinned = toggle_pinned_agent(self._pinned_agents, agent.identity)
+        save_pinned_agents(self._pinned_agents)
+
+        label = "Pinned" if now_pinned else "Unpinned"
+        self.notify(f"{label} {agent.display_name}")  # type: ignore[attr-defined]
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff - behavior depends on current tab."""

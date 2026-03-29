@@ -72,6 +72,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("clear_marks", "Unmark All", False),
     ("bulk_change_status", "Bulk Status", False),
     ("show_notifications", "Notifications", False),
+    ("pin_agent", "Pin", False),
     ("kill_agent", "Kill", False),
     ("expand_or_layout", "Expand / Layout", False),
     ("expand_all_folds", "Expand All", False),
@@ -220,6 +221,7 @@ class AppKeymaps:
     mark_inactive: str
     mark_inactive_pinned: str
     # Agent / axe
+    pin_agent: str
     kill_agent: str
     toggle_axe: str
     stop_axe_and_quit: str

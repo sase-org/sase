@@ -27,6 +27,9 @@ _STEP_TYPE_COLORS: dict[str, str] = {
 # Icon for autonomous (%approve) agents
 _APPROVE_ICON = "⚡"
 
+# Icon for pinned agents (protected from dismiss-all)
+_PIN_ICON = "\U0001f4cc"  # 📌
+
 # Icon for dismissible (completed) agents
 _DONE_ICON = "✘"
 _DISMISSIBLE_STATUSES = (
@@ -87,6 +90,7 @@ def _calculate_entry_display_width(
     agent: Agent,
     fold_annotation: str = "",
     is_expanded: bool = False,
+    is_pinned: bool = False,
 ) -> int:
     """Calculate display width of an Agent entry in terminal cells.
 
@@ -94,6 +98,7 @@ def _calculate_entry_display_width(
         agent: The Agent to measure
         fold_annotation: Fold annotation text to append
         is_expanded: Whether this agent's fold state is expanded
+        is_pinned: Whether this agent is pinned
 
     Returns:
         Width in terminal cells
@@ -103,6 +108,9 @@ def _calculate_entry_display_width(
     # Approve icon for autonomous agents
     if agent.approve:
         parts.append(f"{_APPROVE_ICON} ")
+    # Pin icon for pinned agents
+    if is_pinned and agent.status in _DISMISSIBLE_STATUSES:
+        parts.append(f"{_PIN_ICON} ")
     # Add indentation for workflow children
     if agent.is_workflow_child:
         parts.append(_CHILD_INDENT)
@@ -174,6 +182,7 @@ class AgentList(OptionList):
         agents: list[Agent],
         current_idx: int,
         fold_counts: dict[str, tuple[int, int]] | None = None,
+        pinned_agents: set[tuple[AgentType, str, str | None]] | None = None,
     ) -> None:
         """Update the list with new agents.
 
@@ -182,10 +191,13 @@ class AgentList(OptionList):
             current_idx: Index of currently selected agent
             fold_counts: Optional dict mapping workflow raw_suffix to
                 (non_hidden_count, hidden_count) for fold annotations
+            pinned_agents: Optional set of pinned agent identities
         """
         self._programmatic_update = True
         self._agents = agents
         self.clear_options()
+
+        pinned = pinned_agents or set()
 
         # Determine which parents have visible children in the filtered list
         parents_with_visible_children: set[str] = set()
@@ -202,6 +214,7 @@ class AgentList(OptionList):
                 agent.raw_suffix is not None
                 and agent.raw_suffix in parents_with_visible_children
             )
+            is_pinned = agent.identity in pinned
             annotation = _compute_fold_annotation(
                 agent,
                 fold_counts,
@@ -214,10 +227,14 @@ class AgentList(OptionList):
                 is_selected=(i == current_idx),
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
+                is_pinned=is_pinned,
             )
             self.add_option(option)
             width = _calculate_entry_display_width(
-                agent, fold_annotation=annotation, is_expanded=is_expanded
+                agent,
+                fold_annotation=annotation,
+                is_expanded=is_expanded,
+                is_pinned=is_pinned,
             )
             max_width = max(max_width, width)
 
@@ -258,6 +275,7 @@ class AgentList(OptionList):
         is_selected: bool,
         fold_annotation: str = "",
         is_expanded: bool = False,
+        is_pinned: bool = False,
     ) -> Option:
         """Format an agent as an option for display.
 
@@ -267,6 +285,7 @@ class AgentList(OptionList):
             is_selected: Whether this is the currently selected item
             fold_annotation: Fold annotation text to append
             is_expanded: Whether this agent's fold state is expanded
+            is_pinned: Whether this agent is pinned
 
         Returns:
             An Option for the OptionList
@@ -305,9 +324,14 @@ class AgentList(OptionList):
         if agent.hidden:
             text.append(f"{_HIDDEN_ICON} ", style="bold #FF5F87")
 
+        # Pin icon for pinned agents
+        if is_pinned and agent.status in _DISMISSIBLE_STATUSES:
+            text.append(f"{_PIN_ICON} ", style="bold #FFD700")
+
         # Done icon for dismissible agents
         if agent.status in _DISMISSIBLE_STATUSES:
-            text.append(f"{_DONE_ICON} ", style="bold red")
+            done_style = "dim red" if is_pinned else "bold red"
+            text.append(f"{_DONE_ICON} ", style=done_style)
 
         # Agent type indicator with color
         dt = agent.get_display_type(is_expanded=is_expanded)

@@ -233,10 +233,12 @@ class AceApp(
 
         # Agent completion tracking for notifications
         from ..dismissed_agents import load_dismissed_agents
+        from ..pinned_agents import load_pinned_agents
 
         self._last_unread_count: int = 0
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
+        self._pinned_agents = load_pinned_agents()
 
         # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}

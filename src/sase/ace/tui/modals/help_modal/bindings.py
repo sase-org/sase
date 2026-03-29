@@ -263,6 +263,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                 (d(a.add_tag), "New agent waiting for this one"),
                 (d(a.reword), "Edit wait target / run now"),
                 (d(a.kill_agent), "Kill / dismiss agent"),
+                (d(a.pin_agent), "Pin / unpin agent"),
                 (d(a.toggle_axe), "Dismiss all completed agents"),
                 (d(a.edit_spec), "Edit chat in editor"),
                 (d(a.edit_panel), "Edit panel content in editor"),

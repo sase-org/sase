@@ -188,10 +188,16 @@ class KeybindingFooter(Horizontal):
         self._update_display(text)
 
     def update_agent_bindings(
-        self, agent: "Agent | None", *, completed_count: int = 0
+        self,
+        agent: "Agent | None",
+        *,
+        completed_count: int = 0,
+        is_pinned: bool = False,
     ) -> None:
         """Update bindings for Agents tab."""
-        bindings = self._compute_agent_bindings(agent, completed_count=completed_count)
+        bindings = self._compute_agent_bindings(
+            agent, completed_count=completed_count, is_pinned=is_pinned
+        )
         text = self._format_bindings(bindings)
         self._update_display(text)
 
@@ -392,6 +398,7 @@ class KeybindingFooter(Horizontal):
         agent: "Agent | None",
         *,
         completed_count: int = 0,
+        is_pinned: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -416,6 +423,8 @@ class KeybindingFooter(Horizontal):
         # --- Status-dependent actions ---
         if agent.status in ("DONE", "FAILED"):
             bindings.append((x, "dismiss"))
+            pin_label = "unpin" if is_pinned else "pin"
+            bindings.append((self._kd("pin_agent"), pin_label))
             if agent.status != "FAILED":
                 bindings.append((self._kd("edit_spec"), "edit chat"))
                 if agent.response_path:
@@ -432,6 +441,9 @@ class KeybindingFooter(Horizontal):
                 bindings.append((x, "dismiss"))
             else:
                 bindings.append((x, "kill"))
+            if agent.status in ("PLAN DONE", "PLAN COMMITTED"):
+                pin_label = "unpin" if is_pinned else "pin"
+                bindings.append((self._kd("pin_agent"), pin_label))
             if agent.status in ("WAITING", "RUNNING"):
                 bindings.append((self._kd("reword"), "edit wait"))
             if agent.agent_name:

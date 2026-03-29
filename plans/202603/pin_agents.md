@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-29 16:51:54
-status: wip
+status: done
 ---
 
 # Plan: Pin Agents on the Agents Tab

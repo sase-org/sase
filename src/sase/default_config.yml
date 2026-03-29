@@ -53,6 +53,7 @@ ace:
       mark_inactive: "i"
       mark_inactive_pinned: "I"
       # Agent / axe
+      pin_agent: "P"
       kill_agent: "x"
       toggle_axe: "X"
       stop_axe_and_quit: "Q"
