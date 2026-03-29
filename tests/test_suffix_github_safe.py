@@ -1,27 +1,22 @@
-"""Tests for GitHub-safe branch rename behavior in suffix.py.
+"""Tests for branch rename behavior in suffix.py.
 
-When a project is GitHub-hosted, suffix strip/append must NOT delete
-the old remote branch (which would close any open PR on that branch).
+When a provider reports can_rename_branch() == False (e.g. GitHub),
+suffix strip/append must NOT rename or push — instead they persist
+a branch alias via branch_map.  When can_rename_branch() == True
+(bare git), the rename + push flow proceeds as before.
 """
 
 from unittest.mock import MagicMock, patch
 
 from sase.status_state_machine.suffix import (
-    _is_github_project,
     handle_suffix_append,
     handle_suffix_strip,
 )
-
-# _is_github_project does a lazy `from sase.workspace_provider import
-# detect_workflow_type` — patch at the source module.
-_DWT = "sase.workspace_provider.detect_workflow_type"
 
 # Lazy imports inside handle_suffix_strip / handle_suffix_append — patch
 # at the source module for each.
 _PATCHES = {
     "update_name": "sase.ace.revert.update_changespec_name_atomic",
-    "to_branch": "sase.core.changespec.changespec_name_to_branch",
-    "to_branch_sfx": "sase.core.changespec.changespec_name_to_branch_with_suffix",
     "first_ws": "sase.running_field.get_first_available_axe_workspace",
     "ws_dir": "sase.running_field.get_workspace_directory_for_num",
     "running": "sase.running_field.update_running_field_cl_name",
@@ -30,33 +25,18 @@ _PATCHES = {
     "provider_fn": "sase.status_state_machine.suffix.get_vcs_provider",
     "revert": "sase.status_state_machine.suffix.revert_sibling_draft_changespecs",
     "push": "sase.status_state_machine.suffix._push_branch_rename",
-    "is_gh": "sase.status_state_machine.suffix._is_github_project",
+    # Branch map utilities
+    "write_alias": "sase.core.branch_map.write_branch_alias",
+    "remove_alias": "sase.core.branch_map.remove_branch_alias",
+    "read_map": "sase.core.branch_map.read_branch_map",
 }
 
 
-# === _is_github_project ===
+# === handle_suffix_strip: immutable branch writes alias instead of renaming ===
 
 
-@patch(_DWT, return_value="gh")
-def test_is_github_project_true(mock_detect: MagicMock) -> None:
-    assert _is_github_project("/tmp/proj.gp") is True
-    mock_detect.assert_called_once_with("/tmp/proj.gp")
-
-
-@patch(_DWT, return_value="git")
-def test_is_github_project_false_bare_git(mock_detect: MagicMock) -> None:
-    assert _is_github_project("/tmp/proj.gp") is False
-
-
-@patch(_DWT, side_effect=ValueError("no plugin"))
-def test_is_github_project_false_on_error(mock_detect: MagicMock) -> None:
-    assert _is_github_project("/tmp/proj.gp") is False
-
-
-# === handle_suffix_strip: GitHub skips _push_branch_rename ===
-
-
-@patch(_PATCHES["is_gh"], return_value=True)
+@patch(_PATCHES["remove_alias"])
+@patch(_PATCHES["write_alias"])
 @patch(_PATCHES["push"])
 @patch(_PATCHES["revert"], return_value=[])
 @patch(_PATCHES["provider_fn"])
@@ -65,9 +45,7 @@ def test_is_github_project_false_on_error(mock_detect: MagicMock) -> None:
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
 @patch(_PATCHES["first_ws"], return_value=100)
 @patch(_PATCHES["update_name"])
-@patch(_PATCHES["to_branch"], return_value="feat-bar")
-def test_suffix_strip_skips_push_for_github(
-    _br: MagicMock,
+def test_suffix_strip_writes_alias_for_immutable_branch(
     _un: MagicMock,
     _fw: MagicMock,
     _wd: MagicMock,
@@ -76,21 +54,26 @@ def test_suffix_strip_skips_push_for_github(
     mock_provider_fn: MagicMock,
     _rv: MagicMock,
     mock_push: MagicMock,
-    _ig: MagicMock,
+    mock_write: MagicMock,
+    mock_remove: MagicMock,
 ) -> None:
     provider = MagicMock()
-    provider.resolve_revision.return_value = "origin/feat-bar-1"
+    provider.resolve_revision.return_value = "origin/proj_feat_bar_1"
     provider.checkout.return_value = (True, None)
-    provider.rename_branch.return_value = (True, None)
+    provider.can_rename_branch.return_value = False
     mock_provider_fn.return_value = provider
 
-    handle_suffix_strip("/tmp/proj.gp", "proj_feat_bar__1", "proj_feat_bar")
+    handle_suffix_strip("/tmp/proj.gp", "proj_feat_bar_1", "proj_feat_bar")
 
-    provider.rename_branch.assert_called_once_with("feat-bar", "/ws")
+    # Should NOT rename or push
+    provider.rename_branch.assert_not_called()
     mock_push.assert_not_called()
 
+    # Should write alias
+    mock_write.assert_called_once_with("proj", "proj_feat_bar", "proj_feat_bar_1")
 
-@patch(_PATCHES["is_gh"], return_value=False)
+
+@patch(_PATCHES["remove_alias"])
 @patch(_PATCHES["push"])
 @patch(_PATCHES["revert"], return_value=[])
 @patch(_PATCHES["provider_fn"])
@@ -99,9 +82,7 @@ def test_suffix_strip_skips_push_for_github(
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
 @patch(_PATCHES["first_ws"], return_value=100)
 @patch(_PATCHES["update_name"])
-@patch(_PATCHES["to_branch"], return_value="feat-bar")
-def test_suffix_strip_pushes_for_bare_git(
-    _br: MagicMock,
+def test_suffix_strip_renames_for_mutable_branch(
     _un: MagicMock,
     _fw: MagicMock,
     _wd: MagicMock,
@@ -110,24 +91,30 @@ def test_suffix_strip_pushes_for_bare_git(
     mock_provider_fn: MagicMock,
     _rv: MagicMock,
     mock_push: MagicMock,
-    _ig: MagicMock,
+    mock_remove: MagicMock,
 ) -> None:
     provider = MagicMock()
-    provider.resolve_revision.return_value = "origin/feat-bar-1"
+    provider.resolve_revision.return_value = "origin/proj_feat_bar_1"
     provider.checkout.return_value = (True, None)
+    provider.can_rename_branch.return_value = True
+    provider.derive_branch_name.return_value = "proj_feat_bar"
     provider.rename_branch.return_value = (True, None)
     mock_provider_fn.return_value = provider
 
-    handle_suffix_strip("/tmp/proj.gp", "proj_feat_bar__1", "proj_feat_bar")
+    handle_suffix_strip("/tmp/proj.gp", "proj_feat_bar_1", "proj_feat_bar")
 
-    provider.rename_branch.assert_called_once_with("feat-bar", "/ws")
-    mock_push.assert_called_once_with("/ws", "feat-bar", "origin/feat-bar-1")
+    provider.rename_branch.assert_called_once_with("proj_feat_bar", "/ws")
+    mock_push.assert_called_once_with("/ws", "proj_feat_bar", "origin/proj_feat_bar_1")
+    # Should clean up stale alias after successful rename
+    mock_remove.assert_called_once_with("proj", "proj_feat_bar")
 
 
-# === handle_suffix_append: GitHub skips _push_branch_rename ===
+# === handle_suffix_append: immutable branch re-keys alias ===
 
 
-@patch(_PATCHES["is_gh"], return_value=True)
+@patch(_PATCHES["remove_alias"])
+@patch(_PATCHES["write_alias"])
+@patch(_PATCHES["read_map"], return_value={"proj_feat_bar": "proj_feat_bar_1"})
 @patch(_PATCHES["push"])
 @patch(_PATCHES["provider_fn"])
 @patch(_PATCHES["running"])
@@ -135,9 +122,7 @@ def test_suffix_strip_pushes_for_bare_git(
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
 @patch(_PATCHES["first_ws"], return_value=100)
 @patch(_PATCHES["update_name"])
-@patch(_PATCHES["to_branch_sfx"], return_value="feat-bar-1")
-def test_suffix_append_skips_push_for_github(
-    _bs: MagicMock,
+def test_suffix_append_rekeys_alias_for_immutable_branch(
     _un: MagicMock,
     _fw: MagicMock,
     _wd: MagicMock,
@@ -145,15 +130,56 @@ def test_suffix_append_skips_push_for_github(
     _rn: MagicMock,
     mock_provider_fn: MagicMock,
     mock_push: MagicMock,
-    _ig: MagicMock,
+    mock_read: MagicMock,
+    mock_write: MagicMock,
+    mock_remove: MagicMock,
 ) -> None:
     provider = MagicMock()
-    provider.resolve_revision.return_value = "origin/feat-bar"
+    provider.resolve_revision.return_value = "origin/proj_feat_bar"
     provider.checkout.return_value = (True, None)
+    provider.can_rename_branch.return_value = False
+    mock_provider_fn.return_value = provider
+
+    handle_suffix_append("/tmp/proj.gp", "proj_feat_bar", "proj_feat_bar_2")
+
+    # Should NOT rename or push
+    provider.rename_branch.assert_not_called()
+    mock_push.assert_not_called()
+
+    # Should re-key: remove old, write new pointing to same branch
+    mock_remove.assert_called_once_with("proj", "proj_feat_bar")
+    mock_write.assert_called_once_with("proj", "proj_feat_bar_2", "proj_feat_bar_1")
+
+
+@patch(_PATCHES["remove_alias"])
+@patch(_PATCHES["push"])
+@patch(_PATCHES["provider_fn"])
+@patch(_PATCHES["running"])
+@patch(_PATCHES["parent_refs"])
+@patch(_PATCHES["ws_dir"], return_value=("/ws", None))
+@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["update_name"])
+def test_suffix_append_renames_for_mutable_branch(
+    _un: MagicMock,
+    _fw: MagicMock,
+    _wd: MagicMock,
+    _pr: MagicMock,
+    _rn: MagicMock,
+    mock_provider_fn: MagicMock,
+    mock_push: MagicMock,
+    mock_remove: MagicMock,
+) -> None:
+    provider = MagicMock()
+    provider.resolve_revision.return_value = "origin/proj_feat_bar"
+    provider.checkout.return_value = (True, None)
+    provider.can_rename_branch.return_value = True
+    provider.derive_branch_name_with_suffix.return_value = "proj_feat_bar_1"
     provider.rename_branch.return_value = (True, None)
     mock_provider_fn.return_value = provider
 
-    handle_suffix_append("/tmp/proj.gp", "proj_feat_bar", "proj_feat_bar__1")
+    handle_suffix_append("/tmp/proj.gp", "proj_feat_bar", "proj_feat_bar_1")
 
-    provider.rename_branch.assert_called_once_with("feat-bar-1", "/ws")
-    mock_push.assert_not_called()
+    provider.rename_branch.assert_called_once_with("proj_feat_bar_1", "/ws")
+    mock_push.assert_called_once_with("/ws", "proj_feat_bar_1", "origin/proj_feat_bar")
+    # Should clean up stale alias
+    mock_remove.assert_called_once_with("proj", "proj_feat_bar_1")

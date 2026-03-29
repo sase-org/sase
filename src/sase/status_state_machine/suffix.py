@@ -15,16 +15,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _is_github_project(project_file: str) -> bool:
-    """Return True if *project_file* belongs to a GitHub-hosted project."""
-    try:
-        from sase.workspace_provider import detect_workflow_type
-
-        return detect_workflow_type(project_file) == "gh"
-    except (ValueError, Exception):
-        return False
-
-
 def _push_branch_rename(
     workspace_dir: str,
     new_branch: str,
@@ -91,7 +81,7 @@ def handle_suffix_strip(
         List of SiblingRevertResult for reverted siblings.
     """
     from sase.ace.revert import update_changespec_name_atomic
-    from sase.core.changespec import changespec_name_to_branch
+    from sase.core.branch_map import remove_branch_alias, write_branch_alias
     from sase.running_field import (
         get_first_available_axe_workspace,
         get_workspace_directory_for_num,
@@ -121,19 +111,22 @@ def handle_suffix_strip(
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             logger.warning(f"Failed to checkout CL {suffixed_name}: {checkout_err}")
+        elif not provider.can_rename_branch(workspace_dir):
+            # Branch is immutable (e.g. GitHub PR) — persist alias instead
+            # of renaming.  The old branch stays on the remote; resolution
+            # will find it via branch_map.
+            old_branch = resolved.removeprefix("origin/")
+            write_branch_alias(project_basename, base_name, old_branch)
+            logger.info(f"Branch immutable — wrote alias {base_name} -> {old_branch}")
         else:
-            # Rename to the canonical branch form (prefix stripped, hyphens)
-            new_branch = changespec_name_to_branch(base_name, project_basename)
+            new_branch = provider.derive_branch_name(base_name, project_basename)
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
-            elif _is_github_project(project_file):
-                logger.info(
-                    "Skipping remote branch delete for GitHub project "
-                    "(would close the PR on the old branch)"
-                )
             else:
                 _push_branch_rename(workspace_dir, new_branch, resolved)
+                # Clean up any stale alias from a previous immutable cycle
+                remove_branch_alias(project_basename, base_name)
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
 
@@ -162,7 +155,11 @@ def handle_suffix_append(
         suffixed_name: The new name with suffix (e.g., "foo_bar__1").
     """
     from sase.ace.revert import update_changespec_name_atomic
-    from sase.core.changespec import changespec_name_to_branch_with_suffix
+    from sase.core.branch_map import (
+        read_branch_map,
+        remove_branch_alias,
+        write_branch_alias,
+    )
     from sase.running_field import (
         get_first_available_axe_workspace,
         get_workspace_directory_for_num,
@@ -190,21 +187,37 @@ def handle_suffix_append(
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
             logger.warning(f"Failed to checkout CL {base_name}: {checkout_err}")
+        elif not provider.can_rename_branch(workspace_dir):
+            # Branch is immutable — update the alias mapping.
+            # The actual branch on the remote doesn't change; we just
+            # re-key the mapping from base_name -> suffixed_name.
+            branch_map = read_branch_map(project_basename)
+            actual_branch = branch_map.get(base_name)
+            if actual_branch:
+                remove_branch_alias(project_basename, base_name)
+                write_branch_alias(project_basename, suffixed_name, actual_branch)
+                logger.info(
+                    f"Branch immutable — re-keyed alias {suffixed_name} -> "
+                    f"{actual_branch}"
+                )
+            else:
+                # No existing alias — the resolved branch is the actual one
+                old_branch = resolved.removeprefix("origin/")
+                write_branch_alias(project_basename, suffixed_name, old_branch)
+                logger.info(
+                    f"Branch immutable — wrote alias {suffixed_name} -> {old_branch}"
+                )
         else:
-            # Rename to the canonical branch form (prefix stripped, hyphens, with suffix)
-            new_branch = changespec_name_to_branch_with_suffix(
+            new_branch = provider.derive_branch_name_with_suffix(
                 suffixed_name, project_basename
             )
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
                 logger.warning(f"Failed to rename CL: {rename_err}")
-            elif _is_github_project(project_file):
-                logger.info(
-                    "Skipping remote branch delete for GitHub project "
-                    "(would close the PR on the old branch)"
-                )
             else:
                 _push_branch_rename(workspace_dir, new_branch, resolved)
+                # Clean up any stale alias
+                remove_branch_alias(project_basename, suffixed_name)
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
 

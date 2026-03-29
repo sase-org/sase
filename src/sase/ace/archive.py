@@ -154,6 +154,11 @@ def archive_changespec(
         if not success:
             return (False, f"Failed to archive revision: {error}")
 
+        # Clean up branch alias (if any)
+        from sase.core.branch_map import remove_branch_alias
+
+        remove_branch_alias(project_basename, changespec.name)
+
         if console:
             console.print(f"[green]Archived revision: {changespec.name}[/green]")
 

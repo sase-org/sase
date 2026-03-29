@@ -19,6 +19,13 @@ def finalize_submission(
     console: Console | None,
 ) -> tuple[bool, str | None]:
     """Rename ChangeSpec with timestamp and transition to Submitted."""
+    import os
+
+    from sase.core.branch_map import remove_branch_alias
+
+    project_basename = os.path.basename(changespec_file).replace(".gp", "")
+    remove_branch_alias(project_basename, changespec_name)
+
     timestamp = generate_timestamp()
     new_name = f"{changespec_name}__{timestamp}"
 

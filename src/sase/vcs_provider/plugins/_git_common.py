@@ -157,23 +157,55 @@ class GitCommon(CommandRunner):
     # --- Optional core operations ---
 
     @hookimpl
+    def vcs_derive_branch_name(
+        self, changespec_name: str, project_basename: str
+    ) -> str:
+        from sase.core.changespec import strip_reverted_suffix
+
+        return strip_reverted_suffix(changespec_name)
+
+    @hookimpl
+    def vcs_derive_branch_name_with_suffix(
+        self, changespec_name: str, project_basename: str
+    ) -> str:
+        return changespec_name
+
+    @hookimpl
+    def vcs_can_rename_branch(self, cwd: str) -> bool:
+        return True
+
+    @hookimpl
     def vcs_resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:
+        from sase.core.branch_map import read_branch_map
         from sase.core.changespec import (
             changespec_name_to_branch,
             changespec_name_to_branch_with_suffix,
         )
 
-        branch_with_suffix = changespec_name_to_branch_with_suffix(
+        # --- Build candidate list ---
+        # 1. Branch map alias (highest priority for immutable-branch providers)
+        branch_map = read_branch_map(project_basename)
+        mapped_branch = branch_map.get(changespec_name)
+
+        # 2. New naming: derive_branch_name_with_suffix / derive_branch_name
+        derived_with_suffix = self.vcs_derive_branch_name_with_suffix(
             changespec_name, project_basename
         )
-        branch_without_suffix = changespec_name_to_branch(
+        derived_without_suffix = self.vcs_derive_branch_name(
             changespec_name, project_basename
         )
 
-        # Also try prefix-stripped name with underscores preserved — branches
-        # may have been created without underscore-to-hyphen conversion.
+        # 3. Old naming (backward compat): changespec_name_to_branch*
+        old_branch_with_suffix = changespec_name_to_branch_with_suffix(
+            changespec_name, project_basename
+        )
+        old_branch_without_suffix = changespec_name_to_branch(
+            changespec_name, project_basename
+        )
+
+        # 4. Prefix-stripped with underscores preserved
         prefix = f"{project_basename}_"
         prefix_stripped = (
             changespec_name[len(prefix) :]
@@ -181,9 +213,21 @@ class GitCommon(CommandRunner):
             else None
         )
 
-        candidates = [changespec_name, branch_with_suffix, branch_without_suffix]
-        if prefix_stripped and prefix_stripped not in candidates:
-            candidates.append(prefix_stripped)
+        # Deduplicate while preserving priority order
+        seen: set[str] = set()
+        candidates: list[str] = []
+        for c in [
+            mapped_branch,
+            changespec_name,
+            derived_with_suffix,
+            derived_without_suffix,
+            old_branch_with_suffix,
+            old_branch_without_suffix,
+            prefix_stripped,
+        ]:
+            if c and c not in seen:
+                seen.add(c)
+                candidates.append(c)
 
         # Try each candidate against local refs
         for candidate in candidates:
@@ -212,8 +256,8 @@ class GitCommon(CommandRunner):
         # look for a unique suffixed remote branch.  This handles the case
         # where a Ready changespec's branch was previously renamed with a
         # suffix (e.g. "feature-1") but the changespec name lost the suffix.
-        if branch_without_suffix == branch_with_suffix:
-            pattern = f"refs/remotes/origin/{branch_without_suffix}-*"
+        if old_branch_without_suffix == old_branch_with_suffix:
+            pattern = f"refs/remotes/origin/{old_branch_without_suffix}-*"
             ref_out = self._run(
                 ["git", "for-each-ref", "--format=%(refname:short)", pattern], cwd
             )
@@ -221,7 +265,7 @@ class GitCommon(CommandRunner):
                 import re
 
                 suffix_re = re.compile(
-                    re.escape(f"origin/{branch_without_suffix}") + r"-\d+$"
+                    re.escape(f"origin/{old_branch_without_suffix}") + r"-\d+$"
                 )
                 matches = [
                     r for r in ref_out.stdout.strip().splitlines() if suffix_re.match(r)
@@ -229,8 +273,8 @@ class GitCommon(CommandRunner):
                 if len(matches) == 1:
                     return matches[0]
 
-        # Fall back to branch without suffix (may fail at checkout)
-        return branch_without_suffix
+        # Fall back to derived name without suffix (may fail at checkout)
+        return derived_without_suffix
 
     @hookimpl
     def vcs_show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:

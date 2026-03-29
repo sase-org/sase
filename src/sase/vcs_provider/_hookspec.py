@@ -71,6 +71,19 @@ class VCSHookSpec:
     # --- Optional core operations ---
 
     @hookspec(firstresult=True)
+    def vcs_derive_branch_name(
+        self, changespec_name: str, project_basename: str
+    ) -> str: ...
+
+    @hookspec(firstresult=True)
+    def vcs_derive_branch_name_with_suffix(
+        self, changespec_name: str, project_basename: str
+    ) -> str: ...
+
+    @hookspec(firstresult=True)
+    def vcs_can_rename_branch(self, cwd: str) -> bool: ...
+
+    @hookspec(firstresult=True)
     def vcs_resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str: ...

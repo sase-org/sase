@@ -2,7 +2,7 @@
 
 When a base-name ChangeSpec (no __N suffix) can't find its branch,
 the resolver should fall back to a unique suffixed remote branch
-(e.g. origin/feature-bar-1) if exactly one match exists.
+(e.g. origin/feat-bar-1) if exactly one match exists.
 """
 
 from unittest.mock import MagicMock, patch
@@ -51,12 +51,16 @@ def _make_run_side_effect(
     return side_effect
 
 
+# The old changespec_name_to_branch* functions are still used inside
+# vcs_resolve_revision as backward-compat candidates — patch them.
 @patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
 @patch(
     "sase.core.changespec.changespec_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
+@patch("sase.core.branch_map.read_branch_map", return_value={})
 def test_resolve_falls_back_to_unique_suffixed_branch(
+    mock_branch_map: MagicMock,
     mock_with_suffix: MagicMock,
     mock_branch: MagicMock,
 ) -> None:
@@ -77,7 +81,9 @@ def test_resolve_falls_back_to_unique_suffixed_branch(
     "sase.core.changespec.changespec_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
+@patch("sase.core.branch_map.read_branch_map", return_value={})
 def test_resolve_no_fallback_when_multiple_suffixed(
+    mock_branch_map: MagicMock,
     mock_with_suffix: MagicMock,
     mock_branch: MagicMock,
 ) -> None:
@@ -90,7 +96,8 @@ def test_resolve_no_fallback_when_multiple_suffixed(
     )
 
     result = plugin.vcs_resolve_revision("proj_feat_bar", "proj", "/ws")
-    assert result == "feat-bar"
+    # derive_branch_name strips suffix → "proj_feat_bar" (identity for git)
+    assert result == "proj_feat_bar"
 
 
 @patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
@@ -98,7 +105,9 @@ def test_resolve_no_fallback_when_multiple_suffixed(
     "sase.core.changespec.changespec_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
+@patch("sase.core.branch_map.read_branch_map", return_value={})
 def test_resolve_no_fallback_when_no_suffixed(
+    mock_branch_map: MagicMock,
     mock_with_suffix: MagicMock,
     mock_branch: MagicMock,
 ) -> None:
@@ -111,7 +120,8 @@ def test_resolve_no_fallback_when_no_suffixed(
     )
 
     result = plugin.vcs_resolve_revision("proj_feat_bar", "proj", "/ws")
-    assert result == "feat-bar"
+    # derive_branch_name("proj_feat_bar", "proj") strips suffix → "proj_feat_bar"
+    assert result == "proj_feat_bar"
 
 
 @patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
@@ -119,7 +129,9 @@ def test_resolve_no_fallback_when_no_suffixed(
     "sase.core.changespec.changespec_name_to_branch_with_suffix",
     return_value="feat-bar-1",
 )
+@patch("sase.core.branch_map.read_branch_map", return_value={})
 def test_resolve_skips_fallback_when_name_already_suffixed(
+    mock_branch_map: MagicMock,
     mock_with_suffix: MagicMock,
     mock_branch: MagicMock,
 ) -> None:
@@ -132,9 +144,8 @@ def test_resolve_skips_fallback_when_name_already_suffixed(
     )
 
     result = plugin.vcs_resolve_revision("proj_feat_bar__1", "proj", "/ws")
-    # Falls through to default (branch_without_suffix) since the suffix
-    # path is the normal candidate path, not the fallback.
-    assert result == "feat-bar"
+    # Falls through to derived_without_suffix (strip_reverted_suffix → "proj_feat_bar")
+    assert result == "proj_feat_bar"
 
 
 @patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
@@ -142,7 +153,9 @@ def test_resolve_skips_fallback_when_name_already_suffixed(
     "sase.core.changespec.changespec_name_to_branch_with_suffix",
     return_value="feat-bar",
 )
+@patch("sase.core.branch_map.read_branch_map", return_value={})
 def test_resolve_ignores_non_numeric_suffix_matches(
+    mock_branch_map: MagicMock,
     mock_with_suffix: MagicMock,
     mock_branch: MagicMock,
 ) -> None:
@@ -155,4 +168,31 @@ def test_resolve_ignores_non_numeric_suffix_matches(
     )
 
     result = plugin.vcs_resolve_revision("proj_feat_bar", "proj", "/ws")
-    assert result == "feat-bar"
+    # derive_branch_name strips suffix → "proj_feat_bar"
+    assert result == "proj_feat_bar"
+
+
+@patch("sase.core.changespec.changespec_name_to_branch", return_value="feat-bar")
+@patch(
+    "sase.core.changespec.changespec_name_to_branch_with_suffix",
+    return_value="feat-bar",
+)
+@patch(
+    "sase.core.branch_map.read_branch_map",
+    return_value={"proj_feat_bar": "proj_feat_bar_1"},
+)
+def test_resolve_uses_branch_map_alias(
+    mock_branch_map: MagicMock,
+    mock_with_suffix: MagicMock,
+    mock_branch: MagicMock,
+) -> None:
+    """Branch map alias is tried first and resolves successfully."""
+    plugin = BareGitPlugin()
+    plugin._run = MagicMock(  # type: ignore[assignment]
+        side_effect=_make_run_side_effect(
+            local_hits={"proj_feat_bar_1": True},
+        )
+    )
+
+    result = plugin.vcs_resolve_revision("proj_feat_bar", "proj", "/ws")
+    assert result == "proj_feat_bar_1"

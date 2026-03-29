@@ -90,6 +90,36 @@ class VCSPluginManager(VCSProvider):
 
     # --- Optional core methods (with non-trivial defaults) ---
 
+    def derive_branch_name(self, changespec_name: str, project_basename: str) -> str:
+        result = self._pm.hook.vcs_derive_branch_name(
+            changespec_name=changespec_name, project_basename=project_basename
+        )
+        if result is None:
+            from sase.core.changespec import changespec_name_to_branch
+
+            return changespec_name_to_branch(changespec_name, project_basename)
+        return result  # type: ignore[return-value]
+
+    def derive_branch_name_with_suffix(
+        self, changespec_name: str, project_basename: str
+    ) -> str:
+        result = self._pm.hook.vcs_derive_branch_name_with_suffix(
+            changespec_name=changespec_name, project_basename=project_basename
+        )
+        if result is None:
+            from sase.core.changespec import changespec_name_to_branch_with_suffix
+
+            return changespec_name_to_branch_with_suffix(
+                changespec_name, project_basename
+            )
+        return result  # type: ignore[return-value]
+
+    def can_rename_branch(self, cwd: str) -> bool:
+        result = self._pm.hook.vcs_can_rename_branch(cwd=cwd)
+        if result is None:
+            return True
+        return result  # type: ignore[return-value]
+
     def resolve_revision(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:

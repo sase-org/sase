@@ -152,13 +152,17 @@ def test_resolve_revision_valid_ref(mock_run: MagicMock) -> None:
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_resolve_revision_falls_back_to_branch(mock_run: MagicMock) -> None:
-    """Test vcs_resolve_revision derives branch name when ref is invalid."""
+    """Test vcs_resolve_revision derives branch name when ref is invalid.
+
+    After branch naming reform, the fallback is the suffix-stripped
+    ChangeSpec name (identity for git), not the old hyphenated form.
+    """
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
     plugin = BareGitPlugin()
     result = plugin.vcs_resolve_revision("sase_dull_basin__1", "sase", "/workspace")
 
-    assert result == "dull-basin"
+    assert result == "sase_dull_basin"
 
 
 # === Tests for show_revision ===

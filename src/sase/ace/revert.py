@@ -167,6 +167,11 @@ def revert_changespec(
         if not success:
             return (False, f"Failed to prune revision: {error}")
 
+        # Clean up branch alias (if any)
+        from sase.core.branch_map import remove_branch_alias
+
+        remove_branch_alias(changespec.project_basename, changespec.name)
+
         if console:
             console.print(f"[green]Pruned revision: {changespec.name}[/green]")
 
