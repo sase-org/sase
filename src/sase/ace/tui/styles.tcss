@@ -516,6 +516,18 @@ HintInputBar #hint-escape-hint {
     height: 1fr;
 }
 
+#pinned-agent-list {
+    height: auto;
+    max-height: 12;
+    border: solid #ffd700;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+#pinned-agent-list.focused {
+    border: solid #ffdf4d;
+}
+
 #agent-detail-layout {
     width: 100%;
     height: 100%;

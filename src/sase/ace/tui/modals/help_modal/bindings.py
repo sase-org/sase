@@ -299,6 +299,12 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
             ],
         ),
         (
+            "Pinned Panel",
+            [
+                (d(a.toggle_pinned_focus), "Toggle pinned panel focus"),
+            ],
+        ),
+        (
             "Workflow Folding",
             [
                 (
@@ -526,6 +532,6 @@ TAB_DISPLAY_NAMES = {
 # Column split indices for each tab (left column gets indices < split, right gets >= split)
 COLUMN_SPLITS = {
     "changespecs": 2,  # Left: Navigation, CL Actions; Right: rest
-    "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
+    "agents": 4,  # Left: Navigation, Agent Actions, Pinned Panel, Workflow Folding; Right: rest
     "axe": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
 }

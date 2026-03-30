@@ -60,6 +60,8 @@ class AgentInteractionMixin:
     current_idx: int
     _agents: list[Agent]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
+    _pinned_agent_objects: list[Agent]
+    _pinned_panel_focused: bool
     refresh_interval: int
     hide_non_run_agents: bool
 
@@ -114,13 +116,38 @@ class AgentInteractionMixin:
         if self.current_tab != "agents":
             return
 
+        from ._core import DISMISSABLE_STATUSES
+
+        # When pinned panel is focused, unpin the selected pinned agent
+        if self._pinned_panel_focused:
+            from ...widgets import PinnedAgentList
+
+            pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+            agent = pinned_list.get_selected_agent()
+            if agent is None:
+                self.notify("No pinned agent selected", severity="warning")  # type: ignore[attr-defined]
+                return
+
+            from ....pinned_agents import save_pinned_agents, toggle_pinned_agent
+
+            toggle_pinned_agent(self._pinned_agents, agent.identity)
+            save_pinned_agents(self._pinned_agents)
+            self.notify(f"Unpinned {agent.display_name}")  # type: ignore[attr-defined]
+
+            # Reload agents — the unpinned agent moves back to the main list
+            self._load_agents()  # type: ignore[attr-defined]
+
+            # If pinned list is now empty, switch focus back to main list
+            if not self._pinned_agent_objects:
+                self._pinned_panel_focused = False
+                pinned_list.set_focused(False)
+            return
+
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
         agent = self._agents[self.current_idx]
-
-        from ._core import DISMISSABLE_STATUSES
 
         if agent.status not in DISMISSABLE_STATUSES:
             self.notify("Only completed agents can be pinned", severity="warning")  # type: ignore[attr-defined]
@@ -137,7 +164,32 @@ class AgentInteractionMixin:
 
         label = "Pinned" if now_pinned else "Unpinned"
         self.notify(f"{label} {agent.display_name}")  # type: ignore[attr-defined]
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+
+        # When pinning the currently selected agent, it will move to the
+        # pinned panel on refresh. Bump current_idx to prevent pointing
+        # past the end of the list.
+        if now_pinned and agent.status in DISMISSABLE_STATUSES:
+            if self.current_idx >= len(self._agents) - 1 and self.current_idx > 0:
+                self.current_idx -= 1
+
+        self._load_agents()  # type: ignore[attr-defined]
+
+    def action_toggle_pinned_focus(self) -> None:
+        """Toggle focus between the main agent list and the pinned agents panel."""
+        if self.current_tab != "agents":
+            return
+
+        if not self._pinned_agent_objects:
+            self.notify("No pinned agents", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...widgets import PinnedAgentList
+
+        pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+
+        self._pinned_panel_focused = not self._pinned_panel_focused
+        pinned_list.set_focused(self._pinned_panel_focused)
+        self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff - behavior depends on current tab."""

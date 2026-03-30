@@ -22,6 +22,9 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = 0
         elif self.current_tab == "agents":
+            if self._pinned_panel_focused:  # type: ignore[attr-defined]
+                self._navigate_pinned_panel(forward=True)  # type: ignore[attr-defined]
+                return
             if len(self._agents) == 0:
                 return
             if self.current_idx < len(self._agents) - 1:
@@ -46,6 +49,9 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = len(self.changespecs) - 1
         elif self.current_tab == "agents":
+            if self._pinned_panel_focused:  # type: ignore[attr-defined]
+                self._navigate_pinned_panel(forward=False)  # type: ignore[attr-defined]
+                return
             if len(self._agents) == 0:
                 return
             if self.current_idx > 0:
@@ -59,6 +65,22 @@ class BasicNavigationMixin(NavigationMixinBase):
                 self.current_idx -= 1
             else:
                 self.current_idx = len(self._axe_items) - 1  # type: ignore[attr-defined]
+
+    def _navigate_pinned_panel(self, *, forward: bool) -> None:
+        """Navigate within the pinned agents panel.
+
+        Args:
+            forward: True to move to next, False to move to previous.
+        """
+        from ...widgets import PinnedAgentList
+
+        pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+        if forward:
+            pinned_list.select_next()
+        else:
+            pinned_list.select_prev()
+        pinned_list.set_focused(True)
+        self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
     def _get_agent_detail_scroll_id(self) -> str:
         """Get the scroll container ID for the active agent detail panel.
@@ -231,5 +253,12 @@ class BasicNavigationMixin(NavigationMixinBase):
             self._changespecs_last_idx = self.current_idx
         elif self.current_tab == "agents":
             self._agents_last_idx = self.current_idx
+            # Reset pinned panel focus when leaving agents tab
+            if self._pinned_panel_focused:  # type: ignore[attr-defined]
+                self._pinned_panel_focused = False  # type: ignore[attr-defined]
+                from ...widgets import PinnedAgentList
+
+                pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+                pinned_list.set_focused(False)
         elif self.current_tab == "axe":
             self._axe_last_idx = self.current_idx  # type: ignore[attr-defined]

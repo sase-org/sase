@@ -58,6 +58,7 @@ from .widgets import (
     InactiveIndicator,
     KeybindingFooter,
     NotificationIndicator,
+    PinnedAgentList,
     SearchQueryPanel,
     TabBar,
     TaskIndicator,
@@ -239,6 +240,8 @@ class AceApp(
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
         self._pinned_agents = load_pinned_agents()
+        self._pinned_agent_objects: list[Agent] = []
+        self._pinned_panel_focused: bool = False
 
         # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
@@ -404,6 +407,7 @@ class AceApp(
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
+                        yield PinnedAgentList(id="pinned-agent-list")
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
                 # Left panel (bgcmd list) - always visible on AXE tab

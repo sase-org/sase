@@ -16,6 +16,7 @@ from .keybinding_footer import KeybindingFooter
 from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 from .inactive_indicator import InactiveIndicator
 from .notification_indicator import NotificationIndicator
+from .pinned_agent_list import PinnedAgentList
 from .prompt_input_bar import PromptInputBar
 from .tab_bar import TabBar
 from .task_indicator import TaskIndicator
@@ -37,6 +38,7 @@ __all__ = [
     "InactiveIndicator",
     "KeybindingFooter",
     "NotificationIndicator",
+    "PinnedAgentList",
     "PromptInputBar",
     "SearchQueryPanel",
     "TabBar",

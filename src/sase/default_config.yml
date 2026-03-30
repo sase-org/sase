@@ -60,6 +60,8 @@ ace:
       start_custom_agent: "at"
       start_agent_from_changespec: "space"
       jump_to_agent_changespec: "enter"
+      # Pinned agents panel
+      toggle_pinned_focus: "J"
       edit_panel: "E"
       # Thinking panel
       toggle_thinking: "right_square_bracket"

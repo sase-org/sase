@@ -107,6 +107,8 @@ class AgentsMixinCore(
     _agents_last_idx: int
     _has_always_visible: bool
     _hidden_count: int
+    _pinned_agent_objects: list[Agent]
+    _pinned_panel_focused: bool
 
     # Fold state for workflow steps
     _fold_manager: FoldStateManager
@@ -121,6 +123,9 @@ class AgentsMixinCore(
     # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+
+    # Pinned agents
+    _pinned_agents: set[tuple[AgentType, str, str | None]]
 
     # Agent search/filter query
     _agent_search_query: str
@@ -351,6 +356,22 @@ class AgentsMixinCore(
                 self._agent_status_overrides.pop(identity, None)
                 self._agent_pre_question_status.pop(identity, None)
 
+        # Separate pinned agents that are in a dismissable status into the
+        # pinned panel list. Pinned agents that are still active remain in
+        # the main list until they complete.
+        pinned_panel: list[Agent] = []
+        remaining: list[Agent] = []
+        for agent in self._agents:
+            if (
+                agent.identity in self._pinned_agents
+                and agent.status in DISMISSABLE_STATUSES
+            ):
+                pinned_panel.append(agent)
+            else:
+                remaining.append(agent)
+        self._pinned_agent_objects = pinned_panel
+        self._agents = remaining
+
         # Calculate the new index
         # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
         saved_idx = self.current_idx if on_agents_tab else self._agents_last_idx
@@ -429,11 +450,12 @@ class AgentsMixinCore(
             self._detail_update_timer.stop()
             self._detail_update_timer = None
 
-        from ...widgets import AgentDetail, AgentList, KeybindingFooter
+        from ...widgets import AgentDetail, AgentList, KeybindingFooter, PinnedAgentList
 
         agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
 
         if list_changed:
             agent_list.update_list(
@@ -444,6 +466,11 @@ class AgentsMixinCore(
             )
         else:
             agent_list.update_highlight(self.current_idx)
+
+        # Update pinned agents panel
+        pinned_list.update_agents(
+            self._pinned_agent_objects, focused=self._pinned_panel_focused
+        )
 
         self._apply_agent_detail_update(agent_detail, footer_widget)
 
@@ -492,7 +519,19 @@ class AgentsMixinCore(
             footer_widget: The keybinding footer widget.
         """
         current_agent = None
-        if self._agents and 0 <= self.current_idx < len(self._agents):
+        if self._pinned_panel_focused:
+            # When pinned panel is focused, show the selected pinned agent
+            from ...widgets import PinnedAgentList
+
+            pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+            current_agent = pinned_list.get_selected_agent()
+            if current_agent is not None:
+                agent_detail.update_display(
+                    current_agent, stale_threshold_seconds=self.refresh_interval
+                )
+            else:
+                agent_detail.show_empty()
+        elif self._agents and 0 <= self.current_idx < len(self._agents):
             current_agent = self._agents[self.current_idx]
             agent_detail.update_display(
                 current_agent, stale_threshold_seconds=self.refresh_interval
@@ -525,6 +564,8 @@ class AgentsMixinCore(
                 current_agent,
                 completed_count=completed_count,
                 is_pinned=agent_is_pinned,
+                pinned_panel_focused=self._pinned_panel_focused,
+                pinned_count=len(self._pinned_agent_objects),
             )
 
     def _toggle_hide_non_run_agents(self) -> None:
@@ -569,12 +610,19 @@ class AgentsMixinCore(
 
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
-        from ...widgets import AgentDetail, AgentInfoPanel
+        from ...widgets import AgentDetail, AgentInfoPanel, PinnedAgentList
 
         agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
-        # Position is 1-based for display (current_idx is 0-based)
-        position = self.current_idx + 1 if self._agents else 0
-        agent_info_panel.update_position(position, len(self._agents))
+        if self._pinned_panel_focused:
+            pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+            position = pinned_list.selected_idx + 1 if self._pinned_agent_objects else 0
+            agent_info_panel.update_position(
+                position, len(self._pinned_agent_objects), label="Pinned"
+            )
+        else:
+            # Position is 1-based for display (current_idx is 0-based)
+            position = self.current_idx + 1 if self._agents else 0
+            agent_info_panel.update_position(position, len(self._agents))
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )

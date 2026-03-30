@@ -33,6 +33,7 @@ class NavigationMixinBase:
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
     _agents: list[Agent]
+    _pinned_panel_focused: bool
     _fold_mode_active: bool
     _changespecs_last_idx: int
     _agents_last_idx: int

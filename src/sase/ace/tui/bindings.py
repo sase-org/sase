@@ -104,4 +104,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("equals_sign", "show_all_file_lines", "Show All", show=False),
     # Jump to CL from agent (agents tab)
     Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
+    # Toggle pinned agents panel focus (agents tab)
+    Binding("J", "toggle_pinned_focus", "Pinned", show=False),
 ]
