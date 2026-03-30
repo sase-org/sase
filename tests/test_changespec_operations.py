@@ -240,6 +240,43 @@ def test_add_changespec_initial_commit_no_plan_drawer() -> None:
         os.unlink(project_file)
 
 
+def test_add_changespec_initial_commits_produce_timestamps() -> None:
+    """initial_commits entries should produce TIMESTAMPS COMMIT entries."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="ts_feature",
+                description="Timestamps test",
+                parent=None,
+                cl_url="http://cl/55555",
+                initial_commits=[
+                    (1, "[run] Initial Commit", "~/chats/c.md", "~/diffs/d.diff"),
+                    (2, "[run] Second Commit", "~/chats/c2.md", "~/diffs/d2.diff"),
+                ],
+            )
+
+        assert result is not None
+
+        changespecs = parse_project_file(project_file)
+        cs = next(c for c in changespecs if c.name == "ts_feature_1")
+        assert cs.timestamps is not None
+        assert len(cs.timestamps) == 2
+        assert cs.timestamps[0].event_type == "COMMIT"
+        assert cs.timestamps[0].detail == "(1)"
+        assert cs.timestamps[1].event_type == "COMMIT"
+        assert cs.timestamps[1].detail == "(2)"
+    finally:
+        os.unlink(project_file)
+
+
 def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
     """Test that no BUG is inherited when there's no parent."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:

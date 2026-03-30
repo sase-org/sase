@@ -371,6 +371,15 @@ DESCRIPTION:
                 f"Add ChangeSpec {cl_name}",
             )
 
+        # Record COMMIT timestamps for initial commits (outside lock —
+        # uses its own lock, matching the pattern in entries.py)
+        if initial_commits:
+            from sase.ace.timestamps.recording import add_timestamp_entry_atomic
+
+            for commit_tuple in initial_commits:
+                num = commit_tuple[0]
+                add_timestamp_entry_atomic(project_file, cl_name, "COMMIT", f"({num})")
+
         return cl_name
     except Exception as e:
         print_status(f"Failed to add ChangeSpec to project file: {e}", "warning")
