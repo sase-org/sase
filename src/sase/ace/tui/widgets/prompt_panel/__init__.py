@@ -3,6 +3,7 @@
 from textual.widgets import Static
 
 from ._agent_display import AgentDisplayMixin
+from ._agent_display_hints import AgentHintsDisplayMixin
 from ._helpers import (
     aggregate_meta_fields,
     extract_meta_fields,
@@ -13,7 +14,9 @@ from ._helpers import (
 from ._workflow_display import WorkflowDisplayMixin
 
 
-class AgentPromptPanel(AgentDisplayMixin, WorkflowDisplayMixin, Static):
+class AgentPromptPanel(
+    AgentDisplayMixin, AgentHintsDisplayMixin, WorkflowDisplayMixin, Static
+):
     """Top panel showing agent details and the input prompt."""
 
 

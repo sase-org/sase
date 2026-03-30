@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 
 
 def _make_agent(**overrides) -> Agent:  # type: ignore[no-untyped-def]
@@ -18,13 +18,6 @@ def _make_agent(**overrides) -> Agent:  # type: ignore[no-untyped-def]
     return Agent(**defaults)
 
 
-class _TestableDisplay(AgentDisplayMixin):
-    """Minimal concrete subclass to test _build_header_text."""
-
-    def update(self, content):  # type: ignore[no-untyped-def]
-        pass
-
-
 class TestMetaChangespecPriority:
     """meta_changespec should be preferred over meta_project when both present."""
 
@@ -35,8 +28,7 @@ class TestMetaChangespecPriority:
                 "meta_changespec": "proj_feat_1",
             },
         )
-        display = _TestableDisplay()
-        header, _ = display._build_header_text(agent)
+        header, _ = build_header_text(agent)
         text = header.plain
 
         assert "ChangeSpec: proj_feat_1" in text
@@ -46,8 +38,7 @@ class TestMetaChangespecPriority:
         agent = _make_agent(
             step_output={"meta_project": "my_project"},
         )
-        display = _TestableDisplay()
-        header, _ = display._build_header_text(agent)
+        header, _ = build_header_text(agent)
         text = header.plain
 
         assert "Project: my_project" in text
@@ -57,8 +48,7 @@ class TestMetaChangespecPriority:
         agent = _make_agent(
             step_output={"meta_changespec": "proj_feat_1"},
         )
-        display = _TestableDisplay()
-        header, _ = display._build_header_text(agent)
+        header, _ = build_header_text(agent)
         text = header.plain
 
         assert "ChangeSpec: proj_feat_1" in text
@@ -71,8 +61,7 @@ class TestMetaChangespecPriority:
             },
             cl_num="12345",
         )
-        display = _TestableDisplay()
-        header, _ = display._build_header_text(agent)
+        header, _ = build_header_text(agent)
         text = header.plain
 
         assert "ChangeSpec: proj_feat_1 (12345)" in text

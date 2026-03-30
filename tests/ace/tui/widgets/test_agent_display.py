@@ -6,7 +6,10 @@ import re
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    get_phase_label,
+    render_phase_divider,
+)
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -28,35 +31,35 @@ def _make_agent(**overrides: object) -> Agent:
 class TestGetPhaseLabel:
     def test_plan(self) -> None:
         agent = _make_agent(role_suffix=".plan")
-        assert AgentDisplayMixin._get_phase_label(agent) == "PLANNER"
+        assert get_phase_label(agent) == "PLANNER"
 
     def test_code(self) -> None:
         agent = _make_agent(role_suffix=".code")
-        assert AgentDisplayMixin._get_phase_label(agent) == "CODER"
+        assert get_phase_label(agent) == "CODER"
 
     def test_questions(self) -> None:
         agent = _make_agent(role_suffix=".q")
-        assert AgentDisplayMixin._get_phase_label(agent) == "QUESTIONS"
+        assert get_phase_label(agent) == "QUESTIONS"
 
     def test_epic(self) -> None:
         agent = _make_agent(role_suffix=".epic")
-        assert AgentDisplayMixin._get_phase_label(agent) == "EPIC"
+        assert get_phase_label(agent) == "EPIC"
 
     def test_feedback_round_2(self) -> None:
         agent = _make_agent(role_suffix=".2")
-        assert AgentDisplayMixin._get_phase_label(agent) == "PLANNER (round 2)"
+        assert get_phase_label(agent) == "PLANNER (round 2)"
 
     def test_feedback_round_10(self) -> None:
         agent = _make_agent(role_suffix=".10")
-        assert AgentDisplayMixin._get_phase_label(agent) == "PLANNER (round 10)"
+        assert get_phase_label(agent) == "PLANNER (round 10)"
 
     def test_no_suffix(self) -> None:
         agent = _make_agent(role_suffix=None)
-        assert AgentDisplayMixin._get_phase_label(agent) == "AGENT"
+        assert get_phase_label(agent) == "AGENT"
 
     def test_unknown_suffix(self) -> None:
         agent = _make_agent(role_suffix=".xyz")
-        assert AgentDisplayMixin._get_phase_label(agent) == "AGENT"
+        assert get_phase_label(agent) == "AGENT"
 
 
 # -- _render_phase_divider ----------------------------------------------------
@@ -64,25 +67,19 @@ class TestGetPhaseLabel:
 
 class TestRenderPhaseDivider:
     def test_contains_label(self) -> None:
-        divider = AgentDisplayMixin._render_phase_divider(
-            "PLANNER", datetime(2024, 1, 1, 14, 23, 45)
-        )
+        divider = render_phase_divider("PLANNER", datetime(2024, 1, 1, 14, 23, 45))
         assert "PLANNER" in divider.plain
 
     def test_contains_time_format(self) -> None:
-        divider = AgentDisplayMixin._render_phase_divider(
-            "CODER", datetime(2024, 1, 1, 14, 23, 45)
-        )
+        divider = render_phase_divider("CODER", datetime(2024, 1, 1, 14, 23, 45))
         assert re.search(r"\d{2}:\d{2}:\d{2}", divider.plain)
 
     def test_none_start_time(self) -> None:
-        divider = AgentDisplayMixin._render_phase_divider("AGENT", None)
+        divider = render_phase_divider("AGENT", None)
         assert "??:??:??" in divider.plain
 
     def test_bold_purple_label(self) -> None:
-        divider = AgentDisplayMixin._render_phase_divider(
-            "PLANNER", datetime(2024, 1, 1)
-        )
+        divider = render_phase_divider("PLANNER", datetime(2024, 1, 1))
         has_bold = any(
             "bold" in str(s.style) and "af87ff" in str(s.style).lower()
             for s in divider._spans

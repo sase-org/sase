@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.prompt_panel import (
     AgentPromptPanel,
     load_embedded_workflows,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import get_prompt_content
 
 
 def _make_changespec(
@@ -207,8 +208,7 @@ def test_get_prompt_content_workflow_child_filters_by_step(
         step_name="api_research",
     )
 
-    panel = AgentPromptPanel.__new__(AgentPromptPanel)
-    result = panel._get_prompt_content(agent)
+    result = get_prompt_content(agent)
 
     assert result == "api_research prompt content"
 
@@ -226,8 +226,7 @@ def test_get_prompt_content_step_filter_no_substring_match(
         step_name="research",
     )
 
-    panel = AgentPromptPanel.__new__(AgentPromptPanel)
-    result = panel._get_prompt_content(agent)
+    result = get_prompt_content(agent)
 
     # No step-specific match, so falls back to most recent (the only file)
     assert result == "api_research prompt"
