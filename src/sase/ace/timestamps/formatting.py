@@ -19,5 +19,5 @@ def format_timestamps_field(entries: list[TimestampEntry]) -> str:
     lines = ["TIMESTAMPS:\n"]
     for entry in entries:
         padded_event = entry.event_type.ljust(_EVENT_WIDTH)
-        lines.append(f"  {entry.timestamp} {padded_event}{entry.detail}\n")
+        lines.append(f"  [{entry.timestamp}] {padded_event}{entry.detail}\n")
     return "".join(lines)
