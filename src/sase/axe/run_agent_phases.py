@@ -82,8 +82,10 @@ def extract_directives_and_write_meta(
     )
     _, directives = extract_prompt_directives(expanded_for_directives)
 
+    auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
+
     agent_name = directives.name
-    if agent_name is None:
+    if agent_name is None and not auto_dismiss:
         from sase.agent.names import get_next_auto_name
 
         agent_name = get_next_auto_name()
@@ -119,7 +121,7 @@ def extract_directives_and_write_meta(
         agent_meta["vcs_provider"] = agent_vcs_provider
     if directives.approve:
         agent_meta["approve"] = True
-    if directives.hide:
+    if directives.hide or auto_dismiss:
         agent_meta["hidden"] = True
     if directives.plan:
         agent_meta["plan"] = True
@@ -142,7 +144,7 @@ def extract_directives_and_write_meta(
         model=agent_model,
         llm_provider=agent_llm_provider,
         vcs_provider=agent_vcs_provider,
-        hidden=bool(directives.hide),
+        hidden=bool(directives.hide or auto_dismiss),
         approve=bool(directives.approve),
         plan=bool(directives.plan),
         meta=agent_meta,
