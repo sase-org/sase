@@ -106,7 +106,7 @@ def _find_timestamps_insert_point(lines: list[str], cl_name: str) -> int | None:
                 timestamps_header_idx = i
             elif timestamps_header_idx >= 0 and line.startswith("  "):
                 # Lines belonging to the TIMESTAMPS section
-                if re.match(r"^\s+(?:\[\d{4}-\d{2}-\d{2}|\d{6}_\d{6})", line):
+                if re.match(r"^\s+(?:\[\d{4}-\d{2}-\d{2}|\[?\d{6}_\d{6})", line):
                     last_timestamps_entry_idx = i
 
     if not in_target and timestamps_header_idx < 0:
