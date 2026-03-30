@@ -38,6 +38,30 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self.mentors_collapsed = cycle_forward(self.mentors_collapsed)
         elif key == fold_keys["cycle_timestamps"]:
             self.timestamps_collapsed = cycle_forward(self.timestamps_collapsed)
+        elif key == fold_keys["toggle_commits"]:
+            self.commits_collapsed = (
+                FoldLevel.FULLY_EXPANDED
+                if self.commits_collapsed == FoldLevel.COLLAPSED
+                else FoldLevel.COLLAPSED
+            )
+        elif key == fold_keys["toggle_hooks"]:
+            self.hooks_collapsed = (
+                FoldLevel.FULLY_EXPANDED
+                if self.hooks_collapsed == FoldLevel.COLLAPSED
+                else FoldLevel.COLLAPSED
+            )
+        elif key == fold_keys["toggle_mentors"]:
+            self.mentors_collapsed = (
+                FoldLevel.FULLY_EXPANDED
+                if self.mentors_collapsed == FoldLevel.COLLAPSED
+                else FoldLevel.COLLAPSED
+            )
+        elif key == fold_keys["toggle_timestamps"]:
+            self.timestamps_collapsed = (
+                FoldLevel.FULLY_EXPANDED
+                if self.timestamps_collapsed == FoldLevel.COLLAPSED
+                else FoldLevel.COLLAPSED
+            )
         elif key == fold_keys["cycle_all"]:
             # Cycle all - if all at same level, cycle forward; otherwise collapse all
             if (

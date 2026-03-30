@@ -280,6 +280,10 @@ class FoldModeKeymaps(ModeKeymaps):
             "cycle_hooks": "h",
             "cycle_mentors": "m",
             "cycle_timestamps": "t",
+            "toggle_commits": "C",
+            "toggle_hooks": "H",
+            "toggle_mentors": "M",
+            "toggle_timestamps": "T",
             "cycle_all": "z",
             "toggle_all": "Z",
         }
