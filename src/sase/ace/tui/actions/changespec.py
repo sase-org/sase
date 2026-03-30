@@ -142,6 +142,22 @@ class ChangeSpecMixin:
                 if cs.name == current_name:
                     new_idx = idx
                     break
+            else:
+                # Name changed (suffix strip/append) -- match by base name
+                from sase.core.changespec import strip_reverted_suffix
+
+                base = strip_reverted_suffix(current_name)
+                # Prefer exact base name (suffix was stripped)
+                for idx, cs in enumerate(new_changespecs):
+                    if cs.name == base:
+                        new_idx = idx
+                        break
+                else:
+                    # Try any CS with same base name (suffix was appended)
+                    for idx, cs in enumerate(new_changespecs):
+                        if strip_reverted_suffix(cs.name) == base:
+                            new_idx = idx
+                            break
 
         self.changespecs = new_changespecs  # type: ignore[assignment]
         self.current_idx = new_idx

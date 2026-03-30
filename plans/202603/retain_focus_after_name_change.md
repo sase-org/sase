@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 10:39:59
-status: wip
+status: done
 ---
 
 # Plan: Retain ChangeSpec Focus After Status-Induced Name Changes
