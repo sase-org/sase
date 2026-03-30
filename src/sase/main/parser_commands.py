@@ -29,72 +29,41 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         "commit",
         help="Dispatch a VCS commit operation",
     )
-    commit_subparsers = commit_parser.add_subparsers(
-        dest="commit_subcommand", help="Commit subcommands"
+    commit_parser.add_argument(
+        "-m",
+        "--message-file",
+        help="Path to file containing the commit message / PR description",
     )
-
-    def add_common_commit_args(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument(
-            "-m",
-            "--message",
-            help="Commit message string",
-        )
-        parser.add_argument(
-            "-F",
-            "--message-file",
-            help="Path to file containing the commit message / PR description",
-        )
-        parser.add_argument(
-            "-p",
-            "--project",
-            help="Project name (e.g., sase-google) to commit to",
-        )
-        parser.add_argument(
-            "-f",
-            "--file",
-            action="append",
-            default=[],
-            dest="files",
-            help="File to stage (repeat for multiple; omit to stage all changes)",
-        )
-        parser.add_argument(
-            "-n",
-            "--name",
-            help="Branch/CL name (required for create_pull_request)",
-        )
-        parser.add_argument(
-            "-b",
-            "--bead-id",
-            help="Bead ID to close and associate with the commit",
-        )
-        parser.add_argument(
-            "-c",
-            "--checkout-target",
-            default="HEAD~1",
-            help="Branch point for create_pull_request (default: HEAD~1)",
-        )
-        parser.add_argument(
-            "-M",
-            "--method",
-            choices=["create_commit", "create_proposal", "create_pull_request"],
-            help="Override commit method (default: based on subcommand)",
-        )
-
-    # sase commit create
-    create_parser = commit_subparsers.add_parser("create", help="Create a VCS commit")
-    add_common_commit_args(create_parser)
-
-    # sase commit proposal
-    proposal_parser = commit_subparsers.add_parser(
-        "proposal", help="Create a VCS proposal (e.g., proposed commit entry)"
+    commit_parser.add_argument(
+        "-f",
+        "--file",
+        action="append",
+        default=[],
+        dest="files",
+        help="File to stage (repeat for multiple; omit to stage all changes)",
     )
-    add_common_commit_args(proposal_parser)
-
-    # sase commit pull-request
-    pr_parser = commit_subparsers.add_parser(
-        "pull-request", help="Create a VCS pull request / changelist"
+    commit_parser.add_argument(
+        "-n",
+        "--name",
+        help="Branch/CL name (required for create_pull_request)",
     )
-    add_common_commit_args(pr_parser)
+    commit_parser.add_argument(
+        "-b",
+        "--bead-id",
+        help="Bead ID to close and associate with the commit",
+    )
+    commit_parser.add_argument(
+        "-c",
+        "--checkout-target",
+        default="HEAD~1",
+        help="Branch point for create_pull_request (default: HEAD~1)",
+    )
+    commit_parser.add_argument(
+        "-M",
+        "--method",
+        choices=["create_commit", "create_proposal", "create_pull_request"],
+        help="Commit method (default: $SASE_COMMIT_METHOD or create_commit)",
+    )
 
 
 def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
