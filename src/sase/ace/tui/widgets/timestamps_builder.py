@@ -76,7 +76,7 @@ def build_timestamps_section(
             continue
 
         # Timestamp
-        text.append(f"  {entry.timestamp} ", style=_COLOR_TIMESTAMP)
+        text.append(f"  [{entry.timestamp}] ", style=_COLOR_TIMESTAMP)
 
         # Event type keyword
         padded_event = entry.event_type.ljust(7)

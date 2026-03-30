@@ -14,11 +14,11 @@ _EVENT_WIDTH = 7
 def format_timestamp_entry_line(event_type: str, detail: str) -> str:
     """Format a single TIMESTAMPS entry line with the current time.
 
-    Returns a string like ``  260330_120000 COMMIT  (1)\\n``.
+    Returns a string like ``  [260330_120000] COMMIT  (1)\\n``.
     """
     ts = generate_timestamp()
     padded_event = event_type.ljust(_EVENT_WIDTH)
-    return f"  {ts} {padded_event}{detail}\n"
+    return f"  [{ts}] {padded_event}{detail}\n"
 
 
 def add_timestamp_entry_atomic(
