@@ -2,15 +2,9 @@
 
 import re
 import sys
-from datetime import datetime
 
 from sase.ace.changespec.locking import changespec_lock, write_changespec_atomic
-from sase.core.time import get_timezone
-
-
-def get_current_display_timestamp() -> str:
-    """Return the current time as ``YYYY-MM-DD HH:MM:SS`` in project timezone."""
-    return datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S")
+from sase.core.time import generate_timestamp
 
 
 # Event type keywords are right-padded to 7 chars for column alignment
@@ -20,11 +14,11 @@ _EVENT_WIDTH = 7
 def format_timestamp_entry_line(event_type: str, detail: str) -> str:
     """Format a single TIMESTAMPS entry line with the current time.
 
-    Returns a string like ``  [2026-03-30 12:00:00] COMMIT  (1)\\n``.
+    Returns a string like ``  260330_120000 COMMIT  (1)\\n``.
     """
-    ts = get_current_display_timestamp()
+    ts = generate_timestamp()
     padded_event = event_type.ljust(_EVENT_WIDTH)
-    return f"  [{ts}] {padded_event}{detail}\n"
+    return f"  {ts} {padded_event}{detail}\n"
 
 
 def add_timestamp_entry_atomic(
@@ -112,7 +106,7 @@ def _find_timestamps_insert_point(lines: list[str], cl_name: str) -> int | None:
                 timestamps_header_idx = i
             elif timestamps_header_idx >= 0 and line.startswith("  "):
                 # Lines belonging to the TIMESTAMPS section
-                if re.match(r"^\s+\[\d{4}-\d{2}-\d{2}", line):
+                if re.match(r"^\s+(?:\[\d{4}-\d{2}-\d{2}|\d{6}_\d{6})", line):
                     last_timestamps_entry_idx = i
 
     if not in_target and timestamps_header_idx < 0:
