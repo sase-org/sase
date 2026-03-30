@@ -363,8 +363,19 @@ def dedup_by_pid(agents: list[Agent]) -> list[Agent]:
                 # follow-up phases (plan→code) from the same runner process.
                 # Keep both; they represent different work, not duplicates.
                 pass
+            elif (
+                agent.agent_type == AgentType.RUNNING
+                and existing.agent_type == AgentType.RUNNING
+                and agent.raw_suffix
+                and existing.raw_suffix
+                and agent.raw_suffix != existing.raw_suffix
+            ):
+                # Both RUNNING agents with distinct timestamps — these are
+                # separate agents that share a PID due to OS PID recycling.
+                # Keep both.
+                pass
             else:
-                # Same type — remove the newer one (current agent)
+                # Same type, same or missing suffix — remove the newer one
                 _merge_agent_fields(existing, agent)
                 pid_remove_ids.add(id(agent))
         else:

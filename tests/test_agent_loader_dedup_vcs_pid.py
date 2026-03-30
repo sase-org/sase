@@ -634,3 +634,204 @@ def test_pid_dedup_preserves_followup_workflow_agents() -> None:
     suffixes = {a.raw_suffix for a in result}
     assert "20260315213215" in suffixes
     assert "20260315214530" in suffixes
+
+
+def test_pid_reuse_keeps_both_running_agents_with_different_suffix() -> None:
+    """Two RUNNING agents with same PID but different raw_suffix are kept.
+
+    OS PID recycling can assign a new agent the same PID as a stale entry.
+    When both have distinct raw_suffix values, they are separate agents.
+    """
+    agent_a = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix="20260330120000",
+        pid=55555,
+    )
+
+    agent_b = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="user-run",
+        raw_suffix="20260330120500",
+        pid=55555,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[agent_a, agent_b],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    assert len(result) == 2
+    suffixes = {a.raw_suffix for a in result}
+    assert "20260330120000" in suffixes
+    assert "20260330120500" in suffixes
+
+
+def test_pid_reuse_merges_running_agents_with_same_suffix() -> None:
+    """Two RUNNING agents with same PID and same raw_suffix are merged (true duplicate)."""
+    agent_a = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix="20260330120000",
+        pid=55555,
+    )
+
+    agent_b = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix="20260330120000",
+        workspace_num=100,
+        pid=55555,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[agent_a, agent_b],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    assert len(result) == 1
+    assert result[0].raw_suffix == "20260330120000"
+    assert result[0].workspace_num == 100  # merged from agent_b
+
+
+def test_pid_reuse_merges_running_agents_with_missing_suffix() -> None:
+    """Two RUNNING agents with same PID, one missing raw_suffix, are merged (legacy fallback)."""
+    agent_a = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix="20260330120000",
+        pid=55555,
+    )
+
+    agent_b = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix=None,
+        workspace_num=100,
+        pid=55555,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
+            return_value=[agent_a, agent_b],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps",
+            return_value=([], {}),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.is_process_running",
+            return_value=True,
+        ),
+    ):
+        result = load_all_agents()
+
+    assert len(result) == 1
+    assert result[0].workspace_num == 100  # merged from agent_b
