@@ -1,5 +1,7 @@
 """Functions for loading and aggregating agents from all sources."""
 
+from datetime import datetime
+
 from ...changespec import find_all_changespecs
 from ...hooks.processes import is_process_running
 from ._dedup import (
@@ -261,6 +263,18 @@ def _apply_status_overrides(agents: list[Agent]) -> None:
             and agent.raw_suffix not in parents_with_followup
         ):
             agent.status = "PLANNING"
+
+    # Attach all follow-up agents to their parent's followup_agents list.
+    for agent in agents:
+        if agent.parent_timestamp and not agent.parent_workflow:
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if parent:
+                parent.followup_agents.append(agent)
+
+    # Sort follow-up agents chronologically (oldest first).
+    for agent in agents:
+        if agent.followup_agents:
+            agent.followup_agents.sort(key=lambda a: a.start_time or datetime.min)
 
 
 def _sort_and_reorder(

@@ -75,8 +75,43 @@ class AgentDisplayMixin:
                 word_wrap=True,
             )
 
+            # For agents with follow-ups, show consolidated reply
+            if agent.followup_agents:
+                renderables: list[Text | Syntax] = [header_text]
+                if error_tb_syntax:
+                    renderables.append(error_tb_syntax)
+                renderables.append(prompt_syntax)
+
+                reply_header = Text()
+                reply_header.append("\n")
+                reply_header.append("─" * 50 + "\n", style="dim")
+                reply_header.append("\n")
+                reply_header.append("AGENT REPLY\n", style="bold #D7AF5F underline")
+                reply_header.append("\n")
+                renderables.append(reply_header)
+
+                # Main agent's phase
+                renderables.append(
+                    self._render_phase_divider(
+                        self._get_phase_label(agent),
+                        agent.run_start_time or agent.start_time,
+                    )
+                )
+                renderables.extend(self._render_agent_reply_content(agent))
+
+                # Follow-up phases
+                for followup in agent.followup_agents:
+                    renderables.append(
+                        self._render_phase_divider(
+                            self._get_phase_label(followup),
+                            followup.run_start_time or followup.start_time,
+                        )
+                    )
+                    renderables.extend(self._render_agent_reply_content(followup))
+
+                self.update(Group(*renderables))  # type: ignore[attr-defined]
             # For completed or failed agents/steps, also show the response
-            if agent.status in ("DONE", "FAILED"):
+            elif agent.status in ("DONE", "FAILED"):
                 reply_header = Text()
                 reply_header.append("\n")
                 reply_header.append("─" * 50 + "\n", style="dim")
@@ -97,7 +132,7 @@ class AgentDisplayMixin:
                 ):
                     response_content = format_output(agent.step_output)
 
-                renderables: list[Text | Syntax] = [header_text]
+                renderables = [header_text]
                 if error_tb_syntax:
                     renderables.append(error_tb_syntax)
                 renderables.append(prompt_syntax)
@@ -266,8 +301,46 @@ class AgentDisplayMixin:
                 workspace_dir,
             )
 
+            # Consolidated AGENT REPLY for agents with follow-ups (with hints)
+            if agent.followup_agents:
+                header_text.append("\n")
+                header_text.append("─" * 50 + "\n", style="dim")
+                header_text.append("\n")
+                header_text.append("AGENT REPLY\n", style="bold #D7AF5F underline")
+                header_text.append("\n")
+
+                # Main agent's phase
+                header_text.append_text(
+                    self._render_phase_divider(
+                        self._get_phase_label(agent),
+                        agent.run_start_time or agent.start_time,
+                    )
+                )
+                hint_counter = self._render_agent_reply_content_with_hints(
+                    agent,
+                    header_text,
+                    hint_counter,
+                    hint_mappings,
+                    workspace_dir,
+                )
+
+                # Follow-up phases
+                for followup in agent.followup_agents:
+                    header_text.append_text(
+                        self._render_phase_divider(
+                            self._get_phase_label(followup),
+                            followup.run_start_time or followup.start_time,
+                        )
+                    )
+                    hint_counter = self._render_agent_reply_content_with_hints(
+                        followup,
+                        header_text,
+                        hint_counter,
+                        hint_mappings,
+                        workspace_dir,
+                    )
             # AGENT CHAT section for completed agents (with hints)
-            if agent.status in ("DONE", "FAILED"):
+            elif agent.status in ("DONE", "FAILED"):
                 response_content = agent.get_response_content()
                 # Only use step_output when it has displayable content (_raw/_data),
                 # not when it only contains meta_* metadata fields.
@@ -365,6 +438,119 @@ class AgentDisplayMixin:
         divider = Text()
         divider.append(prefix + "─" * suffix_len + "\n", style="dim #D7D7FF")
         return divider
+
+    @staticmethod
+    def _get_phase_label(agent: Agent) -> str:
+        """Map role_suffix to human-readable phase label."""
+        suffix = agent.role_suffix
+        if suffix == ".plan":
+            return "PLANNER"
+        if suffix == ".code":
+            return "CODER"
+        if suffix == ".q":
+            return "QUESTIONS"
+        if suffix == ".epic":
+            return "EPIC"
+        if suffix and suffix.startswith(".") and suffix[1:].isdigit():
+            return f"PLANNER (round {suffix[1:]})"
+        return "AGENT"
+
+    @staticmethod
+    def _render_phase_divider(label: str, start_time: "datetime | None") -> Text:
+        """Create a styled phase divider: ``─── LABEL ─── HH:MM:SS ───…───``."""
+        if start_time:
+            try:
+                local_dt = start_time.astimezone()
+                time_str = local_dt.strftime("%H:%M:%S")
+            except (ValueError, OSError):
+                time_str = "??:??:??"
+        else:
+            time_str = "??:??:??"
+        divider = Text()
+        divider.append("─── ", style="dim #AF87FF")
+        divider.append(label, style="bold #AF87FF")
+        divider.append(f" ─── {time_str} ", style="dim #AF87FF")
+        used = 4 + len(label) + 5 + len(time_str) + 1
+        remaining = max(50 - used, 3)
+        divider.append("─" * remaining + "\n", style="dim #AF87FF")
+        return divider
+
+    def _render_agent_reply_content(self, agent: Agent) -> list["Text | Syntax"]:
+        """Render one agent's reply (chunks, live reply, or response)."""
+        renderables: list[Text | Syntax] = []
+        chunks = agent.get_timestamped_reply_chunks()
+        if chunks:
+            for ts, chunk_text in chunks:
+                renderables.append(self._render_timestamp_divider(ts))
+                content = chunk_text.strip()
+                if content:
+                    renderables.append(
+                        Syntax(content, "markdown", theme="monokai", word_wrap=True)
+                    )
+            return renderables
+        live_reply = agent.get_live_reply_content()
+        if live_reply:
+            renderables.append(
+                Syntax(live_reply, "markdown", theme="monokai", word_wrap=True)
+            )
+            return renderables
+        response_content = agent.get_response_content()
+        if response_content:
+            renderables.append(
+                Syntax(
+                    response_content,
+                    "markdown",
+                    theme="monokai",
+                    word_wrap=True,
+                )
+            )
+        return renderables
+
+    def _render_agent_reply_content_with_hints(
+        self,
+        agent: Agent,
+        target: Text,
+        hint_counter: int,
+        hint_mappings: dict[int, str],
+        workspace_dir: str | None,
+    ) -> int:
+        """Render one agent's reply content with file hints into a Text."""
+        from ._file_path_hints import append_text_with_file_hints
+
+        chunks = agent.get_timestamped_reply_chunks()
+        if chunks:
+            for ts, chunk_text in chunks:
+                target.append_text(self._render_timestamp_divider(ts))
+                content = chunk_text.strip()
+                if content:
+                    hint_counter = append_text_with_file_hints(
+                        target,
+                        content + "\n",
+                        hint_counter,
+                        hint_mappings,
+                        workspace_dir,
+                    )
+                    target.append("\n")
+            return hint_counter
+        live_reply = agent.get_live_reply_content()
+        if live_reply:
+            return append_text_with_file_hints(
+                target,
+                live_reply + "\n",
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
+        response_content = agent.get_response_content()
+        if response_content:
+            return append_text_with_file_hints(
+                target,
+                response_content + "\n",
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
+        return hint_counter
 
     def _build_header_text(self, agent: Agent) -> tuple[Text, "Syntax | None"]:
         """Build the AGENT DETAILS header section with trailing separator.
