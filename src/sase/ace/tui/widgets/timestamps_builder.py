@@ -8,7 +8,7 @@ from .hint_tracker import HintTracker
 
 # Color palette for TIMESTAMPS rendering
 _COLOR_HEADER = "bold #87D7FF"
-_COLOR_TIMESTAMP = "dim #808080"
+_COLOR_TIMESTAMP = "#AF87D7"
 _COLOR_COMMIT = "bold #00D7AF"
 _COLOR_STATUS = "bold #FFD787"
 _COLOR_SYNC = "bold #5FD7FF"
@@ -59,7 +59,7 @@ def build_timestamps_section(
 
     if timestamps_fold == FoldLevel.COLLAPSED:
         text.append("TIMESTAMPS:", style=_COLOR_HEADER)
-        text.append(f" [folded: {len(changespec.timestamps)}]", style="italic #808080")
+        text.append(f" [folded: {len(changespec.timestamps)}]", style="italic #AF87D7")
         text.append("\n")
         return tracker
 

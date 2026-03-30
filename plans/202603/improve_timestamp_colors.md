@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 13:44:38
-status: wip
+status: done
 ---
 
 # Plan: Improve Timestamp Colors in TUI and Neovim
