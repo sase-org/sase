@@ -728,7 +728,7 @@ class AgentsMixinCore(
             pinned_container.remove_class("panel-active")
 
         # Set border title on pinned container
-        pinned_container.border_title = f"Pinned ({pinned_count})"
+        pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_count})"
 
     def action_focus_pinned_panel(self) -> None:
         """Toggle focus between main agent list and pinned panel."""

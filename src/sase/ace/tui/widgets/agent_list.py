@@ -246,7 +246,7 @@ class AgentList(OptionList):
                 agent,
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
-                is_pinned=is_pinned,
+                is_pinned=is_pinned and self._panel != "pinned",
             )
             max_width = max(max_width, width)
 
@@ -338,8 +338,12 @@ class AgentList(OptionList):
         if agent.hidden:
             text.append(f"{_HIDDEN_ICON} ", style="bold #FF5F87")
 
-        # Pin icon for pinned agents
-        if is_pinned and agent.status in _DISMISSIBLE_STATUSES:
+        # Pin icon for pinned agents (only in main panel; pinned panel has it in title)
+        if (
+            is_pinned
+            and agent.status in _DISMISSIBLE_STATUSES
+            and self._panel != "pinned"
+        ):
             text.append(f"{_PIN_ICON} ", style="bold #FFD700")
 
         # Done icon for dismissible agents
