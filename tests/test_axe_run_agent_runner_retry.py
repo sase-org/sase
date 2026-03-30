@@ -168,6 +168,7 @@ def _run_main(patches: dict[str, Any], tmp_path: Path) -> Path:
     ]
 
     stack: list[Any] = []
+    saved_env = os.environ.copy()
     with patch.object(sys, "argv", argv):
         for target, value in patches.items():
             p = patch(target, value)
@@ -181,6 +182,8 @@ def _run_main(patches: dict[str, Any], tmp_path: Path) -> Path:
         finally:
             for p in stack:
                 p.stop()
+            os.environ.clear()
+            os.environ.update(saved_env)
     return adir  # type: ignore[possibly-undefined]
 
 
