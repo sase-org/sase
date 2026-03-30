@@ -573,6 +573,9 @@ Press `P` on a completed agent to toggle its pinned state. Pinned agents are sho
 the `X` (dismiss all) operation. This lets you preserve specific completed agents for reference while bulk-dismissing
 the rest. Pinned state is persisted across TUI sessions in `~/.sase/pinned_agents.json`.
 
+When no agents are pinned, the pinned panel container is fully hidden (`display: none`) rather than reserving empty
+space, keeping the layout compact.
+
 ## Agents Tab Metadata Panel
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:

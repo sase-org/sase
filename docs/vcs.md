@@ -181,10 +181,10 @@ Pushes changes for review. The flow differs significantly between providers.
 
 Displays the diff for a ChangeSpec. Uses `diff()` for uncommitted changes or `diff_revision()` for committed revisions.
 
-| Type        | Git                      | Mercurial          |
-| ----------- | ------------------------ | ------------------ |
-| Uncommitted | `git diff HEAD`          | `hg diff`          |
-| Revision    | `git diff <rev>~1 <rev>` | `hg diff -c <rev>` |
+| Type        | Git                                              | Mercurial          |
+| ----------- | ------------------------------------------------ | ------------------ |
+| Uncommitted | `git diff HEAD`                                  | `hg diff`          |
+| Revision    | `git diff origin/<default>...<rev>` (merge-base) | `hg diff -c <rev>` |
 
 #### Revert (`X` key / status change to "Reverted")
 
@@ -314,7 +314,9 @@ git branch -D <name>
 ### Diff
 
 - **Uncommitted changes**: `git diff HEAD` (falls back to `git diff` for empty repos)
-- **Specific revision**: `git diff <rev>~1 <rev>` (falls back to `git show` for root commits)
+- **Specific revision**: `git diff origin/<default>...<rev>` (three-dot merge-base syntax, showing the full PR diff).
+  Falls back to `git diff <rev>~1 <rev>` for edge cases (detached HEAD, orphan branches), then to `git show` for root
+  commits.
 
 ### Workspace Info
 

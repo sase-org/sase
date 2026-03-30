@@ -302,24 +302,26 @@ Records a chronological audit trail of lifecycle events. Each entry includes a t
 
 ```
 TIMESTAMPS:
-  260328_143052 COMMIT  Add JWT token validation
-  260328_151203 STATUS  WIP -> Draft
-  260328_151510 SYNC    Synced with remote
-  260328_160044 REWORD  Updated description title
+  [260328_143052] COMMIT  Add JWT token validation
+  [260328_151203] STATUS  WIP -> Draft
+  [260328_151510] SYNC    Synced with remote
+  [260328_160044] REWORD  Updated description title
+  [260328_163012] REWIND  (2)
 ```
 
 **Event types:**
 
-| Type     | Description                                    |
-| -------- | ---------------------------------------------- |
-| `COMMIT` | A commit was added to the ChangeSpec           |
-| `STATUS` | A status transition occurred (e.g., WIP→Draft) |
-| `SYNC`   | A sync operation was performed                 |
-| `REWORD` | The description was edited                     |
+| Type     | Description                                                       |
+| -------- | ----------------------------------------------------------------- |
+| `COMMIT` | A commit was added to the ChangeSpec                              |
+| `STATUS` | A status transition occurred (e.g., WIP→Draft)                    |
+| `SYNC`   | A sync operation was performed                                    |
+| `REWORD` | The description was edited                                        |
+| `REWIND` | A rewind to a previous commit entry occurred (detail shows `(N)`) |
 
-Timestamps use the format `YYMMDD_HHMMSS` (matching the HOOKS field format) and are recorded atomically by sase — this
-section is not manually edited. Multiple events of the same type may appear (e.g., multiple COMMITs or STATUS
-transitions).
+Timestamps use the format `[YYMMDD_HHMMSS]` (square-bracketed, matching the HOOKS field format) and are recorded
+atomically by sase — this section is not manually edited. Multiple events of the same type may appear (e.g., multiple
+COMMITs or STATUS transitions).
 
 ### HOOKS
 
