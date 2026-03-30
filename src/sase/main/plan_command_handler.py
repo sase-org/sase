@@ -12,6 +12,29 @@ from typing import NoReturn
 from sase.main.utils import kill_agent_runner_group
 
 
+def _cleanup_transient_plan_file(plan_path: Path) -> None:
+    """Delete transient local ``sase_plan_*.md`` files after archival.
+
+    Plans created via the /sase_plan skill are temporary workspace artifacts.
+    Leaving them in repo roots can cause later ``just check`` prettier failures.
+    """
+    try:
+        cwd = Path.cwd().resolve()
+        resolved = plan_path.resolve()
+    except OSError:
+        return
+
+    if resolved.parent != cwd:
+        return
+    if not resolved.name.startswith("sase_plan_") or resolved.suffix != ".md":
+        return
+
+    try:
+        resolved.unlink()
+    except OSError:
+        pass
+
+
 def handle_plan_command(plan_file: str) -> NoReturn:
     """Submit a plan file for approval (used by /sase_plan skill).
 
@@ -60,6 +83,9 @@ def handle_plan_command(plan_file: str) -> NoReturn:
         json.dump(marker_data, f, indent=2)
         f.flush()
         os.fsync(f.fileno())
+
+    # Remove transient root plan files to avoid later prettier-check failures.
+    _cleanup_transient_plan_file(plan_path)
 
     # Kill the agent runner's process group (which includes the claude
     # subprocess).  We cannot use our own process group because Claude Code
