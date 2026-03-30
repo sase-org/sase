@@ -425,7 +425,14 @@ def parse_timestamps_line(
             r"(.+)$",
             stripped,
         )
-        ts_match = new_match or old_match
+        # Hybrid format: [YYMMDD_HHMMSS] EVENT  detail (migration transition)
+        hybrid_match = re.match(
+            r"^\[(\d{6}_\d{6})\]\s+"
+            r"(COMMIT|STATUS|SYNC|REWORD|REWIND)\s+"
+            r"(.+)$",
+            stripped,
+        )
+        ts_match = new_match or old_match or hybrid_match
         if ts_match:
             timestamp_entries.append(
                 TimestampEntry(

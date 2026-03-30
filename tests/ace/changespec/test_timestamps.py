@@ -112,6 +112,41 @@ TIMESTAMPS:
         os.unlink(path)
 
 
+def test_parse_timestamps_hybrid_format() -> None:
+    """Parse hybrid [YYMMDD_HHMMSS] format from migration transition."""
+    content = """\
+NAME: my-cl
+DESCRIPTION:
+  Some description
+STATUS: WIP
+TIMESTAMPS:
+  [260330_102053] SYNC    success
+  [260330_102100] COMMIT  (1)
+
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        f.flush()
+        path = f.name
+
+    try:
+        changespecs = parse_project_file(path)
+        assert len(changespecs) == 1
+        cs = changespecs[0]
+        assert cs.timestamps is not None
+        assert len(cs.timestamps) == 2
+
+        assert cs.timestamps[0].timestamp == "260330_102053"
+        assert cs.timestamps[0].event_type == "SYNC"
+        assert cs.timestamps[0].detail == "success"
+
+        assert cs.timestamps[1].timestamp == "260330_102100"
+        assert cs.timestamps[1].event_type == "COMMIT"
+        assert cs.timestamps[1].detail == "(1)"
+    finally:
+        os.unlink(path)
+
+
 def test_parse_no_timestamps_section() -> None:
     """ChangeSpec without TIMESTAMPS should have timestamps=None."""
     content = """\
@@ -208,6 +243,20 @@ def test_find_timestamps_insert_appends_to_old_format() -> None:
         "STATUS: WIP\n",
         "TIMESTAMPS:\n",
         "  [2026-03-29 14:30:22] COMMIT  (1)\n",
+        "\n",
+        "\n",
+    ]
+    idx = _find_timestamps_insert_point(lines, "my-cl")
+    assert idx == 4  # right after entry on line 3
+
+
+def test_find_timestamps_insert_appends_to_hybrid_format() -> None:
+    """New entries append after hybrid [YYMMDD_HHMMSS] entries."""
+    lines = [
+        "NAME: my-cl\n",
+        "STATUS: WIP\n",
+        "TIMESTAMPS:\n",
+        "  [260330_102053] SYNC    success\n",
         "\n",
         "\n",
     ]
