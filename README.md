@@ -136,7 +136,7 @@ sase
 | `sase axe start`           | Start the lumberjack-based daemon (orchestrator mode)                                                          |
 | `sase axe stop`            | Stop the running axe orchestrator                                                                              |
 | `sase bead blocked`        | Show blocked issues                                                                                            |
-| `sase bead close`          | Close an issue (with optional reason)                                                                          |
+| `sase bead close`          | Close one or more issues (with optional reason)                                                                |
 | `sase bead create`         | Create a new issue (plan or phase)                                                                             |
 | `sase bead dep add`        | Add a dependency between issues                                                                                |
 | `sase bead doctor`         | Run health checks on the bead database                                                                         |
@@ -144,7 +144,7 @@ sase
 | `sase bead list`           | List issues (with optional status/type filters)                                                                |
 | `sase bead onboard`        | Show quick-start guide                                                                                         |
 | `sase bead ready`          | Show issues ready to work (unblocked, open)                                                                    |
-| `sase bead rm`             | Remove an issue                                                                                                |
+| `sase bead rm`             | Remove an issue and all its children                                                                           |
 | `sase bead show`           | Show issue details                                                                                             |
 | `sase bead stats`          | Show project statistics                                                                                        |
 | `sase bead sync`           | Sync bead database with git                                                                                    |

@@ -31,16 +31,14 @@ approvals.
 
 The following events generate notifications:
 
-| Sender       | Event                                                                |
-| ------------ | -------------------------------------------------------------------- |
-| `plan`       | A plan file is ready for user review and approval                    |
-| `question`   | An agent is asking the user a question (via Claude Code hook)        |
-| `hitl`       | A workflow HITL step is waiting for user input                       |
-| `sync`       | A sync operation completed for a ChangeSpec                          |
-| `axe`        | Hourly error digest summarizing recent axe errors                    |
-| (agent name) | Agent retry after a recoverable error (includes countdown and model) |
-| (agent name) | Agent model fallback after exhausting retries                        |
-| (workflow)   | Workflow completion (success or failure)                             |
+| Sender     | Event                                                         |
+| ---------- | ------------------------------------------------------------- |
+| `plan`     | A plan file is ready for user review and approval             |
+| `question` | An agent is asking the user a question (via Claude Code hook) |
+| `hitl`     | A workflow HITL step is waiting for user input                |
+| `sync`     | A sync operation completed for a ChangeSpec                   |
+| `axe`      | Hourly error digest summarizing recent axe errors             |
+| (workflow) | Workflow completion (success or failure)                      |
 
 ## Notification Fields
 
@@ -57,6 +55,13 @@ Each notification contains:
 | `action_data` | dict         | Action-specific data (e.g., response directory, CL name)      |
 | `read`        | bool         | Whether the notification has been read                        |
 | `dismissed`   | bool         | Whether the notification has been dismissed                   |
+| `silent`      | bool         | Silent notifications are stored but hidden from the TUI       |
+
+## Silent Notifications
+
+Notifications from hidden background agents (summarize-hook, fix-hook, mentor) are created with `silent=True`. Silent
+notifications are written to the JSONL file (preserving the audit trail) but excluded from the TUI unread count, bell
+indicator, toast, notification modal, and Telegram delivery.
 
 ## CLI
 
