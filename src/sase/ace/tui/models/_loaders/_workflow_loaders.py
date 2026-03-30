@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ....hooks.processes import is_process_running
-from ._artifact_loaders import enrich_agent_from_meta
+from ._artifact_loaders import meta_from_commit_result, enrich_agent_from_meta
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
@@ -273,6 +273,17 @@ def load_workflow_agents(
                     step_output = dict(step_output)
                 step_output.update(meta)
 
+        # Fallback: derive meta from commit_result.json for keys not
+        # already present (stop-hook commit flows).
+        if entry.artifacts_dir:
+            commit_meta = meta_from_commit_result(entry.artifacts_dir)
+            if commit_meta:
+                if step_output is None:
+                    step_output = {}
+                for k, v in commit_meta.items():
+                    if k not in step_output:
+                        step_output[k] = v
+
         # Extract workspace_num from step output meta_workspace
         workspace_num = None
         if step_output and step_output.get("meta_workspace"):
@@ -430,6 +441,19 @@ def load_workflow_agent_steps(
                                 if path_value:
                                     diff_path = str(path_value)
                                     break
+
+                # Fallback: derive meta from commit_result.json for keys
+                # not already in step_output (stop-hook commit flows).
+                if artifacts_dir_from_marker:
+                    commit_meta = meta_from_commit_result(artifacts_dir_from_marker)
+                    if commit_meta:
+                        if step_output is None:
+                            step_output = {}
+                        elif not isinstance(step_output, dict):
+                            step_output = {}
+                        for k, v in commit_meta.items():
+                            if k not in step_output:
+                                step_output[k] = v
 
                 # Collect meta_* fields for parent workflow enrichment
                 if isinstance(step_output, dict):

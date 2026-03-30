@@ -368,8 +368,42 @@ def load_done_agents(
     return agents
 
 
+def meta_from_commit_result(artifacts_dir: str) -> dict[str, str]:
+    """Derive meta_* fields from commit_result.json as a fallback.
+
+    Returns a dict of meta keys that can be used when prompt_step outputs
+    did not already supply them (e.g. stop-hook commit flows).
+    """
+    path = Path(artifacts_dir) / "commit_result.json"
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+
+    meta: dict[str, str] = {}
+    result = data.get("result") or ""
+    message = data.get("message") or ""
+    changespec_name = data.get("changespec_name") or ""
+    name = data.get("name") or ""
+
+    if result:
+        meta["meta_new_commit"] = str(result)
+    if message:
+        meta["meta_commit_message"] = str(message)
+    cs = changespec_name or name
+    if cs:
+        meta["meta_changespec"] = str(cs)
+    return meta
+
+
 def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
     """Read prompt_step_*.json markers and populate meta_* fields on step_output.
+
+    Falls back to commit_result.json for any meta keys not already provided
+    by prompt-step outputs (e.g. stop-hook commit flows).
 
     Args:
         agent: The Agent to enrich (modified in place).
@@ -390,6 +424,13 @@ def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
             for k, v in output.items():
                 if k.startswith("meta_") and v:
                     meta_fields[k] = str(v)
+
+    # Fallback: derive meta from commit_result.json for keys not yet present
+    commit_meta = meta_from_commit_result(artifacts_dir)
+    for k, v in commit_meta.items():
+        if k not in meta_fields:
+            meta_fields[k] = v
+
     if meta_fields:
         if agent.step_output is None:
             agent.step_output = {}
