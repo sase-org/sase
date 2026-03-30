@@ -59,7 +59,7 @@ def build_timestamps_section(
 
     if timestamps_fold == FoldLevel.COLLAPSED:
         text.append("TIMESTAMPS:", style=_COLOR_HEADER)
-        text.append(f" [folded: {len(changespec.timestamps)}]", style="italic #AF87D7")
+        text.append(f" [folded: {len(changespec.timestamps)}]", style="italic #808080")
         text.append("\n")
         return tracker
 

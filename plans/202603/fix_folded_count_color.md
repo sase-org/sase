@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 13:55:40
-status: wip
+status: done
 ---
 
 # Plan: Fix TIMESTAMPS Folded Count Color
