@@ -72,6 +72,38 @@ def _is_axe_spawned_agent(agent: Agent) -> bool:
     return False
 
 
+def _load_agents_data() -> list[Agent]:
+    """Pure data loading: load_all_agents() + retry enrichment.
+
+    Thread-safe — accesses no mixin state.
+    """
+    from ...models import load_all_agents
+    from sase.llm_provider.retry_config import RetryState
+
+    all_agents = load_all_agents()
+
+    for agent in all_agents:
+        if agent.status != "RUNNING":
+            continue
+        artifacts_dir = agent.get_artifacts_dir()
+        if not artifacts_dir:
+            continue
+        retry_state = RetryState.read_from(artifacts_dir)
+        if retry_state is None:
+            continue
+        agent.retry_count = retry_state.retry_count
+        agent.max_retries = retry_state.max_retries
+        agent.retry_next_at_epoch = retry_state.next_retry_at_epoch
+        agent.retry_wait_seconds = retry_state.wait_seconds
+        agent.using_fallback = retry_state.using_fallback
+        agent.fallback_model = retry_state.fallback_model
+        agent.retry_status = retry_state.status
+        if retry_state.status == "retrying":
+            agent.status = "RETRYING"
+
+    return all_agents
+
+
 class AgentLoadingMixin:
     """Mixin providing agent loading and filtering methods.
 
@@ -113,43 +145,66 @@ class AgentLoadingMixin:
     # Pinned agents
     _pinned_agents: set[tuple[AgentType, str, str | None]]
 
+    # Phase 3: display fingerprint for skipping redundant widget rebuilds
+    _agents_display_fingerprint: tuple | None = None
+
+    # Phase 4: worker generation counter for stale result detection
+    _agent_load_generation: int = 0
+
     def _load_agents(self) -> None:
         """Load agents from all sources."""
-        from ...models import load_all_agents
+        from ...models.agent_loader import _cache
 
-        # Only capture selection identity if we're on the agents tab
-        # (current_idx refers to changespecs when on changespecs tab)
+        # Phase 4: cache hit → synchronous fast path
+        if _cache.is_valid():
+            all_agents = _load_agents_data()
+            self._apply_loaded_agents(all_agents)
+            return
+
+        # First load — must be synchronous
+        if not self._agents:
+            all_agents = _load_agents_data()
+            self._apply_loaded_agents(all_agents)
+            return
+
+        # Cache miss with existing data — non-blocking worker thread
+        self._agent_load_generation += 1
+        gen = self._agent_load_generation
+
+        def _worker() -> None:
+            try:
+                agents = _load_agents_data()
+            except Exception:
+                return
+            self.call_from_thread(  # type: ignore[attr-defined]
+                self._apply_loaded_agents, agents, gen
+            )
+
+        self.run_worker(  # type: ignore[attr-defined]
+            _worker,
+            thread=True,
+            group="agent_loader",
+            exclusive=True,
+        )
+
+    def _apply_loaded_agents(
+        self, all_agents: list[Agent], _gen: int | None = None
+    ) -> None:
+        """Apply loaded agent data to mixin state and update display.
+
+        Args:
+            all_agents: Fresh agent list from _load_agents_data().
+            _gen: Worker generation counter (None for synchronous calls).
+        """
+        # Discard stale worker results (Phase 4)
+        if _gen is not None and _gen != self._agent_load_generation:
+            return
+
         on_agents_tab = self.current_tab == "agents"
 
         selected_identity: tuple[AgentType, str, str | None] | None = None
         if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
-
-        # Load fresh agent list
-        all_agents = load_all_agents()
-
-        # Populate retry fields from retry_state.json for running agents
-        from sase.llm_provider.retry_config import RetryState
-
-        for agent in all_agents:
-            if agent.status != "RUNNING":
-                continue
-            artifacts_dir = agent.get_artifacts_dir()
-            if not artifacts_dir:
-                continue
-            retry_state = RetryState.read_from(artifacts_dir)
-            if retry_state is None:
-                continue
-            agent.retry_count = retry_state.retry_count
-            agent.max_retries = retry_state.max_retries
-            agent.retry_next_at_epoch = retry_state.next_retry_at_epoch
-            agent.retry_wait_seconds = retry_state.wait_seconds
-            agent.using_fallback = retry_state.using_fallback
-            agent.fallback_model = retry_state.fallback_model
-            agent.retry_status = retry_state.status
-            # Override display status for "retrying" state
-            if retry_state.status == "retrying":
-                agent.status = "RETRYING"
 
         # Build secondary index for robust dismissed matching
         # (agent cl_name or type may change between loads due to dedup merging)
@@ -414,6 +469,14 @@ class AgentLoadingMixin:
             done_count=done_visible,
         )
 
+        # Phase 3: skip widget rebuild when display fingerprint unchanged
+        new_fp = tuple(
+            (a.identity, a.status, a.retry_count, a.hidden, a.agent_name)
+            for a in self._agents
+        )
+        list_changed = new_fp != self._agents_display_fingerprint
+        self._agents_display_fingerprint = new_fp
+
         # Only refresh display if on agents tab
         if on_agents_tab:
-            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            self._refresh_agents_display(list_changed=list_changed)  # type: ignore[attr-defined]

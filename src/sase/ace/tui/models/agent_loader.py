@@ -1,8 +1,10 @@
 """Functions for loading and aggregating agents from all sources."""
 
+import copy
 from datetime import datetime
+from pathlib import Path
 
-from ...changespec import find_all_changespecs
+from ...changespec.parser import parse_project_file
 from ...hooks.processes import is_process_running
 from ._dedup import (
     dedup_axe_spawned_agents,
@@ -26,6 +28,131 @@ from ._loaders import (
 )
 from .agent import Agent, AgentType
 from .workflow import WorkflowEntry
+
+
+# ---------------------------------------------------------------------------
+# Phase 1: Filesystem fingerprint cache for load_all_agents()
+# ---------------------------------------------------------------------------
+
+
+class _FileTracker:
+    """Records filesystem paths and validates them via stat() calls (~1us each)."""
+
+    __slots__ = ("_file_mtimes", "_dir_entries")
+
+    def __init__(self) -> None:
+        self._file_mtimes: dict[str, int] = {}
+        self._dir_entries: dict[str, frozenset[str]] = {}
+
+    def track_file(self, path: Path) -> None:
+        """Record a file's mtime_ns for later validation."""
+        try:
+            self._file_mtimes[str(path)] = path.stat().st_mtime_ns
+        except OSError:
+            pass
+
+    def track_dir(self, path: Path) -> None:
+        """Record a directory's entry names for detecting additions/removals."""
+        try:
+            self._dir_entries[str(path)] = frozenset(e.name for e in path.iterdir())
+        except OSError:
+            pass
+
+    def is_valid(self) -> bool:
+        """Re-stat all recorded paths.  Return False if anything changed."""
+        if not self._file_mtimes and not self._dir_entries:
+            return False  # empty fingerprint — nothing was tracked
+        for path_str, old_mtime in self._file_mtimes.items():
+            try:
+                if Path(path_str).stat().st_mtime_ns != old_mtime:
+                    return False
+            except OSError:
+                return False  # file was deleted
+        for dir_str, old_entries in self._dir_entries.items():
+            try:
+                current = frozenset(e.name for e in Path(dir_str).iterdir())
+                if current != old_entries:
+                    return False
+            except OSError:
+                return False
+        return True
+
+
+def _build_fingerprint() -> _FileTracker:
+    """Scan all agent-related directories and record their filesystem state."""
+    tracker = _FileTracker()
+    projects_dir = Path.home() / ".sase" / "projects"
+
+    if not projects_dir.exists():
+        return tracker
+
+    tracker.track_dir(projects_dir)
+
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+
+        # Track .gp files (ChangeSpec data)
+        for child in project_dir.iterdir():
+            if child.suffix == ".gp":
+                tracker.track_file(child)
+
+        # Track artifact directories
+        artifacts_dir = project_dir / "artifacts"
+        if not artifacts_dir.exists():
+            continue
+        tracker.track_dir(artifacts_dir)
+
+        for type_dir in artifacts_dir.iterdir():
+            if not type_dir.is_dir():
+                continue
+            tracker.track_dir(type_dir)
+
+            for ts_dir in type_dir.iterdir():
+                if not ts_dir.is_dir():
+                    continue
+                tracker.track_dir(ts_dir)
+                for f in ts_dir.iterdir():
+                    # Skip retry_state.json — it changes frequently during
+                    # active retries and is read separately in _load_agents_data()
+                    if f.is_file() and f.name != "retry_state.json":
+                        tracker.track_file(f)
+
+    return tracker
+
+
+class _AgentCache:
+    """Module-level cache for load_all_agents() with filesystem invalidation."""
+
+    __slots__ = ("_agents", "_tracker")
+
+    def __init__(self) -> None:
+        self._agents: list[Agent] | None = None
+        self._tracker: _FileTracker | None = None
+
+    def get(self) -> list[Agent] | None:
+        """Return deep-copied cached agents if still valid, else None."""
+        if self._agents is None or self._tracker is None:
+            return None
+        if not self._tracker.is_valid():
+            self._agents = None
+            self._tracker = None
+            return None
+        return copy.deepcopy(self._agents)
+
+    def is_valid(self) -> bool:
+        """Check if cache has valid data (without copying)."""
+        if self._agents is None or self._tracker is None:
+            return False
+        return self._tracker.is_valid()
+
+    def put(self, agents: list[Agent]) -> None:
+        """Store agents and snapshot the current filesystem state."""
+        self._agents = copy.deepcopy(agents)
+        self._tracker = _build_fingerprint()
+
+
+_cache = _AgentCache()
 
 
 def _get_status_priority(status: str) -> int:
@@ -71,8 +198,11 @@ def _load_agents_from_all_sources() -> tuple[list[Agent], list[Agent]]:
     # Get all project files
     project_files = get_all_project_files()
 
-    # Load all ChangeSpecs early to build bug lookup
-    all_changespecs = find_all_changespecs()
+    # Load ChangeSpecs from main .gp files only (skip archives — active
+    # agents reference active CLs, not archived ones)
+    all_changespecs = []
+    for pf in project_files:
+        all_changespecs.extend(parse_project_file(pf))
 
     # Build bug URL and CL number lookups by CL name (single pass)
     bug_by_cl_name: dict[str, str | None] = {}
@@ -400,7 +530,7 @@ def _sort_and_reorder(
     return sorted_agents
 
 
-def load_all_agents() -> list[Agent]:
+def load_all_agents(*, force: bool = False) -> list[Agent]:
     """Load all running agents from all sources.
 
     Sources:
@@ -410,10 +540,18 @@ def load_all_agents() -> list[Agent]:
     4. COMMENTS field with suffix_type="running_agent" (CRS)
     5. done.json marker files (DONE agents)
 
+    Args:
+        force: Bypass the filesystem cache and force a fresh load.
+
     Returns:
         List of Agent objects sorted by start time (most recent first),
         with agents that have no start time at the end.
     """
+    if not force:
+        cached = _cache.get()
+        if cached is not None:
+            return cached
+
     agents, workflow_agent_steps = _load_agents_from_all_sources()
 
     # Filter out agents with dead PIDs (but keep completed agents)
@@ -430,4 +568,9 @@ def load_all_agents() -> list[Agent]:
     _apply_status_overrides(agents)
 
     # Sort and insert workflow steps
-    return _sort_and_reorder(agents, workflow_agent_steps)
+    result = _sort_and_reorder(agents, workflow_agent_steps)
+
+    # Update cache with fresh results
+    _cache.put(result)
+
+    return result

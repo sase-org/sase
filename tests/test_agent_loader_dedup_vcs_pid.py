@@ -46,7 +46,7 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -124,7 +124,7 @@ def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -201,7 +201,7 @@ def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -275,7 +275,7 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -347,7 +347,7 @@ def test_pid_dedup_safety_net() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -440,7 +440,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_hidden() -> None:
             return_value=["/tmp/test.gp"],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[mock_cs],
         ),
         patch(
@@ -520,7 +520,7 @@ def test_pid_dedup_safety_net_works_on_hidden_agents() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -599,7 +599,7 @@ def test_pid_dedup_preserves_followup_workflow_agents() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -670,7 +670,7 @@ def test_pid_reuse_keeps_both_running_agents_with_different_suffix() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -737,7 +737,7 @@ def test_pid_reuse_merges_running_agents_with_same_suffix() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -803,7 +803,7 @@ def test_pid_reuse_merges_running_agents_with_missing_suffix() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(

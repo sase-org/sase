@@ -26,6 +26,15 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _reset_agent_cache():
+    """Reset the agent loader cache before each test to prevent cross-test leakage."""
+    from sase.ace.tui.models.agent_loader import _cache
+
+    _cache._agents = None
+    _cache._tracker = None
+
+
+@pytest.fixture(autouse=True)
 def _mock_system_clipboard():
     """Prevent tests from touching the real system clipboard."""
     with patch("sase.ace.tui.widgets._vim_normal_ops.copy_to_system_clipboard"):

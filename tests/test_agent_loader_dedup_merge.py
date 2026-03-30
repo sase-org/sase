@@ -56,7 +56,7 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
             return_value=[mock_claim],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[mock_cs],
         ),
         patch(
@@ -115,7 +115,7 @@ def test_workflow_dedup_propagates_failed_status() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -194,7 +194,7 @@ def test_running_workflow_dedup_ace_run() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[],
         ),
         patch(
@@ -281,10 +281,10 @@ def test_done_json_dedup_with_changespec() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=[],
+            return_value=["/tmp/test.gp"],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[mock_cs],
         ),
         patch(
@@ -378,10 +378,10 @@ def test_mentor_workflow_dedup_with_changespec() -> None:
     with (
         patch(
             "sase.ace.tui.models.agent_loader.get_all_project_files",
-            return_value=[],
+            return_value=["/tmp/test.gp"],
         ),
         patch(
-            "sase.ace.tui.models.agent_loader.find_all_changespecs",
+            "sase.ace.tui.models.agent_loader.parse_project_file",
             return_value=[mock_cs],
         ),
         patch(
