@@ -302,10 +302,10 @@ Records a chronological audit trail of lifecycle events. Each entry includes a t
 
 ```
 TIMESTAMPS:
-  [2026-03-28 14:30:52] COMMIT  Add JWT token validation
-  [2026-03-28 15:12:03] STATUS  WIP -> Draft
-  [2026-03-28 15:15:10] SYNC    Synced with remote
-  [2026-03-28 16:00:44] REWORD  Updated description title
+  260328_143052 COMMIT  Add JWT token validation
+  260328_151203 STATUS  WIP -> Draft
+  260328_151510 SYNC    Synced with remote
+  260328_160044 REWORD  Updated description title
 ```
 
 **Event types:**
@@ -317,8 +317,9 @@ TIMESTAMPS:
 | `SYNC`   | A sync operation was performed                 |
 | `REWORD` | The description was edited                     |
 
-Timestamps use the format `YYYY-MM-DD HH:MM:SS` and are recorded atomically by sase — this section is not manually
-edited. Multiple events of the same type may appear (e.g., multiple COMMITs or STATUS transitions).
+Timestamps use the format `YYMMDD_HHMMSS` (matching the HOOKS field format) and are recorded atomically by sase — this
+section is not manually edited. Multiple events of the same type may appear (e.g., multiple COMMITs or STATUS
+transitions).
 
 ### HOOKS
 

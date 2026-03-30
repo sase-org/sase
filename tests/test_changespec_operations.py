@@ -268,7 +268,7 @@ def test_add_changespec_initial_commits_creates_timestamps() -> None:
 
         assert "TIMESTAMPS:" in content
         # Structural check: COMMIT event with detail (1)
-        assert "] COMMIT " in content
+        assert "COMMIT " in content
         assert "(1)" in content
     finally:
         os.unlink(project_file)
@@ -308,7 +308,7 @@ def test_add_changespec_initial_commits_multiple_timestamps() -> None:
             if line.startswith("TIMESTAMPS:"):
                 in_timestamps = True
                 continue
-            if in_timestamps and "] COMMIT " in line:
+            if in_timestamps and "COMMIT " in line:
                 # Extract the detail portion after "COMMIT "
                 idx = line.index("COMMIT ")
                 detail = line[idx + len("COMMIT ") :].strip()

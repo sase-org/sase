@@ -25,14 +25,14 @@ DESCRIPTION:
   Some description
 STATUS: WIP
 TIMESTAMPS:
-  [2026-03-29 14:30:22] COMMIT  (1)
-  [2026-03-29 14:32:15] COMMIT  (2)
-  [2026-03-29 14:35:10] STATUS  WIP -> Draft
-  [2026-03-29 15:00:00] SYNC    success
-  [2026-03-29 15:10:00] REWORD  description
-  [2026-03-29 15:15:00] REWORD  tag "Bug"
-  [2026-03-29 15:20:00] COMMIT  (2a)
-  [2026-03-29 15:25:00] REWIND  (3)
+  260329_143022 COMMIT  (1)
+  260329_143215 COMMIT  (2)
+  260329_143510 STATUS  WIP -> Draft
+  260329_150000 SYNC    success
+  260329_151000 REWORD  description
+  260329_151500 REWORD  tag "Bug"
+  260329_152000 COMMIT  (2a)
+  260329_152500 REWIND  (3)
 
 
 """
@@ -49,7 +49,7 @@ TIMESTAMPS:
         assert len(cs.timestamps) == 8
 
         # Verify first entry
-        assert cs.timestamps[0].timestamp == "2026-03-29 14:30:22"
+        assert cs.timestamps[0].timestamp == "260329_143022"
         assert cs.timestamps[0].event_type == "COMMIT"
         assert cs.timestamps[0].detail == "(1)"
 
@@ -72,6 +72,42 @@ TIMESTAMPS:
         # Verify REWIND entry
         assert cs.timestamps[7].event_type == "REWIND"
         assert cs.timestamps[7].detail == "(3)"
+    finally:
+        os.unlink(path)
+
+
+def test_parse_timestamps_old_format() -> None:
+    """Backward compatibility: parse old [YYYY-MM-DD HH:MM:SS] format."""
+    content = """\
+NAME: my-cl
+DESCRIPTION:
+  Some description
+STATUS: WIP
+TIMESTAMPS:
+  [2026-03-29 14:30:22] COMMIT  (1)
+  [2026-03-29 14:35:10] STATUS  WIP -> Draft
+
+
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        f.flush()
+        path = f.name
+
+    try:
+        changespecs = parse_project_file(path)
+        assert len(changespecs) == 1
+        cs = changespecs[0]
+        assert cs.timestamps is not None
+        assert len(cs.timestamps) == 2
+
+        assert cs.timestamps[0].timestamp == "2026-03-29 14:30:22"
+        assert cs.timestamps[0].event_type == "COMMIT"
+        assert cs.timestamps[0].detail == "(1)"
+
+        assert cs.timestamps[1].timestamp == "2026-03-29 14:35:10"
+        assert cs.timestamps[1].event_type == "STATUS"
+        assert cs.timestamps[1].detail == "WIP -> Draft"
     finally:
         os.unlink(path)
 
@@ -107,11 +143,11 @@ STATUS: WIP
 def test_format_timestamps_field() -> None:
     """Serialize TimestampEntry list to .gp format."""
     entries = [
-        TimestampEntry("2026-03-29 14:30:22", "COMMIT", "(1)"),
-        TimestampEntry("2026-03-29 14:35:10", "STATUS", "WIP -> Draft"),
-        TimestampEntry("2026-03-29 15:00:00", "SYNC", "success"),
-        TimestampEntry("2026-03-29 15:10:00", "REWORD", "description"),
-        TimestampEntry("2026-03-29 15:25:00", "REWIND", "(3)"),
+        TimestampEntry("260329_143022", "COMMIT", "(1)"),
+        TimestampEntry("260329_143510", "STATUS", "WIP -> Draft"),
+        TimestampEntry("260329_150000", "SYNC", "success"),
+        TimestampEntry("260329_151000", "REWORD", "description"),
+        TimestampEntry("260329_152500", "REWIND", "(3)"),
     ]
     result = format_timestamps_field(entries)
 
@@ -153,6 +189,20 @@ def test_find_timestamps_insert_creates_section() -> None:
 
 def test_find_timestamps_insert_appends_to_existing() -> None:
     """New entries append after the last existing entry."""
+    lines = [
+        "NAME: my-cl\n",
+        "STATUS: WIP\n",
+        "TIMESTAMPS:\n",
+        "  260329_143022 COMMIT  (1)\n",
+        "\n",
+        "\n",
+    ]
+    idx = _find_timestamps_insert_point(lines, "my-cl")
+    assert idx == 4  # right after entry on line 3
+
+
+def test_find_timestamps_insert_appends_to_old_format() -> None:
+    """New entries append after old-format entries too."""
     lines = [
         "NAME: my-cl\n",
         "STATUS: WIP\n",
@@ -202,7 +252,7 @@ DESCRIPTION:
   Some description
 STATUS: WIP
 TIMESTAMPS:
-  [2026-03-29 14:30:22] COMMIT  (1)
+  260329_143022 COMMIT  (1)
 
 
 """

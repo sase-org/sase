@@ -287,7 +287,7 @@ def test_add_commit_entry_with_id_creates_timestamps() -> None:
         with open(temp_path) as f:
             content = f.read()
         assert "TIMESTAMPS:" in content
-        assert "] COMMIT " in content
+        assert "COMMIT " in content
         assert "(1)" in content
     finally:
         os.unlink(temp_path)

@@ -75,8 +75,8 @@ def build_timestamps_section(
         ):
             continue
 
-        # Timestamp in brackets
-        text.append(f"  [{entry.timestamp}] ", style=_COLOR_TIMESTAMP)
+        # Timestamp
+        text.append(f"  {entry.timestamp} ", style=_COLOR_TIMESTAMP)
 
         # Event type keyword
         padded_event = entry.event_type.ljust(7)
