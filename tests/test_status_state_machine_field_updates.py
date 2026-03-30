@@ -331,3 +331,24 @@ def test__apply_description_update_multi_line() -> None:
     assert "Old line two" not in result
     assert "PARENT: None\n" in result
     assert "STATUS: Draft\n" in result
+
+
+def test__apply_description_update_preserves_timestamps_after_description() -> None:
+    """Regression: _apply_description_update must not discard TIMESTAMPS after DESCRIPTION."""
+    lines = [
+        "NAME: Test Feature\n",
+        "DESCRIPTION:\n",
+        "  Old description\n",
+        "TIMESTAMPS:\n",
+        "  commit 240601_120000\n",
+        "  status 240601_130000\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_description_update(lines, "Test Feature", "New description")
+    assert "  New description\n" in result
+    assert "Old description" not in result
+    # TIMESTAMPS section must be fully preserved
+    assert "TIMESTAMPS:\n" in result
+    assert "  commit 240601_120000\n" in result
+    assert "  status 240601_130000\n" in result
+    assert "STATUS: Draft\n" in result

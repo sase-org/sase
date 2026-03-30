@@ -297,6 +297,7 @@ _FIELD_HEADERS = (
     "HOOKS:",
     "COMMENTS:",
     "MENTORS:",
+    "TIMESTAMPS:",
 )
 
 

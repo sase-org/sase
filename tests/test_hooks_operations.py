@@ -384,3 +384,34 @@ def test_expand_contract_roundtrip_with_prefix() -> None:
     expanded = expand_test_target_shorthand(original)
     contracted = contract_test_target_command(expanded)
     assert contracted == original
+
+
+def testapply_hooks_update_preserves_timestamps_after_hooks() -> None:
+    """Regression: apply_hooks_update must not discard TIMESTAMPS after HOOKS."""
+    from sase.ace.hooks.formatting import apply_hooks_update
+
+    lines = [
+        "NAME: test_cl\n",
+        "HOOKS:\n",
+        "  old_command\n",
+        "      | (1) [240601_100000] PASSED (1m0s)\n",
+        "TIMESTAMPS:\n",
+        "  commit 240601_120000\n",
+        "  status 240601_130000\n",
+    ]
+    new_hooks = [
+        _make_hook(
+            command="new_command",
+            timestamp="240601_123456",
+            status="PASSED",
+        ),
+    ]
+    result = apply_hooks_update(lines, "test_cl", new_hooks)
+    result_str = "".join(result)
+
+    # New hook should be present
+    assert "new_command" in result_str
+    # TIMESTAMPS section must be fully preserved
+    assert "TIMESTAMPS:" in result_str
+    assert "commit 240601_120000" in result_str
+    assert "status 240601_130000" in result_str
