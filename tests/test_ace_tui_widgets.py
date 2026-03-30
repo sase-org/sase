@@ -418,3 +418,252 @@ def test_embedded_workflows_displayed_in_metadata(tmp_path: Path) -> None:
         rendered_str = str(rendered)
         assert "Embedded Workflows:" in rendered_str
         assert "propose(note=blah), cl" in rendered_str
+
+
+# --- Follow-up reply aggregation Tests ---
+
+
+def _make_plan_agent(
+    *,
+    raw_suffix: str = "20260330120000",
+    role_suffix: str = ".plan",
+    status: str = "DONE",
+    artifacts_dir: str | None = None,
+    response_content: str | None = None,
+) -> Agent:
+    """Create a top-level plan agent for aggregation tests."""
+    from datetime import datetime
+
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="test_cl",
+        project_file="/tmp/test.gp",
+        status=status,
+        start_time=datetime(2026, 3, 30, 12, 0, 0),
+        raw_suffix=raw_suffix,
+        role_suffix=role_suffix,
+        artifacts_dir=artifacts_dir,
+        appears_as_agent=True,
+    )
+    if response_content is not None:
+        agent.get_response_content = lambda: response_content  # type: ignore[method-assign]
+    else:
+        agent.get_response_content = lambda: None  # type: ignore[method-assign]
+    agent.get_timestamped_reply_chunks = lambda: None  # type: ignore[method-assign]
+    agent.get_live_reply_content = lambda: None  # type: ignore[method-assign]
+    return agent
+
+
+def _make_followup_agent(
+    *,
+    parent_timestamp: str,
+    role_suffix: str,
+    status: str = "DONE",
+    response_content: str | None = None,
+    live_reply: str | None = None,
+    start_time_minute: int = 5,
+) -> Agent:
+    """Create a follow-up child agent (planner round or coder)."""
+    from datetime import datetime
+
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="test_cl",
+        project_file="/tmp/test.gp",
+        status=status,
+        start_time=datetime(2026, 3, 30, 12, start_time_minute, 0),
+        parent_timestamp=parent_timestamp,
+        role_suffix=role_suffix,
+    )
+    if response_content is not None:
+        agent.get_response_content = lambda: response_content  # type: ignore[method-assign]
+    else:
+        agent.get_response_content = lambda: None  # type: ignore[method-assign]
+    agent.get_timestamped_reply_chunks = lambda: None  # type: ignore[method-assign]
+    if live_reply is not None:
+        agent.get_live_reply_content = lambda: live_reply  # type: ignore[method-assign]
+    else:
+        agent.get_live_reply_content = lambda: None  # type: ignore[method-assign]
+    return agent
+
+
+def _rendered_text(mock_update: Any) -> str:
+    """Extract all text content from a mock update call (handles Group and Text)."""
+    from rich.console import Group
+    from rich.syntax import Syntax
+
+    def _to_str(r: Any) -> str:
+        if isinstance(r, Syntax):
+            return r.code
+        return str(r)
+
+    rendered = mock_update.call_args[0][0]
+    if isinstance(rendered, Group):
+        return "\n".join(_to_str(r) for r in rendered.renderables)
+    return _to_str(rendered)
+
+
+def test_main_plan_entry_aggregates_planner_and_coder_replies(
+    tmp_path: Path,
+) -> None:
+    """Main .plan entry shows aggregated planner rounds and coder reply."""
+    prompt_file = tmp_path / "workflow-plan_prompt.md"
+    prompt_file.write_text("plan prompt")
+
+    parent = _make_plan_agent(
+        artifacts_dir=str(tmp_path), response_content="planner response"
+    )
+    followup_2 = _make_followup_agent(
+        parent_timestamp="20260330120000",
+        role_suffix=".2",
+        response_content="feedback round 2",
+        start_time_minute=5,
+    )
+    followup_code = _make_followup_agent(
+        parent_timestamp="20260330120000",
+        role_suffix=".code",
+        response_content="coder response",
+        start_time_minute=10,
+    )
+
+    panel = AgentPromptPanel.__new__(AgentPromptPanel)
+
+    with (
+        patch.object(panel, "update") as mock_update,
+        patch.object(
+            panel,
+            "_collect_related_agents",
+            return_value=[followup_2, followup_code],
+        ),
+    ):
+        panel.update_display(parent)
+
+        assert mock_update.called
+        rendered_str = _rendered_text(mock_update)
+        # Main reply present
+        assert "planner response" in rendered_str
+        # Follow-up planner round present
+        assert "feedback round 2" in rendered_str
+        assert "Planner (.2)" in rendered_str
+        # Coder present
+        assert "coder response" in rendered_str
+        assert "Coder (.code)" in rendered_str
+
+
+def test_nested_step_does_not_aggregate_followup_replies(
+    tmp_path: Path,
+) -> None:
+    """Workflow child step should NOT aggregate follow-up replies."""
+    prompt_file = tmp_path / "workflow-olcr-main_prompt.md"
+    prompt_file.write_text("step prompt")
+
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="test_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        artifacts_dir=str(tmp_path),
+        parent_workflow="olcr",
+        step_name="main",
+        role_suffix=".plan",
+        raw_suffix="20260330120000",
+    )
+    agent.get_response_content = lambda: "step response"  # type: ignore[method-assign]
+    agent.get_timestamped_reply_chunks = lambda: None  # type: ignore[method-assign]
+
+    panel = AgentPromptPanel.__new__(AgentPromptPanel)
+
+    with patch.object(panel, "update") as mock_update:
+        panel.update_display(agent)
+
+        assert mock_update.called
+        rendered_str = _rendered_text(mock_update)
+        assert "step response" in rendered_str
+        # No aggregated sub-sections should appear
+        assert "Planner (" not in rendered_str
+        assert "Coder (" not in rendered_str
+
+
+def test_non_plan_top_level_agent_does_not_aggregate(
+    tmp_path: Path,
+) -> None:
+    """Top-level agent without .plan role_suffix should NOT aggregate."""
+    prompt_file = tmp_path / "workflow-run_prompt.md"
+    prompt_file.write_text("run prompt")
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        artifacts_dir=str(tmp_path),
+        raw_suffix="20260330120000",
+        role_suffix=None,
+    )
+    agent.get_response_content = lambda: "agent response"  # type: ignore[method-assign]
+    agent.get_timestamped_reply_chunks = lambda: None  # type: ignore[method-assign]
+
+    panel = AgentPromptPanel.__new__(AgentPromptPanel)
+
+    with patch.object(panel, "update") as mock_update:
+        panel.update_display(agent)
+
+        assert mock_update.called
+        rendered_str = _rendered_text(mock_update)
+        assert "agent response" in rendered_str
+        assert "Planner (" not in rendered_str
+        assert "Coder (" not in rendered_str
+
+
+def test_aggregation_uses_agents_with_children_when_available(
+    tmp_path: Path,
+) -> None:
+    """Aggregation should find related agents from _agents_with_children even if folded."""
+    prompt_file = tmp_path / "workflow-plan_prompt.md"
+    prompt_file.write_text("plan prompt")
+
+    parent = _make_plan_agent(
+        artifacts_dir=str(tmp_path), response_content="plan reply"
+    )
+    followup_code = _make_followup_agent(
+        parent_timestamp="20260330120000",
+        role_suffix=".code",
+        response_content="coder output",
+    )
+
+    # Test _collect_related_agents directly to verify it prefers _agents_with_children
+    panel = AgentPromptPanel.__new__(AgentPromptPanel)
+    mock_app = type(
+        "MockApp",
+        (),
+        {
+            "_agents_with_children": [parent, followup_code],
+            "_agents": [parent],  # folded: only parent visible
+        },
+    )()
+
+    with patch.object(
+        type(panel), "app", new_callable=lambda: property(lambda _self: mock_app)
+    ):
+        related = panel._collect_related_agents(parent)
+        assert len(related) == 1
+        assert related[0] is followup_code
+
+    # Also verify the full rendering picks up the coder reply
+    with (
+        patch.object(panel, "update") as mock_update,
+        patch.object(
+            panel,
+            "_collect_related_agents",
+            return_value=[followup_code],
+        ),
+    ):
+        panel.update_display(parent)
+
+        assert mock_update.called
+        rendered_str = _rendered_text(mock_update)
+        assert "plan reply" in rendered_str
+        assert "coder output" in rendered_str
+        assert "Coder (.code)" in rendered_str

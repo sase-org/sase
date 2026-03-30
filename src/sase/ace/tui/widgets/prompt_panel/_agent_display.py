@@ -1,5 +1,7 @@
 """Agent display mixin for the agent prompt panel."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
 
@@ -126,6 +128,12 @@ class AgentDisplayMixin:
                     reply_header.append("No response file found.\n", style="dim italic")
                     renderables.append(reply_header)
 
+                # Aggregate follow-up replies for main plan entries
+                if self._is_main_plan_entry(agent):
+                    related = self._collect_related_agents(agent)
+                    if related:
+                        renderables.extend(self._render_followup_renderables(related))
+
                 self.update(Group(*renderables))  # type: ignore[attr-defined]
             else:
                 renderables_other: list[Text | Syntax] = [header_text]
@@ -171,6 +179,14 @@ class AgentDisplayMixin:
                         style="dim italic",
                     )
                     renderables_other.append(reply_header)
+
+                # Aggregate follow-up replies for main plan entries
+                if self._is_main_plan_entry(agent):
+                    related = self._collect_related_agents(agent)
+                    if related:
+                        renderables_other.extend(
+                            self._render_followup_renderables(related)
+                        )
 
                 self.update(Group(*renderables_other))  # type: ignore[attr-defined]
         else:
@@ -309,6 +325,18 @@ class AgentDisplayMixin:
                     )
                 else:
                     header_text.append("No response file found.\n", style="dim italic")
+
+                # Aggregate follow-up replies for main plan entries (with hints)
+                if self._is_main_plan_entry(agent):
+                    related = self._collect_related_agents(agent)
+                    if related:
+                        hint_counter = self._render_followup_hints(
+                            related,
+                            header_text,
+                            hint_counter,
+                            hint_mappings,
+                            workspace_dir,
+                        )
             else:
                 # AGENT REPLY section for running agents (with hints)
                 header_text.append("\n")
@@ -345,6 +373,18 @@ class AgentDisplayMixin:
                         "Waiting for agent response...\n",
                         style="dim italic",
                     )
+
+                # Aggregate follow-up replies for main plan entries (with hints)
+                if self._is_main_plan_entry(agent):
+                    related = self._collect_related_agents(agent)
+                    if related:
+                        hint_counter = self._render_followup_hints(
+                            related,
+                            header_text,
+                            hint_counter,
+                            hint_mappings,
+                            workspace_dir,
+                        )
         else:
             header_text.append("No prompt file found.\n", style="dim italic")
 
@@ -366,7 +406,7 @@ class AgentDisplayMixin:
         divider.append(prefix + "─" * suffix_len + "\n", style="dim #D7D7FF")
         return divider
 
-    def _build_header_text(self, agent: Agent) -> tuple[Text, "Syntax | None"]:
+    def _build_header_text(self, agent: Agent) -> tuple[Text, Syntax | None]:
         """Build the AGENT DETAILS header section with trailing separator.
 
         Contains agent metadata (name, workspace, model, timestamps, etc.),
@@ -653,6 +693,187 @@ class AgentDisplayMixin:
             renderables.append(Text("No output available.\n", style="dim italic"))
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    # ------------------------------------------------------------------
+    # Follow-up reply aggregation (planner rounds + coder)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_main_plan_entry(agent: Agent) -> bool:
+        """Check if *agent* is a top-level plan entry eligible for aggregation."""
+        return (
+            agent.role_suffix == ".plan"
+            and not agent.is_workflow_child
+            and agent.raw_suffix is not None
+        )
+
+    def _collect_related_agents(self, agent: Agent) -> list[Agent]:
+        """Return follow-up agents for a main plan entry, sorted by start time.
+
+        Related agents share ``parent_timestamp == agent.raw_suffix`` and have
+        no ``parent_workflow`` (they are follow-up children, not workflow steps).
+        """
+        target_ts = agent.raw_suffix
+        if target_ts is None:
+            return []
+
+        # Prefer the pre-fold list so folded children are still found.
+        app = getattr(self, "app", None)
+        candidates: list[Agent] = []
+        if app is not None:
+            candidates = getattr(app, "_agents_with_children", None) or []
+            if not candidates:
+                candidates = getattr(app, "_agents", None) or []
+
+        related: list[Agent] = []
+        for a in candidates:
+            if (
+                a.parent_timestamp == target_ts
+                and a.parent_workflow is None
+                and a is not agent
+            ):
+                related.append(a)
+
+        # Sort by effective start time (ascending) for chronological reading.
+        related.sort(key=lambda a: a.start_time or datetime.min)
+        return related
+
+    @staticmethod
+    def _role_label(agent: Agent) -> str:
+        """Compact role label for a follow-up agent (e.g. ``Planner (.2)``)."""
+        suffix = agent.role_suffix or agent.raw_suffix or "?"
+        if suffix == ".code":
+            return f"Coder ({suffix})"
+        return f"Planner ({suffix})"
+
+    @staticmethod
+    def _status_label(agent: Agent) -> str:
+        """Short status string for the sub-section header."""
+        if agent.status in ("DONE", "FAILED"):
+            return agent.status
+        return "running"
+
+    def _render_followup_renderables(
+        self,
+        related: list[Agent],
+    ) -> list[Text | Syntax]:
+        """Build Rich renderables for each follow-up agent sub-section."""
+        parts: list[Text | Syntax] = []
+        for rel in related:
+            # Divider + label
+            label_text = Text()
+            label_text.append("\n")
+            label_text.append("─" * 50 + "\n", style="dim")
+            label_text.append("\n")
+
+            role = self._role_label(rel)
+            status = self._status_label(rel)
+            time_str = rel.start_time_short
+            label_text.append(
+                f"{role}  {status}  {time_str}\n",
+                style="bold #87D7FF",
+            )
+            label_text.append("\n")
+
+            # Content: prefer timestamped chunks, then live/response, else placeholder
+            chunks = rel.get_timestamped_reply_chunks()
+            if chunks:
+                parts.append(label_text)
+                for ts, chunk_text in chunks:
+                    parts.append(self._render_timestamp_divider(ts))
+                    content = chunk_text.strip()
+                    if content:
+                        parts.append(
+                            Syntax(content, "markdown", theme="monokai", word_wrap=True)
+                        )
+            else:
+                reply: str | None = None
+                if rel.status in ("DONE", "FAILED"):
+                    reply = rel.get_response_content()
+                else:
+                    reply = rel.get_live_reply_content()
+                if reply:
+                    parts.append(label_text)
+                    parts.append(
+                        Syntax(reply, "markdown", theme="monokai", word_wrap=True)
+                    )
+                else:
+                    if rel.status in ("DONE", "FAILED"):
+                        label_text.append(
+                            "No response file found.\n", style="dim italic"
+                        )
+                    else:
+                        label_text.append(
+                            "Waiting for agent response...\n",
+                            style="dim italic",
+                        )
+                    parts.append(label_text)
+        return parts
+
+    def _render_followup_hints(
+        self,
+        related: list[Agent],
+        header_text: Text,
+        hint_counter: int,
+        hint_mappings: dict[int, str],
+        workspace_dir: str | None,
+    ) -> int:
+        """Append follow-up agent content as plain text with file-path hints."""
+        from ._file_path_hints import append_text_with_file_hints
+
+        for rel in related:
+            header_text.append("\n")
+            header_text.append("─" * 50 + "\n", style="dim")
+            header_text.append("\n")
+
+            role = self._role_label(rel)
+            status = self._status_label(rel)
+            time_str = rel.start_time_short
+            header_text.append(
+                f"{role}  {status}  {time_str}\n",
+                style="bold #87D7FF",
+            )
+            header_text.append("\n")
+
+            chunks = rel.get_timestamped_reply_chunks()
+            if chunks:
+                for ts, chunk_text in chunks:
+                    header_text.append_text(self._render_timestamp_divider(ts))
+                    content = chunk_text.strip()
+                    if content:
+                        hint_counter = append_text_with_file_hints(
+                            header_text,
+                            content + "\n",
+                            hint_counter,
+                            hint_mappings,
+                            workspace_dir,
+                        )
+                        header_text.append("\n")
+            else:
+                reply: str | None = None
+                if rel.status in ("DONE", "FAILED"):
+                    reply = rel.get_response_content()
+                else:
+                    reply = rel.get_live_reply_content()
+                if reply:
+                    hint_counter = append_text_with_file_hints(
+                        header_text,
+                        reply + "\n",
+                        hint_counter,
+                        hint_mappings,
+                        workspace_dir,
+                    )
+                else:
+                    if rel.status in ("DONE", "FAILED"):
+                        header_text.append(
+                            "No response file found.\n", style="dim italic"
+                        )
+                    else:
+                        header_text.append(
+                            "Waiting for agent response...\n",
+                            style="dim italic",
+                        )
+        return hint_counter
 
     def show_empty(self) -> None:
         """Show empty state."""
