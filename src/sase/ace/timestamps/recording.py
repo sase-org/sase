@@ -17,6 +17,16 @@ def get_current_display_timestamp() -> str:
 _EVENT_WIDTH = 7
 
 
+def format_timestamp_entry_line(event_type: str, detail: str) -> str:
+    """Format a single TIMESTAMPS entry line with the current time.
+
+    Returns a string like ``  [2026-03-30 12:00:00] COMMIT  (1)\\n``.
+    """
+    ts = get_current_display_timestamp()
+    padded_event = event_type.ljust(_EVENT_WIDTH)
+    return f"  [{ts}] {padded_event}{detail}\n"
+
+
 def add_timestamp_entry_atomic(
     project_file: str,
     cl_name: str,
@@ -38,9 +48,7 @@ def add_timestamp_entry_atomic(
     Returns:
         True on success, False on any error.
     """
-    ts = get_current_display_timestamp()
-    padded_event = event_type.ljust(_EVENT_WIDTH)
-    entry_line = f"  [{ts}] {padded_event}{detail}\n"
+    entry_line = format_timestamp_entry_line(event_type, detail)
 
     try:
         with changespec_lock(project_file):
