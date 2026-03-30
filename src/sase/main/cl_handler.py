@@ -17,31 +17,9 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     """
     import os
 
-    # Map subcommands to methods
-    sub_to_method = {
-        "create": "create_commit",
-        "proposal": "create_proposal",
-        "pull-request": "create_pull_request",
-    }
-    method = (
-        args.method
-        or os.environ.get("SASE_COMMIT_METHOD")
-        or sub_to_method.get(args.commit_subcommand, "create_commit")
-    )
-
-    # Handle --project flag
-    if args.project:
-        # Check if project directory exists as a sibling
-        project_dir = os.path.abspath(os.path.join(os.getcwd(), "..", args.project))
-        if os.path.isdir(project_dir):
-            os.chdir(project_dir)
-        else:
-            print(f"Error: project directory not found: {project_dir}", file=sys.stderr)
-            sys.exit(1)
-
-    # Read message from flag or file
-    message = args.message or ""
-    if not message and args.message_file:
+    # Read message from file if provided
+    message = ""
+    if args.message_file:
         path = args.message_file
         if not os.path.isfile(path):
             print(f"Error: message file not found: {path}", file=sys.stderr)
@@ -52,6 +30,8 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
             os.remove(path)
         except OSError:
             pass
+
+    method = args.method or os.environ.get("SASE_COMMIT_METHOD", "create_commit")
 
     payload: dict[str, object] = {
         "message": message,
