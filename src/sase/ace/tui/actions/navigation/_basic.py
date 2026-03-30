@@ -12,6 +12,24 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     # --- Navigation Actions ---
 
+    def _navigate_agents_panel(self, direction: int) -> None:
+        """Navigate within the focused agents panel.
+
+        Args:
+            direction: +1 for next, -1 for previous.
+        """
+        indices = self._active_panel_indices()  # type: ignore[attr-defined]
+        if not indices:
+            return
+        try:
+            pos = indices.index(self.current_idx)
+        except ValueError:
+            # Current idx not in focused panel — snap to first
+            self.current_idx = indices[0]
+            return
+        new_pos = (pos + direction) % len(indices)
+        self.current_idx = indices[new_pos]
+
     def action_next_changespec(self) -> None:
         """Navigate to the next item, cycling to start if at end."""
         if self.current_tab == "changespecs":
@@ -22,12 +40,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = 0
         elif self.current_tab == "agents":
-            if len(self._agents) == 0:
-                return
-            if self.current_idx < len(self._agents) - 1:
-                self.current_idx += 1
-            else:
-                self.current_idx = 0
+            self._navigate_agents_panel(1)
         else:  # axe tab
             if len(self._axe_items) == 0:  # type: ignore[attr-defined]
                 return
@@ -46,12 +59,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = len(self.changespecs) - 1
         elif self.current_tab == "agents":
-            if len(self._agents) == 0:
-                return
-            if self.current_idx > 0:
-                self.current_idx -= 1
-            else:
-                self.current_idx = len(self._agents) - 1
+            self._navigate_agents_panel(-1)
         else:  # axe tab
             if len(self._axe_items) == 0:  # type: ignore[attr-defined]
                 return

@@ -249,8 +249,24 @@ class EventHandlersMixin:
         self, event: AgentList.SelectionChanged
     ) -> None:
         """Handle selection change in the Agent list widget."""
-        if self.current_tab == "agents" and 0 <= event.index < len(self._agents):
-            self.current_idx = event.index
+        if self.current_tab != "agents":
+            return
+
+        # Convert local panel index to global index
+        panel = event.panel
+        indices = (
+            self._main_panel_indices  # type: ignore[attr-defined]
+            if panel == "main"
+            else self._pinned_panel_indices  # type: ignore[attr-defined]
+        )
+        if 0 <= event.index < len(indices):
+            global_idx = indices[event.index]
+            if 0 <= global_idx < len(self._agents):
+                # Switch panel focus if clicking in a different panel
+                if self._pinned_panel_focused != panel:  # type: ignore[has-type]
+                    self._pinned_panel_focused = panel  # type: ignore[has-type]
+                    self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+                self.current_idx = global_idx
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""
@@ -278,6 +294,9 @@ class EventHandlersMixin:
 
     def on_agent_list_width_changed(self, event: AgentList.WidthChanged) -> None:
         """Handle width change from the agent list widget."""
+        # Only the main panel drives left column width
+        if event.panel != "main":
+            return
         from ..app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
 
         width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, event.width))

@@ -1,6 +1,6 @@
 """Agent list widget for the ace TUI."""
 
-from typing import Any
+from typing import Any, Literal
 
 from rich.text import Text
 from textual.message import Message
@@ -9,6 +9,9 @@ from textual.widgets.option_list import Option
 from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..models.agent import Agent, AgentType
+
+# Panel identity type
+PanelId = Literal["main", "pinned"]
 
 # Color mapping for agent types
 _AGENT_TYPE_COLORS: dict[AgentType, str] = {
@@ -155,27 +158,34 @@ def _calculate_entry_display_width(
 
 
 class AgentList(OptionList):
-    """Left sidebar showing list of running agents."""
+    """List widget showing agents, used for both main and pinned panels."""
 
     class SelectionChanged(Message):
         """Message sent when selection changes."""
 
-        def __init__(self, index: int) -> None:
+        def __init__(self, index: int, panel: PanelId = "main") -> None:
             self.index = index
+            self.panel = panel
             super().__init__()
 
     class WidthChanged(Message):
         """Message sent when optimal width changes."""
 
-        def __init__(self, width: int) -> None:
+        def __init__(self, width: int, panel: PanelId = "main") -> None:
             self.width = width
+            self.panel = panel
             super().__init__()
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize the agent list."""
+    def __init__(self, panel: PanelId = "main", **kwargs: Any) -> None:
+        """Initialize the agent list.
+
+        Args:
+            panel: Which panel this list belongs to ("main" or "pinned").
+        """
         super().__init__(**kwargs)
         self._agents: list[Agent] = []
         self._programmatic_update: bool = False
+        self._panel: PanelId = panel
 
     def update_list(
         self,
@@ -241,7 +251,7 @@ class AgentList(OptionList):
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8
         optimal_width = max_width + _PADDING
-        self.post_message(self.WidthChanged(optimal_width))
+        self.post_message(self.WidthChanged(optimal_width, panel=self._panel))
 
         # Highlight the current item
         if agents and 0 <= current_idx < len(agents):
@@ -416,12 +426,16 @@ class AgentList(OptionList):
         """Handle option highlight (keyboard navigation)."""
         # Only post message for user-initiated navigation, not programmatic updates
         if event.option_index is not None and not self._programmatic_update:
-            self.post_message(self.SelectionChanged(event.option_index))
+            self.post_message(
+                self.SelectionChanged(event.option_index, panel=self._panel)
+            )
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (mouse click or Enter)."""
         if event.option_index is not None:
-            self.post_message(self.SelectionChanged(event.option_index))
+            self.post_message(
+                self.SelectionChanged(event.option_index, panel=self._panel)
+            )
 
 
 def _compute_fold_annotation(

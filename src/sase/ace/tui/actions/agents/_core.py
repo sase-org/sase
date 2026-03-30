@@ -26,6 +26,9 @@ from ....changespec import ChangeSpec
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
+# Panel focus type
+PanelFocus = Literal["main", "pinned"]
+
 # Statuses that indicate an agent is dismissable (shows "x dismiss" in footer)
 DISMISSABLE_STATUSES = {
     "DONE",
@@ -127,6 +130,75 @@ class AgentsMixinCore(
 
     # Debounce timer for j/k navigation detail panel updates
     _detail_update_timer: Timer | None
+
+    # Panel focus and index maps for pinned panel split
+    _pinned_panel_focused: PanelFocus
+    _main_panel_indices: list[int]
+    _pinned_panel_indices: list[int]
+
+    # --- Panel index helpers ---
+
+    def _build_panel_indices(self) -> None:
+        """Build derived panel index maps from the canonical _agents list.
+
+        Populates _main_panel_indices (non-pinned agents) and
+        _pinned_panel_indices (pinned + dismissable agents).
+        """
+        main: list[int] = []
+        pinned: list[int] = []
+        for i, agent in enumerate(self._agents):
+            if (
+                agent.identity in self._pinned_agents
+                and agent.status in DISMISSABLE_STATUSES
+            ):
+                pinned.append(i)
+            else:
+                main.append(i)
+        self._main_panel_indices = main
+        self._pinned_panel_indices = pinned
+
+    def _global_to_local(self, global_idx: int) -> tuple[PanelFocus, int]:
+        """Convert a global _agents index to (panel, local_index).
+
+        Returns ("main", local_idx) or ("pinned", local_idx).
+        Raises ValueError if global_idx is not in either panel.
+        """
+        try:
+            return ("main", self._main_panel_indices.index(global_idx))
+        except ValueError:
+            pass
+        try:
+            return ("pinned", self._pinned_panel_indices.index(global_idx))
+        except ValueError:
+            raise ValueError(f"Global index {global_idx} not in any panel") from None
+
+    def _local_to_global(self, panel: PanelFocus, local_idx: int) -> int:
+        """Convert a (panel, local_index) to a global _agents index."""
+        indices = (
+            self._main_panel_indices if panel == "main" else self._pinned_panel_indices
+        )
+        return indices[local_idx]
+
+    def _active_panel_indices(self) -> list[int]:
+        """Get the index map for the currently focused panel."""
+        if self._pinned_panel_focused == "pinned":
+            return self._pinned_panel_indices
+        return self._main_panel_indices
+
+    def _switch_panel_focus(self, target: PanelFocus) -> None:
+        """Switch panel focus safely, selecting first item if needed."""
+        if self._pinned_panel_focused == target:
+            return
+        self._pinned_panel_focused = target
+        indices = self._active_panel_indices()
+        if indices:
+            self.current_idx = indices[0]
+
+    def _get_selected_agent(self) -> Agent | None:
+        """Get the currently selected agent, or None if no valid selection."""
+        if self._agents and 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
 
     def _load_agents(self) -> None:
         """Load agents from all sources."""
@@ -351,6 +423,9 @@ class AgentsMixinCore(
                 self._agent_status_overrides.pop(identity, None)
                 self._agent_pre_question_status.pop(identity, None)
 
+        # Build panel index maps (must happen after _agents is finalized)
+        self._build_panel_indices()
+
         # Calculate the new index
         # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
         saved_idx = self.current_idx if on_agents_tab else self._agents_last_idx
@@ -368,6 +443,22 @@ class AgentsMixinCore(
             new_idx = min(saved_idx, len(self._agents) - 1)
         else:
             new_idx = 0
+
+        # Ensure panel focus is valid after refresh
+        if not self._pinned_panel_indices and self._pinned_panel_focused == "pinned":
+            self._pinned_panel_focused = "main"
+        elif (
+            not self._main_panel_indices
+            and self._pinned_panel_indices
+            and self._pinned_panel_focused == "main"
+        ):
+            self._pinned_panel_focused = "pinned"
+
+        # If selection target is not in focused panel, adjust
+        if self._agents and new_idx not in self._active_panel_indices():
+            active = self._active_panel_indices()
+            if active:
+                new_idx = active[0]
 
         # Only modify current_idx if we're on the agents tab
         # Otherwise, update the saved position for when user switches to agents tab
@@ -432,18 +523,48 @@ class AgentsMixinCore(
         from ...widgets import AgentDetail, AgentList, KeybindingFooter
 
         agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
+        pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
 
         if list_changed:
+            # Build panel-specific agent lists
+            main_agents = [self._agents[i] for i in self._main_panel_indices]
+            pinned_agents = [self._agents[i] for i in self._pinned_panel_indices]
+
+            # Compute local selection index for each panel
+            main_local_idx = 0
+            pinned_local_idx = 0
+            if self.current_idx in self._main_panel_indices:
+                main_local_idx = self._main_panel_indices.index(self.current_idx)
+            if self.current_idx in self._pinned_panel_indices:
+                pinned_local_idx = self._pinned_panel_indices.index(self.current_idx)
+
             agent_list.update_list(
-                self._agents,
-                self.current_idx,
+                main_agents,
+                main_local_idx,
+                fold_counts=self._fold_counts,
+                pinned_agents=self._pinned_agents,
+            )
+            pinned_list.update_list(
+                pinned_agents,
+                pinned_local_idx,
                 fold_counts=self._fold_counts,
                 pinned_agents=self._pinned_agents,
             )
         else:
-            agent_list.update_highlight(self.current_idx)
+            # Update highlight on the focused panel only
+            if self._pinned_panel_focused == "pinned":
+                if self.current_idx in self._pinned_panel_indices:
+                    local_idx = self._pinned_panel_indices.index(self.current_idx)
+                    pinned_list.update_highlight(local_idx)
+            else:
+                if self.current_idx in self._main_panel_indices:
+                    local_idx = self._main_panel_indices.index(self.current_idx)
+                    agent_list.update_highlight(local_idx)
+
+        # Update focus styling
+        self._update_panel_focus_styling()
 
         self._apply_agent_detail_update(agent_detail, footer_widget)
 
@@ -458,8 +579,17 @@ class AgentsMixinCore(
         """
         from ...widgets import AgentList
 
-        agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
-        agent_list.update_highlight(self.current_idx)
+        # Update highlight on the focused panel only
+        if self._pinned_panel_focused == "pinned":
+            if self.current_idx in self._pinned_panel_indices:
+                pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
+                local_idx = self._pinned_panel_indices.index(self.current_idx)
+                pinned_list.update_highlight(local_idx)
+        else:
+            if self.current_idx in self._main_panel_indices:
+                agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
+                local_idx = self._main_panel_indices.index(self.current_idx)
+                agent_list.update_highlight(local_idx)
         self._update_agents_info_panel()
 
         # Cancel any pending debounce timer before scheduling a new one
@@ -491,9 +621,8 @@ class AgentsMixinCore(
             agent_detail: The agent detail panel widget.
             footer_widget: The keybinding footer widget.
         """
-        current_agent = None
-        if self._agents and 0 <= self.current_idx < len(self._agents):
-            current_agent = self._agents[self.current_idx]
+        current_agent = self._get_selected_agent()
+        if current_agent is not None:
             agent_detail.update_display(
                 current_agent, stale_threshold_seconds=self.refresh_interval
             )
@@ -525,6 +654,8 @@ class AgentsMixinCore(
                 current_agent,
                 completed_count=completed_count,
                 is_pinned=agent_is_pinned,
+                pinned_count=len(self._pinned_panel_indices),
+                panel_focus=self._pinned_panel_focused,
             )
 
     def _toggle_hide_non_run_agents(self) -> None:
@@ -534,9 +665,11 @@ class AgentsMixinCore(
 
     def action_jump_to_agent_changespec(self) -> None:
         """Jump to the CLs tab selecting the ChangeSpec for the current agent."""
-        if self.current_tab != "agents" or not self._agents:
+        if self.current_tab != "agents":
             return
-        agent = self._agents[self.current_idx]
+        agent = self._get_selected_agent()
+        if agent is None:
+            return
 
         from ._notification_actions import (
             get_meta_changespec_name,
@@ -567,6 +700,46 @@ class AgentsMixinCore(
             on_dismiss,
         )
 
+    def _update_panel_focus_styling(self) -> None:
+        """Update CSS classes on both panels to reflect focus state."""
+        try:
+            main_panel = self.query_one("#agent-list-panel")  # type: ignore[attr-defined]
+            pinned_container = self.query_one("#pinned-panel-container")  # type: ignore[attr-defined]
+        except Exception:
+            return
+
+        # Auto-hide pinned panel when empty
+        pinned_count = len(self._pinned_panel_indices)
+        pinned_container.display = pinned_count > 0
+
+        if self._pinned_panel_focused == "pinned":
+            main_panel.add_class("panel-inactive")
+            pinned_container.add_class("panel-active")
+        else:
+            main_panel.remove_class("panel-inactive")
+            pinned_container.remove_class("panel-active")
+
+        # Set border title on pinned container
+        pinned_container.border_title = f"Pinned ({pinned_count})"
+
+    def action_focus_pinned_panel(self) -> None:
+        """Toggle focus between main agent list and pinned panel."""
+        if self.current_tab != "agents":
+            return
+
+        if self._pinned_panel_focused == "main":
+            if not self._pinned_panel_indices:
+                self.notify("No pinned agents", severity="warning")  # type: ignore[attr-defined]
+                return
+            self._switch_panel_focus("pinned")
+        else:
+            if not self._main_panel_indices:
+                self.notify("No agents in main list", severity="warning")  # type: ignore[attr-defined]
+                return
+            self._switch_panel_focus("main")
+
+        self._refresh_agents_display(list_changed=True)
+
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
         from ...widgets import AgentDetail, AgentInfoPanel
@@ -580,7 +753,7 @@ class AgentsMixinCore(
         )
         agent_info_panel.update_search_query(self._agent_search_query)
         # Show current panel view mode when an agent is selected
-        if self._agents and 0 <= self.current_idx < len(self._agents):
+        if self._get_selected_agent() is not None:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_info_panel.update_view_mode(agent_detail.panel_mode_label)
         else:

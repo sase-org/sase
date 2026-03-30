@@ -225,6 +225,13 @@ class AceApp(
         self._hidden_count: int = 0
         self._agent_search_query: str = ""
 
+        # Panel focus state for pinned panel split
+        from .actions.agents._core import PanelFocus
+
+        self._pinned_panel_focused: PanelFocus = "main"
+        self._main_panel_indices: list[int] = []
+        self._pinned_panel_indices: list[int] = []
+
         # Fold state for nested workflow steps
         from .models.fold_state import FoldStateManager
 
@@ -404,6 +411,8 @@ class AceApp(
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
+                        with Vertical(id="pinned-panel-container"):
+                            yield AgentList(panel="pinned", id="pinned-list-panel")
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
                 # Left panel (bgcmd list) - always visible on AXE tab

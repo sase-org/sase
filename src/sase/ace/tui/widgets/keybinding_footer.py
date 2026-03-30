@@ -193,10 +193,16 @@ class KeybindingFooter(Horizontal):
         *,
         completed_count: int = 0,
         is_pinned: bool = False,
+        pinned_count: int = 0,
+        panel_focus: str = "main",
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
-            agent, completed_count=completed_count, is_pinned=is_pinned
+            agent,
+            completed_count=completed_count,
+            is_pinned=is_pinned,
+            pinned_count=pinned_count,
+            panel_focus=panel_focus,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -403,6 +409,8 @@ class KeybindingFooter(Horizontal):
         *,
         completed_count: int = 0,
         is_pinned: bool = False,
+        pinned_count: int = 0,
+        panel_focus: str = "main",
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -420,6 +428,9 @@ class KeybindingFooter(Horizontal):
                         f"dismiss all ({completed_count})",
                     )
                 )
+            if pinned_count > 0:
+                label = "list" if panel_focus == "pinned" else "pinned"
+                bindings.append((self._kd("focus_pinned_panel"), label))
             return bindings
 
         x = self._kd("kill_agent")
@@ -494,6 +505,11 @@ class KeybindingFooter(Horizontal):
             bindings.append(
                 (self._kd("toggle_axe"), f"dismiss all ({completed_count})")
             )
+
+        # Panel switch affordance (only when pinned entries exist)
+        if pinned_count > 0:
+            label = "list" if panel_focus == "pinned" else "pinned"
+            bindings.append((self._kd("focus_pinned_panel"), label))
 
         return bindings
 

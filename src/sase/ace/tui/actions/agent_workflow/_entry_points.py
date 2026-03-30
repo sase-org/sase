@@ -240,11 +240,10 @@ class EntryPointsMixin:
 
         from ...modals import SelectionItem
 
-        if not self._agents:
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agents available", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
         cl_name = agent.cl_name
         project_name = Path(agent.project_file).parent.name
         prefix = _vcs_prompt_prefix(agent.project_file, cl_name)
@@ -364,11 +363,11 @@ class EntryPointsMixin:
         the existing agent.  The user can press ``Ctrl+G`` to open their
         editor from the prompt input bar.
         """
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        agent = self._agents[self.current_idx]
         raw_prompt = agent.get_raw_xprompt_content()
 
         if raw_prompt is None:
@@ -387,11 +386,10 @@ class EntryPointsMixin:
         bar for editing.  The user can press ``Ctrl+G`` to open their
         editor, or submit directly from the bar.
         """
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         # Capture agent info before killing (agent is removed from _agents on kill)
         agent_project_file = agent.project_file
