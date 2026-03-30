@@ -414,7 +414,7 @@ def parse_timestamps_line(
         # Pattern: [YYYY-MM-DD HH:MM:SS] EVENT  detail
         ts_match = re.match(
             r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s+"
-            r"(COMMIT|STATUS|SYNC|REWORD)\s+"
+            r"(COMMIT|STATUS|SYNC|REWORD|REWIND)\s+"
             r"(.+)$",
             stripped,
         )

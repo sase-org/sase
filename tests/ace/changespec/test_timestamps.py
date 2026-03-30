@@ -32,6 +32,7 @@ TIMESTAMPS:
   [2026-03-29 15:10:00] REWORD  description
   [2026-03-29 15:15:00] REWORD  tag "Bug"
   [2026-03-29 15:20:00] COMMIT  (2a)
+  [2026-03-29 15:25:00] REWIND  (3)
 
 
 """
@@ -45,7 +46,7 @@ TIMESTAMPS:
         assert len(changespecs) == 1
         cs = changespecs[0]
         assert cs.timestamps is not None
-        assert len(cs.timestamps) == 7
+        assert len(cs.timestamps) == 8
 
         # Verify first entry
         assert cs.timestamps[0].timestamp == "2026-03-29 14:30:22"
@@ -67,6 +68,10 @@ TIMESTAMPS:
 
         # Verify proposed commit
         assert cs.timestamps[6].detail == "(2a)"
+
+        # Verify REWIND entry
+        assert cs.timestamps[7].event_type == "REWIND"
+        assert cs.timestamps[7].detail == "(3)"
     finally:
         os.unlink(path)
 
@@ -106,18 +111,20 @@ def test_format_timestamps_field() -> None:
         TimestampEntry("2026-03-29 14:35:10", "STATUS", "WIP -> Draft"),
         TimestampEntry("2026-03-29 15:00:00", "SYNC", "success"),
         TimestampEntry("2026-03-29 15:10:00", "REWORD", "description"),
+        TimestampEntry("2026-03-29 15:25:00", "REWIND", "(3)"),
     ]
     result = format_timestamps_field(entries)
 
     assert result.startswith("TIMESTAMPS:\n")
     lines = result.strip().split("\n")
-    assert len(lines) == 5  # header + 4 entries
+    assert len(lines) == 6  # header + 5 entries
 
     # Check alignment — event type padded to 7 chars
     assert "COMMIT " in lines[1]
     assert "STATUS " in lines[2]
     assert "SYNC   " in lines[3]
     assert "REWORD " in lines[4]
+    assert "REWIND " in lines[5]
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import os
 from sase.ace.changespec import ChangeSpec
 from sase.ace.hooks.processes import kill_and_persist_all_running_processes
 from sase.ace.operations import update_to_changespec
+from sase.ace.timestamps.recording import add_timestamp_entry_atomic
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.output import print_status
 from sase.running_field import (
@@ -169,6 +170,13 @@ class RewindWorkflow:
                 print_status("ChangeSpec entries updated", "success")
             else:
                 return (False, "Failed to update ChangeSpec entries")
+
+            add_timestamp_entry_atomic(
+                project_file,
+                cl_name,
+                "REWIND",
+                f"({selected_entry_num})",
+            )
 
             return (True, f"Successfully rewound to entry ({selected_entry_num})")
 
