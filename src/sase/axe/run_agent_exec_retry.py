@@ -75,17 +75,6 @@ def handle_workflow_error(
             last_error_snippet=snippet,
         ).write_to(ctx.artifacts_dir)
 
-        from sase.notifications.senders import notify_agent_retry
-
-        notify_agent_retry(
-            "agent-retry",
-            ctx.cl_name,
-            tracker.retry_count,
-            active_retry_cfg.max_retries,
-            wait_time,
-            snippet,
-        )
-
         # Sleep in 1s increments
         for _ in range(wait_time):
             if was_killed():
@@ -125,15 +114,6 @@ def handle_workflow_error(
             using_fallback=True,
             last_error_snippet=snippet,
         ).write_to(ctx.artifacts_dir)
-
-        from sase.notifications.senders import notify_agent_fallback
-
-        notify_agent_fallback(
-            "agent-retry",
-            ctx.cl_name,
-            active_retry_cfg.fallback_model,
-            tracker.retry_count,
-        )
 
         if ctx.update_target and not ctx.is_home_mode:
             prepare_workspace(

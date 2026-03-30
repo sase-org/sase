@@ -413,29 +413,3 @@ class TestRetryLoop:
         _run_main(patches, tmp_path)
 
         assert execute_mock.call_count == 2  # 1 initial + 1 retry
-
-
-class TestNotifyRetryFallback:
-    """Test the notification helper functions."""
-
-    def test_notify_agent_retry(self) -> None:
-        with patch("sase.notifications.senders.append_notification") as mock_append:
-            from sase.notifications.senders import notify_agent_retry
-
-            notify_agent_retry(
-                "agent-retry", "test-cl", 1, 3, 30, "rate limit exceeded"
-            )
-            mock_append.assert_called_once()
-            notification = mock_append.call_args[0][0]
-            assert "Retrying" in notification.notes[0]
-            assert "test-cl" in notification.notes[0]
-
-    def test_notify_agent_fallback(self) -> None:
-        with patch("sase.notifications.senders.append_notification") as mock_append:
-            from sase.notifications.senders import notify_agent_fallback
-
-            notify_agent_fallback("agent-retry", "test-cl", "gemini-flash", 3)
-            mock_append.assert_called_once()
-            notification = mock_append.call_args[0][0]
-            assert "Falling back" in notification.notes[0]
-            assert "gemini-flash" in notification.notes[0]

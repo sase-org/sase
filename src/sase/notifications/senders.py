@@ -137,50 +137,6 @@ def notify_user_question(
     append_notification(n)
 
 
-def notify_agent_retry(
-    sender: str,
-    cl_name: str,
-    attempt: int,
-    max_retries: int,
-    wait_seconds: int,
-    error_snippet: str,
-) -> None:
-    """Send a notification when an agent is retrying after an error."""
-    n = Notification(
-        id=str(uuid4()),
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender=sender,
-        notes=[
-            f"Retrying {cl_name} ({attempt}/{max_retries}), "
-            f"waiting {wait_seconds}s: {error_snippet}"
-        ],
-        action=None,
-        action_data={},
-    )
-    append_notification(n)
-
-
-def notify_agent_fallback(
-    sender: str,
-    cl_name: str,
-    fallback_model: str,
-    total_retries: int,
-) -> None:
-    """Send a notification when an agent falls back to an alternate model."""
-    n = Notification(
-        id=str(uuid4()),
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender=sender,
-        notes=[
-            f"Falling back to {fallback_model} for {cl_name} "
-            f"after {total_retries} retries"
-        ],
-        action=None,
-        action_data={},
-    )
-    append_notification(n)
-
-
 def notify_plan_approval(
     plan_file: str,
     response_dir: str,
