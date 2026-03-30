@@ -240,6 +240,13 @@ class AceApp(
         self._dismissed_agent_objects: list[Agent] = []
         self._pinned_agents = load_pinned_agents()
 
+        # Pinned panel state
+        from typing import Literal as _Lit
+
+        self._active_agent_panel: _Lit["main", "pinned"] = "main"
+        self._pinned_panel_agents: list[Agent] = []
+        self._pinned_panel_idx: int = 0
+
         # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
         self._agent_pre_question_status: dict[
@@ -404,6 +411,10 @@ class AceApp(
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
+                        with Vertical(id="pinned-panel-container", classes="hidden"):
+                            yield AgentList(
+                                emit_width=False, id="pinned-agent-list-panel"
+                            )
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
                 # Left panel (bgcmd list) - always visible on AXE tab

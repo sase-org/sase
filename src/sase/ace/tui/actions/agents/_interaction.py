@@ -60,6 +60,9 @@ class AgentInteractionMixin:
     current_idx: int
     _agents: list[Agent]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
+    _pinned_panel_agents: list[Agent]
+    _pinned_panel_idx: int
+    _active_agent_panel: str  # "main" | "pinned"
     refresh_interval: int
     hide_non_run_agents: bool
 
@@ -74,11 +77,10 @@ class AgentInteractionMixin:
         if self.current_tab != "agents":
             return
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         # Handle completed agents with dismiss (no confirmation needed)
         from ._core import DISMISSABLE_STATUSES
@@ -114,11 +116,10 @@ class AgentInteractionMixin:
         if self.current_tab != "agents":
             return
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         from ._core import DISMISSABLE_STATUSES
 
@@ -137,7 +138,8 @@ class AgentInteractionMixin:
 
         label = "Pinned" if now_pinned else "Unpinned"
         self.notify(f"{label} {agent.display_name}")  # type: ignore[attr-defined]
-        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        # Reload to re-split main vs pinned lists
+        self._load_agents()  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff - behavior depends on current tab."""
@@ -152,11 +154,10 @@ class AgentInteractionMixin:
         from ...widgets import AgentDetail
         from ._core import DISMISSABLE_STATUSES
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
         if agent.status in DISMISSABLE_STATUSES:
             return
 
@@ -173,11 +174,10 @@ class AgentInteractionMixin:
 
     def _wait_agent(self) -> None:
         """Prompt for an agent name to wait for, or run immediately."""
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         if agent.status not in ("WAITING", "RUNNING"):
             self.notify("Agent is not waiting or running", severity="warning")  # type: ignore[attr-defined]
@@ -297,11 +297,10 @@ class AgentInteractionMixin:
         import os
         import subprocess
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         # Only available for completed agents
         if agent.status not in ("DONE",):
@@ -397,11 +396,10 @@ class AgentInteractionMixin:
         if self.current_tab != "agents":
             return
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         # Running named agents: use resume_by_name with %w to wait for completion
         from ._core import DISMISSABLE_STATUSES
@@ -447,11 +445,10 @@ class AgentInteractionMixin:
         if self.current_tab != "agents":
             return
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         if not agent.agent_name:
             self.notify("No agent name found", severity="warning")  # type: ignore[attr-defined]
@@ -507,11 +504,10 @@ class AgentInteractionMixin:
         if self.current_tab != "agents":
             return
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         from ...widgets import AgentDetail
 
@@ -545,11 +541,10 @@ class AgentInteractionMixin:
         import subprocess
         from pathlib import Path
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         from ...widgets.prompt_panel._file_path_hints import resolve_agent_workspace_dir
 
@@ -598,11 +593,10 @@ class AgentInteractionMixin:
         if self.current_tab != "agents":
             return
 
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_active_panel_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
 
         _APPROVE_ELIGIBLE = {
             "RUNNING",

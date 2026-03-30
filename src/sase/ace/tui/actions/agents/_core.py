@@ -12,6 +12,8 @@ from ._revive import AgentRevivalMixin
 from ._workflow_hitl import AgentWorkflowHITLMixin
 
 if TYPE_CHECKING:
+    from typing import Literal
+
     from textual.timer import Timer
 
     from ...models import Agent
@@ -125,6 +127,11 @@ class AgentsMixinCore(
     # Agent search/filter query
     _agent_search_query: str
 
+    # Pinned panel state
+    _active_agent_panel: Literal["main", "pinned"]
+    _pinned_panel_agents: list[Agent]
+    _pinned_panel_idx: int
+
     # Debounce timer for j/k navigation detail panel updates
     _detail_update_timer: Timer | None
 
@@ -138,8 +145,10 @@ class AgentsMixinCore(
         on_agents_tab = self.current_tab == "agents"
 
         selected_identity: tuple[AgentType, str, str | None] | None = None
-        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
-            selected_identity = self._agents[self.current_idx].identity
+        if on_agents_tab:
+            active_agent = self._get_active_panel_agent()
+            if active_agent is not None:
+                selected_identity = active_agent.identity
 
         # Load fresh agent list
         all_agents = load_all_agents()
@@ -351,19 +360,35 @@ class AgentsMixinCore(
                 self._agent_status_overrides.pop(identity, None)
                 self._agent_pre_question_status.pop(identity, None)
 
-        # Calculate the new index
+        # Split into main (non-pinned) and pinned lists.
+        # Only completed agents can be pinned; keep non-completed agents in main
+        # even if their identity appears in _pinned_agents.
+        self._pinned_panel_agents = [
+            a
+            for a in self._agents
+            if a.identity in self._pinned_agents and a.status in DISMISSABLE_STATUSES
+        ]
+        self._agents = [
+            a
+            for a in self._agents
+            if a.identity not in self._pinned_agents
+            or a.status not in DISMISSABLE_STATUSES
+        ]
+
+        # Calculate the new main-panel index
         # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
         saved_idx = self.current_idx if on_agents_tab else self._agents_last_idx
 
         if selected_identity is not None:
-            # Try to restore selection by identity
-            for idx, agent in enumerate(self._agents):
-                if agent.identity == selected_identity:
-                    saved_idx = idx
-                    break
+            if self._active_agent_panel == "main":
+                # Try to restore selection by identity in main list
+                for idx, agent in enumerate(self._agents):
+                    if agent.identity == selected_identity:
+                        saved_idx = idx
+                        break
             # If agent not found, saved_idx remains at the original position
 
-        # Clamp to valid bounds
+        # Clamp main index to valid bounds
         if self._agents:
             new_idx = min(saved_idx, len(self._agents) - 1)
         else:
@@ -376,16 +401,31 @@ class AgentsMixinCore(
         else:
             self._agents_last_idx = new_idx
 
+        # Clamp pinned panel index
+        if self._pinned_panel_agents:
+            self._pinned_panel_idx = min(
+                self._pinned_panel_idx, len(self._pinned_panel_agents) - 1
+            )
+            # Restore pinned selection by identity
+            if selected_identity is not None and self._active_agent_panel == "pinned":
+                for idx, agent in enumerate(self._pinned_panel_agents):
+                    if agent.identity == selected_identity:
+                        self._pinned_panel_idx = idx
+                        break
+        else:
+            self._pinned_panel_idx = 0
+            # If pinned panel is empty, fall back to main
+            if self._active_agent_panel == "pinned":
+                self._active_agent_panel = "main"
+
         # Update the running agent counts on the tab bar.
         # Exclude workflow children — they are sub-steps of a parent agent
         # and should not inflate the top-level running count.
-        # All counts use the final displayed list (self._agents) rather than
-        # the pre-filter always_visible/all_agents — fold-state filtering
-        # removes workflow parents whose children are all hidden steps, so
-        # the pre-filter lists can contain agents not shown in the UI.
+        # Use combined main + pinned lists for aggregate counts.
+        all_tab_agents = self._agents + self._pinned_panel_agents
         manual_running = sum(
             1
-            for a in self._agents
+            for a in all_tab_agents
             if a.status not in DISMISSABLE_STATUSES and not a.is_workflow_child
         )
         if self._has_always_visible:
@@ -398,7 +438,7 @@ class AgentsMixinCore(
             hidden_running = 0
         done_visible = sum(
             1
-            for a in self._agents
+            for a in all_tab_agents
             if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
         )
         from ...widgets import TabBar
@@ -445,6 +485,9 @@ class AgentsMixinCore(
         else:
             agent_list.update_highlight(self.current_idx)
 
+        # Refresh pinned panel
+        self._refresh_pinned_panel(list_changed=list_changed)
+
         self._apply_agent_detail_update(agent_detail, footer_widget)
 
         self._update_agents_info_panel()
@@ -458,8 +501,12 @@ class AgentsMixinCore(
         """
         from ...widgets import AgentList
 
-        agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
-        agent_list.update_highlight(self.current_idx)
+        if self._active_agent_panel == "main":
+            agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
+            agent_list.update_highlight(self.current_idx)
+        else:
+            pinned_list = self.query_one("#pinned-agent-list-panel", AgentList)  # type: ignore[attr-defined]
+            pinned_list.update_highlight(self._pinned_panel_idx)
         self._update_agents_info_panel()
 
         # Cancel any pending debounce timer before scheduling a new one
@@ -491,9 +538,9 @@ class AgentsMixinCore(
             agent_detail: The agent detail panel widget.
             footer_widget: The keybinding footer widget.
         """
-        current_agent = None
-        if self._agents and 0 <= self.current_idx < len(self._agents):
-            current_agent = self._agents[self.current_idx]
+        # Resolve current agent from active panel
+        current_agent = self._get_active_panel_agent()
+        if current_agent is not None:
             agent_detail.update_display(
                 current_agent, stale_threshold_seconds=self.refresh_interval
             )
@@ -514,8 +561,9 @@ class AgentsMixinCore(
         elif (cm := getattr(self, "_custom_mode_active", None)) is not None:
             footer_widget.update_custom_mode_bindings(cm)
         else:
+            all_tab_agents = self._agents + self._pinned_panel_agents
             completed_count = sum(
-                1 for a in self._agents if a.status in DISMISSABLE_STATUSES
+                1 for a in all_tab_agents if a.status in DISMISSABLE_STATUSES
             )
             agent_is_pinned = (
                 current_agent is not None
@@ -525,6 +573,7 @@ class AgentsMixinCore(
                 current_agent,
                 completed_count=completed_count,
                 is_pinned=agent_is_pinned,
+                pinned_count=len(self._pinned_panel_agents),
             )
 
     def _toggle_hide_non_run_agents(self) -> None:
@@ -534,9 +583,11 @@ class AgentsMixinCore(
 
     def action_jump_to_agent_changespec(self) -> None:
         """Jump to the CLs tab selecting the ChangeSpec for the current agent."""
-        if self.current_tab != "agents" or not self._agents:
+        if self.current_tab != "agents":
             return
-        agent = self._agents[self.current_idx]
+        agent = self._get_active_panel_agent()
+        if agent is None:
+            return
 
         from ._notification_actions import (
             get_meta_changespec_name,
@@ -572,16 +623,76 @@ class AgentsMixinCore(
         from ...widgets import AgentDetail, AgentInfoPanel
 
         agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
-        # Position is 1-based for display (current_idx is 0-based)
-        position = self.current_idx + 1 if self._agents else 0
-        agent_info_panel.update_position(position, len(self._agents))
+        # Position reflects the active panel
+        if self._active_agent_panel == "pinned" and self._pinned_panel_agents:
+            position = self._pinned_panel_idx + 1
+            total = len(self._pinned_panel_agents)
+        else:
+            position = self.current_idx + 1 if self._agents else 0
+            total = len(self._agents)
+        agent_info_panel.update_position(position, total)
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )
         agent_info_panel.update_search_query(self._agent_search_query)
         # Show current panel view mode when an agent is selected
-        if self._agents and 0 <= self.current_idx < len(self._agents):
+        current_agent = self._get_active_panel_agent()
+        if current_agent is not None:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_info_panel.update_view_mode(agent_detail.panel_mode_label)
         else:
             agent_info_panel.update_view_mode("")
+
+    def _get_active_panel_agent(self) -> Agent | None:
+        """Return the currently selected agent from the active panel."""
+        if self._active_agent_panel == "pinned":
+            agents = self._pinned_panel_agents
+            idx = self._pinned_panel_idx
+        else:
+            agents = self._agents
+            idx = self.current_idx
+        if agents and 0 <= idx < len(agents):
+            return agents[idx]
+        return None
+
+    def _refresh_pinned_panel(self, *, list_changed: bool = False) -> None:
+        """Refresh the pinned agents panel visibility and contents."""
+        from ...widgets import AgentList
+
+        pinned_container = self.query_one("#pinned-panel-container")  # type: ignore[attr-defined]
+        pinned_list = self.query_one("#pinned-agent-list-panel", AgentList)  # type: ignore[attr-defined]
+
+        if self._pinned_panel_agents:
+            pinned_container.remove_class("hidden")
+            pinned_container.border_title = f"Pinned ({len(self._pinned_panel_agents)})"
+            if list_changed:
+                pinned_list.update_list(
+                    self._pinned_panel_agents,
+                    self._pinned_panel_idx,
+                    pinned_agents=self._pinned_agents,
+                )
+            else:
+                pinned_list.update_highlight(self._pinned_panel_idx)
+            # Active panel styling
+            if self._active_agent_panel == "pinned":
+                pinned_container.add_class("active-panel")
+            else:
+                pinned_container.remove_class("active-panel")
+        else:
+            pinned_container.add_class("hidden")
+
+    def action_jump_agent_panel(self) -> None:
+        """Toggle focus between main agent list and pinned panel."""
+        if self.current_tab != "agents":
+            return
+
+        if not self._pinned_panel_agents:
+            self.notify("No pinned agents", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if self._active_agent_panel == "main":
+            self._active_agent_panel = "pinned"
+        else:
+            self._active_agent_panel = "main"
+
+        self._refresh_agents_display(list_changed=True)

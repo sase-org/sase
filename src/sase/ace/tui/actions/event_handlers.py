@@ -39,6 +39,9 @@ class EventHandlersMixin:
     _checkout_mode_active: bool
     _copy_mode_active: bool
     _agents: list[Agent]
+    _pinned_panel_agents: list[Agent]
+    _pinned_panel_idx: int
+    _active_agent_panel: str
     _changespecs_last_idx: int
     _agents_last_idx: int
     _ancestor_mode_active: bool
@@ -249,7 +252,15 @@ class EventHandlersMixin:
         self, event: AgentList.SelectionChanged
     ) -> None:
         """Handle selection change in the Agent list widget."""
-        if self.current_tab == "agents" and 0 <= event.index < len(self._agents):
+        if self.current_tab != "agents":
+            return
+        if event.panel_id == "pinned-agent-list-panel":
+            if 0 <= event.index < len(self._pinned_panel_agents):
+                self._active_agent_panel = "pinned"
+                self._pinned_panel_idx = event.index
+                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        elif 0 <= event.index < len(self._agents):
+            self._active_agent_panel = "main"
             self.current_idx = event.index
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:

@@ -255,6 +255,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
                     "Move to next / previous agent",
                 ),
+                (d(a.jump_agent_panel), "Jump to pinned panel"),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
                     "Scroll file panel to top / bottom",

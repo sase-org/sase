@@ -60,6 +60,7 @@ ace:
       start_custom_agent: "at"
       start_agent_from_changespec: "space"
       jump_to_agent_changespec: "enter"
+      jump_agent_panel: "J"
       edit_panel: "E"
       # Thinking panel
       toggle_thinking: "right_square_bracket"

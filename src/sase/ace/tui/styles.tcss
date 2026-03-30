@@ -516,6 +516,25 @@ HintInputBar #hint-escape-hint {
     height: 1fr;
 }
 
+/* Pinned agents panel (right-bottom, below agent detail) */
+#pinned-panel-container {
+    height: auto;
+    max-height: 12;
+    border: solid $secondary;
+    border-title-align: left;
+}
+
+#pinned-panel-container.active-panel {
+    border: solid $primary;
+}
+
+#pinned-agent-list-panel {
+    width: 100%;
+    height: auto;
+    max-height: 10;
+    padding: 0 1;
+}
+
 #agent-detail-layout {
     width: 100%;
     height: 100%;

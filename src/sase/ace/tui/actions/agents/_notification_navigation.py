@@ -41,8 +41,10 @@ def find_agent_for_notification(
 
     agent_timestamp = normalize_to_14_digit(agent_timestamp)
 
+    # Search both main and pinned agent lists
     agents: list[Agent] = app._agents  # type: ignore[attr-defined]
-    for agent in agents:
+    pinned: list[Agent] = app._pinned_panel_agents  # type: ignore[attr-defined]
+    for agent in [*agents, *pinned]:
         if agent.cl_name != cl_name:
             continue
         if agent_timestamp and agent.raw_suffix != agent_timestamp:
@@ -109,18 +111,31 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
     app.current_tab = "agents"  # type: ignore[attr-defined]
 
     agents: list[Agent] = app._agents  # type: ignore[attr-defined]
+    pinned_agents: list[Agent] = app._pinned_panel_agents  # type: ignore[attr-defined]
 
-    # Try PID match first (most precise)
+    # Try PID match first (most precise) — search main list then pinned
     if pid is not None:
         for idx, agent in enumerate(agents):
             if agent.pid == pid:
+                app._active_agent_panel = "main"  # type: ignore[attr-defined]
                 app.current_idx = idx  # type: ignore[attr-defined]
                 return True
+        for idx, agent in enumerate(pinned_agents):
+            if agent.pid == pid:
+                app._active_agent_panel = "pinned"  # type: ignore[attr-defined]
+                app._pinned_panel_idx = idx  # type: ignore[attr-defined]
+                return True
 
-    # Fallback to cl_name match
+    # Fallback to cl_name match — search main list then pinned
     for idx, agent in enumerate(agents):
         if agent.cl_name == cl_name:
+            app._active_agent_panel = "main"  # type: ignore[attr-defined]
             app.current_idx = idx  # type: ignore[attr-defined]
+            return True
+    for idx, agent in enumerate(pinned_agents):
+        if agent.cl_name == cl_name:
+            app._active_agent_panel = "pinned"  # type: ignore[attr-defined]
+            app._pinned_panel_idx = idx  # type: ignore[attr-defined]
             return True
 
     app.notify(f"Agent '{cl_name}' not found", severity="warning")  # type: ignore[attr-defined]

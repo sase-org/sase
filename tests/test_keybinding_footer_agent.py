@@ -52,3 +52,19 @@ def test_keybinding_footer_agent_bindings_completed_agent_with_chat() -> None:
 
     assert "x" in binding_keys  # Dismiss is available
     assert "e" in binding_keys  # Edit chat is available
+
+
+def test_keybinding_footer_agent_pinned_panel_binding() -> None:
+    """Test that pinned panel jump binding appears when pinned agents exist."""
+    footer = KeybindingFooter()
+    agent = _make_agent(status="RUNNING")
+
+    # No pinned agents: no jump binding
+    bindings = footer._compute_agent_bindings(agent, pinned_count=0)
+    binding_labels = [b[1] for b in bindings]
+    assert not any("pinned" in label for label in binding_labels)
+
+    # Pinned agents exist: jump binding present
+    bindings = footer._compute_agent_bindings(agent, pinned_count=3)
+    binding_labels = [b[1] for b in bindings]
+    assert any("pinned (3)" in label for label in binding_labels)

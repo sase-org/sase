@@ -160,8 +160,9 @@ class AgentList(OptionList):
     class SelectionChanged(Message):
         """Message sent when selection changes."""
 
-        def __init__(self, index: int) -> None:
+        def __init__(self, index: int, panel_id: str = "") -> None:
             self.index = index
+            self.panel_id = panel_id
             super().__init__()
 
     class WidthChanged(Message):
@@ -171,11 +172,17 @@ class AgentList(OptionList):
             self.width = width
             super().__init__()
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize the agent list."""
+    def __init__(self, emit_width: bool = True, **kwargs: Any) -> None:
+        """Initialize the agent list.
+
+        Args:
+            emit_width: Whether to emit WidthChanged messages. Disable for
+                secondary panels (e.g. pinned) that shouldn't resize the sidebar.
+        """
         super().__init__(**kwargs)
         self._agents: list[Agent] = []
         self._programmatic_update: bool = False
+        self._emit_width: bool = emit_width
 
     def update_list(
         self,
@@ -241,7 +248,8 @@ class AgentList(OptionList):
         # Add padding for border, scrollbar, visual comfort (~8 cells)
         _PADDING = 8
         optimal_width = max_width + _PADDING
-        self.post_message(self.WidthChanged(optimal_width))
+        if self._emit_width:
+            self.post_message(self.WidthChanged(optimal_width))
 
         # Highlight the current item
         if agents and 0 <= current_idx < len(agents):
@@ -416,12 +424,12 @@ class AgentList(OptionList):
         """Handle option highlight (keyboard navigation)."""
         # Only post message for user-initiated navigation, not programmatic updates
         if event.option_index is not None and not self._programmatic_update:
-            self.post_message(self.SelectionChanged(event.option_index))
+            self.post_message(self.SelectionChanged(event.option_index, self.id or ""))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (mouse click or Enter)."""
         if event.option_index is not None:
-            self.post_message(self.SelectionChanged(event.option_index))
+            self.post_message(self.SelectionChanged(event.option_index, self.id or ""))
 
 
 def _compute_fold_annotation(

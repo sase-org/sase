@@ -193,10 +193,14 @@ class KeybindingFooter(Horizontal):
         *,
         completed_count: int = 0,
         is_pinned: bool = False,
+        pinned_count: int = 0,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
-            agent, completed_count=completed_count, is_pinned=is_pinned
+            agent,
+            completed_count=completed_count,
+            is_pinned=is_pinned,
+            pinned_count=pinned_count,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -403,6 +407,7 @@ class KeybindingFooter(Horizontal):
         *,
         completed_count: int = 0,
         is_pinned: bool = False,
+        pinned_count: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -488,6 +493,10 @@ class KeybindingFooter(Horizontal):
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
         # --- App-state bindings ---
+
+        # Jump to pinned panel (only when pinned agents exist)
+        if pinned_count > 0:
+            bindings.append((self._kd("jump_agent_panel"), f"pinned ({pinned_count})"))
 
         # Dismiss all completed (only when completed agents exist)
         if completed_count > 0:
