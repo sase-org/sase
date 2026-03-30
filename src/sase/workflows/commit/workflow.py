@@ -156,6 +156,8 @@ class CommitWorkflow(BaseWorkflow):
         cs_name: str | None = None
         if self._method == "create_pull_request":
             cs_name = self._create_changespec(cl_url=result)
+            if cs_name is None:
+                self._cleanup_reservation()
 
         # Write initial result marker (needed by append_post_commit_entry)
         self._write_result_marker(result, cs_name)
