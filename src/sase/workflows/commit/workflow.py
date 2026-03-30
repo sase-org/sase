@@ -251,6 +251,15 @@ class CommitWorkflow(BaseWorkflow):
             dest = os.path.join(cwd, "plans", yyyymm, os.path.basename(plan_path))
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             shutil.copy2(plan_path, dest)
+            # Format the copied plan with prettier (safety net for
+            # archives created before the plan_command_handler format step)
+            from sase.gemini_wrapper.file_references import format_with_prettier
+
+            raw = open(dest, encoding="utf-8").read()
+            formatted = format_with_prettier(raw)
+            if formatted != raw:
+                with open(dest, "w", encoding="utf-8") as f:
+                    f.write(formatted)
             plan_path = dest
 
         # Only add frontmatter for version-controlled plans

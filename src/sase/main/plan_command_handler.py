@@ -44,6 +44,14 @@ def handle_plan_command(plan_file: str) -> NoReturn:
         print(f"Error: plan file not found: {plan_file}", file=sys.stderr)
         sys.exit(1)
 
+    # Format plan file in-place with prettier before archiving
+    from sase.gemini_wrapper.file_references import format_with_prettier
+
+    raw = plan_path.read_text(encoding="utf-8")
+    formatted = format_with_prettier(raw)
+    if formatted != raw:
+        plan_path.write_text(formatted, encoding="utf-8")
+
     # Archive plan to ~/.sase/plans/
     from sase.llm_provider._plan_utils import save_plan_to_sase
 
