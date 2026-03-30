@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sase.agent.names import (
     claim_agent_name,
@@ -280,11 +280,11 @@ class TestGetNextAutoName:
         with patch.object(Path, "home", return_value=tmp_path):
             assert get_next_auto_name() == "a"
 
-    def test_workflow_without_appears_as_agent_frees_name(self, tmp_path: Path) -> None:
-        """Workflows with appears_as_agent=False don't hold names."""
+    def test_workflow_without_appears_as_agent_holds_name(self, tmp_path: Path) -> None:
+        """Workflows with appears_as_agent=False still reserve names."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=False)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "b"
 
     def test_workflow_with_appears_as_agent_holds_name(self, tmp_path: Path) -> None:
         """Workflows with appears_as_agent=True hold names normally."""
@@ -293,13 +293,11 @@ class TestGetNextAutoName:
             assert get_next_auto_name() == "b"
 
     def test_mixed_workflow_and_agent_names(self, tmp_path: Path) -> None:
-        """Only agents visible on Agents tab hold names."""
-        # Workflow (not shown) — name "a" should be free
+        """Both appears_as_agent=False and True workflows hold names."""
         _make_agent(tmp_path, "proj", "run1", "a", done=True, appears_as_agent=False)
-        # Real agent (shown) — name "b" should be held
         _make_agent(tmp_path, "proj", "run2", "b", done=True, appears_as_agent=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert get_next_auto_name() == "a"
+            assert get_next_auto_name() == "c"
 
     def test_workflow_name_reserves_base_name(self, tmp_path: Path) -> None:
         """Promoted initial agent reserves base workflow name, not child name."""
@@ -502,3 +500,87 @@ class TestIsWorkflowComplete:
         )
         with patch.object(Path, "home", return_value=tmp_path):
             assert is_workflow_complete("a") is None
+
+
+# ---------------------------------------------------------------------------
+# extract_directives_and_write_meta: auto-dismiss behavior
+# ---------------------------------------------------------------------------
+
+_PHASES = "sase.axe.run_agent_phases"
+
+
+def _mock_provider() -> MagicMock:
+    p = MagicMock()
+    p.resolve_model_name.return_value = "test-model"
+    return p
+
+
+def _run_extract(tmp_path: Path, *, env_auto_dismiss: bool = False) -> dict:
+    """Call extract_directives_and_write_meta with standard mocks.
+
+    Returns the written agent_meta.json as a dict.
+    """
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+    workspace = str(tmp_path / "workspace")
+    artifacts = str(tmp_path / "artifacts")
+    os.makedirs(workspace, exist_ok=True)
+    os.makedirs(artifacts, exist_ok=True)
+
+    env_patch: dict[str, str] = {}
+    if env_auto_dismiss:
+        env_patch["SASE_AGENT_AUTO_DISMISS"] = "1"
+
+    with (
+        patch.dict(os.environ, env_patch, clear=False),
+        patch("sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p),
+        patch(
+            "sase.llm_provider.registry.get_default_provider_name", return_value="test"
+        ),
+        patch("sase.llm_provider.registry.get_provider", return_value=_mock_provider()),
+        patch(
+            "sase.llm_provider.registry.resolve_model_provider",
+            return_value=("test", "test-model"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+    ):
+        # Remove the env var if not auto_dismiss (in case it leaked)
+        if not env_auto_dismiss:
+            os.environ.pop("SASE_AGENT_AUTO_DISMISS", None)
+        info = extract_directives_and_write_meta("do stuff", workspace, artifacts)
+
+    meta_path = os.path.join(artifacts, "agent_meta.json")
+    if os.path.exists(meta_path):
+        with open(meta_path) as f:
+            meta = json.load(f)
+    else:
+        meta = {}
+    return {"info": info, "meta": meta}
+
+
+class TestExtractDirectivesAutoDismiss:
+    def test_skips_auto_name_when_auto_dismiss(self, tmp_path: Path) -> None:
+        """Auto-dismiss agents should not get an auto-assigned name."""
+        result = _run_extract(tmp_path, env_auto_dismiss=True)
+        assert result["info"].name is None
+        assert "name" not in result["meta"]
+
+    def test_writes_hidden_when_auto_dismiss(self, tmp_path: Path) -> None:
+        """Auto-dismiss agents should be marked hidden in agent_meta.json."""
+        result = _run_extract(tmp_path, env_auto_dismiss=True)
+        assert result["meta"].get("hidden") is True
+        assert result["info"].hidden is True
+
+    def test_normal_agent_gets_name(self, tmp_path: Path) -> None:
+        """Without auto-dismiss, agents get an auto-assigned name."""
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(tmp_path, env_auto_dismiss=False)
+        assert result["info"].name is not None
+        assert result["meta"].get("name") is not None
+
+    def test_normal_agent_not_hidden(self, tmp_path: Path) -> None:
+        """Without auto-dismiss, agents are not hidden."""
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(tmp_path, env_auto_dismiss=False)
+        assert result["meta"].get("hidden") is not True
+        assert result["info"].hidden is False
