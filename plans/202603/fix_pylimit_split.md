@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 19:13:39
-status: wip
+status: done
 ---
 
 # Fix `#sase/pylimit_split` workflow: eliminate inter-step dependency
