@@ -445,7 +445,7 @@
           { "type": "string" },
           {
             "type": "object",
-            "required": ["input", "content"],
+            "required": ["content"],
             "additionalProperties": false,
             "properties": {
               "input": {
@@ -455,6 +455,13 @@
               "content": {
                 "type": "string",
                 "description": "Template content with Jinja2 placeholders"
+              },
+              "snippet": {
+                "oneOf": [
+                  { "type": "boolean" },
+                  { "type": "string" }
+                ],
+                "description": "Opt-in snippet expansion: true for auto trigger word, or a custom trigger string"
               }
             }
           }
