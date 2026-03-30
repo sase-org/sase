@@ -258,6 +258,7 @@ def main() -> int:
         action=action,
         action_data=action_data,
         extra_files=extra_files,
+        silent=True,
     )
 
     # Write completion marker (no proposal ID for summarize workflows)

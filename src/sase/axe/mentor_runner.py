@@ -227,6 +227,7 @@ def main() -> None:
             action=action,
             action_data=action_data,
             extra_files=extra_files,
+            silent=True,
         )
 
     sys.exit(0 if success else 1)

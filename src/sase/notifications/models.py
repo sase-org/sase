@@ -17,6 +17,7 @@ class Notification:
     action_data: dict[str, str] = field(default_factory=dict)
     read: bool = False
     dismissed: bool = False
+    silent: bool = False
 
 
 def format_relative_time(iso_timestamp: str) -> str:

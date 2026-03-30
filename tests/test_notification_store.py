@@ -30,6 +30,7 @@ def _make_notification(
     action_data: dict[str, str] | None = None,
     read: bool = False,
     dismissed: bool = False,
+    silent: bool = False,
 ) -> Notification:
     """Factory for creating test notifications with sensible defaults."""
     return Notification(
@@ -42,6 +43,7 @@ def _make_notification(
         action_data=action_data or {},
         read=read,
         dismissed=dismissed,
+        silent=silent,
     )
 
 
@@ -97,6 +99,15 @@ class TestNotificationModel:
         assert n.read is True
         assert n.dismissed is True
 
+    def test_silent_field(self) -> None:
+        n = Notification(
+            id="abc",
+            timestamp="2025-01-01T00:00:00",
+            sender="crs",
+            silent=True,
+        )
+        assert n.silent is True
+
 
 # =========================================================================
 # TestAppendNotification
@@ -105,6 +116,24 @@ class TestNotificationModel:
 
 class TestAppendNotification:
     """Tests for append_notification()."""
+
+    def test_silent_notification_round_trip(self, temp_notifications_dir: Path) -> None:
+        """Silent notifications are stored and loaded back with silent=True."""
+        n = _make_notification(silent=True)
+        append_notification(n)
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].silent is True
+
+    def test_non_silent_notification_round_trip(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        """Non-silent notifications default to silent=False after round-trip."""
+        n = _make_notification()
+        append_notification(n)
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].silent is False
 
 
 # =========================================================================
@@ -209,3 +238,42 @@ class TestMarkAllRead:
         # No file exists yet — should not error
         count = mark_all_read()
         assert count == 0
+
+
+# =========================================================================
+# TestNotifyWorkflowCompleteSilent
+# =========================================================================
+
+
+class TestNotifyWorkflowCompleteSilent:
+    """Tests for notify_workflow_complete() with silent flag."""
+
+    def test_silent_notification_created(self, temp_notifications_dir: Path) -> None:
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="fix-hook",
+            cl_name="test-cl",
+            success=True,
+            notes=["Fix-hook completed for test-cl"],
+            silent=True,
+        )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].silent is True
+        assert loaded[0].sender == "fix-hook"
+
+    def test_non_silent_notification_default(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_workflow_complete
+
+        notify_workflow_complete(
+            sender="run-agent",
+            cl_name="test-cl",
+            success=True,
+            notes=["Agent completed"],
+        )
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].silent is False

@@ -17,6 +17,7 @@ def notify_workflow_complete(
     action: str | None = None,
     action_data: dict[str, str] | None = None,
     extra_files: list[str] | None = None,
+    silent: bool = False,
 ) -> None:
     """Send a notification when a workflow finishes."""
     files = list(extra_files or [])
@@ -28,6 +29,7 @@ def notify_workflow_complete(
         files=files,
         action=action,
         action_data=action_data or {},
+        silent=silent,
     )
     append_notification(n)
 

@@ -17,6 +17,13 @@ class TestNotificationDataclass:
         assert n.action_data == snapshot({})
         assert n.read is False
         assert n.dismissed is False
+        assert n.silent is False
+
+    def test_silent_flag(self) -> None:
+        n = Notification(
+            id="abc", timestamp="2025-01-01T00:00:00", sender="crs", silent=True
+        )
+        assert n.silent is True
 
 
 class TestFormatRelativeTime:

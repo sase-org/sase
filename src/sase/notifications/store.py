@@ -25,6 +25,7 @@ def _notification_from_dict(data: dict) -> Notification | None:
             action_data=data.get("action_data", {}),
             read=data.get("read", False),
             dismissed=data.get("dismissed", False),
+            silent=data.get("silent", False),
         )
     except (KeyError, TypeError):
         return None

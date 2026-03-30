@@ -365,6 +365,7 @@ def main() -> int:
             action=action,
             action_data=action_data,
             extra_files=extra_files,
+            silent=True,
         )
 
     return exit_code

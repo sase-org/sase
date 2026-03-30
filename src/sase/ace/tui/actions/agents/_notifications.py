@@ -40,7 +40,7 @@ class AgentNotificationMixin:
         from sase.notifications import load_notifications
 
         notifications = load_notifications()
-        unread = [n for n in notifications if not n.read]
+        unread = [n for n in notifications if not n.read and not n.silent]
         unread_count = len(unread)
 
         # Detect newly arrived notifications
@@ -226,7 +226,7 @@ class AgentNotificationMixin:
         from ...widgets import NotificationIndicator
 
         notifications = load_notifications()
-        unread = [n for n in notifications if not n.read]
+        unread = [n for n in notifications if not n.read and not n.silent]
         unread_count = len(unread)
 
         self._last_unread_count = unread_count
@@ -353,7 +353,7 @@ class AgentNotificationMixin:
         from ...modals import NotificationModal
 
         notifications = load_notifications()
-        unread = [n for n in notifications if not n.read]
+        unread = [n for n in notifications if not n.read and not n.silent]
 
         def _on_dismiss(result: Notification | None) -> None:
             if result is not None:

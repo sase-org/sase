@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 12:05:00
-status: wip
+status: done
 ---
 
 # Plan: Suppress Notifications from Hidden Agents
