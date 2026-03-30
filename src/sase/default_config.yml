@@ -54,6 +54,7 @@ ace:
       mark_inactive_pinned: "I"
       # Agent / axe
       pin_agent: "P"
+      focus_pinned_panel: "J"
       kill_agent: "x"
       toggle_axe: "X"
       stop_axe_and_quit: "Q"

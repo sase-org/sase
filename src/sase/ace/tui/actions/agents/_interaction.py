@@ -137,6 +137,20 @@ class AgentInteractionMixin:
 
         label = "Pinned" if now_pinned else "Unpinned"
         self.notify(f"{label} {agent.display_name}")  # type: ignore[attr-defined]
+
+        # Rebuild panel indices so the item moves to the correct panel
+        self._build_panel_indices()  # type: ignore[attr-defined]
+
+        # Follow the item to its new panel
+        if now_pinned and self._pinned_panel_focused != "pinned":  # type: ignore[has-type]
+            self._pinned_panel_focused = "pinned"  # type: ignore[has-type]
+        elif not now_pinned and self._pinned_panel_focused != "main":  # type: ignore[has-type]
+            self._pinned_panel_focused = "main"  # type: ignore[has-type]
+
+        # Auto-fallback if pinned panel is now empty
+        if not self._pinned_panel_indices and self._pinned_panel_focused == "pinned":  # type: ignore[attr-defined, has-type]
+            self._pinned_panel_focused = "main"  # type: ignore[has-type]
+
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:

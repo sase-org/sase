@@ -267,6 +267,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.scroll_prompt_down)} / {d(a.scroll_prompt_up)}",
                     "Scroll prompt panel down / up",
                 ),
+                (d(a.focus_pinned_panel), "Toggle focus: list / pinned"),
             ],
         ),
         (
