@@ -520,7 +520,6 @@ HintInputBar #hint-escape-hint {
 #pinned-panel-container {
     width: 100%;
     height: auto;
-    min-height: 3;
     max-height: 12;
     border: solid #5F5F87;
     border-title-align: left;

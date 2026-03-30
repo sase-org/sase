@@ -271,8 +271,8 @@ class AgentNotificationMixin:
         """
         # Try current agent first
         agent: Agent | None = None
-        if self._agents and 0 <= self.current_idx < len(self._agents):  # type: ignore[operator]
-            candidate: Agent = self._agents[self.current_idx]  # type: ignore[assignment]
+        candidate = self._get_selected_agent()  # type: ignore[attr-defined]
+        if candidate is not None:
             if candidate.status in ("PLANNING", "QUESTION"):
                 agent = candidate
 

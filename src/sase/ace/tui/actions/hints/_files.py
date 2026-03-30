@@ -58,10 +58,9 @@ class FileViewingMixin(HintMixinBase):
 
     def _view_agent_files(self) -> None:
         """View files for the current agent (Agents tab)."""
-        if not self._agents:
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             return
-
-        agent = self._agents[self.current_idx]
 
         # Re-render prompt panel with file path hints
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]

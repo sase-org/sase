@@ -235,10 +235,9 @@ class RenameMixin:
         """Open AgentNameModal and write the name to agent_meta.json."""
         from ..modals import AgentNameModal
 
-        if not self._agents or self.current_idx >= len(self._agents):
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             return
-
-        agent = self._agents[self.current_idx]
         artifacts_dir = agent.get_artifacts_dir()  # type: ignore[union-attr]
         if artifacts_dir is None:
             self.notify(  # type: ignore[attr-defined]

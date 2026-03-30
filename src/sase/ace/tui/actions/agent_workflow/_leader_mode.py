@@ -158,9 +158,9 @@ class LeaderModeMixin:
                         break
 
         has_notification = False
-        if current_tab == "agents" and self._agents:
-            if 0 <= self.current_idx < len(self._agents):
-                agent = self._agents[self.current_idx]
+        if current_tab == "agents":
+            agent = self._get_selected_agent()  # type: ignore[attr-defined]
+            if agent is not None:
                 has_notification = agent.status in ("PLANNING", "QUESTION")
 
         try:

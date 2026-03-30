@@ -55,10 +55,9 @@ class AgentFoldingMixin:
 
     def _expand_fold(self) -> None:
         """Expand the fold for the selected workflow (one level)."""
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             return
-
-        agent = self._agents[self.current_idx]
         key = self._get_workflow_key_for_agent(agent)
         if key is None:
             return
@@ -71,10 +70,9 @@ class AgentFoldingMixin:
 
         When collapsing and selected agent is a child, navigate selection to parent.
         """
-        if not self._agents or not (0 <= self.current_idx < len(self._agents)):
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             return
-
-        agent = self._agents[self.current_idx]
         key = self._get_workflow_key_for_agent(agent)
         if key is None:
             return

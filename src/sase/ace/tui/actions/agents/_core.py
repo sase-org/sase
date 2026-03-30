@@ -194,6 +194,12 @@ class AgentsMixinCore(
         if indices:
             self.current_idx = indices[0]
 
+    def _get_selected_agent(self) -> Agent | None:
+        """Get the currently selected agent, or None if no valid selection."""
+        if self._agents and 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
+
     def _load_agents(self) -> None:
         """Load agents from all sources."""
         from ...models import load_all_agents
@@ -615,9 +621,8 @@ class AgentsMixinCore(
             agent_detail: The agent detail panel widget.
             footer_widget: The keybinding footer widget.
         """
-        current_agent = None
-        if self._agents and 0 <= self.current_idx < len(self._agents):
-            current_agent = self._agents[self.current_idx]
+        current_agent = self._get_selected_agent()
+        if current_agent is not None:
             agent_detail.update_display(
                 current_agent, stale_threshold_seconds=self.refresh_interval
             )
@@ -660,9 +665,11 @@ class AgentsMixinCore(
 
     def action_jump_to_agent_changespec(self) -> None:
         """Jump to the CLs tab selecting the ChangeSpec for the current agent."""
-        if self.current_tab != "agents" or not self._agents:
+        if self.current_tab != "agents":
             return
-        agent = self._agents[self.current_idx]
+        agent = self._get_selected_agent()
+        if agent is None:
+            return
 
         from ._notification_actions import (
             get_meta_changespec_name,
@@ -701,6 +708,10 @@ class AgentsMixinCore(
         except Exception:
             return
 
+        # Auto-hide pinned panel when empty
+        pinned_count = len(self._pinned_panel_indices)
+        pinned_container.display = pinned_count > 0
+
         if self._pinned_panel_focused == "pinned":
             main_panel.add_class("panel-inactive")
             pinned_container.add_class("panel-active")
@@ -709,7 +720,6 @@ class AgentsMixinCore(
             pinned_container.remove_class("panel-active")
 
         # Set border title on pinned container
-        pinned_count = len(self._pinned_panel_indices)
         pinned_container.border_title = f"Pinned ({pinned_count})"
 
     def action_focus_pinned_panel(self) -> None:
@@ -743,7 +753,7 @@ class AgentsMixinCore(
         )
         agent_info_panel.update_search_query(self._agent_search_query)
         # Show current panel view mode when an agent is selected
-        if self._agents and 0 <= self.current_idx < len(self._agents):
+        if self._get_selected_agent() is not None:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_info_panel.update_view_mode(agent_detail.panel_mode_label)
         else:

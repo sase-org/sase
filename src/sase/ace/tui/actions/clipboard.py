@@ -287,14 +287,10 @@ class ClipboardMixin:
 
     def _copy_chat_path(self) -> None:
         """Copy the chat file path of the selected agent (%c on agents tab)."""
-        if not self._agents:
-            self.notify("No agents available", severity="warning")  # type: ignore[attr-defined]
-            return
-        if self.current_idx < 0 or self.current_idx >= len(self._agents):
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
         if agent.response_path is None:
             self.notify("Selected agent has no chat file", severity="warning")  # type: ignore[attr-defined]
             return
@@ -315,14 +311,10 @@ class ClipboardMixin:
 
     def _copy_agent_prompt(self) -> None:
         """Copy the prompt (raw xprompt) of the selected agent (%p on agents tab)."""
-        if not self._agents:
-            self.notify("No agents available", severity="warning")  # type: ignore[attr-defined]
-            return
-        if self.current_idx < 0 or self.current_idx >= len(self._agents):
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-
-        agent = self._agents[self.current_idx]
         content = agent.get_raw_xprompt_content()
         if content is None:
             self.notify("No prompt available for this agent", severity="warning")  # type: ignore[attr-defined]
