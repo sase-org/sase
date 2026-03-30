@@ -43,6 +43,11 @@ def _make_entries() -> list[TimestampEntry]:
             event_type="SYNC",
             detail="(2)",
         ),
+        TimestampEntry(
+            timestamp="2026-03-29 10:15:00",
+            event_type="REWIND",
+            detail="(3)",
+        ),
     ]
 
 
@@ -54,7 +59,7 @@ class TestCollapsed:
         build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
         plain = text.plain
         assert "TIMESTAMPS:" in plain
-        assert "[folded: 3]" in plain
+        assert "[folded: 4]" in plain
 
     def test_collapsed_no_timestamps_shows_nothing(self) -> None:
         cs = _make_changespec(timestamps=None)
@@ -64,7 +69,7 @@ class TestCollapsed:
 
 
 class TestExpanded:
-    def test_expanded_shows_commit_entries_only(self) -> None:
+    def test_expanded_shows_commit_and_rewind_entries_only(self) -> None:
         entries = _make_entries()
         cs = _make_changespec(timestamps=entries)
         text = Text()
@@ -72,6 +77,7 @@ class TestExpanded:
         plain = text.plain
         assert "TIMESTAMPS:" in plain
         assert "COMMIT" in plain
+        assert "REWIND" in plain
         # STATUS and SYNC entries should be filtered out
         assert "STATUS" not in plain
         assert "SYNC" not in plain
@@ -88,3 +94,4 @@ class TestFullyExpanded:
         assert "COMMIT" in plain
         assert "STATUS" in plain
         assert "SYNC" in plain
+        assert "REWIND" in plain

@@ -13,6 +13,7 @@ _COLOR_COMMIT = "bold #00D7AF"
 _COLOR_STATUS = "bold #FFD787"
 _COLOR_SYNC = "bold #5FD7FF"
 _COLOR_REWORD = "bold #D7AFFF"
+_COLOR_REWIND = "bold #FF8787"
 _COLOR_ARROW = "bold #808080"
 _COLOR_DETAIL = "#D7D7AF"
 
@@ -21,6 +22,7 @@ _EVENT_COLORS: dict[str, str] = {
     "STATUS": _COLOR_STATUS,
     "SYNC": _COLOR_SYNC,
     "REWORD": _COLOR_REWORD,
+    "REWIND": _COLOR_REWIND,
 }
 
 
@@ -66,8 +68,11 @@ def build_timestamps_section(
     text.append("TIMESTAMPS:\n", style=_COLOR_HEADER)
 
     for entry in changespec.timestamps:
-        # EXPANDED: only show COMMIT entries
-        if timestamps_fold == FoldLevel.EXPANDED and entry.event_type != "COMMIT":
+        # EXPANDED: show COMMIT and REWIND entries
+        if timestamps_fold == FoldLevel.EXPANDED and entry.event_type not in (
+            "COMMIT",
+            "REWIND",
+        ):
             continue
 
         # Timestamp in brackets

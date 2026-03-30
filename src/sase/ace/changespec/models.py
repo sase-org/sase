@@ -411,10 +411,11 @@ class TimestampEntry:
       [YYYY-MM-DD HH:MM:SS] STATUS  WIP -> Draft
       [YYYY-MM-DD HH:MM:SS] SYNC    (2)
       [YYYY-MM-DD HH:MM:SS] REWORD  description
+      [YYYY-MM-DD HH:MM:SS] REWIND  (3)
     """
 
     timestamp: str  # "YYYY-MM-DD HH:MM:SS"
-    event_type: str  # "COMMIT", "STATUS", "SYNC", "REWORD"
+    event_type: str  # "COMMIT", "STATUS", "SYNC", "REWORD", "REWIND"
     detail: str  # Event-specific detail string
 
 
