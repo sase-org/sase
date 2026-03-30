@@ -103,6 +103,22 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Cycle timestamps folding",
                 ),
                 (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_commits'))}",
+                    "Toggle commits collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_hooks'))}",
+                    "Toggle hooks collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_mentors'))}",
+                    "Toggle mentors collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(_sk(fm.keys, 'toggle_timestamps'))}",
+                    "Toggle timestamps collapsed/expanded",
+                ),
+                (
                     f"{d(fm.prefix)} {d(_sk(fm.keys, 'cycle_all'))}",
                     "Cycle all sections",
                 ),
