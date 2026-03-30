@@ -224,8 +224,27 @@ class AgentDisplayMixin:
             main_panel.remove_class("panel-inactive")
             pinned_container.remove_class("panel-active")
 
-        # Set border title on pinned container
-        pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_count})"
+        # Set border title with status breakdown
+        if pinned_count > 0:
+            done_count = sum(
+                1
+                for i in self._pinned_panel_indices
+                if self._agents[i].status in ("DONE", "PLAN DONE", "PLAN COMMITTED")
+            )
+            failed_count = sum(
+                1
+                for i in self._pinned_panel_indices
+                if self._agents[i].status == "FAILED"
+            )
+            parts: list[str] = []
+            if done_count:
+                parts.append(f"[green]{done_count}\u2713[/green]")
+            if failed_count:
+                parts.append(f"[red]{failed_count}\u2717[/red]")
+            status_info = " ".join(parts) if parts else str(pinned_count)
+            pinned_container.border_title = f"\U0001f4cc Pinned ({status_info})"
+        else:
+            pinned_container.border_title = "\U0001f4cc Pinned (0)"
 
     def action_focus_pinned_panel(self) -> None:
         """Toggle focus between main agent list and pinned panel."""

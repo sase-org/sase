@@ -338,6 +338,16 @@ class AgentLoadingMixin:
         # Build panel index maps (must happen after _agents is finalized)
         self._build_panel_indices()  # type: ignore[attr-defined]
 
+        # Garbage-collect stale pins (pinned identities with no matching agent)
+        if self._pinned_agents:
+            found_identities = {a.identity for a in self._agents_with_children}
+            stale_pins = self._pinned_agents - found_identities
+            if stale_pins:
+                self._pinned_agents -= stale_pins
+                from ....pinned_agents import save_pinned_agents
+
+                save_pinned_agents(self._pinned_agents)
+
         # Calculate the new index
         # Use current_idx when on agents tab, otherwise use saved _agents_last_idx
         saved_idx = self.current_idx if on_agents_tab else self._agents_last_idx

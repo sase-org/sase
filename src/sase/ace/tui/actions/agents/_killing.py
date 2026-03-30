@@ -573,6 +573,13 @@ class AgentKillingMixin:
         self._agent_pre_question_status.pop(agent.identity, None)
         self._refresh_notification_count()  # type: ignore[attr-defined]
 
+        # Clean up pin if agent was pinned
+        if agent.identity in self._pinned_agents:
+            self._pinned_agents.discard(agent.identity)
+            from ....pinned_agents import save_pinned_agents
+
+            save_pinned_agents(self._pinned_agents)
+
         # Handle workflow agents - preserve artifacts, track dismissal only
         if agent.agent_type == AgentType.WORKFLOW:
             # Release the workspace claim first (workflow claims use

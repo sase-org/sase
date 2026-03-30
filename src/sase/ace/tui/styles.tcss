@@ -523,11 +523,12 @@ HintInputBar #hint-escape-hint {
     max-height: 12;
     border: solid #5F5F87;
     border-title-align: left;
-    border-title-color: #AF87D7;
+    border-title-color: #5F5F87;
 }
 
 #pinned-panel-container.panel-active {
     border: solid #AF87D7;
+    border-title-color: #AF87D7;
 }
 
 #pinned-list-panel {
@@ -540,6 +541,7 @@ HintInputBar #hint-escape-hint {
 /* Focus state styling for main agent list */
 #agent-list-panel.panel-inactive {
     border: solid #5F5F87;
+    border-title-color: #5F5F87;
 }
 
 #agent-detail-layout {

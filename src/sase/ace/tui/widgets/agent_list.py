@@ -94,6 +94,7 @@ def _calculate_entry_display_width(
     fold_annotation: str = "",
     is_expanded: bool = False,
     is_pinned: bool = False,
+    in_pinned_panel: bool = False,
 ) -> int:
     """Calculate display width of an Agent entry in terminal cells.
 
@@ -134,7 +135,7 @@ def _calculate_entry_display_width(
                 parts.append(f"{step_num}/{agent.total_steps}{role} ")
     if agent.hidden:
         parts.append(f"{_HIDDEN_ICON} ")
-    if agent.status in _DISMISSIBLE_STATUSES:
+    if agent.status in _DISMISSIBLE_STATUSES and not in_pinned_panel:
         parts.append(f"{_DONE_ICON} ")
     dt = agent.get_display_type(is_expanded=is_expanded)
     parts.extend([f"[{dt}] ", agent.display_name, " ", f"({agent.status})"])
@@ -247,6 +248,7 @@ class AgentList(OptionList):
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
                 is_pinned=is_pinned and self._panel != "pinned",
+                in_pinned_panel=self._panel == "pinned",
             )
             max_width = max(max_width, width)
 
@@ -346,8 +348,8 @@ class AgentList(OptionList):
         ):
             text.append(f"{_PIN_ICON} ", style="bold #FFD700")
 
-        # Done icon for dismissible agents
-        if agent.status in _DISMISSIBLE_STATUSES:
+        # Done icon for dismissible agents (skip in pinned panel — redundant)
+        if agent.status in _DISMISSIBLE_STATUSES and self._panel != "pinned":
             done_style = "dim red" if is_pinned else "bold red"
             text.append(f"{_DONE_ICON} ", style=done_style)
 
