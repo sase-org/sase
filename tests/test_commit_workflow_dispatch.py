@@ -11,12 +11,18 @@ _CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
+_APPEND_COMMITS_TARGET = (
+    "sase.workflows.commit.workflow.CommitWorkflow._append_commits_entry"
+)
+
+
 @pytest.fixture(autouse=True)
 def _no_precommit():  # type: ignore[no-untyped-def]
-    """Prevent precommit commands and SASE_PLAN from running in tests."""
+    """Prevent precommit commands, SASE_PLAN, and COMMITS entry writes in tests."""
     with (
         patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
         patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
+        patch(_APPEND_COMMITS_TARGET, return_value=None),
     ):
         yield
 
@@ -157,3 +163,27 @@ class TestProposalSkipsBeadsAndPlan:
             assert wf.run() is True
             mock_beads.assert_called_once()
             mock_plan.assert_called_once()
+
+
+class TestCommitDispatchWithoutChangeSpecEnv:
+    """Regression: dispatch must not require real ChangeSpec env context."""
+
+    @patch(_PROVIDER_TARGET)
+    def test_create_commit_succeeds_without_agent_env(
+        self,
+        mock_get: MagicMock,
+        mock_provider: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """run() succeeds for create_commit even when SASE_AGENT_* vars are absent.
+
+        The autouse fixture stubs _append_commits_entry, so dispatch should
+        never attempt to mutate a real ChangeSpec project file.
+        """
+        monkeypatch.delenv("SASE_AGENT_PROJECT_FILE", raising=False)
+        monkeypatch.delenv("SASE_AGENT_CL_NAME", raising=False)
+        mock_get.return_value = mock_provider
+        wf = CommitWorkflow({"message": "test: regression"}, "create_commit")
+
+        assert wf.run() is True
+        mock_provider.create_commit.assert_called_once()

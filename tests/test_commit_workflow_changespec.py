@@ -16,12 +16,18 @@ _SUFFIXED_CL_TARGET = (
 )
 
 
+_APPEND_COMMITS_TARGET = (
+    "sase.workflows.commit.workflow.CommitWorkflow._append_commits_entry"
+)
+
+
 @pytest.fixture(autouse=True)
 def _no_precommit():  # type: ignore[no-untyped-def]
-    """Prevent precommit commands and SASE_PLAN from running in tests."""
+    """Prevent precommit commands, SASE_PLAN, and COMMITS entry writes in tests."""
     with (
         patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
         patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
+        patch(_APPEND_COMMITS_TARGET, return_value=None),
     ):
         yield
 
