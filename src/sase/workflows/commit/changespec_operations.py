@@ -241,10 +241,13 @@ def add_changespec_to_project_file(
 
     # Build COMMITS field if initial_commits provided
     commits_block = ""
+    timestamps_block = ""
     if initial_commits:
+        from sase.ace.timestamps.recording import format_timestamp_entry_line
         from sase.workflows.commit_utils.entries import format_chat_line_with_duration
 
         commits_lines = ["COMMITS:\n"]
+        timestamps_lines = ["TIMESTAMPS:\n"]
         for commit_tuple in initial_commits:
             num, note, chat_path, diff_path = commit_tuple[:4]
             commit_body: list[str] | None = (
@@ -264,7 +267,9 @@ def add_changespec_to_project_file(
                 commits_lines.append(f"      | DIFF: {diff_path}\n")
             if plan_path:
                 commits_lines.append(f"      | PLAN: {plan_path}\n")
+            timestamps_lines.append(format_timestamp_entry_line("COMMIT", f"({num})"))
         commits_block = "".join(commits_lines)
+        timestamps_block = "".join(timestamps_lines)
 
     try:
         with changespec_lock(project_file):
@@ -359,7 +364,7 @@ NAME: {cl_name}
 DESCRIPTION:
 {formatted_description}
 {parent_line}{bug_line}{cl_line}STATUS: {status}
-{commits_block}{hooks_block}"""
+{commits_block}{hooks_block}{timestamps_block}"""
 
             # Insert the new ChangeSpec
             lines.insert(insert_index, changespec_block)

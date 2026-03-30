@@ -240,6 +240,115 @@ def test_add_changespec_initial_commit_no_plan_drawer() -> None:
         os.unlink(project_file)
 
 
+def test_add_changespec_initial_commits_creates_timestamps() -> None:
+    """ChangeSpec with initial_commits includes a TIMESTAMPS section with COMMIT entries."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="ts_feature",
+                description="Timestamps test",
+                parent=None,
+                initial_commits=[
+                    (1, "[run] Initial Commit", "~/chats/c.md", "~/diffs/d.diff")
+                ],
+            )
+
+        assert result is not None
+
+        with open(project_file, encoding="utf-8") as f:
+            content = f.read()
+
+        assert "TIMESTAMPS:" in content
+        # Structural check: COMMIT event with detail (1)
+        assert "] COMMIT " in content
+        assert "(1)" in content
+    finally:
+        os.unlink(project_file)
+
+
+def test_add_changespec_initial_commits_multiple_timestamps() -> None:
+    """Multiple initial commits produce multiple COMMIT timestamp lines in order."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="multi_ts",
+                description="Multi timestamps",
+                parent=None,
+                initial_commits=[
+                    (1, "First commit", "~/chats/c1.md", "~/diffs/d1.diff"),
+                    ("2b", "Second commit", "~/chats/c2.md", "~/diffs/d2.diff"),
+                ],
+            )
+
+        assert result is not None
+
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        # Find TIMESTAMPS section and collect entries
+        in_timestamps = False
+        commit_details: list[str] = []
+        for line in lines:
+            if line.startswith("TIMESTAMPS:"):
+                in_timestamps = True
+                continue
+            if in_timestamps and "] COMMIT " in line:
+                # Extract the detail portion after "COMMIT "
+                idx = line.index("COMMIT ")
+                detail = line[idx + len("COMMIT ") :].strip()
+                commit_details.append(detail)
+            elif in_timestamps and line.strip() and not line.startswith("  "):
+                break
+
+        assert commit_details == ["(1)", "(2b)"]
+    finally:
+        os.unlink(project_file)
+
+
+def test_add_changespec_no_commits_no_timestamps() -> None:
+    """ChangeSpec without initial_commits has no TIMESTAMPS section."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_changespec_to_project_file(
+                project="test_project",
+                cl_name="no_ts",
+                description="No timestamps",
+                parent=None,
+            )
+
+        assert result is not None
+
+        with open(project_file, encoding="utf-8") as f:
+            content = f.read()
+
+        assert "TIMESTAMPS:" not in content
+    finally:
+        os.unlink(project_file)
+
+
 def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
     """Test that no BUG is inherited when there's no parent."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:

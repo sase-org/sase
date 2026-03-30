@@ -268,6 +268,31 @@ def test_add_commit_entry_with_plan_path() -> None:
         os.unlink(temp_path)
 
 
+def test_add_commit_entry_with_id_creates_timestamps() -> None:
+    """add_commit_entry_with_id creates a TIMESTAMPS section with a COMMIT entry."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("NAME: test_cl\n")
+        f.write("STATUS: Ready\n")
+        temp_path = f.name
+
+    try:
+        ok, entry_id = add_commit_entry_with_id(
+            project_file=temp_path,
+            cl_name="test_cl",
+            note="First commit",
+        )
+        assert ok is True
+        assert entry_id == "1"
+
+        with open(temp_path) as f:
+            content = f.read()
+        assert "TIMESTAMPS:" in content
+        assert "] COMMIT " in content
+        assert "(1)" in content
+    finally:
+        os.unlink(temp_path)
+
+
 def test_add_proposed_commit_entry_with_plan_path() -> None:
     """Test that add_proposed_commit_entry emits | PLAN: when given a plan_path."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
