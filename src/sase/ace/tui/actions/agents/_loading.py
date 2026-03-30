@@ -266,8 +266,13 @@ class AgentLoadingMixin:
                 agent.hidden = True
 
         # Categorize agents: always-visible (dismissable OR running) vs hideable
-        always_visible = [a for a in all_agents if _is_always_visible(a)]
-        hideable = [a for a in all_agents if not _is_always_visible(a)]
+        always_visible: list[Agent] = []
+        hideable: list[Agent] = []
+        for a in all_agents:
+            if _is_always_visible(a):
+                always_visible.append(a)
+            else:
+                hideable.append(a)
 
         self._has_always_visible = len(always_visible) > 0
         self._hidden_count = 0
