@@ -156,6 +156,9 @@ class Agent:
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
+    # Follow-up agents linked to this parent (populated at load time, not serialized)
+    followup_agents: list["Agent"] = field(default_factory=list)
+
     # When plans were submitted for review (one per proposal; plan agents only)
     plan_times: list[datetime] = field(default_factory=list)
     # When the coder agent was launched after plan approval (plan agents only)
@@ -484,6 +487,8 @@ class Agent:
         """
         result: dict[str, Any] = {}
         for f in dataclasses.fields(self):
+            if f.name == "followup_agents":
+                continue
             value = getattr(self, f.name)
             if isinstance(value, AgentType):
                 value = value.value
