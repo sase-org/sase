@@ -133,6 +133,21 @@ class AgentsMixinCore(
     # Debounce timer for j/k navigation detail panel updates
     _detail_update_timer: Timer | None
 
+    def _get_active_panel_agent(self) -> Agent | None:
+        """Get the agent from whichever panel (main or pinned) is active.
+
+        Returns:
+            The currently selected agent, or None if no agent is selected.
+        """
+        if self._pinned_panel_focused and self._pinned_agent_objects:
+            from ...widgets import PinnedAgentList
+
+            pinned_list = self.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+            return pinned_list.get_selected_agent()
+        if self._agents and 0 <= self.current_idx < len(self._agents):
+            return self._agents[self.current_idx]
+        return None
+
     def _load_agents(self) -> None:
         """Load agents from all sources."""
         from ...models import load_all_agents
@@ -419,7 +434,7 @@ class AgentsMixinCore(
             hidden_running = 0
         done_visible = sum(
             1
-            for a in self._agents
+            for a in [*self._agents, *self._pinned_agent_objects]
             if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
         )
         from ...widgets import TabBar
@@ -575,9 +590,11 @@ class AgentsMixinCore(
 
     def action_jump_to_agent_changespec(self) -> None:
         """Jump to the CLs tab selecting the ChangeSpec for the current agent."""
-        if self.current_tab != "agents" or not self._agents:
+        if self.current_tab != "agents":
             return
-        agent = self._agents[self.current_idx]
+        agent = self._get_active_panel_agent()
+        if agent is None:
+            return
 
         from ._notification_actions import (
             get_meta_changespec_name,

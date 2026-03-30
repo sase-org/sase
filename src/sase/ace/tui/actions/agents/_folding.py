@@ -21,6 +21,7 @@ class AgentFoldingMixin:
     current_tab: TabName
     current_idx: int
     _agents: list[Agent]
+    _pinned_panel_focused: bool
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
 
@@ -55,6 +56,8 @@ class AgentFoldingMixin:
 
     def _expand_fold(self) -> None:
         """Expand the fold for the selected workflow (one level)."""
+        if self._pinned_panel_focused:
+            return
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             return
 
@@ -71,6 +74,8 @@ class AgentFoldingMixin:
 
         When collapsing and selected agent is a child, navigate selection to parent.
         """
+        if self._pinned_panel_focused:
+            return
         if not self._agents or not (0 <= self.current_idx < len(self._agents)):
             return
 

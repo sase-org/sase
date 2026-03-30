@@ -41,7 +41,7 @@ def find_agent_for_notification(
 
     agent_timestamp = normalize_to_14_digit(agent_timestamp)
 
-    agents: list[Agent] = app._agents  # type: ignore[attr-defined]
+    agents: list[Agent] = [*app._agents, *app._pinned_agent_objects]  # type: ignore[attr-defined]
     for agent in agents:
         if agent.cl_name != cl_name:
             continue
@@ -97,6 +97,7 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
     """Navigate to an agent in the Agents tab.
 
     Matches by PID first (most precise), then falls back to cl_name.
+    Searches both the main agent list and pinned agents.
 
     Args:
         app: The AceApp instance.
@@ -110,21 +111,47 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
 
     agents: list[Agent] = app._agents  # type: ignore[attr-defined]
 
-    # Try PID match first (most precise)
+    # Try PID match first in main list (most precise)
     if pid is not None:
         for idx, agent in enumerate(agents):
             if agent.pid == pid:
                 app.current_idx = idx  # type: ignore[attr-defined]
+                app._pinned_panel_focused = False  # type: ignore[attr-defined]
                 return True
 
-    # Fallback to cl_name match
+    # Fallback to cl_name match in main list
     for idx, agent in enumerate(agents):
         if agent.cl_name == cl_name:
             app.current_idx = idx  # type: ignore[attr-defined]
+            app._pinned_panel_focused = False  # type: ignore[attr-defined]
+            return True
+
+    # Search pinned agents
+    pinned_agents: list[Agent] = app._pinned_agent_objects  # type: ignore[attr-defined]
+
+    if pid is not None:
+        for idx, agent in enumerate(pinned_agents):
+            if agent.pid == pid:
+                _focus_pinned_agent(app, idx)
+                return True
+
+    for idx, agent in enumerate(pinned_agents):
+        if agent.cl_name == cl_name:
+            _focus_pinned_agent(app, idx)
             return True
 
     app.notify(f"Agent '{cl_name}' not found", severity="warning")  # type: ignore[attr-defined]
     return False
+
+
+def _focus_pinned_agent(app: object, idx: int) -> None:
+    """Focus the pinned panel and select the agent at the given index."""
+    from ...widgets import PinnedAgentList
+
+    app._pinned_panel_focused = True  # type: ignore[attr-defined]
+    pinned_list = app.query_one("#pinned-agent-list", PinnedAgentList)  # type: ignore[attr-defined]
+    pinned_list._selected_idx = idx
+    pinned_list.set_focused(True)
 
 
 def navigate_to_changespec_tab(

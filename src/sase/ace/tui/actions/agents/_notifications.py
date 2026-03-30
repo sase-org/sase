@@ -26,6 +26,7 @@ class AgentNotificationMixin:
     current_tab: TabName
     hide_non_run_agents: bool
     _agents: list[Agent]
+    _pinned_agent_objects: list[Agent]
     _hidden_count: int
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
@@ -106,8 +107,8 @@ class AgentNotificationMixin:
 
             agent_timestamp = normalize_to_14_digit(agent_timestamp)
 
-            # Find matching agent
-            for agent in self._agents:
+            # Find matching agent (search both main and pinned lists)
+            for agent in [*self._agents, *self._pinned_agent_objects]:
                 if agent.cl_name != cl_name:
                     continue
                 if agent_timestamp and agent.raw_suffix != agent_timestamp:
