@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 12:06:04
-status: wip
+status: done
 ---
 
 # Plan: Fix Neovim Plugin Errors
