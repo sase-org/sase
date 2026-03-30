@@ -378,6 +378,70 @@ def test_expand_contract_roundtrip() -> None:
     assert contracted == original
 
 
+def testapply_hooks_update_preserves_timestamps_after_hooks() -> None:
+    """Test that TIMESTAMPS section after HOOKS is preserved during update."""
+    from sase.ace.hooks.formatting import apply_hooks_update
+
+    lines = [
+        "NAME: test_cl\n",
+        "HOOKS:\n",
+        "  old_command\n",
+        "      | (1) [240601_100000] PASSED (1m0s)\n",
+        "TIMESTAMPS:\n",
+        "  (1) [260301_120000] COMMIT\n",
+        "  (1) [260301_120100] STATUS WIP -> Draft\n",
+        "\n",
+        "\n",
+    ]
+    new_hooks = [
+        _make_hook(
+            command="new_command",
+            timestamp="240601_123456",
+            status="PASSED",
+        ),
+    ]
+    result = apply_hooks_update(lines, "test_cl", new_hooks)
+    result_str = "".join(result)
+
+    # New hook present, old hook gone
+    assert "new_command" in result_str
+    assert "old_command" not in result_str
+    # TIMESTAMPS section must survive intact
+    assert "TIMESTAMPS:" in result_str
+    assert "(1) [260301_120000] COMMIT" in result_str
+    assert "(1) [260301_120100] STATUS WIP -> Draft" in result_str
+
+
+def testapply_hooks_update_inserts_hooks_before_timestamps() -> None:
+    """Test inserting HOOKS into a ChangeSpec that already has TIMESTAMPS."""
+    from sase.ace.hooks.formatting import apply_hooks_update
+
+    lines = [
+        "NAME: test_cl\n",
+        "STATUS: WIP\n",
+        "TIMESTAMPS:\n",
+        "  (1) [260301_120000] COMMIT\n",
+        "\n",
+        "\n",
+    ]
+    new_hooks = [
+        _make_hook(
+            command="pytest tests",
+            timestamp="240601_123456",
+            status="PASSED",
+        ),
+    ]
+    result = apply_hooks_update(lines, "test_cl", new_hooks)
+    result_str = "".join(result)
+
+    # HOOKS should be inserted
+    assert "HOOKS:" in result_str
+    assert "pytest tests" in result_str
+    # TIMESTAMPS must survive
+    assert "TIMESTAMPS:" in result_str
+    assert "(1) [260301_120000] COMMIT" in result_str
+
+
 def test_expand_contract_roundtrip_with_prefix() -> None:
     """Test round-trip with ! prefix."""
     original = "!//foo:test"

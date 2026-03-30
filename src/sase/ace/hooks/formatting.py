@@ -19,6 +19,7 @@ _CHANGESPEC_FIELD_HEADERS = (
     "MENTORS:",
     "KICKSTART:",
     "TEST TARGETS:",
+    "TIMESTAMPS:",
 )
 
 
