@@ -409,10 +409,10 @@ class AceApp(
                 with Horizontal(id="agents-content"):
                     with Vertical(id="agent-list-container"):
                         yield AgentList(id="agent-list-panel")
-                    with Vertical(id="agent-detail-container"):
-                        yield AgentDetail(id="agent-detail-panel")
                         with Vertical(id="pinned-panel-container"):
                             yield AgentList(panel="pinned", id="pinned-list-panel")
+                    with Vertical(id="agent-detail-container"):
+                        yield AgentDetail(id="agent-detail-panel")
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
                 # Left panel (bgcmd list) - always visible on AXE tab

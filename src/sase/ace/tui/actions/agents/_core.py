@@ -545,23 +545,27 @@ class AgentsMixinCore(
                 main_local_idx,
                 fold_counts=self._fold_counts,
                 pinned_agents=self._pinned_agents,
+                has_focus=(self._pinned_panel_focused == "main"),
             )
             pinned_list.update_list(
                 pinned_agents,
                 pinned_local_idx,
                 fold_counts=self._fold_counts,
                 pinned_agents=self._pinned_agents,
+                has_focus=(self._pinned_panel_focused == "pinned"),
             )
         else:
-            # Update highlight on the focused panel only
+            # Update highlight on the focused panel only; clear unfocused
             if self._pinned_panel_focused == "pinned":
                 if self.current_idx in self._pinned_panel_indices:
                     local_idx = self._pinned_panel_indices.index(self.current_idx)
                     pinned_list.update_highlight(local_idx)
+                agent_list.highlighted = None
             else:
                 if self.current_idx in self._main_panel_indices:
                     local_idx = self._main_panel_indices.index(self.current_idx)
                     agent_list.update_highlight(local_idx)
+                pinned_list.highlighted = None
 
         # Update focus styling
         self._update_panel_focus_styling()
@@ -579,17 +583,21 @@ class AgentsMixinCore(
         """
         from ...widgets import AgentList
 
-        # Update highlight on the focused panel only
+        # Update highlight on the focused panel only; clear unfocused
         if self._pinned_panel_focused == "pinned":
+            pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
             if self.current_idx in self._pinned_panel_indices:
-                pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
                 local_idx = self._pinned_panel_indices.index(self.current_idx)
                 pinned_list.update_highlight(local_idx)
+            agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
+            agent_list.highlighted = None
         else:
+            agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
             if self.current_idx in self._main_panel_indices:
-                agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
                 local_idx = self._main_panel_indices.index(self.current_idx)
                 agent_list.update_highlight(local_idx)
+            pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
+            pinned_list.highlighted = None
         self._update_agents_info_panel()
 
         # Cancel any pending debounce timer before scheduling a new one

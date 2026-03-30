@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 18:00:03
-status: wip
+status: done
 ---
 
 # Plan: Move Pinned Panel to Left Side & Focus-Only Highlighting

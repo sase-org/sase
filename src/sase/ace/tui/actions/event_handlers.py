@@ -294,12 +294,17 @@ class EventHandlersMixin:
 
     def on_agent_list_width_changed(self, event: AgentList.WidthChanged) -> None:
         """Handle width change from the agent list widget."""
-        # Only the main panel drives left column width
-        if event.panel != "main":
-            return
         from ..app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
 
-        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, event.width))
+        # Track per-panel widths and use the max (both panels share the container)
+        if event.panel == "main":
+            self._agent_main_panel_width = event.width  # type: ignore[attr-defined]
+        else:
+            self._agent_pinned_panel_width = event.width  # type: ignore[attr-defined]
+        main_w = getattr(self, "_agent_main_panel_width", 0)
+        pinned_w = getattr(self, "_agent_pinned_panel_width", 0)
+        combined = max(main_w, pinned_w)
+        width = max(_MIN_AGENT_LIST_WIDTH, min(_MAX_AGENT_LIST_WIDTH, combined))
         agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
         agent_list_container.styles.width = width
 

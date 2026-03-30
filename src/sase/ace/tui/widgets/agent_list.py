@@ -193,6 +193,7 @@ class AgentList(OptionList):
         current_idx: int,
         fold_counts: dict[str, tuple[int, int]] | None = None,
         pinned_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        has_focus: bool = True,
     ) -> None:
         """Update the list with new agents.
 
@@ -202,6 +203,7 @@ class AgentList(OptionList):
             fold_counts: Optional dict mapping workflow raw_suffix to
                 (non_hidden_count, hidden_count) for fold annotations
             pinned_agents: Optional set of pinned agent identities
+            has_focus: Whether this panel currently has focus
         """
         self._programmatic_update = True
         self._agents = agents
@@ -234,7 +236,7 @@ class AgentList(OptionList):
             option = self._format_agent_option(
                 agent,
                 i,
-                is_selected=(i == current_idx),
+                is_selected=(has_focus and i == current_idx),
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
                 is_pinned=is_pinned,
@@ -253,9 +255,11 @@ class AgentList(OptionList):
         optimal_width = max_width + _PADDING
         self.post_message(self.WidthChanged(optimal_width, panel=self._panel))
 
-        # Highlight the current item
-        if agents and 0 <= current_idx < len(agents):
+        # Highlight the current item only if this panel has focus
+        if has_focus and agents and 0 <= current_idx < len(agents):
             self.highlighted = current_idx
+        elif not has_focus:
+            self.highlighted = None
 
         # Clear flag after event loop processes pending events
         self.call_later(self._clear_programmatic_flag)
