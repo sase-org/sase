@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 17:25:50
-status: wip
+status: done
 ---
 
 # Fix `d` Keymap to Show Full PR Diff (Git/GitHub)

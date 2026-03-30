@@ -39,11 +39,14 @@ class GitCommon(CommandRunner):
 
     @hookimpl
     def vcs_diff_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        out = self._run(["git", "diff", f"{revision}~1", revision], cwd)
+        default_branch = self._get_default_branch(cwd)
+        out = self._run(["git", "diff", f"origin/{default_branch}...{revision}"], cwd)
+        if not out.success:
+            out = self._run(["git", "diff", f"{revision}~1", revision], cwd)
         if not out.success:
             out = self._run(["git", "show", "--format=", "--patch", revision], cwd)
-            if not out.success:
-                return (False, f"git diff failed: {out.stderr.strip()}")
+        if not out.success:
+            return (False, f"git diff failed: {out.stderr.strip()}")
         return (True, out.stdout)
 
     @hookimpl

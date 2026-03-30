@@ -119,22 +119,53 @@ def test_git_diff_both_fail(mock_run: MagicMock) -> None:
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_diff_revision_success(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_diff_revision on success."""
-    mock_run.return_value = MagicMock(returncode=0, stdout="diff output", stderr="")
+    """Test BareGitPlugin.vcs_diff_revision uses merge-base diff."""
+    mock_run.side_effect = [
+        # _get_default_branch: git symbolic-ref refs/remotes/origin/HEAD
+        MagicMock(returncode=0, stdout="refs/remotes/origin/main\n", stderr=""),
+        # Primary: git diff origin/main...abc123
+        MagicMock(returncode=0, stdout="diff output", stderr=""),
+    ]
 
     plugin = BareGitPlugin()
     success, diff_text = plugin.vcs_diff_revision("abc123", "/workspace")
 
     assert success is True
     assert diff_text == "diff output"
+    assert mock_run.call_args[0][0] == ["git", "diff", "origin/main...abc123"]
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_diff_revision_fallback_single_commit(mock_run: MagicMock) -> None:
+    """Test BareGitPlugin.vcs_diff_revision falls back to single-commit diff."""
+    mock_run.side_effect = [
+        # _get_default_branch
+        MagicMock(returncode=0, stdout="refs/remotes/origin/main\n", stderr=""),
+        # Primary merge-base diff fails
+        MagicMock(returncode=1, stdout="", stderr="fatal: bad revision"),
+        # Fallback 1: single-commit diff succeeds
+        MagicMock(returncode=0, stdout="single commit diff", stderr=""),
+    ]
+
+    plugin = BareGitPlugin()
+    success, diff_text = plugin.vcs_diff_revision("abc123", "/workspace")
+
+    assert success is True
+    assert diff_text == "single commit diff"
     assert mock_run.call_args[0][0] == ["git", "diff", "abc123~1", "abc123"]
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
 def test_git_diff_revision_root_commit_fallback(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_diff_revision falls back for root commits."""
+    """Test BareGitPlugin.vcs_diff_revision falls back to git show for root commits."""
     mock_run.side_effect = [
+        # _get_default_branch
+        MagicMock(returncode=0, stdout="refs/remotes/origin/main\n", stderr=""),
+        # Primary merge-base diff fails
         MagicMock(returncode=1, stdout="", stderr="fatal: bad revision"),
+        # Fallback 1: single-commit diff fails
+        MagicMock(returncode=1, stdout="", stderr="fatal: bad revision"),
+        # Fallback 2: git show succeeds
         MagicMock(returncode=0, stdout="root diff", stderr=""),
     ]
 
@@ -143,15 +174,26 @@ def test_git_diff_revision_root_commit_fallback(mock_run: MagicMock) -> None:
 
     assert success is True
     assert diff_text == "root diff"
-    second_call = mock_run.call_args_list[1]
-    assert second_call[0][0] == ["git", "show", "--format=", "--patch", "abc123"]
+    assert mock_run.call_args[0][0] == [
+        "git",
+        "show",
+        "--format=",
+        "--patch",
+        "abc123",
+    ]
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")
-def test_git_diff_revision_both_fail(mock_run: MagicMock) -> None:
-    """Test BareGitPlugin.vcs_diff_revision when both attempts fail."""
+def test_git_diff_revision_all_fail(mock_run: MagicMock) -> None:
+    """Test BareGitPlugin.vcs_diff_revision when all attempts fail."""
     mock_run.side_effect = [
+        # _get_default_branch
+        MagicMock(returncode=0, stdout="refs/remotes/origin/main\n", stderr=""),
+        # Primary merge-base diff fails
         MagicMock(returncode=1, stdout="", stderr="bad revision"),
+        # Fallback 1: single-commit diff fails
+        MagicMock(returncode=1, stdout="", stderr="bad revision"),
+        # Fallback 2: git show fails
         MagicMock(returncode=1, stdout="", stderr="unknown revision"),
     ]
 
