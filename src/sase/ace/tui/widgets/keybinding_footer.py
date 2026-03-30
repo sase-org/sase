@@ -193,10 +193,16 @@ class KeybindingFooter(Horizontal):
         *,
         completed_count: int = 0,
         is_pinned: bool = False,
+        pinned_panel_focused: bool = False,
+        has_pinned_agents: bool = False,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
-            agent, completed_count=completed_count, is_pinned=is_pinned
+            agent,
+            completed_count=completed_count,
+            is_pinned=is_pinned,
+            pinned_panel_focused=pinned_panel_focused,
+            has_pinned_agents=has_pinned_agents,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -403,6 +409,8 @@ class KeybindingFooter(Horizontal):
         *,
         completed_count: int = 0,
         is_pinned: bool = False,
+        pinned_panel_focused: bool = False,
+        has_pinned_agents: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -410,6 +418,11 @@ class KeybindingFooter(Horizontal):
         state) and app-state bindings (e.g. completed agents exist).
         """
         bindings: list[tuple[str, str]] = []
+
+        # J toggle (shown when pinned agents exist or panel is focused)
+        if has_pinned_agents or pinned_panel_focused:
+            toggle_label = "agents" if pinned_panel_focused else "pinned"
+            bindings.append((self._kd("focus_pinned_panel"), toggle_label))
 
         if agent is None:
             # Even with no selected agent, show app-state bindings

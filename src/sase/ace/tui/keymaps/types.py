@@ -102,6 +102,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("reset_file_trim", "Reset Trim", False),
     ("show_all_file_lines", "Show All", False),
     ("jump_to_agent_changespec", "Go to CL", False),
+    ("focus_pinned_panel", "Focus Pinned", False),
 ]
 
 # Maps mode name -> the app-level action that activates it.
@@ -254,6 +255,8 @@ class AppKeymaps:
     start_ancestor_mode: str
     start_child_mode: str
     start_sibling_mode: str
+    # Pinned panel
+    focus_pinned_panel: str
     # Mode activation prefixes
     start_fold_mode: str
     start_leader_mode: str

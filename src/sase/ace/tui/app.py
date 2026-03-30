@@ -58,6 +58,7 @@ from .widgets import (
     InactiveIndicator,
     KeybindingFooter,
     NotificationIndicator,
+    PinnedAgentsPanel,
     SearchQueryPanel,
     TabBar,
     TaskIndicator,
@@ -239,6 +240,9 @@ class AceApp(
         self._dismissed_agents = load_dismissed_agents()
         self._dismissed_agent_objects: list[Agent] = []
         self._pinned_agents = load_pinned_agents()
+        self._pinned_agent_objects: list[Agent] = []
+        self._pinned_panel_focused: bool = False
+        self._pinned_panel_idx: int = 0
 
         # Agent status override system (for PLANNING/PLAN APPROVED/QUESTION statuses)
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
@@ -404,6 +408,9 @@ class AceApp(
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
+                        yield PinnedAgentsPanel(
+                            id="pinned-agents-panel", classes="hidden"
+                        )
             # Axe Tab (hidden by default)
             with Horizontal(id="axe-view", classes="hidden"):
                 # Left panel (bgcmd list) - always visible on AXE tab
@@ -509,9 +516,13 @@ class AceApp(
             return
 
         # Cancel any pending debounce timer when leaving agents tab
-        if old_tab == "agents" and self._detail_update_timer is not None:
-            self._detail_update_timer.stop()
-            self._detail_update_timer = None
+        if old_tab == "agents":
+            if self._detail_update_timer is not None:
+                self._detail_update_timer.stop()
+                self._detail_update_timer = None
+            # Reset pinned panel focus to avoid confusing state on return
+            if self._pinned_panel_focused:
+                self._pinned_panel_focused = False
 
         # Update tab bar indicator
         tab_bar = self.query_one("#tab-bar", TabBar)

@@ -18,16 +18,21 @@ class AgentInfoPanel(Static):
         self._interval = 0
         self._view_mode: str = ""
         self._search_query: str = ""
+        self._label: str = "Agents"
 
-    def update_position(self, position: int, total: int) -> None:
+    def update_position(
+        self, position: int, total: int, *, label: str = "Agents"
+    ) -> None:
         """Update the position display.
 
         Args:
             position: Current position (1-based for display).
             total: Total number of agents.
+            label: Label prefix for the position display.
         """
         self._position = position
         self._total = total
+        self._label = label
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -69,7 +74,7 @@ class AgentInfoPanel(Static):
     def _update_display(self) -> None:
         """Refresh the displayed text."""
         text = Text()
-        text.append("Agents: ", style="bold #87D7FF")
+        text.append(f"{self._label}: ", style="bold #87D7FF")
         text.append(f"{self._position}/{self._total}", style="#00D7AF")
         if self._search_query:
             text.append("   ")

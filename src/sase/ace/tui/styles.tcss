@@ -569,6 +569,39 @@ HintInputBar #hint-escape-hint {
     height: 3fr;
 }
 
+/* Pinned agents panel */
+#pinned-agents-panel {
+    height: auto;
+    max-height: 10;
+    border: solid #FFD700;
+    padding: 0 1;
+}
+
+#pinned-agents-panel.hidden {
+    display: none;
+}
+
+#pinned-agents-panel.focused-panel {
+    border: double #FFD700;
+}
+
+#agent-list-panel.unfocused-panel {
+    border: solid $secondary;
+}
+
+/* Pinned agents panel option styling */
+PinnedAgentsPanel {
+    scrollbar-gutter: stable;
+}
+
+PinnedAgentsPanel > .option-list--option {
+    padding: 0 1;
+}
+
+PinnedAgentsPanel > .option-list--option-highlighted {
+    background: $accent;
+}
+
 /* Agent list styling */
 AgentList {
     scrollbar-gutter: stable;

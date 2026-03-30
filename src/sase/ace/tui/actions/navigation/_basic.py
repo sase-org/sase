@@ -22,6 +22,14 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = 0
         elif self.current_tab == "agents":
+            if getattr(self, "_pinned_panel_focused", False):
+                pinned = self._pinned_agent_objects  # type: ignore[attr-defined]
+                if len(pinned) == 0:
+                    return
+                idx = self._pinned_panel_idx  # type: ignore[attr-defined, has-type]
+                self._pinned_panel_idx = idx + 1 if idx < len(pinned) - 1 else 0  # type: ignore[attr-defined, has-type]
+                self._refresh_agents_display_debounced()  # type: ignore[attr-defined]
+                return
             if len(self._agents) == 0:
                 return
             if self.current_idx < len(self._agents) - 1:
@@ -46,6 +54,14 @@ class BasicNavigationMixin(NavigationMixinBase):
             else:
                 self.current_idx = len(self.changespecs) - 1
         elif self.current_tab == "agents":
+            if getattr(self, "_pinned_panel_focused", False):
+                pinned = self._pinned_agent_objects  # type: ignore[attr-defined]
+                if len(pinned) == 0:
+                    return
+                idx = self._pinned_panel_idx  # type: ignore[attr-defined, has-type]
+                self._pinned_panel_idx = idx - 1 if idx > 0 else len(pinned) - 1  # type: ignore[attr-defined, has-type]
+                self._refresh_agents_display_debounced()  # type: ignore[attr-defined]
+                return
             if len(self._agents) == 0:
                 return
             if self.current_idx > 0:
