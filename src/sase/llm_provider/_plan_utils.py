@@ -99,6 +99,8 @@ def handle_plan_approval(
     *,
     killed_check: Callable[[], bool] | None = None,
     agent_name: str | None = None,
+    agent_model: str | None = None,
+    agent_llm_provider: str | None = None,
 ) -> PlanApprovalResult | None:
     """Handle plan approval flow.
 
@@ -159,6 +161,8 @@ def handle_plan_approval(
         agent_project_file=agent_project_file,
         agent_timestamp=agent_timestamp,
         agent_name=agent_name,
+        agent_model=agent_model,
+        agent_llm_provider=agent_llm_provider,
     )
 
     # Desktop notification + tmux bell

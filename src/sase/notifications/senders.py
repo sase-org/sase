@@ -146,6 +146,8 @@ def notify_plan_approval(
     agent_project_file: str | None = None,
     agent_timestamp: str | None = None,
     agent_name: str | None = None,
+    agent_model: str | None = None,
+    agent_llm_provider: str | None = None,
 ) -> None:
     """Send a notification when a Claude Code plan is ready for approval."""
     plan_name = plan_file.rsplit("/", 1)[-1] if "/" in plan_file else plan_file
@@ -163,6 +165,10 @@ def notify_plan_approval(
         action_data["agent_timestamp"] = agent_timestamp
     if agent_name:
         action_data["agent_name"] = agent_name
+    if agent_model:
+        action_data["model"] = agent_model
+    if agent_llm_provider:
+        action_data["llm_provider"] = agent_llm_provider
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),

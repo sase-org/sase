@@ -169,6 +169,8 @@ def handle_plan_marker(
         str(uuid.uuid4()),
         killed_check=was_killed,
         agent_name=ctx.agent_name,
+        agent_model=ctx.agent_model,
+        agent_llm_provider=ctx.agent_llm_provider,
     )
     if plan_result is None and was_killed():
         return "killed"

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 11:11:38
-status: wip
+status: done
 ---
 
 # Add LLM Provider and Model to Plan Telegram Messages
