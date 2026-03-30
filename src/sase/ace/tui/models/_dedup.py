@@ -204,12 +204,23 @@ def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
 
     Prefer workflow_state.json entries (accurate status), but copy
     workspace_num and cl_name from RUNNING field entries.
+
+    When two entries share a raw_suffix but have distinct PIDs, they are
+    separate runs that launched in the same second — keep both.
     """
     seen_suffixes: dict[str, Agent] = {}
+    dup_remove_ids: set[int] = set()
     for agent in agents:
         if agent.agent_type == AgentType.WORKFLOW and agent.raw_suffix:
             if agent.raw_suffix in seen_suffixes:
                 existing = seen_suffixes[agent.raw_suffix]
+                # Both have distinct PIDs → separate runs, keep both
+                if (
+                    existing.pid is not None
+                    and agent.pid is not None
+                    and existing.pid != agent.pid
+                ):
+                    continue
                 # Copy workspace_num from RUNNING field entry
                 if existing.workspace_num is None and agent.workspace_num is not None:
                     existing.workspace_num = agent.workspace_num
@@ -231,17 +242,11 @@ def dedup_workflow_entries(agents: list[Agent]) -> list[Agent]:
                 # Copy agent_name if existing has none
                 if existing.agent_name is None and agent.agent_name is not None:
                     existing.agent_name = agent.agent_name
+                dup_remove_ids.add(id(agent))
             else:
                 seen_suffixes[agent.raw_suffix] = agent
 
-    # Filter out duplicates
-    return [
-        a
-        for a in agents
-        if a.agent_type != AgentType.WORKFLOW
-        or a.raw_suffix not in seen_suffixes
-        or seen_suffixes.get(a.raw_suffix) is a
-    ]
+    return [a for a in agents if id(a) not in dup_remove_ids]
 
 
 def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
@@ -250,11 +255,14 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
     From the same artifacts directory (matching raw_suffix / timestamp).
     RUNNING field uses "ace(run)" workflow; done.json uses "ace-run" (dir name).
     Prefer WORKFLOW (has step info / appears_as_agent), merge metadata from RUNNING.
+
+    When multiple WORKFLOW agents share a raw_suffix (same-second launches),
+    disambiguate by PID. Skip dedup when ambiguous.
     """
-    workflow_by_suffix: dict[str, Agent] = {}
+    workflow_by_suffix: dict[str, list[Agent]] = {}
     for agent in agents:
         if agent.agent_type == AgentType.WORKFLOW and agent.raw_suffix:
-            workflow_by_suffix[agent.raw_suffix] = agent
+            workflow_by_suffix.setdefault(agent.raw_suffix, []).append(agent)
 
     deduped_agents: list[Agent] = []
     for agent in agents:
@@ -269,8 +277,21 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
             and agent.raw_suffix
             and agent.raw_suffix in workflow_by_suffix
         ):
+            candidates = workflow_by_suffix[agent.raw_suffix]
+            matched: Agent | None = None
+            if len(candidates) == 1:
+                matched = candidates[0]
+            elif agent.pid is not None:
+                # Multiple candidates — disambiguate by PID
+                for c in candidates:
+                    if c.pid == agent.pid:
+                        matched = c
+                        break
+            if matched is None:
+                # Ambiguous — keep the RUNNING agent
+                deduped_agents.append(agent)
+                continue
             # Match found — merge metadata into the WORKFLOW agent
-            matched = workflow_by_suffix[agent.raw_suffix]
             if matched.cl_name == "unknown" and agent.cl_name != "unknown":
                 matched.cl_name = agent.cl_name
             if matched.workspace_num is None and agent.workspace_num is not None:

@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.tui.models._dedup import dedup_running_vs_workflow
+from sase.ace.tui.models._dedup import dedup_running_vs_workflow, dedup_workflow_entries
 from sase.ace.tui.models._loaders._workflow_loaders import (
     _iter_workflow_timestamp_dirs,
     load_workflow_states,
@@ -234,3 +234,179 @@ def test_run_query_writes_initial_workflow_state(tmp_path: Path) -> None:
     assert data["appears_as_agent"] is True
     assert data["steps"] == []
     assert data["workflow_name"] == "run"
+
+
+# --- Regression tests: same-timestamp, different-PID collision safety ---
+
+
+def test_dedup_workflow_entries_keeps_distinct_pid_same_suffix() -> None:
+    """Two WORKFLOW entries with same raw_suffix but different PIDs stay separate."""
+    wf1 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="manual_run",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="run",
+        raw_suffix="20260330120000",
+        pid=11111,
+    )
+    wf2 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="fix_just",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix="20260330120000",
+        pid=22222,
+    )
+
+    result = dedup_workflow_entries([wf1, wf2])
+    assert len(result) == 2
+    pids = {a.pid for a in result}
+    assert pids == {11111, 22222}
+
+
+def test_dedup_workflow_entries_merges_same_pid() -> None:
+    """Two WORKFLOW entries with same raw_suffix and same PID still merge."""
+    wf1 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="unknown",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="deploy",
+        raw_suffix="20260330120000",
+        pid=11111,
+    )
+    wf2 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="FAILED",
+        start_time=None,
+        workflow="deploy",
+        raw_suffix="20260330120000",
+        pid=11111,
+        workspace_num=5,
+    )
+
+    result = dedup_workflow_entries([wf1, wf2])
+    assert len(result) == 1
+    assert result[0].cl_name == "my_feature"
+    assert result[0].status == "FAILED"
+    assert result[0].workspace_num == 5
+
+
+def test_dedup_workflow_entries_merges_when_pid_none() -> None:
+    """WORKFLOW entries with same raw_suffix and missing PID still merge."""
+    wf1 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="test_cl",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="deploy",
+        raw_suffix="20260330120000",
+    )
+    wf2 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="test_cl",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        workflow="deploy",
+        raw_suffix="20260330120000",
+        pid=33333,
+    )
+
+    result = dedup_workflow_entries([wf1, wf2])
+    assert len(result) == 1
+    assert result[0].status == "DONE"
+    assert result[0].pid == 33333
+
+
+def test_dedup_running_vs_workflow_ambiguous_keeps_running() -> None:
+    """RUNNING agent not deduped when multiple WORKFLOWs share its suffix."""
+    wf1 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="manual_run",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="run",
+        raw_suffix="20260330120000",
+        pid=11111,
+        appears_as_agent=True,
+    )
+    wf2 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="fix_just",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix="20260330120000",
+        pid=22222,
+        appears_as_agent=True,
+    )
+    running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="run",
+        raw_suffix="20260330120000",
+    )
+
+    result = dedup_running_vs_workflow([wf1, wf2, running])
+    assert len(result) == 3  # All three kept — ambiguous, no dedup
+
+
+def test_dedup_running_vs_workflow_disambiguates_by_pid() -> None:
+    """RUNNING agent merges with correct WORKFLOW when disambiguated by PID."""
+    wf1 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="unknown",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="run",
+        raw_suffix="20260330120000",
+        pid=11111,
+        appears_as_agent=True,
+    )
+    wf2 = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="unknown",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+        workflow="fix_just",
+        raw_suffix="20260330120000",
+        pid=22222,
+        appears_as_agent=True,
+    )
+    running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.gp",
+        status="DONE",
+        start_time=None,
+        workflow="run",
+        raw_suffix="20260330120000",
+        pid=11111,
+        workspace_num=3,
+    )
+
+    result = dedup_running_vs_workflow([wf1, wf2, running])
+    # RUNNING merged into wf1 (matching PID), wf2 kept separate
+    assert len(result) == 2
+    # wf1 should have merged metadata from running
+    assert wf1.cl_name == "my_feature"
+    assert wf1.workspace_num == 3
+    assert wf1.status == "DONE"
+    # wf2 should be unchanged
+    assert wf2.cl_name == "unknown"
