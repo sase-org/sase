@@ -66,9 +66,15 @@ class TaskActionsMixin:
         task_info = self._task_queue.submit(task_type, cl_name, project_file)
         task_id = task_info.task_id
 
+        # Create the buffer up-front so the modal can read partial output
+        import io
+
+        live_buf = io.StringIO()
+        task_info._live_buffer = live_buf
+
         def _wrapped() -> tuple[str, bool, str, str]:
             """Run the callable with captured output. Returns (task_id, success, message, output)."""
-            with capture_output() as buf:
+            with capture_output(live_buf) as buf:
                 try:
                     success, message = task_callable()
                 except Exception as exc:

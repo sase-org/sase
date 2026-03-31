@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 19:26:12
-status: wip
+status: done
 ---
 
 # Plan: Live Output for Running Tasks in Task Queue Modal

@@ -31,6 +31,13 @@ class TaskInfo:
     finished_at: datetime | None = None
     output: str = ""
     error: str | None = None
+    _live_buffer: io.StringIO | None = field(default=None, repr=False)
+
+    def get_live_output(self) -> str:
+        """Return live output from the buffer if running, otherwise the final output."""
+        if self._live_buffer is not None and self.status == "running":
+            return self._live_buffer.getvalue()
+        return self.output
 
 
 @dataclass
@@ -138,14 +145,19 @@ class TaskQueue:
 
 
 @contextmanager
-def capture_output() -> Generator[io.StringIO, None, None]:
-    """Redirect stdout/stderr to a StringIO buffer."""
-    buffer = io.StringIO()
+def capture_output(
+    buffer: io.StringIO | None = None,
+) -> Generator[io.StringIO, None, None]:
+    """Redirect stdout/stderr to a StringIO buffer.
+
+    If *buffer* is provided it is reused; otherwise a new one is created.
+    """
+    buf = buffer if buffer is not None else io.StringIO()
     old_stdout, old_stderr = sys.stdout, sys.stderr
-    sys.stdout = buffer
-    sys.stderr = buffer
+    sys.stdout = buf
+    sys.stderr = buf
     try:
-        yield buffer
+        yield buf
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr

@@ -134,7 +134,11 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
 
         out = Text()
         if task.status == "running":
-            out.append("Task is running...", style="bold green")
+            live = task.get_live_output()
+            if live:
+                out = Text.from_ansi(live)
+            else:
+                out.append("Task is running...", style="bold green")
         elif task.status == "error" and task.error:
             out.append("Error: ", style="bold red")
             out.append(task.error, style="red")
@@ -147,13 +151,24 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
             out.append(f"Completed: {task.message}", style="dim")
 
         content.update(out)
-        self._reset_output_scroll()
+        if task.status == "running":
+            self._scroll_output_to_end()
+        else:
+            self._reset_output_scroll()
 
     def _reset_output_scroll(self) -> None:
         """Reset the output scroll pane to the top."""
         try:
             scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
             scroll.scroll_home(animate=False)
+        except Exception:
+            pass
+
+    def _scroll_output_to_end(self) -> None:
+        """Scroll the output pane to the bottom."""
+        try:
+            scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
+            scroll.scroll_end(animate=False)
         except Exception:
             pass
 
@@ -169,6 +184,49 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
 
         if self._tasks:
             self._display_output(self._tasks[0])
+
+        self._refresh_timer = self.set_interval(1, self._refresh_running_output)
+
+    def on_unmount(self) -> None:
+        """Stop the refresh timer on unmount."""
+        if hasattr(self, "_refresh_timer"):
+            self._refresh_timer.stop()
+
+    def _refresh_running_output(self) -> None:
+        """Poll the task queue for status changes and live output."""
+        old_statuses = {t.task_id: t.status for t in self._tasks}
+        self._tasks = self._task_queue.get_all()
+        new_statuses = {t.task_id: t.status for t in self._tasks}
+
+        # Rebuild the list if any status changed or the task count changed
+        if old_statuses != new_statuses:
+            highlighted = None
+            try:
+                option_list = self.query_one("#task-queue-list", OptionList)
+                highlighted = option_list.highlighted
+            except Exception:
+                pass
+            self._rebuild_list(highlight_index=highlighted)
+            return
+
+        # Otherwise just refresh the output pane for the selected task
+        task = self._get_selected_task()
+        if task is not None and task.status == "running":
+            self._display_task_live_output(task)
+
+    def _display_task_live_output(self, task: TaskInfo) -> None:
+        """Update the output pane with live output and scroll to bottom."""
+        content = self.query_one("#task-queue-output-content", Static)
+        live = task.get_live_output()
+        if live:
+            content.update(Text.from_ansi(live))
+        else:
+            content.update(Text("Task is running...", style="bold green"))
+        try:
+            scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
+            scroll.scroll_end(animate=False)
+        except Exception:
+            pass
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
