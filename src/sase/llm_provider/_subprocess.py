@@ -71,7 +71,7 @@ def stream_process_output(
     stderr_lines: list[str] = []
     live_reply_file = _open_live_reply_file()
     timestamps_file = _open_live_reply_timestamps_file()
-    first_output_written = False
+    prev_line_blank = True  # So the very first non-blank line triggers a timestamp
 
     try:
         # Set stdout and stderr to non-blocking mode
@@ -105,14 +105,14 @@ def stream_process_output(
                         line = _strip_ansi(line)
                     stdout_lines.append(line)
                     if live_reply_file:
-                        if timestamps_file and not first_output_written:
+                        if timestamps_file and prev_line_blank and line.strip():
                             entry = {
-                                "byte_offset": 0,
+                                "byte_offset": live_reply_file.tell(),
                                 "timestamp": datetime.now(tz=UTC).isoformat(),
                             }
                             timestamps_file.write(json.dumps(entry) + "\n")
                             timestamps_file.flush()
-                            first_output_written = True
+                        prev_line_blank = not line.strip()
                         live_reply_file.write(line)
                         live_reply_file.flush()
                     if not suppress_output:
@@ -136,14 +136,14 @@ def stream_process_output(
                                 line = _strip_ansi(line)
                             stdout_lines.append(line)
                             if live_reply_file:
-                                if timestamps_file and not first_output_written:
+                                if timestamps_file and prev_line_blank and line.strip():
                                     entry = {
-                                        "byte_offset": 0,
+                                        "byte_offset": live_reply_file.tell(),
                                         "timestamp": datetime.now(tz=UTC).isoformat(),
                                     }
                                     timestamps_file.write(json.dumps(entry) + "\n")
                                     timestamps_file.flush()
-                                    first_output_written = True
+                                prev_line_blank = not line.strip()
                                 live_reply_file.write(line)
                                 live_reply_file.flush()
                             if not suppress_output:
@@ -590,19 +590,17 @@ def _process_json_line(
     if event_type == "assistant":
         message = event.get("message", {})
         content_blocks = message.get("content", [])
-        recorded_turn_ts = False
         for block in content_blocks:
             if block.get("type") == "text":
                 text = block["text"]
                 if live_reply_file:
-                    if timestamps_file and not recorded_turn_ts:
+                    if timestamps_file:
                         ts_entry = {
                             "byte_offset": live_reply_file.tell(),
                             "timestamp": datetime.now(tz=UTC).isoformat(),
                         }
                         timestamps_file.write(json.dumps(ts_entry) + "\n")
                         timestamps_file.flush()
-                        recorded_turn_ts = True
                     if assistant_texts:
                         live_reply_file.write("\n\n")
                     live_reply_file.write(text)
