@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 18:29:36
-status: wip
+status: done
 ---
 
 # Fix: Prompt Input Widget Focus Guard

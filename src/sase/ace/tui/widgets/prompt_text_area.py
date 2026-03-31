@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
+from textual.screen import ModalScreen
 from textual.widgets import TextArea
 
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
@@ -529,3 +530,12 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             and event.character != " "
         ):
             await self._format_with_prettier()
+
+    def on_blur(self) -> None:
+        """Schedule a deferred refocus when the text area loses focus."""
+        self.call_later(self._refocus_if_needed)
+
+    def _refocus_if_needed(self) -> None:
+        """Refocus this text area unless a modal is active."""
+        if self.is_mounted and not isinstance(self.app.screen, ModalScreen):
+            self.focus()
