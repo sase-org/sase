@@ -1,6 +1,5 @@
 """Filesystem artifact loaders (project files, done/running markers)."""
 
-import json
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -11,6 +10,7 @@ from sase.running_field import get_claimed_workspaces
 from sase.core.time import get_timezone
 
 from ....hooks.processes import is_process_running
+from .._file_cache import glob_json_cached, read_json_cached
 from .._timestamps import (
     normalize_to_14_digit,
     parse_timestamp_14_digit,
@@ -41,12 +41,7 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         return
 
     meta_path = Path(artifacts_dir) / "agent_meta.json"
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return
-
+    data = read_json_cached(meta_path)
     if not isinstance(data, dict):
         return
 
@@ -115,18 +110,15 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
 
     # Check for waiting.json to set WAITING status (takes precedence over PLANNING
     # since the agent can't plan until its dependencies are resolved)
-    waiting_path = Path(artifacts_dir) / "waiting.json"
-    if waiting_path.exists() and agent.status == "RUNNING":
-        agent.status = "WAITING"
-        # waiting.json may contain an updated waiting_for list (e.g. from the TUI
-        # "w" keymap), which takes precedence over agent_meta.json's wait_for.
-        try:
-            with open(waiting_path, encoding="utf-8") as f:
-                waiting_data = json.load(f)
+    if agent.status == "RUNNING":
+        waiting_path = Path(artifacts_dir) / "waiting.json"
+        waiting_data = read_json_cached(waiting_path)
+        if waiting_data is not None:
+            agent.status = "WAITING"
+            # waiting.json may contain an updated waiting_for list (e.g. from the TUI
+            # "w" keymap), which takes precedence over agent_meta.json's wait_for.
             if isinstance(waiting_data, dict) and waiting_data.get("waiting_for"):
                 agent.waiting_for = waiting_data["waiting_for"]
-        except (json.JSONDecodeError, OSError):
-            pass
 
     # Set PLANNING / PLAN APPROVED status for agents launched with %plan directive
     if data.get("plan") and agent.status == "RUNNING":
@@ -310,13 +302,11 @@ def load_done_agents(
                     continue
 
                 done_file = artifact_dir / "done.json"
-                if not done_file.exists():
+                data = read_json_cached(done_file)
+                if not isinstance(data, dict):
                     continue
 
                 try:
-                    with open(done_file, encoding="utf-8") as f:
-                        data = json.load(f)
-
                     # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
                     timestamp_str = artifact_dir.name
                     start_time = parse_timestamp_14_digit(timestamp_str)
@@ -383,14 +373,9 @@ def _enrich_agent_from_prompt_markers(agent: Agent, artifacts_dir: str) -> None:
         agent: The Agent to enrich (modified in place).
         artifacts_dir: Path to the artifacts directory.
     """
-    artifacts_path = Path(artifacts_dir)
     meta_fields: dict[str, str] = {}
-    for marker_file in sorted(artifacts_path.glob("prompt_step_*.json")):
-        try:
-            with open(marker_file, encoding="utf-8") as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            continue
+    for marker_file in glob_json_cached(artifacts_dir, "prompt_step_*.json"):
+        data = read_json_cached(marker_file)
         if not isinstance(data, dict):
             continue
         output = data.get("output")
@@ -426,13 +411,11 @@ def load_running_home_agents() -> list[Agent]:
             continue
 
         running_file = artifact_dir / "running.json"
-        if not running_file.exists():
+        data = read_json_cached(running_file)
+        if not isinstance(data, dict):
             continue
 
         try:
-            with open(running_file, encoding="utf-8") as f:
-                data = json.load(f)
-
             # Verify PID is still running
             pid = data.get("pid")
             if pid is None or not is_process_running(pid):

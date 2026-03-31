@@ -129,7 +129,8 @@ class AgentLoadingMixin:
         all_agents = load_all_agents()
 
         # Populate retry fields from retry_state.json for running agents
-        from sase.llm_provider.retry_config import RetryState
+        from sase.ace.tui.models._file_cache import read_json_cached
+        from sase.llm_provider.retry_config import RETRY_STATE_FILENAME, RetryState
 
         for agent in all_agents:
             if agent.status != "RUNNING":
@@ -137,8 +138,13 @@ class AgentLoadingMixin:
             artifacts_dir = agent.get_artifacts_dir()
             if not artifacts_dir:
                 continue
-            retry_state = RetryState.read_from(artifacts_dir)
-            if retry_state is None:
+            retry_path = f"{artifacts_dir}/{RETRY_STATE_FILENAME}"
+            retry_data = read_json_cached(retry_path)
+            if not isinstance(retry_data, dict):
+                continue
+            try:
+                retry_state = RetryState(**retry_data)
+            except TypeError:
                 continue
             agent.retry_count = retry_state.retry_count
             agent.max_retries = retry_state.max_retries

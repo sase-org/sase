@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -13,22 +14,37 @@ MAX_DISMISSED = 500
 _DISMISSED_AGENTS_FILE = Path.home() / ".sase" / "dismissed_agents.json"
 _DISMISSED_BUNDLES_FILE = Path.home() / ".sase" / "dismissed_agent_bundles.json"
 
+# Mtime caches — avoid re-reading/re-parsing files that haven't changed.
+_dismissed_agents_cache: tuple[float, set[tuple[AgentType, str, str | None]]] | None = (
+    None
+)
+_dismissed_bundles_cache: tuple[float, list[Agent]] | None = None
+
 
 def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
-    """Load dismissed agent identities from disk.
+    """Load dismissed agent identities from disk (mtime-cached).
 
     Returns:
         Set of (AgentType, cl_name, raw_suffix) tuples.
     """
+    global _dismissed_agents_cache  # noqa: PLW0603
     from .tui.models.agent import AgentType
 
-    if not _DISMISSED_AGENTS_FILE.exists():
+    path_str = str(_DISMISSED_AGENTS_FILE)
+    try:
+        mtime = os.path.getmtime(path_str)
+    except OSError:
+        _dismissed_agents_cache = None
         return set()
+
+    if _dismissed_agents_cache is not None and _dismissed_agents_cache[0] == mtime:
+        return _dismissed_agents_cache[1]
 
     try:
         with open(_DISMISSED_AGENTS_FILE) as f:
             data = json.load(f)
         if not isinstance(data, list):
+            _dismissed_agents_cache = (mtime, set())
             return set()
 
         result: set[tuple[AgentType, str, str | None]] = set()
@@ -46,6 +62,7 @@ def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
             if raw_suffix is not None and not isinstance(raw_suffix, str):
                 continue
             result.add((agent_type, cl_name, raw_suffix))
+        _dismissed_agents_cache = (mtime, result)
         return result
     except (OSError, json.JSONDecodeError):
         return set()
@@ -62,6 +79,8 @@ def save_dismissed_agents(
     Returns:
         True if saved successfully, False otherwise.
     """
+    global _dismissed_agents_cache  # noqa: PLW0603
+    _dismissed_agents_cache = None  # Invalidate cache on write
     try:
         _DISMISSED_AGENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
         entries = [
@@ -81,20 +100,29 @@ def save_dismissed_agents(
 
 
 def load_dismissed_bundles() -> list[Agent]:
-    """Load dismissed agent bundles from disk.
+    """Load dismissed agent bundles from disk (mtime-cached).
 
     Returns:
         List of Agent objects reconstructed from bundle dicts.
     """
+    global _dismissed_bundles_cache  # noqa: PLW0603
     from .tui.models.agent import Agent
 
-    if not _DISMISSED_BUNDLES_FILE.exists():
+    path_str = str(_DISMISSED_BUNDLES_FILE)
+    try:
+        mtime = os.path.getmtime(path_str)
+    except OSError:
+        _dismissed_bundles_cache = None
         return []
+
+    if _dismissed_bundles_cache is not None and _dismissed_bundles_cache[0] == mtime:
+        return _dismissed_bundles_cache[1]
 
     try:
         with open(_DISMISSED_BUNDLES_FILE) as f:
             data = json.load(f)
         if not isinstance(data, list):
+            _dismissed_bundles_cache = (mtime, [])
             return []
 
         agents: list[Agent] = []
@@ -105,6 +133,7 @@ def load_dismissed_bundles() -> list[Agent]:
                 agents.append(Agent.from_bundle_dict(entry))
             except (KeyError, ValueError, TypeError):
                 continue
+        _dismissed_bundles_cache = (mtime, agents)
         return agents
     except (OSError, json.JSONDecodeError):
         return []
@@ -119,6 +148,8 @@ def save_dismissed_bundles(agents: list[Agent]) -> bool:
     Returns:
         True if saved successfully, False otherwise.
     """
+    global _dismissed_bundles_cache  # noqa: PLW0603
+    _dismissed_bundles_cache = None  # Invalidate cache on write
     try:
         _DISMISSED_BUNDLES_FILE.parent.mkdir(parents=True, exist_ok=True)
         entries = [a.to_bundle_dict() for a in agents]

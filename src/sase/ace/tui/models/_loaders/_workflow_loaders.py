@@ -1,6 +1,6 @@
 """Workflow state and step loaders."""
 
-import json
+import os
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +8,7 @@ from typing import Any
 
 from ....hooks.processes import is_process_running
 from ._artifact_loaders import enrich_agent_from_meta
+from .._file_cache import glob_json_cached, read_json_cached
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 from ..workflow import WorkflowEntry
@@ -59,13 +60,60 @@ def _iter_workflow_timestamp_dirs() -> Iterator[tuple[Path, Path]]:
                 yield project_dir, timestamp_dir
 
 
-def _get_workflow_timestamp_dirs() -> list[tuple[Path, Path]]:
-    """Return cached list of (project_dir, timestamp_dir) pairs.
+# Mtime-based cache for directory traversal.  We track the mtimes of
+# all scanned directories (artifacts/ and workflow dirs).  If none changed,
+# no new timestamp dirs were created/deleted and we can reuse the result.
+_wf_dirs_cache: tuple[dict[str, float], list[tuple[Path, Path]]] | None = None
 
-    Materializes the iterator once so multiple callers can reuse the result
-    without re-traversing the filesystem.
+
+def _get_workflow_timestamp_dirs() -> list[tuple[Path, Path]]:
+    """Return list of (project_dir, timestamp_dir) pairs, mtime-cached.
+
+    Materializes the iterator once so multiple callers can reuse the result.
+    On subsequent calls, skips the full traversal if no parent directory
+    mtime has changed (meaning no timestamp dirs were created or deleted).
     """
-    return list(_iter_workflow_timestamp_dirs())
+    global _wf_dirs_cache  # noqa: PLW0603
+
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return []
+
+    # Collect mtimes of directories that determine the traversal result.
+    dir_mtimes: dict[str, float] = {}
+    try:
+        for project_dir in projects_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
+            artifacts_dir = project_dir / "artifacts"
+            artifacts_str = str(artifacts_dir)
+            try:
+                dir_mtimes[artifacts_str] = os.path.getmtime(artifacts_str)
+            except OSError:
+                continue
+            for workflow_dir in artifacts_dir.iterdir():
+                if not workflow_dir.is_dir():
+                    continue
+                if not (
+                    workflow_dir.name.startswith("workflow-")
+                    or workflow_dir.name == "ace-run"
+                    or workflow_dir.name == "run"
+                ):
+                    continue
+                wf_str = str(workflow_dir)
+                try:
+                    dir_mtimes[wf_str] = os.path.getmtime(wf_str)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+    if _wf_dirs_cache is not None and _wf_dirs_cache[0] == dir_mtimes:
+        return _wf_dirs_cache[1]
+
+    result = list(_iter_workflow_timestamp_dirs())
+    _wf_dirs_cache = (dir_mtimes, result)
+    return result
 
 
 def load_workflow_states(
@@ -93,13 +141,11 @@ def load_workflow_states(
     )
     for project_dir, timestamp_dir in dirs:
         state_file = timestamp_dir / "workflow_state.json"
-        if not state_file.exists():
+        data = read_json_cached(state_file)
+        if not isinstance(data, dict):
             continue
 
         try:
-            with open(state_file, encoding="utf-8") as f:
-                data = json.load(f)
-
             # Parse timestamp from directory name
             start_time = parse_timestamp_14_digit(timestamp_dir.name)
             if start_time is None:
@@ -285,14 +331,11 @@ def load_workflow_agents(
         extra_files: list[str] = []
         if entry.artifacts_dir:
             plan_path_file = Path(entry.artifacts_dir) / "plan_path.json"
-            try:
-                with open(plan_path_file, encoding="utf-8") as f:
-                    plan_data = json.load(f)
+            plan_data = read_json_cached(plan_path_file)
+            if isinstance(plan_data, dict):
                 plan_path = plan_data.get("plan_path")
                 if plan_path:
                     extra_files = [plan_path]
-            except (FileNotFoundError, json.JSONDecodeError, OSError):
-                pass
 
         agent = Agent(
             agent_type=AgentType.WORKFLOW,
@@ -352,26 +395,22 @@ def load_workflow_agent_steps(
         parent_wf_failed = False
         parent_wf_completed = False
         parent_state_file = timestamp_dir / "workflow_state.json"
-        if parent_state_file.exists():
-            try:
-                with open(parent_state_file, encoding="utf-8") as f:
-                    parent_state = json.load(f)
-                parent_status = parent_state.get("status")
-                if parent_status == "failed":
-                    parent_wf_failed = True
-                    parent_wf_error = parent_state.get("error")
-                    parent_wf_traceback = parent_state.get("traceback")
-                elif parent_status == "completed":
-                    parent_wf_completed = True
-            except Exception:
-                pass
+        parent_state = read_json_cached(parent_state_file)
+        if isinstance(parent_state, dict):
+            parent_status = parent_state.get("status")
+            if parent_status == "failed":
+                parent_wf_failed = True
+                parent_wf_error = parent_state.get("error")
+                parent_wf_traceback = parent_state.get("traceback")
+            elif parent_status == "completed":
+                parent_wf_completed = True
 
         # Find all prompt step marker files
-        for marker_file in timestamp_dir.glob("prompt_step_*.json"):
+        for marker_file in glob_json_cached(timestamp_dir, "prompt_step_*.json"):
+            data = read_json_cached(marker_file)
+            if not isinstance(data, dict):
+                continue
             try:
-                with open(marker_file, encoding="utf-8") as f:
-                    data = json.load(f)
-
                 # Parse timestamp from directory name
                 start_time = parse_timestamp_14_digit(timestamp_dir.name)
 

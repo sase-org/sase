@@ -1,6 +1,8 @@
 """Functions for loading and aggregating agents from all sources."""
 
+import os
 from datetime import datetime
+from pathlib import Path
 
 from ...changespec import find_all_changespecs
 from ...hooks.processes import is_process_running
@@ -26,6 +28,45 @@ from ._loaders import (
 )
 from .agent import Agent, AgentType
 from .workflow import WorkflowEntry
+
+# ---- Changespecs mtime cache ------------------------------------------------
+# find_all_changespecs() parses every .gp file (including archives) on each call.
+# Since these files rarely change between refresh cycles, we cache the result and
+# only re-parse when a file's mtime differs from the previous snapshot.
+
+_changespecs_cache: tuple[dict[str, float], list] | None = None
+
+
+def _find_all_changespecs_cached() -> list:
+    """Return find_all_changespecs() result, cached by .gp file mtimes."""
+    global _changespecs_cache  # noqa: PLW0603
+
+    projects_dir = Path.home() / ".sase" / "projects"
+    if not projects_dir.exists():
+        return []
+
+    # Collect all .gp files and their mtimes
+    file_mtimes: dict[str, float] = {}
+    try:
+        for project_dir in projects_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
+            project_name = project_dir.name
+            for suffix in ("", "-archive"):
+                gp_file = project_dir / f"{project_name}{suffix}.gp"
+                try:
+                    file_mtimes[str(gp_file)] = os.path.getmtime(str(gp_file))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+    if _changespecs_cache is not None and _changespecs_cache[0] == file_mtimes:
+        return _changespecs_cache[1]
+
+    result = find_all_changespecs()
+    _changespecs_cache = (file_mtimes, result)
+    return result
 
 
 def _get_status_priority(status: str) -> int:
@@ -71,8 +112,8 @@ def _load_agents_from_all_sources() -> tuple[list[Agent], list[Agent]]:
     # Get all project files
     project_files = get_all_project_files()
 
-    # Load all ChangeSpecs early to build bug lookup
-    all_changespecs = find_all_changespecs()
+    # Load all ChangeSpecs early to build bug lookup (mtime-cached)
+    all_changespecs = _find_all_changespecs_cached()
 
     # Build bug URL and CL number lookups by CL name (single pass)
     bug_by_cl_name: dict[str, str | None] = {}
@@ -131,14 +172,22 @@ def _load_agents_from_all_sources() -> tuple[list[Agent], list[Agent]]:
 
 
 def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
-    """Filter out agents with dead PIDs (but keep completed agents)."""
+    """Filter out agents with dead PIDs (but keep completed agents).
+
+    Each unique PID is checked only once per call to avoid redundant syscalls.
+    """
     verified_agents: list[Agent] = []
     completed_statuses = ("DONE", "FAILED")
+    pid_alive: dict[int, bool] = {}
     for agent in agents:
         if agent.status in completed_statuses:
             verified_agents.append(agent)
         elif agent.pid is not None:
-            if is_process_running(agent.pid):
+            alive = pid_alive.get(agent.pid)
+            if alive is None:
+                alive = is_process_running(agent.pid)
+                pid_alive[agent.pid] = alive
+            if alive:
                 verified_agents.append(agent)
             # Skip agents with dead PIDs
         else:
