@@ -262,12 +262,11 @@ class EventHandlersMixin:
         if 0 <= event.index < len(indices):
             global_idx = indices[event.index]
             if 0 <= global_idx < len(self._agents):
-                # Update global index first to keep focus and selection in sync
-                self.current_idx = global_idx
                 # Switch panel focus if clicking in a different panel
                 if self._pinned_panel_focused != panel:  # type: ignore[has-type]
                     self._pinned_panel_focused = panel  # type: ignore[has-type]
-                self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+                    self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+                self.current_idx = global_idx
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""

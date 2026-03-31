@@ -16,24 +16,6 @@ from ._loading import DISMISSABLE_STATUSES
 # Panel focus type
 PanelFocus = Literal["main", "pinned"]
 
-
-def _compute_pinned_panel_title(pinned_count: int, *, focused: bool) -> str:
-    """Compute the border title for the pinned panel container."""
-    base = f"\U0001f4cc Pinned ({pinned_count})"
-    if focused:
-        return f"{base} \u2022 ACTIVE"
-    return base
-
-
-def _compute_pinned_panel_subtitle(pinned_count: int, *, focused: bool) -> str:
-    """Compute the border subtitle hint for the pinned panel container."""
-    if focused:
-        return "<J> back to list"
-    if pinned_count > 0:
-        return "<J> focus pinned"
-    return ""
-
-
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -233,21 +215,15 @@ class AgentDisplayMixin:
         pinned_count = len(self._pinned_panel_indices)
         pinned_container.display = pinned_count > 0
 
-        focused = self._pinned_panel_focused == "pinned"
-        if focused:
+        if self._pinned_panel_focused == "pinned":
             main_panel.add_class("panel-inactive")
             pinned_container.add_class("panel-active")
         else:
             main_panel.remove_class("panel-inactive")
             pinned_container.remove_class("panel-active")
 
-        # Dynamic title and subtitle
-        pinned_container.border_title = _compute_pinned_panel_title(
-            pinned_count, focused=focused
-        )
-        pinned_container.border_subtitle = _compute_pinned_panel_subtitle(
-            pinned_count, focused=focused
-        )
+        # Set border title on pinned container
+        pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_count})"
 
     def action_focus_pinned_panel(self) -> None:
         """Toggle focus between main agent list and pinned panel."""

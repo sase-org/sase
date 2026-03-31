@@ -521,18 +521,13 @@ HintInputBar #hint-escape-hint {
     width: 100%;
     height: auto;
     max-height: 12;
-    border: solid #6C6C9C;
+    border: solid #5F5F87;
     border-title-align: left;
     border-title-color: #AF87D7;
-    border-subtitle-align: right;
-    border-subtitle-color: #5F5F87;
-    padding: 0 1;
 }
 
 #pinned-panel-container.panel-active {
     border: solid #AF87D7;
-    background: #1C1C2E;
-    border-subtitle-color: #AF87D7;
 }
 
 #pinned-list-panel {
