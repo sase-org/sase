@@ -125,3 +125,30 @@ def test_focus_pinned_panel_in_binding_meta() -> None:
 
     actions = {a for a, _, _ in _BINDING_META}
     assert "focus_pinned_panel" in actions
+
+
+# --- Gold bullet marker in pinned panel ---
+
+
+def test_pinned_panel_shows_gold_bullet() -> None:
+    """Pinned panel entries show a gold bullet instead of the full pin icon."""
+    agent_list = AgentList(panel="pinned")
+    agent = _make_agent(status="DONE")
+    option = agent_list._format_agent_option(
+        agent, 0, is_selected=False, is_pinned=True
+    )
+    plain = option.prompt.plain  # type: ignore[union-attr]
+    assert "●" in plain
+    assert "\U0001f4cc" not in plain
+
+
+def test_main_panel_shows_pin_icon() -> None:
+    """Main panel entries show the full pin icon, not the gold bullet."""
+    agent_list = AgentList(panel="main")
+    agent = _make_agent(status="DONE")
+    option = agent_list._format_agent_option(
+        agent, 0, is_selected=False, is_pinned=True
+    )
+    plain = option.prompt.plain  # type: ignore[union-attr]
+    assert "\U0001f4cc" in plain
+    assert "●" not in plain

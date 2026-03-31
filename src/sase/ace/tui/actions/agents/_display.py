@@ -205,9 +205,13 @@ class AgentDisplayMixin:
 
     def _update_panel_focus_styling(self) -> None:
         """Update CSS classes on both panels to reflect focus state."""
+        from ...widgets import AgentList
+
         try:
             main_panel = self.query_one("#agent-list-panel")  # type: ignore[attr-defined]
             pinned_container = self.query_one("#pinned-panel-container")  # type: ignore[attr-defined]
+            main_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
+            pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
         except Exception:
             return
 
@@ -218,12 +222,29 @@ class AgentDisplayMixin:
         if self._pinned_panel_focused == "pinned":
             main_panel.add_class("panel-inactive")
             pinned_container.add_class("panel-active")
+            main_list.add_class("panel-content-dim")
+            pinned_list.remove_class("panel-content-dim")
         else:
             main_panel.remove_class("panel-inactive")
             pinned_container.remove_class("panel-active")
+            main_list.remove_class("panel-content-dim")
+            pinned_list.add_class("panel-content-dim")
 
-        # Set border title on pinned container
-        pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_count})"
+        # Border titles with focus arrows
+        if pinned_count > 0:
+            if self._pinned_panel_focused == "pinned":
+                main_panel.border_title = "  Agents"
+                pinned_container.border_title = (
+                    f"\u25b8 \U0001f4cc Pinned ({pinned_count})"
+                )
+                pinned_container.border_subtitle = "J switch"
+            else:
+                main_panel.border_title = "\u25b8 Agents"
+                pinned_container.border_title = f"  \U0001f4cc Pinned ({pinned_count})"
+                pinned_container.border_subtitle = ""
+        else:
+            main_panel.border_title = ""
+            pinned_container.border_subtitle = ""
 
     def action_focus_pinned_panel(self) -> None:
         """Toggle focus between main agent list and pinned panel."""

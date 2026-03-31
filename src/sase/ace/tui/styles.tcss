@@ -503,6 +503,8 @@ HintInputBar #hint-escape-hint {
     width: 100%;
     height: 1fr;
     border: solid $primary;
+    border-title-align: left;
+    border-title-color: $primary;
     padding: 0 1;
 }
 
@@ -521,13 +523,15 @@ HintInputBar #hint-escape-hint {
     width: 100%;
     height: auto;
     max-height: 12;
-    border: solid #5F5F87;
+    margin-top: 1;
+    border: double #8B7536;
     border-title-align: left;
-    border-title-color: #AF87D7;
+    border-title-color: #8B7536;
 }
 
 #pinned-panel-container.panel-active {
-    border: solid #AF87D7;
+    border: double #D4A017;
+    border-title-color: #D4A017;
 }
 
 #pinned-list-panel {
@@ -540,6 +544,12 @@ HintInputBar #hint-escape-hint {
 /* Focus state styling for main agent list */
 #agent-list-panel.panel-inactive {
     border: solid #5F5F87;
+    border-title-color: #5F5F87;
+}
+
+/* Content dimming for unfocused panel */
+.panel-content-dim {
+    opacity: 0.6;
 }
 
 #agent-detail-layout {
