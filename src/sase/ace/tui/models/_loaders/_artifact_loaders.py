@@ -128,10 +128,17 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         except (json.JSONDecodeError, OSError):
             pass
 
-    # Set PLANNING / PLAN APPROVED status for agents launched with %plan directive
+    # Set PLANNING / PLAN APPROVED / PLAN COMMITTED / EPIC CREATED status
+    # for agents launched with %plan directive
     if data.get("plan") and agent.status == "RUNNING":
         if data.get("plan_approved"):
-            agent.status = "PLAN APPROVED"
+            plan_action = data.get("plan_action")
+            if plan_action == "commit":
+                agent.status = "PLAN COMMITTED"
+            elif plan_action == "epic":
+                agent.status = "EPIC CREATED"
+            else:
+                agent.status = "PLAN APPROVED"
         else:
             agent.status = "PLANNING"
 

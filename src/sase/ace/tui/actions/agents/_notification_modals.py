@@ -324,13 +324,13 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             if result.action == "approve":
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 # Persist approval to agent_meta.json so it survives TUI restarts
-                persist_plan_approved(agent)
+                persist_plan_approved(agent, action="approve")
             elif result.action == "commit":
                 app._agent_status_overrides[agent.identity] = "PLAN COMMITTED"  # type: ignore[attr-defined]
-                persist_plan_approved(agent)
+                persist_plan_approved(agent, action="commit")
             elif result.action == "epic":
                 app._agent_status_overrides[agent.identity] = "EPIC CREATED"  # type: ignore[attr-defined]
-                persist_plan_approved(agent)
+                persist_plan_approved(agent, action="epic")
             elif result.feedback is not None:
                 # Reject with feedback: agent is resuming, mark as RUNNING
                 app._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
@@ -382,11 +382,12 @@ def _restore_pre_question_status(app: object, notification: Notification) -> Non
         break
 
 
-def persist_plan_approved(agent: Agent) -> None:
+def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
     """Write plan_approved flag to agent_meta.json so it survives TUI restarts.
 
     Args:
         agent: The agent whose plan was approved.
+        action: The plan action taken — "approve", "commit", or "epic".
     """
     import json
     from pathlib import Path
@@ -404,6 +405,7 @@ def persist_plan_approved(agent: Agent) -> None:
         pass
 
     meta["plan_approved"] = True
+    meta["plan_action"] = action
     try:
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
