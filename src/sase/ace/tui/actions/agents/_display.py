@@ -215,6 +215,13 @@ class AgentDisplayMixin:
         pinned_count = len(self._pinned_panel_indices)
         pinned_container.display = pinned_count > 0
 
+        # Dynamic pinned panel height: scale with content, cap at limit
+        MAX_PINNED_HEIGHT = 20
+        container_max = min(pinned_count * 2 + 2, MAX_PINNED_HEIGHT)
+        pinned_container.styles.max_height = container_max
+        pinned_list = self.query_one("#pinned-list-panel")  # type: ignore[attr-defined]
+        pinned_list.styles.max_height = container_max - 2
+
         if self._pinned_panel_focused == "pinned":
             main_panel.add_class("panel-inactive")
             pinned_container.add_class("panel-active")

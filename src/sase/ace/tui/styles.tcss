@@ -520,7 +520,7 @@ HintInputBar #hint-escape-hint {
 #pinned-panel-container {
     width: 100%;
     height: auto;
-    max-height: 12;
+    max-height: 20;
     border: solid #5F5F87;
     border-title-align: left;
     border-title-color: #AF87D7;
@@ -534,7 +534,7 @@ HintInputBar #hint-escape-hint {
     width: 100%;
     height: auto;
     min-height: 1;
-    max-height: 10;
+    max-height: 18;
 }
 
 /* Focus state styling for main agent list */
