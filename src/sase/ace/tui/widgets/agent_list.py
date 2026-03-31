@@ -89,74 +89,6 @@ def _is_foldable_parent(agent: Agent) -> bool:
     return agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child
 
 
-def _calculate_entry_display_width(
-    agent: Agent,
-    fold_annotation: str = "",
-    is_expanded: bool = False,
-    is_pinned: bool = False,
-) -> int:
-    """Calculate display width of an Agent entry in terminal cells.
-
-    Args:
-        agent: The Agent to measure
-        fold_annotation: Fold annotation text to append
-        is_expanded: Whether this agent's fold state is expanded
-        is_pinned: Whether this agent is pinned
-
-    Returns:
-        Width in terminal cells
-    """
-    # Format: "[indent][step_num][icon] [{display_type}] {cl_name} ({status}) - #{wks}"
-    parts = []
-    # Approve icon for autonomous agents
-    if agent.approve:
-        parts.append(f"{_APPROVE_ICON} ")
-    # Pin icon for pinned agents
-    if is_pinned and agent.status in _DISMISSIBLE_STATUSES:
-        parts.append(f"{_PIN_ICON} ")
-    # Add indentation for workflow children
-    if agent.is_workflow_child:
-        parts.append(_CHILD_INDENT)
-        # Add step number if available
-        if agent.step_index is not None:
-            if (
-                agent.parent_step_index is not None
-                and agent.parent_total_steps is not None
-            ):
-                # Embedded step: format as "1a/7 "
-                parent_num = agent.parent_step_index + 1
-                suffix = get_substep_suffix(agent.step_index)
-                parts.append(f"{parent_num}{suffix}/{agent.parent_total_steps} ")
-            elif agent.total_steps is not None:
-                # Regular step: format as "1/3 " or "1/3.plan "
-                step_num = agent.step_index + 1
-                role = _step_role_suffix(agent)
-                parts.append(f"{step_num}/{agent.total_steps}{role} ")
-    if agent.hidden:
-        parts.append(f"{_HIDDEN_ICON} ")
-    if agent.status in _DISMISSIBLE_STATUSES:
-        parts.append(f"{_DONE_ICON} ")
-    dt = agent.get_display_type(is_expanded=is_expanded)
-    parts.extend([f"[{dt}] ", agent.display_name, " ", f"({agent.status})"])
-    # Retry annotations width
-    if agent.status == "RETRYING" and agent.retry_next_at_epoch:
-        parts.append(" (99s)")  # Max countdown width estimate
-    if agent.status == "RUNNING" and agent.retry_count > 0:
-        annotation = f" \u21bb{agent.retry_count}"
-        if agent.using_fallback and agent.fallback_model:
-            annotation += f"\u25b8{_short_model_name(agent.fallback_model)}"
-        parts.append(annotation)
-    if agent.agent_name:
-        parts.append(f" @{agent.agent_name}")
-    if fold_annotation:
-        parts.append(fold_annotation)
-    if agent.embedded_workflow_name:
-        # "  ▲ #name" or "  ▼ #name"
-        parts.append(f"  \u25b2 #{agent.embedded_workflow_name}")
-    text = Text("".join(parts))
-    return text.cell_len
-
-
 class AgentList(OptionList):
     """List widget showing agents, used for both main and pinned panels."""
 
@@ -242,12 +174,7 @@ class AgentList(OptionList):
                 is_pinned=is_pinned,
             )
             self.add_option(option)
-            width = _calculate_entry_display_width(
-                agent,
-                fold_annotation=annotation,
-                is_expanded=is_expanded,
-                is_pinned=is_pinned and self._panel != "pinned",
-            )
+            width = option.prompt.cell_len  # type: ignore[union-attr]
             max_width = max(max_width, width)
 
         # Add padding for border, scrollbar, visual comfort (~8 cells)

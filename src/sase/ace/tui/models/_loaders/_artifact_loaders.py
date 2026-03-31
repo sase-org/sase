@@ -2,7 +2,10 @@
 
 import json
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
+
+from zoneinfo import ZoneInfo
 
 from sase.running_field import get_claimed_workspaces
 from sase.core.time import get_timezone
@@ -16,10 +19,15 @@ from .._timestamps import (
 from ..agent import Agent, AgentType
 
 
+@lru_cache(maxsize=1)
+def _cached_timezone() -> ZoneInfo:
+    return get_timezone()
+
+
 def _parse_utc_to_eastern(iso_str: str) -> datetime:
     """Parse a UTC ISO 8601 timestamp and convert to Eastern time (naive)."""
     dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-    return dt.astimezone(get_timezone()).replace(tzinfo=None)
+    return dt.astimezone(_cached_timezone()).replace(tzinfo=None)
 
 
 def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:

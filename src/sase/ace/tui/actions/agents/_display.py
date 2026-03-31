@@ -40,6 +40,8 @@ class AgentDisplayMixin:
     _pinned_panel_focused: PanelFocus
     _main_panel_indices: list[int]
     _pinned_panel_indices: list[int]
+    _main_panel_idx_map: dict[int, int]
+    _pinned_panel_idx_map: dict[int, int]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
 
     # Countdown for refresh
@@ -71,13 +73,9 @@ class AgentDisplayMixin:
             main_agents = [self._agents[i] for i in self._main_panel_indices]
             pinned_agents = [self._agents[i] for i in self._pinned_panel_indices]
 
-            # Compute local selection index for each panel
-            main_local_idx = 0
-            pinned_local_idx = 0
-            if self.current_idx in self._main_panel_indices:
-                main_local_idx = self._main_panel_indices.index(self.current_idx)
-            if self.current_idx in self._pinned_panel_indices:
-                pinned_local_idx = self._pinned_panel_indices.index(self.current_idx)
+            # Compute local selection index for each panel (O(1) via precomputed maps)
+            main_local_idx = self._main_panel_idx_map.get(self.current_idx, 0)
+            pinned_local_idx = self._pinned_panel_idx_map.get(self.current_idx, 0)
 
             agent_list.update_list(
                 main_agents,
@@ -96,13 +94,13 @@ class AgentDisplayMixin:
         else:
             # Update highlight on the focused panel only; clear unfocused
             if self._pinned_panel_focused == "pinned":
-                if self.current_idx in self._pinned_panel_indices:
-                    local_idx = self._pinned_panel_indices.index(self.current_idx)
+                local_idx = self._pinned_panel_idx_map.get(self.current_idx)
+                if local_idx is not None:
                     pinned_list.update_highlight(local_idx)
                 agent_list.highlighted = None
             else:
-                if self.current_idx in self._main_panel_indices:
-                    local_idx = self._main_panel_indices.index(self.current_idx)
+                local_idx = self._main_panel_idx_map.get(self.current_idx)
+                if local_idx is not None:
                     agent_list.update_highlight(local_idx)
                 pinned_list.highlighted = None
 
@@ -125,15 +123,15 @@ class AgentDisplayMixin:
         # Update highlight on the focused panel only; clear unfocused
         if self._pinned_panel_focused == "pinned":
             pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
-            if self.current_idx in self._pinned_panel_indices:
-                local_idx = self._pinned_panel_indices.index(self.current_idx)
+            local_idx = self._pinned_panel_idx_map.get(self.current_idx)
+            if local_idx is not None:
                 pinned_list.update_highlight(local_idx)
             agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
             agent_list.highlighted = None
         else:
             agent_list = self.query_one("#agent-list-panel", AgentList)  # type: ignore[attr-defined]
-            if self.current_idx in self._main_panel_indices:
-                local_idx = self._main_panel_indices.index(self.current_idx)
+            local_idx = self._main_panel_idx_map.get(self.current_idx)
+            if local_idx is not None:
                 agent_list.update_highlight(local_idx)
             pinned_list = self.query_one("#pinned-list-panel", AgentList)  # type: ignore[attr-defined]
             pinned_list.highlighted = None

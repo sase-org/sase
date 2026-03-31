@@ -84,6 +84,8 @@ class AgentsMixinCore(
     _pinned_panel_focused: PanelFocus
     _main_panel_indices: list[int]
     _pinned_panel_indices: list[int]
+    _main_panel_idx_map: dict[int, int]
+    _pinned_panel_idx_map: dict[int, int]
 
     # --- Panel index helpers ---
 
@@ -91,7 +93,8 @@ class AgentsMixinCore(
         """Build derived panel index maps from the canonical _agents list.
 
         Populates _main_panel_indices (non-pinned agents) and
-        _pinned_panel_indices (pinned + dismissable agents).
+        _pinned_panel_indices (pinned + dismissable agents), plus
+        O(1) global-to-local lookup dicts for each panel.
         """
         main: list[int] = []
         pinned: list[int] = []
@@ -105,6 +108,8 @@ class AgentsMixinCore(
                 main.append(i)
         self._main_panel_indices = main
         self._pinned_panel_indices = pinned
+        self._main_panel_idx_map = {g: loc for loc, g in enumerate(main)}
+        self._pinned_panel_idx_map = {g: loc for loc, g in enumerate(pinned)}
 
     def _global_to_local(self, global_idx: int) -> tuple[PanelFocus, int]:
         """Convert a global _agents index to (panel, local_index).
@@ -112,14 +117,13 @@ class AgentsMixinCore(
         Returns ("main", local_idx) or ("pinned", local_idx).
         Raises ValueError if global_idx is not in either panel.
         """
-        try:
-            return ("main", self._main_panel_indices.index(global_idx))
-        except ValueError:
-            pass
-        try:
-            return ("pinned", self._pinned_panel_indices.index(global_idx))
-        except ValueError:
-            raise ValueError(f"Global index {global_idx} not in any panel") from None
+        local = self._main_panel_idx_map.get(global_idx)
+        if local is not None:
+            return ("main", local)
+        local = self._pinned_panel_idx_map.get(global_idx)
+        if local is not None:
+            return ("pinned", local)
+        raise ValueError(f"Global index {global_idx} not in any panel")
 
     def _local_to_global(self, panel: PanelFocus, local_idx: int) -> int:
         """Convert a (panel, local_index) to a global _agents index."""
