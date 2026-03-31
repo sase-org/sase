@@ -531,6 +531,7 @@ HintInputBar #hint-escape-hint {
 }
 
 #pinned-list-panel {
+    border: none;
     width: 100%;
     height: auto;
     min-height: 1;

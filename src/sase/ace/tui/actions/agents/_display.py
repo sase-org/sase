@@ -217,7 +217,7 @@ class AgentDisplayMixin:
 
         # Dynamic pinned panel height: scale with content, cap at limit
         MAX_PINNED_HEIGHT = 20
-        container_max = min(pinned_count * 2 + 2, MAX_PINNED_HEIGHT)
+        container_max = min(pinned_count + 2, MAX_PINNED_HEIGHT)
         pinned_container.styles.max_height = container_max
         pinned_list = self.query_one("#pinned-list-panel")  # type: ignore[attr-defined]
         pinned_list.styles.max_height = container_max - 2

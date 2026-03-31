@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 09:31:54
-status: wip
+status: done
 ---
 
 # Plan: Fix Pinned Panel Height — Content Not Visible
