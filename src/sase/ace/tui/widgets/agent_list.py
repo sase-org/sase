@@ -348,7 +348,12 @@ class AgentList(OptionList):
 
         # Done icon for dismissible agents
         if agent.status in _DISMISSIBLE_STATUSES:
-            done_style = "dim red" if is_pinned else "bold red"
+            if self._panel == "pinned":
+                done_style = "dim #875F87"  # Muted purple for pinned panel
+            elif is_pinned:
+                done_style = "dim red"
+            else:
+                done_style = "bold red"
             text.append(f"{_DONE_ICON} ", style=done_style)
 
         # Agent type indicator with color
@@ -364,7 +369,10 @@ class AgentList(OptionList):
         text.append(f"[{dt}] ", style=f"bold {color}")
 
         # Agent display name (workflow name for top-level workflows, CL name otherwise)
-        name_style = "bold #00D7AF" if is_selected else "#00D7AF"
+        if self._panel == "pinned":
+            name_style = "bold #87D7D7" if is_selected else "#87D7D7"
+        else:
+            name_style = "bold #00D7AF" if is_selected else "#00D7AF"
         text.append(agent.display_name, style=name_style)
 
         # Status (wrapped in parentheses, parens are dim)

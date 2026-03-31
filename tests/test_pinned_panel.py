@@ -1,7 +1,7 @@
 """Tests for the pinned panel split feature."""
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets.agent_list import AgentList, PanelId
+from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets import KeybindingFooter
 
 
@@ -125,3 +125,111 @@ def test_focus_pinned_panel_in_binding_meta() -> None:
 
     actions = {a for a, _, _ in _BINDING_META}
     assert "focus_pinned_panel" in actions
+
+
+# --- _update_panel_focus_styling class toggling ---
+
+
+class _FakeWidget:
+    """Minimal widget stub for testing CSS class toggling."""
+
+    def __init__(self) -> None:
+        self.classes: set[str] = set()
+        self.display: bool = True
+        self.border_title: str = ""
+        self.border_subtitle: str = ""
+
+    def add_class(self, cls: str) -> None:
+        self.classes.add(cls)
+
+    def remove_class(self, cls: str) -> None:
+        self.classes.discard(cls)
+
+    def has_class(self, cls: str) -> bool:
+        return cls in self.classes
+
+
+class _FakeMixin:
+    """Minimal mixin stub to test _update_panel_focus_styling in isolation."""
+
+    def __init__(
+        self,
+        main_panel: _FakeWidget,
+        pinned_container: _FakeWidget,
+        pinned_panel_focused: str,
+        pinned_panel_indices: list[int],
+    ) -> None:
+        self._main_panel = main_panel
+        self._pinned_container = pinned_container
+        self._pinned_panel_focused = pinned_panel_focused
+        self._pinned_panel_indices = pinned_panel_indices
+
+    def query_one(self, selector: str) -> _FakeWidget:
+        if selector == "#agent-list-panel":
+            return self._main_panel
+        if selector == "#pinned-panel-container":
+            return self._pinned_container
+        raise ValueError(f"Unknown selector: {selector}")
+
+    # Bind the real method
+    from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+
+    _update_panel_focus_styling = AgentDisplayMixin._update_panel_focus_styling
+
+
+def test_focus_main_sets_pinned_inactive() -> None:
+    """When main is focused, pinned container gets panel-inactive class."""
+    main = _FakeWidget()
+    pinned = _FakeWidget()
+    mixin = _FakeMixin(main, pinned, "main", [0, 1])
+    mixin._update_panel_focus_styling()
+
+    assert not main.has_class("panel-inactive")
+    assert not pinned.has_class("panel-active")
+    assert pinned.has_class("panel-inactive")
+
+
+def test_focus_pinned_sets_main_inactive() -> None:
+    """When pinned is focused, main panel gets panel-inactive class."""
+    main = _FakeWidget()
+    pinned = _FakeWidget()
+    mixin = _FakeMixin(main, pinned, "pinned", [0, 1])
+    mixin._update_panel_focus_styling()
+
+    assert main.has_class("panel-inactive")
+    assert pinned.has_class("panel-active")
+    assert not pinned.has_class("panel-inactive")
+
+
+def test_empty_pinned_hidden_no_inactive_class() -> None:
+    """When pinned panel is empty, it's hidden and has no inactive class."""
+    main = _FakeWidget()
+    pinned = _FakeWidget()
+    mixin = _FakeMixin(main, pinned, "main", [])
+    mixin._update_panel_focus_styling()
+
+    assert pinned.display is False
+    assert not pinned.has_class("panel-inactive")
+    assert not pinned.has_class("panel-active")
+
+
+def test_border_title_and_subtitle_set() -> None:
+    """Border title shows count and subtitle shows key hint."""
+    main = _FakeWidget()
+    pinned = _FakeWidget()
+    mixin = _FakeMixin(main, pinned, "main", [0, 1, 2])
+    mixin._update_panel_focus_styling()
+
+    assert "3" in pinned.border_title
+    assert "\U0001f4cc" in pinned.border_title
+    assert pinned.border_subtitle == "J to switch"
+
+
+def test_empty_pinned_no_subtitle() -> None:
+    """When pinned is empty, no subtitle is set."""
+    main = _FakeWidget()
+    pinned = _FakeWidget()
+    mixin = _FakeMixin(main, pinned, "main", [])
+    mixin._update_panel_focus_styling()
+
+    assert pinned.border_subtitle == ""

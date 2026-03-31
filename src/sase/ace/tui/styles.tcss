@@ -521,13 +521,27 @@ HintInputBar #hint-escape-hint {
     width: 100%;
     height: auto;
     max-height: 12;
+    padding: 0 1;
+    background: #1C1C2E;
     border: solid #5F5F87;
     border-title-align: left;
-    border-title-color: #AF87D7;
+    border-title-color: #8787AF;
+    border-subtitle-align: right;
+    border-subtitle-color: #5F5F87;
 }
 
 #pinned-panel-container.panel-active {
     border: solid #AF87D7;
+    border-title-color: #D7AFFF;
+    border-subtitle-color: #AF87D7;
+    background: #1E1E32;
+}
+
+#pinned-panel-container.panel-inactive {
+    border: solid #3E3E5E;
+    border-title-color: #5F5F87;
+    border-subtitle-color: #3E3E5E;
+    background: #1A1A28;
 }
 
 #pinned-list-panel {
