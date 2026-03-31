@@ -229,8 +229,13 @@ class AgentDisplayMixin:
             main_panel.remove_class("panel-inactive")
             pinned_container.remove_class("panel-active")
 
-        # Set border title on pinned container
-        pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_count})"
+        # Set border title on pinned container (exclude workflow children from count)
+        pinned_title_count = sum(
+            1
+            for i in self._pinned_panel_indices
+            if not self._agents[i].is_workflow_child
+        )
+        pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_title_count})"
 
     def action_focus_pinned_panel(self) -> None:
         """Toggle focus between main agent list and pinned panel."""
@@ -255,9 +260,16 @@ class AgentDisplayMixin:
         from ...widgets import AgentDetail, AgentInfoPanel
 
         agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
-        # Position is 1-based for display (current_idx is 0-based)
-        position = self.current_idx + 1 if self._agents else 0
-        agent_info_panel.update_position(position, len(self._agents))
+        # Position is 1-based for display; exclude workflow children from count
+        non_child_indices = [
+            i for i, a in enumerate(self._agents) if not a.is_workflow_child
+        ]
+        total = len(non_child_indices)
+        if self._agents:
+            position = sum(1 for i in non_child_indices if i <= self.current_idx)
+        else:
+            position = 0
+        agent_info_panel.update_position(position, total)
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )

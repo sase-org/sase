@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 09:45:27
-status: wip
+status: done
 ---
 
 # Plan: Exclude Workflow Steps from Agent/Pinned Panel Counts
