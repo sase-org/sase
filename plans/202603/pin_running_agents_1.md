@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 08:57:50
-status: wip
+status: done
 ---
 
 # Plan: Allow Pinning Running Agents

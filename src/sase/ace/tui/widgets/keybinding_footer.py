@@ -456,9 +456,8 @@ class KeybindingFooter(Horizontal):
                 bindings.append((x, "dismiss"))
             else:
                 bindings.append((x, "kill"))
-            if agent.status in ("PLAN DONE", "PLAN COMMITTED"):
-                pin_label = "unpin" if is_pinned else "pin"
-                bindings.append((self._kd("pin_agent"), pin_label))
+            pin_label = "unpin" if is_pinned else "pin"
+            bindings.append((self._kd("pin_agent"), pin_label))
             if agent.status in ("WAITING", "RUNNING"):
                 bindings.append((self._kd("reword"), "edit wait"))
             if agent.agent_name:

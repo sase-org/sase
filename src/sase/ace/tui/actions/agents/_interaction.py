@@ -109,19 +109,13 @@ class AgentInteractionMixin:
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 
     def action_pin_agent(self) -> None:
-        """Toggle pinned state on a completed agent."""
+        """Toggle pinned state on an agent."""
         if self.current_tab != "agents":
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        from ._core import DISMISSABLE_STATUSES
-
-        if agent.status not in DISMISSABLE_STATUSES:
-            self.notify("Only completed agents can be pinned", severity="warning")  # type: ignore[attr-defined]
             return
 
         if agent.raw_suffix is None:
@@ -139,11 +133,15 @@ class AgentInteractionMixin:
         # Rebuild panel indices so the item moves to the correct panel
         self._build_panel_indices()  # type: ignore[attr-defined]
 
-        # Follow the item to its new panel
-        if now_pinned and self._pinned_panel_focused != "pinned":  # type: ignore[has-type]
-            self._pinned_panel_focused = "pinned"  # type: ignore[has-type]
-        elif not now_pinned and self._pinned_panel_focused != "main":  # type: ignore[has-type]
-            self._pinned_panel_focused = "main"  # type: ignore[has-type]
+        # Follow the item to its new panel (only if agent is already dismissable,
+        # since running pinned agents stay in the main panel)
+        from ._core import DISMISSABLE_STATUSES
+
+        if agent.status in DISMISSABLE_STATUSES:
+            if now_pinned and self._pinned_panel_focused != "pinned":  # type: ignore[has-type]
+                self._pinned_panel_focused = "pinned"  # type: ignore[has-type]
+            elif not now_pinned and self._pinned_panel_focused != "main":  # type: ignore[has-type]
+                self._pinned_panel_focused = "main"  # type: ignore[has-type]
 
         # Auto-fallback if pinned panel is now empty
         if not self._pinned_panel_indices and self._pinned_panel_focused == "pinned":  # type: ignore[attr-defined, has-type]
