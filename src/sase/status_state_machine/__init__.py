@@ -13,6 +13,7 @@ from .constants import (
 )
 from .field_updates import (
     reset_changespec_cl,
+    update_changespec_bug_atomic,
     update_changespec_cl_atomic,
     update_changespec_description_atomic,
     update_changespec_parent_atomic,
@@ -30,6 +31,7 @@ __all__ = [
     "remove_workspace_suffix",
     # Field updates
     "reset_changespec_cl",
+    "update_changespec_bug_atomic",
     "update_changespec_cl_atomic",
     "update_changespec_description_atomic",
     "update_changespec_parent_atomic",

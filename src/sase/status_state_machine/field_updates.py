@@ -375,6 +375,75 @@ def _apply_description_update(
     return "".join(updated_lines)
 
 
+def _apply_bug_update(
+    lines: list[str], changespec_name: str, new_bug: str | None
+) -> str:
+    """Apply BUG field update to file lines.
+
+    Args:
+        lines: Current file lines.
+        changespec_name: NAME of the ChangeSpec to update.
+        new_bug: New BUG value (None to remove).
+
+    Returns:
+        Updated file content as a string.
+    """
+    updated_lines = []
+    in_target_changespec = False
+    found_bug_line = False
+
+    for line in lines:
+        if line.startswith("NAME:"):
+            current_name = line.split(":", 1)[1].strip()
+            in_target_changespec = current_name == changespec_name
+            found_bug_line = False
+
+        if in_target_changespec and line.startswith("BUG:"):
+            found_bug_line = True
+            if new_bug is not None:
+                updated_lines.append(f"BUG: {new_bug}\n")
+            # When new_bug is None, skip this line (remove it)
+        elif in_target_changespec and line.startswith("STATUS:") and not found_bug_line:
+            # BUG field doesn't exist — insert before STATUS if we have a value
+            if new_bug is not None:
+                updated_lines.append(f"BUG: {new_bug}\n")
+                found_bug_line = True
+            updated_lines.append(line)
+        else:
+            updated_lines.append(line)
+
+    return "".join(updated_lines)
+
+
+def update_changespec_bug_atomic(
+    project_file: str, changespec_name: str, new_bug: str | None
+) -> None:
+    """Update the BUG field of a specific ChangeSpec in the project file.
+
+    Acquires a lock for the entire read-modify-write cycle.
+    If the BUG field doesn't exist and new_bug is not None, it will be
+    added before the STATUS field.
+
+    Args:
+        project_file: Path to the ProjectSpec file
+        changespec_name: NAME of the ChangeSpec to update
+        new_bug: New BUG value (None to remove)
+    """
+    commit_msg = (
+        f"Update BUG to {new_bug} for {changespec_name}"
+        if new_bug
+        else f"Remove BUG for {changespec_name}"
+    )
+
+    with changespec_lock(project_file):
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        updated_content = _apply_bug_update(lines, changespec_name, new_bug)
+
+        write_changespec_atomic(project_file, updated_content, commit_msg)
+
+
 def update_changespec_description_atomic(
     project_file: str, changespec_name: str, new_description: str
 ) -> bool:

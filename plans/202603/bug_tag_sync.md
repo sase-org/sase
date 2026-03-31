@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 17:13:56
-status: wip
+status: done
 ---
 
 # Plan: Sync BUG tag to ChangeSpec BUG field

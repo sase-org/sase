@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.status_state_machine import transition_changespec_status
 from sase.status_state_machine.field_updates import (
+    _apply_bug_update,
     _apply_cl_update,
     _apply_description_update,
 )
@@ -352,3 +353,59 @@ def test__apply_description_update_preserves_timestamps_after_description() -> N
     assert "  commit 240601_120000\n" in result
     assert "  status 240601_130000\n" in result
     assert "STATUS: Draft\n" in result
+
+
+# === BUG field update tests ===
+
+
+def test__apply_bug_update_replaces_existing() -> None:
+    """Test _apply_bug_update replaces an existing BUG field."""
+    lines = [
+        "NAME: Test Feature\n",
+        "DESCRIPTION:\n",
+        "  Test description\n",
+        "BUG: old_bug\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_bug_update(lines, "Test Feature", "b/12345")
+    assert "BUG: b/12345\n" in result
+    assert "BUG: old_bug\n" not in result
+
+
+def test__apply_bug_update_inserts_before_status() -> None:
+    """Test _apply_bug_update inserts BUG before STATUS when absent."""
+    lines = [
+        "NAME: Test Feature\n",
+        "DESCRIPTION:\n",
+        "  Test description\n",
+        "CL: 123\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_bug_update(lines, "Test Feature", "b/99999")
+    assert "BUG: b/99999\n" in result
+    # BUG should appear before STATUS
+    result_lines = result.split("\n")
+    bug_idx = next(i for i, ln in enumerate(result_lines) if "BUG:" in ln)
+    status_idx = next(i for i, ln in enumerate(result_lines) if "STATUS:" in ln)
+    assert bug_idx < status_idx
+
+
+def test__apply_bug_update_removes_bug() -> None:
+    """Test _apply_bug_update removes BUG when new_bug is None."""
+    lines = [
+        "NAME: Test Feature\n",
+        "BUG: old_bug\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_bug_update(lines, "Test Feature", None)
+    assert "BUG:" not in result
+
+
+def test__apply_bug_update_noop_when_changespec_not_found() -> None:
+    """Test _apply_bug_update is a no-op when target ChangeSpec is not found."""
+    lines = [
+        "NAME: Other Feature\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_bug_update(lines, "Test Feature", "b/12345")
+    assert result == "".join(lines)

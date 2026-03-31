@@ -245,6 +245,21 @@ def add_tag_task(
                 "REWORD",
                 f'tag "{tag_name}"',
             )
+
+            # Sync BUG tag to ChangeSpec BUG field
+            if tag_name.upper() == "BUG":
+                from sase.status_state_machine.field_updates import (
+                    update_changespec_bug_atomic,
+                )
+
+                try:
+                    update_changespec_bug_atomic(
+                        changespec_file_path, changespec_name, tag_value
+                    )
+                    print("Synced BUG field to project file")
+                except Exception as exc:
+                    print(f"Warning: failed to sync BUG field: {exc}")
+
             return (True, f"Tag {tag_name}={tag_value} added to {changespec_name}")
         else:
             return (False, f"sase_hg_reword --add-tag failed: {tag_err}")
