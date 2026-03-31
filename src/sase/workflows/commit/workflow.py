@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from sase.config.core import load_merged_config
 from sase.output import print_status
-from sase.vcs_provider import detect_vcs, get_vcs_provider
+from sase.vcs_provider import get_vcs_provider
 from sase.workflows.base import BaseWorkflow
 
 if TYPE_CHECKING:
@@ -88,19 +88,6 @@ class CommitWorkflow(BaseWorkflow):
 
         cwd = os.getcwd()
 
-        # Fail early if create_pull_request is requested but only bare_git
-        # is available — bare_git cannot create PRs.
-        if self._method == "create_pull_request":
-            vcs_name = detect_vcs(cwd)
-            if vcs_name == "bare_git":
-                print_status(
-                    "create_pull_request requires a VCS plugin (e.g. sase-github) "
-                    "but only bare_git is available. Install the appropriate "
-                    "plugin and try again.",
-                    "error",
-                )
-                return False
-
         # Bead lifecycle and SASE_PLAN: skip for proposals.
         # Must run before precommit so plan files are in place for formatting.
         if self._method != "create_proposal":
@@ -161,15 +148,6 @@ class CommitWorkflow(BaseWorkflow):
         ok, result = dispatch(self._payload, cwd)
         if not ok:
             print_status(f"{self._method} failed: {result}", "error")
-            self._cleanup_reservation()
-            return False
-
-        if self._method == "create_pull_request" and not result:
-            print_status(
-                "create_pull_request succeeded but no PR URL was returned. "
-                "Ensure sase-github (or equivalent) is installed.",
-                "error",
-            )
             self._cleanup_reservation()
             return False
 

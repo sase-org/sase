@@ -8,17 +8,15 @@ from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
-_DETECT_VCS_TARGET = "sase.workflows.commit.workflow.detect_vcs"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
 @pytest.fixture(autouse=True)
 def _no_precommit():  # type: ignore[no-untyped-def]
-    """Prevent precommit commands, SASE_PLAN, and detect_vcs from running in tests."""
+    """Prevent precommit commands and SASE_PLAN from running in tests."""
     with (
         patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
         patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
-        patch(_DETECT_VCS_TARGET, return_value="github"),
     ):
         yield
 
@@ -168,29 +166,22 @@ class TestProposalSkipsBeadsAndPlan:
 
 
 class TestCreatePullRequestValidation:
-    """Verify that create_pull_request validates VCS provider and PR URL."""
-
-    def test_fails_early_when_vcs_is_bare_git(self) -> None:
-        """create_pull_request fails early if detected VCS is bare_git."""
-        payload = {"name": "feat-branch", "message": "add feature"}
-        wf = CommitWorkflow(payload, "create_pull_request")
-        with patch(_DETECT_VCS_TARGET, return_value="bare_git"):
-            assert wf.run() is False
+    """Verify create_pull_request dispatch and ChangeSpec creation."""
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
-    def test_fails_when_dispatch_returns_none_result(
+    def test_succeeds_with_none_result_bare_git(
         self,
         mock_get: MagicMock,
         mock_proj_name: MagicMock,
     ) -> None:
-        """create_pull_request returns False when dispatch returns (True, None)."""
+        """create_pull_request succeeds when dispatch returns (True, None) (bare_git path)."""
         provider = MagicMock()
         provider.create_pull_request.return_value = (True, None)
         mock_get.return_value = provider
         payload = {"name": "feat-branch", "message": "add feature"}
         wf = CommitWorkflow(payload, "create_pull_request")
-        assert wf.run() is False
+        assert wf.run() is True
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)

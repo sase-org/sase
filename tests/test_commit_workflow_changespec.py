@@ -8,7 +8,6 @@ from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
-_DETECT_VCS_TARGET = "sase.workflows.commit.workflow.detect_vcs"
 _CHANGESPEC_TARGET = "sase.workspace_provider.changespec.create_changespec_for_workflow"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 _PROJECT_FILE_TARGET = "sase.workflows.utils.get_project_file_path"
@@ -19,11 +18,10 @@ _SUFFIXED_CL_TARGET = (
 
 @pytest.fixture(autouse=True)
 def _no_precommit():  # type: ignore[no-untyped-def]
-    """Prevent precommit commands, SASE_PLAN, and detect_vcs from running in tests."""
+    """Prevent precommit commands and SASE_PLAN from running in tests."""
     with (
         patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
         patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
-        patch(_DETECT_VCS_TARGET, return_value="github"),
     ):
         yield
 

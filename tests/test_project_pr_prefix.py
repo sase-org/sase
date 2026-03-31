@@ -13,7 +13,6 @@ from sase.workflows.commit.workflow import CommitWorkflow
 _VCS_CONFIG_TARGET = "sase.vcs_provider.config.get_vcs_provider_config"
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
 _CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
-_DETECT_VCS_TARGET = "sase.workflows.commit.workflow.detect_vcs"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
@@ -22,7 +21,6 @@ def _no_precommit():  # type: ignore[no-untyped-def]
     with (
         patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
         patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
-        patch(_DETECT_VCS_TARGET, return_value="github"),
     ):
         yield
 
