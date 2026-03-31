@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 08:34:25
-status: wip
+status: done
 ---
 
 # Fix: Coder agents not inheriting model from planner agents

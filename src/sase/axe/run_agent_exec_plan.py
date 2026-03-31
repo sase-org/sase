@@ -294,6 +294,8 @@ def handle_plan_marker(
         state.current_artifacts_dir, ctx.vcs_tag
     )
 
+    model_prefix = f"%model:{ctx.agent_model}\n" if ctx.agent_model else ""
+
     if plan_result.action == "epic":
         # Ensure beads are initialized before spawning epic agent
         from sase.sdd.beads import ensure_beads_initialized
@@ -331,7 +333,9 @@ def handle_plan_marker(
             plan_ref = f"plans/{sdd_plan_name}.md"
         else:
             plan_ref = plan_data["plan_file"]
-        state.current_prompt = f"{vcs_prefix}#bd/new_epic:{plan_ref}\n{embedded_refs}"
+        state.current_prompt = (
+            f"{model_prefix}{vcs_prefix}#bd/new_epic:{plan_ref}\n{embedded_refs}"
+        )
     else:
         # Approve: spawn coder with plan as prompt
         state.current_role_suffix = ".code"
@@ -363,7 +367,7 @@ def handle_plan_marker(
             workflow_name=ctx.agent_name,
         )
         state.current_prompt = (
-            f"{vcs_prefix}"
+            f"{model_prefix}{vcs_prefix}"
             f"@{plan_data['plan_file']}\n\n"
             "The above plan has been reviewed and approved. "
             f"Implement it now.\n{embedded_refs}"
