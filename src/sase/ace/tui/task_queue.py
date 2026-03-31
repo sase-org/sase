@@ -1,6 +1,6 @@
 """Background task queue for the ace TUI.
 
-Provides _TaskInfo (state for a single background task), TaskQueue (thread-safe
+Provides TaskInfo (state for a single background task), TaskQueue (thread-safe
 registry with per-CL deduplication), and a capture_output() context manager
 that redirects stdout/stderr to a StringIO buffer.
 """
@@ -18,7 +18,7 @@ from datetime import datetime
 
 
 @dataclass
-class _TaskInfo:
+class TaskInfo:
     """State for a single background task."""
 
     task_id: str
@@ -37,7 +37,7 @@ class _TaskInfo:
 class TaskQueue:
     """Thread-safe registry of background tasks with per-CL deduplication."""
 
-    _tasks: dict[str, _TaskInfo] = field(default_factory=dict)
+    _tasks: dict[str, TaskInfo] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def submit(
@@ -45,14 +45,14 @@ class TaskQueue:
         task_type: str,
         cl_name: str,
         project_file: str,
-    ) -> _TaskInfo:
+    ) -> TaskInfo:
         """Create and register a new running task.
 
-        Returns the new _TaskInfo. Callers should check get_running_for_cl()
+        Returns the new TaskInfo. Callers should check get_running_for_cl()
         first to enforce deduplication.
         """
         task_id = uuid.uuid4().hex
-        info = _TaskInfo(
+        info = TaskInfo(
             task_id=task_id,
             task_type=task_type,
             cl_name=cl_name,
@@ -85,7 +85,7 @@ class TaskQueue:
             info.error = error
             info.finished_at = datetime.now()
 
-    def get_running_for_cl(self, cl_name: str) -> _TaskInfo | None:
+    def get_running_for_cl(self, cl_name: str) -> TaskInfo | None:
         """Return the running task for *cl_name*, or None."""
         with self._lock:
             for info in self._tasks.values():
@@ -99,7 +99,7 @@ class TaskQueue:
         with self._lock:
             return sum(1 for t in self._tasks.values() if t.status == "running")
 
-    def get_all(self) -> list[_TaskInfo]:
+    def get_all(self) -> list[TaskInfo]:
         """Return a snapshot of all tasks (newest first)."""
         with self._lock:
             return sorted(
@@ -112,6 +112,29 @@ class TaskQueue:
         """Remove a task from the registry."""
         with self._lock:
             self._tasks.pop(task_id, None)
+
+    def remove_completed(self) -> None:
+        """Remove all completed (non-running) tasks from the registry."""
+        with self._lock:
+            self._tasks = {
+                tid: info
+                for tid, info in self._tasks.items()
+                if info.status == "running"
+            }
+
+    def prune_old(self, max_age_seconds: int = 3600) -> None:
+        """Remove completed tasks older than *max_age_seconds*."""
+        cutoff = datetime.now()
+        with self._lock:
+            self._tasks = {
+                tid: info
+                for tid, info in self._tasks.items()
+                if info.status == "running"
+                or (
+                    info.finished_at is not None
+                    and (cutoff - info.finished_at).total_seconds() < max_age_seconds
+                )
+            }
 
 
 @contextmanager

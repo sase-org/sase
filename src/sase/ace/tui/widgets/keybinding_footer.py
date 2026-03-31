@@ -304,6 +304,7 @@ class KeybindingFooter(Horizontal):
             bindings.append((k("retry_edit"), "retry (edit)"))
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
+        bindings.append((k("task_queue"), "task queue"))
         bindings.append((k("activity_info"), "activity"))
         text = self._format_bindings(bindings)
         # Add leader mode indicator prefix

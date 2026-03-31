@@ -1237,6 +1237,76 @@ NotificationModal #notification-hints {
     margin-top: 1;
 }
 
+/* ===== Task Queue Modal Styling ===== */
+
+TaskQueueModal {
+    align: center middle;
+}
+
+TaskQueueModal > Container {
+    width: 95%;
+    height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+TaskQueueModal #task-queue-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+TaskQueueModal #task-queue-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+TaskQueueModal #task-queue-left {
+    width: 40%;
+    height: 100%;
+}
+
+TaskQueueModal #task-queue-list {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+TaskQueueModal #task-queue-empty {
+    color: $text-muted;
+    text-align: center;
+    margin: 2 0;
+}
+
+TaskQueueModal #task-queue-right {
+    width: 60%;
+    height: 100%;
+    margin-left: 1;
+    border-left: solid $secondary;
+    padding-left: 1;
+}
+
+TaskQueueModal #task-queue-output-title {
+    color: $text-muted;
+    text-style: bold;
+    height: 1;
+}
+
+TaskQueueModal #task-queue-output-scroll {
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+TaskQueueModal #task-queue-output-content {
+    height: auto;
+}
+
+TaskQueueModal #task-queue-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 /* ===== Tag Input Modal Styling ===== */
 
 TagInputModal {

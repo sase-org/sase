@@ -35,6 +35,7 @@ from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
+from .task_queue_modal import TaskQueueModal
 from .mentor_profile_select_modal import MentorProfileSelectModal
 from .mentor_review_models import (
     MentorApplyResult,
@@ -98,6 +99,7 @@ __all__ = [
     "StatusModal",
     "TabName",
     "TagInputModal",
+    "TaskQueueModal",
     "WaitModal",
     "UserQuestionModal",
     "UserQuestionResult",
