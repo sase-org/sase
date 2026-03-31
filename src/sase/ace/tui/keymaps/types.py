@@ -340,6 +340,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "retry_edit": "r",
             "activity_info": "i",
             "clear_comments": "c",
+            "task_queue": "t",
             "prompt_history": "full_stop",
             "prompt_history_cancelled": "greater_than_sign",
         }

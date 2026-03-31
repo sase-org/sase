@@ -170,6 +170,12 @@ class TaskActionsMixin:
         self._reload_and_reposition()  # type: ignore[attr-defined]
         self._update_task_indicator()
 
+    def _show_task_queue_modal(self) -> None:
+        """Open the task queue viewer modal."""
+        from ..modals import TaskQueueModal
+
+        self.push_screen(TaskQueueModal(self._task_queue))  # type: ignore[attr-defined]
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Route worker state changes for background tasks."""
         # Handle task queue workers

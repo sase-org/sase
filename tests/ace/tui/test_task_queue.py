@@ -6,7 +6,7 @@ import io
 import sys
 import threading
 
-from sase.ace.tui.task_queue import _TaskInfo, TaskQueue, capture_output
+from sase.ace.tui.task_queue import TaskInfo, TaskQueue, capture_output
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ class TestTaskQueueGetAllRemove:
 class TestTaskQueueThreadSafety:
     def test_concurrent_submits(self) -> None:
         q = TaskQueue()
-        results: list[_TaskInfo] = []
+        results: list[TaskInfo] = []
         lock = threading.Lock()
 
         def worker(i: int) -> None:

@@ -140,6 +140,7 @@ ace:
           activity_info: "i"
           clear_comments: "c"
           jump_to_notification: "n"
+          task_queue: "t"
           prompt_history: "full_stop"
           prompt_history_cancelled: "greater_than_sign"
       bang_mode:

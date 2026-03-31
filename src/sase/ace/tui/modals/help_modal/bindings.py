@@ -183,6 +183,10 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Prompt history (+cancelled)",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(_sk(lm.keys, 'task_queue'))}",
+                    "Task queue viewer",
+                ),
+                (
                     f"{d(lm.prefix)}{d(_sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
                 ),

@@ -103,6 +103,11 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["task_queue"]:
+            self._show_task_queue_modal()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["activity_info"]:
             self._show_activity_dashboard()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
