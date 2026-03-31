@@ -657,3 +657,30 @@ class Agent:
                 return f.read()
         except Exception:
             return None
+
+    def get_chat_response_content(self) -> str | None:
+        """Get response content from agent_meta.json chat_path.
+
+        Fallback for agents where the live reply and response path are empty
+        (e.g., Gemini thinking models killed during the plan phase).
+
+        Returns:
+            Chat response content string, or None if not available.
+        """
+        artifacts_dir = self.get_artifacts_dir()
+        if artifacts_dir is None:
+            return None
+        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return None
+        chat_path = data.get("chat_path")
+        if not chat_path:
+            return None
+        try:
+            with open(os.path.expanduser(chat_path), encoding="utf-8") as f:
+                return f.read()
+        except (FileNotFoundError, OSError):
+            return None

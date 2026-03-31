@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 12:31:48
-status: wip
+status: done
 ---
 
 # Fix Gemini gemini-3.1-pro-preview Agent Reply Streaming

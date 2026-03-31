@@ -95,6 +95,28 @@ def render_agent_reply_content(agent: Agent) -> list[Text | Syntax]:
                 word_wrap=True,
             )
         )
+        return renderables
+    chat_response = agent.get_chat_response_content()
+    if chat_response:
+        renderables.append(
+            Syntax(
+                chat_response,
+                "markdown",
+                theme="monokai",
+                word_wrap=True,
+            )
+        )
+        return renderables
+    # Running Gemini thinking models buffer output until the session ends;
+    # show a placeholder so the reply section isn't blank.
+    if agent.status == "RUNNING" and agent.llm_provider == "gemini":
+        placeholder = Text()
+        placeholder.append(
+            "Gemini is thinking\u2026 Reply will appear when response "
+            "generation begins.\n",
+            style="dim italic",
+        )
+        renderables.append(placeholder)
     return renderables
 
 
