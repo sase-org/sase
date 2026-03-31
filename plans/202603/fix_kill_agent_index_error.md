@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-30 20:19:38
-status: wip
+status: done
 ---
 
 # Fix IndexError in \_do_kill_agent Panel Index Refresh

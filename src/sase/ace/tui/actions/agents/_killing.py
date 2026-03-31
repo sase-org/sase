@@ -222,6 +222,8 @@ class AgentKillingMixin:
                 )
             ]
 
+        self._build_panel_indices()  # type: ignore[attr-defined]
+
         on_agents_tab = self.current_tab == "agents"  # type: ignore[attr-defined]
         if on_agents_tab:
             if self._agents:  # type: ignore[attr-defined]
