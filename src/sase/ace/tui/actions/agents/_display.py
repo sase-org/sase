@@ -220,12 +220,23 @@ class AgentDisplayMixin:
         if self._pinned_panel_focused == "pinned":
             main_panel.add_class("panel-inactive")
             pinned_container.add_class("panel-active")
+            pinned_container.remove_class("panel-inactive")
         else:
             main_panel.remove_class("panel-inactive")
             pinned_container.remove_class("panel-active")
+            pinned_container.add_class("panel-inactive")
 
         # Set border title on pinned container
         pinned_container.border_title = f"\U0001f4cc Pinned ({pinned_count})"
+
+        # Set border subtitle with key hint when entries exist
+        if pinned_count > 0:
+            from ...keymaps import key_display_name
+
+            key = key_display_name(self._keymap_registry.app.focus_pinned_panel)  # type: ignore[attr-defined]
+            pinned_container.border_subtitle = f"{key} switch"
+        else:
+            pinned_container.border_subtitle = ""
 
     def action_focus_pinned_panel(self) -> None:
         """Toggle focus between main agent list and pinned panel."""
