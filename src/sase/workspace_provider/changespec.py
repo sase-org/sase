@@ -147,9 +147,9 @@ def create_changespec_for_workflow(
     *commit_description* fallback is provided.
 
     Args:
-        commit_description: Fallback commit description for non-git VCS where
-            ``git log`` is unavailable. When *_get_commits_ahead()* returns
-            empty and this is provided, it is used as a single commit subject.
+        commit_description: Full commit/PR message. Used as the primary
+            DESCRIPTION source when provided, and as a fallback commit
+            subject when ``git log`` returns empty.
         reserved_name: Pre-computed suffixed name from a prior reservation.
             Passed through to ``add_changespec_to_project_file`` to replace
             the reservation in-place.
@@ -164,7 +164,13 @@ def create_changespec_for_workflow(
 
     if cl_name is None:
         cl_name = _derive_cl_name(project_name, commits)
-    description = _build_description(commits)
+
+    # Prefer the full commit_description (PR message) when available,
+    # falling back to git-log subjects for non-PR or legacy paths.
+    if commit_description:
+        description = strip_pr_tags(commit_description)
+    else:
+        description = _build_description(commits)
     ts = generate_timestamp()
 
     # Prefer the agent's own chat file (pre-set by ace-run or CRS) over
