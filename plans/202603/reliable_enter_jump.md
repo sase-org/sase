@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 13:31:24
-status: wip
+status: done
 ---
 
 # Plan: Make `<enter>` on Agents Tab Reliably Jump to ChangeSpec

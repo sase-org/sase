@@ -195,12 +195,18 @@ class AgentDisplayMixin:
                 current_agent is not None
                 and current_agent.identity in self._pinned_agents
             )
+            can_jump = (
+                self._resolve_agent_cl_name(current_agent) is not None  # type: ignore[attr-defined]
+                if current_agent
+                else False
+            )
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
                 is_pinned=agent_is_pinned,
                 pinned_count=len(self._pinned_panel_indices),
                 panel_focus=self._pinned_panel_focused,
+                can_jump_to_changespec=can_jump,
             )
 
     def _update_panel_focus_styling(self) -> None:

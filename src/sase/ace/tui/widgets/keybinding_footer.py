@@ -195,6 +195,7 @@ class KeybindingFooter(Horizontal):
         is_pinned: bool = False,
         pinned_count: int = 0,
         panel_focus: str = "main",
+        can_jump_to_changespec: bool = False,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -203,6 +204,7 @@ class KeybindingFooter(Horizontal):
             is_pinned=is_pinned,
             pinned_count=pinned_count,
             panel_focus=panel_focus,
+            can_jump_to_changespec=can_jump_to_changespec,
         )
         text = self._format_bindings(bindings)
         self._update_display(text)
@@ -411,6 +413,7 @@ class KeybindingFooter(Horizontal):
         is_pinned: bool = False,
         pinned_count: int = 0,
         panel_focus: str = "main",
+        can_jump_to_changespec: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -484,17 +487,8 @@ class KeybindingFooter(Horizontal):
             bindings.append((self._kd("start_tmux_mode"), "tmux"))
             bindings.append((self._kd("open_tmux"), "tmux (primary)"))
 
-        # Jump to CL (for ChangeSpec-level agents, or project agents with meta CL/PR)
-        if not agent.is_project_agent:
-            bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
-        elif (
-            agent.step_output
-            and isinstance(agent.step_output, dict)
-            and (
-                agent.step_output.get("meta_new_cl")
-                or agent.step_output.get("meta_new_pr")
-            )
-        ):
+        # Jump to CL (only when resolution logic found a valid ChangeSpec)
+        if can_jump_to_changespec:
             bindings.append((self._kd("jump_to_agent_changespec"), "go to CL"))
 
         # --- App-state bindings ---
