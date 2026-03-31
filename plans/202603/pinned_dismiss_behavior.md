@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 09:38:39
-status: wip
+status: done
 ---
 
 # Plan: Pinned Agent Dismiss Behavior

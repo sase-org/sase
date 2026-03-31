@@ -83,6 +83,10 @@ class AgentInteractionMixin:
         from ._core import DISMISSABLE_STATUSES
 
         if agent.status in DISMISSABLE_STATUSES:
+            # Pinned agents: unpin first instead of dismissing directly
+            if agent.identity in self._pinned_agents:
+                self._unpin_and_focus(agent)
+                return
             self._dismiss_done_agent(agent)  # type: ignore[attr-defined]
             return
 
@@ -148,6 +152,30 @@ class AgentInteractionMixin:
             self._pinned_panel_focused = "main"  # type: ignore[has-type]
 
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+
+    def _unpin_and_focus(self, agent: Agent) -> None:
+        """Unpin an agent and follow it to the main panel."""
+        from ....pinned_agents import save_pinned_agents, toggle_pinned_agent
+
+        toggle_pinned_agent(self._pinned_agents, agent.identity)
+        save_pinned_agents(self._pinned_agents)
+
+        self._build_panel_indices()  # type: ignore[attr-defined]
+        self._pinned_panel_focused = "main"  # type: ignore[has-type]
+
+        # Find the agent's new position in the main panel
+        main_indices: list[int] = self._main_panel_indices  # type: ignore[attr-defined]
+        for i, idx in enumerate(main_indices):
+            if self._agents[idx] is agent:
+                self.current_idx = i
+                break
+
+        # Auto-fallback if pinned panel is now empty
+        if not self._pinned_panel_indices and self._pinned_panel_focused == "pinned":  # type: ignore[attr-defined, has-type]
+            self._pinned_panel_focused = "main"  # type: ignore[has-type]
+
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        self.notify(f"Unpinned {agent.display_name}")  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff - behavior depends on current tab."""

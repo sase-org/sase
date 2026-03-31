@@ -437,7 +437,7 @@ class KeybindingFooter(Horizontal):
 
         # --- Status-dependent actions ---
         if agent.status in ("DONE", "FAILED"):
-            bindings.append((x, "dismiss"))
+            bindings.append((x, "unpin" if is_pinned else "dismiss"))
             pin_label = "unpin" if is_pinned else "pin"
             bindings.append((self._kd("pin_agent"), pin_label))
             if agent.status != "FAILED":

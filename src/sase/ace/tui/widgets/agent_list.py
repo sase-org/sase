@@ -269,10 +269,9 @@ class AgentList(OptionList):
         if is_pinned and self._panel != "pinned":
             text.append(f"{_PIN_ICON} ", style="bold #FFD700")
 
-        # Done icon for dismissible agents
-        if agent.status in _DISMISSIBLE_STATUSES:
-            done_style = "dim red" if is_pinned else "bold red"
-            text.append(f"{_DONE_ICON} ", style=done_style)
+        # Done icon for dismissible agents (skip in pinned panel — redundant)
+        if agent.status in _DISMISSIBLE_STATUSES and self._panel != "pinned":
+            text.append(f"{_DONE_ICON} ", style="bold red")
 
         # Agent type indicator with color
         dt = agent.get_display_type(is_expanded=is_expanded)
