@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 09:20:18
-status: wip
+status: done
 ---
 
 # Fix Pinned Panel Fold Keymaps (`l`, `L`, `h`, `H`)

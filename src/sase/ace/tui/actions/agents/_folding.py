@@ -95,9 +95,26 @@ class AgentFoldingMixin:
         if self._fold_manager.collapse(key):
             self._load_agents()  # type: ignore[attr-defined]
 
+    def _get_focused_panel_workflow_keys(self) -> list[str]:
+        """Get workflow keys for agents in the currently focused panel.
+
+        Returns:
+            List of unique workflow raw_suffix strings from the focused panel.
+        """
+        indices = self._active_panel_indices()  # type: ignore[attr-defined]
+        seen: set[str] = set()
+        keys: list[str] = []
+        for i in indices:
+            agent = self._agents[i]
+            key = self._get_workflow_key_for_agent(agent)
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+        return keys
+
     def _expand_all_folds(self) -> None:
-        """Expand all workflow folds one level."""
-        keys = self._get_all_workflow_keys()
+        """Expand all workflow folds in the focused panel one level."""
+        keys = self._get_focused_panel_workflow_keys()
         if not keys:
             return
 
@@ -105,8 +122,8 @@ class AgentFoldingMixin:
             self._load_agents()  # type: ignore[attr-defined]
 
     def _collapse_all_folds(self) -> None:
-        """Collapse all workflow folds one level."""
-        keys = self._get_all_workflow_keys()
+        """Collapse all workflow folds in the focused panel one level."""
+        keys = self._get_focused_panel_workflow_keys()
         if not keys:
             return
 

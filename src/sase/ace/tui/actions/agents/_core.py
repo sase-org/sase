@@ -96,12 +96,30 @@ class AgentsMixinCore(
         _pinned_panel_indices (pinned + dismissable agents), plus
         O(1) global-to-local lookup dicts for each panel.
         """
+        # Pre-pass: collect raw_suffix values of pinned parent workflows
+        # so their children can be routed to the pinned panel too.
+        pinned_parent_suffixes: set[str] = set()
+        for agent in self._agents:
+            if (
+                agent.identity in self._pinned_agents
+                and agent.status in DISMISSABLE_STATUSES
+                and not agent.is_workflow_child
+                and agent.raw_suffix
+            ):
+                pinned_parent_suffixes.add(agent.raw_suffix)
+
         main: list[int] = []
         pinned: list[int] = []
         for i, agent in enumerate(self._agents):
             if (
                 agent.identity in self._pinned_agents
                 and agent.status in DISMISSABLE_STATUSES
+            ):
+                pinned.append(i)
+            elif (
+                agent.is_workflow_child
+                and agent.parent_timestamp
+                and agent.parent_timestamp in pinned_parent_suffixes
             ):
                 pinned.append(i)
             else:
