@@ -17,8 +17,11 @@ from .base import CopyModeForwardingMixin
 class PlanApprovalResult:
     """Result from the plan approval modal."""
 
-    action: str  # "approve", "reject", "commit", "epic", or "feedback_requested"
+    action: str  # "approve", "reject", "epic", or "feedback_requested"
     feedback: str | None = None
+    commit_plan: bool = True
+    run_coder: bool = True
+    coder_prompt: str | None = None
 
 
 class PlanApprovalModal(
@@ -30,7 +33,7 @@ class PlanApprovalModal(
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
         ("a", "approve", "Approve"),
-        ("c", "commit", "Commit"),
+        ("A", "approve_options", "Options"),
         ("r", "reject", "Reject"),
         ("f", "feedback", "Feedback"),
         ("e", "edit", "Edit"),
@@ -54,7 +57,7 @@ class PlanApprovalModal(
         """Compose the modal layout."""
         plan_name = os.path.basename(self._plan_file)
         hints = (
-            "[green]a[/green]=Approve  [green]c[/green]=Commit  [red]r[/red]=Reject  "
+            "[green]a[/green]=Approve  [green]A[/green]=Options  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
             "[magenta]E[/magenta]=Epic  "
@@ -110,10 +113,23 @@ class PlanApprovalModal(
         """Approve the plan."""
         self.dismiss(PlanApprovalResult(action="approve"))
 
-    def action_commit(self) -> None:
-        """Commit the plan without running a coder agent."""
-        self._copy_plan_path_to_clipboard()
-        self.dismiss(PlanApprovalResult(action="commit"))
+    def action_approve_options(self) -> None:
+        """Open the approve-with-options modal."""
+        from .approve_options_modal import ApproveOptionsModal, ApproveOptionsResult
+
+        def on_options_dismiss(result: ApproveOptionsResult | None) -> None:
+            if result is None:
+                return
+            self.dismiss(
+                PlanApprovalResult(
+                    action="approve",
+                    commit_plan=result.commit_plan,
+                    run_coder=result.run_coder,
+                    coder_prompt=result.coder_prompt,
+                )
+            )
+
+        self.app.push_screen(ApproveOptionsModal(), on_options_dismiss)
 
     def action_reject(self) -> None:
         """Reject the plan without feedback."""

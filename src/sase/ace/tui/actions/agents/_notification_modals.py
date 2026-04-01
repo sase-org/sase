@@ -272,9 +272,14 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
         }
         if result.feedback is not None:
             response_data["feedback"] = result.feedback
+        # Include approve-with-options fields
+        response_data["commit_plan"] = result.commit_plan
+        response_data["run_coder"] = result.run_coder
+        if result.coder_prompt is not None:
+            response_data["coder_prompt"] = result.coder_prompt
 
         # On approval, save plan to workspace .sase/plans/ directory
-        if result.action in ("approve", "commit") and notification.files:
+        if result.action in ("approve", "epic") and notification.files:
             project_dir = notification.action_data.get("project_dir")
             if project_dir:
                 import os
@@ -321,11 +326,10 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
 
         # Update status override based on action
         if agent is not None:
-            if result.action == "approve":
+            if result.action == "approve" and result.run_coder:
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
-                # Persist approval to agent_meta.json so it survives TUI restarts
                 persist_plan_approved(agent, action="approve")
-            elif result.action == "commit":
+            elif result.action == "approve" and not result.run_coder:
                 app._agent_status_overrides[agent.identity] = "PLAN COMMITTED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="commit")
             elif result.action == "epic":

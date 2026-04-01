@@ -116,7 +116,9 @@ def test_handle_plan_approval_commit(tmp_path: Path) -> None:
         patch.object(Path, "home", return_value=tmp_path),
     ):
         result = handle_plan_approval(plan_file, session_id)
-    assert result == PlanApprovalResult(action="commit", plan_file=plan_file)
+    assert result == PlanApprovalResult(
+        action="approve", plan_file=plan_file, run_coder=False
+    )
 
 
 def test_handle_plan_approval_none_plan_file() -> None:

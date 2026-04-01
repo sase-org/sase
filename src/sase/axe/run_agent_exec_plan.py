@@ -275,9 +275,9 @@ def handle_plan_marker(
     except Exception:
         logger.warning("SDD file generation failed", exc_info=True)
 
-    if plan_result.action == "commit":
-        # Commit SDD files but do NOT spawn a follow-up agent
-        if sdd_plan_name:
+    if not plan_result.run_coder and plan_result.action != "epic":
+        # No coder agent — optionally commit SDD files, then return
+        if sdd_plan_name and plan_result.commit_plan:
             if version_controlled:
                 _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
             else:
@@ -341,7 +341,7 @@ def handle_plan_marker(
         state.current_role_suffix = ".code"
 
         # Commit SDD files so the #gh pre-step doesn't wipe them
-        if sdd_plan_name:
+        if sdd_plan_name and plan_result.commit_plan:
             if version_controlled:
                 _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
 
@@ -366,11 +366,14 @@ def handle_plan_marker(
             else None,
             workflow_name=ctx.agent_name,
         )
+        coder_extra = ""
+        if plan_result.coder_prompt:
+            coder_extra = f"\n{plan_result.coder_prompt}"
         state.current_prompt = (
             f"{model_prefix}{vcs_prefix}"
             f"@{plan_data['plan_file']}\n\n"
             "The above plan has been reviewed and approved. "
-            f"Implement it now.\n{embedded_refs}"
+            f"Implement it now.{coder_extra}\n{embedded_refs}"
         )
 
     state.allow_retry = False

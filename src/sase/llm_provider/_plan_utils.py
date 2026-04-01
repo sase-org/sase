@@ -21,6 +21,9 @@ class PlanApprovalResult:
     action: str  # "approve", "epic", or "feedback"
     plan_file: str
     feedback: str | None = None
+    commit_plan: bool = True
+    run_coder: bool = True
+    coder_prompt: str | None = None
 
 
 def add_create_time_frontmatter(
@@ -195,7 +198,22 @@ def handle_plan_approval(
                 if action in ("approve", "epic", "commit"):
                     response_path.unlink()
                     assert plan_file is not None
-                    return PlanApprovalResult(action=action, plan_file=plan_file)
+                    # Read approve-with-options fields
+                    commit_plan = response_data.get("commit_plan", True)
+                    run_coder = response_data.get("run_coder", True)
+                    coder_prompt = response_data.get("coder_prompt")
+                    # Backward compat: old "commit" action maps to
+                    # approve with run_coder=False
+                    if action == "commit":
+                        action = "approve"
+                        run_coder = False
+                    return PlanApprovalResult(
+                        action=action,
+                        plan_file=plan_file,
+                        commit_plan=commit_plan,
+                        run_coder=run_coder,
+                        coder_prompt=coder_prompt,
+                    )
                 # Rejection with feedback: return result so caller
                 # can spawn a replanner agent with the feedback.
                 feedback = response_data.get("feedback")
