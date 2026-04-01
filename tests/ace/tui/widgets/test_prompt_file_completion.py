@@ -291,6 +291,45 @@ class TestPromptFileCompletion:
                 assert "foo.py" in names
                 assert "bar.py" in names
 
+    async def test_enter_accepts_completion_instead_of_submitting(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / "aaa.txt").write_text("x", encoding="utf-8")
+        (tmp_path / "bbb.txt").write_text("x", encoding="utf-8")
+        app = _CompletionTestApp()
+        submitted = False
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            original_submit = ta.action_submit_prompt
+
+            def _track_submit() -> None:
+                nonlocal submitted
+                submitted = True
+                original_submit()
+
+            ta.action_submit_prompt = _track_submit  # type: ignore[assignment]
+            ta.load_text("~/")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("tab")
+                assert ta._file_completion_active is True
+                await pilot.press("down")
+                selected = ta._file_completion_candidates[
+                    ta._file_completion_index
+                ].insertion
+                await pilot.press("enter")
+            # The selected candidate was inserted
+            assert ta.text == selected
+            # Completion menu was dismissed
+            assert ta._file_completion_active is False
+            # No submit was triggered
+            assert submitted is False
+
     async def test_symlink_directories_followed(
         self,
         tmp_path: Path,

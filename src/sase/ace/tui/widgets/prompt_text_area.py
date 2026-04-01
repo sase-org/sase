@@ -643,7 +643,10 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         if event.key == "enter":
             event.stop()
             event.prevent_default()
-            self.action_submit_prompt()
+            if self._file_completion_active:
+                self._accept_file_completion()
+            else:
+                self.action_submit_prompt()
             return
 
         if event.key == "ctrl+c":

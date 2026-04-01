@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 14:01:52
-status: wip
+status: done
 ---
 
 # Fix Enter Key to Accept File Completion Instead of Launching Agent
