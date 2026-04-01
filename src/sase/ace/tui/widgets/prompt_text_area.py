@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -64,6 +65,7 @@ class PromptTextArea(
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
         self._formatting: bool = False
+        self._format_timer: asyncio.TimerHandle | None = None
         self._snippet_tabstops: list[int] = []
         self._snippet_end_from_doc_end: int = 0
         self._file_completion_candidates: list[CompletionCandidate] = []
@@ -248,17 +250,14 @@ class PromptTextArea(
 
         self._refresh_file_completion_from_cursor()
 
-        # Auto-wrap: reflow with prettier when line exceeds available width.
-        # Skip wrapping on space so the user's trailing space is never consumed
-        # by the line break — wrapping will fire on the next non-space character
-        # when the space has become an interior word separator.
+        # Auto-wrap: immediate simple wrap + debounced prettier reflow.
         if (
             self._vim_mode == "insert"
             and event.character
             and event.character.isprintable()
-            and event.character != " "
         ):
-            await self._format_with_prettier()
+            self._auto_wrap_line()
+            self._schedule_prettier_format()
 
     def on_blur(self) -> None:
         """Schedule a deferred refocus when the text area loses focus."""

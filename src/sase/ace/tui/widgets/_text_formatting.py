@@ -21,6 +21,7 @@ class TextFormattingMixin(_MixinBase):
     # -- Attributes and method stubs for type checking --
     if TYPE_CHECKING:
         _formatting: bool
+        _format_timer: asyncio.TimerHandle | None
 
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
@@ -102,6 +103,15 @@ class TextFormattingMixin(_MixinBase):
                     return min(j1 + max(old_offset - i1, 0), j2)
             # 'insert' doesn't consume old chars — just advance new pointer
         return len(new_text)
+
+    def _schedule_prettier_format(self) -> None:
+        """Schedule a debounced prettier reflow after a 300ms typing pause."""
+        if self._format_timer is not None:
+            self._format_timer.cancel()
+        loop = asyncio.get_running_loop()
+        self._format_timer = loop.call_later(
+            0.3, lambda: asyncio.ensure_future(self._format_with_prettier())
+        )
 
     async def _format_with_prettier(self) -> None:
         """Reflow prompt text using prettier when a line overflows.
