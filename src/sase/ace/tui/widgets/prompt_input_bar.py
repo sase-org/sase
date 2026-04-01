@@ -68,6 +68,8 @@ class PromptInputBar(Static):
         super().__init__(**kwargs)
         self._initial_value = initial_value
         self._mode = mode
+        self._completion_visible = False
+        self._completion_line_count = 0
 
     @property
     def _base_title(self) -> str:
@@ -81,8 +83,9 @@ class PromptInputBar(Static):
         else:
             placeholder = (
                 "Type prompt, '.' for history, '#@' for snippets  "
-                "[^G] editor  [^Y] workflow  [^J] newline"
+                "[Tab] path complete  [^G] editor  [^Y] workflow  [^J] newline"
             )
+        yield Static("", id="prompt-completion", classes="hidden")
         yield PromptTextArea(
             self._initial_value,
             language="markdown",
@@ -151,12 +154,50 @@ class PromptInputBar(Static):
         # Reserve a few rows for the header/tabs at minimum
         screen_height = self.screen.size.height if self.screen else 50
         max_height = screen_height - 2
-        # +2 for border top and bottom
-        new_height = min(max(visual_lines + 2, 3), max_height)
+        # +2 for border top and bottom, plus completion panel when visible
+        completion_rows = self._completion_line_count if self._completion_visible else 0
+        new_height = min(max(visual_lines + 2 + completion_rows, 3), max_height)
         self.styles.height = new_height
 
     def on_resize(self) -> None:
         """Recalculate height when the terminal is resized."""
+        self._update_height()
+
+    def show_file_completions(
+        self,
+        token: str,
+        rows: list[tuple[str, bool]],
+        selected_index: int,
+    ) -> None:
+        """Show the path completion panel.
+
+        Args:
+            token: Current token being completed.
+            rows: Completion entries as (display_label, is_dir).
+            selected_index: Highlighted row index.
+        """
+        panel = self.query_one("#prompt-completion", Static)
+        lines = [f"Path completions: {token}"]
+        for i, (label, is_dir) in enumerate(rows):
+            marker = ">" if i == selected_index else " "
+            kind = "DIR " if is_dir else "FILE"
+            lines.append(f"{marker} [{kind}] {label}")
+        lines.append(
+            "Keys: Tab complete  Ctrl+N/P or Up/Down move  Ctrl+L accept  Esc close"
+        )
+        panel.update("\n".join(lines))
+        panel.remove_class("hidden")
+        self._completion_visible = True
+        self._completion_line_count = len(lines)
+        self._update_height()
+
+    def hide_file_completions(self) -> None:
+        """Hide the path completion panel."""
+        panel = self.query_one("#prompt-completion", Static)
+        panel.update("")
+        panel.add_class("hidden")
+        self._completion_visible = False
+        self._completion_line_count = 0
         self._update_height()
 
     def _handle_text_submission(self, text: str) -> None:
