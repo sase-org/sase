@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 10:34:39
-status: wip
+status: done
 ---
 
 # Plan: Allow `%m:` in Coder Custom Prompt Without Conflicting with Inherited Model

@@ -8,6 +8,7 @@ from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import (
     PromptDirectives,
     extract_prompt_directives,
+    has_model_directive,
     has_wait_directive,
     split_prompt_for_models,
 )
@@ -421,6 +422,34 @@ def test_has_wait_directive_bare() -> None:
 def test_has_wait_directive_no_percent() -> None:
     """Returns False quickly when no % in prompt."""
     assert has_wait_directive("Just a plain prompt") is False
+
+
+# --- has_model_directive tests ---
+
+
+def test_has_model_directive_colon() -> None:
+    """Detects %model:name syntax."""
+    assert has_model_directive("%model:opus\nDo something") is True
+
+
+def test_has_model_directive_alias_colon() -> None:
+    """Detects %m:name shorthand."""
+    assert has_model_directive("Do something %m:sonnet") is True
+
+
+def test_has_model_directive_paren() -> None:
+    """Detects %m(name) syntax."""
+    assert has_model_directive("Do something %m(opus)") is True
+
+
+def test_has_model_directive_absent() -> None:
+    """Returns False when no %model directive present."""
+    assert has_model_directive("Do something %wait:faster") is False
+
+
+def test_has_model_directive_no_percent() -> None:
+    """Returns False quickly when no % in prompt."""
+    assert has_model_directive("Just a plain prompt") is False
 
 
 # --- split_prompt_for_models tests ---

@@ -234,6 +234,58 @@ class TestModelInheritance:
         assert outcome == "plan_committed"
         mock_commit.assert_not_called()
 
+    def test_coder_prompt_model_override_skips_inherited(self, tmp_path) -> None:
+        """Custom prompt with %m:sonnet overrides inherited model."""
+        ctx = _make_ctx(tmp_path, agent_model="opus")
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_prompt="%m:sonnet",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert not state.current_prompt.startswith("%model:opus")
+        assert "%m:sonnet" in state.current_prompt
+
+    def test_coder_prompt_without_model_inherits(self, tmp_path) -> None:
+        """Custom prompt without model directive still inherits planner model."""
+        ctx = _make_ctx(tmp_path, agent_model="opus")
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_prompt="be concise",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert state.current_prompt.startswith("%model:opus\n")
+        assert "be concise" in state.current_prompt
+
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
         """coder_prompt with content -> 'Additional instructions:' in prompt."""
         ctx = _make_ctx(tmp_path)

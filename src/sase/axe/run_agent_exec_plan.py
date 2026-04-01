@@ -360,6 +360,13 @@ def handle_plan_marker(
         coder_extra = ""
         if plan_result.coder_prompt:
             coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
+            # If the custom prompt contains its own %model/%m directive,
+            # skip the inherited model prefix to avoid a duplicate error.
+            if model_prefix:
+                from sase.xprompt.directives import has_model_directive
+
+                if has_model_directive(plan_result.coder_prompt):
+                    model_prefix = ""
         state.current_prompt = (
             f"{model_prefix}{vcs_prefix}"
             f"@{plan_data['plan_file']}\n\n"

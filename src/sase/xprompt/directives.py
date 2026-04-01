@@ -110,6 +110,17 @@ def has_wait_directive(prompt: str) -> bool:
     return bool(re.search(r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
 
 
+def has_model_directive(prompt: str) -> bool:
+    """Quick check whether a prompt contains ``%model`` or ``%m`` directives.
+
+    This avoids the overhead of full directive extraction and is suitable for
+    checking whether a user's custom prompt already specifies a model.
+    """
+    if "%" not in prompt:
+        return False
+    return bool(re.search(r"(?:^|\s)%(?:model|m)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
+
+
 def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
     """Extract ``%name`` directives from a prompt.
 
