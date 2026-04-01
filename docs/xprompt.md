@@ -556,6 +556,7 @@ the prompt before further processing.
 | `%hide`    | `%h`  | Hide the agent from the default Agents tab display |
 | `%approve` | `%a`  | Run the agent fully autonomously (skip approval)   |
 | `%plan`    | `%p`  | Enable plan mode (plan first, then execute)        |
+| `%edit`    | `%e`  | Return editor text to the prompt bar for review    |
 
 ### Syntax
 
@@ -575,6 +576,8 @@ Directives use the same argument syntax as xprompt references:
 %wait                        # Bare — waits for the most recently named agent
 %approve                     # Run fully autonomously
 %a                           # Same, using alias
+%edit                        # Return editor text to prompt bar
+%e                           # Same, using alias
 %plan                        # Enable plan mode
 %p                           # Same, using alias
 ```
@@ -586,7 +589,8 @@ The `%model` directive also supports automatic provider resolution: known model 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a unique name for the
 agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
 
-The `%approve` and `%plan` directives are boolean flags — they take no arguments and are simply present or absent.
+The `%approve`, `%edit`, and `%plan` directives are boolean flags — they take no arguments and are simply present or
+absent.
 
 ### Example
 
@@ -622,6 +626,20 @@ steps or other checkpoints that would normally pause for user input:
 %name:auto-fixer
 Fix the lint errors in the codebase.
 ```
+
+### Edit Directive
+
+The `%edit` directive causes the editor text to be loaded into the ACE prompt input bar instead of being submitted
+directly. This lets you compose a prompt in `$EDITOR` (via `Ctrl+G`) and then review or tweak it in the prompt bar
+before launching an agent:
+
+```
+%edit
+Refactor the parser module to use dataclasses.
+```
+
+When the editor closes, the `%edit` directive is stripped and the remaining text appears in the prompt input bar for
+further editing. The agent is not launched until you press Enter in the prompt bar.
 
 ### Plan Directive
 

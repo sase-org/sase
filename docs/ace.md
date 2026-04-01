@@ -19,7 +19,7 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | -------------------------- | -------------------------------------------------------------- |
 | `QUERY` (positional)       | Query string for filtering ChangeSpecs                         |
 | `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`) |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 7, 0 to disable)    |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 8, 0 to disable)    |
 | `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                |
 | `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                 |
 | `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator) |
@@ -156,17 +156,18 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                         |
-| ---------- | -------------------------------------------------------------- |
-| `,!`       | Run command using current CL context                           |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals) |
-| `,h`       | Run agent (home directory)                                     |
-| `,m`       | Review mentors (opens Mentor Review modal)                     |
-| `,M`       | Kill running mentors                                           |
-| `,r`       | Show runners info                                              |
-| `,<space>` | Run agent from current CL (skips project selection)            |
-| `,.`       | Open prompt history modal for the last CL                      |
-| `,>`       | Open prompt history modal with cancelled prompts visible       |
+| Key        | Action                                                            |
+| ---------- | ----------------------------------------------------------------- |
+| `,!`       | Run command using current CL context                              |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)    |
+| `,h`       | Run agent (home directory)                                        |
+| `,m`       | Review mentors (opens Mentor Review modal)                        |
+| `,M`       | Kill running mentors                                              |
+| `,r`       | Show runners info                                                 |
+| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal)) |
+| `,<space>` | Run agent from current CL (skips project selection)               |
+| `,.`       | Open prompt history modal for the last CL                         |
+| `,>`       | Open prompt history modal with cancelled prompts visible          |
 
 > **Note:** `,x` (kill & edit) is only available on the Agents tab — see
 > [Agents Tab Leader Mode](#leader-mode--prefix-1).
@@ -436,7 +437,8 @@ rather than modifying the original. After saving, the browser offers to commit a
 Press `Ctrl+O` to start the guided creation flow:
 
 1. **Location modal** — Choose where to save the new xprompt (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`,
-   Home `~/xprompts/`, or a config file).
+   Home `~/xprompts/`, or a config file). Press `Ctrl+G` to open the selected config file in `$EDITOR` instead of
+   proceeding with creation.
 2. **Filename modal** — Enter a filename (`.md` for prompt parts, `.yml` for workflows). Workflow files are pre-filled
    with a YAML template containing the workflow scaffold.
 3. **Editor** — The file opens in `$EDITOR` for editing.
@@ -610,12 +612,41 @@ the TUI notification modal and Telegram delivery).
 
 ### Plan Approval Keybindings
 
-| Key | Action                           |
-| --- | -------------------------------- |
-| `y` | Copy plan content to clipboard   |
-| `Y` | Copy plan file path to clipboard |
+| Key          | Action                                                           |
+| ------------ | ---------------------------------------------------------------- |
+| `a`          | Approve the plan                                                 |
+| `A`          | Approve with options (opens [Approve Options](#approve-options)) |
+| `r`          | Reject the plan                                                  |
+| `f`          | Request feedback (send follow-up questions to the agent)         |
+| `e`          | Edit the plan file in `$EDITOR`                                  |
+| `E`          | Mark the plan as an epic (creates bead)                          |
+| `y`          | Copy plan content to clipboard                                   |
+| `Y`          | Copy plan file path to clipboard                                 |
+| `Ctrl+D`/`U` | Scroll plan content down / up                                    |
+| `q` / `Esc`  | Cancel                                                           |
 
 The question modal also supports `y` to copy questions and selected answers.
+
+### Approve Options
+
+Pressing `A` in the plan approval modal opens an options dialog with fine-grained control over what happens after
+approval:
+
+| Key         | Action                  |
+| ----------- | ----------------------- |
+| `Enter`     | Approve with selections |
+| `Space`     | Toggle focused switch   |
+| `Ctrl+N`    | Next field              |
+| `Ctrl+P`    | Previous field          |
+| `q` / `Esc` | Cancel                  |
+
+The dialog presents two toggle switches and an optional text input:
+
+- **Commit plan** (default: ON) — Whether to commit the plan file
+- **Run coder agent** (default: ON) — Whether to launch a coder agent after approval
+- **Additional prompt** — Optional extra instructions for the coder agent (only editable when coder is ON)
+
+At least one of commit/coder must be enabled — disabling one locks the other ON.
 
 ## Linked Chats in Multi-Step Workflows
 
@@ -713,12 +744,32 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 | `Ctrl+E` | Move to end of line (jumps to next line end if already at end)           |
 | `Ctrl+G` | Open full prompt in `$EDITOR`                                            |
 | `Ctrl+I` | Load a prompt from history                                               |
-| `Tab`    | Expand snippet trigger word (see [Snippets](#snippets) below)            |
+| `Tab`    | File completion (if on a path) or snippet expansion (see below)          |
 | `#@`     | Open XPrompt snippet picker (type `#` then `@`)                          |
 | `Escape` | Switch to vim NORMAL mode                                                |
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
+
+### File Path Completion
+
+When the cursor is on a path-like token, pressing `Tab` activates file path completion instead of snippet expansion.
+Path-like tokens are those starting with `/`, `./`, `../`, `~/`, or containing `/`. Tokens starting with `@` are also
+recognized — the `@` prefix is preserved in the completed path (useful for file-reference arguments).
+
+| Key                | Action                                   |
+| ------------------ | ---------------------------------------- |
+| `Tab`              | Start completion or insert shared prefix |
+| `Ctrl+N` / `Down`  | Next candidate                           |
+| `Ctrl+P` / `Up`    | Previous candidate                       |
+| `Enter` / `Ctrl+L` | Accept highlighted candidate             |
+| `Escape`           | Cancel completion                        |
+
+Directories appear before files in the candidate list. Dotfiles are hidden unless the partial prefix starts with `.`.
+Accepting a directory automatically re-opens completion for the next level (drill-down). The completion panel shows up
+to 10 candidates at a time and scrolls to keep the highlight visible.
+
+**Tab priority:** File completion > snippet expansion > tabstop advancement.
 
 ### Special Prompt Shortcuts
 
@@ -813,6 +864,37 @@ or off — when enabled, cancelled prompts appear in the results with a `✗` ma
 | `~`    | Yellow  | Prompt matches current workspace |
 | `✗`    | Magenta | Prompt was cancelled             |
 
+## Task Queue Modal
+
+Press `,t` (leader + `t`) to open the task queue modal. It shows background tasks (hook runs, mentor executions, etc.)
+with live output for running tasks and completed output for finished ones.
+
+### Layout
+
+The modal uses a two-panel layout: a task list on the left and an output pane on the right. Running tasks refresh their
+output every second.
+
+### Task Status Icons
+
+| Icon | Color | Meaning |
+| ---- | ----- | ------- |
+| `●`  | Green | Running |
+| `✓`  | Cyan  | Success |
+| `✗`  | Red   | Error   |
+| `?`  | Dim   | Unknown |
+
+### Keybindings
+
+| Key            | Action                          |
+| -------------- | ------------------------------- |
+| `j` / `k`      | Navigate task list              |
+| `d`            | Dismiss selected completed task |
+| `D`            | Dismiss all completed tasks     |
+| `e`            | Open task output in `$EDITOR`   |
+| `y`            | Copy task output to clipboard   |
+| `Ctrl+D` / `U` | Scroll output pane down / up    |
+| `q` / `Esc`    | Close modal                     |
+
 ## Snippets
 
 The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets are configured in the
@@ -852,5 +934,5 @@ references rather than expanding static templates.
 
 ## Auto-Refresh
 
-ACE auto-refreshes data at a configurable interval (default: 7 seconds). The remaining time until the next refresh is
+ACE auto-refreshes data at a configurable interval (default: 8 seconds). The remaining time until the next refresh is
 shown in the info panel. Set `--refresh-interval 0` to disable.
