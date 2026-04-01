@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 10:10:03
-status: wip
+status: done
 ---
 
 # Plan: Add ctrl+n / ctrl+p Navigation to ApproveOptionsModal

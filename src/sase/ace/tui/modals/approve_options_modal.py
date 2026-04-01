@@ -58,7 +58,8 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
             yield Static(
                 "[green]enter[/green]=Approve  "
                 "[blue]space[/blue]=Toggle  "
-                "[dim]tab[/dim]=Next  "
+                "[dim]ctrl+n[/dim]=Next  "
+                "[dim]ctrl+p[/dim]=Prev  "
                 "[dim]q[/dim]=Back",
                 id="approve-options-footer",
             )
@@ -76,11 +77,19 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
             )
 
     def on_key(self, event: events.Key) -> None:
-        """Intercept enter so it approves even when TextArea has focus."""
+        """Intercept enter/ctrl+n/ctrl+p so they work even when TextArea has focus."""
         if event.key == "enter":
             event.prevent_default()
             event.stop()
             self.action_approve()
+        elif event.key == "ctrl+n":
+            event.prevent_default()
+            event.stop()
+            self.focus_next()
+        elif event.key == "ctrl+p":
+            event.prevent_default()
+            event.stop()
+            self.focus_previous()
 
     def action_cancel(self) -> None:
         self.dismiss(None)

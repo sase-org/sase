@@ -33,8 +33,44 @@ def test_on_key_calls_approve_on_enter() -> None:
     assert approved
 
 
+def test_on_key_calls_focus_next_on_ctrl_n() -> None:
+    """on_key with ctrl+n should call focus_next."""
+    modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
+
+    called = False
+
+    def fake_focus_next() -> None:
+        nonlocal called
+        called = True
+
+    modal.focus_next = fake_focus_next  # type: ignore[assignment]
+
+    key_event = events.Key("ctrl+n", character=None)
+    modal.on_key(key_event)
+
+    assert called
+
+
+def test_on_key_calls_focus_previous_on_ctrl_p() -> None:
+    """on_key with ctrl+p should call focus_previous."""
+    modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
+
+    called = False
+
+    def fake_focus_previous() -> None:
+        nonlocal called
+        called = True
+
+    modal.focus_previous = fake_focus_previous  # type: ignore[assignment]
+
+    key_event = events.Key("ctrl+p", character=None)
+    modal.on_key(key_event)
+
+    assert called
+
+
 def test_on_key_ignores_non_enter() -> None:
-    """on_key should not intercept keys other than enter."""
+    """on_key should not intercept keys other than enter/ctrl+n/ctrl+p."""
     modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
 
     called = False
@@ -53,6 +89,8 @@ def test_on_key_ignores_non_enter() -> None:
 
 class _TestApp(App[ApproveOptionsResult | None]):
     """Minimal app for async modal tests."""
+
+    ENABLE_COMMAND_PALETTE = False
 
     def compose(self) -> ComposeResult:
         yield from ()
@@ -81,6 +119,59 @@ async def test_enter_approves_with_textarea_focused() -> None:
         await pilot.pause()
 
         assert isinstance(result, ApproveOptionsResult)
+
+
+async def test_ctrl_n_cycles_focus_forward() -> None:
+    """ctrl+n should cycle focus through the three focusable widgets."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        # on_mount focuses the first switch
+        first = pilot.app.focused
+        assert isinstance(first, Switch)
+        assert first.id == "commit-plan-switch"
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        second = pilot.app.focused
+        assert isinstance(second, Switch)
+        assert second.id == "run-coder-switch"
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        third = pilot.app.focused
+        assert isinstance(third, TextArea)
+        assert third.id == "coder-prompt-input"
+
+        # Wraps back to first
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        wrapped = pilot.app.focused
+        assert isinstance(wrapped, Switch)
+        assert wrapped.id == "commit-plan-switch"
+
+
+async def test_ctrl_p_cycles_focus_backward() -> None:
+    """ctrl+p should cycle focus backward through the focusable widgets."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        # Navigate forward to the second switch
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        assert isinstance(pilot.app.focused, Switch)
+        assert pilot.app.focused.id == "run-coder-switch"
+
+        # Now go backward — should return to first switch
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+        first = pilot.app.focused
+        assert isinstance(first, Switch)
+        assert first.id == "commit-plan-switch"
 
 
 async def test_enter_approves_with_switch_focused() -> None:
