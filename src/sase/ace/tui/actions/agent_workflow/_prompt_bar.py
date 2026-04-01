@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -11,6 +12,23 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.ace.tui.actions.agents._types import PlanFeedbackContext
+
+
+def _has_edit_directive(prompt: str) -> tuple[bool, str]:
+    """Quick check for ``%edit`` / ``%e`` directive, returning cleaned prompt.
+
+    If the directive is present, runs full directive extraction to get the
+    properly cleaned prompt text.  Returns ``(True, cleaned_prompt)`` when
+    found, ``(False, original_prompt)`` otherwise.
+    """
+    if "%" not in prompt:
+        return False, prompt
+    if not re.search(r"(?:^|\s)%(?:edit|e)(?:[:+(]|\s|$)", prompt, re.MULTILINE):
+        return False, prompt
+    from sase.xprompt.directives import extract_prompt_directives
+
+    cleaned, directives = extract_prompt_directives(prompt)
+    return directives.edit, cleaned
 
 
 class PromptBarMixin:
@@ -196,6 +214,18 @@ class PromptBarMixin:
             is_home_mode=True,
         )
 
+    def _load_prompt_into_bar(self, prompt: str) -> None:
+        """Load text into the mounted prompt input bar's text area."""
+        from ...widgets import PromptInputBar
+
+        try:
+            bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+            text_area = bar.query_one("#prompt-input", PromptTextArea)
+            text_area.load_text(prompt)
+            text_area.focus()
+        except Exception:
+            pass
+
     def _show_prompt_input_bar_for_home(
         self,
         initial_text: str = "",
@@ -250,7 +280,11 @@ class PromptBarMixin:
 
         prompt = self._open_editor_for_agent_prompt(initial_text)  # type: ignore[attr-defined]
         if prompt:
-            self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+            has_edit, cleaned = _has_edit_directive(prompt)
+            if has_edit:
+                self._show_prompt_input_bar_for_home(initial_text=cleaned)
+            else:
+                self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:
             if initial_text.strip():
                 from sase.history.prompt import add_or_update_prompt
@@ -355,7 +389,11 @@ class PromptBarMixin:
             cursor_col=event.cursor_col,
         )
         if prompt:
-            self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
+            has_edit, cleaned = _has_edit_directive(prompt)
+            if has_edit:
+                self._load_prompt_into_bar(cleaned)
+            else:
+                self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
         else:
             self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
             self._unmount_prompt_bar()
@@ -419,7 +457,11 @@ class PromptBarMixin:
                 prompt_for_editor = _build_prompt(result.prompt_text)
                 edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
                 if edited_prompt:
-                    self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
+                    has_edit, cleaned = _has_edit_directive(edited_prompt)
+                    if has_edit:
+                        self._load_prompt_into_bar(cleaned)
+                    else:
+                        self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]
                 else:
                     self.notify("No prompt from editor - cancelled", severity="warning")  # type: ignore[attr-defined]
                     self._unmount_prompt_bar()

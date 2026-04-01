@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 14:25:19
-status: wip
+status: done
 ---
 
 # Plan: `%edit` (`%e`) Directive

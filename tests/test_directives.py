@@ -537,6 +537,40 @@ def test_split_prompt_for_models_spaces_in_args() -> None:
     assert result[1] == "%model:sonnet\nDo work"
 
 
+# --- %edit directive tests ---
+
+
+def test_edit_bare() -> None:
+    """%edit (bare) sets edit=True."""
+    prompt = "%edit\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.edit is True
+
+
+def test_edit_alias() -> None:
+    """%e (alias) sets edit=True."""
+    prompt = "%e\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.edit is True
+
+
+def test_edit_inside_fenced_block_ignored() -> None:
+    """%edit inside triple backticks is not extracted."""
+    prompt = "```\n%edit\n```"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == prompt
+    assert directives.edit is False
+
+
+def test_edit_duplicate_raises() -> None:
+    """Duplicate %edit raises DirectiveError."""
+    prompt = "%edit\n%edit\nDo the work"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%edit'"):
+        extract_prompt_directives(prompt)
+
+
 def test_split_prompt_for_models_after_xprompt_expansion() -> None:
     """Xprompt-expanded %m(...) is correctly split by split_prompt_for_models."""
     from sase.xprompt.processor import process_xprompt_references
