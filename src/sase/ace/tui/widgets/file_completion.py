@@ -28,9 +28,13 @@ def is_path_like_token(token: str) -> bool:
     """Return True when token looks like a file path fragment."""
     if not token:
         return False
-    if token.startswith(("~/", "/", "./", "../", ".sase/")):
+    # Strip a leading @ (file-reference prefix) before checking patterns.
+    bare = token[1:] if token.startswith("@") else token
+    if not bare:
+        return False
+    if bare.startswith(("~/", "/", "./", "../", ".sase/")):
         return True
-    return "/" in token
+    return "/" in bare
 
 
 def extract_token_around_cursor(line: str, col: int) -> tuple[int, int, str] | None:
@@ -68,6 +72,12 @@ def build_completion_candidates(
 
     Symlinked directories are followed so they appear as directories.
     """
+    # Strip a leading @ (file-reference prefix) so path expansion works.
+    at_prefix = ""
+    if token.startswith("@"):
+        at_prefix = "@"
+        token = token[1:]
+
     if token.endswith("/"):
         raw_dir = token
         expanded_dir = os.path.expanduser(token)
@@ -117,5 +127,9 @@ def build_completion_candidates(
         shared_prefix = os.path.commonprefix([c.name for c in candidates])
         if len(shared_prefix) > len(partial):
             shared_extension = shared_prefix[len(partial) :]
+
+    if at_prefix:
+        for c in candidates:
+            c.insertion = at_prefix + c.insertion
 
     return candidates, shared_extension

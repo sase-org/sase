@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 14:12:22
-status: wip
+status: done
 ---
 
 # Plan: Fix file completion for @-prefixed file paths

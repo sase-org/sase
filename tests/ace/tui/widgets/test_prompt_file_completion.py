@@ -370,6 +370,15 @@ class TestFileCompletionModule:
         assert is_path_like_token("docs/readme") is True
         assert is_path_like_token("hello") is False
         assert is_path_like_token("") is False
+        # @-prefixed paths
+        assert is_path_like_token("@~/") is True
+        assert is_path_like_token("@/tmp/") is True
+        assert is_path_like_token("@./src/") is True
+        assert is_path_like_token("@../") is True
+        assert is_path_like_token("@.sase/") is True
+        assert is_path_like_token("@docs/readme") is True
+        assert is_path_like_token("@hello") is False
+        assert is_path_like_token("@") is False
 
     def test_extract_token_around_cursor(self) -> None:
         assert extract_token_around_cursor("hello world", 3) == (0, 5, "hello")
@@ -408,3 +417,103 @@ class TestFileCompletionModule:
         by_name = {c.name: c for c in candidates}
         assert by_name["link"].is_dir is True
         assert by_name["link"].display == "link/"
+
+    def test_build_completion_candidates_at_prefix(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        _create_entries(tmp_path)
+        candidates, _ = build_completion_candidates("@~/")
+        assert len(candidates) > 1
+        for c in candidates:
+            assert c.insertion.startswith("@~/")
+
+    def test_build_completion_candidates_at_prefix_partial(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / "alpha").mkdir()
+        candidates, _ = build_completion_candidates("@~/al")
+        assert len(candidates) == 1
+        assert candidates[0].name == "alpha"
+        assert candidates[0].insertion == "@~/alpha/"
+
+
+class TestAtPrefixIntegration:
+    """Integration tests for @-prefixed file completion in the widget."""
+
+    async def test_at_tilde_triggers_completion(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        _create_entries(tmp_path)
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("@~/")
+            ta.cursor_location = (0, 3)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta._file_completion_active is True
+            assert len(ta._file_completion_candidates) > 1
+            for c in ta._file_completion_candidates:
+                assert c.insertion.startswith("@~/")
+
+    async def test_at_single_match_inserts_with_prefix(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / "alpha").mkdir()
+        app = _CompletionTestApp()
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("@~/al")
+            ta.cursor_location = (0, 5)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                assert ta._try_file_completion_tab() is True
+            assert ta.text == "@~/alpha/"
+            assert ta._file_completion_active is False
+
+    async def test_at_prefix_directory_drilldown(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / "alpha").mkdir()
+        (tmp_path / "beta").mkdir()
+        (tmp_path / "alpha" / "foo.py").write_text("x", encoding="utf-8")
+        (tmp_path / "alpha" / "bar.py").write_text("x", encoding="utf-8")
+        app = _CompletionTestApp()
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("@~/")
+            ta.cursor_location = (0, 3)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("tab")
+                assert ta._file_completion_active is True
+                # First candidate should be alpha/ (dirs first, alphabetical)
+                assert ta._file_completion_candidates[0].name == "alpha"
+                # Accept the directory via Ctrl+L to drill down
+                await pilot.press("ctrl+l")
+                assert ta.text == "@~/alpha/"
+                assert ta._file_completion_active is True
+                names = [c.name for c in ta._file_completion_candidates]
+                assert "foo.py" in names
+                assert "bar.py" in names
+                for c in ta._file_completion_candidates:
+                    assert c.insertion.startswith("@~/alpha/")
