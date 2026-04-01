@@ -46,7 +46,10 @@ steps:
       2. **Read each file**: Look for conflict markers
       3. **Resolve each file**: Edit to keep the correct code and remove ALL conflict markers
       4. **Mark resolved**: Run `hg resolve --mark <file>` for EACH resolved file
-      5. **Check**: Run `hg resolve --list` again — if all show `R` (resolved), set `all_resolved=true`
+      5. **Continue rebase**: Run `hg rebase --continue`
+         - If this produces MORE conflicts, set `all_resolved=false`
+         - If this succeeds (exit code 0), set `all_resolved=true`
+      6. **Verify**: Run `hg resolve --list` to check for remaining conflicts
       {% endif %}
 
       ## Resolution Guidelines
