@@ -274,9 +274,10 @@ def register_search_parser(subparsers: argparse._SubParsersAction) -> None:
     search_parser.add_argument(
         "-f",
         "--format",
-        choices=["plain", "rich"],
+        choices=["plain", "rich", "markdown"],
         default="rich",
-        help="Output format: 'plain' for simple text, 'rich' for styled panels (default: rich)",
+        help="Output format: 'plain' for simple text, 'rich' for styled panels, "
+        "'markdown' for agent-friendly markdown (default: rich)",
     )
 
 

@@ -31,6 +31,8 @@ def handle_search_command(args: argparse.Namespace) -> None:
 
     if args.format == "rich":
         _display_rich(matching)
+    elif args.format == "markdown":
+        _display_markdown(matching)
     else:
         _display_plain(matching)
 
@@ -164,3 +166,190 @@ def _display_plain(matching: list) -> None:  # type: ignore[type-arg]
                             f" - {msl.status}{duration_str}{suffix_str}"
                         )
         print()  # Blank line between ChangeSpecs
+
+
+# ---------------------------------------------------------------------------
+# Markdown format
+# ---------------------------------------------------------------------------
+
+_SUFFIX_EMOJI: dict[str | None, str] = {
+    "error": ":x:",
+    "running_agent": ":arrows_counterclockwise:",
+    "running_process": ":arrows_counterclockwise:",
+    "killed_agent": ":skull:",
+    "killed_process": ":skull:",
+    "pending_dead_process": ":warning:",
+    "rejected_proposal": ":warning:",
+    "summarize_complete": ":white_check_mark:",
+    "metahook_complete": ":white_check_mark:",
+}
+
+_STATUS_EMOJI: dict[str, str] = {
+    "PASSED": ":white_check_mark: Passed",
+    "COMMENTED": ":white_check_mark: Commented",
+    "SUBMITTED": ":white_check_mark: Submitted",
+    "FAILED": ":x: Failed",
+    "DEAD": ":skull: Dead",
+    "KILLED": ":skull: Killed",
+    "RUNNING": ":arrows_counterclockwise: Running",
+    "STARTING": ":arrows_counterclockwise: Starting",
+}
+
+
+def _md_status_indicator(
+    status: str,
+    suffix: str | None,
+    suffix_type: str | None,
+) -> str:
+    """Map a status/suffix combination to a human-readable emoji string."""
+    # Suffix type takes priority when it carries meaningful semantics
+    if suffix_type and suffix_type in _SUFFIX_EMOJI:
+        emoji = _SUFFIX_EMOJI[suffix_type]
+        label = suffix or status
+        return f"{emoji} {label}"
+    # Fall back to status-based mapping
+    return _STATUS_EMOJI.get(status, status)
+
+
+def _md_table(headers: list[str], rows: list[list[str]]) -> list[str]:
+    """Build a markdown table (returns lines)."""
+    lines: list[str] = []
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for row in rows:
+        lines.append("| " + " | ".join(row) + " |")
+    return lines
+
+
+def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]  # noqa: F821
+    """Render a single ChangeSpec as markdown lines."""
+    lines: list[str] = []
+
+    # Heading
+    lines.append(f"## {cs.name}")
+    lines.append("")
+
+    # Metadata line
+    meta_parts: list[str] = [f"**Status:** {cs.status}"]
+    if cs.parent:
+        meta_parts.append(f"**Parent:** {cs.parent}")
+    meta = " · ".join(meta_parts)
+    # Bug and CL/PR on same line if present
+    extras: list[str] = []
+    if cs.bug:
+        extras.append(f"**Bug:** {cs.bug}")
+    if cs.cl:
+        extras.append(f"**PR:** {cs.cl}")
+    if extras:
+        meta += " · " + " ".join(extras)
+    lines.append(meta)
+    lines.append("")
+
+    # Description as blockquote
+    for para_line in cs.description.split("\n"):
+        lines.append(f"> {para_line}" if para_line else ">")
+    lines.append("")
+
+    # Commits table
+    if cs.commits:
+        lines.append("### Commits")
+        lines.append("")
+        rows: list[list[str]] = []
+        for entry in cs.commits:
+            status_cell = ""
+            if entry.suffix_type == "rejected_proposal":
+                status_cell = ":warning: Rejected"
+            elif entry.proposal_letter:
+                status_cell = ":warning: Proposal"
+            elif entry.suffix and entry.suffix_type == "error":
+                status_cell = f":x: {entry.suffix}"
+            rows.append([entry.display_number, entry.note, status_cell])
+        lines.extend(_md_table(["#", "Description", "Status"], rows))
+        lines.append("")
+
+    # Hooks table (flattened — one row per status line)
+    if cs.hooks:
+        hook_rows: list[list[str]] = []
+        for hook in cs.hooks:
+            display_cmd = hook.display_command
+            for sl in hook.status_lines or []:
+                result = _md_status_indicator(sl.status, sl.suffix, sl.suffix_type)
+                duration = sl.duration or ""
+                hook_rows.append(
+                    [display_cmd, f"#{sl.commit_entry_num}", result, duration]
+                )
+        if hook_rows:
+            lines.append("### Test Hooks")
+            lines.append("")
+            lines.extend(_md_table(["Hook", "Commit", "Result", "Duration"], hook_rows))
+            lines.append("")
+
+    # Comments table
+    if cs.comments:
+        lines.append("### Review Comments")
+        lines.append("")
+        comment_rows: list[list[str]] = []
+        for comment in cs.comments:
+            if comment.suffix and comment.suffix_type == "error":
+                status_cell = f":warning: {comment.suffix}"
+            elif comment.suffix and comment.suffix_type == "running_agent":
+                status_cell = ":arrows_counterclockwise: Running"
+            elif comment.suffix:
+                status_cell = comment.suffix
+            else:
+                status_cell = ":white_check_mark:"
+            comment_rows.append([comment.reviewer, status_cell])
+        lines.extend(_md_table(["Reviewer", "Status"], comment_rows))
+        lines.append("")
+
+    # Mentors table (flattened — one row per status line)
+    if cs.mentors:
+        mentor_rows: list[list[str]] = []
+        for mentor in cs.mentors:
+            for msl in mentor.status_lines or []:
+                result = _md_status_indicator(msl.status, msl.suffix, msl.suffix_type)
+                duration = msl.duration or ""
+                mentor_rows.append(
+                    [
+                        f"#{mentor.entry_id}",
+                        f"{msl.profile_name} / {msl.mentor_name}",
+                        result,
+                        duration,
+                    ]
+                )
+        if mentor_rows:
+            lines.append("### Mentors")
+            lines.append("")
+            lines.extend(
+                _md_table(["Commit", "Mentor", "Result", "Duration"], mentor_rows)
+            )
+            lines.append("")
+
+    return lines
+
+
+def _display_markdown(matching: list) -> None:  # type: ignore[type-arg]
+    """Display search results as agent-friendly markdown."""
+    from collections import Counter
+
+    from sase.ace.changespec import ChangeSpec
+
+    changespecs: list[ChangeSpec] = matching
+
+    # Summary header
+    status_counts = Counter(cs.status for cs in changespecs)
+    breakdown = ", ".join(
+        f"{count} {status}" for status, count in sorted(status_counts.items())
+    )
+    print("# Search Results")
+    print("")
+    print(f"Found {len(changespecs)} change(s): {breakdown}")
+    print("")
+
+    # Render each ChangeSpec separated by horizontal rules
+    for i, cs in enumerate(changespecs):
+        if i > 0:
+            print("---")
+            print("")
+        for line in _md_changespec(cs):
+            print(line)
