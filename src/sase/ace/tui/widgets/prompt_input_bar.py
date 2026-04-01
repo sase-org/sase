@@ -6,6 +6,10 @@ from textual.app import ComposeResult
 from textual.message import Message
 from textual.widgets import Static, TextArea
 
+from sase.ace.tui.widgets.file_completion import (
+    CompletionEntry,
+    FileCompletionDropdown,
+)
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
@@ -68,6 +72,7 @@ class PromptInputBar(Static):
         super().__init__(**kwargs)
         self._initial_value = initial_value
         self._mode = mode
+        self._file_dropdown: FileCompletionDropdown | None = None
 
     @property
     def _base_title(self) -> str:
@@ -151,8 +156,13 @@ class PromptInputBar(Static):
         # Reserve a few rows for the header/tabs at minimum
         screen_height = self.screen.size.height if self.screen else 50
         max_height = screen_height - 2
+
+        dropdown_h = 0
+        if self._file_dropdown and self._file_dropdown.is_mounted:
+            dropdown_h = self._file_dropdown.dropdown_height()
+
         # +2 for border top and bottom
-        new_height = min(max(visual_lines + 2, 3), max_height)
+        new_height = min(max(visual_lines + 2 + dropdown_h, 3), max_height)
         self.styles.height = new_height
 
     def on_resize(self) -> None:
@@ -188,6 +198,28 @@ class PromptInputBar(Static):
         text_area = self.query_one("#prompt-input", PromptTextArea)
         stripped = text_area.text.strip()
         self.post_message(self.Cancelled(cancelled_text=stripped, mode=self._mode))
+
+    async def _show_file_completion(
+        self,
+        entries: list[CompletionEntry],
+        path_display: str,
+    ) -> None:
+        """Show or update the file completion dropdown."""
+        if self._file_dropdown is None:
+            self._file_dropdown = FileCompletionDropdown(entries, path_display)
+            text_area = self.query_one("#prompt-input")
+            await self.mount(self._file_dropdown, before=text_area)
+        else:
+            self._file_dropdown.update_entries(entries, path_display)
+        self._update_height()
+
+    def _dismiss_file_completion(self) -> None:
+        """Dismiss and remove the file completion dropdown."""
+        if self._file_dropdown is not None:
+            if self._file_dropdown.is_mounted:
+                self._file_dropdown.remove()
+            self._file_dropdown = None
+            self._update_height()
 
     def insert_snippet(self, snippet_name: str) -> None:
         """Insert a snippet reference at the cursor position.

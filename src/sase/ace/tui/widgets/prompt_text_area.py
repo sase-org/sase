@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import os
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -13,6 +14,7 @@ from textual.widgets import TextArea
 
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
+from sase.ace.tui.widgets.file_completion import extract_path_token, list_completions
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -450,6 +452,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self.highlight_cursor_line = True
         bar = self._find_prompt_bar()
         if bar:
+            bar._dismiss_file_completion()
             bar.border_title = f"{bar._base_title} [NORMAL]"
             bar.border_subtitle = "[Esc] cancel  [i] insert"
 
@@ -466,8 +469,113 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             bar.border_title = bar._base_title
             bar.border_subtitle = "[Esc] cancel"
 
+    async def _handle_file_completion_key(self, event: Key) -> bool:
+        """Handle key events for file completion dropdown.
+
+        Returns True if the key was consumed by dropdown navigation.
+        """
+        bar = self._find_prompt_bar()
+        if not bar or not bar._file_dropdown:
+            return False
+
+        dropdown = bar._file_dropdown
+        if event.key in ("down", "tab"):
+            event.stop()
+            event.prevent_default()
+            dropdown.move_down()
+            return True
+        if event.key in ("up", "shift+tab"):
+            event.stop()
+            event.prevent_default()
+            dropdown.move_up()
+            return True
+        if event.key == "enter":
+            event.stop()
+            event.prevent_default()
+            await self._accept_file_completion()
+            return True
+        if event.key == "escape":
+            event.stop()
+            event.prevent_default()
+            bar._dismiss_file_completion()
+            return True
+        return False
+
+    async def _check_file_completion(self) -> None:
+        """Check if cursor is in a path context and show/update/dismiss dropdown."""
+        bar = self._find_prompt_bar()
+        if not bar:
+            return
+
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        result = extract_path_token(line, col)
+
+        if result is None:
+            bar._dismiss_file_completion()
+            return
+
+        _, token = result
+        entries = list_completions(token, os.getcwd())
+
+        if not entries:
+            bar._dismiss_file_completion()
+            return
+
+        # Path display: the directory being listed
+        if token.endswith("/"):
+            path_display = token
+        elif "/" in token:
+            path_display = token[: token.rfind("/") + 1]
+        else:
+            path_display = ""
+
+        await bar._show_file_completion(entries, path_display)
+
+    async def _accept_file_completion(self) -> None:
+        """Accept the selected completion entry."""
+        bar = self._find_prompt_bar()
+        if not bar or not bar._file_dropdown:
+            return
+
+        entry = bar._file_dropdown.selected_entry
+        if not entry:
+            return
+
+        row, col = self.cursor_location
+        line = self.document.get_line(row)
+        result = extract_path_token(line, col)
+        if not result:
+            bar._dismiss_file_completion()
+            return
+
+        token_start, token = result
+
+        # Compute replacement: directory prefix + selected entry name
+        if "/" in token:
+            dir_prefix = token[: token.rfind("/") + 1]
+        else:
+            dir_prefix = ""
+
+        if entry.is_dir:
+            replacement = dir_prefix + entry.name + "/"
+        else:
+            replacement = dir_prefix + entry.name
+
+        self._replace_via_keyboard(replacement, (row, token_start), (row, col))
+
+        if entry.is_dir:
+            # Drill-down: show completions for the new directory
+            await self._check_file_completion()
+        else:
+            bar._dismiss_file_completion()
+
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
+        # File completion dropdown navigation (must come before all other handlers)
+        if await self._handle_file_completion_key(event):
+            return
+
         if event.key == "enter":
             event.stop()
             event.prevent_default()
@@ -518,6 +626,10 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
                         event.prevent_default()
                         return
         await super()._on_key(event)
+
+        # File completion: check/update after any text or cursor change
+        if self._vim_mode == "insert":
+            await self._check_file_completion()
 
         # Auto-wrap: reflow with prettier when line exceeds available width.
         # Skip wrapping on space so the user's trailing space is never consumed
