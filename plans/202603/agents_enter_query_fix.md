@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 20:10:34
-status: wip
+status: done
 ---
 
 # Plan: Fix Enter key on Agents tab to change CLs query when ChangeSpec not matched

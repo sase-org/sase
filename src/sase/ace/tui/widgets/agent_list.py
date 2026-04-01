@@ -3,6 +3,7 @@
 from typing import Any, Literal
 
 from rich.text import Text
+from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
@@ -91,6 +92,17 @@ def _is_foldable_parent(agent: Agent) -> bool:
 
 class AgentList(OptionList):
     """List widget showing agents, used for both main and pinned panels."""
+
+    # Override OptionList.BINDINGS to exclude the enter -> select binding.
+    # This lets the App-level enter -> jump_to_agent_changespec binding fire instead.
+    BINDINGS = [
+        Binding("down", "cursor_down", "Down", show=False),
+        Binding("end", "last", "Last", show=False),
+        Binding("home", "first", "First", show=False),
+        Binding("pagedown", "page_down", "Page Down", show=False),
+        Binding("pageup", "page_up", "Page Up", show=False),
+        Binding("up", "cursor_up", "Up", show=False),
+    ]
 
     class SelectionChanged(Message):
         """Message sent when selection changes."""
