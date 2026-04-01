@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import tempfile
 from datetime import datetime
 
 from rich.text import Text
@@ -10,6 +13,8 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
+
+from sase.ace.hints import build_editor_args
 
 from ..task_queue import TaskQueue, TaskInfo
 from .base import OptionListNavigationMixin
@@ -52,6 +57,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         ),
         ("d", "dismiss_task", "Dismiss"),
         ("D", "dismiss_all_done", "Dismiss All Done"),
+        ("e", "edit_output", "Edit"),
         ("ctrl+d", "scroll_output_down", "Scroll down"),
         ("ctrl+u", "scroll_output_up", "Scroll up"),
     ]
@@ -83,7 +89,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="task-queue-output-scroll"):
                         yield Static(id="task-queue-output-content")
             yield Label(
-                "j/k: navigate  d: dismiss  D: dismiss all done  Ctrl+D/U: scroll  q: close",
+                "j/k: navigate  d: dismiss  D: dismiss all done  e: edit  Ctrl+D/U: scroll  q: close",
                 id="task-queue-hints",
             )
 
@@ -268,6 +274,34 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
+
+    def action_edit_output(self) -> None:
+        """Open the selected task's output in $EDITOR."""
+        task = self._get_selected_task()
+        if task is None:
+            return
+
+        output = task.get_live_output()
+        if not output:
+            self.notify("No output available", severity="warning")
+            return
+
+        fd, path = tempfile.mkstemp(
+            suffix=".log", prefix=f"task_{task.task_type}_{task.cl_name}_"
+        )
+        try:
+            os.write(fd, output.encode())
+        finally:
+            os.close(fd)
+
+        editor = os.environ.get("EDITOR") or "nvim"
+        editor_args = build_editor_args(editor, [path])
+
+        with self.app.suspend():  # type: ignore[attr-defined]
+            subprocess.run(editor_args, check=False)
+
+        # Refresh output display (task may have progressed while in editor)
+        self._display_output(self._get_selected_task())
 
     # -- List rebuild ---------------------------------------------------------
 

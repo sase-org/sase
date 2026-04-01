@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 12:23:37
-status: wip
+status: done
 ---
 
 # Plan: Add `e` (edit) keymap to Task Queue Modal
