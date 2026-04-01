@@ -16,6 +16,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
 
+from ..actions.clipboard import copy_to_system_clipboard
 from ..task_queue import TaskQueue, TaskInfo
 from .base import OptionListNavigationMixin
 
@@ -58,6 +59,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         ("d", "dismiss_task", "Dismiss"),
         ("D", "dismiss_all_done", "Dismiss All Done"),
         ("e", "edit_output", "Edit"),
+        ("y", "copy_output", "Copy"),
         ("ctrl+d", "scroll_output_down", "Scroll down"),
         ("ctrl+u", "scroll_output_up", "Scroll up"),
     ]
@@ -89,7 +91,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="task-queue-output-scroll"):
                         yield Static(id="task-queue-output-content")
             yield Label(
-                "j/k: navigate  d: dismiss  D: dismiss all done  e: edit  Ctrl+D/U: scroll  q: close",
+                "j/k: navigate  d: dismiss  D: dismiss all done  e: edit  y: copy  Ctrl+D/U: scroll  q: close",
                 id="task-queue-hints",
             )
 
@@ -302,6 +304,23 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
 
         # Refresh output display (task may have progressed while in editor)
         self._display_output(self._get_selected_task())
+
+    def action_copy_output(self) -> None:
+        """Copy the selected task's output to the system clipboard."""
+        task = self._get_selected_task()
+        if task is None:
+            return
+
+        output = task.get_live_output()
+        if not output:
+            self.notify("No output available", severity="warning")
+            return
+
+        line_count = output.count("\n") + (1 if not output.endswith("\n") else 0)
+        if copy_to_system_clipboard(output):
+            self.notify(f"Copied: task output ({line_count} lines)")
+        else:
+            self.notify("Copy failed — clipboard tool not available", severity="error")
 
     # -- List rebuild ---------------------------------------------------------
 

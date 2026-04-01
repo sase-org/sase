@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 12:29:11
-status: wip
+status: done
 ---
 
 # Plan: Add `y` (copy) keymap to Task Queue Modal
