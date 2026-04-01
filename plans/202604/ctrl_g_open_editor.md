@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 14:21:56
-status: wip
+status: done
 ---
 
 # Plan: Add `<ctrl+g>` keymap to XPromptLocationModal to open file in editor

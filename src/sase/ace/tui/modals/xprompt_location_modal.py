@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.resources
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -15,6 +17,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.hints import build_editor_args
 from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import detect_project, get_sase_package_xprompts_dir
@@ -235,6 +238,7 @@ class _LocationFilterInput(FilterInput):
         ("ctrl+n", "forward('next_option')", "Next"),
         ("ctrl+p", "forward('prev_option')", "Prev"),
         ("enter", "forward('select_location')", "Select"),
+        ("ctrl+g", "forward('open_in_editor')", "Open in Editor"),
     ]
 
     def action_forward(self, action_name: str) -> None:
@@ -267,6 +271,7 @@ class XPromptLocationModal(
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("enter", "select_location", "Select"),
+        ("ctrl+g", "open_in_editor", "Open in Editor"),
     ]
 
     def __init__(self, project: str | None = None) -> None:
@@ -298,7 +303,7 @@ class XPromptLocationModal(
                     with VerticalScroll(id="location-preview-scroll"):
                         yield Static("", id="location-preview")
             yield Static(
-                "^n/^p: navigate  enter: select  ^d/^u: scroll  Esc: cancel",
+                "^n/^p: navigate  enter: select  ^g: open  ^d/^u: scroll  Esc: cancel",
                 id="location-hints",
             )
 
@@ -437,6 +442,18 @@ class XPromptLocationModal(
         loc = self._get_highlighted_location()
         if loc is not None:
             self.dismiss(loc)
+
+    def action_open_in_editor(self) -> None:
+        loc = self._get_highlighted_location()
+        if loc is None:
+            return
+        if loc.location_type != "config":
+            self.notify("Cannot open a directory in editor", severity="warning")
+            return
+        editor = os.environ.get("EDITOR") or "nvim"
+        editor_args = build_editor_args(editor, [loc.path])
+        with self.app.suspend():  # type: ignore[attr-defined]
+            subprocess.run(editor_args, check=False)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
