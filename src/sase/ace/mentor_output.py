@@ -131,7 +131,7 @@ def _load_all_mentor_outputs(cl_name: str) -> list[tuple[Path, MentorOutput]]:
         try:
             results.append((path, _load_mentor_output(path)))
         except (json.JSONDecodeError, KeyError, TypeError):
-            log.warning("Skipping malformed mentor output: %s", path)
+            log.debug("Skipping malformed mentor output: %s", path)
     return results
 
 
