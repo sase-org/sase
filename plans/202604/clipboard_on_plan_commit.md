@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 18:23:43
-status: wip
+status: done
 ---
 
 # Plan: Copy Plan File Path to Clipboard on "Plan Committed"

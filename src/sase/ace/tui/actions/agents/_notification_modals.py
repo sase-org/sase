@@ -336,6 +336,14 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             ):
                 app._agent_status_overrides[agent.identity] = "PLAN COMMITTED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="commit")
+                # Copy saved plan path to clipboard for easy #plan usage
+                saved_plan = response_data.get("saved_plan_path")
+                if isinstance(saved_plan, str):
+                    from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+
+                    short_path = saved_plan.replace(str(Path.home()), "~")
+                    copy_to_system_clipboard(short_path)
+                    app.notify(f"Plan committed — path copied: {short_path}")  # type: ignore[attr-defined]
             elif result.action == "approve" and not result.run_coder:
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="approve")
