@@ -261,5 +261,11 @@ class VCSPluginManager(VCSProvider):
             return description
         return result  # type: ignore[return-value]
 
+    def normalize_bug_value(self, tag_value: str) -> str:
+        result = self._pm.hook.vcs_normalize_bug_value(tag_value=tag_value)
+        if result is None:
+            return tag_value
+        return result  # type: ignore[return-value]
+
     def get_change_url(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_get_change_url", cwd=cwd)

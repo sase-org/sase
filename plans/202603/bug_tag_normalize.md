@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 21:12:29
-status: wip
+status: done
 ---
 
 # Plan: VCS-Agnostic BUG Tag Normalization

@@ -253,14 +253,9 @@ def add_tag_task(
                 )
 
                 try:
-                    bug_id = (
-                        tag_value.removeprefix("https://b/")
-                        .removeprefix("http://b/")
-                        .removeprefix("b/")
-                    )
-                    bug_url = f"http://b/{bug_id}"
+                    bug_value = provider.normalize_bug_value(tag_value)
                     update_changespec_bug_atomic(
-                        changespec_file_path, changespec_name, bug_url
+                        changespec_file_path, changespec_name, bug_value
                     )
                     print("Synced BUG field to project file")
                 except Exception as exc:

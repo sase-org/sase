@@ -171,6 +171,12 @@ class TestNonTrivialDefaults:
         mgr = _make_manager(_PrepareDescriptionPlugin())
         assert mgr.prepare_description_for_reword("hello") == "HELLO"
 
+    def test_normalize_bug_value_returns_input_when_unhandled(self) -> None:
+        mgr = _make_manager()
+        assert mgr.normalize_bug_value("https://github.com/org/repo/issues/42") == (
+            "https://github.com/org/repo/issues/42"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tests: VCSProvider interface compliance

@@ -197,6 +197,9 @@ class VCSHookSpec:
     def vcs_prepare_description_for_reword(self, description: str) -> str: ...
 
     @hookspec(firstresult=True)
+    def vcs_normalize_bug_value(self, tag_value: str) -> str: ...
+
+    @hookspec(firstresult=True)
     def vcs_get_change_url(self, cwd: str) -> tuple[bool, str | None]: ...
 
     # --- Classification hooks (used by registry, not by VCSProvider instances) ---

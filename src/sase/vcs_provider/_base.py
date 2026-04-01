@@ -322,6 +322,15 @@ class VCSProvider(ABC):
         """
         return description
 
+    def normalize_bug_value(self, tag_value: str) -> str:
+        """Normalize a BUG tag value for storage in a ChangeSpec.
+
+        The default implementation returns the value unchanged.
+        Providers with a canonical bug URL format (e.g. ``http://b/<id>``)
+        should override this method.
+        """
+        return tag_value
+
     def get_change_url(self, cwd: str) -> tuple[bool, str | None]:
         """Get the URL for the current change (CL URL or PR URL).
 
