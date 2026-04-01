@@ -23,6 +23,7 @@ def _cs(
     cl: str | None = None,
     parent: str | None = None,
     bug: str | None = None,
+    kickstart: str | None = None,
     commits: list[CommitEntry] | None = None,
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
@@ -35,7 +36,7 @@ def _cs(
         cl=cl,
         status=status,
         test_targets=None,
-        kickstart=None,
+        kickstart=kickstart,
         file_path="/home/user/.sase/projects/myproject/myproject.gp",
         line_number=1,
         bug=bug,
@@ -46,14 +47,14 @@ def _cs(
     )
 
 
-def _capture_markdown(changespecs: list[ChangeSpec]) -> str:
+def _capture_markdown(changespecs: list[ChangeSpec], *, query: str = "") -> str:
     """Capture _display_markdown output as a string."""
     import sys
 
     old_stdout = sys.stdout
     sys.stdout = buf = StringIO()
     try:
-        _display_markdown(changespecs)
+        _display_markdown(changespecs, query=query)
     finally:
         sys.stdout = old_stdout
     return buf.getvalue()
@@ -115,7 +116,7 @@ Found 1 change(s): 1 Ready
 
 ## my_feature
 
-**Status:** Ready
+**Status:** Ready · **Project:** myproject
 
 > A simple fix
 
@@ -208,7 +209,7 @@ Found 1 change(s): 1 Ready
 
 ## feature_auth
 
-**Status:** Ready · **Parent:** add_config_parser · **Bug:** b/12345 **PR:** https://github.com/org/repo/pull/42
+**Status:** Ready · **Project:** myproject · **Parent:** add_config_parser · **Bug:** b/12345 **PR:** https://github.com/org/repo/pull/42
 
 > Add new feature for user authentication
 
@@ -261,9 +262,11 @@ class TestMultipleChangeSpecs:
 
 Found 2 change(s): 1 Draft, 1 WIP
 
+[first](#first) · [second](#second)
+
 ## first
 
-**Status:** WIP
+**Status:** WIP · **Project:** myproject
 
 > First change
 
@@ -271,7 +274,7 @@ Found 2 change(s): 1 Draft, 1 WIP
 
 ## second
 
-**Status:** Draft
+**Status:** Draft · **Project:** myproject
 
 > Second change
 
@@ -346,3 +349,161 @@ class TestMultiLineDescription:
         assert ">" in out  # blank blockquote line for paragraph break
         assert "> Second paragraph" in out
         assert "> still second" in out
+
+
+# ---------------------------------------------------------------------------
+# Query string in header
+# ---------------------------------------------------------------------------
+
+
+class TestQueryHeader:
+    def test_query_in_header(self) -> None:
+        out = _capture_markdown(
+            [_cs(name="my_feature", description="A fix")],
+            query="status:Ready",
+        )
+        assert out == snapshot("""\
+# Search Results
+
+**Query:** `status:Ready`
+
+Found 1 change(s): 1 Ready
+
+## my_feature
+
+**Status:** Ready · **Project:** myproject
+
+> A fix
+
+""")
+
+    def test_no_query_no_line(self) -> None:
+        out = _capture_markdown([_cs(name="bare")])
+        assert "**Query:**" not in out
+
+
+# ---------------------------------------------------------------------------
+# Commit drawer paths (CHAT/DIFF/PLAN)
+# ---------------------------------------------------------------------------
+
+
+class TestDrawerPaths:
+    def test_commit_drawers(self) -> None:
+        from pathlib import Path
+
+        home = str(Path.home())
+        out = _capture_markdown(
+            [
+                _cs(
+                    name="with_drawers",
+                    commits=[
+                        CommitEntry(
+                            number=1,
+                            note="First commit",
+                            chat=f"{home}/.sase/chats/chat.md",
+                            diff=f"{home}/.sase/diffs/diff",
+                            plan=f"{home}/.sase/plans/plan.md",
+                        ),
+                        CommitEntry(
+                            number=2,
+                            note="Second commit",
+                            diff=f"{home}/.sase/diffs/diff2",
+                        ),
+                    ],
+                )
+            ]
+        )
+        assert (
+            "> **1:** `~/.sase/chats/chat.md` · `~/.sase/diffs/diff`"
+            " · `~/.sase/plans/plan.md`"
+        ) in out
+        assert "> **2:** `~/.sase/diffs/diff2`" in out
+
+    def test_no_drawers(self) -> None:
+        out = _capture_markdown(
+            [
+                _cs(
+                    name="no_drawers",
+                    commits=[CommitEntry(number=1, note="No drawers")],
+                )
+            ]
+        )
+        assert "> **1:**" not in out
+
+
+# ---------------------------------------------------------------------------
+# Running workspaces
+# ---------------------------------------------------------------------------
+
+
+class TestRunningWorkspaces:
+    def test_running_workspaces(self) -> None:
+        from unittest.mock import patch
+
+        from sase.running_field import WorkspaceClaim
+
+        mock_claims = [
+            WorkspaceClaim(
+                workspace_num=1, pid=12345, workflow="crs", cl_name="my_feature"
+            ),
+        ]
+        with patch(
+            "sase.running_field.get_claimed_workspaces", return_value=mock_claims
+        ):
+            out = _capture_markdown([_cs(name="with_ws")])
+        assert "### Running Workspaces" in out
+        assert "| #1 | 12345 | crs | my_feature |" in out
+
+    def test_no_running_workspaces(self) -> None:
+        from unittest.mock import patch
+
+        with patch("sase.running_field.get_claimed_workspaces", return_value=[]):
+            out = _capture_markdown([_cs(name="bare")])
+        assert "### Running Workspaces" not in out
+
+
+# ---------------------------------------------------------------------------
+# Kickstart section
+# ---------------------------------------------------------------------------
+
+
+class TestKickstart:
+    def test_kickstart_section(self) -> None:
+        out = _capture_markdown(
+            [
+                _cs(
+                    name="with_ks",
+                    kickstart="Build a login page\n\nWith OAuth support",
+                )
+            ]
+        )
+        assert "### Kickstart" in out
+        assert "> Build a login page" in out
+        assert "> With OAuth support" in out
+
+    def test_no_kickstart(self) -> None:
+        out = _capture_markdown([_cs(name="bare")])
+        assert "### Kickstart" not in out
+
+
+# ---------------------------------------------------------------------------
+# Summary anchor quick links
+# ---------------------------------------------------------------------------
+
+
+class TestAnchorLinks:
+    def test_anchor_links_with_multiple(self) -> None:
+        out = _capture_markdown(
+            [
+                _cs(name="feature_auth"),
+                _cs(name="my_fix"),
+                _cs(name="new_api"),
+            ]
+        )
+        assert (
+            "[feature_auth](#feature_auth) · [my_fix](#my_fix) · [new_api](#new_api)"
+        ) in out
+
+    def test_no_anchor_links_with_single(self) -> None:
+        out = _capture_markdown([_cs(name="solo")])
+        assert "[solo](#solo)" not in out

@@ -32,7 +32,7 @@ def handle_search_command(args: argparse.Namespace) -> None:
     if args.format == "rich":
         _display_rich(matching)
     elif args.format == "markdown":
-        _display_markdown(matching)
+        _display_markdown(matching, query=args.query)
     else:
         _display_plain(matching)
 
@@ -231,6 +231,7 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
 
     # Metadata line
     meta_parts: list[str] = [f"**Status:** {cs.status}"]
+    meta_parts.append(f"**Project:** {cs.project_basename}")
     if cs.parent:
         meta_parts.append(f"**Parent:** {cs.parent}")
     meta = " · ".join(meta_parts)
@@ -245,10 +246,38 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
     lines.append(meta)
     lines.append("")
 
+    # Running workspaces
+    from sase.running_field import get_claimed_workspaces
+
+    running_claims = get_claimed_workspaces(cs.file_path)
+    if running_claims:
+        lines.append("### Running Workspaces")
+        lines.append("")
+        ws_rows: list[list[str]] = []
+        for claim in running_claims:
+            ws_rows.append(
+                [
+                    f"#{claim.workspace_num}",
+                    str(claim.pid),
+                    claim.workflow,
+                    claim.cl_name or "",
+                ]
+            )
+        lines.extend(_md_table(["Workspace", "PID", "Workflow", "ChangeSpec"], ws_rows))
+        lines.append("")
+
     # Description as blockquote
     for para_line in cs.description.split("\n"):
         lines.append(f"> {para_line}" if para_line else ">")
     lines.append("")
+
+    # Kickstart
+    if cs.kickstart:
+        lines.append("### Kickstart")
+        lines.append("")
+        for ks_line in cs.kickstart.split("\n"):
+            lines.append(f"> {ks_line}" if ks_line else ">")
+        lines.append("")
 
     # Commits table
     if cs.commits:
@@ -266,6 +295,25 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
             rows.append([entry.display_number, entry.note, status_cell])
         lines.extend(_md_table(["#", "Description", "Status"], rows))
         lines.append("")
+
+        # Drawer paths (CHAT/DIFF/PLAN)
+        drawer_lines: list[str] = []
+        for entry in cs.commits:
+            paths: list[str] = []
+            if entry.chat:
+                paths.append(f"`{entry.chat.replace(str(Path.home()), '~')}`")
+            if entry.diff:
+                paths.append(f"`{entry.diff.replace(str(Path.home()), '~')}`")
+            if entry.plan:
+                paths.append(f"`{entry.plan.replace(str(Path.home()), '~')}`")
+            if paths:
+                drawer_lines.append(
+                    f"> **{entry.display_number}:** {' · '.join(paths)}"
+                )
+        if drawer_lines:
+            for dl in drawer_lines:
+                lines.append(dl)
+            lines.append("")
 
     # Hooks table (flattened — one row per status line)
     if cs.hooks:
@@ -328,7 +376,7 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
     return lines
 
 
-def _display_markdown(matching: list) -> None:  # type: ignore[type-arg]
+def _display_markdown(matching: list, *, query: str = "") -> None:  # type: ignore[type-arg]
     """Display search results as agent-friendly markdown."""
     from collections import Counter
 
@@ -343,7 +391,14 @@ def _display_markdown(matching: list) -> None:  # type: ignore[type-arg]
     )
     print("# Search Results")
     print("")
+    if query:
+        print(f"**Query:** `{query}`")
+        print("")
     print(f"Found {len(changespecs)} change(s): {breakdown}")
+    if len(changespecs) > 1:
+        links = " · ".join(f"[{cs.name}](#{cs.name})" for cs in changespecs)
+        print("")
+        print(links)
     print("")
 
     # Render each ChangeSpec separated by horizontal rules
