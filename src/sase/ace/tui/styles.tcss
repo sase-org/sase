@@ -676,11 +676,27 @@ PromptInputBar {
     border: solid $accent;
     background: $surface;
     dock: bottom;
+    padding: 0 1;
+}
+
+PromptInputBar #prompt-completion {
+    width: 100%;
+    height: auto;
+    max-height: 10;
+    border: solid $secondary;
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+    margin: 0 0 1 0;
+}
+
+PromptInputBar #prompt-completion.hidden {
+    display: none;
 }
 
 PromptInputBar #prompt-input {
     width: 100%;
-    height: 100%;
+    height: auto;
     border: none;
     background: $background;
     color: $text;

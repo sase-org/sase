@@ -2,9 +2,12 @@
 
 from typing import Any
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.message import Message
 from textual.widgets import Static, TextArea
+
+from sase.ace.tui.widgets.file_completion import MAX_VISIBLE
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
@@ -68,6 +71,8 @@ class PromptInputBar(Static):
         super().__init__(**kwargs)
         self._initial_value = initial_value
         self._mode = mode
+        self._completion_visible = False
+        self._completion_line_count = 0
 
     @property
     def _base_title(self) -> str:
@@ -81,8 +86,9 @@ class PromptInputBar(Static):
         else:
             placeholder = (
                 "Type prompt, '.' for history, '#@' for snippets  "
-                "[^G] editor  [^Y] workflow  [^J] newline"
+                "[Tab] path complete  [^G] editor  [^Y] workflow  [^J] newline"
             )
+        yield Static("", id="prompt-completion", classes="hidden")
         yield PromptTextArea(
             self._initial_value,
             language="markdown",
@@ -151,12 +157,79 @@ class PromptInputBar(Static):
         # Reserve a few rows for the header/tabs at minimum
         screen_height = self.screen.size.height if self.screen else 50
         max_height = screen_height - 2
-        # +2 for border top and bottom
-        new_height = min(max(visual_lines + 2, 3), max_height)
+        # +2 for border top and bottom, plus completion panel when visible
+        completion_rows = self._completion_line_count if self._completion_visible else 0
+        new_height = min(max(visual_lines + 2 + completion_rows, 3), max_height)
         self.styles.height = new_height
 
     def on_resize(self) -> None:
         """Recalculate height when the terminal is resized."""
+        self._update_height()
+
+    def show_file_completions(
+        self,
+        token: str,
+        rows: list[tuple[str, bool]],
+        selected_index: int,
+        scroll_offset: int = 0,
+    ) -> None:
+        """Show the path completion panel with Rich styling.
+
+        Args:
+            token: Current token being completed.
+            rows: Completion entries as (display_label, is_dir).
+            selected_index: Highlighted row index.
+            scroll_offset: First visible entry index for scrolling.
+        """
+        panel = self.query_one("#prompt-completion", Static)
+        total = len(rows)
+        visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
+
+        content = Text()
+        for i, (label, is_dir) in enumerate(visible):
+            actual_idx = scroll_offset + i
+            is_selected = actual_idx == selected_index
+
+            if is_selected:
+                content.append("\u25b8 ", style="bold")
+            else:
+                content.append("  ")
+
+            if is_dir:
+                content.append("\U0001f4c1 ")
+                content.append(label, style="bold cyan" if is_selected else "cyan")
+            else:
+                content.append("\U0001f4c4 ")
+                content.append(label, style="bold" if is_selected else "")
+
+            if i < len(visible) - 1:
+                content.append("\n")
+
+        remaining = total - (scroll_offset + len(visible))
+        if remaining > 0:
+            content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
+
+        # Border title shows the directory being completed
+        if "/" in token:
+            dir_part = token[: token.rindex("/") + 1]
+        else:
+            dir_part = token
+        panel.border_title = dir_part
+
+        panel.update(content)
+        panel.remove_class("hidden")
+        self._completion_visible = True
+        line_count = len(visible) + (1 if remaining > 0 else 0)
+        self._completion_line_count = line_count + 3  # +3 for panel border + margin
+        self._update_height()
+
+    def hide_file_completions(self) -> None:
+        """Hide the path completion panel."""
+        panel = self.query_one("#prompt-completion", Static)
+        panel.update("")
+        panel.add_class("hidden")
+        self._completion_visible = False
+        self._completion_line_count = 0
         self._update_height()
 
     def _handle_text_submission(self, text: str) -> None:
