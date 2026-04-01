@@ -29,6 +29,7 @@ from .runners_modal import (
 )
 from .status_modal import StatusModal
 from .tag_input_modal import TagInputModal
+from .approve_options_modal import ApproveOptionsModal, ApproveOptionsResult
 from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
 from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
@@ -65,6 +66,8 @@ __all__ = [
     "MentorRunResult",
     "build_mentor_review_data",
     "AddXPromptModal",
+    "ApproveOptionsModal",
+    "ApproveOptionsResult",
     "AgentNameModal",
     "AgentRunLogModal",
     "CommandHistoryModal",

@@ -226,6 +226,63 @@ PlanApprovalModal {
 }
 
 
+/* Approve Options Modal styling */
+ApproveOptionsModal {
+    align: center middle;
+}
+
+#approve-options-container {
+    width: 70;
+    height: auto;
+    max-height: 20;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#approve-options-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.approve-options-row {
+    height: 3;
+    align: center middle;
+}
+
+.approve-options-label {
+    width: 1fr;
+    content-align-vertical: middle;
+}
+
+.approve-options-label.disabled {
+    color: $text-disabled;
+}
+
+.approve-options-prompt-label {
+    height: auto;
+    margin-top: 1;
+}
+
+.approve-options-prompt-label.disabled {
+    color: $text-disabled;
+}
+
+#coder-prompt-input {
+    margin-bottom: 1;
+}
+
+#approve-options-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+
 /* Mentor Review Modal styling */
 MentorReviewModal {
     align: center middle;
