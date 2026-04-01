@@ -2,9 +2,12 @@
 
 from typing import Any
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.message import Message
 from textual.widgets import Static, TextArea
+
+from sase.ace.tui.widgets.file_completion import MAX_VISIBLE
 
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
@@ -168,27 +171,56 @@ class PromptInputBar(Static):
         token: str,
         rows: list[tuple[str, bool]],
         selected_index: int,
+        scroll_offset: int = 0,
     ) -> None:
-        """Show the path completion panel.
+        """Show the path completion panel with Rich styling.
 
         Args:
             token: Current token being completed.
             rows: Completion entries as (display_label, is_dir).
             selected_index: Highlighted row index.
+            scroll_offset: First visible entry index for scrolling.
         """
         panel = self.query_one("#prompt-completion", Static)
-        lines = [f"Path completions: {token}"]
-        for i, (label, is_dir) in enumerate(rows):
-            marker = ">" if i == selected_index else " "
-            kind = "DIR " if is_dir else "FILE"
-            lines.append(f"{marker} [{kind}] {label}")
-        lines.append(
-            "Keys: Tab complete  Ctrl+N/P or Up/Down move  Ctrl+L accept  Esc close"
-        )
-        panel.update("\n".join(lines))
+        total = len(rows)
+        visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
+
+        content = Text()
+        for i, (label, is_dir) in enumerate(visible):
+            actual_idx = scroll_offset + i
+            is_selected = actual_idx == selected_index
+
+            if is_selected:
+                content.append("\u25b8 ", style="bold")
+            else:
+                content.append("  ")
+
+            if is_dir:
+                content.append("\U0001f4c1 ")
+                content.append(label, style="bold cyan" if is_selected else "cyan")
+            else:
+                content.append("\U0001f4c4 ")
+                content.append(label, style="bold" if is_selected else "")
+
+            if i < len(visible) - 1:
+                content.append("\n")
+
+        remaining = total - (scroll_offset + len(visible))
+        if remaining > 0:
+            content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
+
+        # Border title shows the directory being completed
+        if "/" in token:
+            dir_part = token[: token.rindex("/") + 1]
+        else:
+            dir_part = token
+        panel.border_title = dir_part
+
+        panel.update(content)
         panel.remove_class("hidden")
         self._completion_visible = True
-        self._completion_line_count = len(lines)
+        line_count = len(visible) + (1 if remaining > 0 else 0)
+        self._completion_line_count = line_count + 3  # +3 for panel border + margin
         self._update_height()
 
     def hide_file_completions(self) -> None:

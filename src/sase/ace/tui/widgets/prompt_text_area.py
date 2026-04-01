@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import difflib
-import os
 import re
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -15,6 +13,13 @@ from textual.widgets import TextArea
 
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
+from sase.ace.tui.widgets.file_completion import (
+    MAX_VISIBLE,
+    CompletionCandidate,
+    build_completion_candidates,
+    extract_token_around_cursor,
+    is_path_like_token,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -27,16 +32,6 @@ def _prompt_bar_class() -> type[PromptInputBar]:
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
     return PromptInputBar
-
-
-@dataclass(slots=True)
-class _FileCompletionCandidate:
-    """Single file completion candidate."""
-
-    display: str
-    insertion: str
-    is_dir: bool
-    name: str
 
 
 class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
@@ -70,7 +65,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._formatting: bool = False
         self._snippet_tabstops: list[int] = []
         self._snippet_end_from_doc_end: int = 0
-        self._file_completion_candidates: list[_FileCompletionCandidate] = []
+        self._file_completion_candidates: list[CompletionCandidate] = []
         self._file_completion_index: int = 0
         self._file_completion_active: bool = False
 
@@ -315,37 +310,11 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Get the snippet registry from the app config."""
         return self._ace_app._snippets
 
-    @staticmethod
-    def _is_token_delimiter(char: str) -> bool:
-        """Return True when *char* terminates a token."""
-        return char.isspace() or char in {"'", '"', "`"}
-
-    @staticmethod
-    def _is_path_like_token(token: str) -> bool:
-        """Return True when token looks like a file path fragment."""
-        if not token:
-            return False
-        if token.startswith(("~/", "/", "./", "../", ".sase/")):
-            return True
-        return "/" in token
-
     def _extract_token_around_cursor(self) -> tuple[int, int, str] | None:
         """Extract token bounds around the cursor in the current line."""
         row, col = self.cursor_location
         line = self.document.get_line(row)
-        col = min(col, len(line))
-
-        start = col
-        while start > 0 and not self._is_token_delimiter(line[start - 1]):
-            start -= 1
-
-        end = col
-        while end < len(line) and not self._is_token_delimiter(line[end]):
-            end += 1
-
-        if start == end:
-            return None
-        return start, end, line[start:end]
+        return extract_token_around_cursor(line, col)
 
     def _get_path_token_context(self) -> tuple[int, int, int, str] | None:
         """Return (row, start, end, token) for the current path token."""
@@ -354,7 +323,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             return None
 
         start, end, token = token_info
-        if not self._is_path_like_token(token):
+        if not is_path_like_token(token):
             return None
         row, _ = self.cursor_location
         return row, start, end, token
@@ -363,57 +332,6 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Replace token range and put cursor at token end."""
         self._replace_via_keyboard(token, (row, start), (row, end))
         self.cursor_location = (row, start + len(token))
-
-    def _build_file_completion_candidates(
-        self,
-        token: str,
-    ) -> tuple[list[_FileCompletionCandidate], str]:
-        """Build candidates and shared extension for a path token."""
-        if token.endswith("/"):
-            raw_dir = token
-            expanded_dir = os.path.expanduser(token)
-            partial = ""
-        else:
-            raw_head, raw_tail = token.rsplit("/", 1)
-            raw_dir = f"{raw_head}/"
-            expanded_head, expanded_tail = os.path.expanduser(token).rsplit("/", 1)
-            expanded_dir = f"{expanded_head}/"
-            partial = expanded_tail
-            if raw_tail != expanded_tail:
-                # expanduser can only alter the head, so keep caller-visible partial
-                partial = raw_tail
-
-        try:
-            with os.scandir(expanded_dir) as entries:
-                candidates: list[_FileCompletionCandidate] = []
-                for entry in entries:
-                    if not entry.name.lower().startswith(partial.lower()):
-                        continue
-                    try:
-                        is_dir = entry.is_dir(follow_symlinks=False)
-                    except OSError:
-                        is_dir = False
-                    display = f"{entry.name}/" if is_dir else entry.name
-                    candidates.append(
-                        _FileCompletionCandidate(
-                            display=display,
-                            insertion=f"{raw_dir}{display}",
-                            is_dir=is_dir,
-                            name=entry.name,
-                        )
-                    )
-        except OSError:
-            return [], ""
-
-        candidates.sort(key=lambda c: (not c.is_dir, c.name.lower(), c.name))
-
-        shared_extension = ""
-        if len(candidates) > 1:
-            shared_prefix = os.path.commonprefix([c.name for c in candidates])
-            if len(shared_prefix) > len(partial):
-                shared_extension = shared_prefix[len(partial) :]
-
-        return candidates, shared_extension
 
     def _update_file_completion_panel(self, token: str) -> None:
         """Sync completion UI with the current completion state."""
@@ -426,7 +344,17 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             return
 
         rows = [(c.display, c.is_dir) for c in self._file_completion_candidates]
-        bar.show_file_completions(token, rows, self._file_completion_index)
+        total = len(rows)
+        if total <= MAX_VISIBLE:
+            scroll_offset = 0
+        else:
+            half = MAX_VISIBLE // 2
+            scroll_offset = max(
+                0, min(self._file_completion_index - half, total - MAX_VISIBLE)
+            )
+        bar.show_file_completions(
+            token, rows, self._file_completion_index, scroll_offset
+        )
 
     def _clear_file_completion(self) -> None:
         """Reset path completion state and hide panel."""
@@ -456,7 +384,15 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         row, start, end, _token = ctx
         selected = self._file_completion_candidates[self._file_completion_index]
         self._replace_token_text(row, start, end, selected.insertion)
-        self._clear_file_completion()
+        # Directory drill-down: open completion for the accepted directory
+        if selected.is_dir:
+            self._file_completion_active = False
+            self._file_completion_candidates = []
+            self._file_completion_index = 0
+            if not self._try_file_completion_tab():
+                self._clear_file_completion()
+        else:
+            self._clear_file_completion()
         return True
 
     def _refresh_file_completion_from_cursor(self) -> None:
@@ -475,7 +411,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             previous = self._file_completion_candidates[
                 self._file_completion_index
             ].insertion
-        candidates, _shared = self._build_file_completion_candidates(token)
+        candidates, _shared = build_completion_candidates(token)
         if not candidates:
             self._clear_file_completion()
             return
@@ -505,7 +441,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             return False
 
         row, start, end, token = ctx
-        candidates, shared_extension = self._build_file_completion_candidates(token)
+        candidates, shared_extension = build_completion_candidates(token)
         if not candidates:
             self._clear_file_completion()
             return True
@@ -523,7 +459,7 @@ class PromptTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
                 self._clear_file_completion()
                 return True
             row, start, end, token = ctx
-            candidates, _ = self._build_file_completion_candidates(token)
+            candidates, _ = build_completion_candidates(token)
             if not candidates:
                 self._clear_file_completion()
                 return True
