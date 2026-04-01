@@ -329,9 +329,16 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             if result.action == "approve" and result.run_coder:
                 app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="approve")
-            elif result.action == "approve" and not result.run_coder:
+            elif (
+                result.action == "approve"
+                and not result.run_coder
+                and result.commit_plan
+            ):
                 app._agent_status_overrides[agent.identity] = "PLAN COMMITTED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="commit")
+            elif result.action == "approve" and not result.run_coder:
+                app._agent_status_overrides[agent.identity] = "PLAN APPROVED"  # type: ignore[attr-defined]
+                persist_plan_approved(agent, action="approve")
             elif result.action == "epic":
                 app._agent_status_overrides[agent.identity] = "EPIC CREATED"  # type: ignore[attr-defined]
                 persist_plan_approved(agent, action="epic")

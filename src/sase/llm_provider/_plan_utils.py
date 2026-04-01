@@ -198,10 +198,17 @@ def handle_plan_approval(
                 if action in ("approve", "epic", "commit"):
                     response_path.unlink()
                     assert plan_file is not None
-                    # Read approve-with-options fields
-                    commit_plan = response_data.get("commit_plan", True)
-                    run_coder = response_data.get("run_coder", True)
-                    coder_prompt = response_data.get("coder_prompt")
+                    # Read approve-with-options fields with type validation
+                    raw_commit = response_data.get("commit_plan")
+                    commit_plan = raw_commit if isinstance(raw_commit, bool) else True
+                    raw_run = response_data.get("run_coder")
+                    run_coder = raw_run if isinstance(raw_run, bool) else True
+                    raw_prompt = response_data.get("coder_prompt")
+                    coder_prompt = (
+                        raw_prompt.strip() or None
+                        if isinstance(raw_prompt, str)
+                        else None
+                    )
                     # Backward compat: old "commit" action maps to
                     # approve with run_coder=False
                     if action == "commit":

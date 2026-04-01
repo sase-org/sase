@@ -275,13 +275,16 @@ def handle_plan_marker(
     except Exception:
         logger.warning("SDD file generation failed", exc_info=True)
 
+    # Unified SDD commit: epics always need committed files (the #gh
+    # pre-step wipes uncommitted files); other actions respect commit_plan.
+    should_commit = plan_result.commit_plan if plan_result.action != "epic" else True
+    if should_commit and sdd_plan_name:
+        if version_controlled:
+            _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
+        else:
+            commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
+
     if not plan_result.run_coder and plan_result.action != "epic":
-        # No coder agent — optionally commit SDD files, then return
-        if sdd_plan_name and plan_result.commit_plan:
-            if version_controlled:
-                _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
-            else:
-                commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
         return "plan_committed"
 
     # VCS workflow tag prefix for follow-up agents
@@ -301,13 +304,6 @@ def handle_plan_marker(
         from sase.sdd.beads import ensure_beads_initialized
 
         ensure_beads_initialized(ctx.workspace_dir, ctx.workspace_num)
-
-        # Commit SDD files so the #gh pre-step doesn't wipe them
-        if sdd_plan_name:
-            if version_controlled:
-                _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
-            else:
-                commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
 
         # Epic: spawn epic agent to create beads
         state.current_role_suffix = ".epic"
@@ -340,11 +336,6 @@ def handle_plan_marker(
         # Approve: spawn coder with plan as prompt
         state.current_role_suffix = ".code"
 
-        # Commit SDD files so the #gh pre-step doesn't wipe them
-        if sdd_plan_name and plan_result.commit_plan:
-            if version_controlled:
-                _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
-
         # Point SASE_PLAN at the committed in-repo plan file so
         # the commit workflow can update its frontmatter without copying.
         if sdd_plan_path and sdd_plan_path.exists():
@@ -368,7 +359,7 @@ def handle_plan_marker(
         )
         coder_extra = ""
         if plan_result.coder_prompt:
-            coder_extra = f"\n{plan_result.coder_prompt}"
+            coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
         state.current_prompt = (
             f"{model_prefix}{vcs_prefix}"
             f"@{plan_data['plan_file']}\n\n"

@@ -175,3 +175,87 @@ class TestModelInheritance:
     def test_epic_prompt_no_model_when_none(self, tmp_path) -> None:
         state = self._run(tmp_path, action="epic", agent_model=None)
         assert not state.current_prompt.startswith("%model:")
+
+    def test_approve_no_coder_commit_true_returns_plan_committed(
+        self, tmp_path
+    ) -> None:
+        """run_coder=False, commit_plan=True -> outcome 'plan_committed', SDD committed."""
+        ctx = _make_ctx(tmp_path)
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=False,
+            commit_plan=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert outcome == "plan_committed"
+        mock_commit.assert_called_once()
+
+    def test_approve_no_coder_commit_false_skips_commit(self, tmp_path) -> None:
+        """run_coder=False, commit_plan=False -> outcome 'plan_committed', no SDD commit."""
+        ctx = _make_ctx(tmp_path)
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=False,
+            commit_plan=False,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch("sase.axe.run_agent_exec_plan._commit_sdd_files") as mock_commit,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert outcome == "plan_committed"
+        mock_commit.assert_not_called()
+
+    def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
+        """coder_prompt with content -> 'Additional instructions:' in prompt."""
+        ctx = _make_ctx(tmp_path)
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_prompt="#foo\ncustom",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert "Additional instructions:" in state.current_prompt
+        assert "#foo\ncustom" in state.current_prompt

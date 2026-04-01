@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Input, Static, Switch
+from textual.widgets import Static, Switch, TextArea
 
 
 @dataclass
@@ -42,10 +42,7 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
                 yield Switch(value=True, id="run-coder-switch")
 
             yield Static("Additional prompt:", classes="approve-options-prompt-label")
-            yield Input(
-                placeholder="e.g. #review+  (supports xprompts)",
-                id="coder-prompt-input",
-            )
+            yield TextArea("", id="coder-prompt-input")
 
             yield Static(
                 "[green]enter[/green]=Approve  "
@@ -60,7 +57,7 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
 
     def on_switch_changed(self, event: Switch.Changed) -> None:
         if event.switch.id == "run-coder-switch":
-            inp = self.query_one("#coder-prompt-input", Input)
+            inp = self.query_one("#coder-prompt-input", TextArea)
             inp.disabled = not event.value
             label = self.query_one(".approve-options-prompt-label", Static)
             label.add_class("disabled") if not event.value else label.remove_class(
@@ -73,7 +70,7 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
     def action_approve(self) -> None:
         commit_plan = self.query_one("#commit-plan-switch", Switch).value
         run_coder = self.query_one("#run-coder-switch", Switch).value
-        raw = self.query_one("#coder-prompt-input", Input).value.strip()
+        raw = self.query_one("#coder-prompt-input", TextArea).text.strip()
         coder_prompt = raw if raw else None
         self.dismiss(
             ApproveOptionsResult(
