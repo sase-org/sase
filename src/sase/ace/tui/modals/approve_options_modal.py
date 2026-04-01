@@ -45,11 +45,19 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
             )
 
             with Horizontal(classes="approve-options-row"):
-                yield Static("Commit plan", classes="approve-options-label")
+                yield Static(
+                    "Commit plan",
+                    id="commit-plan-label",
+                    classes="approve-options-label",
+                )
                 yield Switch(value=True, id="commit-plan-switch")
 
             with Horizontal(classes="approve-options-row"):
-                yield Static("Run coder agent", classes="approve-options-label")
+                yield Static(
+                    "Run coder agent",
+                    id="run-coder-label",
+                    classes="approve-options-label",
+                )
                 yield Switch(value=True, id="run-coder-switch")
 
             yield Static("Additional prompt:", classes="approve-options-prompt-label")
@@ -67,14 +75,49 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
     def on_mount(self) -> None:
         self.query_one("#commit-plan-switch", Switch).focus()
 
-    def on_switch_changed(self, event: Switch.Changed) -> None:
-        if event.switch.id == "run-coder-switch":
-            inp = self.query_one("#coder-prompt-input", TextArea)
-            inp.disabled = not event.value
-            label = self.query_one(".approve-options-prompt-label", Static)
-            label.add_class("disabled") if not event.value else label.remove_class(
-                "disabled"
-            )
+    def on_switch_changed(self, event: Switch.Changed) -> None:  # noqa: ARG002
+        self._sync_constraints()
+
+    def _sync_constraints(self) -> None:
+        """Enforce the invariant: at least one of commit/coder must be ON."""
+        commit_sw = self.query_one("#commit-plan-switch", Switch)
+        coder_sw = self.query_one("#run-coder-switch", Switch)
+        commit_lbl = self.query_one("#commit-plan-label", Static)
+        coder_lbl = self.query_one("#run-coder-label", Static)
+        prompt_input = self.query_one("#coder-prompt-input", TextArea)
+        prompt_label = self.query_one(".approve-options-prompt-label", Static)
+
+        if not commit_sw.value:
+            # Coder only — lock coder ON
+            coder_sw.disabled = True
+            coder_lbl.update("Run coder agent (required)")
+            coder_lbl.add_class("locked")
+            commit_sw.disabled = False
+            commit_lbl.update("Commit plan")
+            commit_lbl.remove_class("locked")
+        elif not coder_sw.value:
+            # Commit only — lock commit ON
+            commit_sw.disabled = True
+            commit_lbl.update("Commit plan (required)")
+            commit_lbl.add_class("locked")
+            coder_sw.disabled = False
+            coder_lbl.update("Run coder agent")
+            coder_lbl.remove_class("locked")
+        else:
+            # Both ON — unlock both
+            commit_sw.disabled = False
+            coder_sw.disabled = False
+            commit_lbl.update("Commit plan")
+            commit_lbl.remove_class("locked")
+            coder_lbl.update("Run coder agent")
+            coder_lbl.remove_class("locked")
+
+        # Prompt area enabled only when coder is ON
+        prompt_input.disabled = not coder_sw.value
+        if coder_sw.value:
+            prompt_label.remove_class("disabled")
+        else:
+            prompt_label.add_class("disabled")
 
     def on_key(self, event: events.Key) -> None:
         """Intercept enter/ctrl+n/ctrl+p so they work even when TextArea has focus."""

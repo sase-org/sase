@@ -261,6 +261,10 @@ ApproveOptionsModal {
     color: $text-disabled;
 }
 
+.approve-options-label.locked {
+    color: $text-disabled;
+}
+
 .approve-options-prompt-label {
     height: auto;
     margin-top: 1;

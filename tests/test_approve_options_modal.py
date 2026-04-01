@@ -3,7 +3,7 @@
 from textual import events
 from textual.app import App, ComposeResult
 from textual.keys import Keys
-from textual.widgets import Switch, TextArea
+from textual.widgets import Static, Switch, TextArea
 
 from sase.ace.tui.modals.approve_options_modal import (
     ApproveOptionsModal,
@@ -172,6 +172,95 @@ async def test_ctrl_p_cycles_focus_backward() -> None:
         first = pilot.app.focused
         assert isinstance(first, Switch)
         assert first.id == "commit-plan-switch"
+
+
+async def test_toggle_coder_off_locks_commit_on() -> None:
+    """Turning off coder locks commit switch (at least one must be ON)."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        commit_sw = modal.query_one("#commit-plan-switch", Switch)
+        coder_sw = modal.query_one("#run-coder-switch", Switch)
+        commit_lbl = modal.query_one("#commit-plan-label", Static)
+
+        # Toggle coder OFF via space on the switch
+        coder_sw.focus()
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert not coder_sw.value
+        assert commit_sw.value is True
+        assert commit_sw.disabled is True
+        assert "locked" in commit_lbl.classes
+        assert "(required)" in str(commit_lbl.render())
+
+
+async def test_toggle_commit_off_locks_coder_on() -> None:
+    """Turning off commit locks coder switch (at least one must be ON)."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        commit_sw = modal.query_one("#commit-plan-switch", Switch)
+        coder_sw = modal.query_one("#run-coder-switch", Switch)
+        coder_lbl = modal.query_one("#run-coder-label", Static)
+
+        # Toggle commit OFF
+        commit_sw.focus()
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert not commit_sw.value
+        assert coder_sw.value is True
+        assert coder_sw.disabled is True
+        assert "locked" in coder_lbl.classes
+        assert "(required)" in str(coder_lbl.render())
+
+
+async def test_toggle_back_on_unlocks_other() -> None:
+    """Toggling a switch back ON re-enables the other switch."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        commit_sw = modal.query_one("#commit-plan-switch", Switch)
+        coder_sw = modal.query_one("#run-coder-switch", Switch)
+
+        # Toggle coder OFF, then back ON
+        coder_sw.focus()
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert commit_sw.disabled is False
+        assert coder_sw.disabled is False
+        assert coder_sw.value is True
+
+
+async def test_coder_off_disables_prompt() -> None:
+    """When coder is OFF, prompt area should be disabled."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        coder_sw = modal.query_one("#run-coder-switch", Switch)
+        prompt = modal.query_one("#coder-prompt-input", TextArea)
+
+        coder_sw.focus()
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+
+        assert prompt.disabled is True
 
 
 async def test_enter_approves_with_switch_focused() -> None:
