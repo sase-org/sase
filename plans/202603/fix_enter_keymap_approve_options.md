@@ -1,6 +1,6 @@
 ---
 create_time: 2026-03-31 23:52:21
-status: wip
+status: done
 ---
 
 # Fix broken `<enter>` keymap in ApproveOptionsModal

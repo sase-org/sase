@@ -2,10 +2,21 @@
 
 from dataclasses import dataclass
 
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Static, Switch, TextArea
+
+
+class _PromptTextArea(TextArea):
+    """TextArea that yields ``enter`` to the parent modal instead of inserting a newline."""
+
+    async def _on_key(self, event: events.Key) -> None:  # type: ignore[override]
+        if event.key == "enter":
+            event.prevent_default()
+            return
+        await super()._on_key(event)
 
 
 @dataclass
@@ -42,7 +53,7 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
                 yield Switch(value=True, id="run-coder-switch")
 
             yield Static("Additional prompt:", classes="approve-options-prompt-label")
-            yield TextArea("", id="coder-prompt-input")
+            yield _PromptTextArea("", id="coder-prompt-input")
 
             yield Static(
                 "[green]enter[/green]=Approve  "
@@ -63,6 +74,13 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
             label.add_class("disabled") if not event.value else label.remove_class(
                 "disabled"
             )
+
+    def on_key(self, event: events.Key) -> None:
+        """Intercept enter so it approves even when TextArea has focus."""
+        if event.key == "enter":
+            event.prevent_default()
+            event.stop()
+            self.action_approve()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
