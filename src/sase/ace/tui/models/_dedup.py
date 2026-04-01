@@ -295,6 +295,10 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 matched.extra_files = agent.extra_files
             if matched.step_output is None and agent.step_output is not None:
                 matched.step_output = agent.step_output
+            elif matched.step_output is not None and agent.step_output is not None:
+                for k, v in agent.step_output.items():
+                    if k not in matched.step_output:
+                        matched.step_output[k] = v
             if matched.agent_name is None and agent.agent_name is not None:
                 matched.agent_name = agent.agent_name
             # Merge status: prefer non-RUNNING status (e.g. PLANNING, PLAN APPROVED)
