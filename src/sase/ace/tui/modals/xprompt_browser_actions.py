@@ -140,8 +140,9 @@ class XPromptBrowserActionsMixin:
         else:
             template = "Your xprompt content here.\n"
 
+        safe_name = entry.name.replace("/", "_")
         tmp_fd, tmp_path = tempfile.mkstemp(
-            suffix=".md", prefix=f"xprompt_{entry.name}_"
+            suffix=".md", prefix=f"xprompt_{safe_name}_"
         )
         try:
             os.write(tmp_fd, template.encode("utf-8"))

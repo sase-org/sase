@@ -288,8 +288,9 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
             self.notify("No output available", severity="warning")
             return
 
+        safe_cl_name = task.cl_name.replace("/", "_")
         fd, path = tempfile.mkstemp(
-            suffix=".log", prefix=f"task_{task.task_type}_{task.cl_name}_"
+            suffix=".log", prefix=f"task_{task.task_type}_{safe_cl_name}_"
         )
         try:
             os.write(fd, output.encode())

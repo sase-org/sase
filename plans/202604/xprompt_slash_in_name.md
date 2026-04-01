@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 13:21:49
-status: wip
+status: done
 ---
 
 # Fix: FileNotFoundError when xprompt name contains slashes
