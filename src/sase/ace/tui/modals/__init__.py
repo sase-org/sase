@@ -29,7 +29,12 @@ from .runners_modal import (
 )
 from .status_modal import StatusModal
 from .tag_input_modal import TagInputModal
-from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
+from .plan_approval_modal import (
+    PlanApprovalModal,
+    PlanApprovalOptionsModal,
+    PlanApprovalOptionsResult,
+    PlanApprovalResult,
+)
 from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
@@ -81,6 +86,8 @@ __all__ = [
     "NotificationModal",
     "ParentSelectModal",
     "PlanApprovalModal",
+    "PlanApprovalOptionsModal",
+    "PlanApprovalOptionsResult",
     "PlanApprovalResult",
     "ProcessSelectModal",
     "ProcessSelection",

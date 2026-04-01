@@ -21,6 +21,9 @@ class PlanApprovalResult:
     action: str  # "approve", "epic", or "feedback"
     plan_file: str
     feedback: str | None = None
+    commit_plan: bool = True
+    run_coder: bool = True
+    coder_prompt_extra: str | None = None
 
 
 def add_create_time_frontmatter(
@@ -192,7 +195,31 @@ def handle_plan_approval(
                     request_path.unlink()
 
                 action = response_data.get("action")
-                if action in ("approve", "epic", "commit"):
+                if action == "approve":
+                    response_path.unlink()
+                    assert plan_file is not None
+                    commit_plan_raw = response_data.get("commit_plan")
+                    run_coder_raw = response_data.get("run_coder")
+                    prompt_extra_raw = response_data.get("coder_prompt_extra")
+                    commit_plan = (
+                        commit_plan_raw if isinstance(commit_plan_raw, bool) else True
+                    )
+                    run_coder = (
+                        run_coder_raw if isinstance(run_coder_raw, bool) else True
+                    )
+                    prompt_extra = None
+                    if isinstance(prompt_extra_raw, str):
+                        trimmed = prompt_extra_raw.strip()
+                        if trimmed:
+                            prompt_extra = trimmed
+                    return PlanApprovalResult(
+                        action=action,
+                        plan_file=plan_file,
+                        commit_plan=commit_plan,
+                        run_coder=run_coder,
+                        coder_prompt_extra=prompt_extra,
+                    )
+                if action in ("epic", "commit"):
                     response_path.unlink()
                     assert plan_file is not None
                     return PlanApprovalResult(action=action, plan_file=plan_file)

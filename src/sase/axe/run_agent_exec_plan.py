@@ -275,13 +275,22 @@ def handle_plan_marker(
     except Exception:
         logger.warning("SDD file generation failed", exc_info=True)
 
+    should_commit_plan = False
+    run_coder = True
     if plan_result.action == "commit":
-        # Commit SDD files but do NOT spawn a follow-up agent
-        if sdd_plan_name:
-            if version_controlled:
-                _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
-            else:
-                commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
+        should_commit_plan = True
+        run_coder = False
+    elif plan_result.action == "approve":
+        should_commit_plan = plan_result.commit_plan
+        run_coder = plan_result.run_coder
+
+    if should_commit_plan and sdd_plan_name:
+        if version_controlled:
+            _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
+        else:
+            commit_sdd_files(sdd_dir, f"Add SDD files for {sdd_plan_name}")
+
+    if plan_result.action != "epic" and not run_coder:
         return "plan_committed"
 
     # VCS workflow tag prefix for follow-up agents
@@ -340,11 +349,6 @@ def handle_plan_marker(
         # Approve: spawn coder with plan as prompt
         state.current_role_suffix = ".code"
 
-        # Commit SDD files so the #gh pre-step doesn't wipe them
-        if sdd_plan_name:
-            if version_controlled:
-                _commit_sdd_files(ctx.workspace_dir, sdd_plan_name)
-
         # Point SASE_PLAN at the committed in-repo plan file so
         # the commit workflow can update its frontmatter without copying.
         if sdd_plan_path and sdd_plan_path.exists():
@@ -366,11 +370,16 @@ def handle_plan_marker(
             else None,
             workflow_name=ctx.agent_name,
         )
+        extra_instructions = ""
+        if plan_result.coder_prompt_extra:
+            extra_instructions = (
+                f"\n\nAdditional instructions:\n{plan_result.coder_prompt_extra}"
+            )
         state.current_prompt = (
             f"{model_prefix}{vcs_prefix}"
             f"@{plan_data['plan_file']}\n\n"
             "The above plan has been reviewed and approved. "
-            f"Implement it now.\n{embedded_refs}"
+            f"Implement it now.{extra_instructions}\n{embedded_refs}"
         )
 
     state.allow_retry = False
