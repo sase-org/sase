@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-01 18:42:27
-status: wip
+status: done
 ---
 
 # Plan: VCS Xprompt MRU Cycling in Prompt Input

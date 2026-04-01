@@ -91,6 +91,15 @@ class AgentLaunchMixin:
         except Exception:
             pass  # Agent not found — runner will resolve later
 
+        # Record VCS xprompt usage for MRU cycling
+        from sase.xprompt._parsing import extract_vcs_workflow_tag
+
+        _vcs_tag = extract_vcs_workflow_tag(_vcs_prompt)
+        if _vcs_tag:
+            from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
+
+            record_vcs_xprompt_usage(_vcs_tag.strip())
+
         # --- Early multi-prompt detection ---
         # Detect multi-prompts BEFORE VCS resolution to match the CLI
         # (sase run) behavior: each segment handles its own VCS resolution

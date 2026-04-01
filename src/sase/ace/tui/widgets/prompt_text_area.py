@@ -69,6 +69,7 @@ class PromptTextArea(
         self._file_completion_candidates: list[CompletionCandidate] = []
         self._file_completion_index: int = 0
         self._file_completion_active: bool = False
+        self._vcs_mru_index: int | None = None
 
     @property
     def _ace_app(self) -> AceApp:
@@ -92,6 +93,7 @@ class PromptTextArea(
         """Submit the prompt text."""
         self._snippet_tabstops = []
         self._clear_file_completion()
+        self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
             bar._handle_text_submission(self.text)
@@ -139,6 +141,7 @@ class PromptTextArea(
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode with relative line numbers."""
         self._clear_file_completion()
+        self._vcs_mru_index = None
         self._vim_mode = "normal"
         self._pending_operator = ""
         self._pending_operator_count = 1
@@ -220,6 +223,44 @@ class PromptTextArea(
                 self._accept_file_completion()
                 return
 
+        # VCS MRU cycling: ctrl+n/ctrl+p when prompt is empty or VCS-only
+        if not self._file_completion_active and event.key in ("ctrl+n", "ctrl+p"):
+            from sase.xprompt._parsing import extract_vcs_workflow_tag
+
+            text = self.text
+            stripped = text.strip()
+            is_vcs_only = not stripped
+            current_prefix: str | None = None
+
+            if stripped:
+                # Append space for pattern matching (VCS pattern requires trailing \s)
+                tag = extract_vcs_workflow_tag(stripped + " ")
+                if tag is not None and stripped == tag.strip():
+                    is_vcs_only = True
+                    current_prefix = stripped
+
+            if is_vcs_only:
+                from sase.history.vcs_xprompt_mru import load_vcs_xprompt_mru
+
+                mru = load_vcs_xprompt_mru()
+                if mru:
+                    direction = 1 if event.key == "ctrl+n" else -1
+                    if self._vcs_mru_index is not None:
+                        new_index = (self._vcs_mru_index + direction) % len(mru)
+                    elif current_prefix is not None and current_prefix in mru:
+                        base = mru.index(current_prefix)
+                        new_index = (base + direction) % len(mru)
+                    else:
+                        new_index = 0 if direction == 1 else len(mru) - 1
+
+                    self._vcs_mru_index = new_index
+                    new_text = mru[new_index] + " "
+                    self.text = new_text
+                    self.move_cursor((0, len(new_text)))
+                    event.stop()
+                    event.prevent_default()
+                    return
+
         # Tab in INSERT mode: expand snippet or advance tabstop (never insert literal tab)
         if event.key == "tab":
             event.stop()
@@ -245,6 +286,10 @@ class PromptTextArea(
                         event.prevent_default()
                         return
         await super()._on_key(event)
+
+        # Reset VCS MRU cycling on any non-cycling keypress
+        if self._vcs_mru_index is not None:
+            self._vcs_mru_index = None
 
         self._refresh_file_completion_from_cursor()
 
