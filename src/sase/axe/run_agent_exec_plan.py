@@ -367,8 +367,16 @@ def handle_plan_marker(
 
                 if has_model_directive(plan_result.coder_prompt):
                     model_prefix = ""
+        # Prepend #resume so the coder inherits the planner's conversation.
+        # state.agent_step was just incremented for the coder, so the
+        # planner is step - 1.
+        resume_prefix = ""
+        if ctx.agent_name:
+            planner_name = f"{ctx.agent_name}.{state.agent_step - 1}"
+            resume_prefix = f"#resume:{planner_name} "
+
         state.current_prompt = (
-            f"{model_prefix}{vcs_prefix}"
+            f"{model_prefix}{resume_prefix}{vcs_prefix}"
             f"@{plan_data['plan_file']}\n\n"
             "The above plan has been reviewed and approved. "
             f"Implement it now.{coder_extra}\n{embedded_refs}"

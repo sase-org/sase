@@ -1,5 +1,6 @@
 """Tests for axe run_agent_exec_plan helpers."""
 
+import dataclasses
 import json
 from unittest.mock import patch
 
@@ -311,3 +312,34 @@ class TestModelInheritance:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "Additional instructions:" in state.current_prompt
         assert "#foo\ncustom" in state.current_prompt
+
+    def test_coder_prompt_includes_resume_prefix(self, tmp_path) -> None:
+        """Coder prompt prepends #resume:<planner_name> for named agents."""
+        state = self._run(tmp_path, action="approve", agent_model="opus")
+        # agent_name is "test_agent", agent_step was 0 -> incremented to 1 for
+        # planner (promote_to_workflow) then 2 for coder, so planner = step-1 = 1
+        assert "#resume:test_agent.1 " in state.current_prompt
+        # Must appear after %model and before vcs_prefix
+        assert state.current_prompt.startswith("%model:opus\n#resume:test_agent.1 ")
+
+    def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
+        """No #resume prefix when ctx.agent_name is not set."""
+        ctx = _make_ctx(tmp_path, agent_model=None)
+        ctx = dataclasses.replace(ctx, agent_name=None)
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert "#resume:" not in state.current_prompt

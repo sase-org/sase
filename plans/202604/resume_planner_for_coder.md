@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 13:11:47
-status: wip
+status: done
 ---
 
 # Prepend `#resume:<planner_name>` to Coder Agent Prompts
