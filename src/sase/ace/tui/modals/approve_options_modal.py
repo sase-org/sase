@@ -36,6 +36,7 @@ class ApproveOptionsModal(
         ("escape", "cancel", "Cancel"),
         ("enter", "approve", "Approve"),
         ("p", "edit_prompt", "Edit prompt"),
+        ("q", "cancel", "Quit"),
     ]
 
     def __init__(
@@ -84,7 +85,7 @@ class ApproveOptionsModal(
                 "[magenta]p[/magenta]=Edit prompt  "
                 "[dim]ctrl+n[/dim]=Next  "
                 "[dim]ctrl+p[/dim]=Prev  "
-                "[dim]esc[/dim]=Back",
+                "[dim]q/esc[/dim]=Back",
                 id="approve-options-footer",
             )
 
@@ -158,6 +159,10 @@ class ApproveOptionsModal(
             event.prevent_default()
             event.stop()
             self.action_edit_prompt()
+        elif event.key == "q":
+            event.prevent_default()
+            event.stop()
+            self.action_cancel()
         elif event.key == "ctrl+n":
             event.prevent_default()
             event.stop()
