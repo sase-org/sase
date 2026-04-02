@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 11:39:14
-status: wip
+status: done
 ---
 
 # Plan: Support `t` (tmux) keymap on CLs tab with empty results

@@ -475,7 +475,10 @@ class ChangeSpecMixin:
             elif getattr(self, "_custom_mode_active", None) is not None:
                 pass  # preserve custom mode footer
             else:
-                footer_widget.show_empty()
+                from ...query import get_sole_project_filter
+
+                sole_project = get_sole_project_filter(self.parsed_query)
+                footer_widget.show_empty(project_name=sole_project)
             ancestors_panel.clear()
             self._ancestor_keys = {}
             self._children_keys = {}

@@ -38,6 +38,13 @@ class WorkspaceActionsMixin:
         from ...changespec import get_base_status
 
         if not self.changespecs:
+            # No matching CLs — try to open tmux for a sole project filter
+            from sase.ace.query import get_sole_project_filter
+
+            project_name = get_sole_project_filter(self.parsed_query)
+            if project_name is None:
+                return
+            self._open_tmux_for_project(project_name, workspace_num)
             return
 
         changespec = self.changespecs[self.current_idx]
@@ -201,6 +208,73 @@ class WorkspaceActionsMixin:
             self._open_tmux_for_workspace(workspace_num)
 
         self.push_screen(WorkspaceInputModal(default_workspace=1), on_workspace_entered)  # type: ignore[attr-defined]
+
+    def _open_tmux_for_project(self, project_basename: str, workspace_num: int) -> None:
+        """Open tmux for a project without checking out a branch.
+
+        Used when no CLs match but a sole project filter is present.
+
+        Args:
+            project_basename: The project name.
+            workspace_num: The workspace number (1-9).
+        """
+        import subprocess
+
+        from sase.running_field import get_workspace_directory
+
+        try:
+            workspace_dir = get_workspace_directory(
+                project_basename, workspace_num=workspace_num
+            )
+        except RuntimeError as e:
+            self.notify(f"Failed to get workspace directory: {e}", severity="error")  # type: ignore[attr-defined]
+            return
+
+        if workspace_num == 1:
+            tmux_session = project_basename
+        else:
+            tmux_session = f"{project_basename}_{workspace_num}"
+
+        def run_commands() -> tuple[bool, str]:
+            try:
+                result = subprocess.run(
+                    ["tmux", "list-windows", "-F", "#{window_name}"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if (
+                    result.returncode == 0
+                    and tmux_session in result.stdout.strip().splitlines()
+                ):
+                    subprocess.run(
+                        ["tmux", "select-window", "-t", f":={tmux_session}"],
+                        check=False,
+                    )
+                    return (True, f"Switched to tmux window: {tmux_session}")
+                else:
+                    subprocess.run(
+                        [
+                            "tmux",
+                            "new-window",
+                            "-n",
+                            tmux_session,
+                            "-c",
+                            str(workspace_dir),
+                        ],
+                        check=False,
+                    )
+                    return (True, f"Opened tmux window: {tmux_session}")
+            except FileNotFoundError:
+                return (False, "tmux command not found")
+
+        with self.suspend():  # type: ignore[attr-defined]
+            success, message = run_commands()
+
+        if success:
+            self.notify(message)  # type: ignore[attr-defined]
+        else:
+            self.notify(message, severity="error")  # type: ignore[attr-defined]
 
     def _handle_checkout_key(self, key: str) -> bool:
         """Handle key in checkout mode. Returns True if handled."""

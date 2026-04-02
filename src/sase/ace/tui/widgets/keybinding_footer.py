@@ -180,9 +180,17 @@ class KeybindingFooter(Horizontal):
         text = self._format_bindings(bindings)
         self._update_display(text)
 
-    def show_empty(self) -> None:
-        """Show empty state bindings."""
+    def show_empty(self, *, project_name: str | None = None) -> None:
+        """Show empty state bindings.
+
+        Args:
+            project_name: If set, also show the tmux binding (sole project filter).
+        """
         text = Text()
+        if project_name:
+            text.append(self._kd("open_tmux"), style="bold #00D7AF")
+            text.append(" tmux", style="dim")
+            text.append("  ")
         text.append(self._kd("edit_query"), style="bold #00D7AF")
         text.append(" edit query", style="dim")
         self._update_display(text)

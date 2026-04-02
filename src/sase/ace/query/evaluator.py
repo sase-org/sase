@@ -460,6 +460,41 @@ def query_explicitly_targets_submitted(
     return _check_expr(expr)
 
 
+def get_sole_project_filter(expr: QueryExpr) -> str | None:
+    """Extract the project name if the query has exactly one project filter.
+
+    Walks the parsed query AST and collects all non-negated PropertyMatch nodes
+    with key == "project". Returns the project name if there is exactly one such
+    filter; otherwise returns None.
+
+    Filters inside NotExpr or OrExpr branches are excluded.
+
+    Args:
+        expr: The parsed query expression.
+
+    Returns:
+        The project name string if exactly one project filter, else None.
+    """
+    projects: list[str] = []
+
+    def _collect(e: QueryExpr) -> None:
+        if isinstance(e, PropertyMatch):
+            if e.key == "project":
+                projects.append(e.value)
+        elif isinstance(e, AndExpr):
+            for op in e.operands:
+                _collect(op)
+        elif isinstance(e, (NotExpr, OrExpr)):
+            # Negated and OR-branched project filters don't count
+            return
+        # StringMatch: nothing to collect
+
+    _collect(expr)
+    if len(projects) == 1:
+        return projects[0]
+    return None
+
+
 def evaluate_query(
     query: QueryExpr,
     changespec: ChangeSpec,
