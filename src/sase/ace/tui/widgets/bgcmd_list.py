@@ -114,17 +114,13 @@ class BgCmdList(OptionList):
             self.add_option(option)
 
         # Highlight the current item
-        if 0 <= current_idx < len(items):
-            self.highlighted = current_idx
-        else:
-            self.highlighted = 0
-
-        # Clear flag after event loop processes pending events
-        self.call_later(self._clear_programmatic_flag)
-
-    def _clear_programmatic_flag(self) -> None:
-        """Clear programmatic update flag after event processing."""
-        self._programmatic_update = False
+        try:
+            if 0 <= current_idx < len(items):
+                self.highlighted = current_idx
+            else:
+                self.highlighted = 0
+        finally:
+            self._programmatic_update = False
 
     def _format_axe_parent_option(
         self,
@@ -227,6 +223,12 @@ class BgCmdList(OptionList):
         text.append(cmd_display, style=label_style)
 
         return Option(text, id=str(slot))
+
+    def watch_highlighted(self, highlighted: int | None) -> None:
+        """Suppress OptionHighlighted messages during programmatic updates."""
+        if self._programmatic_update:
+            return
+        super().watch_highlighted(highlighted)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 11:37:47
-status: wip
+status: done
 ---
 
 # Fix: sase ace TUI freeze when pressing `k` on AXE tab
