@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 13:10:51
-status: wip
+status: done
 ---
 
 # Plan: Fix task panel scroll jumping back to bottom

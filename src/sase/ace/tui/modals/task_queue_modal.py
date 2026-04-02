@@ -70,6 +70,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         # Prune old tasks on open
         self._task_queue.prune_old()
         self._tasks: list[TaskInfo] = self._task_queue.get_all()
+        self._user_scrolled = False
 
     def compose(self) -> ComposeResult:
         with Container(id="task-queue-container"):
@@ -159,9 +160,9 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
             out.append(f"Completed: {task.message}", style="dim")
 
         content.update(out)
-        if task.status == "running":
+        if task.status == "running" and not self._user_scrolled:
             self._scroll_output_to_end()
-        else:
+        elif task.status != "running":
             self._reset_output_scroll()
 
     def _reset_output_scroll(self) -> None:
@@ -230,16 +231,18 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
             content.update(Text.from_ansi(live))
         else:
             content.update(Text("Task is running...", style="bold green"))
-        try:
-            scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
-            scroll.scroll_end(animate=False)
-        except Exception:
-            pass
+        if not self._user_scrolled:
+            try:
+                scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
+                scroll.scroll_end(animate=False)
+            except Exception:
+                pass
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
     ) -> None:
         """Update the right pane when a different task is highlighted."""
+        self._user_scrolled = False
         if event.option and event.option.id is not None:
             idx = int(event.option.id)
             if 0 <= idx < len(self._tasks):
@@ -270,9 +273,16 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=height // 2, animate=False)
+        # Clear the flag if the user scrolled back to the bottom
+        if (
+            scroll.scroll_offset.y + scroll.scrollable_content_region.height
+            >= scroll.virtual_size.height
+        ):
+            self._user_scrolled = False
 
     def action_scroll_output_up(self) -> None:
         """Scroll the output pane up by half a page."""
+        self._user_scrolled = True
         scroll = self.query_one("#task-queue-output-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
@@ -327,6 +337,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
 
     def _rebuild_list(self, highlight_index: int | None = None) -> None:
         """Rebuild the option list from current tasks."""
+        self._user_scrolled = False
         try:
             option_list = self.query_one("#task-queue-list", OptionList)
         except Exception:
