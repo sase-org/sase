@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 14:03:52
-status: wip
+status: done
 ---
 
 # Plan: Fix resume keymap ('r') for PLAN DONE agents

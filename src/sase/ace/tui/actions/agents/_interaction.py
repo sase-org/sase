@@ -456,6 +456,25 @@ class AgentInteractionMixin:
             )
             return
 
+        if agent.status == "PLAN DONE":
+            # Find the coder follow-up agent to resume its conversation
+            coder = next(
+                (f for f in agent.followup_agents if f.role_suffix == ".code"),
+                None,
+            )
+            if coder and coder.agent_name:
+                name = coder.agent_name
+                prefix = f"#resume:{name} "
+                vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
+                if vcs_tag:
+                    prefix = f"{vcs_tag}{prefix}"
+                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+                    initial_text=prefix,
+                    display_name=f"resume({name})",
+                    history_sort_key=agent.cl_name or "resume",
+                )
+                return
+
         if agent.status != "DONE":
             self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]
             return
