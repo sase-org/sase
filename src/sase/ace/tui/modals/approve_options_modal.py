@@ -33,7 +33,6 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
-        ("q", "cancel", "Cancel"),
         ("enter", "approve", "Approve"),
     ]
 
@@ -68,7 +67,7 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
                 "[blue]space[/blue]=Toggle  "
                 "[dim]ctrl+n[/dim]=Next  "
                 "[dim]ctrl+p[/dim]=Prev  "
-                "[dim]q[/dim]=Back",
+                "[dim]esc[/dim]=Back",
                 id="approve-options-footer",
             )
 

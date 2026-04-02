@@ -263,6 +263,48 @@ async def test_coder_off_disables_prompt() -> None:
         assert prompt.disabled is True
 
 
+async def test_typing_in_textarea_inserts_characters() -> None:
+    """Printable characters typed with TextArea focused must be inserted."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        textarea = modal.query_one("#coder-prompt-input", TextArea)
+        textarea.focus()
+        await pilot.pause()
+
+        await pilot.press("a", "b", "c")
+        await pilot.pause()
+
+        assert textarea.text == "abc"
+
+
+async def test_typing_q_inserts_instead_of_dismissing() -> None:
+    """Typing 'q' in the TextArea must insert 'q', NOT dismiss the modal."""
+    dismissed = False
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(_: ApproveOptionsResult | None) -> None:
+            nonlocal dismissed
+            dismissed = True
+
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        textarea = modal.query_one("#coder-prompt-input", TextArea)
+        textarea.focus()
+        await pilot.pause()
+
+        await pilot.press("q")
+        await pilot.pause()
+
+        assert not dismissed, "Modal was dismissed by 'q' — binding conflict!"
+        assert textarea.text == "q"
+
+
 async def test_enter_approves_with_switch_focused() -> None:
     """Enter still works when a Switch has focus (regression check)."""
     result: ApproveOptionsResult | None = None

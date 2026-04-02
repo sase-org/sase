@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 12:51:11
-status: wip
+status: done
 ---
 
 # Fix: Cannot Type in "Additional Prompt" TextArea (ApproveOptionsModal)
