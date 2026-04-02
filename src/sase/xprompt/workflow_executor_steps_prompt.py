@@ -216,6 +216,14 @@ class PromptStepMixin:
         # Late phase: command sub, file refs, Jinja2, prettier, HTML stripping
         expanded_prompt = preprocess_prompt_late(expanded_prompt)
 
+        # Append output format instructions if step has output spec
+        if step.output:
+            from sase.xprompt import generate_format_instructions
+
+            format_instr = generate_format_instructions(step.output)
+            if format_instr:
+                expanded_prompt = expanded_prompt + format_instr
+
         # Collect meta_* from embedded pre-steps so the TUI can display
         # Workspace/Project/ChangeSpec immediately when the agent starts.
         pre_step_meta: dict[str, str] = {}

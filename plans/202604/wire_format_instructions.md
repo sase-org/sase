@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 13:24:14
-status: wip
+status: done
 ---
 
 # Wire up `generate_format_instructions` for agent steps with output specs
