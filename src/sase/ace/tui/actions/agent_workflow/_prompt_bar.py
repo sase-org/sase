@@ -11,7 +11,10 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from ._types import PromptContext
 
 if TYPE_CHECKING:
-    from sase.ace.tui.actions.agents._types import PlanFeedbackContext
+    from sase.ace.tui.actions.agents._types import (
+        ApprovePromptContext,
+        PlanFeedbackContext,
+    )
 
 
 def _has_edit_directive(prompt: str) -> tuple[bool, str]:
@@ -37,6 +40,7 @@ class PromptBarMixin:
     # State for prompt input
     _prompt_context: PromptContext | None = None
     _plan_feedback_context: PlanFeedbackContext | None
+    _approve_prompt_context: ApprovePromptContext | None = None
 
     _TRIVIAL_PROMPT_PATTERNS = frozenset({".", ".x"})
 
@@ -304,6 +308,10 @@ class PromptBarMixin:
             self._handle_plan_feedback_submitted(event.value)
             return
 
+        if event.mode == "approve_prompt":
+            self._handle_approve_prompt_submitted(event.value)
+            return
+
         prompt = event.value
         if not prompt:
             self.notify("Empty prompt - cancelled", severity="warning")  # type: ignore[attr-defined]
@@ -322,6 +330,10 @@ class PromptBarMixin:
 
         if event.mode == "feedback":
             self._handle_plan_feedback_cancelled()
+            return
+
+        if event.mode == "approve_prompt":
+            self._handle_approve_prompt_cancelled()
             return
 
         self.notify("Prompt input cancelled")  # type: ignore[attr-defined]
@@ -371,6 +383,58 @@ class PromptBarMixin:
         self._plan_feedback_context = None  # type: ignore[attr-defined]
         self._unmount_prompt_bar()
         self.notify("Plan feedback cancelled")  # type: ignore[attr-defined]
+
+    def _handle_approve_prompt_submitted(self, prompt: str) -> None:
+        """Handle submission of coder prompt editing via the PromptInputBar."""
+        from ...modals.plan_approval_modal import PendingApproveState
+
+        ctx = self._approve_prompt_context
+        if ctx is None:
+            self.notify("No approve prompt context", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        self._approve_prompt_context = None
+        self._unmount_prompt_bar()
+
+        from sase.ace.tui.actions.agents._notification_modals import (
+            handle_plan_approval,
+        )
+
+        handle_plan_approval(
+            self,
+            ctx.notification,
+            pending_approve_state=PendingApproveState(
+                commit_plan=ctx.commit_plan,
+                run_coder=ctx.run_coder,
+                coder_prompt=prompt,
+            ),
+        )
+
+    def _handle_approve_prompt_cancelled(self) -> None:
+        """Handle cancellation of coder prompt editing -- preserve original prompt."""
+        from ...modals.plan_approval_modal import PendingApproveState
+
+        ctx = self._approve_prompt_context
+        if ctx is None:
+            self._unmount_prompt_bar()
+            return
+
+        self._approve_prompt_context = None
+        self._unmount_prompt_bar()
+
+        from sase.ace.tui.actions.agents._notification_modals import (
+            handle_plan_approval,
+        )
+
+        handle_plan_approval(
+            self,
+            ctx.notification,
+            pending_approve_state=PendingApproveState(
+                commit_plan=ctx.commit_plan,
+                run_coder=ctx.run_coder,
+                coder_prompt=ctx.current_prompt,
+            ),
+        )
 
     def on_prompt_input_bar_editor_requested(self, event: object) -> None:
         """Handle request to open external editor (Ctrl+G)."""

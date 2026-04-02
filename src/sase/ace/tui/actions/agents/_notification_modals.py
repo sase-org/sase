@@ -167,13 +167,19 @@ def handle_user_question(app: object, notification: Notification) -> bool:
     return True
 
 
-def handle_plan_approval(app: object, notification: Notification) -> bool:
+def handle_plan_approval(
+    app: object,
+    notification: Notification,
+    pending_approve_state: object | None = None,
+) -> bool:
     """Show the plan approval modal for a Claude Code plan.
 
     Args:
         app: The AceApp instance.
         notification: The notification with action_data containing
             response_dir and session_id.
+        pending_approve_state: Optional PendingApproveState to auto-push
+            the approve options modal with restored state.
 
     Returns:
         True if the plan approval modal was pushed.
@@ -240,6 +246,28 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
                 plan_file=plan_file,
             )
             app.mount(PromptInputBar(mode="feedback", id="prompt-input-bar"))  # type: ignore[attr-defined]
+            return
+
+        # Approve prompt edit: delegate prompt editing to PromptInputBar
+        if result.action == "approve_prompt_edit":
+            from ...widgets import PromptInputBar
+
+            from ._types import ApprovePromptContext
+
+            app._approve_prompt_context = ApprovePromptContext(  # type: ignore[attr-defined]
+                notification=notification,
+                plan_file=plan_file,
+                commit_plan=result.commit_plan,
+                run_coder=result.run_coder,
+                current_prompt=result.coder_prompt or "",
+            )
+            app.mount(  # type: ignore[attr-defined]
+                PromptInputBar(
+                    initial_value=result.coder_prompt or "",
+                    mode="approve_prompt",
+                    id="prompt-input-bar",
+                )
+            )
             return
 
         # Find matching agent for status override updates
@@ -356,7 +384,8 @@ def handle_plan_approval(app: object, notification: Notification) -> bool:
             app._load_agents()  # type: ignore[attr-defined]
 
     app.push_screen(  # type: ignore[attr-defined]
-        PlanApprovalModal(plan_file), on_dismiss
+        PlanApprovalModal(plan_file, pending_approve_state=pending_approve_state),  # type: ignore[arg-type]
+        on_dismiss,
     )
     return True
 

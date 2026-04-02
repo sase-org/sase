@@ -274,8 +274,13 @@ ApproveOptionsModal {
     color: $text-disabled;
 }
 
-#coder-prompt-input {
+#coder-prompt-display {
     margin-bottom: 1;
+    color: $text-muted;
+}
+
+#coder-prompt-display.disabled {
+    color: $text-disabled;
 }
 
 #approve-options-footer {

@@ -4,10 +4,11 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.keys import Keys
 from textual.screen import ModalScreen
-from textual.widgets import Static, Switch, TextArea
+from textual.widgets import Static, Switch
 
 from sase.ace.tui.bindings import DEFAULT_BINDINGS
 from sase.ace.tui.modals.approve_options_modal import (
+    ApproveOptionsEditPrompt,
     ApproveOptionsModal,
     ApproveOptionsResult,
 )
@@ -107,10 +108,29 @@ def test_on_key_handles_escape() -> None:
     assert called
 
 
+def test_on_key_calls_edit_prompt_on_p() -> None:
+    """on_key with 'p' should call action_edit_prompt."""
+    modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
+
+    called = False
+
+    def fake_edit_prompt() -> None:
+        nonlocal called
+        called = True
+
+    modal.action_edit_prompt = fake_edit_prompt  # type: ignore[assignment]
+
+    key_event = events.Key("p", character="p")
+    modal.on_key(key_event)
+
+    assert called
+
+
 def test_on_key_stops_printable_chars() -> None:
     """Printable chars (except space) are stopped to prevent app-level leakage."""
     modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
 
+    # 'p' is handled explicitly, test another printable char
     key_event = events.Key("a", character="a")
     modal.on_key(key_event)
     assert key_event._stop_propagation  # type: ignore[attr-defined]
@@ -121,7 +141,7 @@ def test_on_key_stops_printable_chars() -> None:
     assert not space_event._stop_propagation  # type: ignore[attr-defined]
 
 
-class _TestApp(App[ApproveOptionsResult | None]):
+class _TestApp(App[ApproveOptionsResult | ApproveOptionsEditPrompt | None]):
     """Minimal app for async modal tests."""
 
     ENABLE_COMMAND_PALETTE = False
@@ -130,13 +150,15 @@ class _TestApp(App[ApproveOptionsResult | None]):
         yield from ()
 
 
-async def test_enter_approves_with_textarea_focused() -> None:
-    """Enter triggers approval even when TextArea has focus (the bug)."""
-    result: ApproveOptionsResult | None = None
+async def test_enter_approves_from_switch() -> None:
+    """Enter triggers approval when a Switch has focus."""
+    result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
 
     async with _TestApp().run_test() as pilot:
 
-        def on_dismiss(r: ApproveOptionsResult | None) -> None:
+        def on_dismiss(
+            r: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+        ) -> None:
             nonlocal result
             result = r
 
@@ -144,10 +166,9 @@ async def test_enter_approves_with_textarea_focused() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        # Focus the TextArea (the widget that was swallowing enter)
-        textarea = modal.query_one("#coder-prompt-input", TextArea)
-        textarea.focus()
-        await pilot.pause()
+        # Switch gets focus by default via on_mount
+        focused = pilot.app.focused
+        assert isinstance(focused, Switch)
 
         await pilot.press("enter")
         await pilot.pause()
@@ -156,7 +177,7 @@ async def test_enter_approves_with_textarea_focused() -> None:
 
 
 async def test_ctrl_n_cycles_focus_forward() -> None:
-    """ctrl+n should cycle focus through the three focusable widgets."""
+    """ctrl+n should cycle focus through the two switches (no TextArea)."""
     async with _TestApp().run_test() as pilot:
         modal = ApproveOptionsModal()
         pilot.app.push_screen(modal)
@@ -172,12 +193,6 @@ async def test_ctrl_n_cycles_focus_forward() -> None:
         second = pilot.app.focused
         assert isinstance(second, Switch)
         assert second.id == "run-coder-switch"
-
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-        third = pilot.app.focused
-        assert isinstance(third, TextArea)
-        assert third.id == "coder-prompt-input"
 
         # Wraps back to first
         await pilot.press("ctrl+n")
@@ -279,48 +294,58 @@ async def test_toggle_back_on_unlocks_other() -> None:
         assert coder_sw.value is True
 
 
-async def test_coder_off_disables_prompt() -> None:
-    """When coder is OFF, prompt area should be disabled."""
+async def test_coder_off_disables_prompt_display() -> None:
+    """When coder is OFF, prompt display should be disabled."""
     async with _TestApp().run_test() as pilot:
         modal = ApproveOptionsModal()
         pilot.app.push_screen(modal)
         await pilot.pause()
 
         coder_sw = modal.query_one("#run-coder-switch", Switch)
-        prompt = modal.query_one("#coder-prompt-input", TextArea)
+        prompt_display = modal.query_one("#coder-prompt-display", Static)
 
         coder_sw.focus()
         await pilot.pause()
         await pilot.press("space")
         await pilot.pause()
 
-        assert prompt.disabled is True
+        assert "disabled" in prompt_display.classes
 
 
-async def test_typing_in_textarea_inserts_characters() -> None:
-    """Printable characters typed with TextArea focused must be inserted."""
+async def test_p_key_triggers_edit_prompt() -> None:
+    """Pressing 'p' should dismiss with ApproveOptionsEditPrompt."""
+    result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
+
     async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(
+            r: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+        ) -> None:
+            nonlocal result
+            result = r
+
         modal = ApproveOptionsModal()
-        pilot.app.push_screen(modal)
+        pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        textarea = modal.query_one("#coder-prompt-input", TextArea)
-        textarea.focus()
+        await pilot.press("p")
         await pilot.pause()
 
-        await pilot.press("a", "b", "c")
-        await pilot.pause()
+        assert isinstance(result, ApproveOptionsEditPrompt)
+        assert result.run_coder is True
+        assert result.commit_plan is True
+        assert result.coder_prompt == ""
 
-        assert textarea.text == "abc"
 
-
-async def test_typing_q_inserts_instead_of_dismissing() -> None:
-    """Typing 'q' in the TextArea must insert 'q', NOT dismiss the modal."""
+async def test_p_key_no_op_when_coder_off() -> None:
+    """Pressing 'p' when coder is OFF should not dismiss the modal."""
     dismissed = False
 
     async with _TestApp().run_test() as pilot:
 
-        def on_dismiss(_: ApproveOptionsResult | None) -> None:
+        def on_dismiss(
+            _: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+        ) -> None:
             nonlocal dismissed
             dismissed = True
 
@@ -328,38 +353,95 @@ async def test_typing_q_inserts_instead_of_dismissing() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        textarea = modal.query_one("#coder-prompt-input", TextArea)
-        textarea.focus()
+        # Turn coder OFF
+        coder_sw = modal.query_one("#run-coder-switch", Switch)
+        coder_sw.focus()
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+        assert not coder_sw.value
+
+        # Press p — should be no-op
+        await pilot.press("p")
         await pilot.pause()
 
-        await pilot.press("q")
+        assert not dismissed
+
+
+async def test_initial_state_restoration() -> None:
+    """Constructor params should restore switch and prompt state."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal(
+            commit_plan=False,
+            run_coder=True,
+            coder_prompt="do the thing",
+        )
+        pilot.app.push_screen(modal)
         await pilot.pause()
 
-        assert not dismissed, "Modal was dismissed by 'q' — binding conflict!"
-        assert textarea.text == "q"
+        commit_sw = modal.query_one("#commit-plan-switch", Switch)
+        coder_sw = modal.query_one("#run-coder-switch", Switch)
+        prompt_display = modal.query_one("#coder-prompt-display", Static)
+
+        assert commit_sw.value is False
+        assert coder_sw.value is True
+        display_text = str(prompt_display.render())
+        assert "do the thing" in display_text
 
 
-async def test_enter_approves_with_switch_focused() -> None:
-    """Enter still works when a Switch has focus (regression check)."""
-    result: ApproveOptionsResult | None = None
+async def test_p_key_preserves_state_in_edit_prompt() -> None:
+    """ApproveOptionsEditPrompt should carry current switch + prompt state."""
+    result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
 
     async with _TestApp().run_test() as pilot:
 
-        def on_dismiss(r: ApproveOptionsResult | None) -> None:
+        def on_dismiss(
+            r: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+        ) -> None:
             nonlocal result
             result = r
 
-        pilot.app.push_screen(ApproveOptionsModal(), callback=on_dismiss)
+        modal = ApproveOptionsModal(
+            commit_plan=False,
+            run_coder=True,
+            coder_prompt="existing prompt",
+        )
+        pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        # Switch gets focus by default via on_mount
-        focused = pilot.app.focused
-        assert isinstance(focused, Switch)
-
-        await pilot.press("enter")
+        await pilot.press("p")
         await pilot.pause()
 
-        assert isinstance(result, ApproveOptionsResult)
+        assert isinstance(result, ApproveOptionsEditPrompt)
+        assert result.commit_plan is False
+        assert result.run_coder is True
+        assert result.coder_prompt == "existing prompt"
+
+
+async def test_long_prompt_truncated_in_display() -> None:
+    """Long prompts should be truncated with ... in the display."""
+    async with _TestApp().run_test() as pilot:
+        long_prompt = "a" * 100
+        modal = ApproveOptionsModal(coder_prompt=long_prompt)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        prompt_display = modal.query_one("#coder-prompt-display", Static)
+        display_text = str(prompt_display.render())
+        assert "..." in display_text
+        assert len(display_text) < len(long_prompt)
+
+
+async def test_empty_prompt_shows_none() -> None:
+    """Empty prompt should display 'none'."""
+    async with _TestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        prompt_display = modal.query_one("#coder-prompt-display", Static)
+        display_text = str(prompt_display.render())
+        assert "none" in display_text
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +449,9 @@ async def test_enter_approves_with_switch_focused() -> None:
 # ---------------------------------------------------------------------------
 
 
-class _BindingsTestApp(App[ApproveOptionsResult | None]):
+class _BindingsTestApp(
+    App[ApproveOptionsResult | ApproveOptionsEditPrompt | None],
+):
     """Test app with AceApp-like single-character bindings (H1 diagnostic)."""
 
     ENABLE_COMMAND_PALETTE = False
@@ -395,7 +479,9 @@ class _StackedFirstModal(ModalScreen[None]):
         self.dismiss(None)
 
 
-class _EventHandlerTestApp(App[ApproveOptionsResult | None]):
+class _EventHandlerTestApp(
+    App[ApproveOptionsResult | ApproveOptionsEditPrompt | None],
+):
     """Test app with EventHandlersMixin-like on_key (H3 diagnostic)."""
 
     ENABLE_COMMAND_PALETTE = False
@@ -422,13 +508,15 @@ class _EventHandlerTestApp(App[ApproveOptionsResult | None]):
             event.stop()
 
 
-async def test_escape_dismisses_with_textarea_focused() -> None:
-    """Escape must dismiss the modal even when TextArea has focus."""
+async def test_escape_dismisses_with_switch_focused() -> None:
+    """Escape must dismiss the modal when a Switch has focus."""
     dismissed = False
 
     async with _BindingsTestApp().run_test() as pilot:
 
-        def on_dismiss(_: ApproveOptionsResult | None) -> None:
+        def on_dismiss(
+            _: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+        ) -> None:
             nonlocal dismissed
             dismissed = True
 
@@ -436,19 +524,13 @@ async def test_escape_dismisses_with_textarea_focused() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        # Navigate to TextArea
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-
-        textarea = modal.query_one("#coder-prompt-input", TextArea)
-        assert pilot.app.focused is textarea
+        # Switch gets focus by default
+        assert isinstance(pilot.app.focused, Switch)
 
         await pilot.press("escape")
         await pilot.pause()
 
-        assert dismissed, "Escape did not dismiss modal when TextArea had focus"
+        assert dismissed, "Escape did not dismiss modal when Switch had focus"
 
 
 async def test_printable_chars_blocked_on_switch() -> None:
@@ -470,90 +552,4 @@ async def test_printable_chars_blocked_on_switch() -> None:
         ]
         assert not printable_leaks, (
             f"Printable chars leaked to app on_key from Switch: {printable_leaks}"
-        )
-
-
-async def test_diag_typing_with_app_bindings() -> None:
-    """H1: Typing in TextArea must work when app has AceApp-level bindings."""
-    async with _BindingsTestApp().run_test() as pilot:
-        modal = ApproveOptionsModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
-
-        # Navigate: commit-switch → coder-switch → textarea
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-
-        textarea = modal.query_one("#coder-prompt-input", TextArea)
-        assert pilot.app.focused is textarea, (
-            f"Expected TextArea focus, got {type(pilot.app.focused).__name__}"
-        )
-
-        await pilot.press("a", "b", "c")
-        await pilot.pause()
-
-        assert textarea.text == "abc", (
-            f"H1 CONFIRMED: Typing failed with app bindings. Got {textarea.text!r}"
-        )
-
-
-async def test_diag_typing_with_stacked_modals() -> None:
-    """H2: Typing in TextArea must work when stacked on another ModalScreen."""
-    async with _BindingsTestApp().run_test() as pilot:
-        pilot.app.push_screen(_StackedFirstModal())
-        await pilot.pause()
-
-        modal = ApproveOptionsModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
-
-        # Navigate to TextArea
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-
-        textarea = modal.query_one("#coder-prompt-input", TextArea)
-        assert pilot.app.focused is textarea, (
-            f"Expected TextArea focus, got {type(pilot.app.focused).__name__}"
-        )
-
-        await pilot.press("a", "b", "c")
-        await pilot.pause()
-
-        assert textarea.text == "abc", (
-            f"H2 CONFIRMED: Typing failed with stacked modals. Got {textarea.text!r}"
-        )
-
-
-async def test_diag_typing_with_event_handler_on_key() -> None:
-    """H3: Printable chars must not leak to app on_key when TextArea has focus."""
-    async with _EventHandlerTestApp().run_test() as pilot:
-        modal = ApproveOptionsModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
-
-        # Navigate to TextArea
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-        await pilot.press("ctrl+n")
-        await pilot.pause()
-
-        textarea = modal.query_one("#coder-prompt-input", TextArea)
-        assert pilot.app.focused is textarea
-
-        pilot.app.leaked_keys.clear()
-        await pilot.press("a", "b", "c")
-        await pilot.pause()
-
-        assert textarea.text == "abc", (
-            f"H3 CONFIRMED (no insertion): Typing failed. Got {textarea.text!r}"
-        )
-        printable_leaks = [
-            k for k in pilot.app.leaked_keys if len(k) == 1 and k.isprintable()
-        ]
-        assert not printable_leaks, (
-            f"H3 CONFIRMED (leakage): Keys leaked to app on_key: {printable_leaks}"
         )

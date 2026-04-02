@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 15:07:25
-status: wip
+status: done
 ---
 
 # Plan: Delegate ApproveOptionsModal prompt editing to PromptInputBar

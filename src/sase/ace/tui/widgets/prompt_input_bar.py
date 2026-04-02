@@ -77,12 +77,18 @@ class PromptInputBar(Static):
     @property
     def _base_title(self) -> str:
         """Return the base border title based on mode."""
-        return "Plan Feedback" if self._mode == "feedback" else "Prompt"
+        if self._mode == "feedback":
+            return "Plan Feedback"
+        if self._mode == "approve_prompt":
+            return "Coder Prompt"
+        return "Prompt"
 
     def compose(self) -> ComposeResult:
         """Compose the input bar layout."""
         if self._mode == "feedback":
             placeholder = "Type plan feedback...  [^G] editor  [^J] newline"
+        elif self._mode == "approve_prompt":
+            placeholder = "Type coder prompt...  [^G] editor  [^J] newline"
         else:
             placeholder = (
                 "Type prompt, '.' for history, '#@' for snippets  "
@@ -110,7 +116,7 @@ class PromptInputBar(Static):
 
         # Border title and subtitle
         self.border_title = self._base_title
-        if self._mode == "feedback":
+        if self._mode in ("feedback", "approve_prompt"):
             self.border_subtitle = "[Enter] send  [Esc] cancel"
             self.add_class("feedback-mode")
         else:
