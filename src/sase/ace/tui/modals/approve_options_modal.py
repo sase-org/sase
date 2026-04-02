@@ -119,11 +119,22 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
             prompt_label.add_class("disabled")
 
     def on_key(self, event: events.Key) -> None:
-        """Intercept enter/ctrl+n/ctrl+p so they work even when TextArea has focus."""
+        """Handle key events within the modal.
+
+        Escape and enter are handled directly (not via BINDINGS) so the modal
+        acts as an event barrier.  Printable characters (except space, which
+        Switch needs for toggling) are stopped here to prevent them from
+        reaching ``EventHandlersMixin.on_key`` and accidentally activating a
+        custom-mode prefix.
+        """
         if event.key == "enter":
             event.prevent_default()
             event.stop()
             self.action_approve()
+        elif event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.action_cancel()
         elif event.key == "ctrl+n":
             event.prevent_default()
             event.stop()
@@ -132,6 +143,11 @@ class ApproveOptionsModal(ModalScreen[ApproveOptionsResult | None]):
             event.prevent_default()
             event.stop()
             self.focus_previous()
+        elif event.character and event.character.isprintable() and event.key != "space":
+            # Printable chars that reach this handler came from a widget
+            # that didn't consume them (e.g. Switch).  Stop them so they
+            # don't leak to EventHandlersMixin.on_key at the App level.
+            event.stop()
 
     def action_cancel(self) -> None:
         self.dismiss(None)

@@ -3,8 +3,10 @@
 from textual import events
 from textual.app import App, ComposeResult
 from textual.keys import Keys
+from textual.screen import ModalScreen
 from textual.widgets import Static, Switch, TextArea
 
+from sase.ace.tui.bindings import DEFAULT_BINDINGS
 from sase.ace.tui.modals.approve_options_modal import (
     ApproveOptionsModal,
     ApproveOptionsResult,
@@ -70,7 +72,7 @@ def test_on_key_calls_focus_previous_on_ctrl_p() -> None:
 
 
 def test_on_key_ignores_non_enter() -> None:
-    """on_key should not intercept keys other than enter/ctrl+n/ctrl+p."""
+    """on_key should not call action_approve for non-enter/escape/ctrl keys."""
     modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
 
     called = False
@@ -85,6 +87,38 @@ def test_on_key_ignores_non_enter() -> None:
     modal.on_key(key_event)
 
     assert not called
+
+
+def test_on_key_handles_escape() -> None:
+    """on_key with escape should call action_cancel."""
+    modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
+
+    called = False
+
+    def fake_cancel() -> None:
+        nonlocal called
+        called = True
+
+    modal.action_cancel = fake_cancel  # type: ignore[assignment]
+
+    key_event = events.Key("escape", character=None)
+    modal.on_key(key_event)
+
+    assert called
+
+
+def test_on_key_stops_printable_chars() -> None:
+    """Printable chars (except space) are stopped to prevent app-level leakage."""
+    modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
+
+    key_event = events.Key("a", character="a")
+    modal.on_key(key_event)
+    assert key_event._stop_propagation  # type: ignore[attr-defined]
+
+    # Space must NOT be stopped (Switch needs it for toggling)
+    space_event = events.Key("space", character=" ")
+    modal.on_key(space_event)
+    assert not space_event._stop_propagation  # type: ignore[attr-defined]
 
 
 class _TestApp(App[ApproveOptionsResult | None]):
@@ -326,3 +360,200 @@ async def test_enter_approves_with_switch_focused() -> None:
         await pilot.pause()
 
         assert isinstance(result, ApproveOptionsResult)
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 — Diagnostic tests (realistic AceApp environment)
+# ---------------------------------------------------------------------------
+
+
+class _BindingsTestApp(App[ApproveOptionsResult | None]):
+    """Test app with AceApp-like single-character bindings (H1 diagnostic)."""
+
+    ENABLE_COMMAND_PALETTE = False
+    BINDINGS = DEFAULT_BINDINGS
+
+    def compose(self) -> ComposeResult:
+        yield from ()
+
+    def check_action(
+        self, action: str, parameters: tuple[object, ...] = ()
+    ) -> bool | None:
+        """Simulate AceApp where all action methods exist."""
+        return True
+
+
+class _StackedFirstModal(ModalScreen[None]):
+    """Minimal modal used as the bottom layer for stacking diagnostics."""
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        yield Static("First modal placeholder")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class _EventHandlerTestApp(App[ApproveOptionsResult | None]):
+    """Test app with EventHandlersMixin-like on_key (H3 diagnostic)."""
+
+    ENABLE_COMMAND_PALETTE = False
+    BINDINGS = DEFAULT_BINDINGS
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._custom_mode_prefixes: dict[str, str] = {}
+        self.leaked_keys: list[str] = []
+
+    def compose(self) -> ComposeResult:
+        yield from ()
+
+    def check_action(
+        self, action: str, parameters: tuple[object, ...] = ()
+    ) -> bool | None:
+        return True
+
+    def on_key(self, event: events.Key) -> None:
+        """Mimics EventHandlersMixin.on_key — records keys that reach the app."""
+        self.leaked_keys.append(event.key)
+        if event.key in self._custom_mode_prefixes:
+            event.prevent_default()
+            event.stop()
+
+
+async def test_escape_dismisses_with_textarea_focused() -> None:
+    """Escape must dismiss the modal even when TextArea has focus."""
+    dismissed = False
+
+    async with _BindingsTestApp().run_test() as pilot:
+
+        def on_dismiss(_: ApproveOptionsResult | None) -> None:
+            nonlocal dismissed
+            dismissed = True
+
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        # Navigate to TextArea
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+
+        textarea = modal.query_one("#coder-prompt-input", TextArea)
+        assert pilot.app.focused is textarea
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert dismissed, "Escape did not dismiss modal when TextArea had focus"
+
+
+async def test_printable_chars_blocked_on_switch() -> None:
+    """Printable chars on a Switch must NOT leak to the App's on_key."""
+    async with _EventHandlerTestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        # Focus stays on the commit-plan-switch (default from on_mount)
+        assert isinstance(pilot.app.focused, Switch)
+
+        pilot.app.leaked_keys.clear()
+        await pilot.press("a", "j", "q")
+        await pilot.pause()
+
+        printable_leaks = [
+            k for k in pilot.app.leaked_keys if len(k) == 1 and k.isprintable()
+        ]
+        assert not printable_leaks, (
+            f"Printable chars leaked to app on_key from Switch: {printable_leaks}"
+        )
+
+
+async def test_diag_typing_with_app_bindings() -> None:
+    """H1: Typing in TextArea must work when app has AceApp-level bindings."""
+    async with _BindingsTestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        # Navigate: commit-switch → coder-switch → textarea
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+
+        textarea = modal.query_one("#coder-prompt-input", TextArea)
+        assert pilot.app.focused is textarea, (
+            f"Expected TextArea focus, got {type(pilot.app.focused).__name__}"
+        )
+
+        await pilot.press("a", "b", "c")
+        await pilot.pause()
+
+        assert textarea.text == "abc", (
+            f"H1 CONFIRMED: Typing failed with app bindings. Got {textarea.text!r}"
+        )
+
+
+async def test_diag_typing_with_stacked_modals() -> None:
+    """H2: Typing in TextArea must work when stacked on another ModalScreen."""
+    async with _BindingsTestApp().run_test() as pilot:
+        pilot.app.push_screen(_StackedFirstModal())
+        await pilot.pause()
+
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        # Navigate to TextArea
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+
+        textarea = modal.query_one("#coder-prompt-input", TextArea)
+        assert pilot.app.focused is textarea, (
+            f"Expected TextArea focus, got {type(pilot.app.focused).__name__}"
+        )
+
+        await pilot.press("a", "b", "c")
+        await pilot.pause()
+
+        assert textarea.text == "abc", (
+            f"H2 CONFIRMED: Typing failed with stacked modals. Got {textarea.text!r}"
+        )
+
+
+async def test_diag_typing_with_event_handler_on_key() -> None:
+    """H3: Printable chars must not leak to app on_key when TextArea has focus."""
+    async with _EventHandlerTestApp().run_test() as pilot:
+        modal = ApproveOptionsModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        # Navigate to TextArea
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+
+        textarea = modal.query_one("#coder-prompt-input", TextArea)
+        assert pilot.app.focused is textarea
+
+        pilot.app.leaked_keys.clear()
+        await pilot.press("a", "b", "c")
+        await pilot.pause()
+
+        assert textarea.text == "abc", (
+            f"H3 CONFIRMED (no insertion): Typing failed. Got {textarea.text!r}"
+        )
+        printable_leaks = [
+            k for k in pilot.app.leaked_keys if len(k) == 1 and k.isprintable()
+        ]
+        assert not printable_leaks, (
+            f"H3 CONFIRMED (leakage): Keys leaked to app on_key: {printable_leaks}"
+        )
