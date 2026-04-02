@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 12:02:56
-status: wip
+status: done
 ---
 
 # Fix: Prompt history saves wrong project for VCS-tagged home-mode prompts

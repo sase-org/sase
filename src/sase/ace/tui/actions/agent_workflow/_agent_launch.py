@@ -50,15 +50,6 @@ class AgentLaunchMixin:
         ctx.timestamp = generate_timestamp()
         ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
 
-        # Save prompt to history IMMEDIATELY (before background subprocess)
-        from sase.history.prompt import add_or_update_prompt
-
-        add_or_update_prompt(
-            prompt,
-            project_name=ctx.project_name,
-            branch_or_workspace=ctx.history_sort_key,
-        )
-
         # Unmount prompt bar first
         self._unmount_prompt_bar()  # type: ignore[attr-defined]
 
@@ -118,7 +109,15 @@ class AgentLaunchMixin:
                     if ref_value:
                         mp_vcs_ref = (wf_name, ref_value)
                         ctx.display_name = ref_value
+                        ctx.history_sort_key = ref_value
                         break
+            from sase.history.prompt import add_or_update_prompt
+
+            add_or_update_prompt(
+                prompt,
+                project_name=ctx.project_name,
+                branch_or_workspace=ctx.history_sort_key,
+            )
             self._prompt_context = None
             self._launch_multi_prompt_agents(multi, ctx, mp_vcs_ref)
             return
@@ -140,6 +139,7 @@ class AgentLaunchMixin:
                     ) = resolved
                     vcs_ref = (wf_name, ref_value)
                     ctx.display_name = ref_value
+                    ctx.history_sort_key = ref_value
                     ctx.update_target = ""  # workflow .yml handles checkout
                     ctx.is_home_mode = False  # Enable workspace claiming/releasing
                     break
@@ -170,6 +170,15 @@ class AgentLaunchMixin:
                     )
                 self._last_custom_agent_selection = sel
                 save_last_agent_selection(sel)
+
+        # Save prompt to history after VCS resolution so project/branch are correct
+        from sase.history.prompt import add_or_update_prompt
+
+        add_or_update_prompt(
+            prompt,
+            project_name=ctx.project_name,
+            branch_or_workspace=ctx.history_sort_key,
+        )
 
         # Also detect VCS refs in non-home mode: the ace(run) workspace and
         # the embedded workflow must share the same workspace number,
