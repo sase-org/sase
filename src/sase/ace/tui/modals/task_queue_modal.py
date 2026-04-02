@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+from collections.abc import Callable
 from datetime import datetime
 
 from rich.text import Text
@@ -58,15 +59,21 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         ),
         ("d", "dismiss_task", "Dismiss"),
         ("D", "dismiss_all_done", "Dismiss All Done"),
+        ("K", "kill_task", "Kill"),
         ("e", "edit_output", "Edit"),
         ("y", "copy_output", "Copy"),
         ("ctrl+d", "scroll_output_down", "Scroll down"),
         ("ctrl+u", "scroll_output_up", "Scroll up"),
     ]
 
-    def __init__(self, task_queue: TaskQueue) -> None:
+    def __init__(
+        self,
+        task_queue: TaskQueue,
+        kill_callback: Callable[[str], bool] | None = None,
+    ) -> None:
         super().__init__()
         self._task_queue = task_queue
+        self._kill_callback = kill_callback
         # Prune old tasks on open
         self._task_queue.prune_old()
         self._tasks: list[TaskInfo] = self._task_queue.get_all()
@@ -92,7 +99,7 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
                     with VerticalScroll(id="task-queue-output-scroll"):
                         yield Static(id="task-queue-output-content")
             yield Label(
-                "j/k: navigate  d: dismiss  D: dismiss all done  e: edit  y: copy  Ctrl+D/U: scroll  q: close",
+                "j/k: navigate  d: dismiss  D: dismiss all done  K: kill  e: edit  y: copy  Ctrl+D/U: scroll  q: close",
                 id="task-queue-hints",
             )
 
@@ -267,6 +274,40 @@ class TaskQueueModal(OptionListNavigationMixin, ModalScreen[None]):
         self._tasks = self._task_queue.get_all()
         new_idx = 0 if self._tasks else None
         self._rebuild_list(highlight_index=new_idx)
+
+    def action_kill_task(self) -> None:
+        """Kill the selected running task after confirmation."""
+        task = self._get_selected_task()
+        if task is None or task.status != "running" or self._kill_callback is None:
+            return
+
+        from .confirm_action_modal import ConfirmActionModal
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            assert self._kill_callback is not None
+            if self._kill_callback(task.task_id):
+                self._tasks = self._task_queue.get_all()
+                highlighted = None
+                try:
+                    option_list = self.query_one("#task-queue-list", OptionList)
+                    highlighted = option_list.highlighted
+                except Exception:
+                    pass
+                new_idx = (
+                    min(highlighted or 0, len(self._tasks) - 1) if self._tasks else None
+                )
+                self._rebuild_list(highlight_index=new_idx)
+                self.notify(f"Killed: {task.task_type} {task.cl_name}")
+
+        self.app.push_screen(
+            ConfirmActionModal(
+                title="Kill Task",
+                message=f"Kill running task: {task.task_type} {task.cl_name}?",
+            ),
+            _on_confirm,
+        )
 
     def action_scroll_output_down(self) -> None:
         """Scroll the output pane down by half a page."""

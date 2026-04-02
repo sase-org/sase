@@ -176,11 +176,40 @@ class TaskActionsMixin:
         self._reload_and_reposition()  # type: ignore[attr-defined]
         self._update_task_indicator()
 
+    def _kill_background_task(self, task_id: str) -> bool:
+        """Kill a running background task by cancelling its worker.
+
+        Returns True if the task was found and killed.
+        """
+        worker = self._task_workers.get(task_id)
+        if worker is None:
+            return False
+
+        worker.cancel()
+
+        # Mark as killed in the task queue
+        self._task_queue.complete(
+            task_id,
+            success=False,
+            message="Killed by user",
+            output="",
+            error="Killed by user",
+        )
+
+        # Clean up tracking
+        self._task_workers.pop(task_id, None)
+        getattr(self, "_task_success_callbacks", {}).pop(task_id, None)
+
+        self._update_task_indicator()
+        return True
+
     def _show_task_queue_modal(self) -> None:
         """Open the task queue viewer modal."""
         from ..modals import TaskQueueModal
 
-        self.push_screen(TaskQueueModal(self._task_queue))  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            TaskQueueModal(self._task_queue, kill_callback=self._kill_background_task)
+        )
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Route worker state changes for background tasks."""
