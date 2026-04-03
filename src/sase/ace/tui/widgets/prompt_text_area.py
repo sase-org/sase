@@ -261,12 +261,17 @@ class PromptTextArea(
                     event.prevent_default()
                     return
 
+        # Ctrl+F in INSERT mode: trigger file path completion
+        if event.key == "ctrl+f":
+            event.stop()
+            event.prevent_default()
+            self._try_file_completion_tab()
+            return
+
         # Tab in INSERT mode: expand snippet or advance tabstop (never insert literal tab)
         if event.key == "tab":
             event.stop()
             event.prevent_default()
-            if self._try_file_completion_tab():
-                return
             if self._try_expand_snippet():
                 return
             self._try_advance_tabstop()
