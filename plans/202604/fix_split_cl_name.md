@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 11:50:07
-status: wip
+status: done
 ---
 
 # Plan: Fix `cl_name` undefined in `#split` xprompt workflow via `sase run`

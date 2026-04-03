@@ -224,12 +224,21 @@ def run_query(
         if local_xprompts:
             anon_workflow.xprompts = local_xprompts
 
+        # Inject implicit workflow context variables (mirrors run_workflow_runner.py)
+        workflow_named_args: dict[str, Any] = {}
+        if cl_name:
+            workflow_named_args["cl_name"] = cl_name
+        if project_file:
+            workflow_named_args["project_file"] = project_file
+        if workspace_num:
+            workflow_named_args["workspace_num"] = workspace_num
+
         workflow_error: Exception | None = None
         try:
             result = execute_workflow(
                 anon_workflow.name,
                 [],
-                {},
+                workflow_named_args,
                 artifacts_dir=artifacts_dir,
                 workflow_obj=anon_workflow,
                 project=vcs_project,
