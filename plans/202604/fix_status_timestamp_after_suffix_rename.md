@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 11:40:42
-status: wip
+status: done
 ---
 
 # Fix: TIMESTAMPS entry not recorded on STATUS transitions with suffix rename

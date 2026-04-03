@@ -326,6 +326,40 @@ TIMESTAMPS:
         os.unlink(path)
 
 
+def test_add_timestamp_entry_atomic_after_name_change() -> None:
+    """Timestamp recording works when CL name was changed by suffix strip."""
+    # Simulate post-suffix-strip state: file has NAME: foo (not foo__1)
+    content = """\
+NAME: foo
+DESCRIPTION:
+  Some description
+STATUS: Ready
+TIMESTAMPS:
+  260329_143022 COMMIT  (1)
+
+
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        f.flush()
+        path = f.name
+
+    try:
+        # Using the post-rename name "foo" (not "foo__1") should succeed
+        ok = add_timestamp_entry_atomic(path, "foo", "STATUS", "Draft -> Ready")
+        assert ok
+
+        with open(path) as f:
+            new_content = f.read()
+
+        assert "STATUS " in new_content
+        assert "Draft -> Ready" in new_content
+        # Original entry still present
+        assert "COMMIT " in new_content
+    finally:
+        os.unlink(path)
+
+
 def test_add_timestamp_entry_wrong_cl_returns_false() -> None:
     """Returns False when CL name not found."""
     content = """\

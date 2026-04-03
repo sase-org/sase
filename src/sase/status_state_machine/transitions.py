@@ -153,9 +153,16 @@ def transition_changespec_status(
     if result[0] and result[1] is not None:
         from sase.ace.timestamps.recording import add_timestamp_entry_atomic
 
+        # Use post-rename name after suffix operations
+        ts_cl_name = changespec_name
+        if suffix_strip_info is not None:
+            ts_cl_name = suffix_strip_info[1]  # base_name (suffix was stripped)
+        elif suffix_append_info is not None:
+            ts_cl_name = suffix_append_info[1]  # suffixed_name (suffix was appended)
+
         add_timestamp_entry_atomic(
             project_file,
-            changespec_name,
+            ts_cl_name,
             "STATUS",
             f"{result[1]} -> {new_status}",
         )

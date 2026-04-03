@@ -166,6 +166,51 @@ TEST TARGETS: None
         return f.name
 
 
+def test_draft_to_ready_records_timestamp_with_base_name() -> None:
+    """Draft→Ready transition records STATUS timestamp using the base name."""
+    from unittest.mock import call, patch
+
+    project_file = _create_project_file_with_multiple_changespecs(
+        [("foo__1", "Draft", None)]
+    )
+
+    try:
+        with (
+            patch(
+                "sase.ace.changespec.find_all_changespecs",
+                return_value=[],
+            ),
+            patch("sase.ace.mentors.clear_mentor_draft_flags"),
+            patch(
+                "sase.status_state_machine.transitions.handle_suffix_strip",
+                return_value=[],
+            ),
+            patch(
+                "sase.ace.timestamps.recording.add_timestamp_entry_atomic",
+                return_value=True,
+            ) as mock_ts,
+        ):
+            # Simulate suffix_strip_info returned by handle_ready_transition
+            with patch(
+                "sase.status_state_machine.transitions.handle_ready_transition",
+                return_value=(True, "Draft", None, ("foo__1", "foo")),
+            ):
+                success, old_status, _, _ = transition_changespec_status(
+                    project_file, "foo__1", "Ready", validate=True
+                )
+
+            assert success is True
+            assert old_status == "Draft"
+
+            # Verify timestamp was recorded with the base name, not the suffixed name
+            mock_ts.assert_called_once()
+            ts_call = mock_ts.call_args
+            assert ts_call == call(project_file, "foo", "STATUS", "Draft -> Ready")
+
+    finally:
+        Path(project_file).unlink()
+
+
 def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
     """Test Draft->Ready blocked when sibling Draft ChangeSpec has unreverted children."""
     from unittest.mock import patch
