@@ -417,7 +417,8 @@ def execute_workflow(
     if workflow.is_anonymous():
         flattened = _flatten_anonymous_workflow(workflow, project=project)
         if flattened is not None:
-            workflow, positional_args, named_args = flattened
+            workflow, positional_args, flattened_named = flattened
+            named_args = {**named_args, **flattened_named}
         # Sync name — _flatten may rename the workflow even when not flattening
         # (e.g., prompt_part workflows like #resume_by_chat get named but not replaced)
         name = workflow.name

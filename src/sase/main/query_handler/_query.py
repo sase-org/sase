@@ -12,7 +12,7 @@ from sase.running_field import claim_workspace, release_workspace
 from ..utils import ensure_project_file_and_get_workspace_num
 
 
-def _resolve_vcs_cwd(query: str) -> str | None:
+def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
     """Detect VCS workflow refs in the query and resolve workspace CWD.
 
     If the query contains a VCS workflow reference (e.g., ``#gh:sase``),
@@ -27,7 +27,9 @@ def _resolve_vcs_cwd(query: str) -> str | None:
         query: The query text.
 
     Returns:
-        The resolved project name, or None if no VCS ref was found.
+        A ``(project_name, vcs_ref)`` tuple, or ``None`` if no VCS ref
+        was found.  ``vcs_ref`` is the raw ref extracted from the
+        ``#type:ref`` pattern (e.g., "yserve_batch_create_update").
     """
     if "#" not in query:
         return None
@@ -52,7 +54,7 @@ def _resolve_vcs_cwd(query: str) -> str | None:
                 from sase.xprompt.loader import detect_project
 
                 detect_project.cache_clear()
-                return resolved.project_name or ref
+                return resolved.project_name or ref, ref
 
     return None
 
@@ -77,13 +79,17 @@ def run_query(
     # Resolve VCS refs early so project-specific workflows are discoverable
     # and CWD-relative paths in workflow steps work correctly.  This mirrors
     # the TUI behavior where subprocess CWD is set before workflow execution.
-    vcs_project = _resolve_vcs_cwd(query)
+    vcs_result = _resolve_vcs_cwd(query)
+    if vcs_result is not None:
+        vcs_project, vcs_ref = vcs_result
+    else:
+        vcs_project, vcs_ref = None, None
 
     # Get project info for workspace claiming (creates project file if needed)
     project_file, workspace_num, _ = ensure_project_file_and_get_workspace_num()
 
-    # Resolve cl_name from project context for TUI display
-    cl_name = vcs_project
+    # Resolve cl_name from VCS ref (the actual CL name, e.g. "yserve_batch_create_update")
+    cl_name = vcs_ref
     if cl_name is None and project_file:
         cl_name = os.path.basename(os.path.dirname(project_file))
 
