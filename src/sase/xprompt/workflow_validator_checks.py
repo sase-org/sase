@@ -234,6 +234,10 @@ def validate_cross_step_field_refs(workflow: Workflow) -> list[str]:
         if step.artifact:
             step_fields.setdefault(step.name, set()).add("_artifact")
 
+        # Bash/python steps with hitl: true auto-inject 'approved' into output
+        if step.hitl and (step.bash is not None or step.python is not None):
+            step_fields.setdefault(step.name, set()).add("approved")
+
         if step.parallel_config:
             join = step.join
             skip_nested = (

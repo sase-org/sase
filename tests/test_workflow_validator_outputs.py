@@ -407,6 +407,43 @@ def test_cross_step_xprompt_content_validated() -> None:
     assert "Xprompt '_helper'" in errors[0]
 
 
+def test_cross_step_hitl_bash_approved_field() -> None:
+    """Bash step with hitl: true → 'approved' field is valid."""
+    workflow = Workflow(
+        name="test",
+        steps=[
+            WorkflowStep(
+                name="prompt",
+                bash="echo msg=hello",
+                hitl=True,
+                output=_make_output_with_fields("message"),
+            ),
+            WorkflowStep(name="act", condition="{{ prompt.approved }}", bash="echo go"),
+        ],
+    )
+    errors = validate_cross_step_field_refs(workflow)
+    assert errors == []
+
+
+def test_cross_step_hitl_agent_no_approved_field() -> None:
+    """Agent step with hitl: true → 'approved' is NOT auto-injected."""
+    workflow = Workflow(
+        name="test",
+        steps=[
+            WorkflowStep(
+                name="prompt",
+                agent="do something",
+                hitl=True,
+                output=_make_output_with_fields("message"),
+            ),
+            WorkflowStep(name="act", condition="{{ prompt.approved }}", bash="echo go"),
+        ],
+    )
+    errors = validate_cross_step_field_refs(workflow)
+    assert len(errors) == 1
+    assert "approved" in errors[0]
+
+
 def test_cross_step_step_without_output_skipped() -> None:
     """Refs to steps without output schemas are not validated."""
     workflow = Workflow(

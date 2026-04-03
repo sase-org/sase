@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 20:12:49
-status: wip
+status: done
 ---
 
 # Fix: Validator rejects `approved` field on HITL bash/python steps
