@@ -1,4 +1,4 @@
-"""Tests for WorkflowResult and _flatten_anonymous_workflow."""
+"""Tests for WorkflowResult, _flatten_anonymous_workflow, and execute_workflow."""
 
 from unittest.mock import MagicMock, patch
 
@@ -7,6 +7,7 @@ from sase.xprompt.workflow_runner import (
     _WORKFLOW_MODEL_OVERRIDE_ARG,
     WorkflowResult,
     _flatten_anonymous_workflow,
+    execute_workflow,
 )
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -318,3 +319,171 @@ def test_flatten_anonymous_workflow_preserves_wrapper_model_directive(
     assert named_args == {
         _WORKFLOW_MODEL_OVERRIDE_ARG: "gemini-3-flash-preview",
     }
+
+
+# --- execute_workflow flattening tests ---
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_flatten_preserves_caller_named_args(
+    mock_workflow_executor: MagicMock,
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Anonymous flattening should preserve caller-injected context keys."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="setup", bash="echo setup")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    anon_wf = _make_anonymous_workflow("#split")
+    execute_workflow(
+        name=anon_wf.name,
+        positional_args=[],
+        named_args={
+            "cl_name": "my_feature",
+            "project_file": "/tmp/myproj.gp",
+            "workspace_num": 101,
+        },
+        workflow_obj=anon_wf,
+        silent=True,
+    )
+
+    called_args = mock_workflow_executor.call_args.kwargs["args"]
+    assert called_args["cl_name"] == "my_feature"
+    assert called_args["project_file"] == "/tmp/myproj.gp"
+    assert called_args["workspace_num"] == 101
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_flatten_explicit_named_args_override_caller(
+    mock_workflow_executor: MagicMock,
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Args from #workflow(...) should override same-name caller defaults."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="setup", bash="echo setup")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    anon_wf = _make_anonymous_workflow("#split(cl_name=explicit_cl)")
+    execute_workflow(
+        name=anon_wf.name,
+        positional_args=[],
+        named_args={
+            "cl_name": "implicit_cl",
+            "workspace_num": 100,
+        },
+        workflow_obj=anon_wf,
+        silent=True,
+    )
+
+    called_args = mock_workflow_executor.call_args.kwargs["args"]
+    assert called_args["cl_name"] == "explicit_cl"
+    assert called_args["workspace_num"] == 100
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_flatten_preserves_wrapper_model_override(
+    mock_workflow_executor: MagicMock,
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Wrapper %model survives flattening and is passed as inherited override."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="setup", bash="echo setup")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    anon_wf = _make_anonymous_workflow("#split %model:gemini-3-flash-preview")
+    execute_workflow(
+        name=anon_wf.name,
+        positional_args=[],
+        named_args={"cl_name": "my_feature"},
+        workflow_obj=anon_wf,
+        silent=True,
+    )
+
+    call_kwargs = mock_workflow_executor.call_args.kwargs
+    assert call_kwargs["inherited_model_override"] == "gemini-3-flash-preview"
+    assert _WORKFLOW_MODEL_OVERRIDE_ARG not in call_kwargs["args"]
+    assert call_kwargs["args"]["cl_name"] == "my_feature"
+
+
+# --- _resolve_vcs_cwd tests ---
+
+
+@patch("sase.xprompt.loader.detect_project")
+@patch("os.chdir")
+@patch("sase.workspace_provider.resolve_ref")
+@patch("sase.workspace_provider.get_workflow_names")
+@patch("sase.xprompt._parsing.normalize_vcs_underscore_refs", side_effect=lambda q: q)
+def test_resolve_vcs_cwd_returns_vcs_ref(
+    _mock_normalize: MagicMock,
+    mock_get_wf_names: MagicMock,
+    mock_resolve_ref: MagicMock,
+    _mock_chdir: MagicMock,
+    _mock_detect_project: MagicMock,
+) -> None:
+    """_resolve_vcs_cwd returns (project_name, vcs_ref) with the raw ref."""
+    from sase.main.query_handler._query import _resolve_vcs_cwd
+
+    mock_get_wf_names.return_value = ["hg"]
+    resolved = MagicMock()
+    resolved.primary_workspace_dir = "/some/workspace"
+    resolved.project_name = "yserve"
+    mock_resolve_ref.return_value = resolved
+
+    result = _resolve_vcs_cwd("#hg:yserve_batch_create_update #split")
+
+    assert result is not None
+    project_name, vcs_ref = result
+    assert project_name == "yserve"
+    assert vcs_ref == "yserve_batch_create_update"
+
+
+@patch("sase.xprompt.loader.detect_project")
+@patch("os.chdir")
+@patch("sase.workspace_provider.resolve_ref")
+@patch("sase.workspace_provider.get_workflow_names")
+@patch("sase.xprompt._parsing.normalize_vcs_underscore_refs", side_effect=lambda q: q)
+def test_resolve_vcs_cwd_falls_back_to_ref_as_project_name(
+    _mock_normalize: MagicMock,
+    mock_get_wf_names: MagicMock,
+    mock_resolve_ref: MagicMock,
+    _mock_chdir: MagicMock,
+    _mock_detect_project: MagicMock,
+) -> None:
+    """When project_name is None, _resolve_vcs_cwd uses ref as the first element."""
+    from sase.main.query_handler._query import _resolve_vcs_cwd
+
+    mock_get_wf_names.return_value = ["gh"]
+    resolved = MagicMock()
+    resolved.primary_workspace_dir = "/some/workspace"
+    resolved.project_name = None  # resolution doesn't know the project name
+    mock_resolve_ref.return_value = resolved
+
+    result = _resolve_vcs_cwd("#gh:my_feature_branch")
+
+    assert result is not None
+    project_name, vcs_ref = result
+    # Falls back to the ref itself as project name
+    assert project_name == "my_feature_branch"
+    # vcs_ref is always the raw ref
+    assert vcs_ref == "my_feature_branch"
