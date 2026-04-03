@@ -12,7 +12,7 @@ from sase.running_field import claim_workspace, release_workspace
 from ..utils import ensure_project_file_and_get_workspace_num
 
 
-def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
+def _resolve_vcs_cwd(query: str) -> tuple[str | None, str] | None:
     """Detect VCS workflow refs in the query and resolve workspace CWD.
 
     If the query contains a VCS workflow reference (e.g., ``#gh:sase``),
@@ -28,8 +28,10 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
 
     Returns:
         A ``(project_name, vcs_ref)`` tuple, or ``None`` if no VCS ref
-        was found.  ``vcs_ref`` is the raw ref extracted from the
-        ``#type:ref`` pattern (e.g., "yserve_batch_create_update").
+        was found.  ``project_name`` may be ``None`` if workspace
+        resolution failed.  ``vcs_ref`` is always the raw ref extracted
+        from the ``#type:ref`` pattern (e.g.,
+        "yserve_batch_create_update"), independent of resolution.
     """
     if "#" not in query:
         return None
@@ -47,7 +49,7 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
             try:
                 resolved = resolve_ref(ref, workflow_type)
             except (ValueError, Exception):
-                continue
+                return None, ref
             if resolved and resolved.primary_workspace_dir:
                 os.chdir(resolved.primary_workspace_dir)
                 # Clear cached project detection since CWD changed
@@ -55,6 +57,7 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
 
                 detect_project.cache_clear()
                 return resolved.project_name or ref, ref
+            return None, ref
 
     return None
 

@@ -487,3 +487,25 @@ def test_resolve_vcs_cwd_falls_back_to_ref_as_project_name(
     assert project_name == "my_feature_branch"
     # vcs_ref is always the raw ref
     assert vcs_ref == "my_feature_branch"
+
+
+@patch("sase.workspace_provider.resolve_ref")
+@patch("sase.workspace_provider.get_workflow_names")
+@patch("sase.xprompt._parsing.normalize_vcs_underscore_refs", side_effect=lambda q: q)
+def test_resolve_vcs_cwd_returns_ref_when_resolve_raises(
+    _mock_normalize: MagicMock,
+    mock_get_wf_names: MagicMock,
+    mock_resolve_ref: MagicMock,
+) -> None:
+    """_resolve_vcs_cwd returns (None, vcs_ref) when resolve_ref raises."""
+    from sase.main.query_handler._query import _resolve_vcs_cwd
+
+    mock_get_wf_names.return_value = ["hg"]
+    mock_resolve_ref.side_effect = ValueError("workspace not found")
+
+    result = _resolve_vcs_cwd("#hg:yserve_batch_create_update #split")
+
+    assert result is not None
+    project_name, vcs_ref = result
+    assert project_name is None
+    assert vcs_ref == "yserve_batch_create_update"
