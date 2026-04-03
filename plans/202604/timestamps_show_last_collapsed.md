@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-02 19:59:28
-status: wip
+status: done
 ---
 
 # Plan: Always Show Last TIMESTAMPS Entry When Collapsed

@@ -59,13 +59,42 @@ class TestCollapsed:
         build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
         plain = text.plain
         assert "TIMESTAMPS:" in plain
-        assert "[folded: 4]" in plain
+        assert "[folded: 3]" in plain
+        assert "REWIND" in plain
+        assert "(3)" in plain
 
     def test_collapsed_no_timestamps_shows_nothing(self) -> None:
         cs = _make_changespec(timestamps=None)
         text = Text()
         build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
         assert text.plain == ""
+
+    def test_collapsed_single_entry_no_folded_indicator(self) -> None:
+        entries = [
+            TimestampEntry(
+                timestamp="2026-03-29 10:00:00",
+                event_type="COMMIT",
+                detail="(1)",
+            ),
+        ]
+        cs = _make_changespec(timestamps=entries)
+        text = Text()
+        build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
+        plain = text.plain
+        assert "COMMIT" in plain
+        assert "folded" not in plain
+
+    def test_collapsed_shows_last_entry_not_first(self) -> None:
+        entries = _make_entries()
+        cs = _make_changespec(timestamps=entries)
+        text = Text()
+        build_timestamps_section(text, cs, FoldLevel.COLLAPSED)
+        plain = text.plain
+        # Last entry (REWIND) should be visible
+        assert "REWIND" in plain
+        assert "(3)" in plain
+        # First entry's detail should NOT appear
+        assert "10:00:00" not in plain
 
 
 class TestExpanded:

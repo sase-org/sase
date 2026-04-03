@@ -3,6 +3,7 @@
 from rich.text import Text
 
 from ...changespec import ChangeSpec
+from ...changespec.models import TimestampEntry
 from ..models.fold_state import FoldLevel
 from .hint_tracker import HintTracker
 
@@ -24,6 +25,22 @@ _EVENT_COLORS: dict[str, str] = {
     "REWORD": _COLOR_REWORD,
     "REWIND": _COLOR_REWIND,
 }
+
+
+def _render_entry(text: Text, entry: TimestampEntry) -> None:
+    """Render a single timestamp entry."""
+    text.append(f"  [{entry.timestamp}] ", style=_COLOR_TIMESTAMP)
+    padded_event = entry.event_type.ljust(7)
+    event_color = _EVENT_COLORS.get(entry.event_type, "")
+    text.append(padded_event, style=event_color)
+    if entry.event_type == "STATUS" and " -> " in entry.detail:
+        old_status, new_status = entry.detail.split(" -> ", 1)
+        text.append(old_status, style=_COLOR_DETAIL)
+        text.append(" -> ", style=_COLOR_ARROW)
+        text.append(new_status, style=_COLOR_DETAIL)
+    else:
+        text.append(entry.detail, style=_COLOR_DETAIL)
+    text.append("\n")
 
 
 def build_timestamps_section(
@@ -60,9 +77,14 @@ def build_timestamps_section(
         return tracker
 
     if timestamps_fold == FoldLevel.COLLAPSED:
-        text.append("TIMESTAMPS:", style=_COLOR_HEADER)
-        text.append(f" [folded: {len(changespec.timestamps)}]", style="italic #808080")
-        text.append("\n")
+        text.append("TIMESTAMPS:\n", style=_COLOR_HEADER)
+        hidden = len(changespec.timestamps) - 1
+        if hidden > 0:
+            text.append(
+                f"  ...                          [folded: {hidden}]\n",
+                style="italic #808080",
+            )
+        _render_entry(text, changespec.timestamps[-1])
         return tracker
 
     text.append("TIMESTAMPS:\n", style=_COLOR_HEADER)
@@ -75,23 +97,6 @@ def build_timestamps_section(
         ):
             continue
 
-        # Timestamp
-        text.append(f"  [{entry.timestamp}] ", style=_COLOR_TIMESTAMP)
-
-        # Event type keyword
-        padded_event = entry.event_type.ljust(7)
-        event_color = _EVENT_COLORS.get(entry.event_type, "")
-        text.append(padded_event, style=event_color)
-
-        # Detail — STATUS gets special arrow rendering
-        if entry.event_type == "STATUS" and " -> " in entry.detail:
-            old_status, new_status = entry.detail.split(" -> ", 1)
-            text.append(old_status, style=_COLOR_DETAIL)
-            text.append(" -> ", style=_COLOR_ARROW)
-            text.append(new_status, style=_COLOR_DETAIL)
-        else:
-            text.append(entry.detail, style=_COLOR_DETAIL)
-
-        text.append("\n")
+        _render_entry(text, entry)
 
     return tracker
