@@ -175,6 +175,10 @@ class AceApp(
         # Rewind mode state
         self._rewind_mode_active: bool = False
 
+        # Jump-to-entry mode state
+        self._jump_mode_active: bool = False
+        self._jump_hint_map: dict[str, int] = {}
+
         # Fold mode state (for z key sub-command)
         self._fold_mode_active: bool = False
 

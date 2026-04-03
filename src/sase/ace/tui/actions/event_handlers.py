@@ -46,6 +46,7 @@ class EventHandlersMixin:
     _sibling_mode_active: bool
     _hint_mode_active: bool
     _accept_mode_active: bool
+    _jump_mode_active: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
     _custom_mode_active: str | None
@@ -185,6 +186,11 @@ class EventHandlersMixin:
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""
         self._record_user_activity()
+        if self._jump_mode_active:
+            if self._handle_jump_key(event.key):  # type: ignore[attr-defined]
+                event.prevent_default()
+                event.stop()
+            return
         if self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()

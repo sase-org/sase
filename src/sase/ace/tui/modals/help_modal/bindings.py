@@ -53,6 +53,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
                     "Scroll detail panel down / up",
                 ),
+                (d(a.jump_to_entry), "Jump to entry by hint"),
             ],
         ),
         (
@@ -272,6 +273,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Scroll prompt panel down / up",
                 ),
                 (d(a.focus_pinned_panel), "Toggle focus: list / pinned"),
+                (d(a.jump_to_entry), "Jump to entry by hint"),
             ],
         ),
         (
@@ -423,6 +425,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                 ),
                 (d(a.scroll_to_top), "Scroll to top"),
                 (d(a.scroll_to_bottom), "Scroll to bottom"),
+                (d(a.jump_to_entry), "Jump to entry by hint"),
             ],
         ),
         (

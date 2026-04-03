@@ -47,3 +47,7 @@ class HintMixinBase:
     # Failed hooks state
     _failed_hooks_targets: list[str]
     _failed_hooks_file_path: str | None
+
+    # Jump-to-entry mode state
+    _jump_mode_active: bool
+    _jump_hint_map: dict[str, int]

@@ -105,4 +105,5 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Jump to CL from agent (agents tab)
     Binding("enter", "jump_to_agent_changespec", "Go to CL", show=False),
     Binding("J", "focus_pinned_panel", "Focus Pinned", show=False),
+    Binding("V", "jump_to_entry", "Jump", show=False),
 ]

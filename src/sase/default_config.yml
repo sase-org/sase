@@ -20,6 +20,7 @@ ace:
       next_changespec_history: "ctrl+k"
       next_agent_file: "ctrl+n"
       prev_agent_file: "ctrl+p"
+      jump_to_entry: "V"
       # Tab switching
       next_tab: "tab"
       prev_tab: "shift+tab"

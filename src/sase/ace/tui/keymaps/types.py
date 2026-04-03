@@ -103,6 +103,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("reset_file_trim", "Reset Trim", False),
     ("show_all_file_lines", "Show All", False),
     ("jump_to_agent_changespec", "Go to CL", False),
+    ("jump_to_entry", "Jump", False),
 ]
 
 # Maps mode name -> the app-level action that activates it.
@@ -189,6 +190,7 @@ class AppKeymaps:
     next_changespec_history: str
     next_agent_file: str
     prev_agent_file: str
+    jump_to_entry: str
     # Tab switching
     next_tab: str
     prev_tab: str
