@@ -40,6 +40,33 @@ class TestProtectUnprotectRoundTrip:
         assert "hidden" not in protected
         assert "visible" in protected
 
+    def test_inline_closing_marker(self) -> None:
+        """Closing marker at end of a content line (not on its own line)."""
+        text = (
+            "before\n"
+            "%xprompts_enabled:false\n"
+            "line one\n"
+            "last line text. %xprompts_enabled:true\n"
+            "after\n"
+        )
+        regions: list[str] = []
+        protected = protect_disabled_regions(text, regions)
+        assert "line one" not in protected
+        assert "last line text" not in protected
+        assert "before" in protected
+        assert "after" in protected
+        assert len(regions) == 1
+        restored = unprotect_disabled_regions(protected, regions)
+        assert restored == text
+
+    def test_inline_closing_marker_no_trailing_newline(self) -> None:
+        """Inline closing marker at end of string without trailing newline."""
+        text = "%xprompts_enabled:false\nhidden content. %xprompts_enabled:true"
+        regions: list[str] = []
+        protected = protect_disabled_regions(text, regions)
+        assert "hidden content" not in protected
+        assert len(regions) == 1
+
 
 class TestStripDisabledRegionMarkers:
     """Tests for strip_disabled_region_markers."""
@@ -49,6 +76,18 @@ class TestStripDisabledRegionMarkers:
         result = strip_disabled_region_markers(text)
         assert "%xprompts_enabled" not in result
         assert "content" in result
+
+    def test_strips_inline_closing_marker(self) -> None:
+        """Inline closing marker is stripped, preserving the rest of the line."""
+        text = "content line. %xprompts_enabled:true\n"
+        result = strip_disabled_region_markers(text)
+        assert "%xprompts_enabled" not in result
+        assert result == "content line.\n"
+
+    def test_strips_inline_closing_marker_no_trailing_newline(self) -> None:
+        text = "content line. %xprompts_enabled:true"
+        result = strip_disabled_region_markers(text)
+        assert result == "content line."
 
 
 class TestProcessXpromptReferencesDisabledRegions:
@@ -86,6 +125,50 @@ class TestProcessXpromptReferencesDisabledRegions:
 
 class TestPreprocessPromptLateDisabledRegions:
     """Integration: preprocess_prompt_late strips markers and protects content."""
+
+    @patch(
+        "sase.gemini_wrapper.file_references.process_command_substitution",
+        side_effect=lambda x: x,
+    )
+    @patch(
+        "sase.gemini_wrapper.file_references.format_with_prettier",
+        side_effect=lambda x: x,
+    )
+    @patch(
+        "sase.gemini_wrapper.file_references.strip_html_comments",
+        side_effect=lambda x: x,
+    )
+    @patch("sase.xprompt.is_jinja2_template", return_value=False)
+    @patch(
+        "sase.gemini_wrapper.file_references.validate_file_references",
+    )
+    def test_validate_mode_ignores_at_refs_in_disabled_region_inline_close(
+        self,
+        mock_validate: MagicMock,
+        _mock_jinja: MagicMock,
+        _mock_html: MagicMock,
+        _mock_prettier: MagicMock,
+        _mock_cmd_sub: MagicMock,
+    ) -> None:
+        """@refs inside disabled region with inline closing marker are not validated.
+
+        Regression test: the validator must not see @i18n inside a
+        %xprompts_enabled:false region whose closing marker is inline.
+        """
+        from sase.llm_provider.preprocessing import preprocess_prompt_late
+
+        prompt = (
+            "%xprompts_enabled:false\n"
+            "use the @i18n attribute.\n"
+            "use the @i18n attribute.\n"
+            "consistency with the DRX grid system. %xprompts_enabled:true\n"
+        )
+        preprocess_prompt_late(prompt, file_ref_mode="validate")
+        # validate_file_references should be called with prompt that has
+        # no @i18n (the disabled region is replaced by a placeholder)
+        assert mock_validate.called
+        validated_text = mock_validate.call_args[0][0]
+        assert "@i18n" not in validated_text
 
     @patch(
         "sase.gemini_wrapper.file_references.process_command_substitution",

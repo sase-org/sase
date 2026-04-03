@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 11:45:38
-status: wip
+status: done
 ---
 
 # Fix: `@` file ref validation fails on content inside disabled regions with inline closing marker

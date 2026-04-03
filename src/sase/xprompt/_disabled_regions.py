@@ -9,7 +9,7 @@ preventing content inside disabled regions from being processed.
 import re
 
 _DISABLED_REGION_RE = re.compile(
-    r"^[ \t]*%xprompts_enabled:false[ \t]*\n([\s\S]*?)^[ \t]*%xprompts_enabled:true[ \t]*\n?",
+    r"^[ \t]*%xprompts_enabled:false[ \t]*\n([\s\S]*?)(?:^[ \t]*|[ \t]+)%xprompts_enabled:true[ \t]*\n?",
     re.MULTILINE,
 )
 _PLACEHOLDER_PREFIX = "\x00XPD_"
@@ -71,7 +71,7 @@ def strip_disabled_region_markers(text: str) -> str:
         The text with all marker lines removed.
     """
     return re.sub(
-        r"^[ \t]*%xprompts_enabled:(?:false|true)[ \t]*\n?",
+        r"^[ \t]*%xprompts_enabled:(?:false|true)[ \t]*\n?|[ \t]+%xprompts_enabled:(?:false|true)[ \t]*",
         "",
         text,
         flags=re.MULTILINE,
