@@ -6,6 +6,7 @@ from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_runner import (
     _WORKFLOW_MODEL_OVERRIDE_ARG,
     WorkflowResult,
+    execute_workflow,
     _flatten_anonymous_workflow,
 )
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -318,3 +319,108 @@ def test_flatten_anonymous_workflow_preserves_wrapper_model_directive(
     assert named_args == {
         _WORKFLOW_MODEL_OVERRIDE_ARG: "gemini-3-flash-preview",
     }
+
+
+# --- execute_workflow flattening tests ---
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_flatten_preserves_caller_named_args(
+    mock_workflow_executor: MagicMock,
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Anonymous flattening should preserve caller-injected context keys."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="setup", bash="echo setup")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    anon_wf = _make_anonymous_workflow("#split")
+    execute_workflow(
+        name=anon_wf.name,
+        positional_args=[],
+        named_args={
+            "cl_name": "my_feature",
+            "project_file": "/tmp/myproj.gp",
+            "workspace_num": 101,
+        },
+        workflow_obj=anon_wf,
+        silent=True,
+    )
+
+    called_args = mock_workflow_executor.call_args.kwargs["args"]
+    assert called_args["cl_name"] == "my_feature"
+    assert called_args["project_file"] == "/tmp/myproj.gp"
+    assert called_args["workspace_num"] == 101
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_flatten_explicit_named_args_override_caller(
+    mock_workflow_executor: MagicMock,
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Args from #workflow(...) should override same-name caller defaults."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="setup", bash="echo setup")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    anon_wf = _make_anonymous_workflow("#split(cl_name=explicit_cl)")
+    execute_workflow(
+        name=anon_wf.name,
+        positional_args=[],
+        named_args={
+            "cl_name": "implicit_cl",
+            "workspace_num": 100,
+        },
+        workflow_obj=anon_wf,
+        silent=True,
+    )
+
+    called_args = mock_workflow_executor.call_args.kwargs["args"]
+    assert called_args["cl_name"] == "explicit_cl"
+    assert called_args["workspace_num"] == 100
+
+
+@patch("sase.xprompt.loader.get_all_prompts")
+@patch("sase.xprompt.workflow_executor.WorkflowExecutor")
+def test_execute_workflow_flatten_preserves_wrapper_model_override(
+    mock_workflow_executor: MagicMock,
+    mock_get_all_prompts: MagicMock,
+) -> None:
+    """Wrapper %model survives flattening and is passed as inherited override."""
+    target_wf = Workflow(
+        name="split",
+        steps=[WorkflowStep(name="setup", bash="echo setup")],
+    )
+    mock_get_all_prompts.return_value = {"split": target_wf}
+
+    executor_instance = mock_workflow_executor.return_value
+    executor_instance.execute.return_value = True
+    executor_instance.state.steps = []
+
+    anon_wf = _make_anonymous_workflow("#split %model:gemini-3-flash-preview")
+    execute_workflow(
+        name=anon_wf.name,
+        positional_args=[],
+        named_args={"cl_name": "my_feature"},
+        workflow_obj=anon_wf,
+        silent=True,
+    )
+
+    call_kwargs = mock_workflow_executor.call_args.kwargs
+    assert call_kwargs["inherited_model_override"] == "gemini-3-flash-preview"
+    assert _WORKFLOW_MODEL_OVERRIDE_ARG not in call_kwargs["args"]
+    assert call_kwargs["args"]["cl_name"] == "my_feature"
