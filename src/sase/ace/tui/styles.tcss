@@ -701,7 +701,7 @@ PromptInputBar #prompt-completion.hidden {
 
 PromptInputBar #prompt-input {
     width: 100%;
-    height: auto;
+    height: 1fr;
     border: none;
     background: $background;
     color: $text;

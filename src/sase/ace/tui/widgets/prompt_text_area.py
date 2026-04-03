@@ -305,6 +305,11 @@ class PromptTextArea(
         ):
             await self._format_with_prettier()
 
+    def _on_resize(self) -> None:
+        """Scroll cursor into view after the parent resizes."""
+        super()._on_resize()
+        self.scroll_cursor_visible()
+
     def on_blur(self) -> None:
         """Schedule a deferred refocus when the text area loses focus."""
         self.call_later(self._refocus_if_needed)

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 13:04:22
-status: wip
+status: done
 ---
 
 # Fix: Prompt Input Widget Not Scrolling With Cursor
