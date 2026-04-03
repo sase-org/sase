@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 14:07:17
-status: wip
+status: done
 ---
 
 # Plan: Fix xprompt null argument validation

@@ -18,7 +18,11 @@ from sase.xprompt.models import (
     InputType,
     XPrompt,
 )
-from sase.xprompt.workflow_executor_utils import parse_bash_output, render_template
+from sase.xprompt.workflow_executor_utils import (
+    _finalize_value,
+    parse_bash_output,
+    render_template,
+)
 
 
 def test_evaluate_standalone_condition_missing_variable() -> None:
@@ -258,6 +262,25 @@ def test_render_template_bool_tojson_produces_python() -> None:
     assert result == "False"
     result = render_template("{{ flag | tojson }}", {"flag": None})
     assert result == "None"
+
+
+def test_finalize_value_none_returns_null() -> None:
+    """_finalize_value(None) should return 'null' (YAML-compatible string)."""
+    assert _finalize_value(None) == "null"
+
+
+def test_finalize_value_preserves_bools_and_other_types() -> None:
+    """_finalize_value should still lowercase bools and pass through others."""
+    assert _finalize_value(True) == "true"
+    assert _finalize_value(False) == "false"
+    assert _finalize_value("hello") == "hello"
+    assert _finalize_value(42) == 42
+
+
+def test_render_template_none_produces_null_string() -> None:
+    """Rendering {{ var }} with None context value should produce 'null'."""
+    result = render_template("{{ val }}", {"val": None})
+    assert result == "null"
 
 
 def test_chdir_handling_in_standalone_steps(tmp_path: Path) -> None:

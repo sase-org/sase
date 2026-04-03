@@ -8,13 +8,15 @@ from jinja2 import Environment, StrictUndefined
 
 
 def _finalize_value(value: Any) -> Any:
-    """Convert Python booleans to lowercase strings for bash compatibility.
+    """Normalize Python values to their YAML string equivalents.
 
-    Jinja2 renders Python True/False as "True"/"False", but bash expects
-    "true"/"false" for comparisons like [ "$var" = "true" ].
+    - bool: True/False → "true"/"false" (bash expects lowercase)
+    - None: → "null" (so downstream `value == "null"` pass-through works)
     """
     if isinstance(value, bool):
         return str(value).lower()
+    if value is None:
+        return "null"
     return value
 
 
