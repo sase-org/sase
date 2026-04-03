@@ -90,7 +90,7 @@ def _is_foldable_parent(agent: Agent) -> bool:
     return agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child
 
 
-class AgentList(OptionList):
+class AgentList(OptionList, inherit_bindings=False):
     """List widget showing agents, used for both main and pinned panels."""
 
     # Override OptionList.BINDINGS to exclude the enter -> select binding.
