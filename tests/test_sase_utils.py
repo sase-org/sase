@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.core.changespec import (
     changespec_name_to_branch,
+    ensure_project_prefix,
     get_next_suffix_number,
     get_workspace_directory_for_changespec,
 )
@@ -99,6 +100,24 @@ def test_run_workspace_command_no_capture() -> None:
     mock_run.assert_called_once_with(
         ["sase", "commit"], cwd="/tmp", capture_output=False, text=True, check=False
     )
+
+
+# Tests for changespec_name_to_branch
+
+
+def test_ensure_project_prefix_missing() -> None:
+    """Prefix is prepended when missing."""
+    assert ensure_project_prefix("sase", "fix_split") == "sase_fix_split"
+
+
+def test_ensure_project_prefix_already_present() -> None:
+    """No-op when prefix is already present."""
+    assert ensure_project_prefix("sase", "sase_fix_split") == "sase_fix_split"
+
+
+def test_ensure_project_prefix_partial_match() -> None:
+    """A name that starts with the project string but not the full prefix."""
+    assert ensure_project_prefix("sase", "sasefoo") == "sase_sasefoo"
 
 
 # Tests for changespec_name_to_branch

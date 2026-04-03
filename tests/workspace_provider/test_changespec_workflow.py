@@ -144,6 +144,50 @@ def test_create_changespec_uses_full_commit_description() -> None:
         assert description != "feat: add thing"
 
 
+def test_create_changespec_adds_project_prefix_to_cl_name() -> None:
+    """cl_name without project prefix gets normalized before passing through."""
+    with (
+        patch(
+            "sase.workspace_provider.changespec._get_commits_ahead",
+            return_value=["fix: something"],
+        ),
+        patch(
+            "sase.workspace_provider.changespec.generate_timestamp",
+            return_value="260101_120000",
+        ),
+        patch(
+            "sase.workspace_provider.changespec.save_chat_history",
+            return_value="~/chats/f.md",
+        ),
+        patch(
+            "sase.workspace_provider.changespec._save_committed_diff",
+            return_value=None,
+        ),
+        patch(
+            "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
+            return_value=[],
+        ),
+        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
+        patch(
+            "sase.workspace_provider.changespec.add_changespec_to_project_file",
+            return_value="sase_fix_split_1",
+        ) as mock_add,
+    ):
+        create_changespec_for_workflow(
+            project_name="sase",
+            project_file="/fake/sase.gp",
+            checkout_target="origin/main",
+            branch_name="fix-split",
+            prompt="",
+            response="",
+            workflow_name="gh",
+            cl_name="fix_split",  # Missing project prefix
+        )
+        mock_add.assert_called_once()
+        # cl_name passed to add_changespec should now include the prefix
+        assert mock_add.call_args[0][1] == "sase_fix_split"
+
+
 def test_create_changespec_strips_pr_tags_from_commit_description() -> None:
     """strip_pr_tags is applied to the full commit_description."""
     with (

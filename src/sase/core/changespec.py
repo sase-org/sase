@@ -7,6 +7,17 @@ if TYPE_CHECKING:
     from sase.ace.changespec import ChangeSpec
 
 
+def ensure_project_prefix(project_name: str, cl_name: str) -> str:
+    """Ensure *cl_name* starts with ``<project_name>_``.
+
+    If the prefix is already present, return as-is; otherwise prepend it.
+    """
+    prefix = f"{project_name}_"
+    if cl_name.startswith(prefix):
+        return cl_name
+    return f"{prefix}{cl_name}"
+
+
 def strip_reverted_suffix(name: str) -> str:
     """Remove the _<N> suffix from a reverted ChangeSpec name.
 

@@ -113,8 +113,8 @@ STATUS: Draft
 
 def test_compute_suffixed_cl_name_basic() -> None:
     """Test compute_suffixed_cl_name returns suffixed name."""
-    # Project file with one existing ChangeSpec
-    content = "NAME: eval_foobar_1\nSTATUS: Draft\n"
+    # Project file with one existing ChangeSpec (already prefixed)
+    content = "NAME: test_project_eval_foobar_1\nSTATUS: Draft\n"
     with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
         f.write(content)
         project_file = f.name
@@ -124,9 +124,11 @@ def test_compute_suffixed_cl_name_basic() -> None:
             "sase.workflows.commit.changespec_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = compute_suffixed_cl_name("test_project", "eval_foobar")
+            result = compute_suffixed_cl_name(
+                "test_project", "test_project_eval_foobar"
+            )
         # _1 already exists, so should get _2
-        assert result == "eval_foobar_2"
+        assert result == "test_project_eval_foobar_2"
     finally:
         os.unlink(project_file)
 
@@ -142,8 +144,8 @@ def test_compute_suffixed_cl_name_no_existing() -> None:
             "sase.workflows.commit.changespec_operations.get_project_file_path",
             return_value=project_file,
         ):
-            result = compute_suffixed_cl_name("test_project", "eval_bar")
-        assert result == "eval_bar_1"
+            result = compute_suffixed_cl_name("test_project", "test_project_eval_bar")
+        assert result == "test_project_eval_bar_1"
     finally:
         os.unlink(project_file)
 
@@ -393,30 +395,32 @@ def test_reservation_replaced_by_add_changespec() -> None:
             return_value=project_file,
         ):
             # Step 1: create reservation
-            reserved = compute_suffixed_cl_name("test_project", "res_feature")
-            assert reserved == "res_feature_1"
+            reserved = compute_suffixed_cl_name(
+                "test_project", "test_project_res_feature"
+            )
+            assert reserved == "test_project_res_feature_1"
 
             # Verify reservation exists in file
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
-            assert "NAME: res_feature_1" in content
+            assert "NAME: test_project_res_feature_1" in content
             assert "STATUS: Reserved" in content
 
             # Step 2: add full ChangeSpec with reserved_name
             result = add_changespec_to_project_file(
                 project="test_project",
-                cl_name="res_feature",
+                cl_name="test_project_res_feature",
                 description="Full description",
                 parent=None,
                 cl_url="http://cl/44444",
-                reserved_name="res_feature_1",
+                reserved_name="test_project_res_feature_1",
             )
 
-        assert result == "res_feature_1"
+        assert result == "test_project_res_feature_1"
 
         # Verify reservation stub is gone and full ChangeSpec exists
         changespecs = parse_project_file(project_file)
-        cs = next(c for c in changespecs if c.name == "res_feature_1")
+        cs = next(c for c in changespecs if c.name == "test_project_res_feature_1")
         assert cs.status == "Draft"
         assert cs.cl == "http://cl/44444"
 
@@ -440,21 +444,23 @@ def test_remove_reservation_cleans_up_stub() -> None:
             return_value=project_file,
         ):
             # Create reservation
-            reserved = compute_suffixed_cl_name("test_project", "cleanup_feat")
-            assert reserved == "cleanup_feat_1"
+            reserved = compute_suffixed_cl_name(
+                "test_project", "test_project_cleanup_feat"
+            )
+            assert reserved == "test_project_cleanup_feat_1"
 
             # Verify it exists
             with open(project_file, encoding="utf-8") as f:
                 content = f.read()
-            assert "NAME: cleanup_feat_1" in content
+            assert "NAME: test_project_cleanup_feat_1" in content
 
             # Remove it (simulating ChangeSpec creation failure)
-            remove_reservation("test_project", "cleanup_feat_1")
+            remove_reservation("test_project", "test_project_cleanup_feat_1")
 
         # Verify stub is gone
         with open(project_file, encoding="utf-8") as f:
             content = f.read()
-        assert "cleanup_feat_1" not in content
+        assert "test_project_cleanup_feat_1" not in content
         assert "Reserved" not in content
     finally:
         os.unlink(project_file)
@@ -472,14 +478,52 @@ def test_suffix_slot_reused_after_reservation_cleanup() -> None:
             return_value=project_file,
         ):
             # Reserve _1
-            reserved = compute_suffixed_cl_name("test_project", "reuse_feat")
-            assert reserved == "reuse_feat_1"
+            reserved = compute_suffixed_cl_name(
+                "test_project", "test_project_reuse_feat"
+            )
+            assert reserved == "test_project_reuse_feat_1"
 
             # Clean it up
-            remove_reservation("test_project", "reuse_feat_1")
+            remove_reservation("test_project", "test_project_reuse_feat_1")
 
             # Reserve again — should get _1 again since the slot is free
-            reserved2 = compute_suffixed_cl_name("test_project", "reuse_feat")
-            assert reserved2 == "reuse_feat_1"
+            reserved2 = compute_suffixed_cl_name(
+                "test_project", "test_project_reuse_feat"
+            )
+            assert reserved2 == "test_project_reuse_feat_1"
+    finally:
+        os.unlink(project_file)
+
+
+def test_compute_suffixed_cl_name_adds_project_prefix() -> None:
+    """compute_suffixed_cl_name prepends project prefix when missing."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = compute_suffixed_cl_name("myproj", "fix_bug")
+        assert result == "myproj_fix_bug_1"
+    finally:
+        os.unlink(project_file)
+
+
+def test_compute_suffixed_cl_name_no_double_prefix() -> None:
+    """compute_suffixed_cl_name does not double-prefix when already present."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.changespec_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = compute_suffixed_cl_name("myproj", "myproj_fix_bug")
+        assert result == "myproj_fix_bug_1"
     finally:
         os.unlink(project_file)
