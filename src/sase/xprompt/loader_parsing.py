@@ -182,12 +182,13 @@ def _parse_shortform_output(output_data: dict[str, Any] | list[Any]) -> OutputSp
 
         for field_name, field_value in item_spec.items():
             type_str, default = _parse_shortform_input_value(field_value)
-            if default is None:
-                properties[field_name] = {"type": [type_str, "null"]}
+            if default is not UNSET:
+                prop: dict[str, Any] = {"type": [type_str, "null"]}
+                if default is not None:
+                    prop["default"] = default
+                properties[field_name] = prop
             else:
                 properties[field_name] = {"type": type_str}
-            # Fields without defaults are required
-            if default is UNSET:
                 required.append(field_name)
 
         items_schema: dict[str, Any] = {
@@ -209,8 +210,11 @@ def _parse_shortform_output(output_data: dict[str, Any] | list[Any]) -> OutputSp
         properties = {}
         for field_name, field_value in output_data.items():
             type_str, default = _parse_shortform_input_value(field_value)
-            if default is None:
-                properties[field_name] = {"type": [type_str, "null"]}
+            if default is not UNSET:
+                prop = {"type": [type_str, "null"]}
+                if default is not None:
+                    prop["default"] = default
+                properties[field_name] = prop
             else:
                 properties[field_name] = {"type": type_str}
 

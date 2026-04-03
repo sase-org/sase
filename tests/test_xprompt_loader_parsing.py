@@ -1,6 +1,7 @@
 """Tests for xprompt.loader parsing functions."""
 
 from sase.xprompt.loader_parsing import (
+    _parse_shortform_output,
     parse_inputs_from_front_matter,
     parse_yaml_front_matter,
 )
@@ -52,3 +53,34 @@ def test_parse_inputs_skips_invalid_items() -> None:
     assert len(inputs) == 2
     assert inputs[0].name == "valid"
     assert inputs[1].name == "also_valid"
+
+
+# Tests for _parse_shortform_output
+
+
+def test_shortform_output_spec_field_with_empty_string_default_is_nullable() -> None:
+    """Field with default: '' should produce nullable type."""
+    spec = _parse_shortform_output(
+        [{"name": "word", "parent": {"type": "word", "default": ""}}]
+    )
+    props = spec.schema["items"]["properties"]
+    assert props["parent"]["type"] == ["word", "null"]
+    assert props["parent"]["default"] == ""
+
+
+def test_shortform_output_spec_field_with_none_default_is_nullable() -> None:
+    """Field with default: None (null) should produce nullable type."""
+    spec = _parse_shortform_output(
+        [{"name": "word", "parent": {"type": "word", "default": None}}]
+    )
+    props = spec.schema["items"]["properties"]
+    assert props["parent"]["type"] == ["word", "null"]
+    assert "default" not in props["parent"]
+
+
+def test_shortform_output_spec_field_without_default_not_nullable() -> None:
+    """Field without a default should NOT be nullable and should be required."""
+    spec = _parse_shortform_output([{"name": "word", "parent": "word"}])
+    props = spec.schema["items"]["properties"]
+    assert props["parent"]["type"] == "word"
+    assert "parent" in spec.schema["items"]["required"]

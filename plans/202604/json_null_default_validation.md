@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 14:44:42
-status: wip
+status: done
 ---
 
 # Plan: Allow null values for JSON schema fields with defaults

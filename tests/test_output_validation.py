@@ -256,6 +256,78 @@ class TestValidateAgainstSchemaNullable:
         assert is_valid is True
         assert error is None
 
+    def test_null_with_empty_string_default_passes(self) -> None:
+        """Test that null passes for a field with default: ''."""
+        schema = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {"type": "word"},
+                    "parent": {"type": ["word", "null"], "default": ""},
+                },
+            },
+        }
+        data = [{"name": "child1", "parent": None}]
+        is_valid, error = validate_against_schema(data, schema)
+        assert is_valid is True
+        assert error is None
+
+    def test_null_with_default_none_passes(self) -> None:
+        """Test that null passes for a field with default: None (null)."""
+        schema = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {"type": "word"},
+                    "parent": {"type": ["word", "null"]},
+                },
+            },
+        }
+        data = [{"name": "root", "parent": None}]
+        is_valid, error = validate_against_schema(data, schema)
+        assert is_valid is True
+        assert error is None
+
+    def test_null_without_default_fails(self) -> None:
+        """Test that null fails for a required field without a default."""
+        schema = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {"type": "word"},
+                },
+            },
+        }
+        data = [{"name": None}]
+        is_valid, error = validate_against_schema(data, schema)
+        assert is_valid is False
+        assert error is not None
+
+    def test_null_normalized_to_default_value(self) -> None:
+        """Test that null is replaced with the default before validation."""
+        schema = {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {"type": "word"},
+                    "parent": {"type": ["word", "null"], "default": ""},
+                },
+            },
+        }
+        data = [{"name": "child1", "parent": None}]
+        is_valid, error = validate_against_schema(data, schema)
+        assert is_valid is True
+        # Verify normalization happened in-place
+        assert data[0]["parent"] == ""
+
 
 class TestExtractSemanticTypeHintsNullable:
     """Tests for extract_semantic_type_hints with nullable types."""

@@ -323,6 +323,30 @@ def _convert_data_types(
     return data
 
 
+def _normalize_nulls_to_defaults(data: Any, schema: dict[str, Any]) -> Any:
+    """Replace null values with their schema defaults.
+
+    Walks the data and schema together. When a field value is None and the
+    schema property has a ``"default"`` key, the null is replaced with that
+    default so downstream consumers get clean data.
+    """
+    if isinstance(data, dict):
+        properties = schema.get("properties", {})
+        for key in list(data.keys()):
+            if key in properties:
+                prop_schema = properties[key]
+                if data[key] is None and "default" in prop_schema:
+                    data[key] = prop_schema["default"]
+                else:
+                    data[key] = _normalize_nulls_to_defaults(data[key], prop_schema)
+    elif isinstance(data, list):
+        items_schema = schema.get("items", {})
+        if isinstance(items_schema, dict):
+            for i, item in enumerate(data):
+                data[i] = _normalize_nulls_to_defaults(item, items_schema)
+    return data
+
+
 def validate_against_schema(
     data: Any, schema: dict[str, Any]
 ) -> tuple[bool, str | None]:
@@ -340,6 +364,9 @@ def validate_against_schema(
     Returns:
         Tuple of (is_valid, error_message). error_message is None if valid.
     """
+    # Normalize nulls to defaults before any validation
+    data = _normalize_nulls_to_defaults(data, schema)
+
     # Convert semantic types to JSON Schema types
     converted_schema, type_map = _convert_semantic_schema_to_json_schema(schema)
 
