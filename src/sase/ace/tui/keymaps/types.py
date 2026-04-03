@@ -42,6 +42,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("reword", "Reword", False),
     ("add_tag", "Add Tag", False),
     ("view_files", "View", False),
+    ("jump_to_entry", "Jump to Entry", False),
     ("hooks_or_collapse", "Hooks / Collapse", False),
     ("hooks_or_collapse_all", "Hooks / Collapse All", False),
     ("start_fold_mode", "Fold", False),
@@ -201,6 +202,7 @@ class AppKeymaps:
     reword: str
     add_tag: str
     view_files: str
+    jump_to_entry: str
     edit_spec: str
     rename_cl: str
     # Proposals & sync

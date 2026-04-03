@@ -50,6 +50,7 @@ class EventHandlersMixin:
     _bang_mode_active: bool
     _custom_mode_active: str | None
     _custom_mode_prefixes: dict[str, str]
+    _entry_jump_mode_active: bool
     _inactive_seconds: int
     _last_activity_time: float
     _last_activity_flush: float
@@ -83,6 +84,8 @@ class EventHandlersMixin:
         if getattr(self, "_prompt_context", None) is not None:
             return
         if getattr(self, "_hint_mode_active", False):
+            return
+        if getattr(self, "_entry_jump_mode_active", False):
             return
         if getattr(self, "_accept_mode_active", False):
             return
@@ -185,7 +188,11 @@ class EventHandlersMixin:
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""
         self._record_user_activity()
-        if self._fold_mode_active:
+        if self._entry_jump_mode_active:
+            if self._handle_entry_jump_key(event.key):  # type: ignore[attr-defined]
+                event.prevent_default()
+                event.stop()
+        elif self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()

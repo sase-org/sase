@@ -138,6 +138,7 @@ class AgentList(OptionList):
         fold_counts: dict[str, tuple[int, int]] | None = None,
         pinned_agents: set[tuple[AgentType, str, str | None]] | None = None,
         has_focus: bool = True,
+        jump_hints: dict[int, str] | None = None,
     ) -> None:
         """Update the list with new agents.
 
@@ -148,6 +149,7 @@ class AgentList(OptionList):
                 (non_hidden_count, hidden_count) for fold annotations
             pinned_agents: Optional set of pinned agent identities
             has_focus: Whether this panel currently has focus
+            jump_hints: Optional local row index -> hint character mapping
         """
         self._programmatic_update = True
         self._agents = agents
@@ -184,6 +186,7 @@ class AgentList(OptionList):
                 fold_annotation=annotation,
                 is_expanded=is_expanded,
                 is_pinned=is_pinned,
+                hint_char=(jump_hints or {}).get(i),
             )
             self.add_option(option)
             width = option.prompt.cell_len  # type: ignore[union-attr]
@@ -229,6 +232,7 @@ class AgentList(OptionList):
         fold_annotation: str = "",
         is_expanded: bool = False,
         is_pinned: bool = False,
+        hint_char: str | None = None,
     ) -> Option:
         """Format an agent as an option for display.
 
@@ -239,11 +243,14 @@ class AgentList(OptionList):
             fold_annotation: Fold annotation text to append
             is_expanded: Whether this agent's fold state is expanded
             is_pinned: Whether this agent is pinned
+            hint_char: Optional jump hint character
 
         Returns:
             An Option for the OptionList
         """
         text = Text()
+        if hint_char is not None:
+            text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
         # Approve icon for autonomous agents
         if agent.approve:

@@ -65,6 +65,8 @@ class AxeDisplayMixin:
     _axe_items: list[AxeItem]
     _axe_fold_manager: FoldStateManager
     _bang_mode_active: bool
+    _entry_jump_mode_active: bool
+    _entry_jump_index_to_hint: dict[int, str]
 
     def _load_axe_status(self) -> None:
         """Load axe status from disk and update display."""
@@ -371,6 +373,11 @@ class AxeDisplayMixin:
                     axe_running=self.axe_running,
                     lumberjack_names=self._axe_lumberjack_names,
                     bgcmd_infos=dict(self._bgcmd_slots),
+                    jump_hints=(
+                        self._entry_jump_index_to_hint
+                        if self._entry_jump_mode_active
+                        else None
+                    ),
                 )
             except Exception:
                 pass

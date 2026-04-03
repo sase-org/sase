@@ -15,6 +15,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("w", "reword", "Reword", show=False),
     Binding("W", "add_tag", "Add Tag", show=False),
     Binding("v", "view_files", "View", show=False),
+    Binding("V", "jump_to_entry", "Jump to Entry", show=False),
     Binding("h", "hooks_or_collapse", "Hooks / Collapse", show=False),
     Binding("H", "hooks_or_collapse_all", "Hooks / Collapse All", show=False),
     Binding("z", "start_fold_mode", "Fold", show=False),

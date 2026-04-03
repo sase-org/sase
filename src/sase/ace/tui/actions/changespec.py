@@ -37,6 +37,8 @@ class ChangeSpecMixin:
     _hint_mappings: dict[int, str]
     _hook_hint_to_idx: dict[int, int]
     _hint_to_entry_id: dict[int, str]
+    _entry_jump_mode_active: bool
+    _entry_jump_index_to_hint: dict[int, str]
     _query_history: QueryHistoryStacks
     _query_selections: dict[str, str]
     _all_changespecs: list[ChangeSpec]
@@ -400,6 +402,9 @@ class ChangeSpecMixin:
             self.marked_indices,
             hide_reverted=self.hide_reverted,
             hide_submitted=self.hide_submitted,
+            jump_hints=(
+                self._entry_jump_index_to_hint if self._entry_jump_mode_active else None
+            ),
         )
         search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
 
