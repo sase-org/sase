@@ -487,3 +487,28 @@ def test_resolve_vcs_cwd_falls_back_to_ref_as_project_name(
     assert project_name == "my_feature_branch"
     # vcs_ref is always the raw ref
     assert vcs_ref == "my_feature_branch"
+
+
+@patch("sase.xprompt.loader.detect_project")
+@patch("os.chdir")
+@patch("sase.workspace_provider.resolve_ref")
+@patch("sase.workspace_provider.get_workflow_names")
+@patch("sase.xprompt._parsing.normalize_vcs_underscore_refs", side_effect=lambda q: q)
+def test_resolve_vcs_cwd_returns_ref_when_workflow_type_not_registered(
+    _mock_normalize: MagicMock,
+    mock_get_wf_names: MagicMock,
+    mock_resolve_ref: MagicMock,
+    mock_chdir: MagicMock,
+    mock_detect_project: MagicMock,
+) -> None:
+    """Unregistered #type:ref still returns (ref, ref) without chdir."""
+    from sase.main.query_handler._query import _resolve_vcs_cwd
+
+    mock_get_wf_names.return_value = ["gh", "git"]
+
+    result = _resolve_vcs_cwd("#hg:yserve_batch_create_update #split")
+
+    assert result == ("yserve_batch_create_update", "yserve_batch_create_update")
+    mock_resolve_ref.assert_not_called()
+    mock_chdir.assert_not_called()
+    mock_detect_project.cache_clear.assert_not_called()

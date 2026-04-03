@@ -38,25 +38,32 @@ def _resolve_vcs_cwd(query: str) -> tuple[str, str] | None:
     from sase.xprompt._parsing import normalize_vcs_underscore_refs
 
     normalized = normalize_vcs_underscore_refs(query)
+    match = re.search(
+        r"(?:^|(?<=\s)|(?<=[(\"']))#([a-zA-Z_][a-zA-Z0-9_]*):([a-zA-Z0-9_.~/-]+)",
+        normalized,
+    )
+    if match is None:
+        return None
 
-    for workflow_type in get_workflow_names():
-        pattern = rf"#({re.escape(workflow_type)}):([a-zA-Z0-9_.~/-]+)"
-        match = re.search(pattern, normalized)
-        if match:
-            ref = match.group(2)
-            try:
-                resolved = resolve_ref(ref, workflow_type)
-            except (ValueError, Exception):
-                continue
-            if resolved and resolved.primary_workspace_dir:
-                os.chdir(resolved.primary_workspace_dir)
-                # Clear cached project detection since CWD changed
-                from sase.xprompt.loader import detect_project
+    workflow_type = match.group(1)
+    ref = match.group(2)
+    if workflow_type not in get_workflow_names():
+        return ref, ref
 
-                detect_project.cache_clear()
-                return resolved.project_name or ref, ref
+    try:
+        resolved = resolve_ref(ref, workflow_type)
+    except (ValueError, Exception):
+        return ref, ref
 
-    return None
+    if resolved and resolved.primary_workspace_dir:
+        os.chdir(resolved.primary_workspace_dir)
+        # Clear cached project detection since CWD changed
+        from sase.xprompt.loader import detect_project
+
+        detect_project.cache_clear()
+        return resolved.project_name or ref, ref
+
+    return ref, ref
 
 
 def run_query(
