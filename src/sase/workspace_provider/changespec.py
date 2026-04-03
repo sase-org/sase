@@ -164,6 +164,10 @@ def create_changespec_for_workflow(
 
     if cl_name is None:
         cl_name = _derive_cl_name(project_name, commits)
+    else:
+        from sase.core.changespec import ensure_project_prefix
+
+        cl_name = ensure_project_prefix(project_name, cl_name)
 
     # Prefer the full commit_description (PR message) when available,
     # falling back to git-log subjects for non-PR or legacy paths.

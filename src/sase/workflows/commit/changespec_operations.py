@@ -137,6 +137,10 @@ def compute_suffixed_cl_name(project: str, cl_name: str) -> str | None:
             return None
 
     try:
+        from sase.core.changespec import ensure_project_prefix
+
+        cl_name = ensure_project_prefix(project, cl_name)
+
         with changespec_lock(project_file):
             with open(project_file, encoding="utf-8") as f:
                 lines = f.readlines()
