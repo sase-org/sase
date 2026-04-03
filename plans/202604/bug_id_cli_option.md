@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 14:24:05
-status: wip
+status: done
 ---
 
 # Plan: Add `-B|--bug-id` CLI Option to `sase commit`

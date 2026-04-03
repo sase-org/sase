@@ -178,6 +178,74 @@ class TestCommitWorkflowBugId:
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
     @patch(_PROJECT_NAME_TARGET, return_value="proj")
     @patch(_PROVIDER_TARGET)
+    def test_bug_id_from_payload(
+        self,
+        mock_get: MagicMock,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_cs: MagicMock,
+        mock_suffixed: MagicMock,
+        mock_provider: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When bug_id is in the payload, bug=http://b/<id> is passed to create_changespec_for_workflow."""
+        monkeypatch.delenv("SASE_BUG_ID", raising=False)
+        mock_provider.create_pull_request.return_value = (
+            True,
+            "https://github.com/org/repo/pull/1",
+        )
+        mock_get.return_value = mock_provider
+        payload = {
+            "name": "feat-x",
+            "message": "add feature",
+            "files": [],
+            "bug_id": "99999",
+        }
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        assert wf.run() is True
+        mock_cs.assert_called_once()
+        assert mock_cs.call_args.kwargs["bug"] == "http://b/99999"
+
+    @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
+    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    @patch(_PROVIDER_TARGET)
+    def test_bug_id_payload_overrides_env(
+        self,
+        mock_get: MagicMock,
+        mock_proj_name: MagicMock,
+        mock_proj_file: MagicMock,
+        mock_cs: MagicMock,
+        mock_suffixed: MagicMock,
+        mock_provider: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Payload bug_id takes precedence over SASE_BUG_ID env var."""
+        monkeypatch.setenv("SASE_BUG_ID", "222")
+        mock_provider.create_pull_request.return_value = (
+            True,
+            "https://github.com/org/repo/pull/1",
+        )
+        mock_get.return_value = mock_provider
+        payload = {
+            "name": "feat-x",
+            "message": "add feature",
+            "files": [],
+            "bug_id": "111",
+        }
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        assert wf.run() is True
+        mock_cs.assert_called_once()
+        assert mock_cs.call_args.kwargs["bug"] == "http://b/111"
+
+    @patch(_SUFFIXED_CL_TARGET, return_value="feat-x_1")
+    @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
+    @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
+    @patch(_PROJECT_NAME_TARGET, return_value="proj")
+    @patch(_PROVIDER_TARGET)
     def test_bug_id_not_set_passes_none(
         self,
         mock_get: MagicMock,

@@ -41,6 +41,8 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         payload["name"] = args.name
     if args.bead_id:
         payload["bead_id"] = args.bead_id
+    if args.bug_id:
+        payload["bug_id"] = str(args.bug_id)
     if args.checkout_target != "HEAD~1":
         payload["checkout_target"] = args.checkout_target
     workflow = CommitWorkflow(payload=payload, method=method)

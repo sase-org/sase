@@ -53,6 +53,13 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Bead ID to close and associate with the commit",
     )
     commit_parser.add_argument(
+        "-B",
+        "--bug-id",
+        type=int,
+        default=0,
+        help="Bug ID to associate with the commit (overrides $SASE_BUG_ID)",
+    )
+    commit_parser.add_argument(
         "-c",
         "--checkout-target",
         default="HEAD~1",

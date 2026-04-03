@@ -125,6 +125,50 @@ class TestAppendPrTags:
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
+    def test_bug_tag_from_payload(
+        self,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Fix bug", "bug_id": "99999"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "BUG=99999" in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    def test_bug_tag_payload_overrides_env(
+        self,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Fix bug", "bug_id": "111"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with (
+            patch("sase.vcs_provider.config.get_pr_tags", return_value={}),
+            patch.dict("os.environ", {"SASE_BUG_ID": "222"}),
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "BUG=111" in sent["message"]
+        assert "BUG=222" not in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
     def test_bug_tag_zero_skipped(
         self,
         mock_get: MagicMock,

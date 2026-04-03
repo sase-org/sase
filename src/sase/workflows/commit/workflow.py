@@ -337,7 +337,7 @@ class CommitWorkflow(BaseWorkflow):
 
         tags = get_pr_tags()
 
-        bug_id = os.environ.get("SASE_BUG_ID", "")
+        bug_id = self._payload.get("bug_id", "") or os.environ.get("SASE_BUG_ID", "")
         if bug_id and bug_id != "0":
             tags = {"BUG": bug_id, **{k: v for k, v in tags.items() if k != "BUG"}}
 
@@ -430,7 +430,9 @@ class CommitWorkflow(BaseWorkflow):
             branch_name = self._payload.get("name", "")
             checkout_target = self._payload.get("checkout_target", "HEAD~1")
 
-            bug_id = os.environ.get("SASE_BUG_ID", "").strip()
+            bug_id = (
+                self._payload.get("bug_id", "") or os.environ.get("SASE_BUG_ID", "")
+            ).strip()
             bug = f"http://b/{bug_id}" if bug_id and bug_id != "0" else None
 
             cs_name = create_changespec_for_workflow(

@@ -104,6 +104,16 @@ class TestCommitCLI:
         _, method = _run_handler(["-m", msg_file], env={})
         assert method == "create_commit"
 
+    def test_bug_id_flag(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-m", msg_file, "-B", "12345"])
+        assert payload["bug_id"] == "12345"
+
+    def test_bug_id_default_omitted(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-m", msg_file])
+        assert "bug_id" not in payload
+
     def test_message_file_not_found(self) -> None:
         args = _parse_commit_args(["-m", "/nonexistent/message.md"])
         with pytest.raises(SystemExit) as exc_info:
