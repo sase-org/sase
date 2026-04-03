@@ -66,6 +66,7 @@ class BgCmdList(OptionList):
         axe_running: bool,
         lumberjack_names: list[str],
         bgcmd_infos: dict[int, BackgroundCommandInfo],
+        jump_hints: dict[int, str] | None = None,
     ) -> None:
         """Update the list with current AXE items.
 
@@ -75,6 +76,7 @@ class BgCmdList(OptionList):
             axe_running: Whether axe daemon is running.
             lumberjack_names: Lumberjack names for status lookup.
             bgcmd_infos: Mapping of slot -> info for bgcmds.
+            jump_hints: Optional local row index -> hint character mapping.
         """
         from sase.axe.state import read_lumberjack_status
 
@@ -95,6 +97,7 @@ class BgCmdList(OptionList):
                         is_selected=is_selected,
                         child_count=lumberjack_count,
                         is_expanded=lumberjack_count > 0,
+                        hint_char=(jump_hints or {}).get(idx),
                     )
                 case LumberjackItem(name=name):
                     lumberjack_status = read_lumberjack_status(name)
@@ -102,6 +105,7 @@ class BgCmdList(OptionList):
                         name=name,
                         status=lumberjack_status,
                         is_selected=is_selected,
+                        hint_char=(jump_hints or {}).get(idx),
                     )
                 case BgCmdItem(slot=slot):
                     info = bgcmd_infos.get(slot)
@@ -110,6 +114,7 @@ class BgCmdList(OptionList):
                         info=info,
                         is_selected=is_selected,
                         is_running=is_slot_running(slot),
+                        hint_char=(jump_hints or {}).get(idx),
                     )
             self.add_option(option)
 
@@ -128,9 +133,12 @@ class BgCmdList(OptionList):
         is_selected: bool,
         child_count: int,
         is_expanded: bool,
+        hint_char: str | None = None,
     ) -> Option:
         """Format the axe parent option for display."""
         text = Text()
+        if hint_char is not None:
+            text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
         # Status indicator
         if is_running:
@@ -164,9 +172,12 @@ class BgCmdList(OptionList):
         name: str,
         status: Any,
         is_selected: bool,
+        hint_char: str | None = None,
     ) -> Option:
         """Format a lumberjack child option for display."""
         text = Text()
+        if hint_char is not None:
+            text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
         # Indentation + tree connector
         text.append("  \u2514\u2500 ", style="dim")
@@ -197,9 +208,12 @@ class BgCmdList(OptionList):
         info: BackgroundCommandInfo | None,
         is_selected: bool,
         is_running: bool,
+        hint_char: str | None = None,
     ) -> Option:
         """Format a background command option for display."""
         text = Text()
+        if hint_char is not None:
+            text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
         # Hideable indicator
         text.append("\u25cc ", style="bold #FF5F87")

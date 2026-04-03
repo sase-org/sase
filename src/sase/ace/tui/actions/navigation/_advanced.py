@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ...changespec_history import ChangeSpecHistoryEntry
 from ...models.fold_state import FoldLevel, cycle_forward
+from .jump_hints import build_jump_hint_maps
 from ._types import NavigationMixinBase
 
 
@@ -126,6 +127,71 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             )
         except Exception:
             pass
+
+    # --- Jump To Entry ---
+
+    def action_jump_to_entry(self) -> None:
+        """Enter one-key jump mode for the current tab's left-panel entries."""
+        indices = self._jump_candidate_indices()
+        if not indices:
+            return
+        self._entry_jump_hint_to_index, self._entry_jump_index_to_hint = (
+            build_jump_hint_maps(indices)
+        )
+        if not self._entry_jump_hint_to_index:
+            return
+        self._entry_jump_mode_active = True
+        if self.current_tab == "agents":
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        else:
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+
+    def _jump_candidate_indices(self) -> list[int]:
+        """Return target indices for jump mode in visual order."""
+        if self.current_tab == "changespecs":
+            return list(range(len(self.changespecs)))
+        if self.current_tab == "agents":
+            return [*self._main_panel_indices, *self._pinned_panel_indices]
+        return list(range(len(self._axe_items)))  # type: ignore[attr-defined]
+
+    def _exit_entry_jump_mode(self) -> None:
+        """Clear jump mode state and remove hint overlays."""
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_index = {}
+        self._entry_jump_index_to_hint = {}
+        if self.current_tab == "agents":
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        else:
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+
+    def _handle_entry_jump_key(self, key: str) -> bool:
+        """Handle one keypress while jump mode is active."""
+        if not self._entry_jump_mode_active:
+            return False
+        if key == "escape":
+            self._exit_entry_jump_mode()
+            return True
+
+        target = self._entry_jump_hint_to_index.get(key)
+        if target is None:
+            self._exit_entry_jump_mode()
+            return True
+
+        if self.current_tab == "agents":
+            if target in self._pinned_panel_idx_map:
+                self._pinned_panel_focused = "pinned"
+            elif target in self._main_panel_idx_map:
+                self._pinned_panel_focused = "main"
+            self.current_idx = target
+            self._entry_jump_mode_active = False
+            self._entry_jump_hint_to_index = {}
+            self._entry_jump_index_to_hint = {}
+            self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+            return True
+
+        self.current_idx = target
+        self._exit_entry_jump_mode()
+        return True
 
     # --- Help Action ---
 

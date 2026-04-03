@@ -206,6 +206,11 @@ class AceApp(
         # Custom mode state (for user-defined prefix-key modes)
         self._custom_mode_active: str | None = None
 
+        # One-key jump mode state (V)
+        self._entry_jump_mode_active: bool = False
+        self._entry_jump_hint_to_index: dict[str, int] = {}
+        self._entry_jump_index_to_hint: dict[int, str] = {}
+
         # Ancestor/child/sibling navigation state
         self._ancestor_mode_active: bool = False
         self._child_mode_active: bool = False
@@ -521,6 +526,11 @@ class AceApp(
         if old_tab == "agents" and self._detail_update_timer is not None:
             self._detail_update_timer.stop()
             self._detail_update_timer = None
+
+        # Tab changes always cancel one-key jump mode.
+        self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_index = {}
+        self._entry_jump_index_to_hint = {}
 
         # Update tab bar indicator
         tab_bar = self.query_one("#tab-bar", TabBar)

@@ -151,6 +151,7 @@ def _calculate_entry_display_width(
     show_hideable: bool = False,
     show_submitted: bool = False,
     mentor_stats: _MentorCommentStats | None = None,
+    hint_char: str | None = None,
 ) -> int:
     """Calculate display width of a ChangeSpec entry in terminal cells.
 
@@ -167,6 +168,8 @@ def _calculate_entry_display_width(
     indicator, _ = _get_status_indicator(changespec)
     # Format: "◌ [✓] [{indicator}] {name} ({cl}) ✓n ●n /n"
     parts = []
+    if hint_char is not None:
+        parts.append(f"[{hint_char}] ")
     base_status = get_base_status(changespec.status)
     if show_hideable and base_status in ("Reverted", "Archived"):
         parts.append("\u25cc ")
@@ -262,6 +265,7 @@ class ChangeSpecList(OptionList):
         marked_indices: set[int] | None = None,
         hide_reverted: bool = True,
         hide_submitted: bool = True,
+        jump_hints: dict[int, str] | None = None,
     ) -> None:
         """Update the list with new changespecs.
 
@@ -271,6 +275,7 @@ class ChangeSpecList(OptionList):
             marked_indices: Set of indices that are marked
             hide_reverted: Whether reverted CLs are currently hidden
             hide_submitted: Whether submitted CLs are currently hidden
+            jump_hints: Optional local row index -> hint character mapping
         """
         self._programmatic_update = True
         self._marked_indices = marked_indices or set()
@@ -291,6 +296,7 @@ class ChangeSpecList(OptionList):
                 show_hideable=show_hideable,
                 show_submitted=show_submitted,
                 mentor_stats=stats,
+                hint_char=(jump_hints or {}).get(i),
             )
             self.add_option(option)
             width = _calculate_entry_display_width(
@@ -299,6 +305,7 @@ class ChangeSpecList(OptionList):
                 show_hideable=show_hideable,
                 show_submitted=show_submitted,
                 mentor_stats=stats,
+                hint_char=(jump_hints or {}).get(i),
             )
             max_width = max(max_width, width)
 
@@ -326,6 +333,7 @@ class ChangeSpecList(OptionList):
         show_hideable: bool = False,
         show_submitted: bool = False,
         mentor_stats: _MentorCommentStats | None = None,
+        hint_char: str | None = None,
     ) -> Option:
         """Format a ChangeSpec as an option for display.
 
@@ -336,11 +344,14 @@ class ChangeSpecList(OptionList):
             show_hideable: Whether to show ◌ prefix for reverted/archived CLs
             show_submitted: Whether to show ◌ prefix for submitted CLs
             mentor_stats: Optional mentor comment stats to display
+            hint_char: Optional jump hint character
 
         Returns:
             An Option for the OptionList
         """
         text = Text()
+        if hint_char is not None:
+            text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
         # Hideable indicator for reverted/archived CLs when visible
         base_status = get_base_status(changespec.status)

@@ -125,3 +125,19 @@ def test_focus_pinned_panel_in_binding_meta() -> None:
 
     actions = {a for a, _, _ in _BINDING_META}
     assert "focus_pinned_panel" in actions
+
+
+def test_jump_to_entry_in_default_config() -> None:
+    """jump_to_entry action is wired in default config."""
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    reg = load_keymap_registry({})
+    assert reg.app.jump_to_entry == "V"
+
+
+def test_jump_to_entry_in_binding_meta() -> None:
+    """jump_to_entry has a _BINDING_META entry."""
+    from sase.ace.tui.keymaps import _BINDING_META
+
+    actions = {a for a, _, _ in _BINDING_META}
+    assert "jump_to_entry" in actions

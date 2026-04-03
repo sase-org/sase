@@ -43,6 +43,8 @@ class AgentDisplayMixin:
     _main_panel_idx_map: dict[int, int]
     _pinned_panel_idx_map: dict[int, int]
     _pinned_agents: set[tuple[AgentType, str, str | None]]
+    _entry_jump_mode_active: bool
+    _entry_jump_index_to_hint: dict[int, str]
 
     # Countdown for refresh
     _countdown_remaining: int
@@ -72,6 +74,24 @@ class AgentDisplayMixin:
             # Build panel-specific agent lists
             main_agents = [self._agents[i] for i in self._main_panel_indices]
             pinned_agents = [self._agents[i] for i in self._pinned_panel_indices]
+            main_jump_hints = (
+                {
+                    local_idx: self._entry_jump_index_to_hint[global_idx]
+                    for local_idx, global_idx in enumerate(self._main_panel_indices)
+                    if global_idx in self._entry_jump_index_to_hint
+                }
+                if self._entry_jump_mode_active
+                else None
+            )
+            pinned_jump_hints = (
+                {
+                    local_idx: self._entry_jump_index_to_hint[global_idx]
+                    for local_idx, global_idx in enumerate(self._pinned_panel_indices)
+                    if global_idx in self._entry_jump_index_to_hint
+                }
+                if self._entry_jump_mode_active
+                else None
+            )
 
             # Compute local selection index for each panel (O(1) via precomputed maps)
             main_local_idx = self._main_panel_idx_map.get(self.current_idx, 0)
@@ -83,6 +103,7 @@ class AgentDisplayMixin:
                 fold_counts=self._fold_counts,
                 pinned_agents=self._pinned_agents,
                 has_focus=(self._pinned_panel_focused == "main"),
+                jump_hints=main_jump_hints,
             )
             pinned_list.update_list(
                 pinned_agents,
@@ -90,6 +111,7 @@ class AgentDisplayMixin:
                 fold_counts=self._fold_counts,
                 pinned_agents=self._pinned_agents,
                 has_focus=(self._pinned_panel_focused == "pinned"),
+                jump_hints=pinned_jump_hints,
             )
         else:
             # Update highlight on the focused panel only; clear unfocused

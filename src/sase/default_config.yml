@@ -32,6 +32,7 @@ ace:
       reword: "w"
       add_tag: "W"
       view_files: "v"
+      jump_to_entry: "V"
       edit_spec: "e"
       rename_cl: "n"
       # Proposals & sync

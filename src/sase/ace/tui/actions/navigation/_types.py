@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ...keymaps import KeymapRegistry
     from ...models import Agent
     from ...models.fold_state import FoldLevel
+    from ...widgets.bgcmd_list import AxeItem
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
@@ -33,6 +34,11 @@ class NavigationMixinBase:
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
     _agents: list[Agent]
+    _main_panel_indices: list[int]
+    _pinned_panel_indices: list[int]
+    _main_panel_idx_map: dict[int, int]
+    _pinned_panel_idx_map: dict[int, int]
+    _pinned_panel_focused: Literal["main", "pinned"]
     _fold_mode_active: bool
     _changespecs_last_idx: int
     _agents_last_idx: int
@@ -42,6 +48,9 @@ class NavigationMixinBase:
     _ancestor_mode_active: bool
     _child_mode_active: bool
     _sibling_mode_active: bool
+    _entry_jump_mode_active: bool
+    _entry_jump_hint_to_index: dict[str, int]
+    _entry_jump_index_to_hint: dict[int, str]
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]
     _children_keys: dict[str, str]
@@ -52,4 +61,5 @@ class NavigationMixinBase:
     query_string: str
     parsed_query: QueryExpr
     _axe_current_view: AxeViewType
+    _axe_items: list[AxeItem]
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
