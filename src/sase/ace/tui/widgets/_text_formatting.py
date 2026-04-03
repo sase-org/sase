@@ -92,13 +92,13 @@ class TextFormattingMixin(_MixinBase):
         - ``delete`` / ``replace``: clamp to the start of the new-side range.
         - ``insert``: does not consume old characters; continue scanning.
         """
-        matcher = difflib.SequenceMatcher(None, old_text, new_text)
+        matcher = difflib.SequenceMatcher(None, old_text, new_text, autojunk=False)
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
             if tag == "equal":
                 if old_offset <= i2:
                     return j1 + (old_offset - i1)
             elif tag in ("delete", "replace"):
-                if old_offset <= i2:
+                if old_offset < i2:
                     return min(j1 + max(old_offset - i1, 0), j2)
             # 'insert' doesn't consume old chars — just advance new pointer
         return len(new_text)

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-03 14:24:48
-status: wip
+status: done
 ---
 
 # Fix prompt input cursor misplacement after prettier auto-wrap

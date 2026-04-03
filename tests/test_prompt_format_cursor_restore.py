@@ -128,3 +128,61 @@ def test_map_offset_preserves_character_identity(
     """Mapped offset points to the same character in the new text."""
     mapped = PromptTextArea._map_offset(old, new, offset)
     assert new[mapped] == expected_char
+
+
+# =============================================================================
+# Regression tests for autojunk / boundary edge cases
+# =============================================================================
+
+
+def test_map_offset_autojunk_long_text_reflow() -> None:
+    """Cursor lands on the correct line after space→newline reflow in 200+ char text.
+
+    Regression test: with autojunk=True (the default), SequenceMatcher marks
+    common characters as junk for texts >200 chars, producing fragmented
+    opcodes that misplace the cursor across line-break reflow points.
+    """
+    # Build a prompt >200 chars that will be reflowed at a space boundary
+    prefix = "a" * 180 + " "  # 181 chars
+    suffix = "commit"
+    old = prefix + suffix  # 187 chars total, all on one line
+    # Simulate prettier splitting at the space
+    new = prefix.rstrip() + "\n" + suffix
+
+    # Cursor is at start of "commit" in old text
+    cursor = len(prefix)  # offset 181
+    mapped = PromptTextArea._map_offset(old, new, cursor)
+
+    # In new text, "commit" starts right after the newline
+    expected = len(prefix.rstrip()) + 1  # 181 ('a'*180 + '\n')
+    assert mapped == expected
+    assert new[mapped] == "c"
+
+    # Verify cursor row/col: should be row 1, col 0
+    lines = new.split("\n")
+    remaining = mapped
+    for i, line in enumerate(lines):
+        if remaining <= len(line):
+            assert (i, remaining) == (1, 0)
+            break
+        remaining -= len(line) + 1
+
+
+def test_map_offset_boundary_replace_block() -> None:
+    """Cursor at exact end of a replace block with unequal sizes maps correctly.
+
+    With the old `old_offset <= i2` check, a cursor at position i2 (the
+    exclusive end of a replace opcode) would be captured by that block
+    instead of falling through to the next opcode.
+    """
+    # Craft text where a replace block boundary matters:
+    # "ab XY cd" → "ab ZZZ cd"  (replace "XY" with "ZZZ")
+    old = "ab XY cd"
+    new = "ab ZZZ cd"
+    # old[5] == ' ' (space before "cd") sits at i2 of the replace block
+    # for "XY"→"ZZZ". It should be mapped via the subsequent equal opcode
+    # (to the space at new[6]) rather than being captured by the replace.
+    cursor = 5
+    mapped = PromptTextArea._map_offset(old, new, cursor)
+    assert new[mapped] == " "
+    assert mapped == 6
