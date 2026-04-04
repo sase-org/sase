@@ -1,5 +1,7 @@
 """Mentor entry operations - adding, removing, and managing draft flags."""
 
+import logging
+
 from sase.ace.changespec import (
     MentorEntry,
     changespec_lock,
@@ -7,9 +9,10 @@ from sase.ace.changespec import (
     parse_project_file,
     write_changespec_atomic,
 )
-
 from sase.ace.mentors.formatting import apply_mentors_update
 from sase.ace.mentors.status import update_changespec_mentors_field
+
+logger = logging.getLogger(__name__)
 
 
 def add_mentor_entry(
@@ -78,6 +81,12 @@ def add_mentor_entry(
             )
             return True
     except Exception:
+        logger.warning(
+            "Failed to add mentor entry (%s) for %s",
+            entry_id,
+            changespec_name,
+            exc_info=True,
+        )
         return False
 
 
@@ -148,6 +157,11 @@ def clear_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
                 )
         return True  # ChangeSpec not found, nothing to do
     except Exception:
+        logger.warning(
+            "Failed to clear mentor draft flags for %s",
+            changespec_name,
+            exc_info=True,
+        )
         return False
 
 
@@ -187,6 +201,11 @@ def set_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
                 )
         return True  # ChangeSpec not found, nothing to do
     except Exception:
+        logger.warning(
+            "Failed to set mentor draft flags for %s",
+            changespec_name,
+            exc_info=True,
+        )
         return False
 
 
@@ -258,4 +277,9 @@ def remove_mentor_data(
             )
             return True
     except Exception:
+        logger.warning(
+            "Failed to remove mentor data for %s",
+            changespec_name,
+            exc_info=True,
+        )
         return False

@@ -415,6 +415,11 @@ def check_mentors(
 
     # Phase 2: Add matching profiles upfront (before hooks are ready)
     # This adds profiles with [0/N] counts as soon as they're detected
+    all_profiles = get_all_mentor_profiles()
+    log(
+        f"Phase 2: {len(all_profiles)} mentor profile(s) loaded from config",
+        "dim",
+    )
     profile_updates = add_matching_profiles_upfront(changespec, log)
     updates.extend(profile_updates)
 

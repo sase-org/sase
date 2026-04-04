@@ -1,6 +1,7 @@
 """Mentor profile matching logic — determines which profiles match which commits."""
 
 import fnmatch
+import logging
 import os
 import re
 from collections.abc import Callable
@@ -19,6 +20,8 @@ from ..changespec import (
     CommitEntry,
     parse_commit_entry_id,
 )
+
+logger = logging.getLogger(__name__)
 
 # Type alias for logging callback
 LogCallback = Callable[[str, str | None], None]
@@ -102,29 +105,38 @@ def _profile_matches_commit(
     Returns:
         True if any of the profile's criteria match.
     """
-    diff_content = _read_diff_content(diff_path) or fallback_diff_content
+    try:
+        diff_content = _read_diff_content(diff_path) or fallback_diff_content
 
-    # Check file_globs
-    if profile.file_globs and diff_content:
-        changed_files = _extract_changed_files_from_diff(diff_content)
-        for pattern in profile.file_globs:
-            for filepath in changed_files:
-                if fnmatch.fnmatch(filepath, pattern):
+        # Check file_globs
+        if profile.file_globs and diff_content:
+            changed_files = _extract_changed_files_from_diff(diff_content)
+            for pattern in profile.file_globs:
+                for filepath in changed_files:
+                    if fnmatch.fnmatch(filepath, pattern):
+                        return True
+
+        # Check diff_regexes
+        if profile.diff_regexes and diff_content:
+            for regex in profile.diff_regexes:
+                if re.search(regex, diff_content):
                     return True
 
-    # Check diff_regexes
-    if profile.diff_regexes and diff_content:
-        for regex in profile.diff_regexes:
-            if re.search(regex, diff_content):
-                return True
+        # Check amend_note_regexes
+        if profile.amend_note_regexes and amend_note:
+            for regex in profile.amend_note_regexes:
+                if re.search(regex, amend_note):
+                    return True
 
-    # Check amend_note_regexes
-    if profile.amend_note_regexes and amend_note:
-        for regex in profile.amend_note_regexes:
-            if re.search(regex, amend_note):
-                return True
-
-    return False
+        return False
+    except Exception:
+        logger.warning(
+            "Error matching profile '%s' against diff '%s'",
+            profile.profile_name,
+            diff_path,
+            exc_info=True,
+        )
+        return False
 
 
 def _read_diff_content(diff_path: str | None) -> str | None:
@@ -352,9 +364,26 @@ def add_matching_profiles_upfront(
     ):
         return updates
 
+    all_profiles = get_all_mentor_profiles()
+    log(
+        f"Mentor matching: {len(all_profiles)} profile(s) loaded for"
+        f" '{changespec.name}'",
+        "dim",
+    )
+
     matching_profiles = _get_matching_profiles_for_entry(changespec)
     if not matching_profiles:
+        log(
+            f"Mentor matching: 0 new profiles matched for '{changespec.name}'",
+            "dim",
+        )
         return updates
+
+    log(
+        f"Mentor matching: {len(matching_profiles)} new profile(s) matched for"
+        f" '{changespec.name}'",
+        "dim",
+    )
 
     # Import here to avoid circular imports
     from ..mentors import add_mentor_entry
