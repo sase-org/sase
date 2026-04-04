@@ -132,7 +132,7 @@ def test_jump_to_entry_in_default_config() -> None:
     from sase.ace.tui.keymaps import load_keymap_registry
 
     reg = load_keymap_registry({})
-    assert reg.app.jump_to_entry == "grave_accent"
+    assert reg.app.jump_to_entry == "apostrophe"
 
 
 def test_jump_to_entry_in_binding_meta() -> None:
