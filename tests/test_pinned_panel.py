@@ -116,7 +116,7 @@ def test_focus_pinned_panel_in_default_config() -> None:
     from sase.ace.tui.keymaps import load_keymap_registry
 
     reg = load_keymap_registry({})
-    assert reg.app.focus_pinned_panel == "J"
+    assert reg.app.focus_pinned_panel == "o"
 
 
 def test_focus_pinned_panel_in_binding_meta() -> None:
