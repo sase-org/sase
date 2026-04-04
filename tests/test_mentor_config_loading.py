@@ -1,5 +1,6 @@
 """Tests for _load_mentor_profiles() function including error cases."""
 
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -21,8 +22,10 @@ other_key:
     assert profiles == []
 
 
-def test_load_mentor_profiles_invalid_mentor_not_dict() -> None:
-    """Test loading raises ValueError when mentor is not a dictionary."""
+def test_load_mentor_profiles_invalid_mentor_not_dict(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test loading skips profile when mentor is not a dictionary."""
     yaml_content = """
 mentor_profiles:
   - profile_name: profile1
@@ -32,8 +35,11 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(ValueError, match="must be a dictionary"):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'profile1'" in caplog.text
 
 
 def test_load_mentor_profiles_config_not_dict() -> None:
@@ -47,34 +53,42 @@ def test_load_mentor_profiles_config_not_dict() -> None:
             _load_mentor_profiles()
 
 
-def test_load_mentor_profiles_profile_not_dict() -> None:
-    """Test loading raises ValueError when mentor profile is not a dictionary."""
+def test_load_mentor_profiles_profile_not_dict(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test loading skips profile when mentor profile is not a dictionary."""
     yaml_content = """
 mentor_profiles:
   - "just_a_string_profile"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(
-            ValueError, match="Each mentor profile must be a dictionary"
-        ):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile" in caplog.text
 
 
-def test_load_mentor_profiles_profile_missing_fields() -> None:
-    """Test loading raises ValueError when profile is missing required fields."""
+def test_load_mentor_profiles_profile_missing_fields(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test loading skips profile when profile is missing required fields."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(
-            ValueError, match="must have 'profile_name' and 'mentors' fields"
-        ):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text
 
 
-def test_load_mentor_profiles_mentors_not_list() -> None:
-    """Test loading raises ValueError when mentors field is not a list."""
+def test_load_mentor_profiles_mentors_not_list(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test loading skips profile when mentors field is not a list."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -83,8 +97,11 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(ValueError, match="'mentors' field must be a list"):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text
 
 
 def test_load_mentor_profiles_valid_new_schema() -> None:
@@ -159,8 +176,10 @@ mentor_profiles:
     assert profiles[0].first_commit is False
 
 
-def test_load_mentor_profiles_focus_areas_not_list_raises() -> None:
-    """Test loading raises ValueError when focus_areas is not a list."""
+def test_load_mentor_profiles_focus_areas_not_list_skips(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test loading skips profile when focus_areas is not a list."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -172,12 +191,17 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(ValueError, match="must be a list"):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text
 
 
-def test_load_mentor_profiles_focus_area_not_dict_raises() -> None:
-    """Test loading raises ValueError when a focus area is not a dict."""
+def test_load_mentor_profiles_focus_area_not_dict_skips(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test loading skips profile when a focus area is not a dict."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -190,12 +214,17 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(ValueError, match="must be a dictionary"):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text
 
 
-def test_load_mentor_profiles_focus_area_missing_fields_raises() -> None:
-    """Test loading raises ValueError when focus area lacks required fields."""
+def test_load_mentor_profiles_focus_area_missing_fields_skips(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test loading skips profile when focus area lacks required fields."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -208,10 +237,11 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(
-            ValueError, match="must have 'focus_name' and 'description' fields"
-        ):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text
 
 
 def test_load_mentor_profiles_parses_explicit_projects() -> None:

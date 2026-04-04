@@ -1,5 +1,7 @@
 """Tests for MentorConfig role and focus_areas field functionality."""
 
+import logging
+
 import pytest
 from sase.config.mentor import _MentorFocusArea, _load_mentor_profiles
 from test_utils import make_mentor_config, mentor_config_from_yaml
@@ -22,8 +24,10 @@ def test_mentor_config_with_role_and_focus_areas() -> None:
     assert config.focus_areas[0].focus_name == "comments"
 
 
-def test_load_mentor_profiles_without_role_raises() -> None:
-    """Test that mentor without role raises ValueError."""
+def test_load_mentor_profiles_without_role_skips(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that mentor without role skips the profile."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -36,12 +40,17 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(ValueError, match="must have 'role' field"):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text
 
 
-def test_load_mentor_profiles_without_focus_areas_raises() -> None:
-    """Test that mentor without focus_areas raises ValueError."""
+def test_load_mentor_profiles_without_focus_areas_skips(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that mentor without focus_areas skips the profile."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -52,12 +61,17 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(ValueError, match="must have 'focus_areas' field"):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text
 
 
-def test_load_mentor_profiles_without_mentor_name_raises() -> None:
-    """Test that mentor without mentor_name raises ValueError."""
+def test_load_mentor_profiles_without_mentor_name_skips(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that mentor without mentor_name skips the profile."""
     yaml_content = """
 mentor_profiles:
   - profile_name: test_profile
@@ -70,5 +84,8 @@ mentor_profiles:
       - "*.py"
 """
     with mentor_config_from_yaml(yaml_content):
-        with pytest.raises(ValueError, match="must have 'mentor_name' field"):
-            _load_mentor_profiles()
+        with caplog.at_level(logging.WARNING):
+            profiles = _load_mentor_profiles()
+
+    assert profiles == []
+    assert "Skipping invalid mentor profile 'test_profile'" in caplog.text

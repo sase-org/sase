@@ -106,104 +106,125 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
 
     profiles = []
     for item in data["mentor_profiles"]:
-        if not isinstance(item, dict):
-            raise ValueError("Each mentor profile must be a dictionary")
-        if "profile_name" not in item or "mentors" not in item:
+        try:
+            profile = _parse_single_profile(item, local_profile_names, detected_project)
+        except ValueError as exc:
+            profile_name = (
+                item.get("profile_name", "<unknown>")
+                if isinstance(item, dict)
+                else "<unknown>"
+            )
+            logger.warning(
+                "Skipping invalid mentor profile '%s': %s", profile_name, exc
+            )
+            continue
+        profiles.append(profile)
+
+    return profiles
+
+
+def _parse_single_profile(
+    item: object,
+    local_profile_names: set[str],
+    detected_project: str | None,
+) -> MentorProfileConfig:
+    """Parse a single mentor profile from config data.
+
+    Raises:
+        ValueError: If the profile data is malformed.
+    """
+    if not isinstance(item, dict):
+        raise ValueError("Each mentor profile must be a dictionary")
+    if "profile_name" not in item or "mentors" not in item:
+        raise ValueError(
+            "Each mentor profile must have 'profile_name' and 'mentors' fields"
+        )
+    if not isinstance(item["mentors"], list):
+        raise ValueError("'mentors' field must be a list")
+
+    # Parse mentors as MentorConfig objects
+    mentors = []
+    for mentor_item in item["mentors"]:
+        if not isinstance(mentor_item, dict):
             raise ValueError(
-                "Each mentor profile must have 'profile_name' and 'mentors' fields"
+                f"Each mentor in profile '{item['profile_name']}' must be a dictionary"
             )
-        if not isinstance(item["mentors"], list):
-            raise ValueError("'mentors' field must be a list")
 
-        # Parse mentors as MentorConfig objects
-        mentors = []
-        for mentor_item in item["mentors"]:
-            if not isinstance(mentor_item, dict):
-                raise ValueError(
-                    f"Each mentor in profile '{item['profile_name']}' must be a dictionary"
-                )
+        # Detect old format and give a clear error
+        if "prompt" in mentor_item:
+            raise ValueError(
+                f"Mentor in profile '{item['profile_name']}' uses the old "
+                "'prompt' format which is no longer supported. "
+                "Use 'mentor_name', 'role', and 'focus_areas' instead."
+            )
 
-            # Detect old format and give a clear error
-            if "prompt" in mentor_item:
-                raise ValueError(
-                    f"Mentor in profile '{item['profile_name']}' uses the old "
-                    "'prompt' format which is no longer supported. "
-                    "Use 'mentor_name', 'role', and 'focus_areas' instead."
-                )
+        if "mentor_name" not in mentor_item:
+            raise ValueError(
+                f"Each mentor in profile '{item['profile_name']}' must have "
+                "'mentor_name' field"
+            )
+        if "role" not in mentor_item:
+            raise ValueError(
+                f"Each mentor in profile '{item['profile_name']}' must have "
+                "'role' field"
+            )
+        if "focus_areas" not in mentor_item:
+            raise ValueError(
+                f"Each mentor in profile '{item['profile_name']}' must have "
+                "'focus_areas' field"
+            )
+        if not isinstance(mentor_item["focus_areas"], list):
+            raise ValueError(
+                f"'focus_areas' field in mentor '{mentor_item['mentor_name']}' "
+                f"of profile '{item['profile_name']}' must be a list"
+            )
 
-            if "mentor_name" not in mentor_item:
+        focus_areas = []
+        for fa_item in mentor_item["focus_areas"]:
+            if not isinstance(fa_item, dict):
                 raise ValueError(
-                    f"Each mentor in profile '{item['profile_name']}' must have "
-                    "'mentor_name' field"
+                    f"Each focus area in mentor '{mentor_item['mentor_name']}' "
+                    f"of profile '{item['profile_name']}' must be a dictionary"
                 )
-            if "role" not in mentor_item:
+            if "focus_name" not in fa_item or "description" not in fa_item:
                 raise ValueError(
-                    f"Each mentor in profile '{item['profile_name']}' must have "
-                    "'role' field"
+                    f"Each focus area in mentor '{mentor_item['mentor_name']}' "
+                    f"of profile '{item['profile_name']}' must have "
+                    "'focus_name' and 'description' fields"
                 )
-            if "focus_areas" not in mentor_item:
-                raise ValueError(
-                    f"Each mentor in profile '{item['profile_name']}' must have "
-                    "'focus_areas' field"
-                )
-            if not isinstance(mentor_item["focus_areas"], list):
-                raise ValueError(
-                    f"'focus_areas' field in mentor '{mentor_item['mentor_name']}' "
-                    f"of profile '{item['profile_name']}' must be a list"
-                )
-
-            focus_areas = []
-            for fa_item in mentor_item["focus_areas"]:
-                if not isinstance(fa_item, dict):
-                    raise ValueError(
-                        f"Each focus area in mentor '{mentor_item['mentor_name']}' "
-                        f"of profile '{item['profile_name']}' must be a dictionary"
-                    )
-                if "focus_name" not in fa_item or "description" not in fa_item:
-                    raise ValueError(
-                        f"Each focus area in mentor '{mentor_item['mentor_name']}' "
-                        f"of profile '{item['profile_name']}' must have "
-                        "'focus_name' and 'description' fields"
-                    )
-                focus_areas.append(
-                    _MentorFocusArea(
-                        focus_name=fa_item["focus_name"],
-                        description=fa_item["description"],
-                    )
-                )
-
-            mentors.append(
-                MentorConfig(
-                    mentor_name=mentor_item["mentor_name"],
-                    role=mentor_item["role"],
-                    focus_areas=focus_areas,
+            focus_areas.append(
+                _MentorFocusArea(
+                    focus_name=fa_item["focus_name"],
+                    description=fa_item["description"],
                 )
             )
 
-        # Determine projects scope: explicit YAML > auto-tag for local profiles
-        explicit_projects = item.get("projects")
-        if explicit_projects is not None:
-            projects = explicit_projects
-        elif (
-            item["profile_name"] in local_profile_names and detected_project is not None
-        ):
-            projects = [detected_project]
-        else:
-            projects = None
-
-        profiles.append(
-            MentorProfileConfig(
-                profile_name=item["profile_name"],
-                mentors=mentors,
-                file_globs=item.get("file_globs"),
-                diff_regexes=item.get("diff_regexes"),
-                amend_note_regexes=item.get("amend_note_regexes"),
-                first_commit=item.get("first_commit", False),
-                projects=projects,
+        mentors.append(
+            MentorConfig(
+                mentor_name=mentor_item["mentor_name"],
+                role=mentor_item["role"],
+                focus_areas=focus_areas,
             )
         )
 
-    return profiles
+    # Determine projects scope: explicit YAML > auto-tag for local profiles
+    explicit_projects = item.get("projects")
+    if explicit_projects is not None:
+        projects = explicit_projects
+    elif item["profile_name"] in local_profile_names and detected_project is not None:
+        projects = [detected_project]
+    else:
+        projects = None
+
+    return MentorProfileConfig(
+        profile_name=item["profile_name"],
+        mentors=mentors,
+        file_globs=item.get("file_globs"),
+        diff_regexes=item.get("diff_regexes"),
+        amend_note_regexes=item.get("amend_note_regexes"),
+        first_commit=item.get("first_commit", False),
+        projects=projects,
+    )
 
 
 def get_all_mentor_profiles() -> list[MentorProfileConfig]:
