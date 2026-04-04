@@ -404,10 +404,19 @@ class AgentLoadingMixin:
             )
         else:
             hidden_running = 0
+        pinned_visible = sum(
+            1
+            for a in self._agents
+            if a.status in DISMISSABLE_STATUSES
+            and not a.is_workflow_child
+            and a.identity in self._pinned_agents
+        )
         done_visible = sum(
             1
             for a in self._agents
-            if a.status in DISMISSABLE_STATUSES and not a.is_workflow_child
+            if a.status in DISMISSABLE_STATUSES
+            and not a.is_workflow_child
+            and a.identity not in self._pinned_agents
         )
         from ...widgets import TabBar
 
@@ -417,6 +426,7 @@ class AgentLoadingMixin:
             hidden_running,
             show_hidden=not self.hide_non_run_agents,
             done_count=done_visible,
+            pinned_count=pinned_visible,
         )
 
         # Only refresh display if on agents tab

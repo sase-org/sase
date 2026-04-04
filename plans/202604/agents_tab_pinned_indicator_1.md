@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 10:33:03
-status: wip
+status: done
 ---
 
 # Plan: Agents Tab Pinned (`+N`) Indicator
