@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
@@ -64,6 +65,9 @@ class PromptTextArea(
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
         self._formatting: bool = False
+        self._prettier_format_task: asyncio.Task[None] | None = None
+        self._prettier_format_requested_generation: int = 0
+        self._prettier_format_completed_generation: int = 0
         self._snippet_tabstops: list[int] = []
         self._snippet_end_from_doc_end: int = 0
         self._file_completion_candidates: list[CompletionCandidate] = []
@@ -308,7 +312,7 @@ class PromptTextArea(
             and event.character.isprintable()
             and event.character != " "
         ):
-            await self._format_with_prettier()
+            self._schedule_prettier_format()
 
     def _on_resize(self) -> None:
         """Scroll cursor into view after the parent resizes."""
@@ -318,6 +322,10 @@ class PromptTextArea(
     def on_blur(self) -> None:
         """Schedule a deferred refocus when the text area loses focus."""
         self.call_later(self._refocus_if_needed)
+
+    def on_unmount(self) -> None:
+        """Cancel any pending async formatter task when widget is removed."""
+        self._cancel_pending_prettier_format()
 
     def _refocus_if_needed(self) -> None:
         """Refocus this text area unless a modal is active."""
