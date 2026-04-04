@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 11:33:35
-status: wip
+status: done
 ---
 
 # Plan: Fix chezmoi CI workflow missing tool installations
