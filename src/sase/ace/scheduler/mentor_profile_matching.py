@@ -19,6 +19,9 @@ from ..changespec import (
 # Type alias for logging callback
 LogCallback = Callable[[str, str | None], None]
 
+# Module-level cache: (changespec_name, latest_entry_id) pairs already diagnosed
+_diagnosed_entries: set[tuple[str, str]] = set()
+
 
 def _get_commits_since_last_mentors(
     changespec: ChangeSpec,
@@ -242,6 +245,62 @@ def _get_matching_profiles_for_entry(
     return result
 
 
+def _log_no_match_diagnostics(
+    changespec: ChangeSpec,
+    log: LogCallback,
+) -> None:
+    """Log diagnostic trace when no mentor profiles match eligible commits.
+
+    Only emits once per (changespec_name, latest_entry_id) to avoid noise.
+    """
+    # Find latest non-proposal entry ID
+    latest_entry_id: str | None = None
+    if changespec.commits:
+        for entry in reversed(changespec.commits):
+            if entry.display_number.isdigit():
+                latest_entry_id = entry.display_number
+                break
+
+    if latest_entry_id is None:
+        return
+
+    # Only diagnose once per (changespec, entry) pair
+    cache_key = (changespec.name, latest_entry_id)
+    if cache_key in _diagnosed_entries:
+        return
+
+    # Only log if there are eligible commits
+    commits_to_check = _get_commits_since_last_mentors(changespec)
+    if not commits_to_check:
+        return
+
+    _diagnosed_entries.add(cache_key)
+
+    # Use existing trace infrastructure for detailed per-profile breakdown
+    traces = trace_profile_matching(changespec)
+    if not traces:
+        log(f"No mentor profiles loaded for {changespec.name}", "dim")
+        return
+
+    log(
+        f"No mentor profiles matched for {changespec.name} ({len(traces)} evaluated)",
+        "dim",
+    )
+    for trace in traces:
+        reasons = []
+        for cr in trace.criteria_results:
+            if not cr.configured:
+                continue
+            if not cr.matched:
+                reasons.append(
+                    f"{cr.criterion}: {cr.details}" if cr.details else cr.criterion
+                )
+        reason_str = (
+            "; ".join(reasons) if reasons else "no matching criteria configured"
+        )
+        log(f"  {trace.profile_name}: {reason_str}", "dim")
+
+
 def add_matching_profiles_upfront(
     changespec: ChangeSpec,
     log: LogCallback,
@@ -272,6 +331,7 @@ def add_matching_profiles_upfront(
 
     matching_profiles = _get_matching_profiles_for_entry(changespec)
     if not matching_profiles:
+        _log_no_match_diagnostics(changespec, log)
         return updates
 
     # Import here to avoid circular imports

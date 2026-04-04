@@ -11,6 +11,7 @@ from sase.ace.scheduler.mentor_profile_matching import (
     _extract_changed_files_from_diff,
     _get_commits_since_last_mentors,
     _get_matching_profiles_for_entry,
+    add_matching_profiles_upfront,
     get_profiles_registered_for_entry,
     profile_matches_any_commit,
 )
@@ -335,6 +336,88 @@ def test_get_matching_profiles_matches_correct_project(monkeypatch: Any) -> None
     result = _get_matching_profiles_for_entry(cs)
     assert len(result) == 1
     assert result[0][1].profile_name == "gotchas"
+
+
+# Tests for diagnostic logging in add_matching_profiles_upfront
+
+
+def test_add_matching_profiles_upfront_logs_diagnostics_when_no_match(
+    monkeypatch: Any,
+) -> None:
+    """Test that diagnostic logging is emitted when profiles exist but none match."""
+    mock_profile = MagicMock()
+    mock_profile.profile_name = "code_review"
+    mock_profile.mentors = [make_mentor_config(mentor_name="reviewer")]
+    mock_profile.file_globs = []
+    mock_profile.diff_regexes = []
+    mock_profile.amend_note_regexes = [r"\[review\]"]
+    mock_profile.projects = None
+    mock_profile.first_commit = False
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [mock_profile],
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching._diagnosed_entries",
+        set(),
+    )
+
+    cs = build_changespec(
+        commits=[CommitEntry(number=1, note="Initial Commit")],
+    )
+
+    log_messages: list[tuple[str, str | None]] = []
+
+    def log(msg: str, style: str | None = None) -> None:
+        log_messages.append((msg, style))
+
+    result = add_matching_profiles_upfront(cs, log)
+
+    assert result == []
+    assert any("No mentor profiles matched" in msg for msg, _ in log_messages)
+    assert any("code_review" in msg for msg, _ in log_messages)
+
+
+def test_add_matching_profiles_upfront_diagnostics_only_logged_once(
+    monkeypatch: Any,
+) -> None:
+    """Test that diagnostic logging is emitted only once per (changespec, entry) pair."""
+    mock_profile = MagicMock()
+    mock_profile.profile_name = "code_review"
+    mock_profile.mentors = [make_mentor_config(mentor_name="reviewer")]
+    mock_profile.file_globs = []
+    mock_profile.diff_regexes = []
+    mock_profile.amend_note_regexes = [r"\[review\]"]
+    mock_profile.projects = None
+    mock_profile.first_commit = False
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [mock_profile],
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching._diagnosed_entries",
+        set(),
+    )
+
+    cs = build_changespec(
+        commits=[CommitEntry(number=1, note="Initial Commit")],
+    )
+
+    log_messages: list[tuple[str, str | None]] = []
+
+    def log(msg: str, style: str | None = None) -> None:
+        log_messages.append((msg, style))
+
+    # First call should log diagnostics
+    add_matching_profiles_upfront(cs, log)
+    first_count = len(log_messages)
+    assert first_count > 0
+
+    # Second call should NOT log again (cached)
+    add_matching_profiles_upfront(cs, log)
+    assert len(log_messages) == first_count
 
 
 def test_get_matching_profiles_none_projects_matches_any(monkeypatch: Any) -> None:
