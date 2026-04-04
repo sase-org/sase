@@ -62,6 +62,26 @@ diff -r abc123 tests/test_main.py
     assert files == ["src/main.py", "tests/test_main.py"]
 
 
+def test_extract_changed_files_from_diff_hg_changeset_format() -> None:
+    """Test extracting files from hg changeset diff format (double -r)."""
+    diff_content = """diff -r abc123 -r def456 src/main.dart
+--- a/src/main.dart
++++ b/src/main.dart
+@@ -1,3 +1,4 @@
+ void main() {
++  print('hello');
+ }
+diff -r abc123 -r def456 tests/main_test.dart
+--- a/tests/main_test.dart
++++ b/tests/main_test.dart
+@@ -1 +1,2 @@
+ void testMain() {}
++void testOther() {}
+"""
+    files = _extract_changed_files_from_diff(diff_content)
+    assert files == ["src/main.dart", "tests/main_test.dart"]
+
+
 # Tests for _get_commits_since_last_mentors
 
 

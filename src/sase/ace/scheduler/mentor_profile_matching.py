@@ -71,8 +71,8 @@ def _extract_changed_files_from_diff(diff_content: str) -> list[str]:
             files.append(git_match.group(2))
             continue
 
-        # Match "diff -r ... path/to/file" (hg format)
-        hg_match = re.match(r"^diff -r [a-f0-9]+ (\S+)", line)
+        # Match "diff -r ... path/to/file" (hg format, single or double -r)
+        hg_match = re.match(r"^diff -r [a-f0-9]+(?: -r [a-f0-9]+)? (\S+)", line)
         if hg_match:
             files.append(hg_match.group(1))
             continue
