@@ -278,12 +278,14 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         key = event.key
         if key == "escape":
             event.prevent_default()
+            event.stop()
             self.dismiss(None)
             return
 
         entry = self._hint_to_entry.get(key)
         if entry is not None:
             event.prevent_default()
+            event.stop()
             self.dismiss(
                 JumpAllResult(
                     tab=entry.tab,
@@ -295,6 +297,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
 
         # Any other key dismisses without action
         event.prevent_default()
+        event.stop()
         self.dismiss(None)
 
     def action_close(self) -> None:

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 15:55:40
-status: wip
+status: done
 ---
 
 # Fix: Jump-to-entry modal numeric hints intercepted by saved query bindings
