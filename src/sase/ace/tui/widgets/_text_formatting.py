@@ -21,12 +21,47 @@ class TextFormattingMixin(_MixinBase):
     # -- Attributes and method stubs for type checking --
     if TYPE_CHECKING:
         _formatting: bool
+        _prettier_format_task: asyncio.Task[None] | None
+        _prettier_format_requested_generation: int
+        _prettier_format_completed_generation: int
 
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
         ) -> None: ...
 
     # -- Mixin implementation --
+
+    def _schedule_prettier_format(self) -> None:
+        """Queue a prettier formatting pass without blocking key handling."""
+        self._prettier_format_requested_generation += 1
+        if self._prettier_format_task is None or self._prettier_format_task.done():
+            self._prettier_format_task = asyncio.create_task(
+                self._drain_scheduled_prettier_format()
+            )
+
+    async def _drain_scheduled_prettier_format(self) -> None:
+        """Drain queued formatting requests, coalescing bursts into minimal runs."""
+        try:
+            while (
+                self._prettier_format_completed_generation
+                < self._prettier_format_requested_generation
+            ):
+                self._prettier_format_completed_generation = (
+                    self._prettier_format_requested_generation
+                )
+                await self._format_with_prettier()
+        except asyncio.CancelledError:
+            # Widget unmounted or formatting intentionally aborted.
+            return
+        finally:
+            self._prettier_format_task = None
+
+    def _cancel_pending_prettier_format(self) -> None:
+        """Cancel any scheduled background formatter task."""
+        task = self._prettier_format_task
+        if task is not None and not task.done():
+            task.cancel()
+        self._prettier_format_task = None
 
     def _get_wrap_width(self) -> int:
         """Get the width at which to auto-wrap text.
