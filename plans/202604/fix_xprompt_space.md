@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 10:55:29
-status: wip
+status: done
 ---
 
 # Fix: Missing space before xprompt insertion via #@ trigger
