@@ -1,9 +1,12 @@
 """Mentor configuration loading and validation."""
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.config.core import load_merged_config
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -211,7 +214,8 @@ def get_all_mentor_profiles() -> list[MentorProfileConfig]:
     """
     try:
         return _load_mentor_profiles()
-    except (FileNotFoundError, ValueError):
+    except (FileNotFoundError, ValueError) as exc:
+        logger.warning("Failed to load mentor profiles: %s", exc)
         return []
 
 
