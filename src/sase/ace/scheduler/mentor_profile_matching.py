@@ -5,19 +5,24 @@ import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Final
 
 from sase.config.mentor import (
     MentorProfileConfig,
     get_all_mentor_profiles,
 )
+from sase.running_field import get_workspace_directory
+from sase.vcs_provider import VCSProviderNotFoundError, get_vcs_provider
 
 from ..changespec import (
     ChangeSpec,
     CommitEntry,
+    parse_commit_entry_id,
 )
 
 # Type alias for logging callback
 LogCallback = Callable[[str, str | None], None]
+_UNSET: Final = object()
 
 
 def _get_commits_since_last_mentors(
@@ -85,6 +90,7 @@ def _profile_matches_commit(
     profile: MentorProfileConfig,
     diff_path: str | None,
     amend_note: str | None,
+    fallback_diff_content: str | None = None,
 ) -> bool:
     """Check if a profile's criteria match the commit.
 
@@ -96,27 +102,21 @@ def _profile_matches_commit(
     Returns:
         True if any of the profile's criteria match.
     """
+    diff_content = _read_diff_content(diff_path) or fallback_diff_content
+
     # Check file_globs
-    if profile.file_globs and diff_path:
-        full_path = os.path.expanduser(diff_path)
-        if os.path.exists(full_path):
-            with open(full_path, encoding="utf-8", errors="ignore") as f:
-                diff_content = f.read()
-            changed_files = _extract_changed_files_from_diff(diff_content)
-            for pattern in profile.file_globs:
-                for filepath in changed_files:
-                    if fnmatch.fnmatch(filepath, pattern):
-                        return True
+    if profile.file_globs and diff_content:
+        changed_files = _extract_changed_files_from_diff(diff_content)
+        for pattern in profile.file_globs:
+            for filepath in changed_files:
+                if fnmatch.fnmatch(filepath, pattern):
+                    return True
 
     # Check diff_regexes
-    if profile.diff_regexes and diff_path:
-        full_path = os.path.expanduser(diff_path)
-        if os.path.exists(full_path):
-            with open(full_path, encoding="utf-8", errors="ignore") as f:
-                diff_content = f.read()
-            for regex in profile.diff_regexes:
-                if re.search(regex, diff_content):
-                    return True
+    if profile.diff_regexes and diff_content:
+        for regex in profile.diff_regexes:
+            if re.search(regex, diff_content):
+                return True
 
     # Check amend_note_regexes
     if profile.amend_note_regexes and amend_note:
@@ -127,9 +127,57 @@ def _profile_matches_commit(
     return False
 
 
+def _read_diff_content(diff_path: str | None) -> str | None:
+    """Read diff content from a path if it exists and is readable."""
+    if not diff_path:
+        return None
+
+    full_path = os.path.expanduser(diff_path)
+    if not os.path.exists(full_path):
+        return None
+
+    try:
+        with open(full_path, encoding="utf-8", errors="ignore") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def _load_latest_diff_from_vcs(changespec: ChangeSpec) -> str | None:
+    """Load latest commit diff via VCS for cross-machine DIFF-path fallback."""
+    try:
+        workspace_dir = get_workspace_directory(changespec.project_basename, 1)
+    except RuntimeError:
+        return None
+
+    try:
+        provider = get_vcs_provider(workspace_dir)
+    except VCSProviderNotFoundError:
+        return None
+
+    rev_candidates = [changespec.name]
+    if changespec.cl:
+        rev_candidates.append(changespec.cl)
+
+    for revision in rev_candidates:
+        try:
+            resolved = provider.resolve_revision(
+                revision, changespec.project_basename, workspace_dir
+            )
+            success, diff_text = provider.diff_revision(resolved, workspace_dir)
+        except Exception:
+            continue
+
+        if success and diff_text:
+            return diff_text
+
+    return None
+
+
 def profile_matches_any_commit(
     profile: MentorProfileConfig,
     commits: list[CommitEntry],
+    changespec: ChangeSpec | None = None,
 ) -> bool:
     """Check if a profile matches ANY of the given commits.
 
@@ -145,10 +193,43 @@ def profile_matches_any_commit(
             if commit.display_number == "1":
                 return True
 
+    latest_entry_id = max(
+        (commit.display_number for commit in commits),
+        key=parse_commit_entry_id,
+        default=None,
+    )
+    fallback_diff_content: object | str | None = _UNSET
+
     for commit in commits:
         diff_path = commit.diff
         amend_note = commit.note
-        if _profile_matches_commit(profile, diff_path, amend_note):
+        should_use_fallback = (
+            changespec is not None
+            and latest_entry_id is not None
+            and commit.display_number == latest_entry_id
+            and (profile.file_globs or profile.diff_regexes)
+            and _read_diff_content(diff_path) is None
+        )
+        if (
+            should_use_fallback
+            and fallback_diff_content is _UNSET
+            and changespec is not None
+        ):
+            fallback_diff_content = _load_latest_diff_from_vcs(changespec)
+        commit_fallback: str | None = None
+        if (
+            should_use_fallback
+            and fallback_diff_content is not _UNSET
+            and isinstance(fallback_diff_content, str)
+        ):
+            commit_fallback = fallback_diff_content
+
+        if _profile_matches_commit(
+            profile,
+            diff_path,
+            amend_note,
+            fallback_diff_content=commit_fallback,
+        ):
             return True
     return False
 
@@ -237,7 +318,7 @@ def _get_matching_profiles_for_entry(
         ):
             continue
         # Check if profile matches any commit
-        if profile_matches_any_commit(profile, commits_to_check):
+        if profile_matches_any_commit(profile, commits_to_check, changespec):
             result.append((latest_entry_id, profile))
 
     return result
@@ -324,6 +405,12 @@ def _trace_profile_match(
 ) -> _ProfileMatchTrace:
     """Trace how a profile matches against a set of commits, returning details."""
     trace = _ProfileMatchTrace(profile_name=profile.profile_name)
+    latest_entry_id = max(
+        (commit.display_number for commit in commits),
+        key=parse_commit_entry_id,
+        default=None,
+    )
+    fallback_diff_content: object | str | None = _UNSET
 
     # projects scope
     if profile.projects is not None and changespec is not None:
@@ -365,19 +452,30 @@ def _trace_profile_match(
         glob_matched = False
         details_parts: list[str] = []
         for commit in commits:
-            if not commit.diff:
+            diff_content = _read_diff_content(commit.diff)
+            used_fallback = False
+            if (
+                diff_content is None
+                and changespec is not None
+                and latest_entry_id is not None
+                and commit.display_number == latest_entry_id
+            ):
+                if fallback_diff_content is _UNSET:
+                    fallback_diff_content = _load_latest_diff_from_vcs(changespec)
+                if isinstance(fallback_diff_content, str):
+                    diff_content = fallback_diff_content
+                    used_fallback = True
+            if diff_content is None:
+                if commit.diff:
+                    details_parts.append(f"diff {commit.diff}: file not found")
                 continue
-            full_path = os.path.expanduser(commit.diff)
-            if not os.path.exists(full_path):
-                details_parts.append(f"diff {commit.diff}: file not found")
-                continue
-            with open(full_path, encoding="utf-8", errors="ignore") as f:
-                diff_content = f.read()
             changed_files = _extract_changed_files_from_diff(diff_content)
             for pattern in profile.file_globs:
                 for filepath in changed_files:
                     if fnmatch.fnmatch(filepath, pattern):
                         details_parts.append(f"{pattern} matched {filepath}")
+                        if used_fallback:
+                            details_parts.append("used VCS fallback diff")
                         glob_matched = True
             if not glob_matched and changed_files:
                 details_parts.append(
@@ -403,16 +501,26 @@ def _trace_profile_match(
         regex_matched = False
         regex_details: list[str] = []
         for commit in commits:
-            if not commit.diff:
+            diff_content = _read_diff_content(commit.diff)
+            used_fallback = False
+            if (
+                diff_content is None
+                and changespec is not None
+                and latest_entry_id is not None
+                and commit.display_number == latest_entry_id
+            ):
+                if fallback_diff_content is _UNSET:
+                    fallback_diff_content = _load_latest_diff_from_vcs(changespec)
+                if isinstance(fallback_diff_content, str):
+                    diff_content = fallback_diff_content
+                    used_fallback = True
+            if diff_content is None:
                 continue
-            full_path = os.path.expanduser(commit.diff)
-            if not os.path.exists(full_path):
-                continue
-            with open(full_path, encoding="utf-8", errors="ignore") as f:
-                diff_content = f.read()
             for regex in profile.diff_regexes:
                 if re.search(regex, diff_content):
                     regex_details.append(f"/{regex}/ matched in {commit.diff}")
+                    if used_fallback:
+                        regex_details.append("used VCS fallback diff")
                     regex_matched = True
         trace.criteria_results.append(
             _CriterionResult(

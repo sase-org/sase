@@ -131,7 +131,7 @@ def clear_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
                     for profile in get_all_mentor_profiles():
                         profile_name = profile.profile_name
                         # Include if: matches any commit OR has running mentors
-                        if profile_matches_any_commit(profile, matching_commits):
+                        if profile_matches_any_commit(profile, matching_commits, cs):
                             new_profiles.append(profile_name)
                         elif profile_name in profiles_with_running_mentors:
                             new_profiles.append(profile_name)

@@ -256,6 +256,96 @@ def test_get_matching_profiles_for_entry_includes_latest_with_partial_coverage(
     assert result[0][1].profile_name == "feature"  # profile
 
 
+def test_get_matching_profiles_for_entry_falls_back_to_vcs_diff(
+    monkeypatch: Any,
+) -> None:
+    """Test missing DIFF file still matches via VCS fallback for latest commit."""
+    mock_profile = MagicMock()
+    mock_profile.profile_name = "code"
+    mock_profile.mentors = [make_mentor_config(mentor_name="vision")]
+    mock_profile.file_globs = None
+    mock_profile.diff_regexes = [r"YieldParameterDtoConverter"]
+    mock_profile.amend_note_regexes = None
+    mock_profile.projects = None
+    mock_profile.first_commit = False
+
+    mock_provider = MagicMock()
+    mock_provider.resolve_revision.return_value = "resolved-rev"
+    mock_provider.diff_revision.return_value = (
+        True,
+        "diff --git a/src/a.py b/src/a.py\n+YieldParameterDtoConverter\n",
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [mock_profile],
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_workspace_directory",
+        lambda _project, _workspace_num=1: "/tmp/ws",
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_vcs_provider",
+        lambda _cwd: mock_provider,
+    )
+
+    cs = build_changespec(
+        file_path="/home/user/.sase/projects/sase/sase.gp",
+        commits=[
+            CommitEntry(
+                number=1,
+                note="Initial commit",
+                diff="~/.sase/diffs/does-not-exist.diff",
+            ),
+        ],
+    )
+
+    result = _get_matching_profiles_for_entry(cs)
+
+    assert len(result) == 1
+    assert result[0][0] == "1"
+    assert result[0][1].profile_name == "code"
+    mock_provider.diff_revision.assert_called_once_with("resolved-rev", "/tmp/ws")
+
+
+def test_profile_fallback_applies_only_to_latest_commit(monkeypatch: Any) -> None:
+    """Test VCS fallback is not applied to older commits in the candidate set."""
+    profile = MentorProfileConfig(
+        profile_name="feature",
+        mentors=[make_mentor_config(mentor_name="complete")],
+        diff_regexes=[r"legacy-only-token"],
+    )
+
+    mock_provider = MagicMock()
+    mock_provider.resolve_revision.return_value = "resolved-rev"
+    mock_provider.diff_revision.return_value = (
+        True,
+        "diff --git a/src/new.py b/src/new.py\n+modern-token\n",
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_workspace_directory",
+        lambda _project, _workspace_num=1: "/tmp/ws",
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_vcs_provider",
+        lambda _cwd: mock_provider,
+    )
+
+    cs = build_changespec(
+        file_path="/home/user/.sase/projects/sase/sase.gp",
+    )
+    commits = [
+        CommitEntry(number=1, note="old", diff="~/.sase/diffs/missing-old.diff"),
+        CommitEntry(number=2, note="latest", diff="~/.sase/diffs/missing-new.diff"),
+    ]
+
+    matched = profile_matches_any_commit(profile, commits, cs)
+
+    assert matched is False
+    mock_provider.diff_revision.assert_called_once_with("resolved-rev", "/tmp/ws")
+
+
 # Tests for first_commit matching
 
 
