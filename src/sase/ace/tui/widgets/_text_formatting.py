@@ -147,7 +147,15 @@ class TextFormattingMixin(_MixinBase):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, _ = await proc.communicate(text.encode())
+            try:
+                stdout, _ = await asyncio.wait_for(
+                    proc.communicate(text.encode()), timeout=2
+                )
+            except TimeoutError:
+                proc.kill()
+                await proc.wait()
+                self._auto_wrap_line()
+                return
 
             if proc.returncode != 0:
                 self._auto_wrap_line()
@@ -193,8 +201,8 @@ class TextFormattingMixin(_MixinBase):
                     break
                 remaining -= len(line) + 1
             self.cursor_location = (new_row, new_col)
-        except FileNotFoundError:
-            # prettier not installed — fall back to simple wrap
+        except (FileNotFoundError, TimeoutError):
+            # prettier not installed or timed out — fall back to simple wrap
             self._auto_wrap_line()
         finally:
             self._formatting = False
