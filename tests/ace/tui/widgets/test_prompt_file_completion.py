@@ -118,7 +118,7 @@ class TestPromptFileCompletion:
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 start = ta._file_completion_index
                 await pilot.press("down")
                 assert ta._file_completion_index != start
@@ -141,7 +141,7 @@ class TestPromptFileCompletion:
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 await pilot.press("down")
                 selected = ta._file_completion_candidates[
                     ta._file_completion_index
@@ -166,7 +166,7 @@ class TestPromptFileCompletion:
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 await pilot.press("escape")
             assert ta._file_completion_active is False
@@ -200,14 +200,14 @@ class TestPromptFileCompletion:
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 ta.action_submit_prompt()
                 assert ta._file_completion_active is False
 
                 ta.load_text("~/")
                 ta.cursor_location = (0, 2)
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 await pilot.press("ctrl+c")
             assert ta._file_completion_active is False
@@ -278,7 +278,7 @@ class TestPromptFileCompletion:
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 # First candidate should be alpha/ (dirs first, alphabetical)
                 assert ta._file_completion_candidates[0].name == "alpha"
@@ -316,7 +316,7 @@ class TestPromptFileCompletion:
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 await pilot.press("down")
                 selected = ta._file_completion_candidates[
@@ -504,7 +504,7 @@ class TestAtPrefixIntegration:
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
-                await pilot.press("ctrl+f")
+                await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 # First candidate should be alpha/ (dirs first, alphabetical)
                 assert ta._file_completion_candidates[0].name == "alpha"

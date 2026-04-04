@@ -162,7 +162,7 @@ class FileCompletionMixin(_MixinBase):
         self._update_file_completion_panel(token)
 
     def _try_file_completion_tab(self) -> bool:
-        """Handle Ctrl+F-driven file completion for path tokens."""
+        """Handle Ctrl+T-driven file completion for path tokens."""
         ctx = self._get_path_token_context()
         if ctx is None:
             self._clear_file_completion()

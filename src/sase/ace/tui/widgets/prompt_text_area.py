@@ -265,8 +265,8 @@ class PromptTextArea(
                     event.prevent_default()
                     return
 
-        # Ctrl+F in INSERT mode: trigger file path completion
-        if event.key == "ctrl+f":
+        # Ctrl+T in INSERT mode: trigger file path completion
+        if event.key == "ctrl+t":
             event.stop()
             event.prevent_default()
             self._try_file_completion_tab()
