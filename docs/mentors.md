@@ -248,7 +248,7 @@ Press `z` `m` to toggle the MENTORS section visibility in the ChangeSpec detail 
 
 Mentors run on ChangeSpecs that meet **all** of the following:
 
-- Status is **Ready** (not WIP, Draft, Mailed, Submitted, Reverted, or Archived).
+- Status is **Ready** or **Mailed** (not WIP, Draft, Submitted, Reverted, or Archived).
 - The ChangeSpec has at least one commit.
 - At least one mentor profile's matching criteria are satisfied.
 - All non-skip hooks for the matched commit have reached a terminal state.

@@ -38,6 +38,7 @@ The method defaults to `$SASE_COMMIT_METHOD` if the `-M` flag is omitted.
 | `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                             |
 | `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                       |
 | `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                            |
+| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)            |
 | `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                   |
 | `-M`  | `--method`          | Commit method (`create_commit`, `create_proposal`, `create_pull_request`) |
 

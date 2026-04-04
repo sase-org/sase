@@ -62,12 +62,14 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 ### Navigation
 
-| Key                 | Action                                    |
-| ------------------- | ----------------------------------------- |
-| `j` / `k`           | Move to next / previous CL                |
-| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL |
-| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history         |
-| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page) |
+| Key                 | Action                                                                |
+| ------------------- | --------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous CL                                            |
+| `<` / `>` / `~`     | Navigate to ancestor / child / sibling CL                             |
+| `'`                 | Jump to entry by hint character (current tab)                         |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal)) |
+| `Ctrl+O` / `Ctrl+K` | Jump back / forward in CL history                                     |
+| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                             |
 
 ### CL Actions
 
@@ -121,8 +123,9 @@ toggle keys (`z` `C`, `z` `H`, `z` `M`, `z` `T`) skip the intermediate **Expande
 **Collapsed** and **Fully Expanded**.
 
 When collapsed, a `[folded: CHAT + DIFF + PLAN + N proposals]` indicator appears on COMMITS entries with hidden content.
-The indicator width is pre-calculated so that note truncation accounts for it. TIMESTAMPS shows a `[folded: N]` count
-when collapsed.
+The indicator width is pre-calculated so that note truncation accounts for it. TIMESTAMPS shows a `[folded: N]`
+indicator inline with the header and displays the most recent timestamp entry when collapsed, giving a quick view of the
+last lifecycle event.
 
 ### Workflows and Agents
 
@@ -206,12 +209,14 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Navigation
 
-| Key                 | Action                                                     |
-| ------------------- | ---------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous agent                              |
-| `g` / `G`           | Scroll to top / bottom (file, thinking, or metadata panel) |
-| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                |
-| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                              |
+| Key                 | Action                                                                |
+| ------------------- | --------------------------------------------------------------------- |
+| `j` / `k`           | Move to next / previous agent                                         |
+| `'`                 | Jump to entry by hint character (current tab)                         |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal)) |
+| `g` / `G`           | Scroll to top / bottom (file, thinking, or metadata panel)            |
+| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                           |
+| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                         |
 
 ### Agent Actions
 
@@ -226,6 +231,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `W`                 | New agent waiting for current (populate prompt with `%w`)    |
 | `x`                 | Kill / dismiss agent                                         |
 | `X`                 | Dismiss all completed agents (with confirmation)             |
+| `o`                 | Focus pinned agents panel                                    |
 | `P`                 | Pin / unpin completed agent (protects from dismiss-all)      |
 | `Enter` / `L`       | Jump to CL (for agents with `meta_new_cl`/`meta_new_pr`)     |
 | `e`                 | Edit chat in editor                                          |
@@ -469,6 +475,22 @@ have been associated with the current CL.
 | `Enter`     | Jump to agent in Agents tab |
 | `Esc` / `q` | Close modal                 |
 
+## Jump All Modal
+
+Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across CLs, Agents, and Axe tabs
+with single-keypress hint characters for instant navigation. Selecting an entry switches to the appropriate tab and
+focuses it.
+
+| Key         | Action                          |
+| ----------- | ------------------------------- |
+| Hint char   | Jump to the corresponding entry |
+| `Esc` / `q` | Close modal                     |
+
+The modal groups entries by tab (CLs, Agents, Axe) and shows contextual information for each: CL names and statuses,
+agent names with running/pinned indicators, and Axe lumberjack/command labels.
+
+The single-tab variant (`'` apostrophe) shows entries only from the current tab with the same hint-character navigation.
+
 ## Mentor Comment Stats in CL List
 
 When a ChangeSpec has completed mentor reviews with comments, the CLs tab list entry shows inline stats:
@@ -490,8 +512,8 @@ The tab bar shows contextual counts alongside each tab label using the format `(
 Examples:
 
 - **CLs tab**: `CLs (5)` for 5 CLs, or `CLs (5.2)` when 2 hidden (reverted) CLs are visible
-- **Agents tab**: `Agents (2)` for 2 running agents, `Agents (2x1)` for 2 running + 1 done, `Agents (2x1.3)` with 3
-  hidden also visible
+- **Agents tab**: `Agents (2)` for 2 running agents, `Agents (2x1)` for 2 running + 1 done, `Agents (2x1+3)` for 2
+  running + 1 done + 3 pinned, `Agents (2x1.3)` with 3 hidden also visible
 - **AXE tab**: `AXE (3)` for 3 running lumberjacks, `AXE (3x2.1)` for 3 lumberjacks + 2 done bgcmds + 1 hidden command
   visible
 
@@ -736,30 +758,31 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 
 ### INSERT Mode (Default)
 
-| Key      | Action                                                                   |
-| -------- | ------------------------------------------------------------------------ |
-| `Enter`  | Submit the prompt                                                        |
-| `Ctrl+J` | Insert a newline                                                         |
-| `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0) |
-| `Ctrl+E` | Move to end of line (jumps to next line end if already at end)           |
-| `Ctrl+G` | Open full prompt in `$EDITOR`                                            |
-| `Ctrl+I` | Load a prompt from history                                               |
-| `Tab`    | File completion (if on a path) or snippet expansion (see below)          |
-| `#@`     | Open XPrompt snippet picker (type `#` then `@`)                          |
-| `Escape` | Switch to vim NORMAL mode                                                |
+| Key      | Action                                                                            |
+| -------- | --------------------------------------------------------------------------------- |
+| `Enter`  | Submit the prompt                                                                 |
+| `Ctrl+J` | Insert a newline                                                                  |
+| `Ctrl+A` | Move to start of line (jumps to previous line start if already at col 0)          |
+| `Ctrl+E` | Move to end of line (jumps to next line end if already at end)                    |
+| `Ctrl+G` | Open full prompt in `$EDITOR`                                                     |
+| `Ctrl+I` | Load a prompt from history                                                        |
+| `Ctrl+T` | File completion (if on a path; see [File Path Completion](#file-path-completion)) |
+| `Tab`    | Snippet expansion (see below)                                                     |
+| `#@`     | Open XPrompt snippet picker (type `#` then `@`)                                   |
+| `Escape` | Switch to vim NORMAL mode                                                         |
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line.
 
 ### File Path Completion
 
-When the cursor is on a path-like token, pressing `Tab` activates file path completion instead of snippet expansion.
-Path-like tokens are those starting with `/`, `./`, `../`, `~/`, or containing `/`. Tokens starting with `@` are also
-recognized — the `@` prefix is preserved in the completed path (useful for file-reference arguments).
+Press `Ctrl+T` to activate file path completion. The cursor must be on a path-like token — those starting with `/`,
+`./`, `../`, `~/`, or containing `/`. Tokens starting with `@` are also recognized — the `@` prefix is preserved in the
+completed path (useful for file-reference arguments).
 
 | Key                | Action                                   |
 | ------------------ | ---------------------------------------- |
-| `Tab`              | Start completion or insert shared prefix |
+| `Ctrl+T`           | Start completion or insert shared prefix |
 | `Ctrl+N` / `Down`  | Next candidate                           |
 | `Ctrl+P` / `Up`    | Previous candidate                       |
 | `Enter` / `Ctrl+L` | Accept highlighted candidate             |
@@ -768,8 +791,6 @@ recognized — the `@` prefix is preserved in the completed path (useful for fil
 Directories appear before files in the candidate list. Dotfiles are hidden unless the partial prefix starts with `.`.
 Accepting a directory automatically re-opens completion for the next level (drill-down). The completion panel shows up
 to 10 candidates at a time and scrolls to keep the highlight visible.
-
-**Tab priority:** File completion > snippet expansion > tabstop advancement.
 
 ### Special Prompt Shortcuts
 
@@ -888,6 +909,7 @@ output every second.
 | Key            | Action                          |
 | -------------- | ------------------------------- |
 | `j` / `k`      | Navigate task list              |
+| `K`            | Kill selected running task      |
 | `d`            | Dismiss selected completed task |
 | `D`            | Dismiss all completed tasks     |
 | `e`            | Open task output in `$EDITOR`   |

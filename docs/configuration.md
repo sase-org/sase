@@ -390,7 +390,7 @@ mentor_profiles:
 | `focus_name`  | string | yes      | Short name for this focus area (e.g., "correctness"). |
 | `description` | string | yes      | Description of what this focus area reviews.          |
 
-Mentors run automatically on ChangeSpecs with Draft or Mailed status when their matching criteria are met. Mentor
+Mentors run automatically on ChangeSpecs with Ready or Mailed status when their matching criteria are met. Mentor
 comments are structured JSON with severity levels (error, warning, suggestion) that can be reviewed and applied through
 the ACE TUI's Mentor Review modal (`,m`).
 
@@ -616,7 +616,7 @@ These are set automatically by sase when launching agent subprocesses and are no
 | `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.        |
 | `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.   |
 | `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.           |
-| `-r, --refresh-interval` | int (seconds)       | `7`                       | Auto-refresh interval (0 to disable).          |
+| `-r, --refresh-interval` | int (seconds)       | `8`                       | Auto-refresh interval (0 to disable).          |
 | `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.          |
 | `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                         |
 | `-a, --agent`            | flag                | -                         | Run in headless agent mode (returns JSON).     |
@@ -662,10 +662,10 @@ No flags. Stops the running axe orchestrator.
 
 ### `sase search`
 
-| Flag           | Values          | Default    | Description                             |
-| -------------- | --------------- | ---------- | --------------------------------------- |
-| `query`        | string          | (required) | Query string for filtering ChangeSpecs. |
-| `-f, --format` | `plain`, `rich` | `rich`     | Output format.                          |
+| Flag           | Values                      | Default    | Description                                           |
+| -------------- | --------------------------- | ---------- | ----------------------------------------------------- |
+| `query`        | string                      | (required) | Query string for filtering ChangeSpecs.               |
+| `-f, --format` | `plain`, `rich`, `markdown` | `rich`     | Output format (`markdown` for agent-friendly output). |
 
 ### `sase revert`
 
