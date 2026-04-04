@@ -30,8 +30,9 @@ TabName = Literal["changespecs", "agents", "axe"]
 PanelFocus = Literal["main", "pinned"]
 
 # ── Visual constants ──────────────────────────────────────────────
-_NAME_MAX = 30
-_STATUS_MAX = 14
+_NAME_MAX = 50
+_STATUS_MAX = 18
+_SECTION_RULE_WIDTH = 76
 
 # Per-tab section header colours
 _TAB_STYLES: dict[TabName, tuple[str, str]] = {
@@ -80,8 +81,10 @@ class _Entry:
     name: str
     status: str
     status_style: str
+    name_style: str = ""
     panel_focus: PanelFocus | None = None
     indent: int = 0
+    is_pinned: bool = False
 
 
 class JumpAllModal(ModalScreen[JumpAllResult | None]):
@@ -125,11 +128,15 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         entries: list[_Entry] = []
 
         # CLs
+        _, cl_color = _TAB_STYLES["changespecs"]
         for i, cs in enumerate(changespecs):
             style = _CS_STATUS_STYLES.get(cs.status, "")
-            entries.append(_Entry("changespecs", i, cs.name, cs.status, style))
+            entries.append(
+                _Entry("changespecs", i, cs.name, cs.status, style, name_style=cl_color)
+            )
 
         # Agents (main then pinned — matching existing jump order)
+        _, ag_color = _TAB_STYLES["agents"]
         for idx in [*main_panel_indices, *pinned_panel_indices]:
             if idx >= len(agents):
                 continue
@@ -139,19 +146,42 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
             name = ag.cl_name
             if ag.raw_suffix:
                 name = f"{name}/{ag.raw_suffix}"
+            pinned = idx in pinned_panel_idx_map
             entries.append(
-                _Entry("agents", idx, name, ag.status, style, panel_focus=panel)
+                _Entry(
+                    "agents",
+                    idx,
+                    name,
+                    ag.status,
+                    style,
+                    name_style=ag_color,
+                    panel_focus=panel,
+                    is_pinned=pinned,
+                )
             )
 
         # AXE
+        _, axe_color = _TAB_STYLES["axe"]
         for i, item in enumerate(axe_items):
             if isinstance(item, AxeParentItem):
-                entries.append(_Entry("axe", i, "sase axe", "", "", indent=0))
+                entries.append(
+                    _Entry("axe", i, "sase axe", "", "", name_style=axe_color, indent=0)
+                )
             elif isinstance(item, LumberjackItem):
-                entries.append(_Entry("axe", i, item.name, "", "", indent=1))
+                entries.append(
+                    _Entry("axe", i, item.name, "", "", name_style=axe_color, indent=1)
+                )
             elif isinstance(item, BgCmdItem):
                 entries.append(
-                    _Entry("axe", i, f"bgcmd #{item.slot}", "", "", indent=0)
+                    _Entry(
+                        "axe",
+                        i,
+                        f"bgcmd #{item.slot}",
+                        "",
+                        "",
+                        name_style=axe_color,
+                        indent=0,
+                    )
                 )
 
         self._entries = entries
@@ -171,12 +201,13 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
             )
 
     def _build_title(self) -> Text:
-        text = Text()
+        text = Text(justify="center")
         text.append("\n")
-        text.append("  ", style="")
-        text.append("\u2726 ", style="bold #FFD700")
+        text.append("───", style="dim")
+        text.append(" ✦ ", style="bold #FFD700")
         text.append("Jump to Entry", style="bold white")
-        text.append(" \u2726", style="bold #FFD700")
+        text.append(" ✦ ", style="bold #FFD700")
+        text.append("───", style="dim")
         text.append("\n")
         return text
 
@@ -192,11 +223,14 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
             if entry.tab != current_tab:
                 current_tab = entry.tab
                 label, color = _TAB_STYLES[current_tab]
+                count = sum(1 for e in self._entries if e.tab == current_tab)
                 if text.plain:
                     text.append("\n")
-                text.append("  \u25b8 ", style=f"bold {color}")
-                text.append(label, style=f"bold {color}")
-                text.append("\n")
+                header = f"  ── {label} ({count}) "
+                fill_width = max(0, _SECTION_RULE_WIDTH - len(header))
+                text.append(header, style=f"bold {color}")
+                text.append("─" * fill_width, style=f"dim {color}")
+                text.append("\n\n")
 
             # Hint character
             if hint_idx < len(hints):
@@ -214,10 +248,10 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
             text.append(hint, style="bold #FFFF00")
             text.append("] ", style="dim")
 
-            # Name (truncated)
+            # Name (truncated, tab-colored)
             avail = _NAME_MAX - len(indent)
             name = entry.name[:avail] if len(entry.name) > avail else entry.name
-            text.append(f"{name:<{avail}}", style="#00D7AF")
+            text.append(f"{name:<{avail}}", style=entry.name_style or "#00D7AF")
 
             # Status (right-aligned)
             if entry.status:
@@ -227,11 +261,16 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                     style=entry.status_style or "",
                 )
 
+            # Pinned indicator
+            if entry.is_pinned:
+                text.append("  pin", style="dim")
+
             text.append("\n")
 
         if not self._entries:
             text.append("\n    No entries\n", style="dim")
 
+        text.append("\n")
         return text
 
     def on_key(self, event: Key) -> None:
