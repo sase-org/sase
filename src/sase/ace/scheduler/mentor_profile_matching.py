@@ -72,7 +72,8 @@ def _extract_changed_files_from_diff(diff_content: str) -> list[str]:
             continue
 
         # Match "diff -r ... path/to/file" (hg format, single or double -r)
-        hg_match = re.match(r"^diff -r [a-f0-9]+(?: -r [a-f0-9]+)? (\S+)", line)
+        # Mercurial revision tokens are not guaranteed to be lowercase hex.
+        hg_match = re.match(r"^diff -r \S+(?: -r \S+)? (\S+)", line)
         if hg_match:
             files.append(hg_match.group(1))
             continue
