@@ -1118,6 +1118,47 @@ HelpModal #help-footer {
     padding-top: 1;
 }
 
+/* ===== Jump All Entries Modal Styling ===== */
+
+JumpAllModal {
+    align: center middle;
+}
+
+JumpAllModal > Container {
+    width: 60;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+JumpAllModal #jump-all-title {
+    text-align: center;
+    height: auto;
+    margin-bottom: 1;
+}
+
+JumpAllModal #jump-all-scroll {
+    height: auto;
+    max-height: 30;
+    scrollbar-gutter: stable;
+}
+
+JumpAllModal #jump-all-content {
+    width: 100%;
+    height: auto;
+}
+
+JumpAllModal #jump-all-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* ===== Activity Modal Styling ===== */
 
 ActivityModal {

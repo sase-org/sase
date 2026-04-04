@@ -193,6 +193,33 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         self._exit_entry_jump_mode()
         return True
 
+    # --- Jump To All Entries (cross-tab) ---
+
+    def action_jump_to_all_entries(self) -> None:
+        """Open the cross-tab jump modal showing entries from all tabs."""
+        from ...modals import JumpAllModal, JumpAllResult
+
+        def _on_dismiss(result: JumpAllResult | None) -> None:
+            if result is None:
+                return
+            self._save_current_tab_position()  # type: ignore[attr-defined]
+            self.current_tab = result.tab  # type: ignore[assignment]
+            if result.tab == "agents" and result.pinned_panel_focused is not None:
+                self._pinned_panel_focused = result.pinned_panel_focused
+            self.current_idx = result.index
+
+        self.push_screen(  # type: ignore[attr-defined]
+            JumpAllModal(
+                changespecs=self.changespecs,
+                agents=self._agents,
+                main_panel_indices=self._main_panel_indices,
+                pinned_panel_indices=self._pinned_panel_indices,
+                pinned_panel_idx_map=self._pinned_panel_idx_map,
+                axe_items=self._axe_items,
+            ),
+            _on_dismiss,
+        )
+
     # --- Help Action ---
 
     def action_show_help(self) -> None:

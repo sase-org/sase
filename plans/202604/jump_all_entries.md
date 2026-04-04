@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 15:16:45
-status: wip
+status: done
 ---
 
 # Plan: Cross-Tab Jump-to-Entry Modal (backtick)

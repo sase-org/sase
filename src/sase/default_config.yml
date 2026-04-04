@@ -33,6 +33,7 @@ ace:
       add_tag: "W"
       view_files: "v"
       jump_to_entry: "apostrophe"
+      jump_to_all_entries: "grave_accent"
       edit_spec: "e"
       rename_cl: "n"
       # Proposals & sync

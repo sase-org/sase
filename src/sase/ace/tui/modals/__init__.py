@@ -8,6 +8,7 @@ from .confirm_delete_modal import ConfirmDeleteModal
 from .confirm_kill_modal import ConfirmDismissAllModal, ConfirmKillModal
 from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
+from .jump_all_modal import JumpAllModal, JumpAllResult
 from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
@@ -86,6 +87,8 @@ __all__ = [
     "HookHistoryAction",
     "HookHistoryModal",
     "HookHistoryResult",
+    "JumpAllModal",
+    "JumpAllResult",
     "NotificationModal",
     "ParentSelectModal",
     "PlanApprovalModal",

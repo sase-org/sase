@@ -43,6 +43,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("add_tag", "Add Tag", False),
     ("view_files", "View", False),
     ("jump_to_entry", "Jump to Entry", False),
+    ("jump_to_all_entries", "Jump All", False),
     ("hooks_or_collapse", "Hooks / Collapse", False),
     ("hooks_or_collapse_all", "Hooks / Collapse All", False),
     ("start_fold_mode", "Fold", False),
@@ -131,6 +132,7 @@ _KEY_DISPLAY: dict[str, str] = {
     "minus": "-",
     "question_mark": "?",
     "apostrophe": "'",
+    "grave_accent": "`",
     "slash": "/",
     "at": "@",
     "space": "Space",
@@ -204,6 +206,7 @@ class AppKeymaps:
     add_tag: str
     view_files: str
     jump_to_entry: str
+    jump_to_all_entries: str
     edit_spec: str
     rename_cl: str
     # Proposals & sync
