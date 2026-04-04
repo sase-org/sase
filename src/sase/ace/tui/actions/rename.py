@@ -115,6 +115,16 @@ class RenameMixin:
                     update_running_field_cl_name(
                         changespec.file_path, old_name, new_name
                     )
+                    from sase.ace.timestamps.recording import (
+                        add_timestamp_entry_atomic,
+                    )
+
+                    add_timestamp_entry_atomic(
+                        changespec.file_path,
+                        new_name,
+                        "RENAME",
+                        f"{old_name} -> {new_name}",
+                    )
                     return (True, f"Renamed {old_name} to {new_name}")
                 except Exception as e:
                     return (False, f"Failed to update spec file: {e}")
@@ -207,6 +217,16 @@ class RenameMixin:
                 except Exception as e:
                     return (False, f"Failed to update spec file: {e}")
 
+                from sase.ace.timestamps.recording import (
+                    add_timestamp_entry_atomic,
+                )
+
+                add_timestamp_entry_atomic(
+                    changespec.file_path,
+                    new_name,
+                    "RENAME",
+                    f"{old_name} -> {new_name}",
+                )
                 return (True, f"Renamed {old_name} to {new_name}")
 
             finally:

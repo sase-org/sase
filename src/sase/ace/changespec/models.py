@@ -412,6 +412,7 @@ class TimestampEntry:
       [YYYY-MM-DD HH:MM:SS] SYNC    (2)
       [YYYY-MM-DD HH:MM:SS] REWORD  description
       [YYYY-MM-DD HH:MM:SS] REWIND  (3)
+      [YYYY-MM-DD HH:MM:SS] RENAME  old-name -> new-name
     """
 
     timestamp: str  # "YYYY-MM-DD HH:MM:SS"

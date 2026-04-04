@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 19:46:50
-status: wip
+status: done
 ---
 
 # Plan: Add RENAME Timestamps to ChangeSpec

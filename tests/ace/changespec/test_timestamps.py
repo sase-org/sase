@@ -360,6 +360,73 @@ TIMESTAMPS:
         os.unlink(path)
 
 
+def test_parse_timestamps_rename_entry() -> None:
+    """RENAME entries round-trip correctly through parse -> model."""
+    content = """\
+NAME: my-cl
+DESCRIPTION:
+  Some description
+STATUS: WIP
+TIMESTAMPS:
+  260329_143022 COMMIT  (1)
+  260404_120000 RENAME  old-name -> new-name
+
+
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        f.flush()
+        path = f.name
+
+    try:
+        changespecs = parse_project_file(path)
+        assert len(changespecs) == 1
+        cs = changespecs[0]
+        assert cs.timestamps is not None
+        assert len(cs.timestamps) == 2
+
+        rename_entry = cs.timestamps[1]
+        assert rename_entry.timestamp == "260404_120000"
+        assert rename_entry.event_type == "RENAME"
+        assert rename_entry.detail == "old-name -> new-name"
+    finally:
+        os.unlink(path)
+
+
+def test_add_timestamp_entry_atomic_rename() -> None:
+    """add_timestamp_entry_atomic with RENAME event writes correctly."""
+    content = """\
+NAME: new-name
+DESCRIPTION:
+  Some description
+STATUS: WIP
+TIMESTAMPS:
+  260329_143022 COMMIT  (1)
+
+
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".gp", delete=False) as f:
+        f.write(content)
+        f.flush()
+        path = f.name
+
+    try:
+        ok = add_timestamp_entry_atomic(
+            path, "new-name", "RENAME", "old-name -> new-name"
+        )
+        assert ok
+
+        with open(path) as f:
+            new_content = f.read()
+
+        assert "RENAME " in new_content
+        assert "old-name -> new-name" in new_content
+        # Original entry still present
+        assert "COMMIT " in new_content
+    finally:
+        os.unlink(path)
+
+
 def test_add_timestamp_entry_wrong_cl_returns_false() -> None:
     """Returns False when CL name not found."""
     content = """\
