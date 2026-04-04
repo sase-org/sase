@@ -130,6 +130,7 @@ _KEY_DISPLAY: dict[str, str] = {
     "equals_sign": "=",
     "minus": "-",
     "question_mark": "?",
+    "grave_accent": "`",
     "slash": "/",
     "at": "@",
     "space": "Space",
