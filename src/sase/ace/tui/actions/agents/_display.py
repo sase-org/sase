@@ -289,8 +289,11 @@ class AgentDisplayMixin:
 
         agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
         # Position is 1-based for display; exclude workflow children from count
+        main_set = set(self._main_panel_indices)
         non_child_indices = [
-            i for i, a in enumerate(self._agents) if not a.is_workflow_child
+            i
+            for i, a in enumerate(self._agents)
+            if not a.is_workflow_child and i in main_set
         ]
         total = len(non_child_indices)
         if self._agents:

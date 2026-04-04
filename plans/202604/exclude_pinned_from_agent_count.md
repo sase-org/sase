@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 13:25:05
-status: wip
+status: done
 ---
 
 # Plan: Exclude Pinned Entries from Agent Count
