@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-04 18:15:04
-status: wip
+status: done
 ---
 
 # Plan: Expand VCS Xprompt MRU to 100 Entries & Fix Cycling Direction

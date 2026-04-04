@@ -248,7 +248,7 @@ class PromptTextArea(
 
                 mru = load_vcs_xprompt_mru()
                 if mru:
-                    direction = 1 if event.key == "ctrl+n" else -1
+                    direction = -1 if event.key == "ctrl+n" else 1
                     if self._vcs_mru_index is not None:
                         new_index = (self._vcs_mru_index + direction) % len(mru)
                     elif current_prefix is not None and current_prefix in mru:

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 _MRU_FILE = Path.home() / ".sase" / "vcs_xprompt_mru.json"
-_MAX_ENTRIES = 10
+_MAX_ENTRIES = 100
 
 
 def load_vcs_xprompt_mru() -> list[str]:
@@ -25,7 +25,7 @@ def load_vcs_xprompt_mru() -> list[str]:
 
 
 def record_vcs_xprompt_usage(prefix: str) -> None:
-    """Move/add prefix to the front of the MRU list, cap at 10, save to disk.
+    """Move/add prefix to the front of the MRU list, cap at 100, save to disk.
 
     Args:
         prefix: VCS workflow prefix string (e.g. ``"#gh:sase"``).
