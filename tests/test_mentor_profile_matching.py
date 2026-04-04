@@ -82,6 +82,25 @@ diff -r abc123 -r def456 tests/main_test.dart
     assert files == ["src/main.dart", "tests/main_test.dart"]
 
 
+def test_extract_changed_files_from_diff_hg_non_hex_revision_tokens() -> None:
+    """Test hg diff parsing with non-hex revision tokens."""
+    diff_content = """diff -r 123:ABCDEF+ -r tip src/feature.py
+--- a/src/feature.py
++++ b/src/feature.py
+@@ -1 +1,2 @@
+ def feature(): pass
++def other(): pass
+diff -r 123:ABCDEF+ -r tip tests/test_feature.py
+--- a/tests/test_feature.py
++++ b/tests/test_feature.py
+@@ -1 +1,2 @@
+ def test_feature(): pass
++def test_other(): pass
+"""
+    files = _extract_changed_files_from_diff(diff_content)
+    assert files == ["src/feature.py", "tests/test_feature.py"]
+
+
 # Tests for _get_commits_since_last_mentors
 
 
