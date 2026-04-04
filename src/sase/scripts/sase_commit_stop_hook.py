@@ -63,7 +63,11 @@ def _read_gemini_stdin() -> dict:
 
 def _emit_block(reason: str, details: str | None = None) -> int:
     if _is_codex_runtime():
-        print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=True))
+        print(
+            json.dumps(
+                {"decision": "block", "reason": details or reason}, ensure_ascii=True
+            )
+        )
         if details:
             print(details, file=sys.stderr)
         return 0
