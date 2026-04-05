@@ -211,6 +211,9 @@ class AceApp(
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
 
+        # Cross-tab jump back state (`)
+        self._jump_all_last_position = None
+
         # Ancestor/child/sibling navigation state
         self._ancestor_mode_active: bool = False
         self._child_mode_active: bool = False

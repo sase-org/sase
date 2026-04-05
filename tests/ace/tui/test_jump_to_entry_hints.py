@@ -7,6 +7,7 @@ from sase.ace.tui.actions.navigation.jump_hints import (
 )
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.modals.jump_all_modal import JumpAllModal, JumpAllResult
 from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets.bgcmd_list import BgCmdList
 from sase.ace.tui.widgets.changespec_list import ChangeSpecList
@@ -75,6 +76,32 @@ def test_agent_list_hint_marker_rendered() -> None:
         hint_char="b",
     )
     assert "[b]" in str(option.prompt)
+
+
+def test_jump_all_modal_stores_last_position() -> None:
+    last_pos = JumpAllResult(tab="changespecs", index=2, pinned_panel_focused=None)
+    modal = JumpAllModal(
+        changespecs=[],
+        agents=[],
+        main_panel_indices=[],
+        pinned_panel_indices=[],
+        pinned_panel_idx_map={},
+        axe_items=[],
+        last_position=last_pos,
+    )
+    assert modal._last_position is last_pos
+
+
+def test_jump_all_modal_no_last_position() -> None:
+    modal = JumpAllModal(
+        changespecs=[],
+        agents=[],
+        main_panel_indices=[],
+        pinned_panel_indices=[],
+        pinned_panel_idx_map={},
+        axe_items=[],
+    )
+    assert modal._last_position is None
 
 
 def test_bgcmd_list_hint_marker_rendered() -> None:

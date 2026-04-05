@@ -102,10 +102,12 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         pinned_panel_indices: list[int],
         pinned_panel_idx_map: dict[int, int],
         axe_items: list[AxeItem],
+        last_position: JumpAllResult | None = None,
     ) -> None:
         super().__init__()
         self._entries: list[_Entry] = []
         self._hint_to_entry: dict[str, _Entry] = {}
+        self._last_position = last_position
         self._build_entries(
             changespecs,
             agents,
@@ -196,7 +198,9 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
             with VerticalScroll(id="jump-all-scroll"):
                 yield Static(self._build_display(), id="jump-all-content")
             yield Static(
-                "press key to jump · esc cancel",
+                "press key to jump · ` back · esc cancel"
+                if self._last_position
+                else "press key to jump · esc cancel",
                 id="jump-all-footer",
             )
 
@@ -293,6 +297,13 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                     pinned_panel_focused=entry.panel_focus,
                 )
             )
+            return
+
+        # Hidden backtick hint: jump back to previous position
+        if key == "grave_accent" and self._last_position is not None:
+            event.prevent_default()
+            event.stop()
+            self.dismiss(self._last_position)
             return
 
         # Any other key dismisses without action

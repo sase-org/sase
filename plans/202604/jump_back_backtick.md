@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-05 11:28:34
-status: wip
+status: done
 ---
 
 # Plan: Backtick "Jump Back" Hint in Jump to All Entries Modal

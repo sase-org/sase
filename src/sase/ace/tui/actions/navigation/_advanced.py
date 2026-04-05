@@ -199,9 +199,19 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         """Open the cross-tab jump modal showing entries from all tabs."""
         from ...modals import JumpAllModal, JumpAllResult
 
+        # Capture current position before opening modal
+        pre_jump_position = JumpAllResult(
+            tab=self.current_tab,  # type: ignore[arg-type]
+            index=self.current_idx,
+            pinned_panel_focused=(
+                self._pinned_panel_focused if self.current_tab == "agents" else None
+            ),
+        )
+
         def _on_dismiss(result: JumpAllResult | None) -> None:
             if result is None:
                 return
+            self._jump_all_last_position = pre_jump_position
             self._save_current_tab_position()  # type: ignore[attr-defined]
             self.current_tab = result.tab  # type: ignore[assignment]
             if result.tab == "agents" and result.pinned_panel_focused is not None:
@@ -216,6 +226,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
                 pinned_panel_indices=self._pinned_panel_indices,
                 pinned_panel_idx_map=self._pinned_panel_idx_map,
                 axe_items=self._axe_items,
+                last_position=self._jump_all_last_position,
             ),
             _on_dismiss,
         )

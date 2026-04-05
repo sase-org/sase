@@ -50,7 +50,7 @@ def cls_bindings(km: KeymapRegistry) -> _Sections:
                     "Jump back / forward in history",
                 ),
                 (d(a.jump_to_entry), "Jump to entry"),
-                (d(a.jump_to_all_entries), "Jump to entry (all tabs)"),
+                (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
                     "Scroll detail panel down / up",
@@ -262,7 +262,7 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     "Move to next / previous agent",
                 ),
                 (d(a.jump_to_entry), "Jump to entry"),
-                (d(a.jump_to_all_entries), "Jump to entry (all tabs)"),
+                (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
                     "Scroll file panel to top / bottom",
@@ -422,7 +422,7 @@ def axe_bindings(km: KeymapRegistry) -> _Sections:
                     "Move to next / previous command",
                 ),
                 (d(a.jump_to_entry), "Jump to entry"),
-                (d(a.jump_to_all_entries), "Jump to entry (all tabs)"),
+                (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
                     "Next / prev lumberjack output",

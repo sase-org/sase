@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...bgcmd import BackgroundCommandInfo
     from ...changespec_history import ChangeSpecHistoryStacks
     from ...keymaps import KeymapRegistry
+    from ...modals import JumpAllResult
     from ...models import Agent
     from ...models.fold_state import FoldLevel
     from ...widgets.bgcmd_list import AxeItem
@@ -51,6 +52,7 @@ class NavigationMixinBase:
     _entry_jump_mode_active: bool
     _entry_jump_hint_to_index: dict[str, int]
     _entry_jump_index_to_hint: dict[int, str]
+    _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]
     _children_keys: dict[str, str]
