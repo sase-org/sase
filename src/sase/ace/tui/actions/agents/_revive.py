@@ -129,10 +129,13 @@ class AgentRevivalMixin:
         self._dismissed_agents.discard(agent.identity)
 
         # Also revive child steps and follow-up agents (e.g. .code, .q)
+        child_raw_suffixes: set[str] = set()
         if not agent.is_workflow_child and agent.raw_suffix:
             for dismissed_agent in list(self._dismissed_agent_objects):
                 if _is_child_of(dismissed_agent, agent):
                     self._dismissed_agents.discard(dismissed_agent.identity)
+                    if dismissed_agent.raw_suffix:
+                        child_raw_suffixes.add(dismissed_agent.raw_suffix)
 
         save_dismissed_agents(self._dismissed_agents)
 
@@ -149,7 +152,7 @@ class AgentRevivalMixin:
                     )
 
         # Clean up the bundle now that artifacts are restored
-        remove_bundle_by_identity(agent.identity)
+        remove_bundle_by_identity(agent.identity, child_raw_suffixes=child_raw_suffixes)
 
         self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
         self._load_agents()  # type: ignore[attr-defined]
@@ -181,12 +184,18 @@ class AgentRevivalMixin:
             return
 
         # Phase 1: Remove all from dismissed set (including children/follow-ups)
+        # and collect child suffixes for bundle removal
+        child_suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
         for agent in valid_agents:
             self._dismissed_agents.discard(agent.identity)
+            child_suffixes: set[str] = set()
             if not agent.is_workflow_child and agent.raw_suffix:
                 for dismissed_agent in list(self._dismissed_agent_objects):
                     if _is_child_of(dismissed_agent, agent):
                         self._dismissed_agents.discard(dismissed_agent.identity)
+                        if dismissed_agent.raw_suffix:
+                            child_suffixes.add(dismissed_agent.raw_suffix)
+            child_suffixes_map[agent.identity] = child_suffixes
 
         # Phase 2: Single disk write for dismissed set
         save_dismissed_agents(self._dismissed_agents)
@@ -201,7 +210,10 @@ class AgentRevivalMixin:
                             dismissed_agent,
                             parent_artifacts_dir=agent.artifacts_dir,
                         )
-            remove_bundle_by_identity(agent.identity)
+            remove_bundle_by_identity(
+                agent.identity,
+                child_raw_suffixes=child_suffixes_map.get(agent.identity),
+            )
 
         # Phase 4: Single notification and refresh
         count = len(valid_agents)

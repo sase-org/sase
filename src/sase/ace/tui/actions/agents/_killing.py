@@ -124,14 +124,13 @@ class AgentKillingMixin:
         Bundles are used to populate the revive modal after TUI restart.
         ChangeSpec-loaded agents are skipped since they persist via .gp file fields.
         """
-        from ....dismissed_agents import load_dismissed_bundles, save_dismissed_bundles
+        from ....dismissed_agents import save_dismissed_bundle
 
         # Skip ChangeSpec-loaded agents — they persist via .gp file fields
         if agent._from_changespec:
             return
 
-        bundles = load_dismissed_bundles()
-        bundles.append(agent)
+        save_dismissed_bundle(agent)
 
         # Also bundle workflow child steps when dismissing a parent.
         # Use _agents_with_children (unfiltered by fold state) so children
@@ -143,9 +142,7 @@ class AgentKillingMixin:
                     and step.parent_timestamp == agent.raw_suffix
                     and step.parent_workflow == agent.workflow
                 ):
-                    bundles.append(step)
-
-        save_dismissed_bundles(bundles)
+                    save_dismissed_bundle(step)
 
     def _persist_dismissed_agent(
         self, identity: tuple[AgentType, str, str | None]

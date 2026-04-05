@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .tui.models.agent import Agent, AgentType
 
-MAX_DISMISSED = 500
 _DISMISSED_AGENTS_FILE = Path.home() / ".sase" / "dismissed_agents.json"
-_DISMISSED_BUNDLES_FILE = Path.home() / ".sase" / "dismissed_agent_bundles.json"
+_DISMISSED_BUNDLES_DIR = Path.home() / ".sase" / "dismissed_bundles"
+_OLD_BUNDLES_FILE = Path.home() / ".sase" / "dismissed_agent_bundles.json"
 
 
 def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
@@ -54,7 +54,7 @@ def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
 def save_dismissed_agents(
     dismissed: set[tuple[AgentType, str, str | None]],
 ) -> bool:
-    """Save dismissed agent identities to disk, trimming if over limit.
+    """Save dismissed agent identities to disk.
 
     Args:
         dismissed: Set of (AgentType, cl_name, raw_suffix) tuples.
@@ -68,11 +68,6 @@ def save_dismissed_agents(
             [agent_type.value, cl_name, raw_suffix]
             for agent_type, cl_name, raw_suffix in dismissed
         ]
-        # Trim to MAX_DISMISSED, dropping oldest entries first.
-        # Sort by raw_suffix (timestamp) descending so newest are kept.
-        if len(entries) > MAX_DISMISSED:
-            entries.sort(key=lambda e: e[2] or "", reverse=True)
-            entries = entries[:MAX_DISMISSED]
         with open(_DISMISSED_AGENTS_FILE, "w") as f:
             json.dump(entries, f, indent=2)
         return True
@@ -80,90 +75,140 @@ def save_dismissed_agents(
         return False
 
 
-def load_dismissed_bundles() -> list[Agent]:
-    """Load dismissed agent bundles from disk.
-
-    Returns:
-        List of Agent objects reconstructed from bundle dicts.
-    """
-    from .tui.models.agent import Agent
-
-    if not _DISMISSED_BUNDLES_FILE.exists():
-        return []
-
-    try:
-        with open(_DISMISSED_BUNDLES_FILE) as f:
-            data = json.load(f)
-        if not isinstance(data, list):
-            return []
-
-        agents: list[Agent] = []
-        for entry in data:
-            if not isinstance(entry, dict):
-                continue
-            try:
-                agents.append(Agent.from_bundle_dict(entry))
-            except (KeyError, ValueError, TypeError):
-                continue
-        return agents
-    except (OSError, json.JSONDecodeError):
-        return []
-
-
-def save_dismissed_bundles(agents: list[Agent]) -> bool:
-    """Save dismissed agent bundles to disk, trimming if over limit.
+def save_dismissed_bundle(agent: Agent) -> bool:
+    """Save a single agent bundle to its own file.
 
     Args:
-        agents: List of Agent objects to serialize.
+        agent: The Agent to serialize. Must have a non-None raw_suffix.
 
     Returns:
         True if saved successfully, False otherwise.
     """
+    if agent.raw_suffix is None:
+        return False
     try:
-        _DISMISSED_BUNDLES_FILE.parent.mkdir(parents=True, exist_ok=True)
-        entries = [a.to_bundle_dict() for a in agents]
-        # Trim to MAX_DISMISSED, keeping newest (sort by raw_suffix descending)
-        if len(entries) > MAX_DISMISSED:
-            entries.sort(key=lambda e: e.get("raw_suffix") or "", reverse=True)
-            entries = entries[:MAX_DISMISSED]
-        with open(_DISMISSED_BUNDLES_FILE, "w") as f:
-            json.dump(entries, f, indent=2)
+        _DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+        filepath = _DISMISSED_BUNDLES_DIR / f"{agent.raw_suffix}.json"
+        with open(filepath, "w") as f:
+            json.dump(agent.to_bundle_dict(), f, indent=2)
         return True
     except OSError:
         return False
 
 
+def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
+    """Load dismissed agent bundles from per-agent files.
+
+    Args:
+        suffixes: If provided, load only files matching these raw_suffixes.
+                  If None, load all bundle files in the directory.
+
+    Returns:
+        List of Agent objects reconstructed from bundle files.
+    """
+    _maybe_migrate_bundles()
+
+    if not _DISMISSED_BUNDLES_DIR.is_dir():
+        return []
+
+    agents: list[Agent] = []
+    if suffixes is not None:
+        for suffix in suffixes:
+            filepath = _DISMISSED_BUNDLES_DIR / f"{suffix}.json"
+            agent = _load_bundle_file(filepath)
+            if agent is not None:
+                agents.append(agent)
+    else:
+        for filepath in _DISMISSED_BUNDLES_DIR.glob("*.json"):
+            agent = _load_bundle_file(filepath)
+            if agent is not None:
+                agents.append(agent)
+    return agents
+
+
+def _load_bundle_file(filepath: Path) -> Agent | None:
+    """Load a single Agent from a bundle JSON file."""
+    from .tui.models.agent import Agent
+
+    if not filepath.exists():
+        return None
+    try:
+        with open(filepath) as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return None
+        return Agent.from_bundle_dict(data)
+    except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError):
+        return None
+
+
 def remove_bundle_by_identity(
     identity: tuple[Any, str, str | None],
+    child_raw_suffixes: set[str] | None = None,
 ) -> bool:
-    """Remove a bundle (and its child step bundles) by agent identity.
+    """Remove bundle file(s) for an agent and optionally its children.
 
     Args:
         identity: The (AgentType, cl_name, raw_suffix) identity tuple.
+        child_raw_suffixes: Raw suffixes of child agents to also remove.
 
     Returns:
-        True if any bundles were removed, False otherwise.
+        True if any files were removed, False otherwise.
     """
-    bundles = load_dismissed_bundles()
-    if not bundles:
-        return False
-
+    removed = False
     _, _, raw_suffix = identity
 
-    original_len = len(bundles)
-    bundles = [
-        b
-        for b in bundles
-        if not (
-            # Match the agent itself
-            b.identity == identity
-            # Match child steps (parent_timestamp matches raw_suffix)
-            or (raw_suffix is not None and b.parent_timestamp == raw_suffix)
-        )
-    ]
+    if raw_suffix is not None:
+        filepath = _DISMISSED_BUNDLES_DIR / f"{raw_suffix}.json"
+        if filepath.exists():
+            try:
+                filepath.unlink()
+                removed = True
+            except OSError:
+                pass
 
-    if len(bundles) == original_len:
-        return False
+    if child_raw_suffixes:
+        for child_suffix in child_raw_suffixes:
+            filepath = _DISMISSED_BUNDLES_DIR / f"{child_suffix}.json"
+            if filepath.exists():
+                try:
+                    filepath.unlink()
+                    removed = True
+                except OSError:
+                    pass
 
-    save_dismissed_bundles(bundles)
-    return True
+    return removed
+
+
+def _maybe_migrate_bundles() -> None:
+    """One-time migration from monolithic bundles file to per-agent files.
+
+    If the old ``dismissed_agent_bundles.json`` exists, each entry is written
+    as an individual file under ``~/.sase/dismissed_bundles/`` and the
+    monolithic file is deleted.  Idempotent — skips duplicates.
+    """
+    if not _OLD_BUNDLES_FILE.exists():
+        return
+
+    from .tui.models.agent import Agent
+
+    try:
+        with open(_OLD_BUNDLES_FILE) as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            _OLD_BUNDLES_FILE.unlink()
+            return
+
+        _DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                agent = Agent.from_bundle_dict(entry)
+                save_dismissed_bundle(agent)
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        _OLD_BUNDLES_FILE.unlink()
+    except (OSError, json.JSONDecodeError):
+        pass

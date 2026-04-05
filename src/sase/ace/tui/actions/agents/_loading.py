@@ -185,26 +185,17 @@ class AgentLoadingMixin:
         ]
 
         # Supplement with bundles: load saved bundles for agents whose identity
-        # is in _dismissed_agents but not already found by the loader
+        # is in _dismissed_agents but not already found by the loader.
+        # Only load the specific files we need (by raw_suffix).
         from ....dismissed_agents import load_dismissed_bundles
 
         loader_identities = {a.identity for a in dismissed_from_loader}
         loader_suffixes = {
             a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
         }
-        for bundled_agent in load_dismissed_bundles():
-            if bundled_agent.identity in loader_identities:
-                continue
-            if (
-                bundled_agent.raw_suffix is not None
-                and bundled_agent.raw_suffix in loader_suffixes
-            ):
-                continue
-            # Only include if this agent is actually in the dismissed set
-            if bundled_agent.identity in self._dismissed_agents or (
-                bundled_agent.raw_suffix is not None
-                and bundled_agent.raw_suffix in dismissed_suffixes
-            ):
+        needed_suffixes = dismissed_suffixes - loader_suffixes
+        for bundled_agent in load_dismissed_bundles(needed_suffixes):
+            if bundled_agent.identity not in loader_identities:
                 dismissed_from_loader.append(bundled_agent)
 
         self._dismissed_agent_objects = dismissed_from_loader
