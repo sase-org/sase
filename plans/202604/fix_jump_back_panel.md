@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-06 16:06:36
-status: wip
+status: done
 ---
 
 # Plan: Fix apostrophe jump-back across agent panels

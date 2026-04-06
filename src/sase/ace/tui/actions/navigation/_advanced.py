@@ -176,17 +176,21 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if key == "apostrophe":
             last_idx = self._entry_jump_last_index.get(self.current_tab)
             if last_idx is not None:
+                # Snapshot saved panel before overwriting
+                saved_panel = (
+                    self._entry_jump_last_panel.get(self.current_tab)
+                    if self.current_tab == "agents"
+                    else None
+                )
                 # Save current position before jumping back
                 self._entry_jump_last_index[self.current_tab] = self.current_idx
                 if self.current_tab == "agents":
                     self._entry_jump_last_panel[self.current_tab] = (
                         self._pinned_panel_focused
                     )
-                # Jump to saved position
-                if self.current_tab == "agents":
-                    saved_panel = self._entry_jump_last_panel.get(self.current_tab)
-                    if saved_panel is not None:
-                        self._pinned_panel_focused = saved_panel  # type: ignore[assignment]
+                # Restore from snapshot
+                if self.current_tab == "agents" and saved_panel is not None:
+                    self._pinned_panel_focused = saved_panel  # type: ignore[assignment]
                 self.current_idx = last_idx
             self._exit_entry_jump_mode()
             return True
