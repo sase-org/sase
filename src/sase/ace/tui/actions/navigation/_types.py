@@ -52,6 +52,8 @@ class NavigationMixinBase:
     _entry_jump_mode_active: bool
     _entry_jump_hint_to_index: dict[str, int]
     _entry_jump_index_to_hint: dict[int, str]
+    _entry_jump_last_index: dict[str, int]
+    _entry_jump_last_panel: dict[str, str | None]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]

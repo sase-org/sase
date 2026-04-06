@@ -141,6 +141,7 @@ class AdvancedNavigationMixin(NavigationMixinBase):
         if not self._entry_jump_hint_to_index:
             return
         self._entry_jump_mode_active = True
+        self._update_jump_footer()
         if self.current_tab == "agents":
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
         else:
@@ -172,12 +173,32 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self._exit_entry_jump_mode()
             return True
 
+        if key == "apostrophe":
+            last_idx = self._entry_jump_last_index.get(self.current_tab)
+            if last_idx is not None:
+                # Save current position before jumping back
+                self._entry_jump_last_index[self.current_tab] = self.current_idx
+                if self.current_tab == "agents":
+                    self._entry_jump_last_panel[self.current_tab] = (
+                        self._pinned_panel_focused
+                    )
+                # Jump to saved position
+                if self.current_tab == "agents":
+                    saved_panel = self._entry_jump_last_panel.get(self.current_tab)
+                    if saved_panel is not None:
+                        self._pinned_panel_focused = saved_panel  # type: ignore[assignment]
+                self.current_idx = last_idx
+            self._exit_entry_jump_mode()
+            return True
+
         target = self._entry_jump_hint_to_index.get(key)
         if target is None:
             self._exit_entry_jump_mode()
             return True
 
         if self.current_tab == "agents":
+            self._entry_jump_last_index[self.current_tab] = self.current_idx
+            self._entry_jump_last_panel[self.current_tab] = self._pinned_panel_focused
             if target in self._pinned_panel_idx_map:
                 self._pinned_panel_focused = "pinned"
             elif target in self._main_panel_idx_map:
@@ -189,9 +210,23 @@ class AdvancedNavigationMixin(NavigationMixinBase):
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
             return True
 
+        self._entry_jump_last_index[self.current_tab] = self.current_idx
+        if self.current_tab == "agents":
+            self._entry_jump_last_panel[self.current_tab] = self._pinned_panel_focused
         self.current_idx = target
         self._exit_entry_jump_mode()
         return True
+
+    def _update_jump_footer(self) -> None:
+        """Update the footer to show jump mode bindings."""
+        from ...widgets import KeybindingFooter
+
+        try:
+            footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+            has_back = self.current_tab in self._entry_jump_last_index
+            footer.update_jump_bindings(has_back=has_back)
+        except Exception:
+            pass
 
     # --- Jump To All Entries (cross-tab) ---
 

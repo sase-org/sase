@@ -211,6 +211,10 @@ class AceApp(
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
 
+        # Entry jump-back state (' toggle)
+        self._entry_jump_last_index: dict[str, int] = {}
+        self._entry_jump_last_panel: dict[str, str | None] = {}
+
         # Cross-tab jump back state (`)
         self._jump_all_last_position = None
 

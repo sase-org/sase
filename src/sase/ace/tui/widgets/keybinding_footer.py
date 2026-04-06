@@ -268,6 +268,18 @@ class KeybindingFooter(Horizontal):
         prefix.append_text(text)
         self._update_display(prefix)
 
+    def update_jump_bindings(self, *, has_back: bool = False) -> None:
+        """Update bindings to show entry jump mode options."""
+        bindings: list[tuple[str, str]] = []
+        if has_back:
+            bindings.append(("'", "back"))
+        bindings.append(("<esc>", "cancel"))
+        text = self._format_bindings(bindings)
+        prefix = Text()
+        prefix.append("JUMP ", style="bold #FFD700")
+        prefix.append_text(text)
+        self._update_display(prefix)
+
     def update_leader_bindings(
         self,
         *,

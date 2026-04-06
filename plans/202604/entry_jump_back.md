@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-06 15:20:01
-status: wip
+status: done
 ---
 
 # Plan: Hidden Apostrophe "Jump Back" Hint for Entry Jump Mode
