@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-07 16:59:02
-status: done
+status: wip
 ---
 
 # Fix: Revived agents not appearing in side panel
