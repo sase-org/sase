@@ -200,6 +200,36 @@ class AgentLoadingMixin:
 
         self._dismissed_agent_objects = dismissed_from_loader
 
+        # Self-heal: remove orphaned dismissed entries that have no agent
+        # object AND no bundle file on disk.  These are agents from before
+        # the per-agent bundle system that can never be revived.
+        from ....dismissed_agents import (
+            _DISMISSED_BUNDLES_DIR,
+            save_dismissed_agents,
+        )
+
+        found_suffixes = {
+            a.raw_suffix for a in dismissed_from_loader if a.raw_suffix is not None
+        }
+        orphaned = set()
+        for identity in self._dismissed_agents:
+            _, _, raw_suffix = identity
+            if raw_suffix is None or raw_suffix in found_suffixes:
+                continue
+            # Check if a bundle file exists for this suffix
+            parent_path = _DISMISSED_BUNDLES_DIR / f"{raw_suffix}.json"
+            has_bundle = (
+                parent_path.exists()
+                or any(_DISMISSED_BUNDLES_DIR.glob(f"{raw_suffix}__c*.json"))
+                if _DISMISSED_BUNDLES_DIR.is_dir()
+                else False
+            )
+            if not has_bundle:
+                orphaned.add(identity)
+        if orphaned:
+            self._dismissed_agents -= orphaned
+            save_dismissed_agents(self._dismissed_agents)
+
         # Filter out dismissed agents.  Non-RUNNING agents use the broad
         # dismissed_suffixes index (suffix-only).  RUNNING agents use the
         # narrower dismissed_cl_suffixes index (cl_name, raw_suffix) to

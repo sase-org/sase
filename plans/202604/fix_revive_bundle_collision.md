@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-06 20:31:27
-status: wip
+status: done
 ---
 
 # Fix: Dismissed Agent Bundle Filename Collision Breaks Revive

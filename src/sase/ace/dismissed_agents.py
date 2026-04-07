@@ -78,6 +78,10 @@ def save_dismissed_agents(
 def save_dismissed_bundle(agent: Agent) -> bool:
     """Save a single agent bundle to its own file.
 
+    Parent agents use ``{raw_suffix}.json``; child agents (workflow steps)
+    use ``{raw_suffix}__c{step_index}.json`` to avoid overwriting the
+    parent's bundle (they share the same raw_suffix).
+
     Args:
         agent: The Agent to serialize. Must have a non-None raw_suffix.
 
@@ -88,12 +92,25 @@ def save_dismissed_bundle(agent: Agent) -> bool:
         return False
     try:
         _DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
-        filepath = _DISMISSED_BUNDLES_DIR / f"{agent.raw_suffix}.json"
+        filepath = _DISMISSED_BUNDLES_DIR / _bundle_filename(agent)
         with open(filepath, "w") as f:
             json.dump(agent.to_bundle_dict(), f, indent=2)
         return True
     except OSError:
         return False
+
+
+def _bundle_filename(agent: Agent) -> str:
+    """Return the bundle filename for *agent*.
+
+    Child agents get a ``__c{step_index}`` suffix to avoid colliding with
+    their parent, which shares the same ``raw_suffix``.
+    """
+    suffix = agent.raw_suffix
+    if agent.is_workflow_child:
+        idx = agent.step_index if agent.step_index is not None else 0
+        return f"{suffix}__c{idx}.json"
+    return f"{suffix}.json"
 
 
 def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
@@ -107,6 +124,7 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
         List of Agent objects reconstructed from bundle files.
     """
     _maybe_migrate_bundles()
+    _maybe_fix_child_collisions()
 
     if not _DISMISSED_BUNDLES_DIR.is_dir():
         return []
@@ -114,10 +132,16 @@ def load_dismissed_bundles(suffixes: set[str] | None = None) -> list[Agent]:
     agents: list[Agent] = []
     if suffixes is not None:
         for suffix in suffixes:
+            # Load parent bundle
             filepath = _DISMISSED_BUNDLES_DIR / f"{suffix}.json"
             agent = _load_bundle_file(filepath)
             if agent is not None:
                 agents.append(agent)
+            # Load child bundles (e.g. {suffix}__c0.json, {suffix}__c1.json)
+            for child_path in _DISMISSED_BUNDLES_DIR.glob(f"{suffix}__c*.json"):
+                child = _load_bundle_file(child_path)
+                if child is not None:
+                    agents.append(child)
     else:
         for filepath in _DISMISSED_BUNDLES_DIR.glob("*.json"):
             agent = _load_bundle_file(filepath)
@@ -159,6 +183,7 @@ def remove_bundle_by_identity(
     _, _, raw_suffix = identity
 
     if raw_suffix is not None:
+        # Remove parent bundle
         filepath = _DISMISSED_BUNDLES_DIR / f"{raw_suffix}.json"
         if filepath.exists():
             try:
@@ -166,16 +191,35 @@ def remove_bundle_by_identity(
                 removed = True
             except OSError:
                 pass
-
-    if child_raw_suffixes:
-        for child_suffix in child_raw_suffixes:
-            filepath = _DISMISSED_BUNDLES_DIR / f"{child_suffix}.json"
-            if filepath.exists():
+        # Remove child bundles ({suffix}__c*.json)
+        if _DISMISSED_BUNDLES_DIR.is_dir():
+            for child_path in _DISMISSED_BUNDLES_DIR.glob(f"{raw_suffix}__c*.json"):
                 try:
-                    filepath.unlink()
+                    child_path.unlink()
                     removed = True
                 except OSError:
                     pass
+
+    if child_raw_suffixes:
+        for child_suffix in child_raw_suffixes:
+            # Remove both parent-style and child-style filenames
+            for pattern in (f"{child_suffix}.json", f"{child_suffix}__c*.json"):
+                if "*" in pattern:
+                    if _DISMISSED_BUNDLES_DIR.is_dir():
+                        for p in _DISMISSED_BUNDLES_DIR.glob(pattern):
+                            try:
+                                p.unlink()
+                                removed = True
+                            except OSError:
+                                pass
+                else:
+                    filepath = _DISMISSED_BUNDLES_DIR / pattern
+                    if filepath.exists():
+                        try:
+                            filepath.unlink()
+                            removed = True
+                        except OSError:
+                            pass
 
     return removed
 
@@ -211,4 +255,45 @@ def _maybe_migrate_bundles() -> None:
 
         _OLD_BUNDLES_FILE.unlink()
     except (OSError, json.JSONDecodeError):
+        pass
+
+
+_CHILD_COLLISION_MARKER = _DISMISSED_BUNDLES_DIR / ".child_collision_fixed"
+
+
+def _maybe_fix_child_collisions() -> None:
+    """One-time migration: rename child bundles that overwrote their parent.
+
+    Before the ``__c{step_index}`` naming convention, parent and child
+    agents both wrote to ``{raw_suffix}.json``, so children silently
+    overwrote the parent file.  This scans for those mis-named child
+    bundles and renames them to ``{raw_suffix}__c{step_index}.json``.
+    """
+    if _CHILD_COLLISION_MARKER.exists():
+        return
+    if not _DISMISSED_BUNDLES_DIR.is_dir():
+        return
+
+    try:
+        for filepath in list(_DISMISSED_BUNDLES_DIR.glob("*.json")):
+            # Skip files already using the child naming convention
+            if "__c" in filepath.stem:
+                continue
+            agent = _load_bundle_file(filepath)
+            if agent is None:
+                continue
+            if agent.is_workflow_child:
+                new_name = _bundle_filename(agent)
+                new_path = _DISMISSED_BUNDLES_DIR / new_name
+                if not new_path.exists():
+                    filepath.rename(new_path)
+    except OSError:
+        pass
+
+    # Mark migration complete (even on partial failure — re-running
+    # won't help if the OS is failing on us).
+    try:
+        _DISMISSED_BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+        _CHILD_COLLISION_MARKER.touch()
+    except OSError:
         pass
