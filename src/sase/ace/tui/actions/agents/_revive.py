@@ -38,6 +38,21 @@ class AgentRevivalMixin:
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
 
+    def _remove_dismissed_aliases_for_suffixes(self, suffixes: set[str]) -> None:
+        """Remove dismissed identities whose raw_suffix matches revived suffixes.
+
+        Loader suppression uses suffix-based matching in addition to exact
+        identity checks. Revive must clear all aliases sharing revived suffixes
+        so restored artifacts can reappear in the panel.
+        """
+        if not suffixes:
+            return
+        self._dismissed_agents = {
+            identity
+            for identity in self._dismissed_agents
+            if identity[2] is None or identity[2] not in suffixes
+        }
+
     def action_start_rewind(self) -> None:
         """Dispatch R key: revive on Agents tab, rewind on ChangeSpecs tab."""
         if self.current_tab == "agents":
@@ -127,6 +142,9 @@ class AgentRevivalMixin:
             return
 
         self._dismissed_agents.discard(agent.identity)
+        revived_suffixes: set[str] = set()
+        if agent.raw_suffix:
+            revived_suffixes.add(agent.raw_suffix)
 
         # Also revive child steps and follow-up agents (e.g. .code, .q)
         child_raw_suffixes: set[str] = set()
@@ -136,6 +154,10 @@ class AgentRevivalMixin:
                     self._dismissed_agents.discard(dismissed_agent.identity)
                     if dismissed_agent.raw_suffix:
                         child_raw_suffixes.add(dismissed_agent.raw_suffix)
+                        revived_suffixes.add(dismissed_agent.raw_suffix)
+
+        # Remove all dismissed aliases that share revived suffixes.
+        self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
         save_dismissed_agents(self._dismissed_agents)
 
@@ -186,8 +208,11 @@ class AgentRevivalMixin:
         # Phase 1: Remove all from dismissed set (including children/follow-ups)
         # and collect child suffixes for bundle removal
         child_suffixes_map: dict[tuple[AgentType, str, str | None], set[str]] = {}
+        revived_suffixes: set[str] = set()
         for agent in valid_agents:
             self._dismissed_agents.discard(agent.identity)
+            if agent.raw_suffix:
+                revived_suffixes.add(agent.raw_suffix)
             child_suffixes: set[str] = set()
             if not agent.is_workflow_child and agent.raw_suffix:
                 for dismissed_agent in list(self._dismissed_agent_objects):
@@ -195,7 +220,11 @@ class AgentRevivalMixin:
                         self._dismissed_agents.discard(dismissed_agent.identity)
                         if dismissed_agent.raw_suffix:
                             child_suffixes.add(dismissed_agent.raw_suffix)
+                            revived_suffixes.add(dismissed_agent.raw_suffix)
             child_suffixes_map[agent.identity] = child_suffixes
+
+        # Remove all dismissed aliases that share revived suffixes.
+        self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
 
         # Phase 2: Single disk write for dismissed set
         save_dismissed_agents(self._dismissed_agents)

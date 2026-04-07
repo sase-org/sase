@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-07 17:04:13
-status: wip
+status: done
 ---
 
 # Fix Agents Tab Revive Not Reappearing In Panel
