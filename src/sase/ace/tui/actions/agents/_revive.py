@@ -468,9 +468,20 @@ class AgentRevivalMixin:
 
     @staticmethod
     def _restore_agent_meta(agent: Agent, artifacts_dir: Path) -> None:
-        """Write agent_meta.json if missing and agent has metadata."""
+        """Write agent_meta.json if missing and agent has metadata.
+
+        If the file already exists, remove the ``hidden`` key so that
+        auto-dismiss does not immediately re-dismiss the revived agent.
+        """
         meta_path = artifacts_dir / "agent_meta.json"
         if meta_path.exists():
+            try:
+                existing = json.loads(meta_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                return
+            if "hidden" in existing:
+                del existing["hidden"]
+                meta_path.write_text(json.dumps(existing))
             return
 
         data: dict[str, Any] = {}
