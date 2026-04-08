@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: sase_axe
+    static_configs:
+      - targets:
+          - host.docker.internal:9464
+
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets:
+          - pushgateway:9091
