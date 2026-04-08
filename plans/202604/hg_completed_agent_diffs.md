@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 18:46:49
-status: wip
+status: done
 ---
 
 # Fix: Completed Agent Diffs Not Showing on Mercurial (sase-google)

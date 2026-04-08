@@ -123,6 +123,12 @@ def extract_step_output_and_diff_path(
                 else:
                     step_output.update(merged)
 
+            # Safety net: extract diff_path from commit_result.json when
+            # no workflow step provided one (e.g. hg.yml before it had a
+            # dedicated diff step).
+            if not diff_path and cr.get("diff_path"):
+                diff_path = str(cr["diff_path"])
+
     return step_output, diff_path
 
 
