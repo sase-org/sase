@@ -72,6 +72,53 @@ def _is_axe_spawned_agent(agent: Agent) -> bool:
     return False
 
 
+def apply_custom_order(
+    agents: list[Agent], order: list[tuple[AgentType, str, str | None]]
+) -> list[Agent]:
+    """Reorder top-level agents according to the user's custom order.
+
+    Agents whose identity appears in *order* are placed at the positions
+    specified by the order list.  New agents (not in the order) keep their
+    default time-sorted position.  Workflow children stay grouped after
+    their parent.
+    """
+    # Build identity -> desired position lookup
+    order_map: dict[tuple[AgentType, str, str | None], int] = {
+        identity: pos for pos, identity in enumerate(order)
+    }
+
+    # Separate top-level agents from workflow children
+    top_level: list[Agent] = []
+    children_by_parent: dict[str, list[Agent]] = {}
+    for agent in agents:
+        if agent.is_workflow_child:
+            parent_ts = agent.parent_timestamp or ""
+            children_by_parent.setdefault(parent_ts, []).append(agent)
+        else:
+            top_level.append(agent)
+
+    # Sort top-level: agents in custom order get their specified position,
+    # agents not in the order get a high position (preserving relative order)
+    max_pos = len(order)
+    top_level.sort(
+        key=lambda a: (order_map.get(a.identity, max_pos + agents.index(a)),)
+    )
+
+    # Reassemble with children after their parents
+    result: list[Agent] = []
+    for agent in top_level:
+        result.append(agent)
+        if agent.raw_suffix and agent.raw_suffix in children_by_parent:
+            result.extend(children_by_parent[agent.raw_suffix])
+    # Append any orphaned children (parent not in list)
+    seen_parents = {a.raw_suffix for a in top_level if a.raw_suffix}
+    for parent_ts, children in children_by_parent.items():
+        if parent_ts not in seen_parents:
+            result.extend(children)
+
+    return result
+
+
 class AgentLoadingMixin:
     """Mixin providing agent loading and filtering methods.
 
@@ -112,6 +159,9 @@ class AgentLoadingMixin:
 
     # Pinned agents
     _pinned_agents: set[tuple[AgentType, str, str | None]]
+
+    # Custom agent ordering
+    _agent_custom_order: list[tuple[AgentType, str, str | None]]
 
     def _load_agents(self) -> None:
         """Load agents from all sources."""
@@ -314,6 +364,10 @@ class AgentLoadingMixin:
         self._agents, self._fold_counts = filter_agents_by_fold_state(
             self._agents, self._fold_manager
         )
+
+        # Apply custom ordering (user-defined via J/K move)
+        if self._agent_custom_order:
+            self._agents = apply_custom_order(self._agents, self._agent_custom_order)
 
         # Apply agent search filter (case-insensitive substring match)
         if self._agent_search_query:

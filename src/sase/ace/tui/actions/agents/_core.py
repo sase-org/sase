@@ -87,6 +87,9 @@ class AgentsMixinCore(
     _main_panel_idx_map: dict[int, int]
     _pinned_panel_idx_map: dict[int, int]
 
+    # Custom agent ordering
+    _agent_custom_order: list[tuple[AgentType, str, str | None]]
+
     # --- Panel index helpers ---
 
     def _build_panel_indices(self) -> None:

@@ -174,9 +174,9 @@ def test_non_dict_keymaps_config() -> None:
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 73 configurable + 10 digit = 83 bindings."""
+    """build_app_bindings produces 75 configurable + 10 digit = 85 bindings."""
     bindings = build_app_bindings(_default_app_keymaps())
-    assert len(bindings) == 83
+    assert len(bindings) == 85
 
 
 def test_build_app_bindings_priority() -> None:

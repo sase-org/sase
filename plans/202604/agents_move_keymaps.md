@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-07 23:03:10
-status: wip
+status: done
 ---
 
 # Plan: `J`/`K` Move Agent Entries on the Agents Tab

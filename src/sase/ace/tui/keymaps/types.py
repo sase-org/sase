@@ -105,6 +105,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("reset_file_trim", "Reset Trim", False),
     ("show_all_file_lines", "Show All", False),
     ("jump_to_agent_changespec", "Go to CL", False),
+    ("move_agent_down", "Move Down", False),
+    ("move_agent_up", "Move Up", False),
 ]
 
 # Maps mode name -> the app-level action that activates it.
@@ -236,6 +238,8 @@ class AppKeymaps:
     start_custom_agent: str
     start_agent_from_changespec: str
     jump_to_agent_changespec: str
+    move_agent_down: str
+    move_agent_up: str
     edit_panel: str
     # Thinking panel
     toggle_thinking: str

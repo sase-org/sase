@@ -261,6 +261,10 @@ def agents_bindings(km: KeymapRegistry) -> _Sections:
                     f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
                     "Move to next / previous agent",
                 ),
+                (
+                    f"{d(a.move_agent_up)} / {d(a.move_agent_down)}",
+                    "Move agent entry up / down",
+                ),
                 (d(a.jump_to_entry), "Jump to entry"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
