@@ -29,12 +29,16 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     if sub == "dashboard":
-        print("sase telemetry dashboard: not yet implemented (Phase 3)")
-        sys.exit(1)
+        from sase.telemetry.cli_dashboard import handle_telemetry_dashboard
+
+        handle_telemetry_dashboard(args)
+        sys.exit(0)
 
     if sub == "health":
-        print("sase telemetry health: not yet implemented (Phase 3)")
-        sys.exit(1)
+        from sase.telemetry.cli_health import handle_telemetry_health
+
+        handle_telemetry_health(args)
+        # handle_telemetry_health calls sys.exit() itself with the appropriate code
 
     print("Usage: sase telemetry {status,list,snapshot,dashboard,health}")
     sys.exit(1)

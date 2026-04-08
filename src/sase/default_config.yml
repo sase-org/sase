@@ -229,6 +229,13 @@ telemetry:
   prometheus:
     exposition_port: 9464
     pushgateway_url: "localhost:9091"
+  health_thresholds:
+    error_rate_warn: 10.0
+    error_rate_critical: 25.0
+    retry_rate_warn: 10.0
+    retry_rate_critical: 25.0
+    p95_latency_warn: 300.0
+    p95_latency_critical: 600.0
 
 sdd:
   version_controlled: false
