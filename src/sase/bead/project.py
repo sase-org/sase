@@ -11,6 +11,11 @@ from sase.bead.ids import IdGenerator
 from sase.bead.jsonl import export_to_jsonl
 from sase.bead.model import Dependency, Issue, IssueType, Status
 from sase.bead.sync import git_sync, rebuild_from_jsonl, sync_status
+from sase.telemetry.metrics import (
+    BEAD_ACTIVE,
+    BEAD_OPERATIONS,
+    BEAD_STATUS_TRANSITIONS,
+)
 
 
 BEADS_DIRNAME = ".sase_beads"
@@ -106,6 +111,7 @@ class BeadProject:
             design=design,
         )
         db_mod.create_issue(self._conn, issue)
+        BEAD_OPERATIONS.labels(operation="create").inc()
         if parent_id is None:
             self._save_counter()
         self._export()
@@ -124,9 +130,12 @@ class BeadProject:
         issue_types: list[IssueType] | None = None,
     ) -> list[Issue]:
         """List issues with optional filters."""
-        return db_mod.list_issues(
+        issues = db_mod.list_issues(
             self._conn, statuses=statuses, issue_types=issue_types
         )
+        if statuses is None:
+            self._update_active_gauge(issues)
+        return issues
 
     def ready(self) -> list[Issue]:
         """Return open issues with no active blockers."""
@@ -134,10 +143,22 @@ class BeadProject:
 
     def update(self, issue_id: str, **fields: str | None) -> Issue:
         """Update fields on an issue."""
+        old_issue = db_mod.get_issue(self._conn, issue_id)
         fields["updated_at"] = _now()
         issue = db_mod.update_issue(self._conn, issue_id, **fields)
         if issue is None:
             raise KeyError(f"Issue not found: {issue_id}")
+        BEAD_OPERATIONS.labels(operation="update").inc()
+        if (
+            old_issue is not None
+            and "status" in fields
+            and fields["status"] is not None
+            and old_issue.status.value != fields["status"]
+        ):
+            BEAD_STATUS_TRANSITIONS.labels(
+                from_status=old_issue.status.value,
+                to_status=fields["status"],
+            ).inc()
         self._export()
         return issue
 
@@ -156,14 +177,24 @@ class BeadProject:
             if issue.issue_type == IssueType.PLAN:
                 for child in db_mod.get_epic_children(self._conn, issue_id):
                     if child.status != Status.CLOSED:
+                        old_child_status = child.status.value
                         closed_child = db_mod.close_issue(
                             self._conn, child.id, now, reason
                         )
                         if closed_child is not None:
+                            BEAD_STATUS_TRANSITIONS.labels(
+                                from_status=old_child_status,
+                                to_status="closed",
+                            ).inc()
                             closed.append(closed_child)
+            old_status = issue.status.value
             issue = db_mod.close_issue(self._conn, issue_id, now, reason)
             if issue is None:
                 raise KeyError(f"Issue not found: {issue_id}")
+            BEAD_OPERATIONS.labels(operation="close").inc()
+            BEAD_STATUS_TRANSITIONS.labels(
+                from_status=old_status, to_status="closed"
+            ).inc()
             closed.append(issue)
         self._export()
         return closed
@@ -264,6 +295,17 @@ class BeadProject:
                 except ValueError:
                     pass
         return f"{prefix}{max_n + 1}"
+
+    def _update_active_gauge(self, issues: list[Issue]) -> None:
+        """Update BEAD_ACTIVE gauge from a full (unfiltered) issue list."""
+        project = str(self._config.get("issue_prefix", "beads"))
+        counts: dict[str, int] = {}
+        for issue in issues:
+            counts[issue.status.value] = counts.get(issue.status.value, 0) + 1
+        for status in Status:
+            BEAD_ACTIVE.labels(project=project, status=status.value).set(
+                counts.get(status.value, 0)
+            )
 
     def _export(self) -> None:
         """Export current state to JSONL."""
