@@ -181,6 +181,12 @@ def main() -> NoReturn:
 
         handle_search_command(args)
 
+    # --- telemetry ---
+    if args.command == "telemetry":
+        from .telemetry_handler import handle_telemetry_command
+
+        handle_telemetry_command(args)
+
     # --- xprompt ---
     if args.command == "xprompt":
         from .xprompt_handler import handle_xprompt_command

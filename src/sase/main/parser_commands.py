@@ -266,6 +266,97 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'telemetry' subcommand parser."""
+    telemetry_parser = subparsers.add_parser(
+        "telemetry",
+        help="Inspect and monitor Prometheus telemetry metrics",
+    )
+    tel_subparsers = telemetry_parser.add_subparsers(
+        dest="telemetry_subcommand", help="Telemetry subcommands"
+    )
+
+    # sase telemetry status
+    tel_subparsers.add_parser("status", help="Quick health check and config display")
+
+    # sase telemetry list
+    list_parser = tel_subparsers.add_parser(
+        "list", help="Show the metric catalog from internal definitions"
+    )
+    list_parser.add_argument(
+        "-s",
+        "--subsystem",
+        help="Filter to a specific subsystem (e.g., 'Agent Lifecycle')",
+    )
+    list_parser.add_argument(
+        "-t",
+        "--type",
+        choices=["counter", "gauge", "histogram"],
+        help="Filter by metric type",
+    )
+
+    # sase telemetry snapshot (Phase 2 stub)
+    snapshot_parser = tel_subparsers.add_parser(
+        "snapshot", help="Fetch and display current metric values"
+    )
+    snapshot_parser.add_argument(
+        "-S",
+        "--source",
+        choices=["auto", "pushgateway", "exposition"],
+        default="auto",
+        help="Where to fetch metrics from (default: auto)",
+    )
+    snapshot_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["rich", "json", "prometheus"],
+        default="rich",
+        help="Output format (default: rich)",
+    )
+    snapshot_parser.add_argument(
+        "-s",
+        "--subsystem",
+        help="Filter by subsystem",
+    )
+
+    # sase telemetry dashboard (Phase 3 stub)
+    dashboard_parser = tel_subparsers.add_parser(
+        "dashboard", help="Live auto-refreshing TUI dashboard"
+    )
+    dashboard_parser.add_argument(
+        "-i",
+        "--interval",
+        type=int,
+        default=5,
+        help="Refresh interval in seconds (default: 5)",
+    )
+    dashboard_parser.add_argument(
+        "-S",
+        "--source",
+        choices=["auto", "pushgateway", "exposition"],
+        default="auto",
+        help="Data source (default: auto)",
+    )
+
+    # sase telemetry health (Phase 3 stub)
+    health_parser = tel_subparsers.add_parser(
+        "health", help="Traffic-light health assessment"
+    )
+    health_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Machine-readable JSON output",
+    )
+    health_parser.add_argument(
+        "-S",
+        "--source",
+        choices=["auto", "pushgateway", "exposition"],
+        default="auto",
+        help="Data source (default: auto)",
+    )
+
+
 def register_search_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'search' subcommand parser."""
     search_parser = subparsers.add_parser(

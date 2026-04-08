@@ -18,6 +18,7 @@ from sase.main.parser_commands import (
     register_revert_parser,
     register_run_parser,
     register_search_parser,
+    register_telemetry_parser,
     register_xprompt_parser,
 )
 
@@ -52,6 +53,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_revert_parser(top_level_subparsers)
     register_run_parser(top_level_subparsers)
     register_search_parser(top_level_subparsers)
+    register_telemetry_parser(top_level_subparsers)
     register_xprompt_parser(top_level_subparsers)
 
     return parser
