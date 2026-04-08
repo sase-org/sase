@@ -159,7 +159,7 @@ axe:
   chop_script_dirs: []
   lumberjacks:
     hooks:
-      interval: 1
+      interval: 5
       chops:
         - name: hook_checks
           description: "Complete finished hooks and start stale ones, with zombie detection"
