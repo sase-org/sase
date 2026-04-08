@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-07 22:56:27
-status: wip
+status: done
 ---
 
 # Plan: Fix wait_checks latency by moving it to a dedicated lumberjack

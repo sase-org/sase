@@ -175,6 +175,9 @@ axe:
           description: "Strip stale suffixes from older proposals and update mail-readiness markers"
         - name: orphan_cleanup
           description: "Release workspace claims orphaned by reverted CLs with dead PIDs"
+    waits:
+      interval: 2
+      chops:
         - name: wait_checks
           description: "Resolve agent wait dependencies and write ready.json when satisfied"
     checks:
