@@ -356,6 +356,24 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Data source (default: auto)",
     )
 
+    # sase telemetry export-config
+    export_config_parser = tel_subparsers.add_parser(
+        "export-config",
+        help="Export bundled monitoring config (Prometheus + Grafana + Docker Compose)",
+    )
+    export_config_parser.add_argument(
+        "-o",
+        "--output-dir",
+        default="./sase-monitoring",
+        help="Target directory (default: ./sase-monitoring/)",
+    )
+    export_config_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Overwrite the target directory if it already exists",
+    )
+
 
 def register_search_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'search' subcommand parser."""

@@ -40,5 +40,11 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
         handle_telemetry_health(args)
         # handle_telemetry_health calls sys.exit() itself with the appropriate code
 
-    print("Usage: sase telemetry {status,list,snapshot,dashboard,health}")
+    if sub == "export-config":
+        from sase.telemetry.cli_export_config import handle_telemetry_export_config
+
+        handle_telemetry_export_config(args)
+        sys.exit(0)
+
+    print("Usage: sase telemetry {status,list,snapshot,dashboard,health,export-config}")
     sys.exit(1)
