@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 19:08:58
-status: wip
+status: done
 ---
 
 # Fix: plotext IndexError in telemetry dashboard charts mode

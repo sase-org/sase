@@ -5,11 +5,15 @@ Uses ``plotext`` to render terminal charts embedded inside Rich panels.
 
 from __future__ import annotations
 
+import logging
+
 import plotext as plt  # type: ignore[import-untyped,import-not-found]
 from rich.panel import Panel
 from rich.text import Text
 
 from sase.telemetry.prom_query import TimeSeries
+
+log = logging.getLogger(__name__)
 
 # Consistent color palette for multi-series charts.
 COLORS = ["cyan", "magenta", "green", "yellow", "red", "blue", "orange", "white"]
@@ -29,19 +33,25 @@ def render_line_chart(
     plt.theme("dark")
     plt.title("")
 
-    if not series or all(len(s.points) == 0 for s in series):
-        return _empty_panel(title, width, height)
-
+    # Phase 2: Pre-filter empty series and align legend labels so we
+    # don't ask plotext to render legend entries for phantom series.
+    filtered: list[tuple[TimeSeries, str]] = []
     for i, ts in enumerate(series):
         if not ts.points:
             continue
-        xs = [p[0] for p in ts.points]
-        ys = [p[1] for p in ts.points]
         label = (
             legend_labels[i]
             if legend_labels and i < len(legend_labels)
             else ts.labels.get("__display__", ts.metric)
         )
+        filtered.append((ts, label))
+
+    if not filtered:
+        return _empty_panel(title, width, height)
+
+    for i, (ts, label) in enumerate(filtered):
+        xs = [p[0] for p in ts.points]
+        ys = [p[1] for p in ts.points]
         color = COLORS[i % len(COLORS)]
         plt.plot(xs, ys, label=label, color=color)
 
@@ -49,8 +59,16 @@ def render_line_chart(
         plt.ylabel(y_label)
     plt.xlabel("time")
 
+    # Phase 1: Guard against plotext internal errors (e.g. IndexError
+    # in legend rendering when all data points get clipped).
+    try:
+        chart_text = plt.build()
+    except (IndexError, ValueError):
+        log.debug("plotext build() failed for chart %r, showing empty panel", title)
+        return _empty_panel(title, width, height)
+
     return Panel(
-        Text.from_ansi(plt.build()),
+        Text.from_ansi(chart_text),
         title=f"[bold]{title}[/bold]",
         border_style="bright_blue",
         padding=(0, 1),
@@ -76,8 +94,14 @@ def render_bar_chart(
 
     plt.bar(labels, values, color=color)
 
+    try:
+        chart_text = plt.build()
+    except (IndexError, ValueError):
+        log.debug("plotext build() failed for chart %r, showing empty panel", title)
+        return _empty_panel(title, width, height)
+
     return Panel(
-        Text.from_ansi(plt.build()),
+        Text.from_ansi(chart_text),
         title=f"[bold]{title}[/bold]",
         border_style="bright_blue",
         padding=(0, 1),
