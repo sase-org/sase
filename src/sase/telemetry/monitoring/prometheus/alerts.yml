@@ -1,1 +1,198 @@
-groups: []
+# Prometheus alerting rules for sase telemetry.
+#
+# Thresholds are hardcoded to match the defaults in default_config.yml
+# (telemetry.health_thresholds):
+#   error_rate_warn:    10%  (0.10)
+#   error_rate_critical: 25% (0.25)
+#   retry_rate_warn:    10%  (0.10)
+#   retry_rate_critical: 25% (0.25)
+#   p95_latency_warn:   300s
+#   p95_latency_critical: 600s
+
+groups:
+  # -- Agent Lifecycle -------------------------------------------------------
+  - name: sase_agent
+    rules:
+      - alert: SaseAgentHighErrorRate
+        expr: >
+          rate(sase_agent_runs_total{status="error"}[5m])
+          / rate(sase_agent_runs_total[5m]) > 0.10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent error rate above 10%"
+          description: >
+            Agent error rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (warn threshold: 10%).
+
+      - alert: SaseAgentHighErrorRate
+        expr: >
+          rate(sase_agent_runs_total{status="error"}[5m])
+          / rate(sase_agent_runs_total[5m]) > 0.25
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent error rate above 25%"
+          description: >
+            Agent error rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (critical threshold: 25%).
+
+      - alert: SaseAgentRunSlow
+        expr: >
+          histogram_quantile(0.95,
+            rate(sase_agent_run_duration_seconds_bucket[5m])) > 300
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent p95 latency above 300s"
+          description: >
+            Agent run p95 latency is {{ $value | humanizeDuration }}
+            (warn threshold: 300s).
+
+      - alert: SaseAgentRunSlow
+        expr: >
+          histogram_quantile(0.95,
+            rate(sase_agent_run_duration_seconds_bucket[5m])) > 600
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent p95 latency above 600s"
+          description: >
+            Agent run p95 latency is {{ $value | humanizeDuration }}
+            (critical threshold: 600s).
+
+  # -- LLM Provider ----------------------------------------------------------
+  - name: sase_llm
+    rules:
+      - alert: SaseLlmHighErrorRate
+        expr: >
+          rate(sase_llm_errors_total[5m])
+          / rate(sase_llm_invocations_total[5m]) > 0.10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM error rate above 10%"
+          description: >
+            LLM error rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (warn threshold: 10%).
+
+      - alert: SaseLlmHighErrorRate
+        expr: >
+          rate(sase_llm_errors_total[5m])
+          / rate(sase_llm_invocations_total[5m]) > 0.25
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LLM error rate above 25%"
+          description: >
+            LLM error rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (critical threshold: 25%).
+
+      - alert: SaseLlmHighRetryRate
+        expr: >
+          rate(sase_llm_retries_total[5m])
+          / rate(sase_llm_invocations_total[5m]) > 0.10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM retry rate above 10%"
+          description: >
+            LLM retry rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (warn threshold: 10%).
+
+      - alert: SaseLlmHighRetryRate
+        expr: >
+          rate(sase_llm_retries_total[5m])
+          / rate(sase_llm_invocations_total[5m]) > 0.25
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LLM retry rate above 25%"
+          description: >
+            LLM retry rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (critical threshold: 25%).
+
+  # -- Axe Orchestrator ------------------------------------------------------
+  - name: sase_axe
+    rules:
+      - alert: SaseAxeErrors
+        expr: increase(sase_axe_errors_total[5m]) >= 5
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Axe errors spiking"
+          description: >
+            {{ $value }} axe errors in the last 5 minutes (threshold: 5).
+
+      - alert: SaseAxeLumberjackRestartStorm
+        expr: increase(sase_axe_lumberjack_restarts_total[5m]) >= 3
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Lumberjack restart storm detected"
+          description: >
+            {{ $value }} lumberjack restarts in the last 5 minutes
+            (threshold: 3). Possible thrashing.
+
+  # -- Hooks -----------------------------------------------------------------
+  - name: sase_hooks
+    rules:
+      - alert: SaseHookHighRetryRate
+        expr: >
+          rate(sase_hook_retries_total[5m])
+          / rate(sase_hook_executions_total[5m]) > 0.10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hook retry rate above 10%"
+          description: >
+            Hook retry rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (warn threshold: 10%).
+
+      - alert: SaseHookHighRetryRate
+        expr: >
+          rate(sase_hook_retries_total[5m])
+          / rate(sase_hook_executions_total[5m]) > 0.25
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Hook retry rate above 25%"
+          description: >
+            Hook retry rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes (critical threshold: 25%).
+
+  # -- Operational -----------------------------------------------------------
+  - name: sase_operational
+    rules:
+      - alert: SaseZombieDetected
+        expr: increase(sase_zombie_detections_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Zombie process detected"
+          description: >
+            {{ $value }} zombie detection(s) in the last 5 minutes.
+
+      - alert: SasePushGatewayDown
+        expr: up{job="pushgateway"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Push Gateway is down"
+          description: >
+            The Prometheus Push Gateway has been unreachable for more than
+            2 minutes.
