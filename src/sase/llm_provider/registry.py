@@ -120,6 +120,38 @@ def format_provider_model_label(
     return "Agent"
 
 
+def get_registered_provider_names() -> list[str]:
+    """Return registered provider names in stable sorted order."""
+    return sorted(_REGISTRY.keys())
+
+
+def get_known_provider_model_choices() -> list[str]:
+    """Return known provider/model pairs for UI pickers."""
+    pairs = {f"{provider}/{model}" for model, provider in _MODEL_TO_PROVIDER.items()}
+    return sorted(pairs)
+
+
+def normalize_provider_model_choice(value: str) -> str | None:
+    """Validate and normalize ``<provider>/<model>`` input.
+
+    Returns a normalized ``provider/model`` string when valid, otherwise ``None``.
+    """
+    raw = value.strip()
+    if not raw:
+        return None
+    if any(char.isspace() for char in raw):
+        return None
+    parts = raw.split("/")
+    if len(parts) != 2:
+        return None
+    provider, model = parts
+    if not provider or not model:
+        return None
+    if provider not in get_registered_provider_names():
+        return None
+    return f"{provider}/{model}"
+
+
 def get_default_provider_name() -> str:
     """Get the default provider name from configuration.
 

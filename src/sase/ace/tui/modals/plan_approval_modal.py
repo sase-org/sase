@@ -17,11 +17,12 @@ from .base import CopyModeForwardingMixin
 class PlanApprovalResult:
     """Result from the plan approval modal."""
 
-    action: str  # "approve", "reject", "epic", "feedback_requested", or "approve_prompt_edit"
+    action: str  # "approve", "reject", "epic", "feedback_requested", "approve_prompt_edit", or "approve_model_edit"
     feedback: str | None = None
     commit_plan: bool = True
     run_coder: bool = True
     coder_prompt: str | None = None
+    coder_model: str | None = None
 
 
 @dataclass
@@ -31,6 +32,7 @@ class PendingApproveState:
     commit_plan: bool
     run_coder: bool
     coder_prompt: str
+    coder_model: str | None
 
 
 class PlanApprovalModal(
@@ -57,6 +59,8 @@ class PlanApprovalModal(
         self,
         plan_file: str,
         pending_approve_state: PendingApproveState | None = None,
+        planner_llm_provider: str | None = None,
+        planner_model: str | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -68,6 +72,8 @@ class PlanApprovalModal(
         super().__init__()
         self._plan_file = plan_file
         self._pending_approve_state = pending_approve_state
+        self._planner_llm_provider = planner_llm_provider
+        self._planner_model = planner_model
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -108,6 +114,7 @@ class PlanApprovalModal(
                 commit_plan=state.commit_plan,
                 run_coder=state.run_coder,
                 coder_prompt=state.coder_prompt,
+                coder_model=state.coder_model,
             )
 
     def _read_plan_file(self) -> str:
@@ -144,16 +151,23 @@ class PlanApprovalModal(
         commit_plan: bool = True,
         run_coder: bool = True,
         coder_prompt: str = "",
+        coder_model: str | None = None,
     ) -> None:
         """Push the approve-with-options modal with the given initial state."""
         from .approve_options_modal import (
+            ApproveOptionsEditModel,
             ApproveOptionsEditPrompt,
             ApproveOptionsModal,
             ApproveOptionsResult,
         )
 
         def on_options_dismiss(
-            result: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+            result: (
+                ApproveOptionsResult
+                | ApproveOptionsEditPrompt
+                | ApproveOptionsEditModel
+                | None
+            ),
         ) -> None:
             if result is None:
                 return
@@ -164,6 +178,18 @@ class PlanApprovalModal(
                         commit_plan=result.commit_plan,
                         run_coder=result.run_coder,
                         coder_prompt=result.coder_prompt,
+                        coder_model=result.coder_model,
+                    )
+                )
+                return
+            if isinstance(result, ApproveOptionsEditModel):
+                self.dismiss(
+                    PlanApprovalResult(
+                        action="approve_model_edit",
+                        commit_plan=result.commit_plan,
+                        run_coder=result.run_coder,
+                        coder_prompt=result.coder_prompt,
+                        coder_model=result.coder_model,
                     )
                 )
                 return
@@ -173,14 +199,23 @@ class PlanApprovalModal(
                     commit_plan=result.commit_plan,
                     run_coder=result.run_coder,
                     coder_prompt=result.coder_prompt,
+                    coder_model=result.coder_model,
                 )
             )
+
+        planner_model_label: str | None = None
+        if self._planner_llm_provider and self._planner_model:
+            planner_model_label = f"{self._planner_llm_provider}/{self._planner_model}"
+        elif self._planner_model:
+            planner_model_label = self._planner_model
 
         self.app.push_screen(
             ApproveOptionsModal(
                 commit_plan=commit_plan,
                 run_coder=run_coder,
                 coder_prompt=coder_prompt,
+                planner_model_label=planner_model_label,
+                coder_model=coder_model,
             ),
             on_options_dismiss,
         )

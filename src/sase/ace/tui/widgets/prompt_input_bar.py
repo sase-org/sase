@@ -81,6 +81,8 @@ class PromptInputBar(Static):
             return "Plan Feedback"
         if self._mode == "approve_prompt":
             return "Coder Prompt"
+        if self._mode == "approve_model":
+            return "Coder Model"
         return "Prompt"
 
     def compose(self) -> ComposeResult:
@@ -89,6 +91,8 @@ class PromptInputBar(Static):
             placeholder = "Type plan feedback...  [^G] editor  [^J] newline"
         elif self._mode == "approve_prompt":
             placeholder = "Type coder prompt...  [^G] editor  [^J] newline"
+        elif self._mode == "approve_model":
+            placeholder = "Type provider/model (e.g. codex/o3)...  [^G] editor"
         else:
             placeholder = (
                 "Type prompt, '.' for history, '#@' for snippets  "
@@ -116,7 +120,7 @@ class PromptInputBar(Static):
 
         # Border title and subtitle
         self.border_title = self._base_title
-        if self._mode in ("feedback", "approve_prompt"):
+        if self._mode in ("feedback", "approve_prompt", "approve_model"):
             self.border_subtitle = "[Enter] send  [Esc] cancel"
             self.add_class("feedback-mode")
         else:
@@ -242,7 +246,7 @@ class PromptInputBar(Static):
         """Process text submission from the TextArea."""
         value = text.strip()
 
-        if self._mode != "feedback":
+        if self._mode == "prompt":
             # Check for '.' or '.x' - trigger history picker
             if value in (".", ".x"):
                 self.post_message(self.HistoryRequested(show_cancelled=value == ".x"))

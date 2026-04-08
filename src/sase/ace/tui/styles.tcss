@@ -234,7 +234,7 @@ ApproveOptionsModal {
 #approve-options-container {
     width: 70;
     height: auto;
-    max-height: 20;
+    max-height: 24;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -255,6 +255,10 @@ ApproveOptionsModal {
 .approve-options-label {
     width: 1fr;
     content-align-vertical: middle;
+}
+
+.approve-options-row Select {
+    width: 34;
 }
 
 .approve-options-label.disabled {

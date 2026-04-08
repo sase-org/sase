@@ -287,6 +287,60 @@ class TestModelInheritance:
         assert state.current_prompt.startswith("%model:opus\n")
         assert "be concise" in state.current_prompt
 
+    def test_coder_prompt_uses_selected_coder_model(self, tmp_path) -> None:
+        """Selected coder_model overrides planner model prefix for coder run."""
+        ctx = _make_ctx(tmp_path, agent_model="opus")
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model="codex/o3",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert state.current_prompt.startswith("%model:codex/o3\n")
+
+    def test_coder_prompt_directive_still_wins_over_selected_model(
+        self, tmp_path
+    ) -> None:
+        """%model in coder_prompt suppresses selected/inherited model prefix."""
+        ctx = _make_ctx(tmp_path, agent_model="opus")
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model="codex/o3",
+            coder_prompt="%model:gemini/gemini-2.5-pro",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert not state.current_prompt.startswith("%model:")
+        assert "%model:gemini/gemini-2.5-pro" in state.current_prompt
+
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
         """coder_prompt with content -> 'Additional instructions:' in prompt."""
         ctx = _make_ctx(tmp_path)

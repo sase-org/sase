@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from sase.notifications import Notification
 
     from ...models import Agent
+    from ...modals.plan_approval_modal import PendingApproveState
 
 
 def handle_hitl(app: object, notification: Notification) -> bool:
@@ -170,7 +171,7 @@ def handle_user_question(app: object, notification: Notification) -> bool:
 def handle_plan_approval(
     app: object,
     notification: Notification,
-    pending_approve_state: object | None = None,
+    pending_approve_state: PendingApproveState | None = None,
 ) -> bool:
     """Show the plan approval modal for a Claude Code plan.
 
@@ -223,7 +224,13 @@ def handle_plan_approval(
             with app.suspend():  # type: ignore[attr-defined]
                 subprocess.run([editor, plan_file], check=False)
             app.push_screen(  # type: ignore[attr-defined]
-                PlanApprovalModal(plan_file),
+                PlanApprovalModal(
+                    plan_file,
+                    planner_llm_provider=notification.action_data.get(
+                        "agent_llm_provider"
+                    ),
+                    planner_model=notification.action_data.get("agent_model"),
+                ),
                 on_dismiss,
             )
             return
@@ -260,11 +267,35 @@ def handle_plan_approval(
                 commit_plan=result.commit_plan,
                 run_coder=result.run_coder,
                 current_prompt=result.coder_prompt or "",
+                current_model=result.coder_model,
             )
             app.mount(  # type: ignore[attr-defined]
                 PromptInputBar(
                     initial_value=result.coder_prompt or "",
                     mode="approve_prompt",
+                    id="prompt-input-bar",
+                )
+            )
+            return
+
+        # Approve model edit: delegate coder model editing to PromptInputBar
+        if result.action == "approve_model_edit":
+            from ...widgets import PromptInputBar
+
+            from ._types import ApproveModelContext
+
+            app._approve_model_context = ApproveModelContext(  # type: ignore[attr-defined]
+                notification=notification,
+                plan_file=plan_file,
+                commit_plan=result.commit_plan,
+                run_coder=result.run_coder,
+                current_prompt=result.coder_prompt or "",
+                current_model=result.coder_model,
+            )
+            app.mount(  # type: ignore[attr-defined]
+                PromptInputBar(
+                    initial_value=result.coder_model or "",
+                    mode="approve_model",
                     id="prompt-input-bar",
                 )
             )
@@ -305,6 +336,8 @@ def handle_plan_approval(
         response_data["run_coder"] = result.run_coder
         if result.coder_prompt is not None:
             response_data["coder_prompt"] = result.coder_prompt
+        if result.coder_model is not None:
+            response_data["coder_model"] = result.coder_model
 
         # On approval, save plan to workspace .sase/plans/ directory
         if result.action in ("approve", "epic") and notification.files:
@@ -384,7 +417,12 @@ def handle_plan_approval(
             app._load_agents()  # type: ignore[attr-defined]
 
     app.push_screen(  # type: ignore[attr-defined]
-        PlanApprovalModal(plan_file, pending_approve_state=pending_approve_state),  # type: ignore[arg-type]
+        PlanApprovalModal(  # type: ignore[arg-type]
+            plan_file,
+            pending_approve_state=pending_approve_state,
+            planner_llm_provider=notification.action_data.get("agent_llm_provider"),
+            planner_model=notification.action_data.get("agent_model"),
+        ),
         on_dismiss,
     )
     return True

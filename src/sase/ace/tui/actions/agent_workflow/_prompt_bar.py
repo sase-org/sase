@@ -12,6 +12,7 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.ace.tui.actions.agents._types import (
+        ApproveModelContext,
         ApprovePromptContext,
         PlanFeedbackContext,
     )
@@ -41,6 +42,7 @@ class PromptBarMixin:
     _prompt_context: PromptContext | None = None
     _plan_feedback_context: PlanFeedbackContext | None
     _approve_prompt_context: ApprovePromptContext | None = None
+    _approve_model_context: ApproveModelContext | None = None
 
     _TRIVIAL_PROMPT_PATTERNS = frozenset({".", ".x"})
 
@@ -311,6 +313,9 @@ class PromptBarMixin:
         if event.mode == "approve_prompt":
             self._handle_approve_prompt_submitted(event.value)
             return
+        if event.mode == "approve_model":
+            self._handle_approve_model_submitted(event.value)
+            return
 
         prompt = event.value
         if not prompt:
@@ -334,6 +339,9 @@ class PromptBarMixin:
 
         if event.mode == "approve_prompt":
             self._handle_approve_prompt_cancelled()
+            return
+        if event.mode == "approve_model":
+            self._handle_approve_model_cancelled()
             return
 
         self.notify("Prompt input cancelled")  # type: ignore[attr-defined]
@@ -407,6 +415,7 @@ class PromptBarMixin:
                 commit_plan=ctx.commit_plan,
                 run_coder=ctx.run_coder,
                 coder_prompt=prompt,
+                coder_model=ctx.current_model,
             ),
         )
 
@@ -433,6 +442,78 @@ class PromptBarMixin:
                 commit_plan=ctx.commit_plan,
                 run_coder=ctx.run_coder,
                 coder_prompt=ctx.current_prompt,
+                coder_model=ctx.current_model,
+            ),
+        )
+
+    def _handle_approve_model_submitted(self, model_value: str) -> None:
+        """Handle submission of coder model editing via the PromptInputBar."""
+        from sase.llm_provider.registry import (
+            get_registered_provider_names,
+            normalize_provider_model_choice,
+        )
+
+        from ...modals.plan_approval_modal import PendingApproveState
+
+        ctx = self._approve_model_context
+        if ctx is None:
+            self.notify("No approve model context", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        normalized = normalize_provider_model_choice(model_value)
+        if normalized is None:
+            providers = ", ".join(get_registered_provider_names())
+            self.notify(  # type: ignore[attr-defined]
+                (
+                    "Invalid model. Use <provider>/<model> with no spaces "
+                    f"(e.g. codex/o3). Providers: {providers}"
+                ),
+                severity="error",
+            )
+            return
+
+        self._approve_model_context = None
+        self._unmount_prompt_bar()
+
+        from sase.ace.tui.actions.agents._notification_modals import (
+            handle_plan_approval,
+        )
+
+        handle_plan_approval(
+            self,
+            ctx.notification,
+            pending_approve_state=PendingApproveState(
+                commit_plan=ctx.commit_plan,
+                run_coder=ctx.run_coder,
+                coder_prompt=ctx.current_prompt,
+                coder_model=normalized,
+            ),
+        )
+
+    def _handle_approve_model_cancelled(self) -> None:
+        """Handle cancellation of coder model editing -- preserve original model."""
+        from ...modals.plan_approval_modal import PendingApproveState
+
+        ctx = self._approve_model_context
+        if ctx is None:
+            self._unmount_prompt_bar()
+            return
+
+        self._approve_model_context = None
+        self._unmount_prompt_bar()
+
+        from sase.ace.tui.actions.agents._notification_modals import (
+            handle_plan_approval,
+        )
+
+        handle_plan_approval(
+            self,
+            ctx.notification,
+            pending_approve_state=PendingApproveState(
+                commit_plan=ctx.commit_plan,
+                run_coder=ctx.run_coder,
+                coder_prompt=ctx.current_prompt,
+                coder_model=ctx.current_model,
             ),
         )
 

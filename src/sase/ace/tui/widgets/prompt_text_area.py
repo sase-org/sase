@@ -136,7 +136,7 @@ class PromptTextArea(
     def action_open_workflow_editor(self) -> None:
         """Request to open workflow YAML editor."""
         bar = self._find_prompt_bar()
-        if bar and bar._mode == "feedback":
+        if bar and bar._mode in ("feedback", "approve_model"):
             return
         PromptInputBar = _prompt_bar_class()
         if bar:
@@ -281,10 +281,10 @@ class PromptTextArea(
             self._try_advance_tabstop()
             return
 
-        # Detect '#@' trigger before the '@' is inserted (skip in feedback mode)
+        # Detect '#@' trigger before the '@' is inserted (skip in non-prompt modes)
         if event.character == "@":
             bar = self._find_prompt_bar()
-            if bar and bar._mode != "feedback":
+            if bar and bar._mode == "prompt":
                 row, col = self.cursor_location
                 if col > 0:
                     line = self.document.get_line(row)

@@ -7,7 +7,10 @@ from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.gemini import GeminiProvider
 from sase.llm_provider.registry import (
     _REGISTRY,
+    get_known_provider_model_choices,
+    get_registered_provider_names,
     get_provider,
+    normalize_provider_model_choice,
     register_provider,
     resolve_model_provider,
 )
@@ -183,3 +186,29 @@ def test_resolve_model_provider_explicit_with_unknown_model() -> None:
     """Explicit syntax works with any model name, even unknown ones."""
     assert resolve_model_provider("codex/my-fine-tune") == ("codex", "my-fine-tune")
     assert resolve_model_provider("claude/custom-v2") == ("claude", "custom-v2")
+
+
+def test_get_registered_provider_names_includes_builtins() -> None:
+    """Registered provider helper returns stable provider list."""
+    providers = get_registered_provider_names()
+    assert "claude" in providers
+    assert "codex" in providers
+    assert "gemini" in providers
+    assert providers == sorted(providers)
+
+
+def test_get_known_provider_model_choices_contains_expected_pair() -> None:
+    """Known provider/model helper returns explicit provider/model pairs."""
+    choices = get_known_provider_model_choices()
+    assert "codex/o3" in choices
+    assert "claude/opus" in choices
+    assert choices == sorted(choices)
+
+
+def test_normalize_provider_model_choice_validation() -> None:
+    """Normalization accepts valid input and rejects invalid shapes."""
+    assert normalize_provider_model_choice("codex/o3") == "codex/o3"
+    assert normalize_provider_model_choice(" codex/o3 ") == "codex/o3"
+    assert normalize_provider_model_choice("codex /o3") is None
+    assert normalize_provider_model_choice("codex/o3/extra") is None
+    assert normalize_provider_model_choice("unknown/o3") is None

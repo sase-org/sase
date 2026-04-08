@@ -4,10 +4,11 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.keys import Keys
 from textual.screen import ModalScreen
-from textual.widgets import Static, Switch
+from textual.widgets import Select, Static, Switch
 
 from sase.ace.tui.bindings import DEFAULT_BINDINGS
 from sase.ace.tui.modals.approve_options_modal import (
+    ApproveOptionsEditModel,
     ApproveOptionsEditPrompt,
     ApproveOptionsModal,
     ApproveOptionsResult,
@@ -141,7 +142,11 @@ def test_on_key_stops_printable_chars() -> None:
     assert not space_event._stop_propagation  # type: ignore[attr-defined]
 
 
-class _TestApp(App[ApproveOptionsResult | ApproveOptionsEditPrompt | None]):
+class _TestApp(
+    App[
+        ApproveOptionsResult | ApproveOptionsEditPrompt | ApproveOptionsEditModel | None
+    ]
+):
     """Minimal app for async modal tests."""
 
     ENABLE_COMMAND_PALETTE = False
@@ -152,12 +157,19 @@ class _TestApp(App[ApproveOptionsResult | ApproveOptionsEditPrompt | None]):
 
 async def test_enter_approves_from_switch() -> None:
     """Enter triggers approval when a Switch has focus."""
-    result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
+    result: (
+        ApproveOptionsResult | ApproveOptionsEditPrompt | ApproveOptionsEditModel | None
+    ) = None
 
     async with _TestApp().run_test() as pilot:
 
         def on_dismiss(
-            r: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+            r: (
+                ApproveOptionsResult
+                | ApproveOptionsEditPrompt
+                | ApproveOptionsEditModel
+                | None
+            ),
         ) -> None:
             nonlocal result
             result = r
@@ -177,7 +189,7 @@ async def test_enter_approves_from_switch() -> None:
 
 
 async def test_ctrl_n_cycles_focus_forward() -> None:
-    """ctrl+n should cycle focus through the two switches (no TextArea)."""
+    """ctrl+n should cycle focus through switches and model Select."""
     async with _TestApp().run_test() as pilot:
         modal = ApproveOptionsModal()
         pilot.app.push_screen(modal)
@@ -193,6 +205,12 @@ async def test_ctrl_n_cycles_focus_forward() -> None:
         second = pilot.app.focused
         assert isinstance(second, Switch)
         assert second.id == "run-coder-switch"
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        third = pilot.app.focused
+        assert isinstance(third, Select)
+        assert third.id == "coder-model-select"
 
         # Wraps back to first
         await pilot.press("ctrl+n")
@@ -215,12 +233,19 @@ async def test_ctrl_p_cycles_focus_backward() -> None:
         assert isinstance(pilot.app.focused, Switch)
         assert pilot.app.focused.id == "run-coder-switch"
 
-        # Now go backward — should return to first switch
+        # Backward goes to first switch
         await pilot.press("ctrl+p")
         await pilot.pause()
         first = pilot.app.focused
         assert isinstance(first, Switch)
         assert first.id == "commit-plan-switch"
+
+        # Wrapping backward reaches model select
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+        wrapped = pilot.app.focused
+        assert isinstance(wrapped, Select)
+        assert wrapped.id == "coder-model-select"
 
 
 async def test_toggle_coder_off_locks_commit_on() -> None:
@@ -295,7 +320,7 @@ async def test_toggle_back_on_unlocks_other() -> None:
 
 
 async def test_coder_off_disables_prompt_display() -> None:
-    """When coder is OFF, prompt display should be disabled."""
+    """When coder is OFF, prompt and model controls should be disabled."""
     async with _TestApp().run_test() as pilot:
         modal = ApproveOptionsModal()
         pilot.app.push_screen(modal)
@@ -303,6 +328,7 @@ async def test_coder_off_disables_prompt_display() -> None:
 
         coder_sw = modal.query_one("#run-coder-switch", Switch)
         prompt_display = modal.query_one("#coder-prompt-display", Static)
+        model_select = modal.query_one("#coder-model-select", Select)
 
         coder_sw.focus()
         await pilot.pause()
@@ -310,16 +336,24 @@ async def test_coder_off_disables_prompt_display() -> None:
         await pilot.pause()
 
         assert "disabled" in prompt_display.classes
+        assert model_select.disabled is True
 
 
 async def test_p_key_triggers_edit_prompt() -> None:
     """Pressing 'p' should dismiss with ApproveOptionsEditPrompt."""
-    result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
+    result: (
+        ApproveOptionsResult | ApproveOptionsEditPrompt | ApproveOptionsEditModel | None
+    ) = None
 
     async with _TestApp().run_test() as pilot:
 
         def on_dismiss(
-            r: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+            r: (
+                ApproveOptionsResult
+                | ApproveOptionsEditPrompt
+                | ApproveOptionsEditModel
+                | None
+            ),
         ) -> None:
             nonlocal result
             result = r
@@ -344,7 +378,12 @@ async def test_p_key_no_op_when_coder_off() -> None:
     async with _TestApp().run_test() as pilot:
 
         def on_dismiss(
-            _: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+            _: (
+                ApproveOptionsResult
+                | ApproveOptionsEditPrompt
+                | ApproveOptionsEditModel
+                | None
+            ),
         ) -> None:
             nonlocal dismissed
             dismissed = True
@@ -375,6 +414,7 @@ async def test_initial_state_restoration() -> None:
             commit_plan=False,
             run_coder=True,
             coder_prompt="do the thing",
+            coder_model="codex/o3",
         )
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -382,21 +422,30 @@ async def test_initial_state_restoration() -> None:
         commit_sw = modal.query_one("#commit-plan-switch", Switch)
         coder_sw = modal.query_one("#run-coder-switch", Switch)
         prompt_display = modal.query_one("#coder-prompt-display", Static)
+        model_select = modal.query_one("#coder-model-select", Select)
 
         assert commit_sw.value is False
         assert coder_sw.value is True
         display_text = str(prompt_display.render())
         assert "do the thing" in display_text
+        assert model_select.value == "codex/o3"
 
 
 async def test_p_key_preserves_state_in_edit_prompt() -> None:
     """ApproveOptionsEditPrompt should carry current switch + prompt state."""
-    result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
+    result: (
+        ApproveOptionsResult | ApproveOptionsEditPrompt | ApproveOptionsEditModel | None
+    ) = None
 
     async with _TestApp().run_test() as pilot:
 
         def on_dismiss(
-            r: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+            r: (
+                ApproveOptionsResult
+                | ApproveOptionsEditPrompt
+                | ApproveOptionsEditModel
+                | None
+            ),
         ) -> None:
             nonlocal result
             result = r
@@ -416,6 +465,37 @@ async def test_p_key_preserves_state_in_edit_prompt() -> None:
         assert result.commit_plan is False
         assert result.run_coder is True
         assert result.coder_prompt == "existing prompt"
+
+
+async def test_selecting_custom_model_dismisses_with_edit_model() -> None:
+    """Selecting Custom... should dismiss with ApproveOptionsEditModel."""
+    result: (
+        ApproveOptionsResult | ApproveOptionsEditPrompt | ApproveOptionsEditModel | None
+    ) = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(
+            r: (
+                ApproveOptionsResult
+                | ApproveOptionsEditPrompt
+                | ApproveOptionsEditModel
+                | None
+            ),
+        ) -> None:
+            nonlocal result
+            result = r
+
+        modal = ApproveOptionsModal(coder_model="codex/o3")
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        model_select = modal.query_one("#coder-model-select", Select)
+        model_select.value = "__custom_model__"
+        await pilot.pause()
+
+        assert isinstance(result, ApproveOptionsEditModel)
+        assert result.coder_model == "codex/o3"
 
 
 async def test_long_prompt_truncated_in_display() -> None:
@@ -450,7 +530,9 @@ async def test_empty_prompt_shows_none() -> None:
 
 
 class _BindingsTestApp(
-    App[ApproveOptionsResult | ApproveOptionsEditPrompt | None],
+    App[
+        ApproveOptionsResult | ApproveOptionsEditPrompt | ApproveOptionsEditModel | None
+    ],
 ):
     """Test app with AceApp-like single-character bindings (H1 diagnostic)."""
 
@@ -480,7 +562,9 @@ class _StackedFirstModal(ModalScreen[None]):
 
 
 class _EventHandlerTestApp(
-    App[ApproveOptionsResult | ApproveOptionsEditPrompt | None],
+    App[
+        ApproveOptionsResult | ApproveOptionsEditPrompt | ApproveOptionsEditModel | None
+    ],
 ):
     """Test app with EventHandlersMixin-like on_key (H3 diagnostic)."""
 
@@ -515,7 +599,12 @@ async def test_escape_dismisses_with_switch_focused() -> None:
     async with _BindingsTestApp().run_test() as pilot:
 
         def on_dismiss(
-            _: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
+            _: (
+                ApproveOptionsResult
+                | ApproveOptionsEditPrompt
+                | ApproveOptionsEditModel
+                | None
+            ),
         ) -> None:
             nonlocal dismissed
             dismissed = True

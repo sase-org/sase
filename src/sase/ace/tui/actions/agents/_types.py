@@ -31,3 +31,16 @@ class ApprovePromptContext:
     commit_plan: bool
     run_coder: bool
     current_prompt: str
+    current_model: str | None
+
+
+@dataclass
+class ApproveModelContext:
+    """Context stored while the user edits the coder model via PromptInputBar."""
+
+    notification: Notification
+    plan_file: str
+    commit_plan: bool
+    run_coder: bool
+    current_prompt: str
+    current_model: str | None

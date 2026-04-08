@@ -31,6 +31,7 @@ from .runners_modal import (
 from .status_modal import StatusModal
 from .tag_input_modal import TagInputModal
 from .approve_options_modal import (
+    ApproveOptionsEditModel,
     ApproveOptionsEditPrompt,
     ApproveOptionsModal,
     ApproveOptionsResult,
@@ -71,6 +72,7 @@ __all__ = [
     "MentorRunResult",
     "build_mentor_review_data",
     "AddXPromptModal",
+    "ApproveOptionsEditModel",
     "ApproveOptionsEditPrompt",
     "ApproveOptionsModal",
     "ApproveOptionsResult",
