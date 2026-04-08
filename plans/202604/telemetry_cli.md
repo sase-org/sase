@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-07 23:40:55
 status: wip
+bead_id: sase-e
 ---
 
 # Plan: `sase telemetry` CLI Subcommand
