@@ -186,10 +186,37 @@ def _load_latest_diff_from_vcs(changespec: ChangeSpec) -> str | None:
     return None
 
 
+def preload_vcs_fallback_diff(
+    changespec: ChangeSpec,
+    commits: list[CommitEntry],
+) -> str | None:
+    """Pre-load VCS fallback diff for the latest commit if its local diff is missing.
+
+    Call once before iterating over profiles to avoid repeated
+    _load_latest_diff_from_vcs() calls (which may trigger network operations).
+    """
+    latest_entry_id = max(
+        (commit.display_number for commit in commits),
+        key=parse_commit_entry_id,
+        default=None,
+    )
+    if latest_entry_id is None:
+        return None
+
+    for commit in commits:
+        if commit.display_number == latest_entry_id:
+            if _read_diff_content(commit.diff) is None:
+                return _load_latest_diff_from_vcs(changespec)
+            return None  # Local diff exists, no fallback needed
+
+    return None
+
+
 def profile_matches_any_commit(
     profile: MentorProfileConfig,
     commits: list[CommitEntry],
     changespec: ChangeSpec | None = None,
+    preloaded_vcs_fallback: str | None | object = _UNSET,
 ) -> bool:
     """Check if a profile matches ANY of the given commits.
 
@@ -210,7 +237,9 @@ def profile_matches_any_commit(
         key=parse_commit_entry_id,
         default=None,
     )
-    fallback_diff_content: object | str | None = _UNSET
+    fallback_diff_content: object | str | None = (
+        preloaded_vcs_fallback if preloaded_vcs_fallback is not _UNSET else _UNSET
+    )
 
     for commit in commits:
         diff_path = commit.diff
@@ -319,6 +348,9 @@ def _get_matching_profiles_for_entry(
     # Get profiles already registered for this entry
     registered_profiles = get_profiles_registered_for_entry(changespec, latest_entry_id)
 
+    # Pre-load VCS fallback diff once for all profiles
+    preloaded_fallback = preload_vcs_fallback_diff(changespec, commits_to_check)
+
     for profile in get_all_mentor_profiles():
         # Skip profiles already registered
         if profile.profile_name in registered_profiles:
@@ -330,7 +362,12 @@ def _get_matching_profiles_for_entry(
         ):
             continue
         # Check if profile matches any commit
-        if profile_matches_any_commit(profile, commits_to_check, changespec):
+        if profile_matches_any_commit(
+            profile,
+            commits_to_check,
+            changespec,
+            preloaded_vcs_fallback=preloaded_fallback,
+        ):
             result.append((latest_entry_id, profile))
 
     return result
@@ -431,6 +468,7 @@ def _trace_profile_match(
     profile: MentorProfileConfig,
     commits: list[CommitEntry],
     changespec: ChangeSpec | None = None,
+    preloaded_vcs_fallback: str | None | object = _UNSET,
 ) -> _ProfileMatchTrace:
     """Trace how a profile matches against a set of commits, returning details."""
     trace = _ProfileMatchTrace(profile_name=profile.profile_name)
@@ -439,7 +477,9 @@ def _trace_profile_match(
         key=parse_commit_entry_id,
         default=None,
     )
-    fallback_diff_content: object | str | None = _UNSET
+    fallback_diff_content: object | str | None = (
+        preloaded_vcs_fallback if preloaded_vcs_fallback is not _UNSET else _UNSET
+    )
 
     # projects scope
     if profile.projects is not None and changespec is not None:
@@ -620,4 +660,15 @@ def trace_profile_matching(
     if not profiles:
         return []
 
-    return [_trace_profile_match(profile, commits, changespec) for profile in profiles]
+    # Pre-load VCS fallback diff once for all profiles
+    preloaded_fallback = preload_vcs_fallback_diff(changespec, commits)
+
+    return [
+        _trace_profile_match(
+            profile,
+            commits,
+            changespec,
+            preloaded_vcs_fallback=preloaded_fallback,
+        )
+        for profile in profiles
+    ]

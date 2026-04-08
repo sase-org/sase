@@ -107,7 +107,10 @@ def clear_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
     """
     from sase.config.mentor import get_all_mentor_profiles
 
-    from sase.ace.scheduler.mentor_profile_matching import profile_matches_any_commit
+    from sase.ace.scheduler.mentor_profile_matching import (
+        preload_vcs_fallback_diff,
+        profile_matches_any_commit,
+    )
 
     try:
         changespecs = parse_project_file(project_file)
@@ -136,11 +139,18 @@ def clear_mentor_draft_flags(project_file: str, changespec_name: str) -> bool:
 
                 # Rebuild profiles list from scratch (unless no commits exist)
                 if matching_commits:
+                    # Pre-load VCS fallback diff once for all profiles
+                    preloaded_fallback = preload_vcs_fallback_diff(cs, matching_commits)
                     new_profiles: list[str] = []
                     for profile in get_all_mentor_profiles():
                         profile_name = profile.profile_name
                         # Include if: matches any commit OR has running mentors
-                        if profile_matches_any_commit(profile, matching_commits, cs):
+                        if profile_matches_any_commit(
+                            profile,
+                            matching_commits,
+                            cs,
+                            preloaded_vcs_fallback=preloaded_fallback,
+                        ):
                             new_profiles.append(profile_name)
                         elif profile_name in profiles_with_running_mentors:
                             new_profiles.append(profile_name)

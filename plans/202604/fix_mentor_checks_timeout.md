@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 19:19:41
-status: wip
+status: done
 ---
 
 # Plan: Fix mentor_checks chop timeout (repeated VCS diff loading)
