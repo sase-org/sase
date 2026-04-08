@@ -9,6 +9,11 @@ from sase.running_field._formatting import (
     normalize_running_field_spacing,
 )
 from sase.running_field._model import WorkspaceClaim
+from sase.telemetry.metrics import (
+    WORKSPACE_ACQUISITIONS,
+    WORKSPACE_ACTIVE,
+    WORKSPACE_RELEASES,
+)
 
 
 def get_claimed_workspaces(project_file: str) -> list[WorkspaceClaim]:
@@ -155,6 +160,9 @@ def claim_workspace(
                     result_content,
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
                 )
+                project = os.path.splitext(os.path.basename(project_file))[0]
+                WORKSPACE_ACQUISITIONS.labels(project=project).inc()
+                WORKSPACE_ACTIVE.labels(project=project).inc()
                 return True
         except Exception:
             if attempt < max_retries:
@@ -245,6 +253,9 @@ def release_workspace(
                 result_content,
                 f"Release workspace #{workspace_num}",
             )
+            project = os.path.splitext(os.path.basename(project_file))[0]
+            WORKSPACE_RELEASES.labels(project=project).inc()
+            WORKSPACE_ACTIVE.labels(project=project).dec()
             return True
     except Exception:
         return False
@@ -432,6 +443,9 @@ def claim_next_axe_workspace(
                     result_content,
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
                 )
+                project = os.path.splitext(os.path.basename(project_file))[0]
+                WORKSPACE_ACQUISITIONS.labels(project=project).inc()
+                WORKSPACE_ACTIVE.labels(project=project).inc()
                 return workspace_num
         except RuntimeError:
             raise

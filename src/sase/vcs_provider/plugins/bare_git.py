@@ -6,6 +6,7 @@ Inherits shared git operations from :class:`GitCommon` and overrides the
 methods that differ from the GitHub workflow.
 """
 
+from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider._hookspec import hookimpl
 
 from ._git_common import GitCommon
@@ -13,6 +14,8 @@ from ._git_common import GitCommon
 
 class BareGitPlugin(GitCommon):
     """Pluggy plugin for bare-git (local remote) repositories."""
+
+    _provider_name: str = "bare_git"
 
     @hookimpl
     def vcs_get_change_url(self, cwd: str) -> tuple[bool, str | None]:
@@ -26,5 +29,11 @@ class BareGitPlugin(GitCommon):
     def vcs_mail(self, revision: str, cwd: str) -> tuple[bool, str | None]:
         out = self._run(["git", "push", "-u", "origin", revision], cwd)
         if not out.success:
+            VCS_OPERATIONS.labels(
+                provider=self._provider_name, operation="mail", status="error"
+            ).inc()
             return self._to_result(out, "git push")
+        VCS_OPERATIONS.labels(
+            provider=self._provider_name, operation="mail", status="ok"
+        ).inc()
         return (True, None)

@@ -7,12 +7,15 @@ them so plugin classes only override the handful of methods that differ.
 
 import os
 
+from sase.telemetry.metrics import VCS_COMMITS, VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
 
 class GitCommon(CommandRunner):
     """Mixin with shared ``@hookimpl`` methods for git-based plugins."""
+
+    _provider_name: str = "git"
 
     # --- Core operations ---
 
@@ -94,14 +97,28 @@ class GitCommon(CommandRunner):
     @hookimpl
     def vcs_commit(self, name: str, logfile: str, cwd: str) -> tuple[bool, str | None]:
         out = self._run(["git", "commit", "-F", logfile], cwd)
-        return self._to_result(out, "git commit")
+        result = self._to_result(out, "git commit")
+        status = "ok" if result[0] else "error"
+        VCS_OPERATIONS.labels(
+            provider=self._provider_name, operation="commit", status=status
+        ).inc()
+        if result[0]:
+            VCS_COMMITS.labels(provider=self._provider_name, type="create").inc()
+        return result
 
     @hookimpl
     def vcs_amend(
         self, note: str, cwd: str, no_upload: bool
     ) -> tuple[bool, str | None]:
         out = self._run(["git", "commit", "--amend", "-m", note], cwd)
-        return self._to_result(out, "git commit --amend")
+        result = self._to_result(out, "git commit --amend")
+        status = "ok" if result[0] else "error"
+        VCS_OPERATIONS.labels(
+            provider=self._provider_name, operation="amend", status=status
+        ).inc()
+        if result[0]:
+            VCS_COMMITS.labels(provider=self._provider_name, type="amend").inc()
+        return result
 
     @hookimpl
     def vcs_rename_branch(self, new_name: str, cwd: str) -> tuple[bool, str | None]:
@@ -643,6 +660,10 @@ class GitCommon(CommandRunner):
 
         rev = self._run(["git", "rev-parse", "--short", "HEAD"], cwd)
         commit_hash = rev.stdout.strip() if rev.success else None
+        VCS_COMMITS.labels(provider=self._provider_name, type="create").inc()
+        VCS_OPERATIONS.labels(
+            provider=self._provider_name, operation="create_commit", status="ok"
+        ).inc()
         return (True, commit_hash)
 
     @hookimpl

@@ -7,6 +7,7 @@ from uuid import uuid4
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
 from sase.core.time import get_timezone
+from sase.telemetry.metrics import NOTIFICATIONS_SENT
 
 
 def notify_workflow_complete(
@@ -32,6 +33,7 @@ def notify_workflow_complete(
         silent=silent,
     )
     append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="workflow_complete", status="ok").inc()
 
 
 def notify_sync_result(
@@ -51,6 +53,7 @@ def notify_sync_result(
         action_data={"changespec_name": cl_name, "project_file": project_file},
     )
     append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="sync_result", status="ok").inc()
 
 
 def notify_axe_error_digest(
@@ -89,6 +92,7 @@ def notify_axe_error_digest(
         action_data={"error_report_path": str(digest_file)},
     )
     append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="error_digest", status="ok").inc()
 
 
 def notify_hitl_request(
@@ -106,6 +110,7 @@ def notify_hitl_request(
         action_data={"artifacts_dir": artifacts_dir},
     )
     append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="hitl_request", status="ok").inc()
 
 
 def notify_user_question(
@@ -137,6 +142,7 @@ def notify_user_question(
         action_data=action_data,
     )
     append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="user_question", status="ok").inc()
 
 
 def notify_plan_approval(
@@ -181,3 +187,4 @@ def notify_plan_approval(
         action_data=action_data,
     )
     append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="plan_approval", status="ok").inc()
