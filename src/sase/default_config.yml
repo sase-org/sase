@@ -219,6 +219,12 @@ vcs_provider:
   use_project_pr_prefix: false
   pr_tags: {}
 
+telemetry:
+  enabled: false
+  prometheus:
+    exposition_port: 9464
+    pushgateway_url: "localhost:9091"
+
 sdd:
   version_controlled: false
 

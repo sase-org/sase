@@ -13,6 +13,7 @@ dependencies = [
     "jsonschema",
     "langchain-core",
     "pluggy",
+    "prometheus_client",
     "pyyaml",
     "rich",
     "schedule",
