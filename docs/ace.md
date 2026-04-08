@@ -222,6 +222,8 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 | Key                 | Action                                                       |
 | ------------------- | ------------------------------------------------------------ |
+| `J` / `K`           | Move agent down / up in the list (persisted ordering)        |
+| `R`                 | Revive a previously dismissed agent                          |
 | `@`                 | Run custom agent                                             |
 | `a`                 | Toggle auto-approve / answer HITL                            |
 | `n`                 | Name agent                                                   |
@@ -489,6 +491,15 @@ focuses it.
 The modal groups entries by tab (CLs, Agents, Axe) and shows contextual information for each: CL names and statuses,
 agent names with running/pinned indicators, and Axe lumberjack/command labels.
 
+### Jump Back
+
+Both jump modals support a jump-back feature for toggling between two entries:
+
+- **Backtick jump-back**: Pressing `` ` `` inside the Jump All Modal returns to the previous position, enabling quick
+  toggling between two entries across tabs.
+- **Apostrophe jump-back**: Pressing `'` twice (`''`) in the single-tab entry jump mode jumps back to the previously
+  jumped-from entry. The footer shows a "JUMP" mode indicator with `' back` when a target exists.
+
 The single-tab variant (`'` apostrophe) shows entries only from the current tab with the same hint-character navigation.
 
 ## Mentor Comment Stats in CL List
@@ -600,6 +611,14 @@ the rest. Pinned state is persisted across TUI sessions in `~/.sase/pinned_agent
 When no agents are pinned, the pinned panel container is fully hidden (`display: none`) rather than reserving empty
 space, keeping the layout compact.
 
+### Agent Revival
+
+Press `R` on the Agents tab to revive a previously dismissed agent. All dismissed agent chats are saved as individual
+files under `~/.sase/dismissed_bundles/` and can be restored at any time. There is no limit on the number of dismissed
+agents that can be stored.
+
+Dismiss operations are O(1) per agent — each agent is saved to its own file rather than a monolithic store.
+
 ## Agents Tab Metadata Panel
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
@@ -662,11 +681,13 @@ approval:
 | `Ctrl+P`    | Previous field          |
 | `q` / `Esc` | Cancel                  |
 
-The dialog presents two toggle switches and an optional text input:
+The dialog presents toggle switches, an optional text input, and a model picker:
 
 - **Commit plan** (default: ON) — Whether to commit the plan file
 - **Run coder agent** (default: ON) — Whether to launch a coder agent after approval
 - **Additional prompt** — Optional extra instructions for the coder agent (only editable when coder is ON)
+- **Coder model** — Select an LLM model for the coder agent instead of inheriting the planner's model. Shows all
+  registered models grouped by provider (Claude, Codex, Gemini) with a "Custom..." option for freeform input.
 
 At least one of commit/coder must be enabled — disabling one locks the other ON.
 

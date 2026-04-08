@@ -445,6 +445,28 @@ After execution completes, retry metadata is written to `done.json` in the agent
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe/run_agent_exec.py`
 
+## Token Usage Tracking
+
+The LLM provider layer tracks token usage for Claude Code agent runs. Input tokens, output tokens, and cache-read tokens
+are extracted from the Claude Code stream-json result events and persisted as a `usage.json` artifact in the agent run
+directory.
+
+### Artifact Format
+
+```json
+{
+  "input_tokens": 12345,
+  "output_tokens": 6789,
+  "cache_read_tokens": 3456
+}
+```
+
+When telemetry is enabled, token counts are also recorded as Prometheus counters (`sase_llm_input_tokens_total`,
+`sase_llm_output_tokens_total`, `sase_llm_cache_read_tokens_total`) for monitoring and dashboards. See
+[docs/telemetry.md](telemetry.md) for the full telemetry reference.
+
+Source: `src/sase/llm_provider/_subprocess.py`, `src/sase/llm_provider/types.py`
+
 ## Prompt Preprocessing Pipeline
 
 Before any prompt reaches a provider, it passes through a 6-step preprocessing pipeline defined in `preprocessing.py`.

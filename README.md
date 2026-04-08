@@ -79,7 +79,9 @@ The goal isn't to make agents smarter. It's to make **agent-driven software engi
 - **ChangeSpec** — Tracked unit of work with a full status lifecycle
 - **Mentors** — Automated AI code review agents with configurable profiles, structured JSON output, and TUI-based review
   and apply workflow
-- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini) with pre/post-processing
+- **Telemetry** — Prometheus-based observability with 33 metrics across 7 subsystems, live TUI dashboard, health checks,
+  and a bundled Docker Compose monitoring stack (Prometheus + Grafana)
+- **LLM Providers** — Pluggable AI abstraction (Claude, Codex, Gemini) with pre/post-processing and token usage tracking
 - **VCS Providers** — Pluggy-based version control abstraction (git bundled; GitHub and Mercurial via plugin packages)
 - **Query Language** — Boolean expression language for filtering and searching ChangeSpecs
 
@@ -128,46 +130,52 @@ sase
 
 ## CLI Commands
 
-| Command                    | Description                                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `sase ace`                 | Interactive TUI for navigating and managing ChangeSpecs                                                        |
-| `sase axe chop`            | List or run individual chop scripts                                                                            |
-| `sase axe lumberjack`      | List, run, or check status of lumberjacks                                                                      |
-| `sase axe start`           | Start the lumberjack-based daemon (orchestrator mode)                                                          |
-| `sase axe stop`            | Stop the running axe orchestrator                                                                              |
-| `sase bead blocked`        | Show blocked issues                                                                                            |
-| `sase bead close`          | Close one or more issues (with optional reason)                                                                |
-| `sase bead create`         | Create a new issue (plan or phase)                                                                             |
-| `sase bead dep add`        | Add a dependency between issues                                                                                |
-| `sase bead doctor`         | Run health checks on the bead database                                                                         |
-| `sase bead init`           | Initialize `.sase_beads/` in the current directory                                                             |
-| `sase bead list`           | List issues (with optional status/type filters)                                                                |
-| `sase bead onboard`        | Show quick-start guide                                                                                         |
-| `sase bead ready`          | Show issues ready to work (unblocked, open)                                                                    |
-| `sase bead rm`             | Remove an issue and all its children                                                                           |
-| `sase bead show`           | Show issue details                                                                                             |
-| `sase bead stats`          | Show project statistics                                                                                        |
-| `sase bead sync`           | Sync bead database with git                                                                                    |
-| `sase bead update`         | Update an issue (title, description, status, assignee, etc.)                                                   |
-| `sase comments`            | Preview mentor comments from JSON with syntax-highlighted code context                                         |
-| `sase commit`              | Create a commit with formatted CL description and metadata                                                     |
-| `sase config layers`       | Show per-layer breakdown of the configuration merge chain                                                      |
-| `sase config mentor-match` | Trace mentor profile matching for a specific ChangeSpec                                                        |
-| `sase config show`         | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
-| `sase init-git`            | Initialize a new bare-repo-backed git project                                                                  |
-| `sase logs`                | Collect and package agent run logs for a date range                                                            |
-| `sase notify`              | Create a notification (reads JSON from stdin or uses flags)                                                    |
-| `sase path`                | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema`) |
-| `sase plan`                | Submit a plan for approval (used by `/sase_plan` skill)                                                        |
-| `sase questions`           | Ask the user questions (used by `/sase_questions` skill)                                                       |
-| `sase restore`             | Restore a reverted ChangeSpec by re-applying its diff                                                          |
-| `sase revert`              | Revert a ChangeSpec by pruning its CL and archiving its diff                                                   |
-| `sase run`                 | Run a workflow, execute a query, resume a conversation, or list chat history                                   |
-| `sase search`              | Search and filter ChangeSpecs with query expressions                                                           |
-| `sase xprompt expand`      | Expand prompt templates with sase references (supports `--trace`)                                              |
-| `sase xprompt explain`     | Dry-run visualization of a workflow's execution plan                                                           |
-| `sase xprompt graph`       | Generate a DAG visualization of a workflow (Mermaid or text)                                                   |
-| `sase xprompt list`        | List all available xprompts with metadata, inputs, tags, and preview (JSON)                                    |
+| Command                        | Description                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `sase ace`                     | Interactive TUI for navigating and managing ChangeSpecs                                                        |
+| `sase axe chop`                | List or run individual chop scripts                                                                            |
+| `sase axe lumberjack`          | List, run, or check status of lumberjacks                                                                      |
+| `sase axe start`               | Start the lumberjack-based daemon (orchestrator mode)                                                          |
+| `sase axe stop`                | Stop the running axe orchestrator                                                                              |
+| `sase bead blocked`            | Show blocked issues                                                                                            |
+| `sase bead close`              | Close one or more issues (with optional reason)                                                                |
+| `sase bead create`             | Create a new issue (plan or phase)                                                                             |
+| `sase bead dep add`            | Add a dependency between issues                                                                                |
+| `sase bead doctor`             | Run health checks on the bead database                                                                         |
+| `sase bead init`               | Initialize `.sase_beads/` in the current directory                                                             |
+| `sase bead list`               | List issues (with optional status/type filters)                                                                |
+| `sase bead onboard`            | Show quick-start guide                                                                                         |
+| `sase bead ready`              | Show issues ready to work (unblocked, open)                                                                    |
+| `sase bead rm`                 | Remove an issue and all its children                                                                           |
+| `sase bead show`               | Show issue details                                                                                             |
+| `sase bead stats`              | Show project statistics                                                                                        |
+| `sase bead sync`               | Sync bead database with git                                                                                    |
+| `sase bead update`             | Update an issue (title, description, status, assignee, etc.)                                                   |
+| `sase comments`                | Preview mentor comments from JSON with syntax-highlighted code context                                         |
+| `sase commit`                  | Create a commit with formatted CL description and metadata                                                     |
+| `sase config layers`           | Show per-layer breakdown of the configuration merge chain                                                      |
+| `sase config mentor-match`     | Trace mentor profile matching for a specific ChangeSpec                                                        |
+| `sase config show`             | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
+| `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
+| `sase logs`                    | Collect and package agent run logs for a date range                                                            |
+| `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
+| `sase path`                    | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema`) |
+| `sase plan`                    | Submit a plan for approval (used by `/sase_plan` skill)                                                        |
+| `sase questions`               | Ask the user questions (used by `/sase_questions` skill)                                                       |
+| `sase restore`                 | Restore a reverted ChangeSpec by re-applying its diff                                                          |
+| `sase revert`                  | Revert a ChangeSpec by pruning its CL and archiving its diff                                                   |
+| `sase run`                     | Run a workflow, execute a query, resume a conversation, or list chat history                                   |
+| `sase search`                  | Search and filter ChangeSpecs with query expressions                                                           |
+| `sase telemetry status`        | Show telemetry configuration and service reachability                                                          |
+| `sase telemetry list`          | Display the metric catalog (filterable by subsystem and type)                                                  |
+| `sase telemetry snapshot`      | Fetch and display current metric values (rich, JSON, or Prometheus format)                                     |
+| `sase telemetry dashboard`     | Live auto-refreshing TUI dashboard with optional historical charts mode                                        |
+| `sase telemetry health`        | Traffic-light health assessment (OK/WARN/CRITICAL per subsystem)                                               |
+| `sase telemetry export-config` | Export bundled monitoring stack (Docker Compose + Prometheus + Grafana)                                        |
+| `sase xprompt expand`          | Expand prompt templates with sase references (supports `--trace`)                                              |
+| `sase xprompt explain`         | Dry-run visualization of a workflow's execution plan                                                           |
+| `sase xprompt graph`           | Generate a DAG visualization of a workflow (Mermaid or text)                                                   |
+| `sase xprompt list`            | List all available xprompts with metadata, inputs, tags, and preview (JSON)                                    |
 
 ## Core Concepts
 
@@ -293,6 +301,7 @@ src/sase/
 ├── bead/                  # Git-native issue tracking (plans, phases, dependencies)
 ├── logs/                  # Agent run log collection and packaging
 ├── gemini_wrapper/        # Gemini-specific integration
+├── telemetry/             # Prometheus telemetry (metrics, CLI, monitoring stack)
 ├── notifications/         # Notification system and delivery
 ├── status_state_machine/  # ChangeSpec status transitions
 ├── artifacts.py           # Artifact path resolution and management
@@ -348,6 +357,7 @@ just build         # Build wheel + sdist
 - [`docs/vcs.md`](docs/vcs.md) — VCS provider documentation
 - [`docs/workspace.md`](docs/workspace.md) — Workspace provider documentation
 - [`docs/workflow_spec.md`](docs/workflow_spec.md) — YAML workflow format
+- [`docs/telemetry.md`](docs/telemetry.md) — Prometheus telemetry and monitoring
 - [`docs/xprompt.md`](docs/xprompt.md) — XPrompt template reference
 
 ## Acknowledgements

@@ -20,6 +20,7 @@ and CLI flags.
   - [precommit_command](#precommit_command)
   - [timezone](#timezone)
   - [sdd](#sdd)
+  - [telemetry](#telemetry)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 
@@ -244,24 +245,27 @@ axe:
   chop_script_dirs: [] # additional directories to search for chop scripts
   lumberjacks:
     hooks:
-      interval: 1
+      interval: 5
       chops:
         - name: hook_checks
-          description: Check for completed or failed hooks
+          description: Complete finished hooks and start stale ones, with zombie detection
         - name: mentor_checks
-          description: Check for completed mentor agents
+          description: Start mentor workflows once all hook prerequisites are met
         - name: workflow_checks
-          description: Check for completed workflows
+          description: Complete finished CRS/fix-hook workflows and start stale ones
         - name: pending_checks_poll
-          description: Poll for pending check results
+          description: Poll background is_cl_submitted and critique_comments checks for results
         - name: comment_zombie_checks
-          description: Detect zombie comment processes
+          description: Mark comment threads older than zombie_timeout as ZOMBIE
         - name: suffix_transforms
-          description: Apply suffix transformations
+          description: Strip stale suffixes from older proposals and update mail-readiness markers
         - name: orphan_cleanup
-          description: Clean up orphaned workspaces
+          description: Release workspace claims orphaned by reverted CLs with dead PIDs
+    waits:
+      interval: 2
+      chops:
         - name: wait_checks
-          description: Check wait coordination status
+          description: Resolve agent wait dependencies and write ready.json when satisfied
     checks:
       interval: 300
       chops:
@@ -549,6 +553,40 @@ When enabled, the bead database directory (`.sase_beads/`) is placed in the proj
 
 Source: `src/sase/default_config.yml`
 
+### telemetry
+
+Configures Prometheus-based telemetry for monitoring sase internals. See [docs/telemetry.md](telemetry.md) for the full
+telemetry reference including CLI commands, metric catalog, and monitoring stack setup.
+
+```yaml
+telemetry:
+  enabled: false
+  prometheus:
+    exposition_port: 9464
+    pushgateway_url: "localhost:9091"
+  health_thresholds:
+    error_rate_warn: 10.0
+    error_rate_critical: 25.0
+    retry_rate_warn: 10.0
+    retry_rate_critical: 25.0
+    p95_latency_warn: 300.0
+    p95_latency_critical: 600.0
+```
+
+| Field                                              | Type  | Default          | Description                                      |
+| -------------------------------------------------- | ----- | ---------------- | ------------------------------------------------ |
+| `telemetry.enabled`                                | bool  | `false`          | Enable or disable telemetry globally.            |
+| `telemetry.prometheus.exposition_port`             | int   | `9464`           | HTTP server port for metric exposition.          |
+| `telemetry.prometheus.pushgateway_url`             | str   | `localhost:9091` | Prometheus Push Gateway address.                 |
+| `telemetry.health_thresholds.error_rate_warn`      | float | `10.0`           | Error rate % threshold for WARN health status.   |
+| `telemetry.health_thresholds.error_rate_critical`  | float | `25.0`           | Error rate % threshold for CRITICAL status.      |
+| `telemetry.health_thresholds.retry_rate_warn`      | float | `10.0`           | Retry rate % threshold for WARN health status.   |
+| `telemetry.health_thresholds.retry_rate_critical`  | float | `25.0`           | Retry rate % threshold for CRITICAL status.      |
+| `telemetry.health_thresholds.p95_latency_warn`     | float | `300.0`          | P95 latency threshold (seconds) for WARN status. |
+| `telemetry.health_thresholds.p95_latency_critical` | float | `600.0`          | P95 latency threshold (seconds) for CRITICAL.    |
+
+Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
+
 ## Environment Variables
 
 ### LLM Provider
@@ -793,6 +831,14 @@ No flags. Outputs a JSON array of all available xprompts with name, type, source
 | Flag           | Values | Default | Description                          |
 | -------------- | ------ | ------- | ------------------------------------ |
 | `-s, --status` | flag   | -       | Check sync status without committing |
+
+### `sase telemetry`
+
+| Flag         | Values                                                               | Default    | Description          |
+| ------------ | -------------------------------------------------------------------- | ---------- | -------------------- |
+| _subcommand_ | `status`, `list`, `snapshot`, `dashboard`, `health`, `export-config` | (required) | Telemetry subcommand |
+
+See [docs/telemetry.md](telemetry.md) for the full CLI reference including per-subcommand flags.
 
 ### `sase logs`
 
