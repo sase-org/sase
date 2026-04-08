@@ -20,6 +20,8 @@ from sase.axe.runner_utils import (
     write_done_marker,
     write_error_report,
 )
+from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry.metrics import MENTOR_EXECUTIONS
 from sase.workflows.mentor import MentorWorkflow
 from sase.artifacts import create_artifacts_directory
 
@@ -43,6 +45,10 @@ def main() -> None:
     entry_id = sys.argv[5]
     profile_name = sys.argv[6]
     timestamp = sys.argv[7]
+
+    # Initialize telemetry and push metrics on exit
+    init_telemetry()
+    register_push_on_exit(job="mentor-runner", mentor=mentor_name)
 
     start_time = time.time()
     success = False
@@ -105,6 +111,8 @@ def main() -> None:
             final_status = "PASSED"
         else:
             final_status = "FAILED"
+
+        MENTOR_EXECUTIONS.labels(status=final_status.lower()).inc()
 
         print()
         print(f"Mentor workflow completed with status: {final_status}")

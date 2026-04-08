@@ -29,6 +29,8 @@ from sase.axe.runner_utils import (
     write_error_report,
 )
 from sase.history.chat import find_chat_by_timestamp
+from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.workflows.crs import CrsWorkflow
 from sase.core.paths import shorten_path
 from sase.artifacts import create_artifacts_directory
@@ -73,6 +75,10 @@ def main() -> int:
     comments_file = sys.argv[3] if sys.argv[3] else None
     reviewer_type = sys.argv[4]
     timestamp = sys.argv[5]  # Same timestamp used in agent suffix
+
+    # Initialize telemetry and push metrics on exit
+    init_telemetry()
+    register_push_on_exit(job="crs-runner")
 
     proposal_id: str | None = None
     exit_code = 1
@@ -141,8 +147,14 @@ def main() -> int:
         error_traceback_str = tb_mod.format_exc()
 
     finally:
-        duration = format_duration(int(time.time() - start_time))
+        elapsed = time.time() - start_time
+        duration = format_duration(int(elapsed))
         success = exit_code == 0 and proposal_id is not None
+
+        # Record workflow telemetry
+        status = "passed" if success else "failed"
+        WORKFLOW_EXECUTIONS.labels(workflow="crs", status=status).inc()
+        WORKFLOW_DURATION.labels(workflow="crs").observe(elapsed)
 
         # Find chat file for response_path (written by invoke_agent during execution)
         chat_path = find_chat_by_timestamp(timestamp)

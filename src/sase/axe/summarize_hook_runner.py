@@ -30,6 +30,8 @@ from sase.axe.runner_utils import (
     write_error_report,
 )
 from sase.config.metahook import MetahookConfig, find_matching_metahook
+from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.artifacts import create_artifacts_directory
 from sase.ace.hooks.summarize_utils import get_file_summary
 
@@ -53,6 +55,10 @@ def main() -> int:
     # output_file = sys.argv[5]  # Not used directly - stdout goes there
     entry_id = sys.argv[6]
     timestamp = sys.argv[7]  # Same timestamp used in agent suffix
+
+    # Initialize telemetry and push metrics on exit
+    init_telemetry()
+    register_push_on_exit(job="summarize-hook-runner")
 
     exit_code = 1
     error_summary: str | None = None
@@ -118,6 +124,14 @@ def main() -> int:
                             f"Warning: Could not update hook suffix for {changespec_name}"
                         )
                         exit_code = 1
+
+                    # Record workflow telemetry (metahook path)
+                    elapsed = time.time() - start_time
+                    wf_status = "passed" if exit_code == 0 else "failed"
+                    WORKFLOW_EXECUTIONS.labels(
+                        workflow="summarize-hook", status=wf_status
+                    ).inc()
+                    WORKFLOW_DURATION.labels(workflow="summarize-hook").observe(elapsed)
 
                     # Read output_path from env var (set by starter.py)
                     output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")
@@ -185,8 +199,14 @@ def main() -> int:
         error_summary = f"{type(e).__qualname__}: {e}"
         error_traceback_str = tb_mod.format_exc()
 
-    duration = format_duration(int(time.time() - start_time))
+    elapsed = time.time() - start_time
+    duration = format_duration(int(elapsed))
     success = exit_code == 0
+
+    # Record workflow telemetry (normal path)
+    wf_status = "passed" if success else "failed"
+    WORKFLOW_EXECUTIONS.labels(workflow="summarize-hook", status=wf_status).inc()
+    WORKFLOW_DURATION.labels(workflow="summarize-hook").observe(elapsed)
 
     # Read output_path from env var (set by starter.py)
     output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")

@@ -3,6 +3,8 @@
 This module handles detecting stale comment entries (ZOMBIE marking).
 """
 
+from sase.telemetry.metrics import ZOMBIE_DETECTIONS
+
 from ..changespec import ChangeSpec
 from ..comments import (
     is_comments_suffix_stale,
@@ -33,6 +35,7 @@ def check_comment_zombies(
 
     for entry in changespec.comments:
         if is_comments_suffix_stale(entry.suffix, zombie_timeout_seconds):
+            ZOMBIE_DETECTIONS.inc()
             # Mark as ZOMBIE
             set_comment_suffix(
                 changespec.file_path,

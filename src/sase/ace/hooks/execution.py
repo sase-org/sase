@@ -6,6 +6,7 @@ import tempfile
 
 from sase.core.changespec import strip_reverted_suffix
 from sase.core.time import generate_timestamp
+from sase.telemetry.metrics import HOOK_DURATION, HOOK_EXECUTIONS, HOOK_RETRIES
 
 from ..changespec import (
     ChangeSpec,
@@ -138,6 +139,8 @@ exit $exit_code
         )
         process_pid = process.pid
 
+    HOOK_EXECUTIONS.labels(hook_type=hook.display_command, status="started").inc()
+
     # Create new status line for this run
     # Use PID suffix with running_process type to get " - ($: PID)" marker
     new_status_line = HookStatusLine(
@@ -240,6 +243,7 @@ def check_hook_completion(
         end_timestamp = None
 
     # Calculate duration
+    duration_seconds: float | None = None
     if end_timestamp:
         duration_seconds = calculate_duration_from_timestamps(
             running_status_line.timestamp, end_timestamp
@@ -250,12 +254,25 @@ def check_hook_completion(
             age = get_hook_file_age_seconds_from_timestamp(
                 running_status_line.timestamp
             )
+            duration_seconds = age
             duration = format_duration(age) if age is not None else "0s"
     else:
         age = get_hook_file_age_seconds_from_timestamp(running_status_line.timestamp)
+        duration_seconds = age
         duration = format_duration(age) if age is not None else "0s"
 
     completed_status = "PASSED" if exit_code == 0 else "FAILED"
+
+    # Record telemetry for hook completion
+    hook_type = hook.display_command
+    HOOK_EXECUTIONS.labels(hook_type=hook_type, status=completed_status.lower()).inc()
+    if duration_seconds is not None:
+        HOOK_DURATION.labels(hook_type=hook_type).observe(duration_seconds)
+
+    # Count retries by scanning for retry markers in the output
+    retry_count = content.count("=== RETRY ATTEMPT ")
+    if retry_count > 0:
+        HOOK_RETRIES.labels(hook_type=hook_type).inc(retry_count)
 
     # Auto-append summary suffix for hooks with "!" prefix (skip_fix_hook)
     # BUT only if no metahook matches - let metahook workflow handle those

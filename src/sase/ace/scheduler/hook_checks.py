@@ -10,6 +10,7 @@ import time
 from collections.abc import Callable
 
 from sase.core.time import generate_timestamp
+from sase.telemetry.metrics import ZOMBIE_DETECTIONS
 
 from ..changespec import (
     ChangeSpec,
@@ -141,6 +142,7 @@ def check_hooks(
         # Check for stale fix-hook suffix (timestamp older than timeout)
         sl = hook.latest_status_line
         if sl is not None and is_suffix_stale(sl.suffix, zombie_timeout_seconds):
+            ZOMBIE_DETECTIONS.inc()
             # Mark stale fix-hook as ZOMBIE by setting suffix to "ZOMBIE"
             set_hook_suffix(
                 changespec.file_path,
@@ -380,6 +382,7 @@ def check_hooks(
 
         # Check if this hook is a zombie (running too long)
         if is_hook_zombie(hook, zombie_timeout_seconds):
+            ZOMBIE_DETECTIONS.inc()
             # Calculate runtime for description
             age = get_hook_age_seconds(hook)
             runtime_str = format_duration(age) if age else "unknown"
