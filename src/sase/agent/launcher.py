@@ -39,6 +39,7 @@ def spawn_agent_subprocess(
     vcs_ref: tuple[str, str] | None = None,
     deferred_workspace: bool = False,
     local_xprompts_file: str | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> AgentLaunchResult:
     """Spawn a detached background agent process.
 
@@ -77,6 +78,8 @@ def spawn_agent_subprocess(
 
     # Build subprocess environment (copy to avoid mutating os.environ)
     subprocess_env = dict(os.environ)
+    if extra_env:
+        subprocess_env.update(extra_env)
     subprocess_env["SASE_AGENT"] = "1"
     subprocess_env["SASE_AGENT_CL_NAME"] = cl_name
     subprocess_env["SASE_AGENT_PROJECT_FILE"] = project_file
@@ -162,7 +165,10 @@ def spawn_agent_subprocess(
     )
 
 
-def launch_agent_from_cwd(query: str) -> AgentLaunchResult:
+def launch_agent_from_cwd(
+    query: str,
+    extra_env: dict[str, str] | None = None,
+) -> AgentLaunchResult:
     """Resolve project context from CWD and launch a background agent.
 
     This is the high-level entry point used by ``sase run --daemon``
@@ -337,4 +343,5 @@ def launch_agent_from_cwd(query: str) -> AgentLaunchResult:
         is_home_mode=is_home_mode,
         vcs_ref=vcs_ref,
         deferred_workspace=has_wait,
+        extra_env=extra_env,
     )

@@ -12,6 +12,8 @@ import subprocess
 import time
 import traceback
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import schedule
@@ -47,6 +49,19 @@ from .state import (
 )
 
 LogCallback = Callable[[str, str | None], None]
+
+
+@dataclass
+class _ChopResult:
+    """Result of running a single chop in a thread."""
+
+    chop_name: str
+    executed: bool  # True if the chop actually ran (not skipped)
+    success: bool
+    update_timestamp: bool  # Whether to update run_every timestamp
+    log_lines: list[str] = field(default_factory=list)
+    error: Exception | None = None
+    agent_pid: int | None = None  # Set for successful agent chop launches
 
 
 class Lumberjack:
@@ -137,8 +152,9 @@ class Lumberjack:
         write_chop_context(ctx, context_file)
 
         now = datetime.now(get_timezone())
-        timestamps_dirty = False
 
+        # Filter eligible chops (run_every + agent dedup checks in main thread)
+        eligible_chops: list[ChopConfig] = []
         for chop in self.config.chops:
             if chop.run_every is not None:
                 last_run = self._chop_timestamps.get(chop.name)
@@ -146,50 +162,36 @@ class Lumberjack:
                     elapsed = (now - last_run).total_seconds()
                     if elapsed < chop.run_every:
                         continue
-            if chop.agent is not None:
-                if self._run_agent_chop(chop) and chop.run_every is not None:
-                    self._chop_timestamps[chop.name] = now
-                    timestamps_dirty = True
+            if chop.agent is not None and not self._is_agent_eligible(chop):
                 continue
-            resolved_timeout = chop.timeout or self.config.chop_timeout
-            try:
-                script = discover_chop_script(
-                    chop.name, self.axe_config.chop_script_dirs
+            eligible_chops.append(chop)
+
+        # Run eligible chops concurrently
+        results: list[_ChopResult] = []
+        with ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(self._run_single_chop, chop, context_file): chop
+                for chop in eligible_chops
+            }
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        # Aggregate results in the main thread
+        timestamps_dirty = False
+        for result in results:
+            for line in result.log_lines:
+                self._log(line)
+            if result.error is not None:
+                self._handle_error(result.chop_name, result.error)
+            if result.executed and result.success:
+                self._metrics.chops_executed += 1
+            if result.update_timestamp:
+                self._chop_timestamps[result.chop_name] = now
+                timestamps_dirty = True
+            if result.agent_pid is not None:
+                self._agent_pids.setdefault(result.chop_name, set()).add(
+                    result.agent_pid
                 )
-                if script is None:
-                    self._handle_error(
-                        chop.name,
-                        RuntimeError(f"Chop script not found: {chop.name}"),
-                    )
-                    continue
-                result = run_chop_script(
-                    script, context_file, timeout=resolved_timeout, env=chop.env
-                )
-                if result.stdout:
-                    for line in result.stdout.strip().splitlines():
-                        if line:
-                            self._log(line)
-                if result.returncode == 0:
-                    self._metrics.chops_executed += 1
-                    if chop.run_every is not None:
-                        self._chop_timestamps[chop.name] = now
-                        timestamps_dirty = True
-                else:
-                    stderr = result.stderr.strip() if result.stderr else ""
-                    self._handle_error(
-                        chop.name,
-                        RuntimeError(
-                            f"exit code {result.returncode}"
-                            + (f": {stderr}" if stderr else "")
-                        ),
-                    )
-            except subprocess.TimeoutExpired:
-                self._handle_error(
-                    chop.name,
-                    RuntimeError(f"timed out after {resolved_timeout}s"),
-                )
-            except Exception as e:
-                self._handle_error(chop.name, e)
 
         if timestamps_dirty:
             write_chop_timestamps(
@@ -208,15 +210,75 @@ class Lumberjack:
         AXE_CYCLES.labels(cycle_type=self.name).inc()
         AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
-    def _run_agent_chop(self, chop: ChopConfig) -> bool:
-        """Launch an agent chop as a background process.
+    def _run_single_chop(self, chop: ChopConfig, context_file: str) -> _ChopResult:
+        """Execute a single chop (runs in a worker thread)."""
+        if chop.agent is not None:
+            return self._launch_agent_chop(chop)
 
-        Returns:
-            True if the agent was launched successfully.
+        resolved_timeout = chop.timeout or self.config.chop_timeout
+        log_lines: list[str] = []
+        try:
+            script = discover_chop_script(chop.name, self.axe_config.chop_script_dirs)
+            if script is None:
+                return _ChopResult(
+                    chop_name=chop.name,
+                    executed=False,
+                    success=False,
+                    update_timestamp=False,
+                    error=RuntimeError(f"Chop script not found: {chop.name}"),
+                )
+            result = run_chop_script(
+                script, context_file, timeout=resolved_timeout, env=chop.env
+            )
+            if result.stdout:
+                for line in result.stdout.strip().splitlines():
+                    if line:
+                        log_lines.append(line)
+            if result.returncode == 0:
+                return _ChopResult(
+                    chop_name=chop.name,
+                    executed=True,
+                    success=True,
+                    update_timestamp=chop.run_every is not None,
+                    log_lines=log_lines,
+                )
+            else:
+                stderr = result.stderr.strip() if result.stderr else ""
+                return _ChopResult(
+                    chop_name=chop.name,
+                    executed=True,
+                    success=False,
+                    update_timestamp=False,
+                    log_lines=log_lines,
+                    error=RuntimeError(
+                        f"exit code {result.returncode}"
+                        + (f": {stderr}" if stderr else "")
+                    ),
+                )
+        except subprocess.TimeoutExpired:
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=False,
+                update_timestamp=False,
+                log_lines=log_lines,
+                error=RuntimeError(f"timed out after {resolved_timeout}s"),
+            )
+        except Exception as e:
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=False,
+                update_timestamp=False,
+                log_lines=log_lines,
+                error=e,
+            )
+
+    def _is_agent_eligible(self, chop: ChopConfig) -> bool:
+        """Check if an agent chop should run (no live instances).
+
+        Must be called from the main thread only.
         """
-        assert chop.agent is not None
-
-        # Clean up dead PIDs from previous launches
         live_pids = self._agent_pids.get(chop.name, set())
         still_alive: set[int] = set()
         for pid in live_pids:
@@ -231,27 +293,38 @@ class Lumberjack:
                 f"Skipping agent chop '{chop.name}': already running (PIDs {still_alive})"
             )
             return False
-        else:
-            self._agent_pids.pop(chop.name, None)
+        self._agent_pids.pop(chop.name, None)
+        return True
 
+    def _launch_agent_chop(self, chop: ChopConfig) -> _ChopResult:
+        """Launch an agent chop as a background process (runs in a worker thread)."""
+        assert chop.agent is not None
         try:
             from sase.agent.launcher import launch_agent_from_cwd
 
-            # Signal the agent runner to auto-dismiss on completion so
-            # recurring run_every agents don't accumulate as "done" entries.
-            if chop.run_every is not None:
-                os.environ["SASE_AGENT_AUTO_DISMISS"] = "1"
-            try:
-                result = launch_agent_from_cwd(chop.agent)
-            finally:
-                os.environ.pop("SASE_AGENT_AUTO_DISMISS", None)
-            self._agent_pids.setdefault(chop.name, set()).add(result.pid)
-            self._log(f"Launched agent chop '{chop.name}' (PID {result.pid})")
-            self._metrics.chops_executed += 1
-            return True
+            # Pass auto-dismiss via extra_env to avoid mutating os.environ
+            # (not thread-safe). This ensures recurring run_every agents
+            # don't accumulate as "done" entries.
+            extra_env = (
+                {"SASE_AGENT_AUTO_DISMISS": "1"} if chop.run_every is not None else None
+            )
+            result = launch_agent_from_cwd(chop.agent, extra_env=extra_env)
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=True,
+                update_timestamp=chop.run_every is not None,
+                log_lines=[f"Launched agent chop '{chop.name}' (PID {result.pid})"],
+                agent_pid=result.pid,
+            )
         except Exception as e:
-            self._handle_error(chop.name, e)
-            return False
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=True,
+                success=False,
+                update_timestamp=False,
+                error=e,
+            )
 
     def _handle_error(self, job_name: str, error: Exception) -> None:
         self._log(f"Error in {job_name}: {error}", style="red")

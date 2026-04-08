@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -259,11 +260,9 @@ def test_agent_chop_skips_when_already_running(
     with patch("os.kill") as mock_kill:
         # os.kill(pid, 0) succeeds → process is alive
         mock_kill.return_value = None
-        with patch("sase.agent.launcher.launch_agent_from_cwd") as mock_launch:
-            result = lumberjack._run_agent_chop(config.chops[0])
+        result = lumberjack._is_agent_eligible(config.chops[0])
 
     assert result is False
-    mock_launch.assert_not_called()
 
 
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
@@ -292,11 +291,14 @@ def test_agent_chop_launches_after_previous_completes(
             "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
         ) as mock_launch,
     ):
-        result = lumberjack._run_agent_chop(config.chops[0])
+        # Verify eligibility check passes after old process exits
+        assert lumberjack._is_agent_eligible(config.chops[0]) is True
+        # Launch the agent chop
+        result = lumberjack._launch_agent_chop(config.chops[0])
 
-    assert result is True
-    mock_launch.assert_called_once_with("some_agent")
-    assert 12345 in lumberjack._agent_pids["my_agent"]
+    assert result.success is True
+    assert result.agent_pid == 12345
+    mock_launch.assert_called_once_with("some_agent", extra_env=None)
 
 
 # --- Status/Metrics Writing Tests ---
@@ -455,3 +457,79 @@ def test_handle_shutdown_sets_running_false(
     assert lumberjack._running is True
     lumberjack._handle_shutdown(15, None)
     assert lumberjack._running is False
+
+
+# --- Concurrency Tests ---
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_chops_run_concurrently(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that chops run concurrently (two 1s chops complete in ~1s, not ~2s)."""
+    config = LumberjackConfig(
+        name="concurrent_test",
+        interval=10,
+        chops=[
+            ChopConfig(name="slow_a", description=""),
+            ChopConfig(name="slow_b", description=""),
+        ],
+    )
+    mock_discover.return_value = Path("/fake/script")
+
+    def slow_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        time.sleep(1.0)
+        return _ok_result()
+
+    mock_run.side_effect = slow_run
+
+    lumberjack = Lumberjack("concurrent_test", config, axe_config)
+    start = time.monotonic()
+    lumberjack._run_tick()
+    elapsed = time.monotonic() - start
+
+    assert mock_run.call_count == 2
+    assert lumberjack._metrics.chops_executed == 2
+    # If sequential, would take ~2s. Concurrent should be ~1s.
+    assert elapsed < 1.8, f"Expected concurrent execution (<1.8s), took {elapsed:.1f}s"
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_one_chop_failure_does_not_block_others(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that one chop failing doesn't prevent others from running."""
+    config = LumberjackConfig(
+        name="isolation_test",
+        interval=10,
+        chops=[
+            ChopConfig(name="failing_chop", description=""),
+            ChopConfig(name="ok_chop", description=""),
+            ChopConfig(name="crashing_chop", description=""),
+        ],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.side_effect = [
+        _fail_result(),
+        _ok_result(),
+        RuntimeError("unexpected crash"),
+    ]
+
+    lumberjack = Lumberjack("isolation_test", config, axe_config)
+    lumberjack._run_tick()
+
+    assert mock_run.call_count == 3
+    assert lumberjack._metrics.chops_executed == 1
+    assert lumberjack._metrics.errors_encountered == 2
