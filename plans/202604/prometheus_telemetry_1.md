@@ -1,6 +1,7 @@
 ---
 status: draft
 create_time: 2026-04-07 22:23:20
+bead_id: sase-d
 ---
 
 # Prometheus Telemetry Integration
