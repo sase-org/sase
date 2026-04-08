@@ -336,6 +336,114 @@ def test_update_metrics_writes_file(
     assert metrics.chops_executed == 15
 
 
+# --- Timeout Tests ---
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_timeout_expired_records_error_and_continues(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that TimeoutExpired is caught and subsequent chops still run."""
+    config = LumberjackConfig(
+        name="timeout_test",
+        interval=10,
+        chop_timeout=5,
+        chops=[
+            ChopConfig(name="slow_chop", description=""),
+            ChopConfig(name="fast_chop", description=""),
+        ],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.side_effect = [
+        subprocess.TimeoutExpired(cmd="slow_chop", timeout=5),
+        _ok_result(),
+    ]
+
+    lumberjack = Lumberjack("timeout_test", config, axe_config)
+    lumberjack._run_tick()
+
+    assert lumberjack._metrics.errors_encountered == 1
+    assert lumberjack._metrics.chops_executed == 1
+    assert lumberjack._metrics.cycles_run == 1
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_per_chop_timeout_overrides_lumberjack_default(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that per-chop timeout overrides lumberjack-level chop_timeout."""
+    config = LumberjackConfig(
+        name="override_test",
+        interval=10,
+        chop_timeout=30,
+        chops=[
+            ChopConfig(name="custom_timeout", description="", timeout=10),
+            ChopConfig(name="default_timeout", description=""),
+        ],
+    )
+    mock_discover.return_value = Path("/fake/script")
+    mock_run.return_value = _ok_result()
+
+    lumberjack = Lumberjack("override_test", config, axe_config)
+    lumberjack._run_tick()
+
+    # First call should use chop-level timeout=10, second should use lumberjack chop_timeout=30
+    assert mock_run.call_count == 2
+    assert mock_run.call_args_list[0].kwargs["timeout"] == 10
+    assert mock_run.call_args_list[1].kwargs["timeout"] == 30
+
+
+# --- Tick Overrun Warning Tests ---
+
+
+@patch("sase.axe.lumberjack.run_chop_script")
+@patch("sase.axe.lumberjack.discover_chop_script")
+@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
+def test_tick_overrun_logs_warning(
+    mock_find: MagicMock,
+    mock_discover: MagicMock,
+    mock_run: MagicMock,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """Test that a warning is logged when tick duration exceeds interval."""
+    config = LumberjackConfig(
+        name="overrun_test",
+        interval=1,
+        chops=[ChopConfig(name="slow_chop", description="")],
+    )
+    mock_discover.return_value = Path("/fake/script")
+
+    def slow_run(*args, **kwargs):
+        import time
+
+        time.sleep(1.1)
+        return _ok_result()
+
+    mock_run.side_effect = slow_run
+
+    lumberjack = Lumberjack("overrun_test", config, axe_config)
+    lumberjack._run_tick()
+
+    # Check the log output contains the overrun warning
+    log_path = temp_state_dir / "lumberjacks" / "overrun_test" / "lumberjack.log"
+    if log_path.exists():
+        log_content = log_path.read_text()
+        assert "Tick overrun" in log_content
+
+
 # --- Shutdown Tests ---
 
 

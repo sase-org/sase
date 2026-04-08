@@ -36,6 +36,7 @@ class ChopConfig:
     description: str
     agent: str | None = None
     run_every: int | None = None  # seconds, parsed from duration string (e.g. "60m")
+    timeout: int | None = None  # seconds, parsed from duration string (e.g. "30s")
     env: dict[str, str] = field(default_factory=dict)
 
 
@@ -45,6 +46,7 @@ class LumberjackConfig:
 
     name: str
     interval: int
+    chop_timeout: int | None = None  # seconds, default timeout for all chops
     chops: list[ChopConfig] = field(default_factory=list)
 
     @property
@@ -83,6 +85,7 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
         for entry in raw_chops:
             if isinstance(entry, dict):
                 run_every = _parse_duration(entry.get("run_every"))
+                timeout = _parse_duration(entry.get("timeout"))
                 raw_env = entry.get("env", {})
                 env = (
                     {str(k): str(v) for k, v in raw_env.items()}
@@ -95,14 +98,17 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
                         description=entry.get("description", ""),
                         agent=entry.get("agent") or entry.get("xprompt"),
                         run_every=run_every,
+                        timeout=timeout,
                         env=env,
                     )
                 )
             elif isinstance(entry, str):
                 chops.append(ChopConfig(name=entry, description=""))
+        chop_timeout = _parse_duration(cfg.get("chop_timeout"))
         result[name] = LumberjackConfig(
             name=name,
             interval=cfg.get("interval", 1),
+            chop_timeout=chop_timeout,
             chops=chops,
         )
     return result

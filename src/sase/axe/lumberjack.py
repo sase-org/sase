@@ -8,6 +8,7 @@ housekeeping).
 
 import os
 import signal
+import subprocess
 import time
 import traceback
 from collections.abc import Callable
@@ -150,6 +151,7 @@ class Lumberjack:
                     self._chop_timestamps[chop.name] = now
                     timestamps_dirty = True
                 continue
+            resolved_timeout = chop.timeout or self.config.chop_timeout
             try:
                 script = discover_chop_script(
                     chop.name, self.axe_config.chop_script_dirs
@@ -160,7 +162,9 @@ class Lumberjack:
                         RuntimeError(f"Chop script not found: {chop.name}"),
                     )
                     continue
-                result = run_chop_script(script, context_file, env=chop.env)
+                result = run_chop_script(
+                    script, context_file, timeout=resolved_timeout, env=chop.env
+                )
                 if result.stdout:
                     for line in result.stdout.strip().splitlines():
                         if line:
@@ -179,6 +183,11 @@ class Lumberjack:
                             + (f": {stderr}" if stderr else "")
                         ),
                     )
+            except subprocess.TimeoutExpired:
+                self._handle_error(
+                    chop.name,
+                    RuntimeError(f"timed out after {resolved_timeout}s"),
+                )
             except Exception as e:
                 self._handle_error(chop.name, e)
 
@@ -187,11 +196,17 @@ class Lumberjack:
                 self.name,
                 {k: v.isoformat() for k, v in self._chop_timestamps.items()},
             )
+
+        tick_duration = time.monotonic() - _tick_start
+        if tick_duration > self.config.interval:
+            self._log(
+                f"Tick overrun: took {tick_duration:.1f}s but interval is {self.config.interval}s",
+                style="yellow",
+            )
+
         self._metrics.cycles_run += 1
         AXE_CYCLES.labels(cycle_type=self.name).inc()
-        AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(
-            time.monotonic() - _tick_start
-        )
+        AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
 
     def _run_agent_chop(self, chop: ChopConfig) -> bool:
         """Launch an agent chop as a background process.

@@ -135,6 +135,44 @@ def test_parse_lumberjacks_string_chops_get_default_run_every() -> None:
     assert result["hooks"].chops[0].run_every is None
 
 
+def test_parse_lumberjacks_chop_timeout() -> None:
+    """Test that chop_timeout is parsed from the lumberjack config."""
+    raw = {
+        "hooks": {
+            "interval": 5,
+            "chop_timeout": "30s",
+            "chops": [{"name": "hook_checks"}],
+        },
+    }
+    result = _parse_lumberjacks(raw)
+    assert result["hooks"].chop_timeout == 30
+
+
+def test_parse_lumberjacks_chop_timeout_defaults_to_none() -> None:
+    """Test that missing chop_timeout defaults to None."""
+    raw = {
+        "hooks": {"interval": 5, "chops": []},
+    }
+    result = _parse_lumberjacks(raw)
+    assert result["hooks"].chop_timeout is None
+
+
+def test_parse_lumberjacks_per_chop_timeout() -> None:
+    """Test that per-chop timeout is parsed from dict chop entries."""
+    raw = {
+        "hooks": {
+            "interval": 5,
+            "chops": [
+                {"name": "slow_chop", "timeout": "10s"},
+                {"name": "fast_chop"},
+            ],
+        },
+    }
+    result = _parse_lumberjacks(raw)
+    assert result["hooks"].chops[0].timeout == 10
+    assert result["hooks"].chops[1].timeout is None
+
+
 def test_load_axe_config_empty_data() -> None:
     """Test loading config with empty data returns AxeConfig defaults."""
     with patch("sase.axe.config.load_merged_config", return_value={}):
