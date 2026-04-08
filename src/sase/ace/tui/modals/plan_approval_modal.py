@@ -22,6 +22,7 @@ class PlanApprovalResult:
     commit_plan: bool = True
     run_coder: bool = True
     coder_prompt: str | None = None
+    coder_model: str | None = None
 
 
 @dataclass
@@ -31,6 +32,7 @@ class PendingApproveState:
     commit_plan: bool
     run_coder: bool
     coder_prompt: str
+    coder_model: str | None = None
 
 
 class PlanApprovalModal(
@@ -108,6 +110,7 @@ class PlanApprovalModal(
                 commit_plan=state.commit_plan,
                 run_coder=state.run_coder,
                 coder_prompt=state.coder_prompt,
+                coder_model=state.coder_model,
             )
 
     def _read_plan_file(self) -> str:
@@ -144,6 +147,7 @@ class PlanApprovalModal(
         commit_plan: bool = True,
         run_coder: bool = True,
         coder_prompt: str = "",
+        coder_model: str | None = None,
     ) -> None:
         """Push the approve-with-options modal with the given initial state."""
         from .approve_options_modal import (
@@ -164,6 +168,7 @@ class PlanApprovalModal(
                         commit_plan=result.commit_plan,
                         run_coder=result.run_coder,
                         coder_prompt=result.coder_prompt,
+                        coder_model=result.coder_model,
                     )
                 )
                 return
@@ -173,6 +178,7 @@ class PlanApprovalModal(
                     commit_plan=result.commit_plan,
                     run_coder=result.run_coder,
                     coder_prompt=result.coder_prompt,
+                    coder_model=result.coder_model,
                 )
             )
 
@@ -181,6 +187,7 @@ class PlanApprovalModal(
                 commit_plan=commit_plan,
                 run_coder=run_coder,
                 coder_prompt=coder_prompt,
+                coder_model=coder_model,
             ),
             on_options_dismiss,
         )

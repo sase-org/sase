@@ -24,6 +24,7 @@ class PlanApprovalResult:
     commit_plan: bool = True
     run_coder: bool = True
     coder_prompt: str | None = None
+    coder_model: str | None = None
 
 
 def add_create_time_frontmatter(
@@ -209,6 +210,12 @@ def handle_plan_approval(
                         if isinstance(raw_prompt, str)
                         else None
                     )
+                    raw_model = response_data.get("coder_model")
+                    coder_model = (
+                        raw_model.strip() or None
+                        if isinstance(raw_model, str)
+                        else None
+                    )
                     # Backward compat: old "commit" action maps to
                     # approve with run_coder=False
                     if action == "commit":
@@ -220,6 +227,7 @@ def handle_plan_approval(
                         commit_plan=commit_plan,
                         run_coder=run_coder,
                         coder_prompt=coder_prompt,
+                        coder_model=coder_model,
                     )
                 # Rejection with feedback: return result so caller
                 # can spawn a replanner agent with the feedback.
