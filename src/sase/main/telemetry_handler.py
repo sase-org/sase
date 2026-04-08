@@ -23,8 +23,10 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     if sub == "snapshot":
-        print("sase telemetry snapshot: not yet implemented (Phase 2)")
-        sys.exit(1)
+        from sase.telemetry.cli_snapshot import handle_telemetry_snapshot
+
+        handle_telemetry_snapshot(args)
+        sys.exit(0)
 
     if sub == "dashboard":
         print("sase telemetry dashboard: not yet implemented (Phase 3)")
