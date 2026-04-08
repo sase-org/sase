@@ -319,7 +319,7 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Filter by subsystem",
     )
 
-    # sase telemetry dashboard (Phase 3 stub)
+    # sase telemetry dashboard
     dashboard_parser = tel_subparsers.add_parser(
         "dashboard", help="Live auto-refreshing TUI dashboard"
     )
@@ -336,6 +336,24 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=["auto", "pushgateway", "exposition"],
         default="auto",
         help="Data source (default: auto)",
+    )
+    dashboard_parser.add_argument(
+        "-c",
+        "--charts",
+        action="store_true",
+        help="Enable charts mode with historical data from Prometheus",
+    )
+    dashboard_parser.add_argument(
+        "-r",
+        "--range",
+        choices=["1h", "6h", "24h", "7d"],
+        default="1h",
+        help="Time range for charts mode (default: 1h)",
+    )
+    dashboard_parser.add_argument(
+        "-s",
+        "--subsystem",
+        help="Focus on a single subsystem (larger charts, more detail)",
     )
 
     # sase telemetry health (Phase 3 stub)

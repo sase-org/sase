@@ -15,6 +15,7 @@ dependencies = [
     "pluggy",
     "prometheus_client",
     "pyyaml",
+    "plotext",
     "rich",
     "schedule",
     "textual[syntax]>=0.45.0",

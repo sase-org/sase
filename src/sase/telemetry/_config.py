@@ -30,6 +30,7 @@ class _TelemetryConfig:
     enabled: bool = False
     exposition_port: int = 9464
     pushgateway_url: str = "localhost:9091"
+    prometheus_url: str = "localhost:9090"
     health_thresholds: HealthThresholds = HealthThresholds()
 
 
@@ -71,5 +72,6 @@ def _load_telemetry_config() -> _TelemetryConfig:
         enabled=bool(section.get("enabled", False)),
         exposition_port=int(prom.get("exposition_port", 9464)),
         pushgateway_url=str(prom.get("pushgateway_url", "localhost:9091")),
+        prometheus_url=str(prom.get("url", "localhost:9090")),
         health_thresholds=ht,
     )

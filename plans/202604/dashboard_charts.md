@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 02:06:26
-status: wip
+status: done
 ---
 
 # Plan: Improve `sase telemetry dashboard` with Historical Charts
