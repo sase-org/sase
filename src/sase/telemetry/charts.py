@@ -5,7 +5,7 @@ Uses ``plotext`` to render terminal charts embedded inside Rich panels.
 
 from __future__ import annotations
 
-import plotext as plt  # type: ignore[import-untyped]
+import plotext as plt  # type: ignore[import-untyped,import-not-found]
 from rich.panel import Panel
 from rich.text import Text
 
