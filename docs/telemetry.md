@@ -172,19 +172,19 @@ cd sase-monitoring && docker compose up -d
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    sase telemetry CLI                     │
-│  status · list · snapshot · dashboard · health · export   │
+│                    sase telemetry CLI                    │
+│  status · list · snapshot · dashboard · health · export  │
 ├──────────────────────────────────────────────────────────┤
-│                       Scrape Client                       │
-│          (fetches from Push Gateway or exposition)        │
+│                       Scrape Client                      │
+│          (fetches from Push Gateway or exposition)       │
 ├─────────────────────┬────────────────────────────────────┤
 │   Push Gateway      │   HTTP Exposition Server           │
 │ (short-lived procs) │   (long-lived: axe daemon)         │
 ├─────────────────────┴────────────────────────────────────┤
-│                  Prometheus Metrics Layer                  │
-│        metrics.py (26 singletons, stub/real switch)       │
+│                 Prometheus Metrics Layer                 │
+│       metrics.py (26 singletons, stub/real switch)       │
 ├──────────────────────────────────────────────────────────┤
-│                   Instrumentation Points                  │
+│                  Instrumentation Points                  │
 │  Agent · LLM · Axe · Hooks · Beads · VCS · Notifications │
 └──────────────────────────────────────────────────────────┘
 ```
