@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 01:40:43
-status: wip
+status: done
 ---
 
 # Fix off-by-one cursor placement in sase-nvim xprompt completion
