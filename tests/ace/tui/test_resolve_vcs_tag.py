@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.actions.agents._interaction import _resolve_vcs_tag
+from sase.ace.tui.actions.agents._wait_resume import _resolve_vcs_tag
 from sase.ace.tui.models.agent import Agent, AgentType
 
 

@@ -6,11 +6,14 @@ from typing import TYPE_CHECKING, Literal
 
 from ._display import AgentDisplayMixin
 from ._folding import AgentFoldingMixin
-from ._interaction import AgentInteractionMixin
+from ._kill_pin import AgentKillPinMixin
 from ._killing import AgentKillingMixin
+from ._ordering import AgentOrderingMixin
+from ._panels import AgentPanelsMixin
 from ._loading import AgentLoadingMixin
 from ._notifications import AgentNotificationMixin
 from ._revive import AgentRevivalMixin
+from ._wait_resume import AgentWaitResumeMixin
 from ._workflow_hitl import AgentWorkflowHITLMixin
 
 if TYPE_CHECKING:
@@ -34,7 +37,10 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 class AgentsMixinCore(
     AgentFoldingMixin,
-    AgentInteractionMixin,
+    AgentKillPinMixin,
+    AgentWaitResumeMixin,
+    AgentPanelsMixin,
+    AgentOrderingMixin,
     AgentWorkflowHITLMixin,
     AgentNotificationMixin,
     AgentKillingMixin,
