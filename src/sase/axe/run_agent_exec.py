@@ -23,6 +23,7 @@ from sase.axe.run_agent_helpers import (
 from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.runner_utils import reset_killed, was_killed
 from sase.history.chat import save_chat_history
+from sase.telemetry.metrics import AGENT_KILLS
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import RetryState, get_retry_config
 
@@ -329,6 +330,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             continue
         else:
             # Killed by user (no marker)
+            AGENT_KILLS.labels(reason="user").inc()
             state.loop_outcome = "killed"
             break
 

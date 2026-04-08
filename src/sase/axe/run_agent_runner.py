@@ -35,6 +35,8 @@ from sase.artifacts import (
     convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
 )
+from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry.metrics import AGENT_ACTIVE, AGENT_RUN_DURATION, AGENT_RUNS
 
 install_sigterm_handler("agent", soft=True)
 
@@ -84,6 +86,10 @@ def main() -> None:
             os.unlink(prompt_file)
         except OSError:
             pass
+
+    # Initialize telemetry and register push-on-exit for this agent process
+    init_telemetry()
+    register_push_on_exit(job="agent_runner", workflow=workflow_name)
 
     start_time = time.time()
     success = False
@@ -198,6 +204,11 @@ def main() -> None:
             agent_hidden = info.hidden
             agent_meta = info.meta
 
+            # Track active agent gauge
+            AGENT_ACTIVE.labels(
+                llm_provider=agent_llm_provider or "", project=project_name
+            ).inc()
+
             # Write running marker for home mode (no workspace tracking available)
             if is_home_mode:
                 running_marker_path = os.path.join(artifacts_dir, "running.json")
@@ -302,6 +313,18 @@ def main() -> None:
         end_time = time.time()
         elapsed_seconds = int(end_time - start_time)
         duration = format_duration(elapsed_seconds)
+
+        # Record Prometheus agent lifecycle metrics
+        _provider = agent_llm_provider or ""
+        AGENT_RUNS.labels(
+            llm_provider=_provider,
+            status="success" if success else "failed",
+            workflow=workflow_name,
+        ).inc()
+        AGENT_RUN_DURATION.labels(
+            llm_provider=_provider, workflow=workflow_name
+        ).observe(end_time - start_time)
+        AGENT_ACTIVE.labels(llm_provider=_provider, project=project_name).dec()
 
         # Record stop time in agent_meta.json for TUI timestamp display
         record_stop_time(artifacts_dir, current_artifacts_dir)

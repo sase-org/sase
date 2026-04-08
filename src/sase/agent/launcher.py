@@ -10,6 +10,8 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
+from sase.telemetry.metrics import AGENT_SPAWNS
+
 
 @dataclass
 class AgentLaunchResult:
@@ -120,6 +122,8 @@ def spawn_agent_subprocess(
             start_new_session=True,
             env=subprocess_env,
         )
+
+    AGENT_SPAWNS.labels(llm_provider="", project=project_name).inc()
 
     # Claim workspace so agent appears in Agents tab while running.
     # For deferred-workspace agents (%wait), claim with workspace_num=0
