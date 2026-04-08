@@ -35,8 +35,13 @@ from sase.artifacts import (
     convert_timestamp_to_artifacts_format,
     create_artifacts_directory,
 )
-from sase.telemetry import init_telemetry, register_push_on_exit
-from sase.telemetry.metrics import AGENT_ACTIVE, AGENT_RUN_DURATION, AGENT_RUNS
+from sase.telemetry import init_telemetry, push_metrics, register_push_on_exit
+from sase.telemetry.metrics import (
+    AGENT_ACTIVE,
+    AGENT_RUN_DURATION,
+    AGENT_RUNS,
+    WORKSPACE_ACTIVE,
+)
 
 install_sigterm_handler("agent", soft=True)
 
@@ -208,6 +213,16 @@ def main() -> None:
             AGENT_ACTIVE.labels(
                 llm_provider=agent_llm_provider or "", project=project_name
             ).inc()
+            # Track active workspace gauge here (not in claim_workspace which
+            # runs in the launcher process where telemetry is not initialized).
+            if not is_home_mode:
+                WORKSPACE_ACTIVE.labels(project=project_name).inc()
+            # Push immediately so the pushgateway reflects the active state
+            # (the atexit push only fires after gauges are decremented to 0).
+            push_metrics(
+                job="agent_runner",
+                grouping_key={"workflow": workflow_name},
+            )
 
             # Write running marker for home mode (no workspace tracking available)
             if is_home_mode:
