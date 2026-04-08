@@ -19,16 +19,6 @@ _initialized: bool = False
 _registry: CollectorRegistry | None = None
 
 
-def is_initialized() -> bool:
-    """Return whether ``init_telemetry()`` has been called."""
-    return _initialized
-
-
-def get_registry() -> CollectorRegistry | None:
-    """Return the dedicated ``CollectorRegistry``, or ``None`` if not enabled."""
-    return _registry
-
-
 def init_telemetry(*, start_http_server: bool = False) -> None:
     """Initialize the telemetry subsystem.
 
@@ -147,23 +137,3 @@ def register_push_on_exit(
 
     atexit.register(_push)
     log.debug("Registered atexit push (job=%s)", job)
-
-
-def reset_registry() -> None:
-    """Reset internal state (for testing only)."""
-    global _initialized, _registry
-    _initialized = False
-    _registry = None
-
-    # Restore metric singletons to stubs
-    from sase.telemetry._stubs import StubCounter, StubGauge, StubHistogram
-    from sase.telemetry import metrics as m
-    from sase.telemetry.metrics import METRIC_DEFS
-
-    stub_factory = {
-        "counter": StubCounter,
-        "gauge": StubGauge,
-        "histogram": StubHistogram,
-    }
-    for attr, kind, *_ in METRIC_DEFS:
-        setattr(m, attr, stub_factory[kind]())

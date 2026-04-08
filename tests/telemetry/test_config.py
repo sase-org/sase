@@ -2,11 +2,8 @@
 
 from unittest.mock import patch
 
-from sase.telemetry._config import (
-    TelemetryConfig,
-    get_telemetry_config,
-    reset_telemetry_config,
-)
+from sase.telemetry._config import _TelemetryConfig, get_telemetry_config
+from tests.telemetry.conftest import reset_telemetry_config
 
 
 def setup_function() -> None:
@@ -18,14 +15,14 @@ def teardown_function() -> None:
 
 
 def test_default_config_values() -> None:
-    cfg = TelemetryConfig()
+    cfg = _TelemetryConfig()
     assert cfg.enabled is False
     assert cfg.exposition_port == 9464
     assert cfg.pushgateway_url == "localhost:9091"
 
 
 def test_config_is_frozen() -> None:
-    cfg = TelemetryConfig()
+    cfg = _TelemetryConfig()
     try:
         cfg.enabled = True  # type: ignore[misc]
         raise AssertionError("Expected FrozenInstanceError")

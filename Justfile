@@ -31,12 +31,7 @@ lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
     {{ venv_bin }}/python tools/pyscripts-260314
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260225 src/sase \
-        --epic-symbol 'sase-d(TelemetryConfig)' \
-        --epic-symbol 'sase-d(get_registry)' \
-        --epic-symbol 'sase-d(is_initialized)' \
-        --epic-symbol 'sase-d(reset_registry)' \
-        --epic-symbol 'sase-d(reset_telemetry_config)'
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260225 src/sase
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted

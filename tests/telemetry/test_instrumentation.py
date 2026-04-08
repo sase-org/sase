@@ -12,22 +12,23 @@ from unittest.mock import patch
 import pytest
 from prometheus_client import CollectorRegistry
 
-from sase.telemetry._config import TelemetryConfig, reset_telemetry_config
-from sase.telemetry._registry import (
-    get_registry,
-    init_telemetry,
-    reset_registry,
-)
+from sase.telemetry._config import _TelemetryConfig
+from sase.telemetry._registry import init_telemetry
 from sase.telemetry._stubs import StubCounter
 from sase.telemetry import metrics as m
+from tests.telemetry.conftest import (
+    get_registry,
+    reset_registry,
+    reset_telemetry_config,
+)
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_ENABLED_CFG = TelemetryConfig(enabled=True)
-_DISABLED_CFG = TelemetryConfig(enabled=False)
+_ENABLED_CFG = _TelemetryConfig(enabled=True)
+_DISABLED_CFG = _TelemetryConfig(enabled=False)
 
 
 @pytest.fixture(autouse=True)
