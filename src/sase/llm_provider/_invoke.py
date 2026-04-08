@@ -7,11 +7,17 @@ layer that delegates the actual LLM call to a pluggable provider.
 
 import os
 import subprocess
+import time
 from typing import Any, Literal, cast
 
 from sase.core.time import generate_timestamp
 from langchain_core.messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
+from sase.telemetry.metrics import (
+    LLM_ERRORS,
+    LLM_INVOCATION_DURATION,
+    LLM_INVOCATIONS,
+)
 
 from .postprocessing import (
     postprocess_error,
@@ -20,7 +26,7 @@ from .postprocessing import (
 )
 from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
-from .registry import get_provider, resolve_model_provider
+from .registry import get_default_provider_name, get_provider, resolve_model_provider
 from .types import (
     LLMInvocationError,
     _MODEL_SIZE_TO_TIER,
@@ -167,6 +173,8 @@ def invoke_agent(
         )
 
     # 7. Get provider and invoke
+    provider_label = provider_name or get_default_provider_name()
+    t0 = time.monotonic()
     try:
         provider = get_provider(provider_name)
         response_content = provider.invoke(
@@ -175,6 +183,11 @@ def invoke_agent(
             suppress_output=suppress_output,
             model_override=model_override,
         )
+
+        # Record success metrics
+        elapsed = time.monotonic() - t0
+        LLM_INVOCATIONS.labels(provider=provider_label, status="ok").inc()
+        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
 
         # 8. Postprocess success
         postprocess_success(
@@ -188,6 +201,13 @@ def invoke_agent(
         return AIMessage(content=response_content)
 
     except subprocess.CalledProcessError as e:
+        elapsed = time.monotonic() - t0
+        LLM_INVOCATIONS.labels(provider=provider_label, status="error").inc()
+        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
+        LLM_ERRORS.labels(
+            provider=provider_label, error_type="CalledProcessError"
+        ).inc()
+
         parts = [f"Error running LLM provider command (exit code {e.returncode})"]
         if e.stderr:
             parts.append(f"stderr: {e.stderr.strip()}")
@@ -209,6 +229,11 @@ def invoke_agent(
         raise
 
     except Exception as e:
+        elapsed = time.monotonic() - t0
+        LLM_INVOCATIONS.labels(provider=provider_label, status="error").inc()
+        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
+        LLM_ERRORS.labels(provider=provider_label, error_type=type(e).__name__).inc()
+
         error_content = f"Error: {str(e)}"
 
         postprocess_error(

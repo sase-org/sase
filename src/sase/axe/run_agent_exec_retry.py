@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from sase.axe.runner_utils import prepare_workspace, was_killed
+from sase.telemetry.metrics import LLM_RETRIES
 from sase.llm_provider.retry_config import (
     ProviderRetryConfig,
     RetryState,
@@ -65,6 +66,7 @@ def handle_workflow_error(
     if tracker.retry_count < active_retry_cfg.max_retries:
         # Retry with wait
         tracker.retry_count += 1
+        LLM_RETRIES.labels(provider=ctx.agent_llm_provider or "unknown").inc()
         wait_time = get_wait_time(tracker.retry_count, active_retry_cfg)
         RetryState(
             status="retrying",
