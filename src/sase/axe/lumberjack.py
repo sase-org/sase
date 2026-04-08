@@ -18,6 +18,8 @@ from rich.console import Console
 
 from sase.ace.query import QueryExpr, parse_query
 from sase.core.time import get_timezone
+from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry.metrics import AXE_CYCLE_DURATION, AXE_CYCLES, AXE_ERRORS
 
 from .check_cycles import CheckCycleRunner
 from .chop_script_context import (
@@ -104,6 +106,7 @@ class Lumberjack:
 
     def _run_tick(self) -> None:
         """Execute one tick: refresh changespecs, serialize context, invoke chop scripts."""
+        _tick_start = time.monotonic()
         all_changespecs = self._check_runner.get_all_changespecs()
         filtered_changespecs = self._check_runner.get_filtered_changespecs(
             all_changespecs
@@ -185,6 +188,10 @@ class Lumberjack:
                 {k: v.isoformat() for k, v in self._chop_timestamps.items()},
             )
         self._metrics.cycles_run += 1
+        AXE_CYCLES.labels(cycle_type=self.name).inc()
+        AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(
+            time.monotonic() - _tick_start
+        )
 
     def _run_agent_chop(self, chop: ChopConfig) -> bool:
         """Launch an agent chop as a background process.
@@ -234,6 +241,7 @@ class Lumberjack:
     def _handle_error(self, job_name: str, error: Exception) -> None:
         self._log(f"Error in {job_name}: {error}", style="red")
         self._metrics.errors_encountered += 1
+        AXE_ERRORS.labels(error_type="chop").inc()
         error_info = {
             "timestamp": get_timestamp(),
             "lumberjack": self.name,
@@ -275,6 +283,10 @@ class Lumberjack:
         """
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         write_lumberjack_pid(self.name)
+
+        # Initialize telemetry and push metrics on exit
+        init_telemetry()
+        register_push_on_exit(job="lumberjack", lumberjack=self.name)
 
         # Schedule the tick at the configured interval
         self.scheduler.every(self.config.interval).seconds.do(self._run_tick)

@@ -14,6 +14,13 @@ import sys
 import time
 from pathlib import Path
 
+from sase.telemetry import init_telemetry
+from sase.telemetry.metrics import (
+    AXE_ERRORS,
+    AXE_LUMBERJACK_RESTARTS,
+    AXE_LUMBERJACKS_ACTIVE,
+)
+
 from .config import AxeConfig
 from .state import AXE_STATE_DIR
 
@@ -152,16 +159,24 @@ class Orchestrator:
         self._kill_existing_orchestrator()
         self._write_pid()
 
+        # Initialize telemetry with HTTP exposition server for Prometheus scraping
+        init_telemetry(start_http_server=True)
+
         # Spawn all lumberjacks
         for name in self.config.lumberjacks:
             try:
                 proc = self._spawn_lumberjack(name)
                 self._children[name] = proc
             except (FileNotFoundError, OSError) as e:
+                AXE_ERRORS.labels(error_type="spawn").inc()
                 print(f"Failed to spawn lumberjack '{name}': {e}", file=sys.stderr)
 
         try:
             while self._running:
+                # Update active lumberjack gauge
+                active = sum(1 for p in self._children.values() if p.poll() is None)
+                AXE_LUMBERJACKS_ACTIVE.set(active)
+
                 # Check children and restart any that exited unexpectedly
                 for name, proc in list(self._children.items()):
                     ret = proc.poll()
@@ -174,7 +189,9 @@ class Orchestrator:
                         try:
                             new_proc = self._spawn_lumberjack(name)
                             self._children[name] = new_proc
+                            AXE_LUMBERJACK_RESTARTS.inc()
                         except (FileNotFoundError, OSError) as e:
+                            AXE_ERRORS.labels(error_type="spawn").inc()
                             print(
                                 f"Failed to restart lumberjack '{name}': {e}",
                                 file=sys.stderr,
