@@ -31,3 +31,4 @@ class ApprovePromptContext:
     commit_plan: bool
     run_coder: bool
     current_prompt: str
+    coder_model: str | None = None

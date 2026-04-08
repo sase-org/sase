@@ -234,7 +234,7 @@ ApproveOptionsModal {
 #approve-options-container {
     width: 70;
     height: auto;
-    max-height: 20;
+    max-height: 24;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -283,7 +283,99 @@ ApproveOptionsModal {
     color: $text-disabled;
 }
 
+.approve-options-model-label {
+    height: auto;
+    margin-top: 1;
+}
+
+.approve-options-model-label.disabled {
+    color: $text-disabled;
+}
+
+#coder-model-display {
+    margin-bottom: 1;
+    color: $text-muted;
+}
+
+#coder-model-display.disabled {
+    color: $text-disabled;
+}
+
 #approve-options-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+
+/* Model Picker Modal styling */
+ModelPickerModal {
+    align: center middle;
+}
+
+#model-picker-container {
+    width: 42;
+    height: auto;
+    max-height: 24;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#model-picker-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#model-picker-list {
+    height: auto;
+    max-height: 16;
+}
+
+#model-picker-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+
+/* Custom Model Input Modal styling */
+CustomModelInputModal {
+    align: center middle;
+}
+
+#custom-model-container {
+    width: 42;
+    height: auto;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#custom-model-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#custom-model-hint {
+    color: $text-muted;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#custom-model-input {
+    margin-bottom: 1;
+}
+
+#custom-model-footer {
     text-align: center;
     color: $text-muted;
     height: auto;

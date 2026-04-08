@@ -35,6 +35,8 @@ from .approve_options_modal import (
     ApproveOptionsModal,
     ApproveOptionsResult,
 )
+from .custom_model_input_modal import CustomModelInputModal
+from .model_picker_modal import ModelPickerModal
 from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
 from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
@@ -79,6 +81,7 @@ __all__ = [
     "CommandHistoryModal",
     "ConfirmActionModal",
     "CommandInputModal",
+    "CustomModelInputModal",
     "ConfirmDeleteModal",
     "ConfirmDismissAllModal",
     "ConfirmKillModal",
@@ -89,6 +92,7 @@ __all__ = [
     "HookHistoryResult",
     "JumpAllModal",
     "JumpAllResult",
+    "ModelPickerModal",
     "NotificationModal",
     "ParentSelectModal",
     "PlanApprovalModal",

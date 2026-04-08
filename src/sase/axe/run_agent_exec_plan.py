@@ -297,7 +297,14 @@ def handle_plan_marker(
         state.current_artifacts_dir, ctx.vcs_tag
     )
 
-    model_prefix = f"%model:{ctx.agent_model}\n" if ctx.agent_model else ""
+    # Use coder_model override from plan approval if provided,
+    # otherwise inherit the planner's model.
+    if plan_result.coder_model:
+        model_prefix = f"%model:{plan_result.coder_model}\n"
+    elif ctx.agent_model:
+        model_prefix = f"%model:{ctx.agent_model}\n"
+    else:
+        model_prefix = ""
 
     if plan_result.action == "epic":
         # Ensure beads are initialized before spawning epic agent

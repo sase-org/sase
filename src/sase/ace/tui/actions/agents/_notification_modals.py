@@ -260,6 +260,7 @@ def handle_plan_approval(
                 commit_plan=result.commit_plan,
                 run_coder=result.run_coder,
                 current_prompt=result.coder_prompt or "",
+                coder_model=result.coder_model,
             )
             app.mount(  # type: ignore[attr-defined]
                 PromptInputBar(
@@ -305,6 +306,8 @@ def handle_plan_approval(
         response_data["run_coder"] = result.run_coder
         if result.coder_prompt is not None:
             response_data["coder_prompt"] = result.coder_prompt
+        if result.coder_model is not None:
+            response_data["coder_model"] = result.coder_model
 
         # On approval, save plan to workspace .sase/plans/ directory
         if result.action in ("approve", "epic") and notification.files:
