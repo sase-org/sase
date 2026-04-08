@@ -8,7 +8,7 @@ from sase.output import gemini_timer
 
 from ._subprocess import stream_and_parse_codex_json_output
 from .base import LLMProvider
-from .types import ModelTier
+from .types import InvokeResult, ModelTier
 
 # Map model tiers to Codex model names
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -53,7 +53,7 @@ class CodexProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
-    ) -> str:
+    ) -> InvokeResult:
         """Invoke Codex CLI with the given prompt.
 
         Args:
@@ -64,7 +64,7 @@ class CodexProvider(LLMProvider):
                 mapping from ``model_tier``.
 
         Returns:
-            The response text from Codex.
+            An ``InvokeResult`` with the response text (usage is ``None``).
 
         Raises:
             subprocess.CalledProcessError: If the Codex CLI process fails.
@@ -146,7 +146,7 @@ class CodexProvider(LLMProvider):
             accumulated_response = (
                 accumulated_response + "\n\n" + response_content.strip()
             ).strip()
-            return accumulated_response
+            return InvokeResult(content=accumulated_response)
 
     # ------------------------------------------------------------------
     # Subprocess runner

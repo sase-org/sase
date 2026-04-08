@@ -124,6 +124,19 @@ def _assess_health(
             _SubsystemHealth("LLM", llm_status, f"error rate {llm_err_rate:.1f}%")
         )
 
+    # --- LLM Tokens (informational) ---
+    input_tokens = _sum_by_base(samples, "sase_llm_input_tokens")
+    output_tokens = _sum_by_base(samples, "sase_llm_output_tokens")
+    total_tokens = input_tokens + output_tokens
+    if total_tokens > 0:
+        results.append(
+            _SubsystemHealth(
+                "LLM Tokens",
+                OK,
+                f"{input_tokens:g} in / {output_tokens:g} out",
+            )
+        )
+
     # --- Axe Orchestrator ---
     axe_errors = _sum_by_base(samples, "sase_axe_errors")
     axe_status = OK if axe_errors == 0 else (CRITICAL if axe_errors >= 5 else WARN)

@@ -49,6 +49,17 @@ def _open_live_reply_timestamps_file() -> IO[str] | None:
     return open(path, "w", encoding="utf-8")
 
 
+def _write_usage_artifact(usage_totals: dict[str, int]) -> None:
+    """Write usage.json to the artifacts directory if SASE_ARTIFACTS_DIR is set."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    path = os.path.join(artifacts_dir, "usage.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(usage_totals, f, indent=2)
+        f.write("\n")
+
+
 def stream_process_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
@@ -172,7 +183,7 @@ def stream_process_output(
 def stream_and_parse_json_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
-) -> tuple[str, str, int]:
+) -> tuple[str, str, int, dict[str, int]]:
     """Stream stdout as JSON events and extract assistant text.
 
     Reads ``--output-format stream-json`` output from Claude Code,
@@ -184,11 +195,17 @@ def stream_and_parse_json_output(
         suppress_output: If True, don't print output to console.
 
     Returns:
-        Tuple of (assistant_text, stderr_content, return_code).
+        Tuple of (assistant_text, stderr_content, return_code, usage_totals).
     """
     assistant_texts: list[str] = []
     error_events: list[str] = []
     stderr_lines: list[str] = []
+    usage_totals: dict[str, int] = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
     live_reply_file = _open_live_reply_file()
     timestamps_file = _open_live_reply_timestamps_file()
 
@@ -221,6 +238,7 @@ def stream_and_parse_json_output(
                         error_events,
                         live_reply_file,
                         timestamps_file,
+                        usage_totals,
                     )
 
             if process.stderr and process.stderr in ready:
@@ -257,6 +275,8 @@ def stream_and_parse_json_output(
     combined_text = "\n\n".join(assistant_texts)
     stderr_content = "".join(stderr_lines)
 
+    _write_usage_artifact(usage_totals)
+
     # If process failed, append any captured error/result events to stderr
     # so the caller has full diagnostic context
     if return_code != 0 and error_events:
@@ -266,7 +286,7 @@ def stream_and_parse_json_output(
         else:
             stderr_content = error_info
 
-    return combined_text, stderr_content, return_code
+    return combined_text, stderr_content, return_code, usage_totals
 
 
 def _open_codex_thinking_file() -> IO[str] | None:
@@ -570,11 +590,15 @@ def _process_json_line(
     error_events: list[str] | None = None,
     live_reply_file: IO[str] | None = None,
     timestamps_file: IO[str] | None = None,
+    usage_totals: dict[str, int] | None = None,
 ) -> None:
     """Parse a single JSON line and extract assistant text if present.
 
     Also captures ``error`` and ``result`` events into *error_events* (when
     provided) so callers have diagnostic context when the process fails.
+
+    When *usage_totals* is provided, accumulates token usage from ``result``
+    events into the dict.
     """
     line = line.strip()
     if not line:
@@ -608,10 +632,17 @@ def _process_json_line(
                 assistant_texts.append(text)
                 if not suppress_output:
                     print(text, flush=True)
-    elif event_type in ("error", "result") and error_events is not None:
-        # Extract the most useful diagnostic string from the event
-        detail = event.get("error") or event.get("message") or event.get("result", "")
-        if isinstance(detail, dict):
-            detail = detail.get("message", json.dumps(detail))
-        if detail:
-            error_events.append(f"[{event_type}] {detail}")
+    elif event_type in ("error", "result"):
+        if error_events is not None:
+            detail = (
+                event.get("error") or event.get("message") or event.get("result", "")
+            )
+            if isinstance(detail, dict):
+                detail = detail.get("message", json.dumps(detail))
+            if detail:
+                error_events.append(f"[{event_type}] {detail}")
+        if event_type == "result" and usage_totals is not None:
+            usage = event.get("usage")
+            if isinstance(usage, dict):
+                for key in usage_totals:
+                    usage_totals[key] += usage.get(key, 0)

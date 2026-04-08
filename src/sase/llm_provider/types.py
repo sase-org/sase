@@ -22,6 +22,14 @@ _MODEL_SIZE_TO_TIER: dict[str, ModelTier] = {"big": "large", "little": "small"}
 _MODEL_TIER_TO_LABEL: dict[ModelTier, str] = {"large": "BIG", "small": "LITTLE"}
 
 
+@dataclass(frozen=True)
+class InvokeResult:
+    """Result from an LLM provider invocation."""
+
+    content: str
+    usage: dict[str, int] | None = None
+
+
 @dataclass
 class LoggingContext:
     """Context for logging prompts and responses."""

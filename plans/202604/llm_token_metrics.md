@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 00:28:32
-status: wip
+status: done
 ---
 
 # Plan: LLM Token & Cost Metrics (Claude Code)

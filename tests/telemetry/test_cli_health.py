@@ -128,6 +128,31 @@ def test_health_beads_ok() -> None:
     assert beads[0].status == OK
 
 
+def test_health_llm_tokens_informational() -> None:
+    """LLM token usage appears as an informational OK entry."""
+    samples = [
+        MetricSample("sase_llm_invocations_total", {}, 10.0, "counter"),
+        MetricSample("sase_llm_input_tokens_total", {}, 5000.0, "counter"),
+        MetricSample("sase_llm_output_tokens_total", {}, 2000.0, "counter"),
+    ]
+    results = _assess_health(samples, _DEFAULT_THRESHOLDS)
+    tokens = [r for r in results if r.name == "LLM Tokens"]
+    assert len(tokens) == 1
+    assert tokens[0].status == OK
+    assert "5000" in tokens[0].detail
+    assert "2000" in tokens[0].detail
+
+
+def test_health_llm_tokens_absent_when_zero() -> None:
+    """No LLM Tokens entry when no token metrics exist."""
+    samples = [
+        MetricSample("sase_llm_invocations_total", {}, 10.0, "counter"),
+    ]
+    results = _assess_health(samples, _DEFAULT_THRESHOLDS)
+    tokens = [r for r in results if r.name == "LLM Tokens"]
+    assert tokens == []
+
+
 def test_health_empty_samples() -> None:
     """No samples -> no results."""
     results = _assess_health([], _DEFAULT_THRESHOLDS)

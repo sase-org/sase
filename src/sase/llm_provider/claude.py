@@ -9,7 +9,7 @@ from sase.output import gemini_timer
 
 from ._subprocess import stream_and_parse_json_output
 from .base import LLMProvider
-from .types import ModelTier
+from .types import InvokeResult, ModelTier
 
 # Map model tiers to Claude CLI aliases
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -54,7 +54,7 @@ class ClaudeCodeProvider(LLMProvider):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
-    ) -> str:
+    ) -> InvokeResult:
         """Invoke Claude Code CLI with the given prompt.
 
         Args:
@@ -65,7 +65,7 @@ class ClaudeCodeProvider(LLMProvider):
                 mapping from ``model_tier``.
 
         Returns:
-            The response text from Claude.
+            An ``InvokeResult`` with the response text and token usage.
 
         Raises:
             subprocess.CalledProcessError: If the Claude CLI process fails.
@@ -89,6 +89,12 @@ class ClaudeCodeProvider(LLMProvider):
 
         current_prompt = prompt
         response_content = ""
+        total_usage: dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        }
         cycle = 0
 
         while True:
@@ -112,14 +118,17 @@ class ClaudeCodeProvider(LLMProvider):
 
             if timer_context:
                 with timer_context:
-                    content, stderr_content, return_code = self._run_subprocess(
+                    content, stderr_content, return_code, usage = self._run_subprocess(
                         base_args, current_prompt, suppress_output
                     )
                     print()
             else:
-                content, stderr_content, return_code = self._run_subprocess(
+                content, stderr_content, return_code, usage = self._run_subprocess(
                     base_args, current_prompt, suppress_output
                 )
+
+            for key in total_usage:
+                total_usage[key] += usage.get(key, 0)
 
             # Check for user interrupt before checking return code.
             # When interrupted, the monitor thread terminates the process
@@ -143,14 +152,14 @@ class ClaudeCodeProvider(LLMProvider):
                 )
 
             response_content = response_content.strip() + "\n\n" + content.strip()
-            return response_content.strip()
+            return InvokeResult(content=response_content.strip(), usage=total_usage)
 
     def _run_subprocess(
         self,
         args: list[str],
         prompt: str,
         suppress_output: bool,
-    ) -> tuple[str, str, int]:
+    ) -> tuple[str, str, int, dict[str, int]]:
         """Run the Claude CLI subprocess.
 
         Args:
@@ -159,7 +168,7 @@ class ClaudeCodeProvider(LLMProvider):
             suppress_output: If True, suppress output.
 
         Returns:
-            Tuple of (stdout_content, stderr_content, return_code).
+            Tuple of (stdout_content, stderr_content, return_code, usage_totals).
         """
         process = subprocess.Popen(
             args,

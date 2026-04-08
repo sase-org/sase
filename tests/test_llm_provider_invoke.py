@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.llm_provider._invoke import invoke_agent
-from sase.llm_provider.types import LLMInvocationError
+from sase.llm_provider.types import InvokeResult, LLMInvocationError
 from sase.llm_provider.preprocessing import _PreprocessResult
 
 
@@ -47,7 +47,7 @@ def test_invoke_agent_model_size_backward_compat(
     """Test invoke_agent with deprecated model_size parameter."""
     mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
     mock_provider = MagicMock()
-    mock_provider.invoke.return_value = "response"
+    mock_provider.invoke.return_value = InvokeResult(content="response")
     mock_get_provider.return_value = mock_provider
 
     invoke_agent(
@@ -77,7 +77,7 @@ def test_invoke_agent_model_tier_override_env(
     """Test that SASE_MODEL_TIER_OVERRIDE env var overrides model_tier."""
     mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
     mock_provider = MagicMock()
-    mock_provider.invoke.return_value = "response"
+    mock_provider.invoke.return_value = InvokeResult(content="response")
     mock_get_provider.return_value = mock_provider
 
     os.environ["SASE_MODEL_TIER_OVERRIDE"] = "small"
@@ -110,7 +110,7 @@ def test_invoke_agent_model_size_override_env_compat(
     """Test that SASE_MODEL_SIZE_OVERRIDE env var still works."""
     mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
     mock_provider = MagicMock()
-    mock_provider.invoke.return_value = "response"
+    mock_provider.invoke.return_value = InvokeResult(content="response")
     mock_get_provider.return_value = mock_provider
 
     os.environ["SASE_MODEL_SIZE_OVERRIDE"] = "little"

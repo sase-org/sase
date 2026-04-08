@@ -29,6 +29,9 @@ LLM_INVOCATIONS: StubCounter = StubCounter()
 LLM_INVOCATION_DURATION: StubHistogram = StubHistogram()
 LLM_ERRORS: StubCounter = StubCounter()
 LLM_RETRIES: StubCounter = StubCounter()
+LLM_INPUT_TOKENS: StubCounter = StubCounter()
+LLM_OUTPUT_TOKENS: StubCounter = StubCounter()
+LLM_CACHE_READ_TOKENS: StubCounter = StubCounter()
 
 # ---------------------------------------------------------------------------
 # Axe Orchestrator
@@ -149,6 +152,30 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "counter",
         "sase_llm_retries_total",
         "Total LLM retries",
+        ["provider"],
+        {},
+    ),
+    (
+        "LLM_INPUT_TOKENS",
+        "counter",
+        "sase_llm_input_tokens_total",
+        "Total LLM input tokens",
+        ["provider"],
+        {},
+    ),
+    (
+        "LLM_OUTPUT_TOKENS",
+        "counter",
+        "sase_llm_output_tokens_total",
+        "Total LLM output tokens",
+        ["provider"],
+        {},
+    ),
+    (
+        "LLM_CACHE_READ_TOKENS",
+        "counter",
+        "sase_llm_cache_read_tokens_total",
+        "Total LLM cache read tokens",
         ["provider"],
         {},
     ),

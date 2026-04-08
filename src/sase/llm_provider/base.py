@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from .types import ModelTier
+from .types import InvokeResult, ModelTier
 
 
 class LLMProvider(ABC):
@@ -21,8 +21,8 @@ class LLMProvider(ABC):
         model_tier: ModelTier,
         suppress_output: bool = False,
         model_override: str | None = None,
-    ) -> str:
-        """Send a preprocessed prompt to the LLM and return the response text.
+    ) -> InvokeResult:
+        """Send a preprocessed prompt to the LLM and return the response.
 
         Args:
             prompt: The preprocessed prompt to send.
@@ -32,7 +32,7 @@ class LLMProvider(ABC):
                 mapping from ``model_tier``.
 
         Returns:
-            The raw response text from the LLM.
+            An ``InvokeResult`` with the response text and optional usage data.
 
         Raises:
             subprocess.CalledProcessError: If the underlying process fails.

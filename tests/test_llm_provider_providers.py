@@ -11,7 +11,7 @@ from sase.llm_provider._subprocess import stream_process_output
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.gemini import GeminiProvider
-from sase.llm_provider.types import ModelTier
+from sase.llm_provider.types import InvokeResult, ModelTier
 
 
 # --- gemini.py / subprocess tests ---
@@ -91,7 +91,17 @@ def test_claude_provider_extra_args_from_env_small(
     """Test that SASE_CLAUDE_SMALL_ARGS env var is parsed into command."""
     mock_process = MagicMock()
     mock_popen.return_value = mock_process
-    mock_stream.return_value = ("response", "", 0)
+    mock_stream.return_value = (
+        "response",
+        "",
+        0,
+        {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        },
+    )
 
     provider = ClaudeCodeProvider()
     provider.invoke("test", model_tier="small", suppress_output=True)
@@ -113,8 +123,8 @@ def test_base_provider_resolve_model_name_returns_unknown() -> None:
             model_tier: ModelTier,
             suppress_output: bool = False,
             model_override: str | None = None,
-        ) -> str:
-            return ""
+        ) -> InvokeResult:
+            return InvokeResult(content="")
 
     provider = MinimalProvider()
     assert provider.resolve_model_name() == "unknown"
@@ -178,7 +188,17 @@ def test_claude_provider_raises_on_failure(
     """Test that ClaudeCodeProvider raises CalledProcessError on non-zero exit."""
     mock_process = MagicMock()
     mock_popen.return_value = mock_process
-    mock_stream.return_value = ("", "some error", 1)
+    mock_stream.return_value = (
+        "",
+        "some error",
+        1,
+        {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        },
+    )
 
     provider = ClaudeCodeProvider()
     with pytest.raises(subprocess.CalledProcessError) as exc_info:

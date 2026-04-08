@@ -14,9 +14,12 @@ from sase.core.time import generate_timestamp
 from langchain_core.messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
+    LLM_CACHE_READ_TOKENS,
     LLM_ERRORS,
+    LLM_INPUT_TOKENS,
     LLM_INVOCATION_DURATION,
     LLM_INVOCATIONS,
+    LLM_OUTPUT_TOKENS,
 )
 
 from .postprocessing import (
@@ -177,17 +180,28 @@ def invoke_agent(
     t0 = time.monotonic()
     try:
         provider = get_provider(provider_name)
-        response_content = provider.invoke(
+        invoke_result = provider.invoke(
             query,
             model_tier=model_tier,
             suppress_output=suppress_output,
             model_override=model_override,
         )
+        response_content = invoke_result.content
 
         # Record success metrics
         elapsed = time.monotonic() - t0
         LLM_INVOCATIONS.labels(provider=provider_label, status="ok").inc()
         LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
+        if invoke_result.usage:
+            LLM_INPUT_TOKENS.labels(provider=provider_label).inc(
+                invoke_result.usage.get("input_tokens", 0)
+            )
+            LLM_OUTPUT_TOKENS.labels(provider=provider_label).inc(
+                invoke_result.usage.get("output_tokens", 0)
+            )
+            LLM_CACHE_READ_TOKENS.labels(provider=provider_label).inc(
+                invoke_result.usage.get("cache_read_input_tokens", 0)
+            )
 
         # 8. Postprocess success
         postprocess_success(

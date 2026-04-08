@@ -11,7 +11,7 @@ from sase.output import gemini_timer
 
 from ._subprocess import stream_process_output
 from .base import LLMProvider
-from .types import ModelTier
+from .types import InvokeResult, ModelTier
 
 _DEFAULT_MODEL = "gemini-3-flash-preview"
 
@@ -56,7 +56,7 @@ class GeminiProvider(LLMProvider):
         model_tier: ModelTier,  # noqa: ARG002
         suppress_output: bool = False,
         model_override: str | None = None,
-    ) -> str:
+    ) -> InvokeResult:
         """Invoke Gemini CLI with the given prompt.
 
         Args:
@@ -66,7 +66,7 @@ class GeminiProvider(LLMProvider):
             model_override: If set, use this model instead of the default.
 
         Returns:
-            The response text from Gemini.
+            An ``InvokeResult`` with the response text (usage is ``None``).
 
         Raises:
             subprocess.CalledProcessError: If the Gemini CLI process fails.
@@ -123,7 +123,9 @@ class GeminiProvider(LLMProvider):
                     stderr=stderr_content,
                 )
 
-            return (accumulated_response + response_content).strip()
+            return InvokeResult(
+                content=(accumulated_response + response_content).strip()
+            )
 
     # ------------------------------------------------------------------
     # Subprocess runner
