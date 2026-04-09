@@ -33,6 +33,8 @@ def test_git_sync_workspace_default_branch_fallback(mock_run: MagicMock) -> None
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),  # fetch succeeds
         MagicMock(returncode=1, stdout="", stderr=""),  # symbolic-ref fails
+        MagicMock(returncode=1, stdout="", stderr=""),  # show-ref master fails
+        MagicMock(returncode=1, stdout="", stderr=""),  # show-ref main fails
         MagicMock(returncode=0, stdout="", stderr=""),  # rebase succeeds
     ]
 
@@ -42,7 +44,7 @@ def test_git_sync_workspace_default_branch_fallback(mock_run: MagicMock) -> None
     assert success is True
     assert error is None
     # Should default to "main"
-    assert mock_run.call_args_list[2][0][0] == ["git", "rebase", "origin/main"]
+    assert mock_run.call_args_list[4][0][0] == ["git", "rebase", "origin/main"]
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")

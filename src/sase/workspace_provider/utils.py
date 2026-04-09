@@ -36,6 +36,25 @@ def get_default_branch(workspace_dir: str) -> str:
                 return f"origin/{branch}"
     except Exception:
         pass
+    # Probe for common default branch names
+    for candidate in ("master", "main"):
+        try:
+            probe = subprocess.run(
+                [
+                    "git",
+                    "show-ref",
+                    "--verify",
+                    "--quiet",
+                    f"refs/remotes/origin/{candidate}",
+                ],
+                cwd=workspace_dir,
+                capture_output=True,
+                check=False,
+            )
+            if probe.returncode == 0:
+                return f"origin/{candidate}"
+        except Exception:
+            pass
     return "origin/main"
 
 

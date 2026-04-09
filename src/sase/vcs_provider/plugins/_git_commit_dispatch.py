@@ -6,6 +6,7 @@ shared across all git-based VCS plugins.
 """
 
 import os
+from typing import TYPE_CHECKING
 
 from sase.telemetry.metrics import VCS_COMMITS, VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
@@ -16,6 +17,10 @@ class GitCommitDispatchMixin(CommandRunner):
     """Commit dispatch: create_commit, create_proposal, create_pull_request."""
 
     _provider_name: str
+
+    if TYPE_CHECKING:
+        # Provided by GitCoreOpsMixin in the composed class.
+        def _get_default_branch(self, cwd: str) -> str: ...
 
     # --- Helpers ---
 
@@ -47,24 +52,7 @@ class GitCommitDispatchMixin(CommandRunner):
         if not branch_out.success:
             return (True, None)
 
-        # Detect default branch (master or main)
-        default_branch = ""
-        for candidate in ("master", "main"):
-            check = self._run(
-                [
-                    "git",
-                    "show-ref",
-                    "--verify",
-                    "--quiet",
-                    f"refs/remotes/origin/{candidate}",
-                ],
-                cwd,
-            )
-            if check.success:
-                default_branch = candidate
-                break
-        if not default_branch:
-            return (True, None)
+        default_branch = self._get_default_branch(cwd)
 
         self._run(
             ["git", "fetch", "origin", default_branch, "--quiet"], cwd, timeout=600

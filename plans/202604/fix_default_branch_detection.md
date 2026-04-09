@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-09 15:28:57
-status: wip
+status: done
 ---
 
 # Plan: Fix default branch detection fallback

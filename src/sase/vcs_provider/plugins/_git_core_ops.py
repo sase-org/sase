@@ -184,9 +184,22 @@ class GitCoreOpsMixin(CommandRunner):
     def _get_default_branch(self, cwd: str) -> str:
         """Detect the default branch name (e.g. ``main`` or ``master``)."""
         branch_out = self._run(["git", "symbolic-ref", "refs/remotes/origin/HEAD"], cwd)
-        default_branch = "main"
         if branch_out.success:
             ref = branch_out.stdout.strip()
             if ref:
-                default_branch = ref.rsplit("/", 1)[-1]
-        return default_branch
+                return ref.rsplit("/", 1)[-1]
+        # Probe for common default branch names
+        for candidate in ("master", "main"):
+            check = self._run(
+                [
+                    "git",
+                    "show-ref",
+                    "--verify",
+                    "--quiet",
+                    f"refs/remotes/origin/{candidate}",
+                ],
+                cwd,
+            )
+            if check.success:
+                return candidate
+        return "main"
