@@ -71,11 +71,13 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         default="HEAD~1",
         help="Branch point for create_pull_request (default: HEAD~1)",
     )
+    from sase.workflows.commit.workflow import METHOD_ALIASES, VALID_METHODS
+
     commit_parser.add_argument(
         "-t",
         "--type",
         dest="method",
-        choices=["create_commit", "create_proposal", "create_pull_request"],
+        choices=[*VALID_METHODS, *METHOD_ALIASES],
         help="Commit method (default: $SASE_COMMIT_METHOD or create_commit)",
     )
 

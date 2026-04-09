@@ -18,6 +18,12 @@ if TYPE_CHECKING:
 
 VALID_METHODS = ("create_commit", "create_proposal", "create_pull_request")
 
+METHOD_ALIASES: dict[str, str] = {
+    "commit": "create_commit",
+    "propose": "create_proposal",
+    "pr": "create_pull_request",
+}
+
 
 def _extract_yyyymm_from_plan(plan_path: str) -> str | None:
     """Extract YYYYMM from a plan file's ``create_time`` frontmatter field.
@@ -66,9 +72,11 @@ class CommitWorkflow(BaseWorkflow):
 
     def run(self) -> bool:
         if self._method not in VALID_METHODS:
+            aliases = ", ".join(f"{a} -> {c}" for a, c in METHOD_ALIASES.items())
             print_status(
                 f"Unknown commit method '{self._method}'. "
-                f"Valid methods: {', '.join(VALID_METHODS)}",
+                f"Valid methods: {', '.join(VALID_METHODS)} "
+                f"(aliases: {aliases})",
                 "error",
             )
             return False

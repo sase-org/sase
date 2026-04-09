@@ -33,7 +33,10 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         except OSError:
             pass
 
+    from sase.workflows.commit.workflow import METHOD_ALIASES
+
     method = args.method or os.environ.get("SASE_COMMIT_METHOD", "create_commit")
+    method = METHOD_ALIASES.get(method, method)
 
     payload: dict[str, object] = {
         "message": message,

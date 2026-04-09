@@ -144,6 +144,36 @@ class TestCommitCLI:
         assert payload["message"] == "chore: cleanup"
         assert payload["files"] == []
 
+    @pytest.mark.parametrize(
+        "alias,canonical",
+        [
+            ("commit", "create_commit"),
+            ("propose", "create_proposal"),
+            ("pr", "create_pull_request"),
+        ],
+    )
+    def test_method_alias_via_flag(
+        self, tmp_path: Path, alias: str, canonical: str
+    ) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        _, method = _run_handler(["-M", msg_file, "--type", alias])
+        assert method == canonical
+
+    @pytest.mark.parametrize(
+        "alias,canonical",
+        [
+            ("commit", "create_commit"),
+            ("propose", "create_proposal"),
+            ("pr", "create_pull_request"),
+        ],
+    )
+    def test_method_alias_via_env(
+        self, tmp_path: Path, alias: str, canonical: str
+    ) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        _, method = _run_handler(["-M", msg_file], env={"SASE_COMMIT_METHOD": alias})
+        assert method == canonical
+
     def test_message_and_message_file_mutually_exclusive(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit):
