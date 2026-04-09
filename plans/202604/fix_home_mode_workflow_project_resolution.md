@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 21:07:18
-status: wip
+status: done
 ---
 
 # Fix home-mode workflow resolution for namespaced workflows

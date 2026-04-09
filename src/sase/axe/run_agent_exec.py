@@ -82,6 +82,13 @@ class LoopState:
     saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
 
 
+def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
+    """Return project scope for xprompt/workflow resolution."""
+    if ctx.is_home_mode:
+        return None
+    return ctx.project_name
+
+
 def _finalize_loop(
     ctx: AgentExecContext,
     state: LoopState,
@@ -288,7 +295,7 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
                 artifacts_dir=state.current_artifacts_dir,
                 silent=True,
                 workflow_obj=anon_workflow,
-                project=ctx.project_name,
+                project=_resolve_workflow_project(ctx),
             )
         except Exception as wf_exc:
             if not was_killed():
