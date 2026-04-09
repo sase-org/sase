@@ -15,6 +15,11 @@ The ``%model`` directive overrides the LLM model used for that prompt.
 import re
 from dataclasses import dataclass, field
 
+from ._disabled_regions import (
+    protect_disabled_regions,
+    strip_disabled_region_markers,
+    unprotect_disabled_regions,
+)
 from ._exceptions import DirectiveError
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import find_matching_paren_for_args, parse_args
@@ -148,8 +153,15 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
+    # Protect disabled regions so old directives inside #resume
+    # expansions are not re-parsed.
+    disabled_regions: list[str] = []
+    prompt = protect_disabled_regions(prompt, disabled_regions)
+
     matches = list(re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE))
     if not matches:
+        prompt = unprotect_disabled_regions(prompt, disabled_regions)
+        prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
     # Collect known directive matches (we'll strip these from the prompt)
@@ -206,6 +218,8 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         regions_to_remove.append((match.start(), match_end))
 
     if not regions_to_remove:
+        prompt = unprotect_disabled_regions(prompt, disabled_regions)
+        prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
     # Auto-generate name if %name was used bare (no argument)
@@ -272,6 +286,10 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         plan="plan" in expanded_args,
         wait=expanded_multi.get("wait", []),
     )
+
+    # Restore disabled regions, then strip markers
+    cleaned = unprotect_disabled_regions(cleaned, disabled_regions)
+    cleaned = strip_disabled_region_markers(cleaned)
 
     # Restore fenced code blocks before returning
     cleaned = unprotect_fenced_blocks(cleaned, fenced_blocks)

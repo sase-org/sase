@@ -343,3 +343,77 @@ class TestModelInheritance:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "#resume:" not in state.current_prompt
+
+    def test_coder_meta_updated_when_coder_model_differs(self, tmp_path) -> None:
+        """agent_meta.json reflects coder_model when it differs from planner model."""
+        ctx = _make_ctx(tmp_path, agent_model="gemini-3.1-pro-preview")
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        # Track update_meta_field calls
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model="gemini-3-flash-preview",
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan.update_meta_field",
+                side_effect=track_meta,
+            ),
+            patch(
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("gemini", "gemini-3-flash-preview"),
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert meta_updates.get("model") == "gemini-3-flash-preview"
+        assert meta_updates.get("llm_provider") == "gemini"
+
+    def test_coder_meta_not_updated_when_model_same(self, tmp_path) -> None:
+        """agent_meta.json not updated when coder_model matches planner model."""
+        ctx = _make_ctx(tmp_path, agent_model="opus")
+        state = _make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+
+        meta_updates: dict[str, str] = {}
+
+        def track_meta(artifacts_dir, key, value):
+            meta_updates[key] = value
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model=None,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan.update_meta_field",
+                side_effect=track_meta,
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+        assert "model" not in meta_updates

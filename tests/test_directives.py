@@ -571,6 +571,48 @@ def test_edit_duplicate_raises() -> None:
         extract_prompt_directives(prompt)
 
 
+# --- Disabled region protection tests ---
+
+
+def test_directive_inside_disabled_region_ignored() -> None:
+    """%model inside disabled region is not extracted."""
+    prompt = (
+        "%model:new_model\n"
+        "%xprompts_enabled:false\n"
+        "old prompt %model:old_model\n"
+        "%xprompts_enabled:true\n"
+        "Rest of prompt"
+    )
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert directives.model == "new_model"
+    assert "%model:new_model" not in cleaned
+    assert "old prompt %model:old_model" in cleaned
+    assert "Rest of prompt" in cleaned
+
+
+def test_only_directive_inside_disabled_region_extracts_nothing() -> None:
+    """%model only inside disabled region -> no model directive."""
+    prompt = (
+        "%xprompts_enabled:false\n"
+        "old prompt %model:old_model\n"
+        "%xprompts_enabled:true\n"
+        "Rest of prompt"
+    )
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert directives.model is None
+    assert "old prompt %model:old_model" in cleaned
+
+
+def test_disabled_region_markers_stripped_from_output() -> None:
+    """Disabled region markers are removed from cleaned output."""
+    prompt = (
+        "%xprompts_enabled:false\nsome content\n%xprompts_enabled:true\nRest of prompt"
+    )
+    cleaned, _ = extract_prompt_directives(prompt)
+    assert "%xprompts_enabled" not in cleaned
+    assert "some content" in cleaned
+
+
 def test_split_prompt_for_models_after_xprompt_expansion() -> None:
     """Xprompt-expanded %m(...) is correctly split by split_prompt_for_models."""
     from sase.xprompt.processor import process_xprompt_references

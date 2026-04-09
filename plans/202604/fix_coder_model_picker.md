@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 20:17:41
-status: wip
+status: done
 ---
 
 # Fix: Model picker selection ignored for coder agents

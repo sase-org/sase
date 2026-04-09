@@ -138,6 +138,24 @@ def _get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     return " ".join(refs) + " "
 
 
+def _update_coder_model_meta(
+    plan_result: Any,
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> None:
+    """Update the coder's ``agent_meta.json`` if the picker model differs from the planner's."""
+    if not plan_result.coder_model or plan_result.coder_model == ctx.agent_model:
+        return
+    from sase.llm_provider.registry import resolve_model_provider
+
+    resolved_provider, resolved_model = resolve_model_provider(plan_result.coder_model)
+    update_meta_field(state.current_artifacts_dir, "model", resolved_model)
+    if resolved_provider:
+        update_meta_field(
+            state.current_artifacts_dir, "llm_provider", resolved_provider
+        )
+
+
 def handle_plan_marker(
     plan_data: dict[str, Any],
     ctx: AgentExecContext,
@@ -328,6 +346,7 @@ def handle_plan_marker(
             else None,
             workflow_name=ctx.agent_name,
         )
+        _update_coder_model_meta(plan_result, ctx, state)
         if sdd_plan_path and sdd_plan_path.exists():
             plan_ref = str(sdd_plan_path.relative_to(Path(ctx.workspace_dir)))
         elif sdd_plan_name and not version_controlled:
@@ -364,6 +383,7 @@ def handle_plan_marker(
             else None,
             workflow_name=ctx.agent_name,
         )
+        _update_coder_model_meta(plan_result, ctx, state)
         coder_extra = ""
         if plan_result.coder_prompt:
             coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
