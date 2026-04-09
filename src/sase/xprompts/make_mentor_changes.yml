@@ -24,7 +24,7 @@ steps:
     prompt_part: |
       #{{ vcs_type }}:{{ cl_name }}
 
-      ### Task
+      #### Task
 
       Apply the following code review changes to the codebase. Make each change as described,
       run any relevant tests, and commit your changes.
