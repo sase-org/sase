@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-09 15:35:50
-status: wip
+status: done
 ---
 
 # Plan: Reassign `-m` to `--message` and `-M` to `--message-file` for `sase commit`

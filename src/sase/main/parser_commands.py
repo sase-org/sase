@@ -29,8 +29,14 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         "commit",
         help="Dispatch a VCS commit operation",
     )
-    commit_parser.add_argument(
+    msg_group = commit_parser.add_mutually_exclusive_group()
+    msg_group.add_argument(
         "-m",
+        "--message",
+        help="Commit message string",
+    )
+    msg_group.add_argument(
+        "-M",
         "--message-file",
         help="Path to file containing the commit message / PR description",
     )

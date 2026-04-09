@@ -289,7 +289,7 @@ def test_commit_sdd_files_not_git_repo() -> None:
 
 
 def test_commit_sdd_files_passes_tempfile_to_m() -> None:
-    """_commit_sdd_files writes the message to a temp file and passes its path to -m."""
+    """_commit_sdd_files writes the message to a temp file and passes its path to -M."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
         specs = Path(ws) / "specs" / "202603"
@@ -304,11 +304,11 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
         def fake_run(
             cmd: list[str], **kwargs: object
         ) -> subprocess.CompletedProcess[str]:
-            # Find -m arg and read the file it points to
-            m_idx = cmd.index("-m")
+            # Find -M arg and read the file it points to
+            m_idx = cmd.index("-M")
             msg_path = cmd[m_idx + 1]
             assert os.path.isfile(msg_path), (
-                f"-m should point to a file, got: {msg_path}"
+                f"-M should point to a file, got: {msg_path}"
             )
             with open(msg_path, encoding="utf-8") as f:
                 captured_msg_content.append(f.read())

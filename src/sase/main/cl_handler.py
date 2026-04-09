@@ -17,9 +17,11 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     """
     import os
 
-    # Read message from file if provided
+    # Resolve commit message from inline string or file
     message = ""
-    if args.message_file:
+    if args.message:
+        message = args.message
+    elif args.message_file:
         path = args.message_file
         if not os.path.isfile(path):
             print(f"Error: message file not found: {path}", file=sys.stderr)

@@ -49,14 +49,14 @@ def _commit_sdd_files(workspace_dir: str, plan_name: str) -> None:
     if not files:
         return
     message = f"chore: Add SDD spec and plan for {plan_name}"
-    # -m / --message-file expects a file path, not a raw string.
+    # -M / --message-file expects a file path, not a raw string.
     # handle_commit_command deletes the file after reading it.
     msg_fd, msg_path = tempfile.mkstemp(suffix=".txt", prefix="sase_sdd_msg_")
     try:
         os.write(msg_fd, message.encode())
     finally:
         os.close(msg_fd)
-    cmd = ["sase", "commit", "-m", msg_path]
+    cmd = ["sase", "commit", "-M", msg_path]
     for f in files:
         cmd.extend(["-f", f])
     result = subprocess.run(
