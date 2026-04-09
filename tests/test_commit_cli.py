@@ -89,7 +89,7 @@ class TestCommitCLI:
 
     def test_method_flag(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        _, method = _run_handler(["-m", msg_file, "--method", "create_proposal"])
+        _, method = _run_handler(["-m", msg_file, "--type", "create_proposal"])
         assert method == "create_proposal"
 
     def test_method_from_env(self, tmp_path: Path) -> None:

@@ -25,10 +25,10 @@ When the agent finishes, the **stop hook** (`sase_commit_stop_hook`) detects unc
 with an instruction to use its `/sase_git_commit` or `/sase_hg_commit` skill. The skill calls:
 
 ```bash
-sase commit '<json_payload>' -m <method>
+sase commit '<json_payload>' -t <method>
 ```
 
-The method defaults to `$SASE_COMMIT_METHOD` if the `-M` flag is omitted.
+The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted.
 
 ### CLI Arguments
 
@@ -40,7 +40,7 @@ The method defaults to `$SASE_COMMIT_METHOD` if the `-M` flag is omitted.
 | `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                            |
 | `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)            |
 | `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                   |
-| `-M`  | `--method`          | Commit method (`create_commit`, `create_proposal`, `create_pull_request`) |
+| `-t`  | `--type`            | Commit method (`create_commit`, `create_proposal`, `create_pull_request`) |
 
 The COMMITS entry note is always derived from the first line of the commit message — there is no separate `--note` flag.
 

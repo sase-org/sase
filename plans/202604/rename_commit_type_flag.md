@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-09 15:22:54
-status: wip
+status: done
 ---
 
 # Plan: Rename `sase commit -M|--method` to `-t|--type`
