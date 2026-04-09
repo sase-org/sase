@@ -23,6 +23,7 @@ from sase.ace.scheduler.workflows_runner import (
     check_and_complete_workflows,
     start_stale_workflows,
 )
+from sase.config.mentor import get_all_mentor_profiles
 from sase.core.time import get_timezone
 
 from .state import AxeMetrics
@@ -102,6 +103,7 @@ class HookJobRunner:
         Args:
             filtered_changespecs: List of changespecs to check.
         """
+        all_profiles = get_all_mentor_profiles()
         for changespec in filtered_changespecs:
             mentor_updates, mentors_started = check_mentors(
                 changespec,
@@ -109,6 +111,7 @@ class HookJobRunner:
                 self.zombie_timeout_seconds,
                 self.max_agent_runners,
                 self._agents_started_this_tick,
+                mentor_profiles=all_profiles,
             )
 
             self._agents_started_this_tick += mentors_started

@@ -151,4 +151,45 @@ def test_trace_profile_matching_projects_match() -> None:
     assert proj_cr.matched is True
 
 
+def test_trace_profile_matching_reads_diff_once_per_invocation() -> None:
+    """Trace reuses cached diff artifacts across multiple profiles."""
+    profile_one = MentorProfileConfig(
+        profile_name="one",
+        mentors=[make_mentor_config()],
+        diff_regexes=[r"token"],
+    )
+    profile_two = MentorProfileConfig(
+        profile_name="two",
+        mentors=[make_mentor_config()],
+        diff_regexes=[r"token"],
+    )
+    read_paths: list[str | None] = []
+
+    def _read_diff(diff_path: str | None) -> str | None:
+        read_paths.append(diff_path)
+        return "diff --git a/src/main.py b/src/main.py\n+token\n"
+
+    cs = build_changespec(
+        commits=[CommitEntry(number=1, note="n", diff="~/.sase/diffs/sample.diff")]
+    )
+    with (
+        patch(
+            "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+            return_value=[profile_one, profile_two],
+        ),
+        patch(
+            "sase.ace.scheduler.mentor_profile_matching._read_diff_content",
+            side_effect=_read_diff,
+        ),
+        patch(
+            "sase.ace.scheduler.mentor_profile_matching.preload_vcs_fallback_diff",
+            return_value=None,
+        ),
+    ):
+        traces = trace_profile_matching(cs)
+
+    assert len(traces) == 2
+    assert read_paths == ["~/.sase/diffs/sample.diff"]
+
+
 # Tests for WIP status being skipped entirely by mentor checks

@@ -469,3 +469,46 @@ def test_get_matching_profiles_none_projects_matches_any(monkeypatch: Any) -> No
 
     result = _get_matching_profiles_for_entry(cs)
     assert len(result) == 1
+
+
+def test_get_matching_profiles_reads_diff_once_per_invocation(
+    monkeypatch: Any,
+) -> None:
+    """Test diff files are read once per commit, not once per profile."""
+    profile_one = MentorProfileConfig(
+        profile_name="diff-a",
+        mentors=[make_mentor_config(mentor_name="a")],
+        diff_regexes=[r"match-token"],
+    )
+    profile_two = MentorProfileConfig(
+        profile_name="diff-b",
+        mentors=[make_mentor_config(mentor_name="b")],
+        diff_regexes=[r"match-token"],
+    )
+    read_paths: list[str | None] = []
+
+    def _read_diff(diff_path: str | None) -> str | None:
+        read_paths.append(diff_path)
+        return "diff --git a/src/x.py b/src/x.py\n+match-token\n"
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.get_all_mentor_profiles",
+        lambda: [profile_one, profile_two],
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching._read_diff_content",
+        _read_diff,
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.mentor_profile_matching.preload_vcs_fallback_diff",
+        lambda _changespec, _commits: None,
+    )
+
+    cs = build_changespec(
+        commits=[CommitEntry(number=1, note="n", diff="~/.sase/diffs/sample.diff")]
+    )
+
+    result = _get_matching_profiles_for_entry(cs)
+
+    assert len(result) == 2
+    assert read_paths == ["~/.sase/diffs/sample.diff"]

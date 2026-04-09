@@ -28,6 +28,18 @@ LogCallback = Callable[[str, str | None], None]
 _UNSET: Final = object()
 
 
+@dataclass(frozen=True)
+class _CommitMatchArtifact:
+    """Cached commit data used across profile matching checks."""
+
+    entry_id: str
+    diff_path: str | None
+    amend_note: str | None
+    diff_content: str | None
+    changed_files: tuple[str, ...]
+    used_vcs_fallback: bool = False
+
+
 def _get_commits_since_last_mentors(
     changespec: ChangeSpec,
 ) -> list[CommitEntry]:
@@ -89,43 +101,93 @@ def _extract_changed_files_from_diff(diff_content: str) -> list[str]:
     return files
 
 
-def _profile_matches_commit(
+def _build_commit_match_artifacts(
+    commits: list[CommitEntry],
+    changespec: ChangeSpec | None = None,
+    *,
+    preloaded_vcs_fallback: str | None | object = _UNSET,
+    require_diff_content: bool = True,
+) -> list[_CommitMatchArtifact]:
+    """Build commit artifacts once per invocation to avoid repeated file reads."""
+    latest_entry_id = max(
+        (commit.display_number for commit in commits),
+        key=parse_commit_entry_id,
+        default=None,
+    )
+    fallback_diff_content: object | str | None = (
+        preloaded_vcs_fallback if preloaded_vcs_fallback is not _UNSET else _UNSET
+    )
+    artifacts: list[_CommitMatchArtifact] = []
+
+    for commit in commits:
+        diff_content = _read_diff_content(commit.diff) if require_diff_content else None
+        used_fallback = False
+        should_use_fallback = (
+            require_diff_content
+            and diff_content is None
+            and changespec is not None
+            and latest_entry_id is not None
+            and commit.display_number == latest_entry_id
+        )
+        if should_use_fallback:
+            if fallback_diff_content is _UNSET:
+                assert changespec is not None
+                fallback_diff_content = _load_latest_diff_from_vcs(changespec)
+            if isinstance(fallback_diff_content, str):
+                diff_content = fallback_diff_content
+                used_fallback = True
+
+        changed_files: tuple[str, ...]
+        if diff_content:
+            changed_files = tuple(_extract_changed_files_from_diff(diff_content))
+        else:
+            changed_files = ()
+
+        artifacts.append(
+            _CommitMatchArtifact(
+                entry_id=commit.display_number,
+                diff_path=commit.diff,
+                amend_note=commit.note,
+                diff_content=diff_content,
+                changed_files=changed_files,
+                used_vcs_fallback=used_fallback,
+            )
+        )
+
+    return artifacts
+
+
+def _profile_matches_commit_artifact(
     profile: MentorProfileConfig,
-    diff_path: str | None,
-    amend_note: str | None,
-    fallback_diff_content: str | None = None,
+    artifact: _CommitMatchArtifact,
 ) -> bool:
     """Check if a profile's criteria match the commit.
 
     Args:
         profile: The mentor profile configuration.
-        diff_path: Path to the diff file, or None.
-        amend_note: The commit's note text, or None.
+        artifact: Cached commit artifact.
 
     Returns:
         True if any of the profile's criteria match.
     """
     try:
-        diff_content = _read_diff_content(diff_path) or fallback_diff_content
-
         # Check file_globs
-        if profile.file_globs and diff_content:
-            changed_files = _extract_changed_files_from_diff(diff_content)
+        if profile.file_globs and artifact.changed_files:
             for pattern in profile.file_globs:
-                for filepath in changed_files:
+                for filepath in artifact.changed_files:
                     if fnmatch.fnmatch(filepath, pattern):
                         return True
 
         # Check diff_regexes
-        if profile.diff_regexes and diff_content:
+        if profile.diff_regexes and artifact.diff_content:
             for regex in profile.diff_regexes:
-                if re.search(regex, diff_content):
+                if re.search(regex, artifact.diff_content):
                     return True
 
         # Check amend_note_regexes
-        if profile.amend_note_regexes and amend_note:
+        if profile.amend_note_regexes and artifact.amend_note:
             for regex in profile.amend_note_regexes:
-                if re.search(regex, amend_note):
+                if re.search(regex, artifact.amend_note):
                     return True
 
         return False
@@ -133,7 +195,7 @@ def _profile_matches_commit(
         logger.warning(
             "Error matching profile '%s' against diff '%s'",
             profile.profile_name,
-            diff_path,
+            artifact.diff_path,
             exc_info=True,
         )
         return False
@@ -217,6 +279,7 @@ def profile_matches_any_commit(
     commits: list[CommitEntry],
     changespec: ChangeSpec | None = None,
     preloaded_vcs_fallback: str | None | object = _UNSET,
+    commit_artifacts: list[_CommitMatchArtifact] | None = None,
 ) -> bool:
     """Check if a profile matches ANY of the given commits.
 
@@ -232,45 +295,17 @@ def profile_matches_any_commit(
             if commit.display_number == "1":
                 return True
 
-    latest_entry_id = max(
-        (commit.display_number for commit in commits),
-        key=parse_commit_entry_id,
-        default=None,
-    )
-    fallback_diff_content: object | str | None = (
-        preloaded_vcs_fallback if preloaded_vcs_fallback is not _UNSET else _UNSET
-    )
-
-    for commit in commits:
-        diff_path = commit.diff
-        amend_note = commit.note
-        should_use_fallback = (
-            changespec is not None
-            and latest_entry_id is not None
-            and commit.display_number == latest_entry_id
-            and (profile.file_globs or profile.diff_regexes)
-            and _read_diff_content(diff_path) is None
+    artifacts = commit_artifacts
+    if artifacts is None:
+        artifacts = _build_commit_match_artifacts(
+            commits,
+            changespec,
+            preloaded_vcs_fallback=preloaded_vcs_fallback,
+            require_diff_content=bool(profile.file_globs or profile.diff_regexes),
         )
-        if (
-            should_use_fallback
-            and fallback_diff_content is _UNSET
-            and changespec is not None
-        ):
-            fallback_diff_content = _load_latest_diff_from_vcs(changespec)
-        commit_fallback: str | None = None
-        if (
-            should_use_fallback
-            and fallback_diff_content is not _UNSET
-            and isinstance(fallback_diff_content, str)
-        ):
-            commit_fallback = fallback_diff_content
 
-        if _profile_matches_commit(
-            profile,
-            diff_path,
-            amend_note,
-            fallback_diff_content=commit_fallback,
-        ):
+    for artifact in artifacts:
+        if _profile_matches_commit_artifact(profile, artifact):
             return True
     return False
 
@@ -300,6 +335,7 @@ def get_profiles_registered_for_entry(
 
 def _get_matching_profiles_for_entry(
     changespec: ChangeSpec,
+    mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[tuple[str, MentorProfileConfig]]:
     """Get profiles that match commits (regardless of hook readiness).
 
@@ -350,8 +386,16 @@ def _get_matching_profiles_for_entry(
 
     # Pre-load VCS fallback diff once for all profiles
     preloaded_fallback = preload_vcs_fallback_diff(changespec, commits_to_check)
+    commit_artifacts = _build_commit_match_artifacts(
+        commits_to_check,
+        changespec,
+        preloaded_vcs_fallback=preloaded_fallback,
+    )
+    profiles = (
+        mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
+    )
 
-    for profile in get_all_mentor_profiles():
+    for profile in profiles:
         # Skip profiles already registered
         if profile.profile_name in registered_profiles:
             continue
@@ -366,7 +410,7 @@ def _get_matching_profiles_for_entry(
             profile,
             commits_to_check,
             changespec,
-            preloaded_vcs_fallback=preloaded_fallback,
+            commit_artifacts=commit_artifacts,
         ):
             result.append((latest_entry_id, profile))
 
@@ -376,6 +420,7 @@ def _get_matching_profiles_for_entry(
 def add_matching_profiles_upfront(
     changespec: ChangeSpec,
     log: LogCallback,
+    mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[str]:
     """Add matching profiles to MENTORS entry before mentors are ready to run.
 
@@ -401,14 +446,19 @@ def add_matching_profiles_upfront(
     ):
         return updates
 
-    all_profiles = get_all_mentor_profiles()
+    all_profiles = (
+        mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
+    )
     log(
         f"Mentor matching: {len(all_profiles)} profile(s) loaded for"
         f" '{changespec.name}'",
         "dim",
     )
 
-    matching_profiles = _get_matching_profiles_for_entry(changespec)
+    matching_profiles = _get_matching_profiles_for_entry(
+        changespec,
+        mentor_profiles=all_profiles,
+    )
     if not matching_profiles:
         log(
             f"Mentor matching: 0 new profiles matched for '{changespec.name}'",
@@ -469,17 +519,17 @@ def _trace_profile_match(
     commits: list[CommitEntry],
     changespec: ChangeSpec | None = None,
     preloaded_vcs_fallback: str | None | object = _UNSET,
+    commit_artifacts: list[_CommitMatchArtifact] | None = None,
 ) -> _ProfileMatchTrace:
     """Trace how a profile matches against a set of commits, returning details."""
     trace = _ProfileMatchTrace(profile_name=profile.profile_name)
-    latest_entry_id = max(
-        (commit.display_number for commit in commits),
-        key=parse_commit_entry_id,
-        default=None,
-    )
-    fallback_diff_content: object | str | None = (
-        preloaded_vcs_fallback if preloaded_vcs_fallback is not _UNSET else _UNSET
-    )
+    artifacts = commit_artifacts
+    if artifacts is None:
+        artifacts = _build_commit_match_artifacts(
+            commits,
+            changespec,
+            preloaded_vcs_fallback=preloaded_vcs_fallback,
+        )
 
     # projects scope
     if profile.projects is not None and changespec is not None:
@@ -520,35 +570,21 @@ def _trace_profile_match(
     if profile.file_globs:
         glob_matched = False
         details_parts: list[str] = []
-        for commit in commits:
-            diff_content = _read_diff_content(commit.diff)
-            used_fallback = False
-            if (
-                diff_content is None
-                and changespec is not None
-                and latest_entry_id is not None
-                and commit.display_number == latest_entry_id
-            ):
-                if fallback_diff_content is _UNSET:
-                    fallback_diff_content = _load_latest_diff_from_vcs(changespec)
-                if isinstance(fallback_diff_content, str):
-                    diff_content = fallback_diff_content
-                    used_fallback = True
-            if diff_content is None:
-                if commit.diff:
-                    details_parts.append(f"diff {commit.diff}: file not found")
+        for artifact in artifacts:
+            if artifact.diff_content is None:
+                if artifact.diff_path:
+                    details_parts.append(f"diff {artifact.diff_path}: file not found")
                 continue
-            changed_files = _extract_changed_files_from_diff(diff_content)
             for pattern in profile.file_globs:
-                for filepath in changed_files:
+                for filepath in artifact.changed_files:
                     if fnmatch.fnmatch(filepath, pattern):
                         details_parts.append(f"{pattern} matched {filepath}")
-                        if used_fallback:
+                        if artifact.used_vcs_fallback:
                             details_parts.append("used VCS fallback diff")
                         glob_matched = True
-            if not glob_matched and changed_files:
+            if not glob_matched and artifact.changed_files:
                 details_parts.append(
-                    f"checked {len(changed_files)} files, no glob match"
+                    f"checked {len(artifact.changed_files)} files, no glob match"
                 )
         trace.criteria_results.append(
             _CriterionResult(
@@ -569,26 +605,13 @@ def _trace_profile_match(
     if profile.diff_regexes:
         regex_matched = False
         regex_details: list[str] = []
-        for commit in commits:
-            diff_content = _read_diff_content(commit.diff)
-            used_fallback = False
-            if (
-                diff_content is None
-                and changespec is not None
-                and latest_entry_id is not None
-                and commit.display_number == latest_entry_id
-            ):
-                if fallback_diff_content is _UNSET:
-                    fallback_diff_content = _load_latest_diff_from_vcs(changespec)
-                if isinstance(fallback_diff_content, str):
-                    diff_content = fallback_diff_content
-                    used_fallback = True
-            if diff_content is None:
+        for artifact in artifacts:
+            if artifact.diff_content is None:
                 continue
             for regex in profile.diff_regexes:
-                if re.search(regex, diff_content):
-                    regex_details.append(f"/{regex}/ matched in {commit.diff}")
-                    if used_fallback:
+                if re.search(regex, artifact.diff_content):
+                    regex_details.append(f"/{regex}/ matched in {artifact.diff_path}")
+                    if artifact.used_vcs_fallback:
                         regex_details.append("used VCS fallback diff")
                     regex_matched = True
         trace.criteria_results.append(
@@ -610,14 +633,12 @@ def _trace_profile_match(
     if profile.amend_note_regexes:
         note_matched = False
         note_details: list[str] = []
-        for commit in commits:
-            if not commit.note:
+        for artifact in artifacts:
+            if not artifact.amend_note:
                 continue
             for regex in profile.amend_note_regexes:
-                if re.search(regex, commit.note):
-                    note_details.append(
-                        f"/{regex}/ matched note ({commit.display_number})"
-                    )
+                if re.search(regex, artifact.amend_note):
+                    note_details.append(f"/{regex}/ matched note ({artifact.entry_id})")
                     note_matched = True
         trace.criteria_results.append(
             _CriterionResult(
@@ -662,13 +683,18 @@ def trace_profile_matching(
 
     # Pre-load VCS fallback diff once for all profiles
     preloaded_fallback = preload_vcs_fallback_diff(changespec, commits)
+    commit_artifacts = _build_commit_match_artifacts(
+        commits,
+        changespec,
+        preloaded_vcs_fallback=preloaded_fallback,
+    )
 
     return [
         _trace_profile_match(
             profile,
             commits,
             changespec,
-            preloaded_vcs_fallback=preloaded_fallback,
+            commit_artifacts=commit_artifacts,
         )
         for profile in profiles
     ]

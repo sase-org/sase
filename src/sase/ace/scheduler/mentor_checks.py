@@ -113,6 +113,7 @@ def _all_non_skip_hooks_ready(changespec: ChangeSpec, entry_id: str) -> bool:
 
 def _get_mentor_profiles_to_run(
     changespec: ChangeSpec,
+    mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> list[tuple[str, MentorProfileConfig]]:
     """Get list of (entry_id, profile) tuples that should run mentors.
 
@@ -151,7 +152,11 @@ def _get_mentor_profiles_to_run(
     # Get mentors already started for this entry
     started_mentors = _get_started_mentors_for_entry(changespec, latest_entry_id)
 
-    for profile in get_all_mentor_profiles():
+    profiles = (
+        mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
+    )
+
+    for profile in profiles:
         # Only run mentors for profiles that are registered for this entry
         if profile.profile_name not in registered_profiles:
             continue
@@ -372,6 +377,7 @@ def check_mentors(
     zombie_timeout_seconds: int,
     max_runners: int,
     runners_started_this_cycle: int = 0,
+    mentor_profiles: list[MentorProfileConfig] | None = None,
 ) -> tuple[list[str], int]:
     """Check and run mentors for a ChangeSpec.
 
@@ -384,8 +390,10 @@ def check_mentors(
         log: Logging callback.
         zombie_timeout_seconds: Zombie detection timeout in seconds.
         max_runners: Maximum concurrent runners (hooks, agents, mentors) globally.
-        runners_started_this_cycle: Number of runners already started this cycle (across
-            all ChangeSpecs). Added to the global count to avoid exceeding the limit.
+        runners_started_this_cycle: Number of runners already started this cycle
+            (across all ChangeSpecs). Added to the global count to avoid exceeding
+            the limit.
+        mentor_profiles: Optional preloaded mentor profiles to reuse for this cycle.
 
     Returns:
         Tuple of (update messages, number of mentors started by this call).
@@ -415,16 +423,25 @@ def check_mentors(
 
     # Phase 2: Add matching profiles upfront (before hooks are ready)
     # This adds profiles with [0/N] counts as soon as they're detected
-    all_profiles = get_all_mentor_profiles()
+    all_profiles = (
+        mentor_profiles if mentor_profiles is not None else get_all_mentor_profiles()
+    )
     log(
         f"Phase 2: {len(all_profiles)} mentor profile(s) loaded from config",
         "dim",
     )
-    profile_updates = add_matching_profiles_upfront(changespec, log)
+    profile_updates = add_matching_profiles_upfront(
+        changespec,
+        log,
+        mentor_profiles=all_profiles,
+    )
     updates.extend(profile_updates)
 
     # Phase 3: Start mentors for matching profiles (requires hooks to be ready)
-    profiles_to_run = _get_mentor_profiles_to_run(changespec)
+    profiles_to_run = _get_mentor_profiles_to_run(
+        changespec,
+        mentor_profiles=all_profiles,
+    )
 
     if not profiles_to_run:
         return updates, mentors_started
