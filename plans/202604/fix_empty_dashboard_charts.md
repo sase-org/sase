@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 21:27:30
-status: wip
+status: done
 ---
 
 # Fix Empty Telemetry Dashboard Charts

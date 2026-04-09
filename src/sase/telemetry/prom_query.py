@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -87,7 +88,9 @@ def _fetch_and_parse(url: str, timeout: float) -> list[TimeSeries]:
         metric_name = metric_labels.pop("__name__", "")
 
         if result_type == "matrix":
-            points = [(float(ts), float(val)) for ts, val in r.get("values", [])]
+            raw_points = [(float(ts), float(val)) for ts, val in r.get("values", [])]
+            # Filter NaN values that histogram_quantile produces for zero-rate buckets
+            points = [(ts, val) for ts, val in raw_points if not math.isnan(val)]
         elif result_type == "vector":
             pair = r.get("value", [])
             points = [(float(pair[0]), float(pair[1]))] if len(pair) == 2 else []

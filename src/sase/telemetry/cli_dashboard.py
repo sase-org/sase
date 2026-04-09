@@ -45,6 +45,13 @@ _STEP_FOR_RANGE: dict[str, str] = {
     "7d": "1800s",
 }
 
+_RATE_WINDOW_FOR_RANGE: dict[str, str] = {
+    "1h": "15m",
+    "6h": "1h",
+    "24h": "4h",
+    "7d": "1d",
+}
+
 # ── Color thresholds for stat panels ────────────────────────────────
 
 _GAUGE_STYLES: list[tuple[float, str]] = [
@@ -229,61 +236,66 @@ def _build_dashboard(samples: list[MetricSample]) -> Group:
 
 # ── Charts mode ─────────────────────────────────────────────────────
 
-# Each chart spec: (title, promql, y_label, legend_labels)
-_CHART_SPECS: list[tuple[str, list[str], str, list[str]]] = [
-    (
-        "Agent Run Duration",
-        [
-            "histogram_quantile(0.50, rate(sase_agent_run_duration_seconds_bucket[5m]))",
-            "histogram_quantile(0.95, rate(sase_agent_run_duration_seconds_bucket[5m]))",
-        ],
-        "seconds",
-        ["p50", "p95"],
-    ),
-    (
-        "Active Agents",
-        ["sase_agent_active"],
-        "agents",
-        ["active"],
-    ),
-    (
-        "Agent Throughput",
-        [
-            'rate(sase_agent_runs_total{status="ok"}[5m])',
-            'rate(sase_agent_runs_total{status="error"}[5m])',
-        ],
-        "runs/sec",
-        ["ok", "error"],
-    ),
-    (
-        "LLM Token Usage",
-        [
-            "rate(sase_llm_input_tokens_total[5m])",
-            "rate(sase_llm_output_tokens_total[5m])",
-            "rate(sase_llm_cache_read_tokens_total[5m])",
-        ],
-        "tokens/sec",
-        ["input", "output", "cache"],
-    ),
-    (
-        "LLM Latency",
-        [
-            "histogram_quantile(0.50, rate(sase_llm_invocation_duration_seconds_bucket[5m]))",
-            "histogram_quantile(0.95, rate(sase_llm_invocation_duration_seconds_bucket[5m]))",
-        ],
-        "seconds",
-        ["p50", "p95"],
-    ),
-    (
-        "Error Rate",
-        [
-            'rate(sase_agent_runs_total{status="error"}[5m])',
-            "rate(sase_llm_errors_total[5m])",
-        ],
-        "errors/sec",
-        ["agent errors", "LLM errors"],
-    ),
-]
+
+def _get_chart_specs(
+    rate_window: str,
+) -> list[tuple[str, list[str], str, list[str]]]:
+    """Return chart specs with the given rate window interpolated into PromQL queries."""
+    w = rate_window
+    return [
+        (
+            "Agent Run Duration",
+            [
+                f"histogram_quantile(0.50, rate(sase_agent_run_duration_seconds_bucket[{w}]))",
+                f"histogram_quantile(0.95, rate(sase_agent_run_duration_seconds_bucket[{w}]))",
+            ],
+            "seconds",
+            ["p50", "p95"],
+        ),
+        (
+            "Active Agents",
+            ["sase_agent_active"],
+            "agents",
+            ["active"],
+        ),
+        (
+            "Agent Throughput",
+            [
+                f'rate(sase_agent_runs_total{{status="ok"}}[{w}])',
+                f'rate(sase_agent_runs_total{{status="error"}}[{w}])',
+            ],
+            "runs/sec",
+            ["ok", "error"],
+        ),
+        (
+            "LLM Token Usage",
+            [
+                f"rate(sase_llm_input_tokens_total[{w}])",
+                f"rate(sase_llm_output_tokens_total[{w}])",
+                f"rate(sase_llm_cache_read_tokens_total[{w}])",
+            ],
+            "tokens/sec",
+            ["input", "output", "cache"],
+        ),
+        (
+            "LLM Latency",
+            [
+                f"histogram_quantile(0.50, rate(sase_llm_invocation_duration_seconds_bucket[{w}]))",
+                f"histogram_quantile(0.95, rate(sase_llm_invocation_duration_seconds_bucket[{w}]))",
+            ],
+            "seconds",
+            ["p50", "p95"],
+        ),
+        (
+            "Error Rate",
+            [
+                f'rate(sase_agent_runs_total{{status="error"}}[{w}])',
+                f"rate(sase_llm_errors_total[{w}])",
+            ],
+            "errors/sec",
+            ["agent errors", "LLM errors"],
+        ),
+    ]
 
 
 def _build_charts_dashboard(
@@ -298,15 +310,17 @@ def _build_charts_dashboard(
 
     range_secs = _RANGE_SECONDS.get(range_key, 3600)
     step = _STEP_FOR_RANGE.get(range_key, "15s")
+    rate_window = _RATE_WINDOW_FOR_RANGE.get(range_key, "15m")
     end = time.time()
     start = end - range_secs
 
-    specs = _CHART_SPECS
+    all_specs = _get_chart_specs(rate_window)
+    specs = all_specs
     if subsystem_filter:
         lf = subsystem_filter.lower()
-        specs = [s for s in specs if lf in s[0].lower()]
+        specs = [s for s in all_specs if lf in s[0].lower()]
         if not specs:
-            specs = _CHART_SPECS
+            specs = all_specs
 
     chart_width = max(30, (width - 6) // 2)
     chart_height = 14
