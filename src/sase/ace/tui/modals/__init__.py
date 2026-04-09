@@ -5,7 +5,11 @@ from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
 from .confirm_action_modal import ConfirmActionModal
 from .confirm_delete_modal import ConfirmDeleteModal
-from .confirm_kill_modal import ConfirmDismissAllModal, ConfirmKillModal
+from .confirm_kill_modal import (
+    ConfirmDismissAllModal,
+    ConfirmKillAllModal,
+    ConfirmKillModal,
+)
 from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
 from .jump_all_modal import JumpAllModal, JumpAllResult
@@ -84,6 +88,7 @@ __all__ = [
     "CustomModelInputModal",
     "ConfirmDeleteModal",
     "ConfirmDismissAllModal",
+    "ConfirmKillAllModal",
     "ConfirmKillModal",
     "DismissedAgentSelectModal",
     "HelpModal",

@@ -130,17 +130,21 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal {
     align: center middle;
 }
 
-StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container, ConfirmKillModal > Container, ConfirmDismissAllModal > Container {
+StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container, ConfirmKillModal > Container, ConfirmDismissAllModal > Container, ConfirmKillAllModal > Container {
     width: 60;
     height: auto;
     max-height: 80%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
+}
+
+ConfirmKillAllModal .confirmed-once {
+    border: thick $error;
 }
 
 /* Workflow HITL Modal styling */

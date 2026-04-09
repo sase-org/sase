@@ -454,6 +454,62 @@ class AgentKillingMixin:
 
             save_dismissed_agents(self._dismissed_agents)
 
+    def _kill_and_dismiss_all_agents(self) -> None:
+        """Kill all running agents and dismiss all done agents (double-confirm)."""
+        from ._core import DISMISSABLE_STATUSES
+
+        killable = [
+            a
+            for a in self._agents
+            if a.pid is not None
+            and a.status not in DISMISSABLE_STATUSES
+            and a.identity not in self._pinned_agents
+        ]
+        dismissable = [
+            a
+            for a in self._agents
+            if a.status in DISMISSABLE_STATUSES
+            and a.raw_suffix is not None
+            and a.identity not in self._pinned_agents
+        ]
+
+        if not killable and not dismissable:
+            self.notify("No agents to kill or dismiss", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        # Build description showing both groups
+        desc_parts: list[str] = []
+        if killable:
+            k_count = len(killable)
+            k_s = "s" if k_count != 1 else ""
+            desc_parts.append(f"Kill: {k_count} running agent{k_s}")
+            for agent in killable:
+                name = agent.display_name
+                suffix = f" @{agent.agent_name}" if agent.agent_name else ""
+                desc_parts.append(f"  {name}{suffix}")
+        if dismissable:
+            d_count = len(dismissable)
+            d_s = "s" if d_count != 1 else ""
+            desc_parts.append(f"Dismiss: {d_count} completed agent{d_s}")
+            for agent in dismissable:
+                name = agent.display_name
+                suffix = f" @{agent.agent_name}" if agent.agent_name else ""
+                desc_parts.append(f"  {name}{suffix}")
+        agent_description = "\n".join(desc_parts)
+
+        from ...modals import ConfirmKillAllModal
+
+        def on_dismiss(confirmed: bool | None) -> None:
+            if confirmed:
+                # Kill running agents first
+                for agent in killable:
+                    self._do_kill_agent(agent)
+                # Then dismiss completed agents
+                if dismissable:
+                    self._do_dismiss_all(dismissable)
+
+        self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+
     def _dismiss_all_done_agents(self) -> None:
         """Dismiss all done/failed agents after user confirmation."""
         from ._core import DISMISSABLE_STATUSES

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-09 19:12:32
-status: wip
+status: done
 ---
 
 # Plan: `,X` Kill/Dismiss All Agents Keymap
