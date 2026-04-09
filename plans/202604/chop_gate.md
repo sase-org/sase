@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-08 20:06:20
-status: wip
+status: done
 ---
 
 # Plan: Add `gate` field to chop config to prevent unnecessary agent spawns

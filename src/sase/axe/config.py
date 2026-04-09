@@ -35,6 +35,7 @@ class ChopConfig:
     name: str
     description: str
     agent: str | None = None
+    gate: str | None = None  # bash command; if exits non-zero, chop is skipped
     run_every: int | None = None  # seconds, parsed from duration string (e.g. "60m")
     timeout: int | None = None  # seconds, parsed from duration string (e.g. "30s")
     env: dict[str, str] = field(default_factory=dict)
@@ -97,6 +98,7 @@ def _parse_lumberjacks(raw: dict) -> dict[str, LumberjackConfig]:
                         name=entry["name"],
                         description=entry.get("description", ""),
                         agent=entry.get("agent") or entry.get("xprompt"),
+                        gate=entry.get("gate"),
                         run_every=run_every,
                         timeout=timeout,
                         env=env,

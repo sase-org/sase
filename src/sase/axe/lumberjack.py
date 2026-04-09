@@ -213,6 +213,10 @@ class Lumberjack:
     def _run_single_chop(self, chop: ChopConfig, context_file: str) -> _ChopResult:
         """Execute a single chop (runs in a worker thread)."""
         if chop.agent is not None:
+            if chop.gate is not None:
+                gate_result = self._run_gate(chop)
+                if gate_result is not None:
+                    return gate_result
             return self._launch_agent_chop(chop)
 
         resolved_timeout = chop.timeout or self.config.chop_timeout
@@ -295,6 +299,68 @@ class Lumberjack:
             return False
         self._agent_pids.pop(chop.name, None)
         return True
+
+    def _resolve_gate_cwd(self, chop: ChopConfig) -> str | None:
+        """Resolve the CWD for a gate command from the agent prompt's VCS ref.
+
+        Uses the same ref-resolution logic as ``launch_agent_from_cwd`` with
+        ``skip_workspace=True`` to obtain the primary workspace directory
+        without allocating a workspace slot.
+        """
+        if chop.agent is None:
+            return None
+        try:
+            from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+                resolve_ref_from_prompt,
+            )
+            from sase.workspace_provider import get_workflow_names
+
+            for wf_name in get_workflow_names():
+                resolved = resolve_ref_from_prompt(
+                    chop.agent, wf_name, skip_workspace=True
+                )
+                if resolved is not None:
+                    return resolved[2]  # workspace_dir
+        except Exception:
+            pass
+        return None
+
+    def _run_gate(self, chop: ChopConfig) -> _ChopResult | None:
+        """Run the gate command for a chop.
+
+        Returns a skip ``_ChopResult`` if the gate exits non-zero (chop is
+        skipped), or ``None`` if the gate passes (chop proceeds).
+        """
+        assert chop.gate is not None
+        cwd = self._resolve_gate_cwd(chop)
+        try:
+            result = subprocess.run(
+                chop.gate,
+                shell=True,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                return _ChopResult(
+                    chop_name=chop.name,
+                    executed=False,
+                    success=True,
+                    update_timestamp=chop.run_every is not None,
+                    log_lines=[
+                        f"Gate blocked chop '{chop.name}' (exit {result.returncode})"
+                    ],
+                )
+            return None
+        except Exception as e:
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=False,
+                success=False,
+                update_timestamp=False,
+                error=e,
+            )
 
     def _launch_agent_chop(self, chop: ChopConfig) -> _ChopResult:
         """Launch an agent chop as a background process (runs in a worker thread)."""
