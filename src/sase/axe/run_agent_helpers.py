@@ -147,6 +147,23 @@ def read_and_delete_marker(artifacts_dir: str, filename: str) -> dict[str, Any] 
         return None
 
 
+def append_meta_list_field(artifacts_dir: str, key: str, value: Any) -> None:
+    """Read agent_meta.json, append *value* to the list at *key*, and write back."""
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        existing = meta.get(key)
+        if isinstance(existing, list):
+            existing.append(value)
+        else:
+            meta[key] = [value]
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
 def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
     """Read agent_meta.json, set a single key, and write it back."""
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")

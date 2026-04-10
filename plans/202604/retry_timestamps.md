@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-10 16:51:54
-status: wip
+status: done
 ---
 
 # Plan: Add RETRY Timestamps to Agents Tab Metadata Panel

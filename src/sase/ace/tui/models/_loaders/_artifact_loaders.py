@@ -97,6 +97,16 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         except ValueError:
             pass
 
+    # Parse retry_started_at (list of timestamps, one per retry/fallback)
+    retry_started_at = data.get("retry_started_at")
+    if isinstance(retry_started_at, list):
+        for ts in retry_started_at:
+            if isinstance(ts, str):
+                try:
+                    agent.retry_times.append(_parse_utc_to_eastern(ts))
+                except ValueError:
+                    pass
+
     # Parse run_started_at (actual start time after waiting period)
     run_started_at = data.get("run_started_at")
     if isinstance(run_started_at, str):

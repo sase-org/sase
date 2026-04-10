@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
 
+from sase.axe.run_agent_helpers import append_meta_list_field
 from sase.axe.runner_utils import prepare_workspace, was_killed
 from sase.telemetry.metrics import LLM_RETRIES
 from sase.llm_provider.retry_config import (
@@ -93,6 +95,11 @@ def handle_workflow_error(
             max_retries=active_retry_cfg.max_retries,
             last_error_snippet=snippet,
         ).write_to(ctx.artifacts_dir)
+        append_meta_list_field(
+            ctx.artifacts_dir,
+            "retry_started_at",
+            datetime.now(UTC).isoformat(),
+        )
         if ctx.update_target and not ctx.is_home_mode:
             prepare_workspace(
                 ctx.workspace_dir,
@@ -116,6 +123,11 @@ def handle_workflow_error(
             using_fallback=True,
             last_error_snippet=snippet,
         ).write_to(ctx.artifacts_dir)
+        append_meta_list_field(
+            ctx.artifacts_dir,
+            "retry_started_at",
+            datetime.now(UTC).isoformat(),
+        )
 
         if ctx.update_target and not ctx.is_home_mode:
             prepare_workspace(

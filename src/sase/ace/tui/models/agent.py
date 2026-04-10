@@ -167,6 +167,8 @@ class Agent:
     feedback_times: list[datetime] = field(default_factory=list)
     # When the agent submitted questions for user review (one per round)
     questions_times: list[datetime] = field(default_factory=list)
+    # When retry attempts started (one per retry/fallback)
+    retry_times: list[datetime] = field(default_factory=list)
 
     @property
     def effective_workspace_num(self) -> int | None:
@@ -277,6 +279,8 @@ class Agent:
             middle.append((ft, "FBACK"))
         for qt in self.questions_times:
             middle.append((qt, "QUEST"))
+        for rt in self.retry_times:
+            middle.append((rt, "RETRY"))
         if self.code_time is not None:
             middle.append((self.code_time, "CODE"))
         middle.sort(key=lambda t: t[0])
@@ -541,7 +545,12 @@ class Agent:
             "stop_time",
             "code_time",
         }
-        _DATETIME_LIST_FIELDS = {"plan_times", "feedback_times", "questions_times"}
+        _DATETIME_LIST_FIELDS = {
+            "plan_times",
+            "feedback_times",
+            "questions_times",
+            "retry_times",
+        }
         for f in dataclasses.fields(Agent):
             if f.name in kwargs:
                 continue
