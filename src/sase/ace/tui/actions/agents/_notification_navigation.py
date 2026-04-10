@@ -147,6 +147,8 @@ def navigate_to_changespec_tab(
     """
     from pathlib import Path
 
+    from sase.core.changespec import changespec_names_match
+
     from ....query import parse_query, to_canonical_string
     from ....query_history import push_to_prev_stack, save_query_history
 
@@ -155,7 +157,7 @@ def navigate_to_changespec_tab(
     # Search in current filtered list
     changespecs = app.changespecs  # type: ignore[attr-defined]
     for idx, cs in enumerate(changespecs):
-        if cs.name == changespec_name:
+        if changespec_names_match(cs.name, changespec_name):
             app.current_idx = idx  # type: ignore[attr-defined]
             return True
 
@@ -190,7 +192,7 @@ def navigate_to_changespec_tab(
         # Search again in the new list
         changespecs = app.changespecs  # type: ignore[attr-defined]
         for idx, cs in enumerate(changespecs):
-            if cs.name == changespec_name:
+            if changespec_names_match(cs.name, changespec_name):
                 app.current_idx = idx  # type: ignore[attr-defined]
                 return True
 

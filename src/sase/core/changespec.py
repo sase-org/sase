@@ -38,6 +38,21 @@ def strip_reverted_suffix(name: str) -> str:
     return match.group(1) if match else name
 
 
+def changespec_names_match(name_a: str, name_b: str) -> bool:
+    """Check if two ChangeSpec names refer to the same logical ChangeSpec.
+
+    Returns True if names match exactly, or if stripping the _<N> suffix
+    from either name yields the other. Handles the case where a ChangeSpec
+    is renamed (e.g., suffix stripped on status change to Ready).
+    """
+    if name_a == name_b:
+        return True
+    return (
+        strip_reverted_suffix(name_a) == name_b
+        or name_a == strip_reverted_suffix(name_b)
+    )
+
+
 def changespec_name_to_branch(name: str, project_basename: str) -> str:
     """Derive the git branch name from a ChangeSpec NAME.
 

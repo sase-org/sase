@@ -18,6 +18,7 @@ from sase.ace.dismissed_agents import load_dismissed_agents, load_dismissed_bund
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_all_agents
+from sase.core.changespec import changespec_names_match
 from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
 
 from .base import OptionListNavigationMixin
@@ -49,13 +50,13 @@ def _load_agents_for_cl(
     for a in all_agents:
         if a.is_workflow_child:
             continue
-        if a.cl_name == cl_name:
+        if changespec_names_match(a.cl_name, cl_name):
             active.append(a)
             active_ids.add(id(a))
             continue
         # Include project agents that created this CL/PR
         cs_name = get_meta_changespec_name(a)
-        if cs_name == cl_name:
+        if cs_name and changespec_names_match(cs_name, cl_name):
             active.append(a)
             active_ids.add(id(a))
 
@@ -75,7 +76,10 @@ def _load_agents_for_cl(
         if agent.is_workflow_child:
             continue
         # Match by cl_name or by meta CL/PR creation
-        if agent.cl_name != cl_name and get_meta_changespec_name(agent) != cl_name:
+        if not changespec_names_match(agent.cl_name, cl_name) and not (
+            (meta := get_meta_changespec_name(agent))
+            and changespec_names_match(meta, cl_name)
+        ):
             continue
         # Skip if already present as an active agent
         if agent.identity in active_identities:

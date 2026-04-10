@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-10 17:01:11
-status: wip
+status: done
 ---
 
 # Plan: Fix ChangeSpec suffix mismatch in TUI keymaps
