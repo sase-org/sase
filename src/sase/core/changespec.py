@@ -47,9 +47,8 @@ def changespec_names_match(name_a: str, name_b: str) -> bool:
     """
     if name_a == name_b:
         return True
-    return (
-        strip_reverted_suffix(name_a) == name_b
-        or name_a == strip_reverted_suffix(name_b)
+    return strip_reverted_suffix(name_a) == name_b or name_a == strip_reverted_suffix(
+        name_b
     )
 
 

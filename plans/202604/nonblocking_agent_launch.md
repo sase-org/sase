@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-10 19:53:02
-status: wip
+status: done
 ---
 
 # Plan: Non-blocking TUI Agent Launching

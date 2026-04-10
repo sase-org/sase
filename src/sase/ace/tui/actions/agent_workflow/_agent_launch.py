@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from typing import TYPE_CHECKING
 
@@ -257,27 +258,42 @@ class AgentLaunchMixin:
             ctx.workspace_num = 0
             ctx.workspace_dir = get_workspace_directory(ctx.project_name, 1)
 
-        # Launch single background agent — pass raw (unexpanded) prompt so
-        # the runner saves the original user input as raw_xprompt.md.
-        self._launch_background_agent(
-            cl_name=ctx.display_name,
-            project_file=ctx.project_file,
-            workspace_dir=ctx.workspace_dir,
-            workspace_num=ctx.workspace_num,
-            workflow_name=ctx.workflow_name,
-            prompt=raw_prompt,
-            timestamp=ctx.timestamp,
-            update_target=ctx.update_target,
-            project_name=ctx.project_name,
-            history_sort_key=ctx.history_sort_key,
-            is_home_mode=ctx.is_home_mode,
-            vcs_ref=vcs_ref,
-            deferred_workspace=has_wait,
-        )
+        # Launch single background agent in a thread — pass raw (unexpanded)
+        # prompt so the runner saves the original user input as raw_xprompt.md.
+        display_name = ctx.display_name
 
-        # Refresh agents list (deferred to avoid lag)
-        self.call_later(self._load_agents)  # type: ignore[attr-defined]
-        self.notify(f"Agent started for {ctx.display_name}")  # type: ignore[attr-defined]
+        def _run() -> None:
+            try:
+                self._launch_background_agent(
+                    cl_name=ctx.display_name,
+                    project_file=ctx.project_file,
+                    workspace_dir=ctx.workspace_dir,
+                    workspace_num=ctx.workspace_num,
+                    workflow_name=ctx.workflow_name,
+                    prompt=raw_prompt,
+                    timestamp=ctx.timestamp,
+                    update_target=ctx.update_target,
+                    project_name=ctx.project_name,
+                    history_sort_key=ctx.history_sort_key,
+                    is_home_mode=ctx.is_home_mode,
+                    vcs_ref=vcs_ref,
+                    deferred_workspace=has_wait,
+                )
+                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                msg = f"Agent started for {display_name}"
+                self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+            except Exception:
+                log.exception("Agent launch failed")
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(  # type: ignore[attr-defined]
+                        "Agent launch failed (see log)", severity="error"
+                    )
+                )
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+        self.notify(f"Launching agent for {display_name}...")  # type: ignore[attr-defined]
 
     def _launch_multi_model_agents(
         self,
@@ -297,52 +313,71 @@ class AgentLaunchMixin:
             vcs_ref: Resolved VCS reference, if any.
             has_wait: Whether the prompt has ``%wait`` directives.
         """
-        from sase.running_field import (
-            get_first_available_axe_workspace,
-            get_workspace_directory,
-            get_workspace_directory_for_num,
-        )
-        from sase.core.time import generate_timestamp
+        n = len(model_prompts)
 
-        launched = 0
-        for i, model_prompt in enumerate(model_prompts):
-            if i > 0:
-                time.sleep(1)
+        def _run() -> None:
+            try:
+                from sase.running_field import (
+                    get_first_available_axe_workspace,
+                    get_workspace_directory,
+                    get_workspace_directory_for_num,
+                )
+                from sase.core.time import generate_timestamp
 
-            timestamp = generate_timestamp()
-            workflow_name = f"ace(run)-{timestamp}"
+                launched = 0
+                for i, model_prompt in enumerate(model_prompts):
+                    if i > 0:
+                        time.sleep(1)
 
-            if has_wait and not ctx.is_home_mode:
-                workspace_num = 0
-                workspace_dir = get_workspace_directory(ctx.project_name, 1)
-            elif ctx.is_home_mode:
-                workspace_num = ctx.workspace_num
-                workspace_dir = ctx.workspace_dir
-            else:
-                workspace_num = get_first_available_axe_workspace(ctx.project_file)
-                workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, ctx.project_name
+                    timestamp = generate_timestamp()
+                    workflow_name = f"ace(run)-{timestamp}"
+
+                    if has_wait and not ctx.is_home_mode:
+                        workspace_num = 0
+                        workspace_dir = get_workspace_directory(ctx.project_name, 1)
+                    elif ctx.is_home_mode:
+                        workspace_num = ctx.workspace_num
+                        workspace_dir = ctx.workspace_dir
+                    else:
+                        workspace_num = get_first_available_axe_workspace(
+                            ctx.project_file
+                        )
+                        workspace_dir, _ = get_workspace_directory_for_num(
+                            workspace_num, ctx.project_name
+                        )
+
+                    self._launch_background_agent(
+                        cl_name=ctx.display_name,
+                        project_file=ctx.project_file,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        workflow_name=workflow_name,
+                        prompt=model_prompt,
+                        timestamp=timestamp,
+                        update_target=ctx.update_target,
+                        project_name=ctx.project_name,
+                        history_sort_key=ctx.history_sort_key,
+                        is_home_mode=ctx.is_home_mode,
+                        vcs_ref=vcs_ref,
+                        deferred_workspace=has_wait,
+                    )
+                    launched += 1
+
+                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+                msg = f"Started {launched} agent(s) for {ctx.display_name}"
+                self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+            except Exception:
+                log.exception("Multi-model launch failed")
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(  # type: ignore[attr-defined]
+                        "Multi-model launch failed (see log)", severity="error"
+                    )
                 )
 
-            self._launch_background_agent(
-                cl_name=ctx.display_name,
-                project_file=ctx.project_file,
-                workspace_dir=workspace_dir,
-                workspace_num=workspace_num,
-                workflow_name=workflow_name,
-                prompt=model_prompt,
-                timestamp=timestamp,
-                update_target=ctx.update_target,
-                project_name=ctx.project_name,
-                history_sort_key=ctx.history_sort_key,
-                is_home_mode=ctx.is_home_mode,
-                vcs_ref=vcs_ref,
-                deferred_workspace=has_wait,
-            )
-            launched += 1
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
 
-        self.call_later(self._load_agents)  # type: ignore[attr-defined]
-        self.notify(f"Started {launched} agent(s) for {ctx.display_name}")  # type: ignore[attr-defined]
+        self.notify(f"Launching {n} agent(s) for {ctx.display_name}...")  # type: ignore[attr-defined]
 
     def _launch_multi_prompt_agents(
         self,
@@ -359,8 +394,6 @@ class AgentLaunchMixin:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
         assert isinstance(multi, MultiPrompt)
-
-        import threading
 
         def _run() -> None:
             try:
@@ -399,13 +432,6 @@ class AgentLaunchMixin:
         Args:
             prompt: The user's prompt for all agents.
         """
-        from sase.workspace_provider import detect_workflow_type
-        from sase.core.time import generate_timestamp
-        from sase.running_field import (
-            get_first_available_axe_workspace,
-            get_workspace_directory_for_num,
-        )
-
         if not self._bulk_changespecs:
             self.notify("No bulk changespecs", severity="error")  # type: ignore[attr-defined]
             return
@@ -414,70 +440,92 @@ class AgentLaunchMixin:
         self._bulk_changespecs = None
         self._prompt_context = None
 
-        launched_count = 0
-        failed_count = 0
-
-        for i, cs in enumerate(changespecs):
-            if i > 0:
-                time.sleep(1)
-            project_name = cs.project_basename
-            cl_name = cs.name
-
-            project_file = os.path.expanduser(
-                f"~/.sase/projects/{project_name}/{project_name}.gp"
-            )
-
-            if not os.path.isfile(project_file):
-                self.notify(f"No project file for {cl_name}", severity="warning")  # type: ignore[attr-defined]
-                failed_count += 1
-                continue
-
-            try:
-                workspace_num = get_first_available_axe_workspace(project_file)
-                timestamp = generate_timestamp()
-                workflow_name = f"ace(run)-{timestamp}"
-                workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, project_name
-                )
-            except RuntimeError as e:
-                self.notify(f"Workspace error for {cl_name}: {e}", severity="warning")  # type: ignore[attr-defined]
-                failed_count += 1
-                continue
-
-            # Detect VCS type and build per-CL prompt with prefix
-            workflow_type = detect_workflow_type(project_file)
-            cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
-
-            self._launch_background_agent(
-                cl_name=cl_name,
-                project_file=project_file,
-                workspace_dir=workspace_dir,
-                workspace_num=workspace_num,
-                workflow_name=workflow_name,
-                prompt=cl_prompt,
-                timestamp=timestamp,
-                update_target="" if workflow_type else cl_name,
-                project_name=project_name,
-                history_sort_key=cl_name,
-                vcs_ref=(workflow_type, cl_name),
-            )
-            launched_count += 1
-
-        # Clear marks after bulk launch
+        # Clear marks and refresh display immediately (UI state)
         self.marked_indices = set()  # type: ignore[assignment]
         self._refresh_display()  # type: ignore[attr-defined]
 
-        # Refresh agents list
-        self.call_later(self._load_agents)  # type: ignore[attr-defined]
+        n = len(changespecs)
 
-        # Show summary notification
-        if failed_count > 0:
-            self.notify(  # type: ignore[attr-defined]
-                f"Started {launched_count} agent(s), {failed_count} failed",
-                severity="warning",
-            )
-        else:
-            self.notify(f"Started {launched_count} agent(s)")  # type: ignore[attr-defined]
+        def _run() -> None:
+            try:
+                from sase.workspace_provider import detect_workflow_type
+                from sase.core.time import generate_timestamp
+                from sase.running_field import (
+                    get_first_available_axe_workspace,
+                    get_workspace_directory_for_num,
+                )
+
+                launched_count = 0
+                failed_count = 0
+
+                for i, cs in enumerate(changespecs):
+                    if i > 0:
+                        time.sleep(1)
+                    project_name = cs.project_basename
+                    cl_name = cs.name
+
+                    project_file = os.path.expanduser(
+                        f"~/.sase/projects/{project_name}/{project_name}.gp"
+                    )
+
+                    if not os.path.isfile(project_file):
+                        log.warning("No project file for %s", cl_name)
+                        failed_count += 1
+                        continue
+
+                    try:
+                        workspace_num = get_first_available_axe_workspace(project_file)
+                        timestamp = generate_timestamp()
+                        workflow_name = f"ace(run)-{timestamp}"
+                        workspace_dir, _ = get_workspace_directory_for_num(
+                            workspace_num, project_name
+                        )
+                    except RuntimeError as e:
+                        log.warning("Workspace error for %s: %s", cl_name, e)
+                        failed_count += 1
+                        continue
+
+                    # Detect VCS type and build per-CL prompt with prefix
+                    workflow_type = detect_workflow_type(project_file)
+                    cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
+
+                    self._launch_background_agent(
+                        cl_name=cl_name,
+                        project_file=project_file,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        workflow_name=workflow_name,
+                        prompt=cl_prompt,
+                        timestamp=timestamp,
+                        update_target="" if workflow_type else cl_name,
+                        project_name=project_name,
+                        history_sort_key=cl_name,
+                        vcs_ref=(workflow_type, cl_name),
+                    )
+                    launched_count += 1
+
+                self.call_later(self._load_agents)  # type: ignore[attr-defined]
+
+                if failed_count > 0:
+                    msg = f"Started {launched_count} agent(s), {failed_count} failed"
+                    self.call_later(  # type: ignore[attr-defined]
+                        lambda: self.notify(msg, severity="warning")  # type: ignore[attr-defined]
+                    )
+                else:
+                    msg = f"Started {launched_count} agent(s)"
+                    self.call_later(lambda: self.notify(msg))  # type: ignore[attr-defined]
+            except Exception:
+                log.exception("Bulk launch failed")
+                self.call_later(  # type: ignore[attr-defined]
+                    lambda: self.notify(  # type: ignore[attr-defined]
+                        "Bulk launch failed (see log)", severity="error"
+                    )
+                )
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+
+        self.notify(f"Launching {n} agent(s)...")  # type: ignore[attr-defined]
 
     def _launch_background_agent(
         self,
