@@ -1,11 +1,40 @@
-"""Tests for _emit_block in sase_commit_stop_hook."""
+"""Tests for commit stop hook message and block behavior."""
 
 from __future__ import annotations
 
 import json
 from unittest.mock import patch
 
-from sase.scripts.sase_commit_stop_hook import _emit_block
+from sase.scripts.sase_commit_stop_hook import (
+    _build_commit_instruction_message,
+    _emit_block,
+)
+
+
+def test_commit_instruction_non_pr_method_includes_scope_restriction() -> None:
+    """Non-PR methods must constrain commit message scope to current commit."""
+    message = _build_commit_instruction_message("/sase_git_commit", "create_commit")
+    assert "The commit method type is `create_commit`." in message
+    assert "describe only the changes in this commit" in message
+    assert "Do NOT describe the entire pull request" in message
+
+
+def test_commit_instruction_pr_method_omits_scope_restriction() -> None:
+    """PR method should not include non-PR commit message scope constraints."""
+    message = _build_commit_instruction_message(
+        "/sase_git_commit", "create_pull_request"
+    )
+    assert "The commit method type is `create_pull_request`." in message
+    assert "describe only the changes in this commit" not in message
+    assert "Do NOT describe the entire pull request" not in message
+
+
+def test_commit_instruction_unknown_method_defaults_to_scope_restriction() -> None:
+    """Unknown methods should use non-PR scope guidance by default."""
+    message = _build_commit_instruction_message("/sase_git_commit", "unexpected_method")
+    assert "The commit method type is `unexpected_method`." in message
+    assert "describe only the changes in this commit" in message
+    assert "Do NOT describe the entire pull request" in message
 
 
 def test_codex_emit_block_includes_details_in_json(capsys: object) -> None:

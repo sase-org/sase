@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-10 01:25:23
-status: wip
+status: done
 ---
 
 # Plan: Scope commit-stop-hook commit message guidance to the current commit only

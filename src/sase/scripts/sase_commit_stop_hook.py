@@ -130,9 +130,18 @@ def _build_commit_instruction_message(skill: str, commit_method: str) -> str:
         "A post-completion hook has detected uncommitted changes.",
         f"Did you make these changes? If so, please commit them using your {skill} skill before continuing.",
         f"The commit method type is `{method}`.",
-        "If you did NOT make these changes, you can safely ignore this warning"
-        " — it will not appear again this session.",
     ]
+    if method != "create_pull_request":
+        parts.append(
+            "When constructing the commit message, describe only the changes in this commit."
+        )
+        parts.append(
+            "Do NOT describe the entire pull request or unrelated planned work."
+        )
+    parts.append(
+        "If you did NOT make these changes, you can safely ignore this warning"
+        " — it will not appear again this session."
+    )
     return " ".join(parts)
 
 
