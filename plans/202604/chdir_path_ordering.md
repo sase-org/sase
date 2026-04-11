@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-10 20:58:52
-status: wip
+status: done
 ---
 
 # Fix `_chdir` / path resolution ordering bug

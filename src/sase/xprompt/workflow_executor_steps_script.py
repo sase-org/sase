@@ -139,6 +139,15 @@ class ScriptStepMixin:
         if step_output_types:
             coerce_output_types(output, step_output_types)
 
+        # Handle _chdir special output: change executor's working directory
+        # Must happen before path resolution so relative paths resolve against
+        # the post-chdir CWD.
+        if "_chdir" in output:
+            chdir_path = str(output.pop("_chdir"))
+            if not os.path.isabs(chdir_path):
+                chdir_path = os.path.abspath(chdir_path)
+            os.chdir(chdir_path)
+
         # Validate output against schema if specified
         if step.output and step.output.schema:
             from sase.xprompt.output_validation import validate_against_schema
@@ -211,13 +220,6 @@ class ScriptStepMixin:
                 self, "_current_embedded_workflow_name", None
             ),
         )
-
-        # Handle _chdir special output: change executor's working directory
-        if "_chdir" in output:
-            chdir_path = str(output.pop("_chdir"))
-            if not os.path.isabs(chdir_path):
-                chdir_path = os.path.abspath(chdir_path)
-            os.chdir(chdir_path)
 
         # Add artifact path to output if created
         if artifact_path is not None:
@@ -313,6 +315,15 @@ class ScriptStepMixin:
         if step_output_types:
             coerce_output_types(output, step_output_types)
 
+        # Handle _chdir special output: change executor's working directory
+        # Must happen before path resolution so relative paths resolve against
+        # the post-chdir CWD.
+        if "_chdir" in output:
+            chdir_path = str(output.pop("_chdir"))
+            if not os.path.isabs(chdir_path):
+                chdir_path = os.path.abspath(chdir_path)
+            os.chdir(chdir_path)
+
         # Validate output against schema if specified
         if step.output and step.output.schema:
             from sase.xprompt.output_validation import validate_against_schema
@@ -386,13 +397,6 @@ class ScriptStepMixin:
                 self, "_current_embedded_workflow_name", None
             ),
         )
-
-        # Handle _chdir special output: change executor's working directory
-        if "_chdir" in output:
-            chdir_path = str(output.pop("_chdir"))
-            if not os.path.isabs(chdir_path):
-                chdir_path = os.path.abspath(chdir_path)
-            os.chdir(chdir_path)
 
         # Add artifact path to output if created
         if artifact_path is not None:
