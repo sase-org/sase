@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -146,3 +150,101 @@ def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
     assert mock_remove.call_args_list[1].kwargs == {"child_raw_suffixes": set()}
     assert app.load_count == 1
     assert len(app.restored) == 4
+
+
+@pytest.mark.parametrize(
+    ("display_status", "canonical"),
+    [
+        ("DONE", "completed"),
+        ("PLAN DONE", "completed"),
+        ("PLAN COMMITTED", "completed"),
+        ("EPIC CREATED", "completed"),
+        ("FAILED", "failed"),
+        ("WAITING INPUT", "waiting_hitl"),
+        ("RUNNING", "running"),
+    ],
+)
+def test_build_workflow_state_data_canonicalizes_statuses(
+    display_status: str, canonical: str
+) -> None:
+    agent = _make_agent(status=display_status)
+    data = AgentRevivalMixin._build_workflow_state_data(agent)
+    assert data["status"] == canonical
+
+
+@pytest.mark.parametrize(
+    ("display_status", "canonical"),
+    [
+        ("DONE", "completed"),
+        ("PLAN DONE", "completed"),
+        ("PLAN COMMITTED", "completed"),
+        ("FAILED", "failed"),
+        ("WAITING INPUT", "waiting_hitl"),
+        ("RUNNING", "in_progress"),
+    ],
+)
+def test_build_step_marker_data_canonicalizes_statuses(
+    display_status: str, canonical: str
+) -> None:
+    agent = _make_agent(status=display_status)
+    data = AgentRevivalMixin._build_step_marker_data(agent)
+    assert data["status"] == canonical
+
+
+def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> None:
+    run_start = datetime(2024, 1, 1, 12, 5, 0)
+    stop_time = datetime(2024, 1, 1, 12, 35, 0)
+    plan_times = [
+        datetime(2024, 1, 1, 12, 10, 0),
+        datetime(2024, 1, 1, 12, 20, 0),
+    ]
+    feedback_times = [datetime(2024, 1, 1, 12, 22, 0)]
+    questions_times = [datetime(2024, 1, 1, 12, 25, 0)]
+    retry_times = [
+        datetime(2024, 1, 1, 12, 27, 0),
+        datetime(2024, 1, 1, 12, 29, 0),
+    ]
+    agent = _make_agent(
+        status="PLAN COMMITTED",
+        model="claude-opus",
+        llm_provider="claude",
+        vcs_provider="GitHub",
+        agent_name="@d.1",
+        waiting_for=["@f"],
+        approve=True,
+        hidden=True,
+        role_suffix=".plan",
+        parent_timestamp="20240101120000",
+        workspace_num=7,
+        response_path="~/.sase/chat/foo.md",
+        run_start_time=run_start,
+        stop_time=stop_time,
+        plan_times=plan_times,
+        feedback_times=feedback_times,
+        questions_times=questions_times,
+        retry_times=retry_times,
+    )
+
+    AgentRevivalMixin._restore_agent_meta(agent, tmp_path)
+    data = json.loads((tmp_path / "agent_meta.json").read_text())
+
+    assert data["model"] == "claude-opus"
+    assert data["llm_provider"] == "claude"
+    assert data["vcs_provider"] == "GitHub"
+    assert data["name"] == "@d.1"
+    assert data["wait_for"] == ["@f"]
+    assert data["approve"] is True
+    assert data["hidden"] is True
+    assert data["role_suffix"] == ".plan"
+    assert data["parent_timestamp"] == "20240101120000"
+    assert data["workspace_num"] == 7
+    assert data["chat_path"] == "~/.sase/chat/foo.md"
+    assert data["run_started_at"] == run_start.isoformat()
+    assert data["stopped_at"] == stop_time.isoformat()
+    assert data["plan_submitted_at"] == [t.isoformat() for t in plan_times]
+    assert data["feedback_submitted_at"] == feedback_times[0].isoformat()
+    assert data["questions_submitted_at"] == questions_times[0].isoformat()
+    assert data["retry_started_at"] == [t.isoformat() for t in retry_times]
+    assert data["plan"] is True
+    assert data["plan_approved"] is True
+    assert data["plan_action"] == "commit"

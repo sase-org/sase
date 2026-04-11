@@ -363,21 +363,41 @@ class AgentRevivalMixin:
                 self._restore_agent_meta(agent, artifacts_dir)
 
     @staticmethod
+    def _canonicalize_workflow_marker_status(status: str) -> str:
+        """Map display statuses to canonical workflow_state statuses."""
+        if status in {"completed", "failed", "running", "waiting_hitl"}:
+            return status
+        if status in {"DONE", "PLAN DONE", "PLAN COMMITTED", "EPIC CREATED"}:
+            return "completed"
+        if status == "FAILED":
+            return "failed"
+        if status in {"WAITING", "WAITING INPUT"}:
+            return "waiting_hitl"
+        if status in {"RUNNING", "PLANNING", "PLAN APPROVED", "QUESTION"}:
+            return "running"
+        return status
+
+    @staticmethod
+    def _canonicalize_step_marker_status(status: str) -> str:
+        """Map display statuses to canonical prompt_step marker statuses."""
+        if status in {"completed", "failed", "in_progress", "waiting_hitl"}:
+            return status
+        if status in {"DONE", "PLAN DONE", "PLAN COMMITTED", "EPIC CREATED"}:
+            return "completed"
+        if status == "FAILED":
+            return "failed"
+        if status in {"WAITING", "WAITING INPUT"}:
+            return "waiting_hitl"
+        if status in {"RUNNING", "PLANNING", "PLAN APPROVED", "QUESTION"}:
+            return "in_progress"
+        return status
+
+    @staticmethod
     def _build_workflow_state_data(agent: Agent) -> dict[str, Any]:
         """Build a workflow_state.json dict from a parent workflow Agent."""
         status = agent.status or "DONE"
-        # Map display statuses back to the format load_workflow_states() expects
-        status_map = {
-            "DONE": "completed",
-            "FAILED": "failed",
-            "WAITING INPUT": "waiting_hitl",
-            "RUNNING": "running",
-            "PLANNING": "running",
-            "PLAN APPROVED": "running",
-            "QUESTION": "running",
-        }
         data: dict[str, Any] = {
-            "status": status_map.get(status, status),
+            "status": AgentRevivalMixin._canonicalize_workflow_marker_status(status),
             "workflow_name": agent.workflow or "unknown",
             "context": {"cl_name": agent.cl_name},
             "appears_as_agent": agent.appears_as_agent,
@@ -410,14 +430,8 @@ class AgentRevivalMixin:
     def _build_step_marker_data(agent: Agent) -> dict[str, Any]:
         """Build a prompt_step_*.json dict from a child workflow Agent."""
         status = agent.status or "DONE"
-        status_map = {
-            "DONE": "completed",
-            "FAILED": "failed",
-            "WAITING INPUT": "waiting_hitl",
-            "RUNNING": "in_progress",
-        }
         data: dict[str, Any] = {
-            "status": status_map.get(status, status),
+            "status": AgentRevivalMixin._canonicalize_step_marker_status(status),
             "workflow_name": agent.parent_workflow or agent.workflow or "unknown",
             "step_name": agent.step_name or agent.cl_name,
         }
@@ -515,6 +529,56 @@ class AgentRevivalMixin:
             data["wait_for"] = agent.waiting_for
         if agent.approve:
             data["approve"] = agent.approve
+        if agent.hidden:
+            data["hidden"] = True
+        if agent.role_suffix:
+            data["role_suffix"] = agent.role_suffix
+        if agent.parent_timestamp:
+            data["parent_timestamp"] = agent.parent_timestamp
+        if agent.workspace_num is not None:
+            data["workspace_num"] = agent.workspace_num
+        if agent.response_path:
+            data["chat_path"] = agent.response_path
+
+        if agent.run_start_time is not None:
+            data["run_started_at"] = agent.run_start_time.isoformat()
+        if agent.stop_time is not None:
+            data["stopped_at"] = agent.stop_time.isoformat()
+
+        if agent.plan_times:
+            plan_values = [ts.isoformat() for ts in agent.plan_times]
+            data["plan_submitted_at"] = (
+                plan_values[0] if len(plan_values) == 1 else plan_values
+            )
+        if agent.feedback_times:
+            feedback_values = [ts.isoformat() for ts in agent.feedback_times]
+            data["feedback_submitted_at"] = (
+                feedback_values[0] if len(feedback_values) == 1 else feedback_values
+            )
+        if agent.questions_times:
+            questions_values = [ts.isoformat() for ts in agent.questions_times]
+            data["questions_submitted_at"] = (
+                questions_values[0] if len(questions_values) == 1 else questions_values
+            )
+        if agent.retry_times:
+            data["retry_started_at"] = [ts.isoformat() for ts in agent.retry_times]
+
+        is_plan_like_status = agent.status in {
+            "PLANNING",
+            "PLAN APPROVED",
+            "PLAN COMMITTED",
+            "PLAN DONE",
+            "EPIC CREATED",
+            "QUESTION",
+        }
+        if agent.role_suffix == ".plan" or is_plan_like_status:
+            data["plan"] = True
+        if agent.status in {"PLAN APPROVED", "PLAN COMMITTED", "EPIC CREATED"}:
+            data["plan_approved"] = True
+            if agent.status == "PLAN COMMITTED":
+                data["plan_action"] = "commit"
+            elif agent.status == "EPIC CREATED":
+                data["plan_action"] = "epic"
 
         if data:
             meta_path.write_text(json.dumps(data))

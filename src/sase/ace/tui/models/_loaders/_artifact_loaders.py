@@ -73,29 +73,30 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
             agent.workspace_num = int(data["workspace_num"])
         except (ValueError, TypeError):
             pass
+
+    def _append_timestamp_field(
+        raw_value: object,
+        target: list[datetime],
+    ) -> None:
+        values: list[str] = []
+        if isinstance(raw_value, str):
+            values = [raw_value]
+        elif isinstance(raw_value, list):
+            values = [v for v in raw_value if isinstance(v, str)]
+        for value in values:
+            try:
+                target.append(_parse_utc_to_eastern(value))
+            except ValueError:
+                continue
+
     # Parse plan_submitted_at (when plan was submitted for review)
-    plan_submitted_at = data.get("plan_submitted_at")
-    if isinstance(plan_submitted_at, str):
-        try:
-            agent.plan_times.append(_parse_utc_to_eastern(plan_submitted_at))
-        except ValueError:
-            pass
+    _append_timestamp_field(data.get("plan_submitted_at"), agent.plan_times)
 
     # Parse feedback_submitted_at (when feedback was given on the plan)
-    feedback_submitted_at = data.get("feedback_submitted_at")
-    if isinstance(feedback_submitted_at, str):
-        try:
-            agent.feedback_times.append(_parse_utc_to_eastern(feedback_submitted_at))
-        except ValueError:
-            pass
+    _append_timestamp_field(data.get("feedback_submitted_at"), agent.feedback_times)
 
     # Parse questions_submitted_at (when agent submitted questions)
-    questions_submitted_at = data.get("questions_submitted_at")
-    if isinstance(questions_submitted_at, str):
-        try:
-            agent.questions_times.append(_parse_utc_to_eastern(questions_submitted_at))
-        except ValueError:
-            pass
+    _append_timestamp_field(data.get("questions_submitted_at"), agent.questions_times)
 
     # Parse retry_started_at (list of timestamps, one per retry/fallback)
     retry_started_at = data.get("retry_started_at")
