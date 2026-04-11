@@ -144,6 +144,10 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
                         agent.wait_duration = float(raw_dur)
                     except (ValueError, TypeError):
                         pass
+                # Read wait_until from waiting.json
+                raw_until = waiting_data.get("wait_until")
+                if isinstance(raw_until, str) and raw_until:
+                    agent.wait_until = raw_until
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -155,6 +159,12 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
                 agent.wait_duration = float(raw_dur)
             except (ValueError, TypeError):
                 pass
+
+    # Fallback: read wait_until from agent_meta.json if not set from waiting.json
+    if agent.wait_until is None:
+        raw_until = data.get("wait_until")
+        if isinstance(raw_until, str) and raw_until:
+            agent.wait_until = raw_until
 
     # Set PLANNING / PLAN APPROVED / PLAN COMMITTED / EPIC CREATED status
     # for agents launched with %plan directive

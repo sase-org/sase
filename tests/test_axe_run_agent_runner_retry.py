@@ -67,6 +67,7 @@ _AGENT_INFO = _AgentInfo(
     name="test-agent",
     wait_names=[],
     wait_duration=None,
+    wait_until=None,
     model="test-model",
     llm_provider="test-provider",
     vcs_provider=None,

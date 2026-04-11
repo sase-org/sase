@@ -7,6 +7,19 @@ from pathlib import Path
 from typing import Any
 
 
+def format_wait_until(iso_str: str) -> str:
+    """Format an ISO 8601 target time for display.
+
+    Same day: ``"14:30"`` (just the time).
+    Different day: ``"Apr 11 14:30"`` (short month + day + time).
+    """
+    target = datetime.fromisoformat(iso_str)
+    now = datetime.now()
+    if target.date() == now.date():
+        return target.strftime("%H:%M")
+    return target.strftime("%b %-d %H:%M")
+
+
 def format_compact_duration(seconds: float) -> str:
     """Format seconds as a compact duration string (e.g., '4m32s', '1h5m').
 
@@ -141,6 +154,9 @@ class Agent:
 
     # Duration wait in seconds (from %wait:5m directive)
     wait_duration: float | None = None
+
+    # Absolute time wait target as ISO 8601 string (from %wait:1430 directive)
+    wait_until: str | None = None
 
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None

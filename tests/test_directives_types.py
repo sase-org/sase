@@ -181,6 +181,43 @@ def test_wait_duration_multiple_takes_max() -> None:
     assert directives.wait_duration == 600.0
 
 
+# --- %wait absolute time directive tests ---
+
+
+def test_wait_absolute_time_hhmm() -> None:
+    """%wait:1430 sets wait_until to an ISO string."""
+    prompt = "%wait:0000\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == []
+    assert directives.wait_duration is None
+    assert directives.wait_until is not None
+    assert "T00:00:00" in directives.wait_until
+
+
+def test_wait_absolute_time_with_agent_names() -> None:
+    """Absolute time can be combined with agent-name waits."""
+    prompt = "%wait:agent_a\n%wait:0000\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["agent_a"]
+    assert directives.wait_until is not None
+
+
+def test_wait_absolute_time_with_duration_raises() -> None:
+    """Combining absolute time and duration raises DirectiveError."""
+    prompt = "%wait:5m\n%wait:0000\nDo work"
+    with pytest.raises(DirectiveError, match="Cannot combine duration and absolute"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_absolute_time_multiple_raises() -> None:
+    """Multiple absolute time waits raise DirectiveError."""
+    prompt = "%wait:0000\n%wait:0100\nDo work"
+    with pytest.raises(DirectiveError, match="Multiple absolute time"):
+        extract_prompt_directives(prompt)
+
+
 # --- %plan directive tests ---
 
 

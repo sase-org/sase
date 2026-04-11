@@ -95,3 +95,70 @@ def test_duration_only_waiting_json_sets_waiting_status(tmp_path: Path) -> None:
     assert agent.status == "WAITING"
     assert agent.waiting_for == []
     assert agent.wait_duration == 120.0
+
+
+# --- wait_until tests ---
+
+
+def test_wait_until_from_waiting_json(tmp_path: Path) -> None:
+    """wait_until is read from waiting.json when present."""
+    meta = {"pid": 1234}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+    waiting = {"waiting_for": [], "wait_until": "2026-04-11T14:30:00"}
+    (tmp_path / "waiting.json").write_text(json.dumps(waiting))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "WAITING"
+    assert agent.wait_until == "2026-04-11T14:30:00"
+
+
+def test_wait_until_from_agent_meta_fallback(tmp_path: Path) -> None:
+    """wait_until falls back to agent_meta.json when waiting.json absent."""
+    meta = {"pid": 1234, "wait_until": "2026-04-11T14:30:00"}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.wait_until == "2026-04-11T14:30:00"
+
+
+def test_wait_until_waiting_json_takes_precedence(tmp_path: Path) -> None:
+    """waiting.json wait_until takes precedence over agent_meta.json."""
+    meta = {"pid": 1234, "wait_until": "2026-04-11T12:00:00"}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+    waiting = {"waiting_for": [], "wait_until": "2026-04-11T14:30:00"}
+    (tmp_path / "waiting.json").write_text(json.dumps(waiting))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.wait_until == "2026-04-11T14:30:00"
+
+
+def test_wait_until_none_when_absent(tmp_path: Path) -> None:
+    """wait_until stays None when not in any source."""
+    meta = {"pid": 1234}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.wait_until is None
+
+
+def test_wait_until_with_agents(tmp_path: Path) -> None:
+    """Mixed case: waiting_for agents + wait_until both populated."""
+    meta = {"pid": 1234}
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+    waiting = {"waiting_for": ["dep_agent"], "wait_until": "2026-04-11T14:30:00"}
+    (tmp_path / "waiting.json").write_text(json.dumps(waiting))
+
+    agent = _make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "WAITING"
+    assert agent.waiting_for == ["dep_agent"]
+    assert agent.wait_until == "2026-04-11T14:30:00"

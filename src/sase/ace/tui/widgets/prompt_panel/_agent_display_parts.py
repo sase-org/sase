@@ -219,19 +219,33 @@ def build_header_text(agent: Agent) -> tuple[Text, Syntax | None]:
         header_text.append("Name: ", style="bold #87D7FF")
         header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
 
-    # Waiting info (when agent is waiting for dependencies or a duration)
-    if agent.waiting_for or agent.wait_duration:
-        from sase.ace.tui.models.agent import format_compact_duration
+    # Waiting info (when agent is waiting for dependencies, a duration, or absolute time)
+    if agent.waiting_for or agent.wait_duration or agent.wait_until:
+        from sase.ace.tui.models.agent import format_compact_duration, format_wait_until
 
         header_text.append("Waiting for: ", style="bold #87D7FF")
         parts: list[str] = []
         if agent.waiting_for:
             parts.append(", ".join(agent.waiting_for))
-        if agent.wait_duration:
+        if agent.wait_until:
+            target_label = format_wait_until(agent.wait_until)
+            parts.append(f"until {target_label}")
+        elif agent.wait_duration:
             parts.append(format_compact_duration(agent.wait_duration))
         header_text.append(" + ".join(parts), style="#FF87D7")
+        # Show live countdown for absolute-time waits
+        if agent.wait_until:
+            from datetime import datetime as _dt
+
+            target = _dt.fromisoformat(agent.wait_until)
+            remaining = (target - _dt.now()).total_seconds()
+            if remaining > 0:
+                header_text.append(
+                    f" ({format_compact_duration(remaining)} left)",
+                    style="dim #AF87FF",
+                )
         # Show live countdown for duration waits
-        if agent.wait_duration and agent.start_time:
+        elif agent.wait_duration and agent.start_time:
             from datetime import datetime, timedelta
 
             target = agent.start_time + timedelta(seconds=agent.wait_duration)

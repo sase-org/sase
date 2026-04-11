@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 00:31:41
-status: wip
+status: done
 ---
 
 # Plan: Absolute Time Formats for `%wait` Directive

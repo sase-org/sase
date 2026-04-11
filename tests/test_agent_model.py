@@ -2,7 +2,12 @@
 
 from datetime import datetime, timedelta
 
-from sase.ace.tui.models.agent import Agent, AgentType, format_compact_duration
+from sase.ace.tui.models.agent import (
+    Agent,
+    AgentType,
+    format_compact_duration,
+    format_wait_until,
+)
 
 # --- Agent Model Tests ---
 
@@ -612,6 +617,50 @@ def test_wait_duration_none_by_default() -> None:
         start_time=None,
     )
     assert agent.wait_duration is None
+
+
+def test_wait_until_bundle_roundtrip() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="WAITING",
+        start_time=datetime.now(),
+        wait_until="2026-04-11T14:30:00",
+    )
+    bundle = agent.to_bundle_dict()
+    assert bundle["wait_until"] == "2026-04-11T14:30:00"
+
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.wait_until == "2026-04-11T14:30:00"
+
+
+def test_wait_until_none_by_default() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+    )
+    assert agent.wait_until is None
+
+
+# --- format_wait_until Tests ---
+
+
+def test_format_wait_until_same_day() -> None:
+    """Same-day target shows only time."""
+    today = datetime.now().replace(hour=14, minute=30, second=0, microsecond=0)
+    result = format_wait_until(today.isoformat())
+    assert result == "14:30"
+
+
+def test_format_wait_until_different_day() -> None:
+    """Different-day target shows month, day, and time."""
+    future = datetime(2026, 4, 15, 9, 0, 0)
+    result = format_wait_until(future.isoformat())
+    assert result == "Apr 15 09:00"
 
 
 def test_timestamps_display_wait_tag_for_waiting_status() -> None:

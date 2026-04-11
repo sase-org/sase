@@ -322,8 +322,24 @@ class AgentList(OptionList, inherit_bindings=False):
             text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
         elif agent.status == "WAITING":
             text.append(agent.status, style="bold #AF87FF")  # Amethyst
+            # Live countdown for absolute-time waits
+            if agent.wait_until:
+                from datetime import datetime as _dt
+
+                from sase.ace.tui.models.agent import format_wait_until
+
+                target_label = format_wait_until(agent.wait_until)
+                target = _dt.fromisoformat(agent.wait_until)
+                remaining = (target - _dt.now()).total_seconds()
+                if remaining > 0:
+                    text.append(
+                        f" (until {target_label}, {format_compact_duration(remaining)})",
+                        style="#AF87FF",
+                    )
+                else:
+                    text.append(f" (until {target_label})", style="#AF87FF")
             # Live countdown for duration-based waits
-            if agent.wait_duration and agent.start_time:
+            elif agent.wait_duration and agent.start_time:
                 from datetime import datetime, timedelta
 
                 target = agent.start_time + timedelta(seconds=agent.wait_duration)

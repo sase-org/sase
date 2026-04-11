@@ -243,7 +243,11 @@ def main() -> None:
                     json.dump(running_marker, f, indent=2)
 
             # Wait for dependencies if %wait directives are present
-            has_wait = bool(info.wait_names) or info.wait_duration is not None
+            has_wait = (
+                bool(info.wait_names)
+                or info.wait_duration is not None
+                or info.wait_until is not None
+            )
             if has_wait:
                 wait_for_dependencies(
                     info.wait_names,
@@ -252,6 +256,7 @@ def main() -> None:
                     timestamp,
                     agent_meta,
                     duration=info.wait_duration,
+                    wait_until=info.wait_until,
                 )
 
                 # Allocate real workspace now that dependencies are resolved
