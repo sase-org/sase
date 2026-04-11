@@ -552,7 +552,7 @@ the prompt before further processing.
 | ---------- | ----- | -------------------------------------------------- |
 | `%model`   | `%m`  | Override the LLM model for this prompt             |
 | `%name`    | `%n`  | Assign a name to the agent                         |
-| `%wait`    | `%w`  | Wait for another agent to finish (can repeat)      |
+| `%wait`    | `%w`  | Wait for another agent or a duration (can repeat)  |
 | `%hide`    | `%h`  | Hide the agent from the default Agents tab display |
 | `%approve` | `%a`  | Run the agent fully autonomously (skip approval)   |
 | `%plan`    | `%p`  | Enable plan mode (plan first, then execute)        |
@@ -574,6 +574,9 @@ Directives use the same argument syntax as xprompt references:
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
+%wait:5m                     # Wait for 5 minutes before starting
+%wait:1h30m                  # Wait for 1 hour 30 minutes
+%wait:90s                    # Wait for 90 seconds
 %approve                     # Run fully autonomously
 %a                           # Same, using alias
 %edit                        # Return editor text to prompt bar
@@ -588,6 +591,11 @@ The `%model` directive also supports automatic provider resolution: known model 
 
 The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a unique name for the
 agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
+
+The `%wait` directive also accepts duration arguments in `XhYmZs` format (e.g., `%wait:5m`, `%wait:1h30m`, `%wait:90s`).
+Duration waits delay the agent's start by the specified amount. When a prompt contains both agent-name waits and
+duration waits, the agent waits for all named agents to complete and then waits for the remaining duration (the maximum
+duration is used if multiple are specified).
 
 The `%approve`, `%edit`, and `%plan` directives are boolean flags — they take no arguments and are simply present or
 absent.
@@ -676,6 +684,14 @@ The `%wait` directive supports multiple occurrences — each adds to the wait li
 %wait:agent2
 %wait:agent3
 Do work after all three agents finish.
+```
+
+Agent names and durations can be mixed freely:
+
+```
+%wait:agent1
+%wait:5m
+Wait for agent1 to finish, then wait at least 5 minutes from launch.
 ```
 
 ## Command Substitution

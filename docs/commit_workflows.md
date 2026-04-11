@@ -32,15 +32,27 @@ The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted.
 
 ### CLI Arguments
 
-| Short | Long                | Description                                                               |
-| ----- | ------------------- | ------------------------------------------------------------------------- |
-| `-m`  | `--message-file`    | Path to file containing the commit message                                |
-| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                             |
-| `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                       |
-| `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                            |
-| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)            |
-| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                   |
-| `-t`  | `--type`            | Commit method (`create_commit`, `create_proposal`, `create_pull_request`) |
+| Short | Long                | Description                                                                                |
+| ----- | ------------------- | ------------------------------------------------------------------------------------------ |
+| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                       |
+| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`) |
+| `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                              |
+| `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                                        |
+| `-b`  | `--bead-id`         | Bead ID to close and associate with the commit                                             |
+| `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                             |
+| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                    |
+| `-p`  | `--parent`          | Parent ChangeSpec name (overrides auto-detection from current branch)                      |
+| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                      |
+
+#### Type Aliases
+
+The `-t/--type` flag accepts both full method names and short aliases:
+
+| Alias     | Full Method           |
+| --------- | --------------------- |
+| `commit`  | `create_commit`       |
+| `propose` | `create_proposal`     |
+| `pr`      | `create_pull_request` |
 
 The COMMITS entry note is always derived from the first line of the commit message — there is no separate `--note` flag.
 

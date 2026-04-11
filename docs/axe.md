@@ -9,21 +9,21 @@ multiple **Lumberjacks**, each running a subset of jobs on independent schedules
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────┐
-│              Orchestrator                    │
-│  (spawns & monitors all lumberjacks)         │
-├──────────┬──────────┬────────────┬───────────┤
-│  hooks   │  checks  │  comments  │ housekeep │
-│  (1s)    │  (5min)  │  (1min)    │ (1hr)     │
-│          │          │            │           │
-│ hook_    │ cl_sub-  │ comment_   │ error_    │
-│ checks   │ mitted_  │ checks     │ digest    │
-│ mentor_  │ checks   │            │           │
-│ checks   │ stale_   │            │           │
-│ workflow_│ running_ │            │           │
-│ checks   │ cleanup  │            │           │
-│ ...      │          │            │           │
-└──────────┴──────────┴────────────┴───────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    Orchestrator                          │
+│  (spawns & monitors all lumberjacks)                    │
+├──────────┬──────────┬──────────┬────────────┬───────────┤
+│  hooks   │  waits   │  checks  │  comments  │ housekeep │
+│  (5s)    │  (2s)    │  (5min)  │  (1min)    │ (1hr)     │
+│          │          │          │            │           │
+│ hook_    │ wait_    │ cl_sub-  │ comment_   │ error_    │
+│ checks   │ checks   │ mitted_  │ checks     │ digest    │
+│ mentor_  │          │ checks   │            │           │
+│ checks   │          │ stale_   │            │           │
+│ workflow_│          │ running_ │            │           │
+│ checks   │          │ cleanup  │            │           │
+│ ...      │          │          │            │           │
+└──────────┴──────────┴──────────┴────────────┴───────────┘
 ```
 
 ### Key Concepts
@@ -70,7 +70,7 @@ sase axe chop run hook_checks
 
 ## Default Lumberjacks
 
-Axe ships with four default lumberjacks:
+Axe ships with five default lumberjacks:
 
 ### hooks (1-second interval)
 
@@ -85,7 +85,14 @@ High-frequency hook lifecycle management:
 | `comment_zombie_checks` | Mark old comment threads as ZOMBIE            |
 | `suffix_transforms`     | Strip stale suffixes, update mail-readiness   |
 | `orphan_cleanup`        | Release workspace claims for dead processes   |
-| `wait_checks`           | Resolve agent wait dependencies               |
+
+### waits (2-second interval)
+
+Fast-polling agent dependency resolution:
+
+| Chop          | Description                                                           |
+| ------------- | --------------------------------------------------------------------- |
+| `wait_checks` | Resolve agent wait dependencies and write `ready.json` when satisfied |
 
 ### checks (5-minute interval)
 
@@ -138,14 +145,33 @@ axe:
   lumberjacks:
     my_lumberjack:
       interval: 60 # Seconds between cycles
+      chop_timeout: "60s" # Default timeout for all chops in this lumberjack
       chops:
         - name: my_chop
           description: "What this chop does"
           agent: my_agent # Optional — runs as background agent process
+          gate: "test -f /tmp/ready" # Optional — bash command; chop skipped if exit non-zero
           run_every: "5m" # Time-based duration: run at most once per 5 minutes
+          timeout: "30s" # Per-chop timeout (overrides chop_timeout)
           env:
             MY_VAR: "value" # Custom environment variables
 ```
+
+#### Chop Fields
+
+| Field         | Type             | Description                                                              |
+| ------------- | ---------------- | ------------------------------------------------------------------------ |
+| `name`        | `str`            | Chop identifier (required)                                               |
+| `description` | `str`            | Human-readable description (required)                                    |
+| `agent`       | `str \| null`    | XPrompt/agent name — runs as a background agent process                  |
+| `gate`        | `str \| null`    | Bash command that gates execution; chop is skipped if exit code non-zero |
+| `run_every`   | `str \| null`    | Duration string (e.g., `"5m"`, `"2h"`) — run at most once per interval   |
+| `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)    |
+| `env`         | `dict[str, str]` | Custom environment variables passed to the chop                          |
+
+The `gate` field is evaluated before each chop run. For agent-type chops, the gate command's working directory is
+resolved from the agent prompt's VCS reference (e.g., the workspace directory for the target branch). This allows gates
+to check project-specific conditions before spawning an agent.
 
 ## Concurrency Management
 

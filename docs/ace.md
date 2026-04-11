@@ -283,6 +283,7 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed) |
 | `,r`       | Edit prompt and relaunch agent (retry without killing)                |
 | `,x`       | Kill agent & edit prompt                                              |
+| `,X`       | Kill & dismiss all agents (running and completed)                     |
 | `,<space>` | Run agent from current agent's CL (skips selection)                   |
 | `,.`       | Open prompt history modal for the last CL                             |
 | `,>`       | Open prompt history modal with cancelled prompts visible              |
@@ -629,6 +630,7 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)
   - `FBACK` — each time the agent requested feedback from the user
   - `QUEST` — each time the agent asked the user a question
+  - `RETRY` — each time the agent entered retry state (retryable error)
   - `CODE` — when the agent began writing code
   - `END` — when execution completed
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
