@@ -130,6 +130,8 @@ def _build_commit_instruction_message(skill: str, commit_method: str) -> str:
         "A post-completion hook has detected uncommitted changes.",
         f"Did you make these changes? If so, please commit them using your {skill} skill before continuing.",
         f"The commit method type is `{method}`.",
+        "Use this exact method when running the commit command.",
+        "Do NOT pass a conflicting `--type` value.",
     ]
     if method != "create_pull_request":
         parts.append(

@@ -15,6 +15,8 @@ def test_commit_instruction_non_pr_method_includes_scope_restriction() -> None:
     """Non-PR methods must constrain commit message scope to current commit."""
     message = _build_commit_instruction_message("/sase_git_commit", "create_commit")
     assert "The commit method type is `create_commit`." in message
+    assert "Use this exact method when running the commit command." in message
+    assert "Do NOT pass a conflicting `--type` value." in message
     assert "describe only the changes in this commit" in message
     assert "Do NOT describe the entire pull request" in message
 
@@ -25,6 +27,8 @@ def test_commit_instruction_pr_method_omits_scope_restriction() -> None:
         "/sase_git_commit", "create_pull_request"
     )
     assert "The commit method type is `create_pull_request`." in message
+    assert "Use this exact method when running the commit command." in message
+    assert "Do NOT pass a conflicting `--type` value." in message
     assert "describe only the changes in this commit" not in message
     assert "Do NOT describe the entire pull request" not in message
 

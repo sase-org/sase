@@ -35,8 +35,27 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
 
     from sase.workflows.commit.workflow import METHOD_ALIASES
 
-    method = args.method or os.environ.get("SASE_COMMIT_METHOD", "create_commit")
-    method = METHOD_ALIASES.get(method, method)
+    cli_method_raw = args.method
+    env_method_raw = os.environ.get("SASE_COMMIT_METHOD")
+    cli_method = (
+        METHOD_ALIASES.get(cli_method_raw, cli_method_raw) if cli_method_raw else None
+    )
+    env_method = (
+        METHOD_ALIASES.get(env_method_raw, env_method_raw) if env_method_raw else None
+    )
+    allow_override = os.environ.get("SASE_COMMIT_METHOD_ALLOW_OVERRIDE") == "1"
+    if cli_method and env_method and cli_method != env_method and not allow_override:
+        print(
+            "Error: conflicting commit methods: "
+            f"--type resolved to '{cli_method}' but "
+            f"SASE_COMMIT_METHOD resolved to '{env_method}'. "
+            "Use matching values or set SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1 "
+            "to explicitly allow the CLI --type override.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    method = cli_method or env_method or "create_commit"
 
     payload: dict[str, object] = {
         "message": message,

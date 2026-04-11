@@ -1,6 +1,8 @@
 """Tests for the commit CLI: flag parsing -> payload dict -> workflow construction."""
 
 import argparse
+import io
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -32,9 +34,13 @@ def _run_handler(
     mock_workflow = MagicMock()
     mock_workflow.run.return_value = True
 
+    merged_env = {"SASE_COMMIT_METHOD": "", "SASE_COMMIT_METHOD_ALLOW_OVERRIDE": ""}
+    if env:
+        merged_env.update(env)
+
     with (
         patch("sase.main.cl_handler.CommitWorkflow", return_value=mock_workflow) as cls,
-        patch.dict("os.environ", env or {}, clear=False),
+        patch.dict("os.environ", merged_env, clear=False),
         pytest.raises(SystemExit) as exc_info,
     ):
         from sase.main.cl_handler import handle_commit_command
@@ -44,6 +50,29 @@ def _run_handler(
     assert exc_info.value.code == 0
     call_kwargs = cls.call_args.kwargs
     return call_kwargs["payload"], call_kwargs["method"]
+
+
+def _run_handler_expect_failure(
+    argv: list[str], env: dict[str, str] | None = None
+) -> tuple[int, str]:
+    """Run handle_commit_command and return (exit_code, stderr) on failure."""
+    args = _parse_commit_args(argv)
+
+    merged_env = {"SASE_COMMIT_METHOD": "", "SASE_COMMIT_METHOD_ALLOW_OVERRIDE": ""}
+    if env:
+        merged_env.update(env)
+
+    stderr = io.StringIO()
+    with (
+        patch.dict("os.environ", merged_env, clear=False),
+        redirect_stderr(stderr),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        from sase.main.cl_handler import handle_commit_command
+
+        handle_commit_command(args)
+
+    return int(exc_info.value.code), stderr.getvalue()
 
 
 class TestCommitCLI:
@@ -178,3 +207,32 @@ class TestCommitCLI:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit):
             _parse_commit_args(["-m", "inline", "-M", msg_file])
+
+    def test_conflicting_cli_and_env_method_fails(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        exit_code, stderr = _run_handler_expect_failure(
+            ["-M", msg_file, "--type", "create_commit"],
+            env={"SASE_COMMIT_METHOD": "create_pull_request"},
+        )
+        assert exit_code == 1
+        assert "conflicting commit methods" in stderr
+        assert "SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1" in stderr
+
+    def test_conflicting_alias_cli_and_env_method_fails(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        exit_code, _ = _run_handler_expect_failure(
+            ["-M", msg_file, "--type", "commit"],
+            env={"SASE_COMMIT_METHOD": "pr"},
+        )
+        assert exit_code == 1
+
+    def test_conflicting_method_allowed_by_override_env(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        _, method = _run_handler(
+            ["-M", msg_file, "--type", "create_commit"],
+            env={
+                "SASE_COMMIT_METHOD": "create_pull_request",
+                "SASE_COMMIT_METHOD_ALLOW_OVERRIDE": "1",
+            },
+        )
+        assert method == "create_commit"
