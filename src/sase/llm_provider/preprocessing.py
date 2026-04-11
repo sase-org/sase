@@ -88,6 +88,17 @@ def preprocess_prompt_early(
         prompt = render_template(prompt, context)
         prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
 
+    # 1b. Auto-inject #memory xprompt if configured
+    if "#memory" not in prompt:
+        try:
+            from sase.config import load_merged_config
+
+            mem_cfg = load_merged_config().get("memory", {})
+            if isinstance(mem_cfg, dict) and mem_cfg.get("auto_inject"):
+                prompt = f"#memory\n\n{prompt}"
+        except Exception:
+            pass
+
     # 2. Expand xprompt references
     prompt = process_xprompt_references(
         prompt, extra_xprompts=extra_xprompts, scope=scope, trace=trace
