@@ -46,6 +46,22 @@ from sase.telemetry.metrics import (
 install_sigterm_handler("agent", soft=True)
 
 
+def _write_repeat_state(
+    path: str,
+    repeat_count: int,
+    current_iteration: int,
+    completed_iterations: int,
+) -> None:
+    """Write repeat_state.json for TUI polling."""
+    state = {
+        "repeat_count": repeat_count,
+        "current_iteration": current_iteration,
+        "completed_iterations": completed_iterations,
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+
+
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
     # Accept 13 args: cl_name, project_file, workspace_dir, output_path,
@@ -297,12 +313,49 @@ def main() -> None:
                 agent_meta=agent_meta,
                 local_xprompts=info.local_xprompts,
             )
-            exec_result = run_execution_loop(ctx, prompt)
-            success = exec_result.success
-            saved_path = exec_result.saved_path
-            diff_path = exec_result.diff_path
-            current_artifacts_dir = exec_result.current_artifacts_dir
-            step_output = exec_result.step_output
+
+            repeat_count = info.repeat_count or 1
+            if repeat_count > 1:
+                # Repeat loop: run execution loop N times sequentially
+                repeat_state_path = os.path.join(artifacts_dir, "repeat_state.json")
+                for iteration in range(1, repeat_count + 1):
+                    # Write repeat state for TUI polling
+                    _write_repeat_state(
+                        repeat_state_path, repeat_count, iteration, iteration - 1
+                    )
+
+                    print(f"\n=== Repeat iteration {iteration}/{repeat_count} ===\n")
+                    exec_result = run_execution_loop(ctx, prompt)
+                    success = exec_result.success
+                    saved_path = exec_result.saved_path
+                    diff_path = exec_result.diff_path
+                    current_artifacts_dir = exec_result.current_artifacts_dir
+                    step_output = exec_result.step_output
+
+                    # Update completed count
+                    _write_repeat_state(
+                        repeat_state_path, repeat_count, iteration, iteration
+                    )
+
+                    if not success or was_killed():
+                        if was_killed():
+                            print("Repeat loop stopped by user kill")
+                        else:
+                            print(f"Repeat loop stopped: iteration {iteration} failed")
+                        break
+
+                # Clean up repeat_state.json
+                try:
+                    os.unlink(repeat_state_path)
+                except OSError:
+                    pass
+            else:
+                exec_result = run_execution_loop(ctx, prompt)
+                success = exec_result.success
+                saved_path = exec_result.saved_path
+                diff_path = exec_result.diff_path
+                current_artifacts_dir = exec_result.current_artifacts_dir
+                step_output = exec_result.step_output
 
         except Exception as e:
             print(f"Error running agent: {e}", file=sys.stderr)

@@ -121,7 +121,7 @@ _DIRECTIVE_PATTERN = (
 
 # Known directive names
 _KNOWN_DIRECTIVES = frozenset(
-    {"approve", "edit", "hide", "model", "name", "plan", "wait"}
+    {"approve", "edit", "hide", "model", "name", "plan", "repeat", "wait"}
 )
 
 # Directives that allow multiple occurrences (values are collected into a list)
@@ -134,6 +134,7 @@ _DIRECTIVE_ALIASES: dict[str, str] = {
     "h": "hide",
     "m": "model",
     "n": "name",
+    "N": "repeat",
     "p": "plan",
     "w": "wait",
 }
@@ -155,6 +156,7 @@ class PromptDirectives:
     model: str | None = None
     name: str | None = None
     plan: bool = False
+    repeat_count: int | None = None
     wait: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
@@ -385,6 +387,26 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
                 expanded_list.append(raw_arg)
         expanded_multi[directive_name] = expanded_list
 
+    # Parse repeat_count from the repeat directive
+    repeat_count: int | None = None
+    if "repeat" in expanded_args:
+        raw_repeat = expanded_args["repeat"]
+        if not raw_repeat:
+            raise DirectiveError(
+                "'%repeat' directive requires a positive integer argument"
+                " (e.g., %repeat:3)"
+            )
+        try:
+            repeat_count = int(raw_repeat)
+        except ValueError as exc:
+            raise DirectiveError(
+                f"Invalid repeat count '{raw_repeat}' — must be a positive integer"
+            ) from exc
+        if repeat_count <= 0:
+            raise DirectiveError(
+                f"Invalid repeat count '{repeat_count}' — must be a positive integer"
+            )
+
     # Build PromptDirectives from expanded args
     directives = PromptDirectives(
         approve="approve" in expanded_args,
@@ -393,6 +415,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         model=expanded_args.get("model") or None,
         name=expanded_args.get("name") or None,
         plan="plan" in expanded_args,
+        repeat_count=repeat_count,
         wait=expanded_multi.get("wait", []),
         wait_duration=wait_duration,
         wait_until=wait_until,

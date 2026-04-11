@@ -170,6 +170,10 @@ class Agent:
     # Whether this agent should be hidden by default (shown with '.' toggle)
     hidden: bool = False
 
+    # Repeat state (populated from repeat_state.json / agent_meta.json)
+    repeat_count: int | None = None
+    repeat_iteration: int | None = None
+
     # Retry/fallback state (populated from retry_state.json)
     retry_count: int = 0
     max_retries: int = 0

@@ -1,4 +1,4 @@
-"""Tests for individual directive types (%approve, %name, %wait, %plan, %hide, %edit)."""
+"""Tests for individual directive types (%approve, %name, %wait, %plan, %hide, %edit, %repeat)."""
 
 from unittest.mock import patch
 
@@ -350,3 +350,90 @@ def test_edit_duplicate_raises() -> None:
     prompt = "%edit\n%edit\nDo the work"
     with pytest.raises(DirectiveError, match="Duplicate directive '%edit'"):
         extract_prompt_directives(prompt)
+
+
+# --- %repeat directive tests ---
+
+
+def test_repeat_colon_arg() -> None:
+    """%repeat:3 sets repeat_count=3."""
+    prompt = "%repeat:3\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.repeat_count == 3
+
+
+def test_repeat_alias_N() -> None:
+    """%N:5 (uppercase alias) sets repeat_count=5."""
+    prompt = "%N:5\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.repeat_count == 5
+
+
+def test_repeat_paren_arg() -> None:
+    """%repeat(10) sets repeat_count=10."""
+    prompt = "%repeat(10)\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.repeat_count == 10
+
+
+def test_repeat_bare_raises() -> None:
+    """Bare %repeat without argument raises DirectiveError."""
+    prompt = "%repeat\nDo the work"
+    with pytest.raises(DirectiveError, match="requires a positive integer"):
+        extract_prompt_directives(prompt)
+
+
+def test_repeat_zero_raises() -> None:
+    """%repeat:0 raises DirectiveError."""
+    prompt = "%repeat:0\nDo the work"
+    with pytest.raises(DirectiveError, match="must be a positive integer"):
+        extract_prompt_directives(prompt)
+
+
+def test_repeat_negative_raises() -> None:
+    """%repeat:-1 raises DirectiveError."""
+    prompt = "%repeat:-1\nDo the work"
+    with pytest.raises(DirectiveError, match="must be a positive integer"):
+        extract_prompt_directives(prompt)
+
+
+def test_repeat_non_integer_raises() -> None:
+    """%repeat:abc raises DirectiveError."""
+    prompt = "%repeat:abc\nDo the work"
+    with pytest.raises(DirectiveError, match="must be a positive integer"):
+        extract_prompt_directives(prompt)
+
+
+def test_repeat_one_is_valid() -> None:
+    """%repeat:1 is valid (no-op, but allowed)."""
+    prompt = "%repeat:1\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.repeat_count == 1
+
+
+def test_repeat_with_other_directives() -> None:
+    """%repeat combined with %model and %name works."""
+    prompt = "%repeat:3\n%model:opus\n%name:foo\nDo the work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do the work"
+    assert directives.repeat_count == 3
+    assert directives.model == "opus"
+    assert directives.name == "foo"
+
+
+def test_repeat_duplicate_raises() -> None:
+    """Duplicate %repeat raises DirectiveError."""
+    prompt = "%repeat:3\n%repeat:5\nDo the work"
+    with pytest.raises(DirectiveError, match="Duplicate directive '%repeat'"):
+        extract_prompt_directives(prompt)
+
+
+def test_repeat_default_none() -> None:
+    """Default repeat_count is None."""
+    prompt = "Just a normal prompt"
+    _, directives = extract_prompt_directives(prompt)
+    assert directives.repeat_count is None

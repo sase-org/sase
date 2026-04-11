@@ -364,6 +364,19 @@ class AgentList(OptionList, inherit_bindings=False):
             text.append(agent.status, style="dim")
         text.append(")", style="dim")
 
+        # Repeat annotation for agents using %repeat directive
+        if agent.repeat_count is not None and agent.repeat_count > 1:
+            iteration = agent.repeat_iteration or 0
+            total = agent.repeat_count
+            if agent.status in ("DONE",) and iteration >= total:
+                text.append(f" \u21bb{total}/{total}", style="bold #5FD75F")
+            elif agent.status == "FAILED" or (
+                agent.status in ("DONE",) and iteration < total
+            ):
+                text.append(f" \u21bb{iteration}/{total}", style="bold #FF8700")
+            else:
+                text.append(f" \u21bb{iteration}/{total}", style="bold #00D7D7")
+
         # Retry/fallback annotations for RUNNING agents that have retried
         if agent.status == "RUNNING" and agent.retry_count > 0:
             annotation = f" \u21bb{agent.retry_count}"

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 02:53:05
-status: wip
+status: done
 ---
 
 # Plan: `%repeat` Directive (alias `%N`)

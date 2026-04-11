@@ -124,6 +124,36 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         except ValueError:
             pass
 
+    # Read repeat_count from agent_meta.json
+    raw_repeat = data.get("repeat_count")
+    if raw_repeat is not None:
+        try:
+            agent.repeat_count = int(raw_repeat)
+        except (ValueError, TypeError):
+            pass
+
+    # Read live repeat state from repeat_state.json (for running agents)
+    repeat_state_path = Path(artifacts_dir) / "repeat_state.json"
+    if repeat_state_path.exists():
+        try:
+            with open(repeat_state_path, encoding="utf-8") as f:
+                repeat_data = json.load(f)
+            if isinstance(repeat_data, dict):
+                raw_iter = repeat_data.get("current_iteration")
+                if raw_iter is not None:
+                    agent.repeat_iteration = int(raw_iter)
+                # Also read repeat_count from state (may be more up-to-date)
+                raw_rc = repeat_data.get("repeat_count")
+                if raw_rc is not None:
+                    agent.repeat_count = int(raw_rc)
+        except (json.JSONDecodeError, OSError, ValueError, TypeError):
+            pass
+
+    # For done agents with repeat_count, set iteration = count (all done)
+    if agent.repeat_count and agent.repeat_iteration is None:
+        if agent.status in ("DONE", "FAILED"):
+            agent.repeat_iteration = agent.repeat_count
+
     # Check for waiting.json to set WAITING status (takes precedence over PLANNING
     # since the agent can't plan until its dependencies are resolved)
     waiting_path = Path(artifacts_dir) / "waiting.json"
