@@ -276,7 +276,7 @@ class AgentRevivalMixin:
         project_name = project_path.parent.name
 
         if agent.agent_type == AgentType.RUNNING:
-            timestamp = agent._extract_artifacts_timestamp()
+            timestamp = agent.extract_artifacts_timestamp()
             if not timestamp:
                 return
             artifacts_dir = Path(
@@ -334,7 +334,7 @@ class AgentRevivalMixin:
                 if agent.artifacts_dir:
                     artifacts_dir = Path(agent.artifacts_dir)
                 else:
-                    timestamp = agent._extract_artifacts_timestamp()
+                    timestamp = agent.extract_artifacts_timestamp()
                     if not timestamp:
                         return
                     workflow = agent.workflow or ""

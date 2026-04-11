@@ -1,8 +1,5 @@
 """Agent data model for the Agents tab."""
 
-import dataclasses
-import json
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -383,334 +380,61 @@ class Agent:
         project_name = Path(self.project_file).parent.name
         return self.cl_name == project_name
 
+    # --- Delegated to agent_artifacts module ---
+
     def get_artifacts_dir(self) -> str | None:
-        """Get the artifacts directory path for this agent.
+        """Get the artifacts directory path for this agent."""
+        from sase.ace.tui.models.agent_artifacts import get_artifacts_dir
 
-        Returns:
-            Path to the artifacts directory, or None if it cannot be determined.
-        """
-        # If we have an explicit artifacts_dir (from marker files), use it directly
-        if self.artifacts_dir and os.path.isdir(self.artifacts_dir):
-            return self.artifacts_dir
+        return get_artifacts_dir(self)
 
-        # Extract project name from project_file
-        # Format: ~/.sase/projects/<project>/<project>.gp
-        project_path = Path(self.project_file)
-        project_name = project_path.parent.name
+    def extract_artifacts_timestamp(self) -> str | None:
+        """Extract and convert timestamp from raw_suffix to artifacts format."""
+        from sase.ace.tui.models.agent_artifacts import extract_artifacts_timestamp
 
-        # Determine workflow name based on agent type
-        if self.agent_type == AgentType.RUNNING:
-            workflow = self.workflow or "run"
-            # Extract base workflow: "ace(run)-timestamp" -> "ace-run"
-            if workflow.startswith("ace(run)"):
-                workflow_name = "ace-run"
-            elif workflow.startswith("axe(fix-hook)"):
-                workflow_name = "fix-hook"
-            elif workflow.startswith("axe(crs)"):
-                workflow_name = "crs"
-            elif workflow.startswith("axe(mentor)"):
-                # "axe(mentor)-complete-TIMESTAMP" -> "mentor-complete"
-                parts = workflow.split("-")
-                workflow_name = f"mentor-{parts[1]}" if len(parts) >= 2 else "mentor"
-            elif workflow.startswith("mentor(") and workflow.endswith(")"):
-                # "mentor(code_quality)" -> artifacts dir "mentor-code_quality"
-                profile = workflow[7:-1]
-                workflow_name = f"mentor-{profile}"
-            elif workflow == "mentor" and self.mentor_name:
-                # ChangeSpec-sourced mentor: workflow="mentor", mentor_name="code_quality"
-                # -> artifacts dir "mentor-code_quality"
-                workflow_name = f"mentor-{self.mentor_name}"
-            elif workflow == "fix_hook":
-                # VCS workspace claim uses "fix_hook" (from xprompt
-                # workflow_label) but artifacts dir is "fix-hook"
-                workflow_name = "fix-hook"
-            else:
-                workflow_name = workflow
-        elif self.agent_type == AgentType.WORKFLOW:
-            # Workflow artifacts: workflow-{name}, or ace-run for appears_as_agent
-            if self.workflow:
-                base_workflow = (
-                    self.workflow.split("/")[-1]
-                    if "/" in self.workflow
-                    else self.workflow
-                )
-                # appears_as_agent workflows may use ace-run/ artifacts dir
-                if self.appears_as_agent:
-                    ace_run_dir = os.path.expanduser(
-                        f"~/.sase/projects/{project_name}/artifacts/ace-run"
-                    )
-                    if os.path.isdir(ace_run_dir):
-                        timestamp = self._extract_artifacts_timestamp()
-                        if timestamp:
-                            candidate = os.path.join(ace_run_dir, timestamp)
-                            if os.path.isdir(candidate):
-                                return candidate
-                workflow_name = f"workflow-{base_workflow}"
-            else:
-                return None
-        else:
-            return None
+        return extract_artifacts_timestamp(self)
 
-        # Extract and convert timestamp from raw_suffix
-        # raw_suffix format: <agent>-<PID>-YYmmdd_HHMMSS or similar
-        # artifacts_dir expects: YYYYmmddHHMMSS
-        if self.raw_suffix is None:
-            return None
+    def get_raw_xprompt_content(self) -> str | None:
+        """Get the raw xprompt content (before preprocessing/expansion)."""
+        from sase.ace.tui.models.agent_artifacts import get_raw_xprompt_content
 
-        timestamp = self._extract_artifacts_timestamp()
-        if timestamp is None:
-            return None
+        return get_raw_xprompt_content(self)
 
-        # Construct path
-        artifacts_dir = os.path.expanduser(
-            f"~/.sase/projects/{project_name}/artifacts/{workflow_name}/{timestamp}"
-        )
+    def get_live_reply_content(self) -> str | None:
+        """Get the live reply content for running agents."""
+        from sase.ace.tui.models.agent_artifacts import get_live_reply_content
 
-        if os.path.isdir(artifacts_dir):
-            return artifacts_dir
+        return get_live_reply_content(self)
 
-        return None
+    def get_timestamped_reply_chunks(self) -> list[tuple[str, str]] | None:
+        """Load live reply split into timestamped chunks."""
+        from sase.ace.tui.models.agent_artifacts import get_timestamped_reply_chunks
 
-    def _extract_artifacts_timestamp(self) -> str | None:
-        """Extract and convert timestamp from raw_suffix to artifacts format.
+        return get_timestamped_reply_chunks(self)
 
-        For RUNNING agents: raw_suffix is already YYYYmmddHHMMSS (14 chars)
-        For ChangeSpec-sourced agents: raw_suffix uses YYmmdd_HHMMSS format (13 chars with underscore)
-        artifacts_dir expects: YYYYmmddHHMMSS format (14 chars, no underscore)
+    def get_response_content(self) -> str | None:
+        """Get the response content for DONE agents."""
+        from sase.ace.tui.models.agent_artifacts import get_response_content
 
-        Returns:
-            Converted timestamp string, or None if parsing fails.
-        """
-        if self.raw_suffix is None:
-            return None
+        return get_response_content(self)
 
-        # For RUNNING agents, raw_suffix is the timestamp directly (14 chars)
-        if len(self.raw_suffix) == 14 and self.raw_suffix.isdigit():
-            return self.raw_suffix
+    def get_chat_response_content(self) -> str | None:
+        """Get response content from agent_meta.json chat_path."""
+        from sase.ace.tui.models.agent_artifacts import get_chat_response_content
 
-        # Extract timestamp part from suffix
-        ts: str | None = None
+        return get_chat_response_content(self)
 
-        if "-" in self.raw_suffix:
-            parts = self.raw_suffix.split("-")
-            if len(parts) >= 2:
-                ts = parts[-1]
-        else:
-            ts = self.raw_suffix
-
-        # Validate and convert format: YYmmdd_HHMMSS -> YYYYmmddHHMMSS
-        if ts and len(ts) == 13 and ts[6] == "_":
-            # Add century prefix and remove underscore
-            return f"20{ts[:6]}{ts[7:]}"
-
-        return None
+    # --- Delegated to agent_bundle module ---
 
     def to_bundle_dict(self) -> dict[str, Any]:
-        """Serialize this Agent to a dict for bundle persistence.
+        """Serialize this Agent to a dict for bundle persistence."""
+        from sase.ace.tui.models.agent_bundle import to_bundle_dict
 
-        Converts AgentType to string and datetime to ISO format string.
-        """
-        result: dict[str, Any] = {}
-        for f in dataclasses.fields(self):
-            if f.name == "followup_agents":
-                continue
-            value = getattr(self, f.name)
-            if isinstance(value, AgentType):
-                value = value.value
-            elif isinstance(value, datetime):
-                value = value.isoformat()
-            elif isinstance(value, list) and value and isinstance(value[0], datetime):
-                value = [v.isoformat() for v in value]
-            result[f.name] = value
-        return result
+        return to_bundle_dict(self)
 
     @staticmethod
     def from_bundle_dict(data: dict[str, Any]) -> "Agent":
-        """Reconstruct an Agent from a bundle dict.
+        """Reconstruct an Agent from a bundle dict."""
+        from sase.ace.tui.models.agent_bundle import from_bundle_dict
 
-        Uses .get() with defaults for forward-compatibility with new fields.
-        """
-        # Map removed AgentType values to RUNNING for backward compatibility
-        _LEGACY_AGENT_TYPES = {"fix-hook", "summarize", "mentor", "crs"}
-        raw_type = data["agent_type"]
-        if raw_type in _LEGACY_AGENT_TYPES:
-            agent_type = AgentType.RUNNING
-        else:
-            agent_type = AgentType(raw_type)
-        start_time = data.get("start_time")
-        if isinstance(start_time, str):
-            start_time = datetime.fromisoformat(start_time)
-
-        kwargs: dict[str, Any] = {
-            "agent_type": agent_type,
-            "cl_name": data["cl_name"],
-            "project_file": data["project_file"],
-            "status": data["status"],
-            "start_time": start_time,
-        }
-
-        # Backward compat: old bundles stored singular datetime fields
-        for old, new in (
-            ("plan_time", "plan_times"),
-            ("feedback_time", "feedback_times"),
-            ("questions_time", "questions_times"),
-        ):
-            if old in data and new not in data:
-                raw = data.pop(old)
-                if isinstance(raw, str):
-                    data[new] = [raw]
-
-        # Populate all optional fields from the bundle
-        _DATETIME_FIELDS = {
-            "run_start_time",
-            "stop_time",
-            "code_time",
-        }
-        _DATETIME_LIST_FIELDS = {
-            "plan_times",
-            "feedback_times",
-            "questions_times",
-            "retry_times",
-        }
-        for f in dataclasses.fields(Agent):
-            if f.name in kwargs:
-                continue
-            if f.name not in data:
-                continue
-            value = data[f.name]
-            # Skip None values for fields with non-None defaults (list fields)
-            if value is None and f.default_factory is not dataclasses.MISSING:  # type: ignore[comparison-overlap]
-                continue
-            # Deserialize ISO datetime strings for datetime fields
-            if f.name in _DATETIME_FIELDS and isinstance(value, str):
-                value = datetime.fromisoformat(value)
-            elif f.name in _DATETIME_LIST_FIELDS and isinstance(value, list):
-                value = [
-                    datetime.fromisoformat(v) if isinstance(v, str) else v
-                    for v in value
-                ]
-            kwargs[f.name] = value
-
-        return Agent(**kwargs)
-
-    def get_raw_xprompt_content(self) -> str | None:
-        """Get the raw xprompt content (before preprocessing/expansion).
-
-        Returns:
-            Raw xprompt content string, or None if not available.
-        """
-        artifacts_dir = self.get_artifacts_dir()
-        if artifacts_dir is None:
-            return None
-        raw_path = os.path.join(artifacts_dir, "raw_xprompt.md")
-        try:
-            with open(raw_path, encoding="utf-8") as f:
-                return f.read()
-        except (FileNotFoundError, OSError):
-            return None
-
-    def get_live_reply_content(self) -> str | None:
-        """Get the live reply content for running agents.
-
-        Returns:
-            Live reply content string, or None if not available.
-        """
-        artifacts_dir = self.get_artifacts_dir()
-        if artifacts_dir is None:
-            return None
-        path = os.path.join(artifacts_dir, "live_reply.md")
-        try:
-            with open(path, encoding="utf-8") as f:
-                return f.read()
-        except (FileNotFoundError, OSError):
-            return None
-
-    def get_timestamped_reply_chunks(self) -> list[tuple[str, str]] | None:
-        """Load live reply split into timestamped chunks.
-
-        Returns:
-            List of (iso_timestamp, content_text) tuples, or None if timestamps
-            unavailable. Falls back to None so callers can use the un-timestamped
-            path.
-        """
-        artifacts_dir = self.get_artifacts_dir()
-        if artifacts_dir is None:
-            return None
-
-        timestamps_path = os.path.join(artifacts_dir, "live_reply_timestamps.jsonl")
-        reply_path = os.path.join(artifacts_dir, "live_reply.md")
-
-        try:
-            with open(timestamps_path, encoding="utf-8") as f:
-                lines = f.readlines()
-        except (FileNotFoundError, OSError):
-            return None
-
-        entries: list[tuple[int, str]] = []
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-                entries.append((data["byte_offset"], data["timestamp"]))
-            except (json.JSONDecodeError, KeyError):
-                continue
-
-        if not entries:
-            return None
-
-        try:
-            with open(reply_path, "rb") as f:
-                content_bytes = f.read()
-        except (FileNotFoundError, OSError):
-            return None
-
-        chunks: list[tuple[str, str]] = []
-        for i, (offset, timestamp) in enumerate(entries):
-            end = entries[i + 1][0] if i + 1 < len(entries) else len(content_bytes)
-            chunk_text = content_bytes[offset:end].decode("utf-8", errors="replace")
-            chunks.append((timestamp, chunk_text))
-
-        return chunks if chunks else None
-
-    def get_response_content(self) -> str | None:
-        """Get the response content for DONE agents.
-
-        Returns:
-            Response content string, or None if not available.
-        """
-        if self.response_path is None:
-            return None
-        try:
-            with open(os.path.expanduser(self.response_path), encoding="utf-8") as f:
-                return f.read()
-        except Exception:
-            return None
-
-    def get_chat_response_content(self) -> str | None:
-        """Get response content from agent_meta.json chat_path.
-
-        Fallback for agents where the live reply and response path are empty
-        (e.g., Gemini thinking models killed during the plan phase).
-
-        Returns:
-            Chat response content string, or None if not available.
-        """
-        artifacts_dir = self.get_artifacts_dir()
-        if artifacts_dir is None:
-            return None
-        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-        try:
-            with open(meta_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            return None
-        chat_path = data.get("chat_path")
-        if not chat_path:
-            return None
-        try:
-            with open(os.path.expanduser(chat_path), encoding="utf-8") as f:
-                return f.read()
-        except (FileNotFoundError, OSError):
-            return None
+        return from_bundle_dict(data)
