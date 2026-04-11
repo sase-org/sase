@@ -6,11 +6,15 @@ input:
   - name: bug_id
     type: int
     default: 0
+  - name: status
+    type: word
+    default: "draft"
 
 environment:
   SASE_COMMIT_METHOD: create_pull_request
   SASE_BUG_ID: "{{ bug_id }}"
   SASE_PR_NAME: "{{ name }}"
+  SASE_PR_STATUS: "{{ status }}"
 
 steps:
   - name: inject

@@ -79,6 +79,7 @@ class TestCommitWorkflowChangeSpec:
             parent=None,
             bug=None,
             reserved_name="feat-x_1",
+            status="Draft",
         )
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")

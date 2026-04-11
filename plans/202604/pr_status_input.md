@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 16:51:59
-status: wip
+status: done
 ---
 
 # Plan: Add `status` input to `#pr` xprompt workflow

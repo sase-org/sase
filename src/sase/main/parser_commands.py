@@ -76,6 +76,13 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         "--parent",
         help="Parent ChangeSpec name (overrides auto-detection from current branch)",
     )
+    commit_parser.add_argument(
+        "-s",
+        "--status",
+        type=str.lower,
+        choices=["wip", "draft", "ready"],
+        help="ChangeSpec status (overrides $SASE_PR_STATUS; default: draft)",
+    )
     from sase.workflows.commit.workflow import METHOD_ALIASES, VALID_METHODS
 
     commit_parser.add_argument(

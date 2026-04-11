@@ -240,8 +240,10 @@ def test_builtin_pr_workflow_has_environment() -> None:
     assert wf is not None
     assert wf.environment.get("SASE_COMMIT_METHOD") == "create_pull_request"
     assert wf.environment.get("SASE_BUG_ID") == "{{ bug_id }}"
+    assert wf.environment.get("SASE_PR_STATUS") == "{{ status }}"
     assert wf.has_tag(XPromptTag.rollover)
     user_inputs = [i for i in wf.inputs if not i.is_step_input]
-    assert len(user_inputs) == 2
+    assert len(user_inputs) == 3
     assert user_inputs[0].name == "name"
     assert user_inputs[1].name == "bug_id"
+    assert user_inputs[2].name == "status"

@@ -460,6 +460,12 @@ class CommitWorkflow(BaseWorkflow):
             ).strip()
             bug = f"http://b/{bug_id}" if bug_id and bug_id != "0" else None
 
+            status_map = {"wip": "WIP", "draft": "Draft", "ready": "Ready"}
+            raw_status = (
+                self._payload.get("status", "") or os.environ.get("SASE_PR_STATUS", "")
+            ).strip()
+            status = status_map.get(raw_status.lower(), "Draft")
+
             cs_name = create_changespec_for_workflow(
                 project_name=project_name,
                 project_file=project_file,
@@ -474,6 +480,7 @@ class CommitWorkflow(BaseWorkflow):
                 parent=self._parent_cl_name,
                 bug=bug,
                 reserved_name=self._reserved_name,
+                status=status,
             )
             if cs_name:
                 print_status(f"Created ChangeSpec: {cs_name}", "success")
