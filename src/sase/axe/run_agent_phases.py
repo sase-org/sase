@@ -18,6 +18,7 @@ class _AgentInfo(NamedTuple):
 
     name: str | None
     wait_names: list[str]
+    wait_duration: float | None
     model: str | None
     llm_provider: str | None
     vcs_provider: str | None
@@ -113,6 +114,8 @@ def extract_directives_and_write_meta(
         agent_meta["name"] = agent_name
     if directives.wait:
         agent_meta["wait_for"] = directives.wait
+    if directives.wait_duration is not None:
+        agent_meta["wait_duration"] = directives.wait_duration
     if agent_model:
         agent_meta["model"] = agent_model
     if agent_llm_provider:
@@ -141,6 +144,7 @@ def extract_directives_and_write_meta(
     return _AgentInfo(
         name=agent_name,
         wait_names=directives.wait,
+        wait_duration=directives.wait_duration,
         model=agent_model,
         llm_provider=agent_llm_provider,
         vcs_provider=agent_vcs_provider,
@@ -158,46 +162,80 @@ def wait_for_dependencies(
     cl_name: str,
     timestamp: str,
     agent_meta: dict[str, Any],
+    *,
+    duration: float | None = None,
 ) -> None:
-    """Wait for named agent dependencies to complete.
+    """Wait for named agent dependencies and/or a duration to elapse.
 
-    Writes waiting.json, polls for ready.json, then updates agent_meta.json
-    with run_started_at. Exits with SIGTERM code if killed during wait.
+    When *wait_names* is non-empty, writes waiting.json, polls for ready.json,
+    then updates agent_meta.json with run_started_at.  When *duration* is set,
+    the agent won't start before that many seconds have elapsed — even if all
+    named dependencies finish earlier.
+
+    Exits with SIGTERM code if killed during wait.
     """
-    waiting_path = os.path.join(artifacts_dir, "waiting.json")
-    waiting_data = {
-        "waiting_for": wait_names,
-        "cl_name": cl_name,
-        "timestamp": timestamp,
-    }
-    with open(waiting_path, "w", encoding="utf-8") as f:
-        json.dump(waiting_data, f, indent=2)
-
-    print(f"Waiting for agents: {', '.join(wait_names)}")
-
-    # Poll for ready.json (written by wait_checks lumberjack chop)
-    ready_path = os.path.join(artifacts_dir, "ready.json")
     _WAIT_POLL_INTERVAL = 2  # seconds
     _WAIT_MAX_TIMEOUT = 86400  # 24 hours
-    wait_elapsed = 0.0
-    while not os.path.exists(ready_path):
-        if was_killed():
-            break
-        if wait_elapsed >= _WAIT_MAX_TIMEOUT:
-            print(
-                "Wait timeout exceeded, proceeding anyway",
-                file=sys.stderr,
-            )
-            break
-        time.sleep(_WAIT_POLL_INTERVAL)
-        wait_elapsed += _WAIT_POLL_INTERVAL
 
-    # Clean up wait markers
-    for path in (waiting_path, ready_path):
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+    if wait_names:
+        # --- Agent-name dependency path (with optional duration floor) ---
+        waiting_path = os.path.join(artifacts_dir, "waiting.json")
+        waiting_data: dict[str, Any] = {
+            "waiting_for": wait_names,
+            "cl_name": cl_name,
+            "timestamp": timestamp,
+        }
+        if duration is not None:
+            waiting_data["wait_duration"] = duration
+        with open(waiting_path, "w", encoding="utf-8") as f:
+            json.dump(waiting_data, f, indent=2)
+
+        parts = [f"agents: {', '.join(wait_names)}"]
+        if duration is not None:
+            parts.append(f"duration: {duration:.0f}s")
+        print(f"Waiting for {' and '.join(parts)}")
+
+        # Poll for ready.json (written by wait_checks lumberjack chop)
+        ready_path = os.path.join(artifacts_dir, "ready.json")
+        wait_elapsed = 0.0
+        while not os.path.exists(ready_path):
+            if was_killed():
+                break
+            if wait_elapsed >= _WAIT_MAX_TIMEOUT:
+                print(
+                    "Wait timeout exceeded, proceeding anyway",
+                    file=sys.stderr,
+                )
+                break
+            time.sleep(_WAIT_POLL_INTERVAL)
+            wait_elapsed += _WAIT_POLL_INTERVAL
+
+        # If a duration floor is set and we finished early, sleep the remainder
+        if duration is not None and wait_elapsed < duration and not was_killed():
+            remaining = duration - wait_elapsed
+            print(
+                f"Dependencies satisfied, sleeping {remaining:.0f}s for duration floor"
+            )
+            while remaining > 0 and not was_killed():
+                sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+                time.sleep(sleep_time)
+                remaining -= sleep_time
+
+        # Clean up wait markers
+        for path in (waiting_path, ready_path):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+    else:
+        # --- Duration-only path (no agent-name dependencies) ---
+        assert duration is not None
+        print(f"Waiting for duration: {duration:.0f}s")
+        remaining = duration
+        while remaining > 0 and not was_killed():
+            sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+            time.sleep(sleep_time)
+            remaining -= sleep_time
 
     if was_killed():
         print("Agent killed while waiting", file=sys.stderr)

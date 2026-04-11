@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-10 22:16:58
-status: wip
+status: done
 ---
 
 # Plan: Duration-based `%wait` support

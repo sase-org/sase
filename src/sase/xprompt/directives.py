@@ -25,6 +25,30 @@ from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import find_matching_paren_for_args, parse_args
 from .processor import process_xprompt_references
 
+_DURATION_RE = re.compile(r"^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$")
+
+
+def _parse_duration(s: str) -> float | None:
+    """Parse a duration string like ``5m``, ``1h30m``, ``1h30m15s`` into seconds.
+
+    Returns total seconds as a float, or ``None`` if *s* does not match the
+    ``XhYmZs`` pattern.  Units must appear in h > m > s order; each unit may
+    appear at most once.
+    """
+    if not s or not s[0].isdigit():
+        return None
+    m = _DURATION_RE.match(s)
+    if not m:
+        return None
+    hours_s, minutes_s, seconds_s = m.groups()
+    if hours_s is None and minutes_s is None and seconds_s is None:
+        return None
+    hours = int(hours_s) if hours_s else 0
+    minutes = int(minutes_s) if minutes_s else 0
+    seconds = int(seconds_s) if seconds_s else 0
+    return float(hours * 3600 + minutes * 60 + seconds)
+
+
 # Pattern to match directive references: %name, %name(, %name:arg, %name:`arg`, %name+
 # Mirrors _XPROMPT_PATTERN from processor.py but with % prefix.
 # The colon-arg character class is expanded to include # (for xprompt refs in args).
@@ -71,6 +95,7 @@ class PromptDirectives:
     name: str | None = None
     plan: bool = False
     wait: list[str] = field(default_factory=list)
+    wait_duration: float | None = None
 
 
 # Pattern to match %model(...) or %m(...) with parenthesized arguments.
@@ -228,7 +253,9 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
 
         seen["name"] = get_next_auto_name()
 
-    # Resolve bare %wait directives to the most recently named agent
+    # Resolve bare %wait directives to the most recently named agent,
+    # and separate duration arguments from agent-name arguments.
+    wait_duration: float | None = None
     if "wait" in seen_multi:
         resolved_wait: list[str] = []
         prev_name: str | None = None  # lazily fetched
@@ -245,7 +272,12 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
                     )
                 resolved_wait.append(prev_name)
             else:
-                resolved_wait.append(raw_arg)
+                dur = _parse_duration(raw_arg)
+                if dur is not None:
+                    # Take the max if multiple durations appear
+                    wait_duration = max(wait_duration or 0.0, dur)
+                else:
+                    resolved_wait.append(raw_arg)
         seen_multi["wait"] = resolved_wait
 
     # Remove directive regions from prompt (last-to-first to preserve positions)
@@ -285,6 +317,7 @@ def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
         name=expanded_args.get("name") or None,
         plan="plan" in expanded_args,
         wait=expanded_multi.get("wait", []),
+        wait_duration=wait_duration,
     )
 
     # Restore disabled regions, then strip markers

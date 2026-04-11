@@ -243,9 +243,15 @@ def main() -> None:
                     json.dump(running_marker, f, indent=2)
 
             # Wait for dependencies if %wait directives are present
-            if info.wait_names:
+            has_wait = bool(info.wait_names) or info.wait_duration is not None
+            if has_wait:
                 wait_for_dependencies(
-                    info.wait_names, artifacts_dir, cl_name, timestamp, agent_meta
+                    info.wait_names,
+                    artifacts_dir,
+                    cl_name,
+                    timestamp,
+                    agent_meta,
+                    duration=info.wait_duration,
                 )
 
                 # Allocate real workspace now that dependencies are resolved

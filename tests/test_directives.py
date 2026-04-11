@@ -10,6 +10,7 @@ from sase.xprompt.directives import (
     extract_prompt_directives,
     has_model_directive,
     has_wait_directive,
+    _parse_duration,
     split_prompt_for_models,
 )
 
@@ -611,6 +612,104 @@ def test_disabled_region_markers_stripped_from_output() -> None:
     cleaned, _ = extract_prompt_directives(prompt)
     assert "%xprompts_enabled" not in cleaned
     assert "some content" in cleaned
+
+
+# --- _parse_duration tests ---
+
+
+def test__parse_duration_minutes() -> None:
+    """'5m' parses to 300 seconds."""
+    assert _parse_duration("5m") == 300.0
+
+
+def test__parse_duration_hours() -> None:
+    """'1h' parses to 3600 seconds."""
+    assert _parse_duration("1h") == 3600.0
+
+
+def test__parse_duration_seconds() -> None:
+    """'90s' parses to 90 seconds."""
+    assert _parse_duration("90s") == 90.0
+
+
+def test__parse_duration_hours_minutes() -> None:
+    """'2h30m' parses to 9000 seconds."""
+    assert _parse_duration("2h30m") == 9000.0
+
+
+def test__parse_duration_full() -> None:
+    """'1h30m15s' parses to 5415 seconds."""
+    assert _parse_duration("1h30m15s") == 5415.0
+
+
+def test__parse_duration_zero() -> None:
+    """'0s' parses to 0."""
+    assert _parse_duration("0s") == 0.0
+
+
+def test__parse_duration_all_zeros() -> None:
+    """'0h0m0s' parses to 0."""
+    assert _parse_duration("0h0m0s") == 0.0
+
+
+def test__parse_duration_invalid_unit() -> None:
+    """'5x' is not a valid duration."""
+    assert _parse_duration("5x") is None
+
+
+def test__parse_duration_wrong_order() -> None:
+    """'5m3h' is not valid (units must be h > m > s)."""
+    assert _parse_duration("5m3h") is None
+
+
+def test__parse_duration_duplicate_unit() -> None:
+    """'5m5m' is not valid."""
+    assert _parse_duration("5m5m") is None
+
+
+def test__parse_duration_agent_name() -> None:
+    """Agent names (start with letter) return None."""
+    assert _parse_duration("abc") is None
+
+
+def test__parse_duration_empty() -> None:
+    """Empty string returns None."""
+    assert _parse_duration("") is None
+
+
+# --- %wait duration directive tests ---
+
+
+def test_wait_duration_sets_field() -> None:
+    """%wait:5m sets wait_duration=300.0 and wait=[]."""
+    prompt = "%wait:5m\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == []
+    assert directives.wait_duration == 300.0
+
+
+def test_wait_duration_and_agent_name() -> None:
+    """Mixed %wait:agent and %wait:5m sets both fields."""
+    prompt = "%wait:agent\n%wait:5m\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == ["agent"]
+    assert directives.wait_duration == 300.0
+
+
+def test_wait_duration_multiple_takes_max() -> None:
+    """Multiple duration waits take the maximum."""
+    prompt = "%wait:5m\n%wait:10m\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == []
+    assert directives.wait_duration == 600.0
+
+
+def test_has_wait_directive_duration() -> None:
+    """has_wait_directive detects %wait:5m."""
+    assert has_wait_directive("%wait:5m\nDo something") is True
 
 
 def test_split_prompt_for_models_after_xprompt_expansion() -> None:
