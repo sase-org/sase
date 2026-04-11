@@ -37,6 +37,15 @@ def test_commit_instruction_unknown_method_defaults_to_scope_restriction() -> No
     assert "Do NOT describe the entire pull request" in message
 
 
+def test_commit_instruction_includes_method_override_warning() -> None:
+    """Instruction text must warn agents not to override the stated method."""
+    message = _build_commit_instruction_message(
+        "/sase_git_commit", "create_pull_request"
+    )
+    assert "Do NOT pass a --type value that conflicts" in message
+    assert "--type create_pull_request" in message
+
+
 def test_codex_emit_block_includes_details_in_json(capsys: object) -> None:
     """Codex JSON reason must contain details when provided."""
     with (

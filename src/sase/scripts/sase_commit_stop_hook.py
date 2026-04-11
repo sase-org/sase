@@ -139,6 +139,11 @@ def _build_commit_instruction_message(skill: str, commit_method: str) -> str:
             "Do NOT describe the entire pull request or unrelated planned work."
         )
     parts.append(
+        f"You MUST use `--type {method}` or omit --type entirely to let the"
+        " environment decide. Do NOT pass a --type value that conflicts with"
+        " the stated method."
+    )
+    parts.append(
         "If you did NOT make these changes, you can safely ignore this warning"
         " — it will not appear again this session."
     )

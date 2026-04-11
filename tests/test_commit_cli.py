@@ -184,6 +184,47 @@ class TestCommitCLI:
         payload, _ = _run_handler(["-M", msg_file])
         assert "parent" not in payload
 
+    def test_conflicting_cli_env_methods_exits_1(self, tmp_path: Path) -> None:
+        """CLI --type that conflicts with SASE_COMMIT_METHOD must fail."""
+        msg_file = _write_msg(tmp_path, "msg")
+        args = _parse_commit_args(["-M", msg_file, "--type", "commit"])
+        with (
+            patch("sase.main.cl_handler.CommitWorkflow") as cls,
+            patch.dict(
+                "os.environ",
+                {"SASE_COMMIT_METHOD": "create_pull_request"},
+                clear=False,
+            ),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            from sase.main.cl_handler import handle_commit_command
+
+            handle_commit_command(args)
+
+        assert exc_info.value.code == 1
+        cls.assert_not_called()
+
+    def test_conflicting_methods_allowed_with_override(self, tmp_path: Path) -> None:
+        """SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1 lets CLI win over env."""
+        msg_file = _write_msg(tmp_path, "msg")
+        _, method = _run_handler(
+            ["-M", msg_file, "--type", "commit"],
+            env={
+                "SASE_COMMIT_METHOD": "create_pull_request",
+                "SASE_COMMIT_METHOD_ALLOW_OVERRIDE": "1",
+            },
+        )
+        assert method == "create_commit"
+
+    def test_matching_cli_env_methods_ok(self, tmp_path: Path) -> None:
+        """CLI and env agreeing on the same canonical method is fine."""
+        msg_file = _write_msg(tmp_path, "msg")
+        _, method = _run_handler(
+            ["-M", msg_file, "--type", "pr"],
+            env={"SASE_COMMIT_METHOD": "create_pull_request"},
+        )
+        assert method == "create_pull_request"
+
     def test_message_and_message_file_mutually_exclusive(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit):
