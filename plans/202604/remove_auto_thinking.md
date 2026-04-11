@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 19:24:01
-status: wip
+status: done
 ---
 
 # Plan: Stop Auto-Showing Thinking Panel in File View

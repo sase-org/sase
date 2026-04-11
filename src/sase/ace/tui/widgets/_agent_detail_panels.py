@@ -21,7 +21,7 @@ from .thinking_panel import AgentThinkingPanel, ThinkingVisibilityChanged
 class DetailPanelMode(Enum):
     """Three-state cycle for the detail panel view mode."""
 
-    AUTO = "auto"  # File shown (or auto-thinking fallback)
+    AUTO = "auto"  # File shown (prompt expanded when no file)
     THINKING = "thinking"  # Thinking panel forced on
     INFO = "info"  # Metadata only, prompt at 100%
 
@@ -37,7 +37,7 @@ class AgentDetailPanelMixin(Static):
     """Mixin providing panel-mode cycling, event handling, and UI indicators.
 
     Mixed into ``AgentDetail`` — references to private attributes and
-    helper methods (``_auto_show_thinking``, ``update_display``, etc.)
+    helper methods (``_expand_prompt_only``, ``update_display``, etc.)
     are provided by that class.  Inherits from ``Static`` so that
     Textual's ``query_one`` / ``call_after_refresh`` are available to
     the type checker.
@@ -48,7 +48,6 @@ class AgentDetailPanelMixin(Static):
     # are set in AgentDetail.__init__() and AgentDetail itself.
     # ------------------------------------------------------------------
     _panel_mode: DetailPanelMode
-    _thinking_auto_shown: bool
     _has_file_content: bool
     _has_thinking_content: bool
     _current_agent: Agent | None
@@ -63,7 +62,14 @@ class AgentDetailPanelMixin(Static):
         self, agent: Agent, stale_threshold_seconds: int = 10
     ) -> None: ...
 
-    def _auto_show_thinking(self, agent: Agent) -> None: ...
+    def _expand_prompt_only(self) -> None:
+        """Hide the file panel and expand the prompt panel to fill the space."""
+        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        file_scroll.add_class("hidden")
+        file_scroll.remove_class("layout-secondary")
+        prompt_scroll.add_class("expanded")
+        prompt_scroll.remove_class("layout-priority")
 
     # ------------------------------------------------------------------
     # Panel mode cycling
@@ -158,8 +164,6 @@ class AgentDetailPanelMixin(Static):
                 prompt_scroll.remove_class("layout-priority")
 
             self._panel_mode = DetailPanelMode.THINKING
-            self._thinking_auto_shown = False
-
             thinking_panel.update_display(agent)
 
         elif mode == DetailPanelMode.INFO:
@@ -170,26 +174,19 @@ class AgentDetailPanelMixin(Static):
             prompt_scroll.remove_class("layout-priority")
 
             self._panel_mode = DetailPanelMode.INFO
-            self._thinking_auto_shown = False
 
         else:
             # AUTO: re-evaluate what to show
             self._panel_mode = DetailPanelMode.AUTO
-            self._thinking_auto_shown = False
             prompt_scroll.remove_class("expanded")
             thinking_scroll.add_class("hidden")
             file_scroll.remove_class("hidden")
             self.update_display(agent)
 
-            # If file panel has no content and update_display didn't already
-            # auto-show thinking, fall back immediately instead of leaving
-            # an empty "No changes detected" panel visible.
-            if not self._has_file_content and not self._thinking_auto_shown:
-                if self._has_thinking_content:
-                    self._auto_show_thinking(agent)
-                else:
-                    file_scroll.add_class("hidden")
-                    prompt_scroll.add_class("expanded")
+            # If file panel has no content, expand prompt instead of
+            # leaving an empty "No changes detected" panel visible.
+            if not self._has_file_content:
+                self._expand_prompt_only()
             else:
                 file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
                 self.call_after_refresh(file_panel.reset_trim)
@@ -230,13 +227,7 @@ class AgentDetailPanelMixin(Static):
         self._has_thinking_content = message.has_thinking
         self._update_panel_indicators()
 
-        if self._panel_mode == DetailPanelMode.INFO:
-            return
-
-        if (
-            self._panel_mode != DetailPanelMode.THINKING
-            and not self._thinking_auto_shown
-        ):
+        if self._panel_mode != DetailPanelMode.THINKING:
             return
 
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
@@ -253,9 +244,6 @@ class AgentDetailPanelMixin(Static):
             prompt_scroll.add_class("expanded")
             prompt_scroll.remove_class("layout-priority")
             thinking_scroll.remove_class("layout-secondary")
-            # Clear auto-shown flag since there's no thinking content
-            if self._thinking_auto_shown:
-                self._thinking_auto_shown = False
 
     def on_file_visibility_changed(self, message: FileVisibilityChanged) -> None:
         """Handle file panel visibility changes.
@@ -277,13 +265,6 @@ class AgentDetailPanelMixin(Static):
 
         if message.has_file:
             was_hidden = file_scroll.has_class("hidden")
-            if self._thinking_auto_shown:
-                # File appeared - switch from auto-shown thinking to file
-                thinking_scroll = self.query_one(
-                    "#agent-thinking-scroll", VerticalScroll
-                )
-                thinking_scroll.add_class("hidden")
-                self._thinking_auto_shown = False
             # Show file panel
             file_scroll.remove_class("hidden")
             prompt_scroll.remove_class("expanded")
@@ -295,15 +276,7 @@ class AgentDetailPanelMixin(Static):
                 file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
                 self.call_after_refresh(file_panel.reset_trim)
         else:
-            # File has no content - auto-show thinking as fallback
-            if self._current_agent is not None:
-                self._auto_show_thinking(self._current_agent)
-            else:
-                # No agent context, just expand prompt
-                file_scroll.add_class("hidden")
-                prompt_scroll.add_class("expanded")
-                prompt_scroll.remove_class("layout-priority")
-                file_scroll.remove_class("layout-secondary")
+            self._expand_prompt_only()
 
     # ------------------------------------------------------------------
     # UI indicators
@@ -372,8 +345,8 @@ class AgentDetailPanelMixin(Static):
 
             thinking_active = (
                 self._panel_mode == DetailPanelMode.THINKING
-                or self._thinking_auto_shown
-            ) and self._has_thinking_content
+                and self._has_thinking_content
+            )
             if thinking_active and self._panel_mode != DetailPanelMode.INFO:
                 text.append("●", style="bold #af87d7")
                 text.append(" thinking", style="bold #af87d7")

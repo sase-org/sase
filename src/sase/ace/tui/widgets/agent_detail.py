@@ -37,7 +37,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         super().__init__(**kwargs)
         self._layout_swapped: bool = False
         self._panel_mode: DetailPanelMode = DetailPanelMode.AUTO
-        self._thinking_auto_shown: bool = False
         self._current_agent: Agent | None = None
         self._has_file_content: bool = False
         self._has_thinking_content: bool = False
@@ -56,44 +55,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 yield AgentFilePanel(id="agent-file-panel")
             with VerticalScroll(id="agent-thinking-scroll", classes="hidden"):
                 yield AgentThinkingPanel(id="agent-thinking-panel")
-
-    def _auto_show_thinking(self, agent: Agent) -> None:
-        """Auto-show thinking panel as fallback when file has no content.
-
-        Args:
-            agent: The Agent to display thinking for.
-        """
-        # Non-agent entries don't have thinking - just expand prompt
-        if not agent.is_agent_entry:
-            file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-            prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
-            file_scroll.add_class("hidden")
-            prompt_scroll.add_class("expanded")
-            prompt_scroll.remove_class("layout-priority")
-            return
-
-        # Don't auto-show thinking if user chose INFO mode
-        if self._panel_mode == DetailPanelMode.INFO:
-            return
-
-        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        thinking_scroll = self.query_one("#agent-thinking-scroll", VerticalScroll)
-        thinking_panel = self.query_one("#agent-thinking-panel", AgentThinkingPanel)
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
-
-        file_scroll.add_class("hidden")
-        thinking_scroll.remove_class("hidden")
-        prompt_scroll.remove_class("expanded")
-
-        if self._layout_swapped:
-            thinking_scroll.add_class("layout-secondary")
-            prompt_scroll.add_class("layout-priority")
-        else:
-            thinking_scroll.remove_class("layout-secondary")
-            prompt_scroll.remove_class("layout-priority")
-
-        self._thinking_auto_shown = True
-        thinking_panel.update_display(agent)
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update panels with agent information.
@@ -116,7 +77,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         prev_agent = self._current_agent
         self._current_agent = agent
         if prev_agent is not None and prev_agent.identity != agent.identity:
-            self._thinking_auto_shown = False
             self._has_file_content = False
             self._has_thinking_content = False
             # Reset from THINKING mode when switching to non-agent entry
@@ -156,27 +116,17 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             return
 
         # When thinking panel is visible, keep it showing and just refresh data
-        if self._panel_mode == DetailPanelMode.THINKING or self._thinking_auto_shown:
+        if self._panel_mode == DetailPanelMode.THINKING:
             # Still update file panel in background (for when thinking is toggled off)
             if agent.status in _ACTIVE_STATUSES:
                 file_panel.update_display(
                     agent, stale_threshold_seconds=stale_threshold_seconds
                 )
-                return
-            # For completed agents: if thinking was auto-shown (not
-            # user-chosen) and the agent has files or a workspace to
-            # fetch committed diffs from, fall through to display them.
-            # FileVisibilityChanged will handle switching from thinking
-            # to file view.
-            has_displayable_content = agent.all_files or (
-                agent.workspace_num is not None
-            )
-            if not (self._thinking_auto_shown and has_displayable_content):
-                return
+            return
 
-        # Bash/python workflow steps don't have files - show thinking as fallback
+        # Bash/python workflow steps don't have files - expand prompt
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):
-            self._auto_show_thinking(agent)
+            self._expand_prompt_only()
             return
 
         if agent.status in _ACTIVE_STATUSES:
@@ -197,7 +147,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                     agent, stale_threshold_seconds=stale_threshold_seconds
                 )
             else:
-                self._auto_show_thinking(agent)
+                self._expand_prompt_only()
 
     def update_display_with_hints(self, agent: Agent) -> dict[int, str]:
         """Re-render the prompt panel with file path hints.
@@ -233,7 +183,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         thinking_scroll.add_class("hidden")
         prompt_scroll.add_class("expanded")
         self._panel_mode = DetailPanelMode.AUTO
-        self._thinking_auto_shown = False
         self._has_file_content = False
         self._has_thinking_content = False
         self._file_count = 0
@@ -293,7 +242,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Returns:
             True if the thinking panel is visible, False otherwise.
         """
-        return self._panel_mode == DetailPanelMode.THINKING or self._thinking_auto_shown
+        return self._panel_mode == DetailPanelMode.THINKING
 
     def is_info_mode(self) -> bool:
         """Check if the panel is in info-only mode.
