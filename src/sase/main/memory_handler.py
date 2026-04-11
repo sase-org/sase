@@ -23,6 +23,9 @@ def handle_memory_command(args: argparse.Namespace) -> None:
     elif memory_sub == "inject":
         _handle_inject(args)
 
+    elif memory_sub == "bootstrap":
+        _handle_bootstrap(args)
+
     elif memory_sub == "rm":
         _handle_rm(args)
 
@@ -30,8 +33,56 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         _handle_tree(args)
 
     else:
-        print("Usage: sase memory {init,add,show,list,rm,inject,tree}")
+        print("Usage: sase memory {init,add,show,list,rm,inject,tree,bootstrap}")
         sys.exit(1)
+
+
+def _handle_bootstrap(args: argparse.Namespace) -> None:
+    import os
+    import tempfile
+
+    from sase.artifacts import create_artifacts_directory
+    from sase.memory.bootstrap import gather_project_context
+    from sase.memory.repo import ensure_repo, repo_exists
+    from sase.xprompt.workflow_runner import execute_workflow
+
+    # Ensure memory repo exists (auto-init if not).
+    if not repo_exists():
+        path = ensure_repo()
+        print(f"Initialized memory repo at {path}")
+
+    project = _resolve_project(args)
+    if not project:
+        print("Could not detect project name. Use -p to specify.", file=sys.stderr)
+        sys.exit(1)
+
+    project_root = os.getcwd()
+
+    # Gather project context and write to a temp file for the workflow.
+    context = gather_project_context(project_root)
+    fd, context_file = tempfile.mkstemp(suffix=".md", prefix="bootstrap_ctx_")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(context)
+
+        artifacts_dir = create_artifacts_directory("workflow-memory_bootstrap")
+        execute_workflow(
+            "memory_bootstrap",
+            [],
+            {
+                "project": project,
+                "context_file": context_file,
+            },
+            artifacts_dir=artifacts_dir,
+        )
+    except Exception as e:
+        print(f"Bootstrap failed: {e}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        if os.path.isfile(context_file):
+            os.unlink(context_file)
+
+    sys.exit(0)
 
 
 def _handle_inject(args: argparse.Namespace) -> None:
