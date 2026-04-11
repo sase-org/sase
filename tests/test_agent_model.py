@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import Agent, AgentType, format_compact_duration
 
 # --- Agent Model Tests ---
 
@@ -549,3 +549,81 @@ def test_bundle_round_trip_list_fields() -> None:
 
     assert restored.extra_files == ["/tmp/plan.md", "/tmp/diff.txt"]
     assert restored.waiting_for == ["agent-1", "agent-2"]
+
+
+# --- format_compact_duration Tests ---
+
+
+def test_format_compact_duration_seconds_only() -> None:
+    assert format_compact_duration(45) == "45s"
+    assert format_compact_duration(0) == "0s"
+    assert format_compact_duration(1) == "1s"
+    assert format_compact_duration(59) == "59s"
+
+
+def test_format_compact_duration_minutes() -> None:
+    assert format_compact_duration(60) == "1m"
+    assert format_compact_duration(90) == "1m30s"
+    assert format_compact_duration(300) == "5m"
+    assert format_compact_duration(605) == "10m05s"
+
+
+def test_format_compact_duration_hours() -> None:
+    assert format_compact_duration(3600) == "1h"
+    assert format_compact_duration(3660) == "1h01m"
+    assert format_compact_duration(5400) == "1h30m"
+    assert format_compact_duration(7200) == "2h"
+
+
+def test_format_compact_duration_negative_clamps_to_zero() -> None:
+    assert format_compact_duration(-5) == "0s"
+
+
+def test_format_compact_duration_fractional() -> None:
+    """Fractional seconds are truncated to int."""
+    assert format_compact_duration(90.7) == "1m30s"
+
+
+# --- wait_duration field Tests ---
+
+
+def test_wait_duration_bundle_roundtrip() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="WAITING",
+        start_time=datetime.now(),
+        wait_duration=300.0,
+    )
+    bundle = agent.to_bundle_dict()
+    assert bundle["wait_duration"] == 300.0
+
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.wait_duration == 300.0
+
+
+def test_wait_duration_none_by_default() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="RUNNING",
+        start_time=None,
+    )
+    assert agent.wait_duration is None
+
+
+def test_timestamps_display_wait_tag_for_waiting_status() -> None:
+    """WAITING agents show WAIT timestamp, not BEGIN."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="test",
+        project_file="/tmp/test.gp",
+        status="WAITING",
+        start_time=datetime(2026, 4, 10, 22, 0, 0),
+        wait_duration=600.0,
+    )
+    display = agent.timestamps_display
+    assert "WAIT" in display
+    assert "BEGIN" not in display

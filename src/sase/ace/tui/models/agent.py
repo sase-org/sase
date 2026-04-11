@@ -10,6 +10,24 @@ from pathlib import Path
 from typing import Any
 
 
+def format_compact_duration(seconds: float) -> str:
+    """Format seconds as a compact duration string (e.g., '4m32s', '1h5m').
+
+    Shows the two most significant non-zero units:
+    - >= 1h: 'Xh Ym'
+    - >= 1m: 'Xm Ys'
+    - < 1m: 'Xs'
+    """
+    total = max(0, int(seconds))
+    h, remainder = divmod(total, 3600)
+    m, s = divmod(remainder, 60)
+    if h > 0:
+        return f"{h}h{m:02d}m" if m else f"{h}h"
+    if m > 0:
+        return f"{m}m{s:02d}s" if s else f"{m}m"
+    return f"{s}s"
+
+
 class AgentType(Enum):
     """Types of agents that can be tracked."""
 
@@ -123,6 +141,9 @@ class Agent:
 
     # Names this agent is waiting for (from %wait directives)
     waiting_for: list[str] = field(default_factory=list)
+
+    # Duration wait in seconds (from %wait:5m directive)
+    wait_duration: float | None = None
 
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None

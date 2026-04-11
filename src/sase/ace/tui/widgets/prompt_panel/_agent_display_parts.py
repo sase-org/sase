@@ -219,10 +219,28 @@ def build_header_text(agent: Agent) -> tuple[Text, Syntax | None]:
         header_text.append("Name: ", style="bold #87D7FF")
         header_text.append(f"@{agent.agent_name}\n", style="#FF87D7")
 
-    # Waiting info (when agent is waiting for dependencies)
-    if agent.waiting_for:
+    # Waiting info (when agent is waiting for dependencies or a duration)
+    if agent.waiting_for or agent.wait_duration:
+        from sase.ace.tui.models.agent import format_compact_duration
+
         header_text.append("Waiting for: ", style="bold #87D7FF")
-        header_text.append(f"{', '.join(agent.waiting_for)}\n", style="#FF87D7")
+        parts: list[str] = []
+        if agent.waiting_for:
+            parts.append(", ".join(agent.waiting_for))
+        if agent.wait_duration:
+            parts.append(format_compact_duration(agent.wait_duration))
+        header_text.append(" + ".join(parts), style="#FF87D7")
+        # Show live countdown for duration waits
+        if agent.wait_duration and agent.start_time:
+            from datetime import datetime, timedelta
+
+            target = agent.start_time + timedelta(seconds=agent.wait_duration)
+            remaining = (target - datetime.now()).total_seconds()
+            if remaining > 0:
+                header_text.append(
+                    f" ({format_compact_duration(remaining)} left)", style="dim #AF87FF"
+                )
+        header_text.append("\n")
 
     # Retry info (for agents that have retried or are using fallback)
     if agent.retry_count > 0 or agent.using_fallback:

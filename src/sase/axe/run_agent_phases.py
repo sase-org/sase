@@ -230,12 +230,30 @@ def wait_for_dependencies(
     else:
         # --- Duration-only path (no agent-name dependencies) ---
         assert duration is not None
+
+        # Write waiting.json so TUI can detect WAITING status
+        waiting_path = os.path.join(artifacts_dir, "waiting.json")
+        dur_waiting_data: dict[str, Any] = {
+            "waiting_for": [],
+            "cl_name": cl_name,
+            "timestamp": timestamp,
+            "wait_duration": duration,
+        }
+        with open(waiting_path, "w", encoding="utf-8") as f:
+            json.dump(dur_waiting_data, f, indent=2)
+
         print(f"Waiting for duration: {duration:.0f}s")
         remaining = duration
         while remaining > 0 and not was_killed():
             sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
             time.sleep(sleep_time)
             remaining -= sleep_time
+
+        # Clean up waiting.json
+        try:
+            os.unlink(waiting_path)
+        except OSError:
+            pass
 
     if was_killed():
         print("Agent killed while waiting", file=sys.stderr)

@@ -134,10 +134,27 @@ def enrich_agent_from_meta(agent: Agent, artifacts_dir: str | None) -> None:
         try:
             with open(waiting_path, encoding="utf-8") as f:
                 waiting_data = json.load(f)
-            if isinstance(waiting_data, dict) and waiting_data.get("waiting_for"):
-                agent.waiting_for = waiting_data["waiting_for"]
+            if isinstance(waiting_data, dict):
+                if waiting_data.get("waiting_for"):
+                    agent.waiting_for = waiting_data["waiting_for"]
+                # Read wait_duration from waiting.json (preferred source)
+                raw_dur = waiting_data.get("wait_duration")
+                if raw_dur is not None:
+                    try:
+                        agent.wait_duration = float(raw_dur)
+                    except (ValueError, TypeError):
+                        pass
         except (json.JSONDecodeError, OSError):
             pass
+
+    # Fallback: read wait_duration from agent_meta.json if not set from waiting.json
+    if agent.wait_duration is None:
+        raw_dur = data.get("wait_duration")
+        if raw_dur is not None:
+            try:
+                agent.wait_duration = float(raw_dur)
+            except (ValueError, TypeError):
+                pass
 
     # Set PLANNING / PLAN APPROVED / PLAN COMMITTED / EPIC CREATED status
     # for agents launched with %plan directive

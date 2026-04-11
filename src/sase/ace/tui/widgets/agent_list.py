@@ -9,7 +9,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 from sase.xprompt.workflow_output import get_substep_suffix
 
-from ..models.agent import Agent, AgentType
+from ..models.agent import Agent, AgentType, format_compact_duration
 
 # Panel identity type
 PanelId = Literal["main", "pinned"]
@@ -322,6 +322,17 @@ class AgentList(OptionList, inherit_bindings=False):
             text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
         elif agent.status == "WAITING":
             text.append(agent.status, style="bold #AF87FF")  # Amethyst
+            # Live countdown for duration-based waits
+            if agent.wait_duration and agent.start_time:
+                from datetime import datetime, timedelta
+
+                target = agent.start_time + timedelta(seconds=agent.wait_duration)
+                remaining = (target - datetime.now()).total_seconds()
+                if remaining > 0:
+                    text.append(
+                        f" ({format_compact_duration(remaining)})",
+                        style="#AF87FF",
+                    )
         elif agent.status == "QUESTION":
             text.append(agent.status, style="bold #FFAF00")  # Amber/orange
         elif agent.status == "RETRYING":
