@@ -163,7 +163,7 @@ axe:
   lumberjacks:
     hooks:
       interval: 5
-      chop_timeout: "60s"
+      chop_timeout: "90s"
       chops:
         - name: hook_checks
           description: "Complete finished hooks and start stale ones, with zombie detection"
