@@ -287,7 +287,9 @@ MEMORY:
 | Low complexity           | High    | Medium         | Medium  | Medium    | Low    | High         |
 | Works for external repos | No      | Yes            | No      | Yes       | Yes    | Yes          |
 
-## Prior Art: Claude Code Auto-Memory
+## Prior Art
+
+### Claude Code Auto-Memory
 
 Claude Code's built-in memory system (at `~/.claude/projects/`) provides a useful reference:
 
@@ -299,6 +301,47 @@ Claude Code's built-in memory system (at `~/.claude/projects/`) provides a usefu
 
 This works well for a single user on a single machine but doesn't scale to team sharing or provide the audit trail that
 git versioning enables.
+
+### Letta Context Repositories
+
+Letta's [Context Repositories](https://www.letta.com/blog/context-repositories) represent a mature implementation of
+git-backed agent memory that validates many of our design goals and introduces several patterns worth adopting.
+
+**Core idea**: Agents store context as files in a local git repository, using their full terminal and coding
+capabilities (including scripts and subagents) to manage memory -- not just read/write individual files.
+
+**Key design patterns**:
+
+1. **Filesystem-first**: Files are "simple, universal primitives that both humans and agents can work with using
+   familiar tools." Agents chain standard Unix tools (`grep`, `find`, bash scripts) for complex memory queries rather
+   than relying on specialized memory APIs.
+
+2. **Progressive disclosure via filetree**: The directory tree is always included in the system prompt, with folder
+   hierarchy and filenames acting as "navigational signals." Agents decide what to read deeper based on the tree
+   structure. Frontmatter descriptions on each file control what gets pinned to context.
+
+3. **`system/` always-loaded directory**: Files in a `system/` directory are always fully loaded into the system prompt.
+   Other files are available but only loaded on demand. This creates an explicit two-tier context model.
+
+4. **Git worktrees for concurrency**: "Multiple subagents can process and write to memory concurrently, then merge their
+   changes back through git-based conflict resolution." Each subagent gets an isolated worktree, preventing blocking on
+   memory writes.
+
+5. **Three maintenance operations**:
+   - **Initialization**: Bootstraps memory by "exploring the codebase and reviewing historical conversation data" using
+     concurrent subagents in git worktrees
+   - **Reflection**: A "sleep-time" background process that "periodically reviews recent conversation history and
+     persists important information" with informative commits
+   - **Defragmentation**: Addresses long-horizon disorganization by "reorganizing files, splitting large files, merging
+     duplicates" into 15-25 focused files
+
+6. **Self-organizing memory**: Agents can restructure their own memory -- moving files between directories, updating
+   frontmatter, splitting/merging -- which means the memory organization improves over time without manual curation.
+
+**Relevance to sase**: Letta's approach strongly validates Alternative 2 (Dedicated Memory Git Repository) and adds
+concrete patterns we should adopt. Their `system/` directory maps to always-injected prompt context. Their worktree
+concurrency pattern is directly relevant since sase already uses ephemeral workspace directories. Their three
+maintenance operations (init/reflect/defrag) map to our implementation phases but with more actionable structure.
 
 ## Recommendation: Dedicated Memory Git Repository (Alternative 2)
 
@@ -329,27 +372,50 @@ implementation complexity. Here's why:
 6. **Graceful upgrade from Claude auto-memory**: The format (MEMORY.md index + individual typed files with frontmatter)
    is already proven. Sase can adopt the same format while adding git versioning on top.
 
+### Design Principles (Informed by Letta)
+
+1. **Filesystem-first**: Memory is just files. Agents use familiar tools (`grep`, `cat`, directory traversal) to query
+   memory rather than learning a specialized memory API. This keeps the system runtime-agnostic.
+
+2. **Progressive disclosure**: The filetree structure is always visible in agent prompts, acting as a navigational
+   index. Agents decide what to read deeper based on directory names and file names. This reduces the load of a separate
+   index file and makes the memory self-documenting.
+
+3. **Two-tier context**: A `system/` directory contains files that are always fully loaded into agent prompts.
+   Everything else is available on demand. This gives agents (and users) explicit control over what context is always
+   present vs. what requires a deliberate lookup.
+
+4. **Self-organizing**: Agents are encouraged to restructure memory -- renaming files, reorganizing directories,
+   updating frontmatter -- so memory quality improves over time without requiring manual curation.
+
 ### Proposed Architecture
 
 ```
 ~/.sase/memory/                          # Git repository
 ├── .git/
 ├── global/                              # Cross-project memory
-│   ├── MEMORY.md                        # Global index
-│   └── user_preferences.md
+│   ├── system/                          # Always loaded into all prompts
+│   │   └── user_preferences.md
+│   └── conventions.md                   # Loaded on demand
 └── projects/
     ├── sase/                            # Per-project memory
-    │   ├── MEMORY.md                    # Project index (always injected into prompts)
-    │   ├── architecture.md
-    │   ├── conventions.md
-    │   ├── decisions/
+    │   ├── system/                      # Always loaded for this project
+    │   │   ├── architecture.md          # Core architectural context
+    │   │   └── conventions.md           # Project-specific conventions
+    │   ├── decisions/                   # Loaded on demand
     │   │   └── 2026-04_plugin_api.md
-    │   └── feedback/
+    │   └── feedback/                    # Loaded on demand
     │       └── testing_approach.md
     └── webapp/
-        ├── MEMORY.md
+        ├── system/
+        │   └── ...
         └── ...
 ```
+
+**Filetree injection**: The full directory tree (names only, not contents) is always included in agent prompts. This
+acts as a navigational index -- agents see what memories exist and can read specific files as needed. The `system/`
+directories' contents are loaded in full. This replaces the need for a separate `MEMORY.md` index file, though one can
+optionally be maintained for backward compatibility or for richer annotations.
 
 ### Proposed CLI Interface
 
@@ -365,16 +431,29 @@ sase memory inject -p sase              # Output memory content for prompt injec
 
 ### Integration Points
 
-- **Prompt injection**: The project's `MEMORY.md` is loaded into agent system prompts (similar to how CLAUDE.md and
-  AGENTS.md are loaded today). Individual memories are loaded on demand.
-- **Agent writes**: Agents use `sase memory add` (or direct file writes + `sase memory commit`) to persist learnings. A
-  post-run hook could auto-commit uncommitted memory changes.
-- **Axe integration**: A lumberjack could periodically review and prune stale memories.
+- **Prompt injection**: The project's filetree is always included in agent system prompts (similar to how CLAUDE.md and
+  AGENTS.md are loaded today). Files in `system/` directories are loaded in full. Other files are available for agents
+  to read on demand.
+- **Agent writes**: Agents write files directly to the memory repo and run `sase memory commit` to persist. A post-run
+  hook could auto-commit uncommitted memory changes.
+- **Concurrent access**: When multiple agents (e.g., subagents) need to write memory simultaneously, use git worktrees
+  to give each agent an isolated copy. Merge back via standard git operations. This aligns with sase's existing
+  ephemeral workspace directory pattern.
+- **Axe integration**: A lumberjack could periodically review and prune stale memories (see Phase 4 defragmentation).
 - **Config**: `sase.yml` gains a `memory:` section for remote URL, auto-commit behavior, and injection preferences.
 
 ### Implementation Phases
 
-1. **Phase 1**: Core storage (init, add, list, show, rm) + git auto-commit on writes
-2. **Phase 2**: Prompt injection (load MEMORY.md into agent context automatically)
-3. **Phase 3**: Sync (remote push/pull) + optional sharing
-4. **Phase 4**: Automated curation (axe-driven pruning, staleness detection)
+1. **Phase 1 -- Core storage**: `sase memory init` bootstraps `~/.sase/memory/` as a git repo. Basic CRUD operations
+   (add, list, show, rm) with git auto-commit on writes. Support `system/` and non-system directories.
+2. **Phase 2 -- Prompt injection**: Automatically inject the filetree + `system/` file contents into agent prompts.
+   Integrate with sase's existing prompt assembly pipeline.
+3. **Phase 3 -- Memory initialization**: A `sase memory bootstrap` command that explores the codebase and optionally
+   reviews historical conversation data (from `~/.sase/chats/`) to seed initial memory. Can use concurrent subagents for
+   larger projects (inspired by Letta's init pattern).
+4. **Phase 4 -- Reflection and defragmentation**: Automated memory maintenance:
+   - **Reflection**: Post-run hook or lumberjack that reviews recent conversation history and persists important
+     information into memory (distillation from chat logs to structured knowledge).
+   - **Defragmentation**: Periodic reorganization that splits large files, merges duplicates, removes stale entries, and
+     keeps the total file count manageable (target: 15-25 focused files per project).
+5. **Phase 5 -- Sync and sharing**: Remote push/pull for cross-machine sync. Optional team sharing via shared remotes.
