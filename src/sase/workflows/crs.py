@@ -190,7 +190,7 @@ class CrsWorkflow(BaseWorkflow):
         from pathlib import Path
 
         chat_basename = generate_chat_filename(
-            workflow="crs", timestamp=self._timestamp
+            workflow="crs", branch_or_workspace=self.cl_name, timestamp=self._timestamp
         )
         predicted_chat_path = get_chat_file_path(chat_basename).replace(
             str(Path.home()), "~"
@@ -209,6 +209,7 @@ class CrsWorkflow(BaseWorkflow):
                 artifacts_dir=artifacts_dir,
                 workflow="crs",
                 timestamp=self._timestamp,
+                branch_or_workspace=self.cl_name,
             )
             response_content = ensure_str_content(response.content)
         except LLMInvocationError as e:

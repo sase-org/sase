@@ -141,6 +141,7 @@ def _finalize_loop(
             workflow="ace-run",
             timestamp=ctx.timestamp,
             extra_sections=extra,
+            branch_or_workspace=ctx.cl_name,
         )
         print(f"\nChat history saved to: {saved_path}")
 
@@ -259,7 +260,9 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
 
     from sase.history.chat import generate_chat_filename, get_chat_file_path
 
-    chat_basename = generate_chat_filename(workflow="ace-run", timestamp=ctx.timestamp)
+    chat_basename = generate_chat_filename(
+        workflow="ace-run", branch_or_workspace=ctx.cl_name, timestamp=ctx.timestamp
+    )
     predicted_chat_path = get_chat_file_path(chat_basename).replace(
         str(Path.home()), "~"
     )

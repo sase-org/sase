@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 17:15:28
-status: wip
+status: done
 ---
 
 # Plan: Fix chat filename using wrong prefix (branch name instead of CL name)
