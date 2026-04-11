@@ -130,9 +130,13 @@ class CommitWorkflow(BaseWorkflow):
             except Exception:
                 pass  # Best-effort; fall back to unsuffixed name
 
-        # Detect parent ChangeSpec from current branch (before VCS may change it)
+        # Resolve parent ChangeSpec: explicit flag takes precedence, then auto-detect
         if self._method == "create_pull_request":
-            self._parent_cl_name = self._detect_parent_changespec()
+            explicit_parent = self._payload.get("parent")
+            if explicit_parent:
+                self._parent_cl_name = str(explicit_parent)
+            else:
+                self._parent_cl_name = self._detect_parent_changespec()
 
         if self._method == "create_pull_request":
             self._apply_project_pr_prefix()
@@ -389,32 +393,45 @@ class CommitWorkflow(BaseWorkflow):
         Returns the ChangeSpec name if the current branch corresponds to an
         existing ChangeSpec, None otherwise.
         """
+        from sase.workflows.utils import (
+            get_changespec_from_file,
+            get_cl_name_from_branch,
+            get_project_file_path,
+            get_project_from_workspace,
+        )
+
         try:
-            from sase.workflows.utils import (
-                get_changespec_from_file,
-                get_cl_name_from_branch,
-                get_project_file_path,
-                get_project_from_workspace,
-            )
-
             branch_cl = get_cl_name_from_branch()
-            if not branch_cl:
-                return None
+        except Exception as exc:
+            print_status(
+                f"Parent auto-detect: failed to get branch CL name: {exc}", "warning"
+            )
+            return None
+        if not branch_cl:
+            return None
 
-            # Don't set parent to self
-            new_cl = self._base_cl_name or self._payload.get("name")
-            if branch_cl == new_cl:
-                return None
+        # Don't set parent to self
+        new_cl = self._base_cl_name or self._payload.get("name")
+        if branch_cl == new_cl:
+            return None
 
+        try:
             project_name = get_project_from_workspace()
-            if not project_name:
-                return None
+        except Exception as exc:
+            print_status(f"Parent auto-detect: failed to get project: {exc}", "warning")
+            return None
+        if not project_name:
+            return None
 
+        try:
             project_file = get_project_file_path(project_name)
             cs = get_changespec_from_file(project_file, branch_cl)
-            return branch_cl if cs is not None else None
-        except Exception:
+        except Exception as exc:
+            print_status(
+                f"Parent auto-detect: failed to read ChangeSpec: {exc}", "warning"
+            )
             return None
+        return branch_cl if cs is not None else None
 
     def _create_changespec(self, cl_url: str | None) -> str | None:
         """Best-effort ChangeSpec creation after a successful PR flow."""

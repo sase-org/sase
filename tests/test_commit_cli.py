@@ -174,6 +174,16 @@ class TestCommitCLI:
         _, method = _run_handler(["-M", msg_file], env={"SASE_COMMIT_METHOD": alias})
         assert method == canonical
 
+    def test_parent_flag(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file, "-p", "parent_cl"])
+        assert payload["parent"] == "parent_cl"
+
+    def test_parent_default_omitted(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file])
+        assert "parent" not in payload
+
     def test_message_and_message_file_mutually_exclusive(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit):

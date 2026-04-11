@@ -71,6 +71,11 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
         default="HEAD~1",
         help="Branch point for create_pull_request (default: HEAD~1)",
     )
+    commit_parser.add_argument(
+        "-p",
+        "--parent",
+        help="Parent ChangeSpec name (overrides auto-detection from current branch)",
+    )
     from sase.workflows.commit.workflow import METHOD_ALIASES, VALID_METHODS
 
     commit_parser.add_argument(

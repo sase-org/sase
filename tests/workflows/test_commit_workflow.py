@@ -276,6 +276,60 @@ def test_detect_parent_returns_none_when_self_parent() -> None:
         assert wf._detect_parent_changespec() is None
 
 
+def test_explicit_parent_overrides_auto_detect() -> None:
+    """Explicit parent in payload takes precedence over auto-detection."""
+    wf = CommitWorkflow(
+        payload={"name": "child_cl", "parent": "explicit_parent"},
+        method="create_pull_request",
+    )
+    wf._base_cl_name = "child_cl"
+    # Mock enough to reach parent resolution: precommit must succeed,
+    # then we let the VCS dispatch fail to stop execution after parent
+    # is set.
+    mock_provider = MagicMock()
+    mock_provider.create_pull_request.return_value = (False, "stopped")
+    with (
+        patch.object(wf, "_handle_beads"),
+        patch.object(wf, "_handle_sase_plan"),
+        patch.object(wf, "_run_precommit", return_value=True),
+        patch.object(wf, "_apply_project_pr_prefix"),
+        patch.object(wf, "_append_pr_tags"),
+        patch.object(wf, "_build_pr_body"),
+        patch(
+            "sase.workflows.commit.workflow.get_vcs_provider",
+            return_value=mock_provider,
+        ),
+    ):
+        wf.run()
+    assert wf._parent_cl_name == "explicit_parent"
+
+
+def test_explicit_parent_skips_auto_detect() -> None:
+    """When parent is in payload, _detect_parent_changespec is not called."""
+    wf = CommitWorkflow(
+        payload={"name": "child_cl", "parent": "given_parent"},
+        method="create_pull_request",
+    )
+    wf._base_cl_name = "child_cl"
+    mock_provider = MagicMock()
+    mock_provider.create_pull_request.return_value = (False, "stopped")
+    with (
+        patch.object(wf, "_handle_beads"),
+        patch.object(wf, "_handle_sase_plan"),
+        patch.object(wf, "_run_precommit", return_value=True),
+        patch.object(wf, "_apply_project_pr_prefix"),
+        patch.object(wf, "_append_pr_tags"),
+        patch.object(wf, "_build_pr_body"),
+        patch(
+            "sase.workflows.commit.workflow.get_vcs_provider",
+            return_value=mock_provider,
+        ),
+        patch.object(wf, "_detect_parent_changespec") as mock_detect,
+    ):
+        wf.run()
+    mock_detect.assert_not_called()
+
+
 # --- _append_commits_entry (human CLI path, no env vars) ---
 
 
