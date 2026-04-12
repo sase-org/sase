@@ -43,6 +43,57 @@ def test_load_xprompt_from_file_nonexistent() -> None:
     assert xprompt is None
 
 
+def test_load_xprompt_from_file_with_skill_and_description() -> None:
+    """Test loading xprompt file with skill and description front matter."""
+    content = """---
+name: my_skill
+description: A useful skill
+skill: true
+---
+Skill body content"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(content)
+        temp_path = Path(f.name)
+
+    try:
+        xprompt = _load_xprompt_from_file(temp_path)
+
+        assert xprompt is not None
+        assert xprompt.name == "my_skill"
+        assert xprompt.description == "A useful skill"
+        assert xprompt.skill is True
+        assert xprompt.content == "Skill body content"
+    finally:
+        temp_path.unlink()
+
+
+def test_load_xprompt_from_file_with_skill_provider_list() -> None:
+    """Test loading xprompt file with skill as provider list."""
+    content = """---
+name: hg_commit
+skill: [gemini]
+---
+Commit with hg"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(content)
+        temp_path = Path(f.name)
+
+    try:
+        xprompt = _load_xprompt_from_file(temp_path)
+
+        assert xprompt is not None
+        assert xprompt.skill == ["gemini"]
+        assert xprompt.description is None
+    finally:
+        temp_path.unlink()
+
+
 # Tests for parse_yaml_front_matter
 
 

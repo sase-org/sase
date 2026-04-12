@@ -375,6 +375,8 @@ def parse_xprompt_entries(
             inputs: list[InputArg] = []
             tags: frozenset[XPromptTag] = frozenset()
             snippet: str | bool | None = None
+            description: str | None = None
+            skill: bool | list[str] | None = None
         elif isinstance(value, dict):
             # Structured xprompt with input/content
             content = value.get("content", "")
@@ -383,6 +385,8 @@ def parse_xprompt_entries(
             inputs = parse_inputs_from_front_matter(value.get("input"))
             tags = parse_tags(value.get("tags"))
             snippet = value.get("snippet")
+            description = value.get("description")
+            skill = value.get("skill")
         else:
             continue
 
@@ -393,6 +397,8 @@ def parse_xprompt_entries(
             source_path=source_path,
             tags=tags,
             snippet=snippet,
+            description=description,
+            skill=skill,
         )
 
     return xprompts

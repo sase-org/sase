@@ -161,6 +161,8 @@ class XPrompt:
     source_path: str | None = None
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
     snippet: str | bool | None = None
+    description: str | None = None
+    skill: bool | list[str] | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this xprompt has the given tag."""
