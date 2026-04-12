@@ -153,3 +153,30 @@ class TestApplyProjectPrPrefix:
 
         sent = provider.create_pull_request.call_args[0][0]
         assert not sent["message"].startswith("[myproj]")
+
+    @patch(_PROJECT_NAME_TARGET, return_value="myproj")
+    @patch(_PROVIDER_TARGET)
+    def test_strips_existing_prefix_from_message(
+        self, mock_get: MagicMock, _mock_proj: MagicMock
+    ) -> None:
+        """When the agent already included a [project] prefix in the message,
+        it must be stripped so the PR title doesn't get a duplicate prefix."""
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {
+            "name": "feat-x",
+            "message": "[myproj] Implement feature",
+        }
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with patch(
+            "sase.vcs_provider.config.get_use_project_pr_prefix", return_value=True
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert sent["_pr_title_prefix"] == "[myproj] "
+        assert sent["message"].startswith("Implement feature")
+        assert "[myproj]" not in sent["message"]

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 12:36:34
-status: wip
+status: done
 ---
 
 # Fix Duplicate `[project]` PR Title Prefix

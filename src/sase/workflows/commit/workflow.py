@@ -330,7 +330,10 @@ class CommitWorkflow(BaseWorkflow):
 
     def _apply_project_pr_prefix(self) -> None:
         """Set ``_pr_title_prefix`` if ``use_project_pr_prefix`` is enabled."""
-        from sase.vcs_provider.config import get_use_project_pr_prefix
+        from sase.vcs_provider.config import (
+            get_use_project_pr_prefix,
+            strip_project_pr_prefix,
+        )
 
         if not get_use_project_pr_prefix():
             return
@@ -342,6 +345,11 @@ class CommitWorkflow(BaseWorkflow):
             project_name = None
         if project_name:
             self._payload["_pr_title_prefix"] = f"[{project_name}] "
+            # Strip any existing prefix from the message to prevent
+            # duplication when the agent already included one.
+            message = self._payload.get("message", "")
+            if message:
+                self._payload["message"] = strip_project_pr_prefix(message)
 
     def _append_pr_tags(self) -> None:
         """Append configured pr_tags to the commit message.
