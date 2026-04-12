@@ -129,8 +129,10 @@ def compute_percentiles(
     Only works with histogram ``_bucket`` samples that share the same
     base name and label set (minus the ``le`` label).
     """
-    # Collect (le_bound, cumulative_count) pairs.
-    buckets: list[tuple[float, float]] = []
+    # Collect (le_bound, cumulative_count) pairs.  When multiple pushgateway
+    # groups contribute samples with the same ``le`` bound, sum them so the
+    # resulting histogram represents all groups combined.
+    bucket_sums: dict[float, float] = {}
     for s in samples:
         if not s.name.endswith("_bucket"):
             continue
@@ -141,12 +143,12 @@ def compute_percentiles(
             bound = float(le)
         except ValueError:
             continue
-        buckets.append((bound, s.value))
+        bucket_sums[bound] = bucket_sums.get(bound, 0.0) + s.value
 
-    if not buckets:
+    if not bucket_sums:
         return {}
 
-    buckets.sort(key=lambda b: b[0])
+    buckets = sorted(bucket_sums.items(), key=lambda b: b[0])
     total = buckets[-1][1] if buckets else 0
     if total == 0:
         return {}

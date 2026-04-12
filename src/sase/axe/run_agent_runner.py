@@ -110,7 +110,9 @@ def main() -> None:
 
     # Initialize telemetry and register push-on-exit for this agent process
     init_telemetry()
-    register_push_on_exit(job="agent_runner", workflow=workflow_name)
+    register_push_on_exit(
+        job="agent_runner", workflow=workflow_name, instance=timestamp
+    )
 
     start_time = time.time()
     success = False
@@ -237,7 +239,7 @@ def main() -> None:
             # (the atexit push only fires after gauges are decremented to 0).
             push_metrics(
                 job="agent_runner",
-                grouping_key={"workflow": workflow_name},
+                grouping_key={"workflow": workflow_name, "instance": timestamp},
             )
 
             # Write running marker for home mode (no workspace tracking available)

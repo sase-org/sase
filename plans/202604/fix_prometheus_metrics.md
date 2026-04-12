@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 22:59:47
-status: wip
+status: done
 ---
 
 # Fix Prometheus Metrics Tracking and Display for Agent Invocations

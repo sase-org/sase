@@ -48,7 +48,7 @@ def main() -> None:
 
     # Initialize telemetry and push metrics on exit
     init_telemetry()
-    register_push_on_exit(job="mentor-runner", mentor=mentor_name)
+    register_push_on_exit(job="mentor-runner", mentor=mentor_name, instance=timestamp)
 
     start_time = time.time()
     success = False

@@ -121,7 +121,7 @@ def main() -> int:
 
     # Initialize telemetry and push metrics on exit
     init_telemetry()
-    register_push_on_exit(job="fix-hook-runner")
+    register_push_on_exit(job="fix-hook-runner", instance=timestamp)
 
     proposal_id: str | None = None
     exit_code = 1

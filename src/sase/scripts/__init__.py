@@ -128,6 +128,12 @@ def sase_chop_stale_running_cleanup() -> None:
     main()
 
 
+def sase_chop_pushgateway_cleanup() -> None:
+    from sase.scripts.sase_chop_pushgateway_cleanup import main
+
+    main()
+
+
 def sase_chop_wait_checks() -> None:
     from sase.scripts.sase_chop_wait_checks import main
 
