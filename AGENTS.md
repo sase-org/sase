@@ -150,5 +150,6 @@ the `src/sase/default_config.yml` file if necessary.
 
 ## Plan Mode and Questions
 
-- You do NOT have access to plan mode (`EnterPlanMode`/`ExitPlanMode`). Use the `/sase_plan` skill instead.
-- You do NOT have access to `AskUserQuestion`. Use the `/sase_questions` skill instead.
+- You should use your `/sase_plan` skill for plan mode (`EnterPlanMode` and `ExitPlanMode` have been disabled).
+- You should use your `/sase_questions` skill if you need to ask the user clarifying questions (`AskUserQuestion` has
+  been disabled).
