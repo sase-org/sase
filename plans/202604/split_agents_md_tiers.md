@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 18:37:16
-status: wip
+status: done
 ---
 
 # Split AGENTS.md into Always-Loaded and On-Demand Tiers
