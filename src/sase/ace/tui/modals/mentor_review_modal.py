@@ -47,6 +47,8 @@ class MentorReviewModal(
         ("k", "prev_mentor", "Prev mentor"),
         ("n", "next_comment", "Next comment"),
         ("p", "prev_comment", "Prev comment"),
+        ("N", "next_accepted_comment", "Next accepted"),
+        ("P", "prev_accepted_comment", "Prev accepted"),
         ("space", "toggle_accept", "Toggle accept"),
         ("a", "apply_propose", "Apply + propose"),
         ("A", "apply_commit", "Apply + commit"),
@@ -355,6 +357,7 @@ class MentorReviewModal(
 
         bindings = [
             ("n/p", "comments"),
+            ("N/P", "accepted"),
             ("j/k", "mentors"),
             ("\u2423", "toggle"),
             ("a", "apply+propose"),
@@ -422,6 +425,52 @@ class MentorReviewModal(
                     self._comment_idx = len(self._data.mentors[prev_idx].comments) - 1
                     break
         self._refresh_all()
+
+    def _all_comment_positions(self) -> list[tuple[int, int]]:
+        """Return flat list of (mentor_idx, comment_idx) for every comment."""
+        return [
+            (mi, ci)
+            for mi, m in enumerate(self._data.mentors)
+            for ci in range(len(m.comments))
+        ]
+
+    def action_next_accepted_comment(self) -> None:
+        positions = self._all_comment_positions()
+        if not positions:
+            return
+        current = (self._mentor_idx, self._comment_idx)
+        try:
+            start = positions.index(current)
+        except ValueError:
+            return
+        n = len(positions)
+        for offset in range(1, n + 1):
+            mi, ci = positions[(start + offset) % n]
+            m = self._data.mentors[mi]
+            if self._data.acceptance.is_accepted(m.profile_name, m.mentor_name, ci):
+                self._mentor_idx = mi
+                self._comment_idx = ci
+                self._refresh_all()
+                return
+
+    def action_prev_accepted_comment(self) -> None:
+        positions = self._all_comment_positions()
+        if not positions:
+            return
+        current = (self._mentor_idx, self._comment_idx)
+        try:
+            start = positions.index(current)
+        except ValueError:
+            return
+        n = len(positions)
+        for offset in range(1, n + 1):
+            mi, ci = positions[(start - offset) % n]
+            m = self._data.mentors[mi]
+            if self._data.acceptance.is_accepted(m.profile_name, m.mentor_name, ci):
+                self._mentor_idx = mi
+                self._comment_idx = ci
+                self._refresh_all()
+                return
 
     # -- Acceptance --
 

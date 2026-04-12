@@ -498,6 +498,91 @@ def test_global_comment_index_no_comments() -> None:
     assert modal._global_comment_index() == (0, 0)
 
 
+# ── Accepted-comment navigation (N / P) ─────────────────────────────
+
+
+def test_next_accepted_forward() -> None:
+    """N navigates forward to the next accepted comment."""
+    data = _make_modal_data([3])
+    data.acceptance.set_accepted("code", "mentor_0", 2, True)
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 0
+    modal.action_next_accepted_comment()
+    assert modal._mentor_idx == 0
+    assert modal._comment_idx == 2
+
+
+def test_prev_accepted_backward() -> None:
+    """P navigates backward to the previous accepted comment."""
+    data = _make_modal_data([3])
+    data.acceptance.set_accepted("code", "mentor_0", 0, True)
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 2
+    modal.action_prev_accepted_comment()
+    assert modal._mentor_idx == 0
+    assert modal._comment_idx == 0
+
+
+def test_next_accepted_wraps_across_mentors() -> None:
+    """N wraps from the last mentor back to an accepted comment in the first."""
+    data = _make_modal_data([2, 3])
+    data.acceptance.set_accepted("code", "mentor_0", 0, True)
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 1
+    modal._comment_idx = 2  # last comment of last mentor
+    modal.action_next_accepted_comment()
+    assert modal._mentor_idx == 0
+    assert modal._comment_idx == 0
+
+
+def test_prev_accepted_wraps_across_mentors() -> None:
+    """P wraps from the first mentor back to an accepted comment in the last."""
+    data = _make_modal_data([2, 3])
+    data.acceptance.set_accepted("code", "mentor_1", 2, True)
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 0
+    modal.action_prev_accepted_comment()
+    assert modal._mentor_idx == 1
+    assert modal._comment_idx == 2
+
+
+def test_next_accepted_noop_when_none_accepted() -> None:
+    """N does nothing when no comments are accepted."""
+    data = _make_modal_data([2, 3])
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 1
+    modal.action_next_accepted_comment()
+    assert modal._mentor_idx == 0
+    assert modal._comment_idx == 1
+
+
+def test_prev_accepted_noop_when_none_accepted() -> None:
+    """P does nothing when no comments are accepted."""
+    data = _make_modal_data([2, 3])
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 1
+    modal._comment_idx = 0
+    modal.action_prev_accepted_comment()
+    assert modal._mentor_idx == 1
+    assert modal._comment_idx == 0
+
+
+def test_next_accepted_skips_empty_mentors() -> None:
+    """N skips mentors with zero comments when searching for accepted."""
+    data = _make_modal_data([2, 0, 3])
+    data.acceptance.set_accepted("code", "mentor_2", 1, True)
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 0
+    modal.action_next_accepted_comment()
+    assert modal._mentor_idx == 2
+    assert modal._comment_idx == 1
+
+
 def test_kill_requires_running_mentor() -> None:
     """action_kill_mentor on a non-running mentor does not produce a kill result."""
     data = _make_modal_data([2])
