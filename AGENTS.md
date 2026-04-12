@@ -5,8 +5,8 @@
 The following memory files contain core (always loaded) context:
 
 - @memory/build_and_run.md
-- @memory/code_conventions.md
 - @memory/glossary.md
+- @memory/gotchas.md
 - @memory/workspaces.md
 
 ## Tier 2 (dynamic) Memory
