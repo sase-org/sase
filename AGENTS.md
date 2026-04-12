@@ -76,7 +76,7 @@ Any change to `sase commit` CLI arguments must include same-turn updates to:
 - Relevant skill `SKILL.md` files that document or demonstrate those arguments
 - Tests validating both CLI parsing and skill invocation examples
 
-## Commit Skills per Runtime
+### Commit Skills per Runtime
 
 The commit stop hook dynamically resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider.
 However, not every runtime has every skill installed:
