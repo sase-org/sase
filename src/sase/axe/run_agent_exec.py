@@ -244,7 +244,12 @@ def _finalize_loop(
     )
 
 
-def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
+def run_execution_loop(
+    ctx: AgentExecContext,
+    prompt: str,
+    *,
+    repeat_iteration: int | None = None,
+) -> _AgentExecResult:
     """Run the agent workflow loop with retry, plan approval, and question handling.
 
     Returns an _AgentExecResult with the outcome.
@@ -294,7 +299,11 @@ def run_execution_loop(ctx: AgentExecContext, prompt: str) -> _AgentExecResult:
             result = execute_workflow(
                 anon_workflow.name,
                 [],
-                {"cl_name": ctx.cl_name, "workspace_num": ctx.workspace_num},
+                {
+                    "cl_name": ctx.cl_name,
+                    "workspace_num": ctx.workspace_num,
+                    **({"N": repeat_iteration} if repeat_iteration is not None else {}),
+                },
                 artifacts_dir=state.current_artifacts_dir,
                 silent=True,
                 workflow_obj=anon_workflow,

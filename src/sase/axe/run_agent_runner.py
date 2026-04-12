@@ -325,7 +325,9 @@ def main() -> None:
                     )
 
                     print(f"\n=== Repeat iteration {iteration}/{repeat_count} ===\n")
-                    exec_result = run_execution_loop(ctx, prompt)
+                    exec_result = run_execution_loop(
+                        ctx, prompt, repeat_iteration=iteration
+                    )
                     success = exec_result.success
                     saved_path = exec_result.saved_path
                     diff_path = exec_result.diff_path
