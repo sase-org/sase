@@ -128,6 +128,46 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Project name (default: auto-detect from CWD)",
     )
 
+    # sase memory sync
+    sync_parser = memory_subparsers.add_parser(
+        "sync", help="Push/pull memory from configured remote"
+    )
+    sync_parser.add_argument(
+        "-r",
+        "--remote",
+        default="origin",
+        help="Remote name (default: origin)",
+    )
+
+    # sase memory remote {add,rm}
+    remote_parser = memory_subparsers.add_parser(
+        "remote", help="Manage remotes for the memory repository"
+    )
+    remote_subparsers = remote_parser.add_subparsers(
+        dest="remote_subcommand", help="Remote subcommands"
+    )
+
+    remote_add_parser = remote_subparsers.add_parser(
+        "add", help="Configure a remote for the memory repository"
+    )
+    remote_add_parser.add_argument("url", help="Remote URL (e.g. git@github.com:...)")
+    remote_add_parser.add_argument(
+        "-n",
+        "--name",
+        default="origin",
+        help="Remote name (default: origin)",
+    )
+
+    remote_rm_parser = remote_subparsers.add_parser(
+        "rm", help="Remove a remote from the memory repository"
+    )
+    remote_rm_parser.add_argument(
+        "-n",
+        "--name",
+        default="origin",
+        help="Remote name to remove (default: origin)",
+    )
+
     # sase memory tree
     tree_parser = memory_subparsers.add_parser(
         "tree", help="Show filetree of the memory repository"

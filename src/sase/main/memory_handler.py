@@ -35,13 +35,19 @@ def handle_memory_command(args: argparse.Namespace) -> None:
     elif memory_sub == "defrag":
         _handle_defrag(args)
 
+    elif memory_sub == "sync":
+        _handle_sync(args)
+
+    elif memory_sub == "remote":
+        _handle_remote(args)
+
     elif memory_sub == "tree":
         _handle_tree(args)
 
     else:
         print(
             "Usage: sase memory"
-            " {init,add,show,list,rm,inject,tree,bootstrap,reflect,defrag}"
+            " {init,add,show,list,rm,inject,tree,sync,remote,bootstrap,reflect,defrag}"
         )
         sys.exit(1)
 
@@ -327,6 +333,75 @@ def _handle_rm(args: argparse.Namespace) -> None:
 
     print(f"Removed: {filepath.relative_to(get_repo_path())}")
     sys.exit(0)
+
+
+def _handle_sync(args: argparse.Namespace) -> None:
+    from sase.memory.repo import repo_exists
+    from sase.memory.sync import SyncConflictError, sync
+
+    if not repo_exists():
+        print("Memory repo not initialized. Run: sase memory init", file=sys.stderr)
+        sys.exit(1)
+
+    remote = getattr(args, "remote", "origin")
+
+    try:
+        msg = sync(remote=remote)
+    except SyncConflictError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
+    except RuntimeError as e:
+        print(f"Sync failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print(msg)
+    sys.exit(0)
+
+
+def _handle_remote(args: argparse.Namespace) -> None:
+    from sase.memory.repo import repo_exists
+    from sase.memory.sync import add_remote, get_remote_url, remove_remote
+
+    if not repo_exists():
+        print("Memory repo not initialized. Run: sase memory init", file=sys.stderr)
+        sys.exit(1)
+
+    remote_sub = getattr(args, "remote_subcommand", None)
+
+    if remote_sub == "add":
+        name = getattr(args, "name", "origin")
+        try:
+            add_remote(args.url, name=name)
+        except RuntimeError as e:
+            print(f"Failed to add remote: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Remote '{name}' set to {args.url}")
+        sys.exit(0)
+
+    elif remote_sub == "rm":
+        name = getattr(args, "name", "origin")
+        try:
+            remove_remote(name=name)
+        except ValueError as e:
+            print(str(e), file=sys.stderr)
+            sys.exit(1)
+        except RuntimeError as e:
+            print(f"Failed to remove remote: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Remote '{name}' removed")
+        sys.exit(0)
+
+    else:
+        # No subcommand — show current remote
+        url = get_remote_url()
+        if url:
+            print(f"origin\t{url}")
+        else:
+            print("No remote configured. Run: sase memory remote add <url>")
+        sys.exit(0)
 
 
 def _handle_tree(args: argparse.Namespace) -> None:

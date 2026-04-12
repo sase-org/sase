@@ -36,7 +36,7 @@ def ensure_repo() -> Path:
     repo.mkdir(parents=True, exist_ok=True)
 
     # Initialize git repo
-    _run_git(repo, "init")
+    run_git(repo, "init")
 
     # Create initial structure
     global_system = repo / "global" / "system"
@@ -51,8 +51,8 @@ def ensure_repo() -> Path:
     (repo / "README.md").write_text(_README_CONTENT)
 
     # Initial commit
-    _run_git(repo, "add", "-A")
-    _run_git(repo, "commit", "-m", "Initialize memory repository")
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-m", "Initialize memory repository")
 
     return repo
 
@@ -68,7 +68,7 @@ def auto_commit(message: str) -> None:
     if not (repo / ".git").is_dir():
         raise RuntimeError("Memory repo not initialized. Run: sase memory init")
 
-    _run_git(repo, "add", "-A")
+    run_git(repo, "add", "-A")
 
     # Check if there's anything to commit
     result = subprocess.run(
@@ -79,7 +79,7 @@ def auto_commit(message: str) -> None:
     if result.returncode == 0:
         return  # Nothing staged
 
-    _run_git(repo, "commit", "-m", message)
+    run_git(repo, "commit", "-m", message)
 
 
 def get_filetree(project: str | None = None) -> str:
@@ -97,7 +97,7 @@ def get_filetree(project: str | None = None) -> str:
     return "\n".join(lines)
 
 
-def _run_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def run_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     """Run a git command in the given directory."""
     result = subprocess.run(
         ["git", *args],
