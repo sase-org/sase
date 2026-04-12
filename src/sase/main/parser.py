@@ -4,7 +4,6 @@ import argparse
 
 from sase.main.parser_ace import register_ace_parser, register_axe_parser
 from sase.main.parser_bead import register_bead_parser
-from sase.main.parser_memory import register_memory_parser
 from sase.main.parser_commands import (
     register_comments_parser,
     register_commit_parser,
@@ -48,7 +47,6 @@ def create_parser() -> argparse.ArgumentParser:
     register_init_git_parser(top_level_subparsers)
     register_init_skills_parser(top_level_subparsers)
     register_logs_parser(top_level_subparsers)
-    register_memory_parser(top_level_subparsers)
     register_notify_parser(top_level_subparsers)
     register_path_parser(top_level_subparsers)
     register_plan_parser(top_level_subparsers)

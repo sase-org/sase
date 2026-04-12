@@ -129,12 +129,6 @@ def main() -> NoReturn:
 
         handle_logs_command(args)
 
-    # --- memory ---
-    if args.command == "memory":
-        from .memory_handler import handle_memory_command
-
-        handle_memory_command(args)
-
     # --- notify ---
     if args.command == "notify":
         from .notify_handler import handle_notify_command
