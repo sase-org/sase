@@ -13,7 +13,12 @@ from sase.workflows.commit.changespec_operations import (
     _find_changespec_end_line,
 )
 from sase.workflows.commit.changespec_queries import changespec_exists
+from sase.workflows.commit.commit_tracking import (
+    append_commits_entry,
+    capture_pre_commit_diff,
+)
 from sase.workflows.commit.editor_utils import get_editor
+from sase.workflows.commit.pr_operations import detect_parent_changespec
 from sase.workflows.commit.workflow import CommitWorkflow
 
 
@@ -198,15 +203,8 @@ def test_get_cl_description_empty_file_falls_back() -> None:
 # --- _detect_parent_changespec ---
 
 
-def _make_workflow(name: str = "child_cl") -> CommitWorkflow:
-    """Create a CommitWorkflow configured for create_pull_request."""
-    return CommitWorkflow(payload={"name": name}, method="create_pull_request")
-
-
 def test_detect_parent_returns_branch_cl_when_changespec_exists() -> None:
     """Returns branch name when it matches an existing ChangeSpec."""
-    wf = _make_workflow()
-    wf._base_cl_name = "child_cl"
     mock_cs = MagicMock()
     mock_cs.name = "parent_feature"
     with (
@@ -227,23 +225,23 @@ def test_detect_parent_returns_branch_cl_when_changespec_exists() -> None:
             return_value=mock_cs,
         ),
     ):
-        assert wf._detect_parent_changespec() == "parent_feature"
+        assert (
+            detect_parent_changespec("child_cl", {"name": "child_cl"})
+            == "parent_feature"
+        )
 
 
 def test_detect_parent_returns_none_when_no_branch() -> None:
     """Returns None when get_cl_name_from_branch fails."""
-    wf = _make_workflow()
     with patch(
         "sase.workflows.utils.get_cl_name_from_branch",
         return_value=None,
     ):
-        assert wf._detect_parent_changespec() is None
+        assert detect_parent_changespec("child_cl", {"name": "child_cl"}) is None
 
 
 def test_detect_parent_returns_none_when_no_changespec() -> None:
     """Returns None when branch has no ChangeSpec."""
-    wf = _make_workflow()
-    wf._base_cl_name = "child_cl"
     with (
         patch(
             "sase.workflows.utils.get_cl_name_from_branch",
@@ -262,18 +260,16 @@ def test_detect_parent_returns_none_when_no_changespec() -> None:
             return_value=None,
         ),
     ):
-        assert wf._detect_parent_changespec() is None
+        assert detect_parent_changespec("child_cl", {"name": "child_cl"}) is None
 
 
 def test_detect_parent_returns_none_when_self_parent() -> None:
     """Returns None when branch name matches the new CL name."""
-    wf = _make_workflow(name="same_name")
-    wf._base_cl_name = "same_name"
     with patch(
         "sase.workflows.utils.get_cl_name_from_branch",
         return_value="same_name",
     ):
-        assert wf._detect_parent_changespec() is None
+        assert detect_parent_changespec("same_name", {"name": "same_name"}) is None
 
 
 def test_explicit_parent_overrides_auto_detect() -> None:
@@ -289,12 +285,12 @@ def test_explicit_parent_overrides_auto_detect() -> None:
     mock_provider = MagicMock()
     mock_provider.create_pull_request.return_value = (False, "stopped")
     with (
-        patch.object(wf, "_handle_beads"),
-        patch.object(wf, "_handle_sase_plan"),
-        patch.object(wf, "_run_precommit", return_value=True),
-        patch.object(wf, "_apply_project_pr_prefix"),
-        patch.object(wf, "_append_pr_tags"),
-        patch.object(wf, "_build_pr_body"),
+        patch("sase.workflows.commit.workflow.handle_beads"),
+        patch("sase.workflows.commit.workflow.handle_sase_plan"),
+        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
+        patch("sase.workflows.commit.workflow.append_pr_tags"),
+        patch("sase.workflows.commit.workflow.build_pr_body"),
         patch(
             "sase.workflows.commit.workflow.get_vcs_provider",
             return_value=mock_provider,
@@ -305,7 +301,7 @@ def test_explicit_parent_overrides_auto_detect() -> None:
 
 
 def test_explicit_parent_skips_auto_detect() -> None:
-    """When parent is in payload, _detect_parent_changespec is not called."""
+    """When parent is in payload, detect_parent_changespec is not called."""
     wf = CommitWorkflow(
         payload={"name": "child_cl", "parent": "given_parent"},
         method="create_pull_request",
@@ -314,32 +310,23 @@ def test_explicit_parent_skips_auto_detect() -> None:
     mock_provider = MagicMock()
     mock_provider.create_pull_request.return_value = (False, "stopped")
     with (
-        patch.object(wf, "_handle_beads"),
-        patch.object(wf, "_handle_sase_plan"),
-        patch.object(wf, "_run_precommit", return_value=True),
-        patch.object(wf, "_apply_project_pr_prefix"),
-        patch.object(wf, "_append_pr_tags"),
-        patch.object(wf, "_build_pr_body"),
+        patch("sase.workflows.commit.workflow.handle_beads"),
+        patch("sase.workflows.commit.workflow.handle_sase_plan"),
+        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
+        patch("sase.workflows.commit.workflow.append_pr_tags"),
+        patch("sase.workflows.commit.workflow.build_pr_body"),
         patch(
             "sase.workflows.commit.workflow.get_vcs_provider",
             return_value=mock_provider,
         ),
-        patch.object(wf, "_detect_parent_changespec") as mock_detect,
+        patch("sase.workflows.commit.workflow.detect_parent_changespec") as mock_detect,
     ):
         wf.run()
     mock_detect.assert_not_called()
 
 
 # --- _append_commits_entry (human CLI path, no env vars) ---
-
-
-def _make_commit_workflow(
-    message: str = "Fix a bug",
-    method: str = "create_commit",
-) -> CommitWorkflow:
-    """Create a CommitWorkflow for commit/proposal tests."""
-    payload: dict = {"message": message}
-    return CommitWorkflow(payload=payload, method=method)
 
 
 def test_append_commits_entry_uses_message_first_line(tmp_path: Path) -> None:
@@ -349,11 +336,13 @@ def test_append_commits_entry_uses_message_first_line(tmp_path: Path) -> None:
         "NAME: my_branch\nDESCRIPTION:\n  desc\nCOMMITS:\nSTATUS: Pending\n"
     )
 
-    wf = _make_commit_workflow(message="First line\nSecond line")
-    wf._cl_name = "my_branch"
-    wf._project_file = str(project_file)
-
-    entry_id = wf._append_commits_entry()
+    entry_id = append_commits_entry(
+        str(project_file),
+        "my_branch",
+        {"message": "First line\nSecond line"},
+        "create_commit",
+        None,
+    )
     assert entry_id == "1"
 
     content = project_file.read_text()
@@ -363,11 +352,12 @@ def test_append_commits_entry_uses_message_first_line(tmp_path: Path) -> None:
 
 def test_append_commits_entry_returns_none_without_project_file() -> None:
     """Returns None when project file cannot be resolved."""
-    wf = _make_commit_workflow()
-    wf._cl_name = "my_branch"
-    wf._project_file = None
-
-    assert wf._append_commits_entry() is None
+    assert (
+        append_commits_entry(
+            None, "my_branch", {"message": "Fix a bug"}, "create_commit", None
+        )
+        is None
+    )
 
 
 def test_append_commits_entry_returns_none_without_cl_name(tmp_path: Path) -> None:
@@ -375,11 +365,12 @@ def test_append_commits_entry_returns_none_without_cl_name(tmp_path: Path) -> No
     project_file = tmp_path / "proj.gp"
     project_file.write_text("NAME: x\nSTATUS: Pending\n")
 
-    wf = _make_commit_workflow()
-    wf._cl_name = None
-    wf._project_file = str(project_file)
-
-    assert wf._append_commits_entry() is None
+    assert (
+        append_commits_entry(
+            str(project_file), None, {"message": "Fix a bug"}, "create_commit", None
+        )
+        is None
+    )
 
 
 def test_append_commits_entry_includes_diff_path(tmp_path: Path) -> None:
@@ -391,19 +382,20 @@ def test_append_commits_entry_includes_diff_path(tmp_path: Path) -> None:
     diff_file = tmp_path / "my.diff"
     diff_file.write_text("diff content")
 
-    wf = _make_commit_workflow(message="with diff")
-    wf._cl_name = "my_branch"
-    wf._project_file = str(project_file)
-    wf._diff_path = str(diff_file)
-
-    entry_id = wf._append_commits_entry()
+    entry_id = append_commits_entry(
+        str(project_file),
+        "my_branch",
+        {"message": "with diff"},
+        "create_commit",
+        str(diff_file),
+    )
     assert entry_id == "1"
 
     content = project_file.read_text()
     assert f"DIFF: {diff_file}" in content
 
 
-# --- _capture_pre_commit_diff fallback ---
+# --- capture_pre_commit_diff fallback ---
 
 
 def test_capture_pre_commit_diff_fallback_to_sase_diffs(
@@ -415,19 +407,16 @@ def test_capture_pre_commit_diff_fallback_to_sase_diffs(
     fake_home.mkdir()
     monkeypatch.setenv("HOME", str(fake_home))
 
-    wf = _make_commit_workflow()
-    wf._cl_name = "my_branch"
-
     mock_provider = MagicMock()
     mock_provider.diff.return_value = (True, "diff --git a/f b/f\n+hello\n")
 
-    wf._capture_pre_commit_diff(mock_provider, str(tmp_path))
+    diff_path = capture_pre_commit_diff(mock_provider, str(tmp_path), "my_branch")
 
-    assert wf._diff_path is not None
-    assert wf._diff_path.startswith(str(fake_home / ".sase" / "diffs"))
-    assert wf._diff_path.endswith(".diff")
-    assert "my_branch" in wf._diff_path
-    assert Path(wf._diff_path).read_text() == "diff --git a/f b/f\n+hello\n"
+    assert diff_path is not None
+    assert diff_path.startswith(str(fake_home / ".sase" / "diffs"))
+    assert diff_path.endswith(".diff")
+    assert "my_branch" in diff_path
+    assert Path(diff_path).read_text() == "diff --git a/f b/f\n+hello\n"
 
 
 def test_capture_pre_commit_diff_skips_without_cl_name(
@@ -436,13 +425,10 @@ def test_capture_pre_commit_diff_skips_without_cl_name(
     """Diff capture is skipped when neither SASE_ARTIFACTS_DIR nor cl_name is available."""
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
 
-    wf = _make_commit_workflow()
-    wf._cl_name = None
-
     mock_provider = MagicMock()
-    wf._capture_pre_commit_diff(mock_provider, "/tmp")
+    diff_path = capture_pre_commit_diff(mock_provider, "/tmp", None)
 
-    assert wf._diff_path is None
+    assert diff_path is None
     mock_provider.diff.assert_not_called()
 
 
@@ -452,7 +438,7 @@ def test_capture_pre_commit_diff_skips_without_cl_name(
 def test_precommit_runs_during_sdd_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression: _run_precommit() must execute when sase commit is used for SDD files."""
+    """Regression: run_precommit() must execute when sase commit is used for SDD files."""
     monkeypatch.delenv("SASE_PLAN", raising=False)
     monkeypatch.chdir(tmp_path)
 
@@ -465,11 +451,11 @@ def test_precommit_runs_during_sdd_commit(
     }
     wf = CommitWorkflow(payload=payload, method="create_commit")
 
-    # Make _run_precommit fail so the workflow exits early — we only
+    # Make run_precommit fail so the workflow exits early — we only
     # need to confirm it was called, not that the full workflow succeeds.
     mock_precommit = MagicMock(return_value=False)
 
-    with patch.object(wf, "_run_precommit", mock_precommit):
+    with patch("sase.workflows.commit.workflow.run_precommit", mock_precommit):
         wf.run()
 
     mock_precommit.assert_called_once()

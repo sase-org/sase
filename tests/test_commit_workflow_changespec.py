@@ -4,10 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.workflows.commit.commit_tracking import create_changespec
 from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
 _CHANGESPEC_TARGET = "sase.workspace_provider.changespec.create_changespec_for_workflow"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 _PROJECT_FILE_TARGET = "sase.workflows.utils.get_project_file_path"
@@ -356,7 +357,7 @@ class TestCommitWorkflowChangeSpecErrorHandling:
 
 
 class TestCreateChangespecReturn:
-    """Verify _create_changespec returns cs_name."""
+    """Verify create_changespec returns cs_name."""
 
     @patch(_CHANGESPEC_TARGET, return_value="proj_feat_1")
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.gp")
@@ -368,8 +369,9 @@ class TestCreateChangespecReturn:
         mock_cs: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "add feature"}
-        wf = CommitWorkflow(payload, "create_pull_request")
-        result = wf._create_changespec(cl_url="https://github.com/org/repo/pull/1")
+        result = create_changespec(
+            payload, None, None, None, cl_url="https://github.com/org/repo/pull/1"
+        )
         assert result == "proj_feat_1"
 
     @patch(_CHANGESPEC_TARGET, return_value=None)
@@ -382,15 +384,13 @@ class TestCreateChangespecReturn:
         mock_cs: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        wf = CommitWorkflow(payload, "create_pull_request")
-        result = wf._create_changespec(cl_url=None)
+        result = create_changespec(payload, None, None, None, cl_url=None)
         assert result is None
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     def test_returns_none_when_no_project(self, mock_proj_name: MagicMock) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        wf = CommitWorkflow(payload, "create_pull_request")
-        result = wf._create_changespec(cl_url=None)
+        result = create_changespec(payload, None, None, None, cl_url=None)
         assert result is None
 
     @patch(_PROJECT_FILE_TARGET, side_effect=RuntimeError("boom"))
@@ -401,8 +401,7 @@ class TestCreateChangespecReturn:
         mock_proj_file: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        wf = CommitWorkflow(payload, "create_pull_request")
-        result = wf._create_changespec(cl_url=None)
+        result = create_changespec(payload, None, None, None, cl_url=None)
         assert result is None
 
 

@@ -12,7 +12,7 @@ from sase.workflows.commit.workflow import CommitWorkflow
 
 _VCS_CONFIG_TARGET = "sase.vcs_provider.config.get_vcs_provider_config"
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 

@@ -7,7 +7,7 @@ import pytest
 from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
@@ -139,9 +139,11 @@ class TestProposalSkipsBeadsAndPlan:
         wf = CommitWorkflow(payload, "create_proposal")
 
         with (
-            patch.object(wf, "_handle_beads") as mock_beads,
-            patch.object(wf, "_handle_sase_plan") as mock_plan,
-            patch.object(wf, "_append_commits_entry", return_value=None),
+            patch("sase.workflows.commit.workflow.handle_beads") as mock_beads,
+            patch("sase.workflows.commit.workflow.handle_sase_plan") as mock_plan,
+            patch(
+                "sase.workflows.commit.workflow.append_commits_entry", return_value=None
+            ),
         ):
             assert wf.run() is True
             mock_beads.assert_not_called()
@@ -156,9 +158,11 @@ class TestProposalSkipsBeadsAndPlan:
         wf = CommitWorkflow(payload, "create_commit")
 
         with (
-            patch.object(wf, "_handle_beads") as mock_beads,
-            patch.object(wf, "_handle_sase_plan") as mock_plan,
-            patch.object(wf, "_append_commits_entry", return_value=None),
+            patch("sase.workflows.commit.workflow.handle_beads") as mock_beads,
+            patch("sase.workflows.commit.workflow.handle_sase_plan") as mock_plan,
+            patch(
+                "sase.workflows.commit.workflow.append_commits_entry", return_value=None
+            ),
         ):
             assert wf.run() is True
             mock_beads.assert_called_once()

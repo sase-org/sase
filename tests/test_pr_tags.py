@@ -9,7 +9,7 @@ from sase.vcs_provider.config import extract_pr_tags, get_pr_tags
 from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
 _PR_TAGS_TARGET = "sase.vcs_provider.config.get_vcs_provider_config"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
@@ -317,9 +317,7 @@ class TestExtractPrTags:
         assert extract_pr_tags(body) == {"FOO": "a=b=c"}
 
 
-_FETCH_PARENT_TARGET = (
-    "sase.workflows.commit.workflow.CommitWorkflow._fetch_parent_pr_tags"
-)
+_FETCH_PARENT_TARGET = "sase.workflows.commit.pr_operations._fetch_parent_pr_tags"
 
 
 class TestInheritParentPrTags:

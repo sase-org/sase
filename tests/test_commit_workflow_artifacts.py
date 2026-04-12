@@ -7,10 +7,16 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.workflows.commit.workflow import CommitWorkflow
+from sase.workflows.commit.commit_tracking import (
+    append_commits_entry,
+    write_result_marker,
+)
+from sase.workflows.commit.precommit_hooks import handle_sase_plan
+from sase.workflows.commit.pr_operations import build_pr_body
 
-_CONFIG_TARGET = "sase.workflows.commit.workflow.load_merged_config"
+_CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
 _SDD_CONFIG_TARGET = "sase.sdd.beads.get_sdd_config"
+_GET_REPO_ROOT_TARGET = "sase.workflows.commit.precommit_hooks._get_repo_root"
 
 
 @pytest.fixture(autouse=True)
@@ -24,14 +30,15 @@ def _no_precommit():  # type: ignore[no-untyped-def]
 
 
 class TestWriteResultMarker:
-    """Verify _write_result_marker writes correct marker file."""
+    """Verify write_result_marker writes correct marker file."""
 
     def test_writes_marker_with_all_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "fix: bug", "name": "feat-x"}
-            wf = CommitWorkflow(payload, "create_commit")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._write_result_marker("abc123", "proj_feat_1")
+                write_result_marker(
+                    "create_commit", payload, None, "abc123", "proj_feat_1"
+                )
 
             marker_path = Path(tmpdir) / "commit_result.json"
             assert marker_path.exists()
@@ -50,9 +57,8 @@ class TestWriteResultMarker:
     def test_writes_none_values(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "test"}
-            wf = CommitWorkflow(payload, "create_proposal")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._write_result_marker(None, None)
+                write_result_marker("create_proposal", payload, None, None, None)
 
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert data["result"] is None
@@ -62,23 +68,23 @@ class TestWriteResultMarker:
     def test_writes_marker_with_entry_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "fix: bug"}
-            wf = CommitWorkflow(payload, "create_commit")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._write_result_marker("abc123", None, entry_id="entry_42")
+                write_result_marker(
+                    "create_commit", payload, None, "abc123", None, entry_id="entry_42"
+                )
 
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert data["entry_id"] == "entry_42"
 
     def test_skips_when_no_artifacts_dir(self) -> None:
         payload = {"message": "test"}
-        wf = CommitWorkflow(payload, "create_commit")
         with patch.dict("os.environ", {}, clear=True):
             # Should not raise
-            wf._write_result_marker("abc", None)
+            write_result_marker("create_commit", payload, None, "abc", None)
 
 
 class TestBuildPrBody:
-    """Verify _build_pr_body reads agent_meta.json and sets _pr_body."""
+    """Verify build_pr_body reads agent_meta.json and sets _pr_body."""
 
     def test_sets_pr_body_with_full_meta(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -86,9 +92,8 @@ class TestBuildPrBody:
             (Path(tmpdir) / "agent_meta.json").write_text(json.dumps(meta))
 
             payload = {"message": "add feature"}
-            wf = CommitWorkflow(payload, "create_pull_request")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._build_pr_body()
+                build_pr_body(payload)
 
             assert payload["_pr_body"] == (
                 "add feature\n\n---\n"
@@ -102,9 +107,8 @@ class TestBuildPrBody:
             (Path(tmpdir) / "agent_meta.json").write_text(json.dumps(meta))
 
             payload = {"message": "msg"}
-            wf = CommitWorkflow(payload, "create_pull_request")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._build_pr_body()
+                build_pr_body(payload)
 
             assert payload["_pr_body"] == ("msg\n\n---\n**Model:** `anthropic/opus-4`")
 
@@ -114,9 +118,8 @@ class TestBuildPrBody:
             (Path(tmpdir) / "agent_meta.json").write_text(json.dumps(meta))
 
             payload = {"message": "msg"}
-            wf = CommitWorkflow(payload, "create_pull_request")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._build_pr_body()
+                build_pr_body(payload)
 
             assert payload["_pr_body"] == "msg\n\n---\n**Agent:** `my-agent`"
 
@@ -125,32 +128,29 @@ class TestBuildPrBody:
             (Path(tmpdir) / "agent_meta.json").write_text("{}")
 
             payload = {"message": "msg"}
-            wf = CommitWorkflow(payload, "create_pull_request")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._build_pr_body()
+                build_pr_body(payload)
 
             assert "_pr_body" not in payload
 
     def test_no_pr_body_when_no_artifacts_dir(self) -> None:
         payload = {"message": "msg"}
-        wf = CommitWorkflow(payload, "create_pull_request")
         with patch.dict("os.environ", {}, clear=True):
-            wf._build_pr_body()
+            build_pr_body(payload)
 
         assert "_pr_body" not in payload
 
     def test_no_pr_body_when_meta_file_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "msg"}
-            wf = CommitWorkflow(payload, "create_pull_request")
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                wf._build_pr_body()
+                build_pr_body(payload)
 
             assert "_pr_body" not in payload
 
 
 class TestAppendCommitsEntry:
-    """Verify _append_commits_entry calls entry functions directly."""
+    """Verify append_commits_entry calls entry functions directly."""
 
     _COMMIT_ENTRY_TARGET = (
         "sase.workflows.commit_utils.entries.add_commit_entry_with_id"
@@ -162,40 +162,42 @@ class TestAppendCommitsEntry:
     def test_returns_entry_id_on_success(self, tmp_path: Path) -> None:
         project_file = tmp_path / "proj.gp"
         project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
-        wf = CommitWorkflow({"message": "test"}, "create_commit")
-        wf._cl_name = "branch"
-        wf._project_file = str(project_file)
         with patch(
             self._COMMIT_ENTRY_TARGET,
             return_value=(True, "99"),
         ) as mock_add:
-            result = wf._append_commits_entry()
+            result = append_commits_entry(
+                str(project_file), "branch", {"message": "test"}, "create_commit", None
+            )
             assert result == "99"
             mock_add.assert_called_once()
 
     def test_returns_none_on_failure(self) -> None:
-        wf = CommitWorkflow({"message": "test"}, "create_commit")
-        wf._cl_name = None
-        wf._project_file = None
-        assert wf._append_commits_entry() is None
+        assert (
+            append_commits_entry(None, None, {"message": "test"}, "create_commit", None)
+            is None
+        )
 
     def test_uses_proposal_mode_for_create_proposal(self, tmp_path: Path) -> None:
         project_file = tmp_path / "proj.gp"
         project_file.write_text("NAME: branch\nCOMMITS:\nSTATUS: Pending\n")
-        wf = CommitWorkflow({"message": "test"}, "create_proposal")
-        wf._cl_name = "branch"
-        wf._project_file = str(project_file)
         with patch(
             self._PROPOSAL_ENTRY_TARGET,
             return_value=(True, "0a"),
         ) as mock_add:
-            result = wf._append_commits_entry()
+            result = append_commits_entry(
+                str(project_file),
+                "branch",
+                {"message": "test"},
+                "create_proposal",
+                None,
+            )
             assert result == "0a"
             mock_add.assert_called_once()
 
 
 class TestHandleSasePlan:
-    """Verify _handle_sase_plan gates copy/frontmatter/staging on version_controlled."""
+    """Verify handle_sase_plan gates copy/frontmatter/staging on version_controlled."""
 
     def test_vc_true_copies_plan_into_repo(self, tmp_path: Path) -> None:
         """version_controlled=True: plan is copied into plans/<YYYYMM>/, _plan_path set."""
@@ -206,15 +208,14 @@ class TestHandleSasePlan:
         repo_dir.mkdir()
 
         payload: dict = {"message": "fix: bug"}
-        wf = CommitWorkflow(payload, "create_commit")
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patch(_SDD_CONFIG_TARGET, return_value=True),
-            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
-            wf._handle_sase_plan(str(repo_dir))
+            handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" in payload
         dest = repo_dir / "plans" / "202603" / "my_plan.md"
@@ -230,14 +231,13 @@ class TestHandleSasePlan:
         repo_dir.mkdir()
 
         payload: dict = {"message": "fix: bug"}
-        wf = CommitWorkflow(payload, "create_commit")
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patch(_SDD_CONFIG_TARGET, return_value=False),
-            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
         ):
-            wf._handle_sase_plan(str(repo_dir))
+            handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" not in payload
         assert not (repo_dir / "plans").exists()
@@ -254,7 +254,6 @@ class TestHandleSasePlan:
         repo_dir.mkdir()
 
         payload: dict = {"message": "fix: bug"}
-        wf = CommitWorkflow(payload, "create_commit")
 
         with (
             patch.dict(
@@ -262,11 +261,11 @@ class TestHandleSasePlan:
                 {"SASE_PLAN": "/nonexistent/my_plan.md"},
             ),
             patch(_SDD_CONFIG_TARGET, return_value=True),
-            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
-            wf._handle_sase_plan(str(repo_dir))
+            handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" in payload
         assert (repo_dir / "plans" / "202603" / "my_plan.md").exists()
@@ -282,7 +281,6 @@ class TestHandleSasePlan:
         repo_dir.mkdir()
 
         payload: dict = {"message": "fix: bug"}
-        wf = CommitWorkflow(payload, "create_commit")
 
         with (
             patch.dict(
@@ -290,10 +288,10 @@ class TestHandleSasePlan:
                 {"SASE_PLAN": "/nonexistent/my_plan.md"},
             ),
             patch(_SDD_CONFIG_TARGET, return_value=False),
-            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
         ):
-            wf._handle_sase_plan(str(repo_dir))
+            handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" not in payload
         assert not (repo_dir / "plans").exists()
@@ -308,14 +306,13 @@ class TestHandleSasePlan:
         repo_dir.mkdir()
 
         payload: dict = {"message": "fix: bug"}
-        wf = CommitWorkflow(payload, "create_commit")
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patch(_SDD_CONFIG_TARGET, return_value=True),
-            patch.object(CommitWorkflow, "_get_repo_root", return_value=str(repo_dir)),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
         ):
-            wf._handle_sase_plan(str(repo_dir))
+            handle_sase_plan(payload, str(repo_dir))
 
         dest = repo_dir / "plans" / "202511" / "my_plan.md"
         assert dest.exists()
