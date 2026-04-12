@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 17:54:52
-status: wip
+status: done
 ---
 
 # Plan: Migrate E2E Tests to AcePage Testing DSL

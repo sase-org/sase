@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-from sase.ace.changespec import ChangeSpec, CommentEntry, CommitEntry, HookEntry
-from sase.ace.testing import AcePage
+from sase.ace.changespec import CommitEntry
+from sase.ace.testing import AcePage, make_changespec
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import ChangeSpecInfoPanel, TabBar
@@ -20,41 +20,13 @@ from sase.ace.tui.widgets.prompt_panel import (
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import get_prompt_content
 
 
-def _make_changespec(
-    name: str = "test_feature",
-    description: str = "Test description",
-    status: str = "Ready",
-    cl: str | None = None,
-    parent: str | None = None,
-    file_path: str = "/tmp/test.gp",
-    commits: list[CommitEntry] | None = None,
-    hooks: list[HookEntry] | None = None,
-    comments: list[CommentEntry] | None = None,
-) -> ChangeSpec:
-    """Create a mock ChangeSpec for testing."""
-    return ChangeSpec(
-        name=name,
-        description=description,
-        parent=parent,
-        cl=cl,
-        status=status,
-        test_targets=None,
-        kickstart=None,
-        file_path=file_path,
-        line_number=1,
-        commits=commits,
-        hooks=hooks,
-        comments=comments,
-    )
-
-
 # --- _should_show_commits_drawers Tests ---
 
 
 def test_should_show_commits_drawers_expanded() -> None:
     """All entries show drawers when expanded."""
     entry = CommitEntry(number=5, note="test")
-    changespec = _make_changespec(
+    changespec = make_changespec(
         commits=[
             CommitEntry(number=1, note="first"),
             CommitEntry(number=5, note="test"),
@@ -67,7 +39,7 @@ def test_should_show_commits_drawers_expanded() -> None:
 def test_should_show_commits_drawers_collapsed_intermediate_hidden() -> None:
     """Intermediate entries hide drawers when collapsed."""
     entry = CommitEntry(number=3, note="intermediate")
-    changespec = _make_changespec(
+    changespec = make_changespec(
         commits=[
             CommitEntry(number=1, note="first"),
             CommitEntry(number=3, note="intermediate"),
@@ -81,7 +53,7 @@ def test_should_show_commits_drawers_collapsed_intermediate_hidden() -> None:
 def test_should_show_commits_drawers_collapsed_old_proposal_hidden() -> None:
     """Old proposal entries (not for max ID) hide drawers when collapsed."""
     entry = CommitEntry(number=2, note="old proposal", proposal_letter="a")
-    changespec = _make_changespec(
+    changespec = make_changespec(
         commits=[
             CommitEntry(number=1, note="first"),
             CommitEntry(number=2, note="second"),
@@ -95,7 +67,7 @@ def test_should_show_commits_drawers_collapsed_old_proposal_hidden() -> None:
 
 def test_should_show_commits_drawers_collapsed_multiple_proposals_shown() -> None:
     """Multiple proposals for max ID all show drawers when collapsed."""
-    changespec = _make_changespec(
+    changespec = make_changespec(
         commits=[
             CommitEntry(number=1, note="first"),
             CommitEntry(number=3, note="current"),
@@ -376,7 +348,7 @@ async def test_update_display_expands_prompt_for_done_workflow_without_diff() ->
 
 async def test_tab_bar_integration_tab_key() -> None:
     """Test that pressing TAB key cycles through all tabs."""
-    changespecs = [_make_changespec()]
+    changespecs = [make_changespec()]
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
