@@ -59,14 +59,6 @@ All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabil
 and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
 runtime lacks a capability that others have. Treat all runtimes uniformly.
 
-## CLI/Skill Contract Synchronization
-
-Any change to `sase commit` CLI arguments must include same-turn updates to:
-
-- In-repo callers/wrappers that invoke the changed arguments
-- Relevant skill `SKILL.md` files that document or demonstrate those arguments
-- Tests validating both CLI parsing and skill invocation examples
-
 ## Generated Skill Files
 
 Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source templates live in
@@ -75,6 +67,14 @@ Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source 
 - Run `sase init-skills --force` after changing any skill source file in `src/sase/xprompts/skills/`
 - Then run `chezmoi apply` to deploy the generated files to their live locations
 - Do NOT edit the chezmoi skill files directly — changes will be overwritten on the next generation
+
+### CLI/Skill Contract Synchronization
+
+Any change to `sase commit` CLI arguments must include same-turn updates to:
+
+- In-repo callers/wrappers that invoke the changed arguments
+- Relevant skill `SKILL.md` files that document or demonstrate those arguments
+- Tests validating both CLI parsing and skill invocation examples
 
 ## Commit Skills per Runtime
 
