@@ -106,28 +106,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Project name (default: auto-detect from CWD)",
     )
 
-    # sase memory reflect
-    reflect_parser = memory_subparsers.add_parser(
-        "reflect",
-        help="Distill learnings from a recent session into memory",
-    )
-    reflect_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name (default: auto-detect from CWD)",
-    )
-
-    # sase memory defrag
-    defrag_parser = memory_subparsers.add_parser(
-        "defrag",
-        help="Reorganize and consolidate memory files",
-    )
-    defrag_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name (default: auto-detect from CWD)",
-    )
-
     # sase memory tree
     tree_parser = memory_subparsers.add_parser(
         "tree", help="Show filetree of the memory repository"

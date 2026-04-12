@@ -29,20 +29,11 @@ def handle_memory_command(args: argparse.Namespace) -> None:
     elif memory_sub == "rm":
         _handle_rm(args)
 
-    elif memory_sub == "reflect":
-        _handle_reflect(args)
-
-    elif memory_sub == "defrag":
-        _handle_defrag(args)
-
     elif memory_sub == "tree":
         _handle_tree(args)
 
     else:
-        print(
-            "Usage: sase memory"
-            " {init,add,show,list,rm,inject,tree,bootstrap,reflect,defrag}"
-        )
+        print("Usage: sase memory {init,add,show,list,rm,inject,tree,bootstrap}")
         sys.exit(1)
 
 
@@ -86,97 +77,6 @@ def _handle_bootstrap(args: argparse.Namespace) -> None:
         )
     except Exception as e:
         print(f"Bootstrap failed: {e}", file=sys.stderr)
-        sys.exit(1)
-    finally:
-        if os.path.isfile(context_file):
-            os.unlink(context_file)
-
-    sys.exit(0)
-
-
-def _handle_reflect(args: argparse.Namespace) -> None:
-    import os
-    import tempfile
-
-    from sase.artifacts import create_artifacts_directory
-    from sase.memory.reflect import find_recent_chat_log, gather_reflection_context
-    from sase.memory.repo import ensure_repo, repo_exists
-    from sase.xprompt.workflow_runner import execute_workflow
-
-    if not repo_exists():
-        path = ensure_repo()
-        print(f"Initialized memory repo at {path}")
-
-    project = _resolve_project(args)
-    if not project:
-        print("Could not detect project name. Use -p to specify.", file=sys.stderr)
-        sys.exit(1)
-
-    chat_log = find_recent_chat_log(project)
-    context = gather_reflection_context(project=project, chat_log=chat_log)
-
-    fd, context_file = tempfile.mkstemp(suffix=".md", prefix="reflect_ctx_")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(context)
-
-        artifacts_dir = create_artifacts_directory("workflow-memory_reflect")
-        execute_workflow(
-            "memory_reflect",
-            [],
-            {
-                "project": project,
-                "context_file": context_file,
-            },
-            artifacts_dir=artifacts_dir,
-        )
-    except Exception as e:
-        print(f"Reflection failed: {e}", file=sys.stderr)
-        sys.exit(1)
-    finally:
-        if os.path.isfile(context_file):
-            os.unlink(context_file)
-
-    sys.exit(0)
-
-
-def _handle_defrag(args: argparse.Namespace) -> None:
-    import os
-    import tempfile
-
-    from sase.artifacts import create_artifacts_directory
-    from sase.memory.defrag import gather_defrag_context
-    from sase.memory.repo import ensure_repo, repo_exists
-    from sase.xprompt.workflow_runner import execute_workflow
-
-    if not repo_exists():
-        path = ensure_repo()
-        print(f"Initialized memory repo at {path}")
-
-    project = _resolve_project(args)
-    if not project:
-        print("Could not detect project name. Use -p to specify.", file=sys.stderr)
-        sys.exit(1)
-
-    context = gather_defrag_context(project=project)
-
-    fd, context_file = tempfile.mkstemp(suffix=".md", prefix="defrag_ctx_")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(context)
-
-        artifacts_dir = create_artifacts_directory("workflow-memory_defrag")
-        execute_workflow(
-            "memory_defrag",
-            [],
-            {
-                "project": project,
-                "context_file": context_file,
-            },
-            artifacts_dir=artifacts_dir,
-        )
-    except Exception as e:
-        print(f"Defragmentation failed: {e}", file=sys.stderr)
         sys.exit(1)
     finally:
         if os.path.isfile(context_file):
