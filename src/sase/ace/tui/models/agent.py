@@ -340,6 +340,13 @@ class Agent:
         return self.start_time.strftime("%H:%M")
 
     @property
+    def start_time_compact(self) -> str:
+        """Compact formatted start time (e.g. 'Apr 12 20:25') for sidebar use."""
+        if self.start_time is None:
+            return "?"
+        return self.start_time.strftime("%b %d %H:%M")
+
+    @property
     def duration_display(self) -> str:
         """Display how long the agent has been running."""
         if self.start_time is None:

@@ -200,7 +200,7 @@ class DismissedAgentSelectModal(
 
         # Start time
         text.append("  ")
-        text.append(agent.start_time_short, style="dim")
+        text.append(agent.start_time_compact, style="dim")
 
         # Model
         if agent.model:

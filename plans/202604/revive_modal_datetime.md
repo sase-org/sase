@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 16:40:10
-status: wip
+status: done
 ---
 
 # Plan: Full Date+Time in Revive Modal Sidebar + Datetime Sorting

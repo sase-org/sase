@@ -100,12 +100,19 @@ class AgentRevivalMixin:
                 for a in agents
                 if Path(a.project_file).parent.name == selection.project_name
             ]
-            # Sort project-level agents above ChangeSpec agents
-            filtered.sort(key=lambda a: 0 if a.is_project_agent else 1)
         elif selection.item_type == "cl":
             filtered = [a for a in agents if a.cl_name == selection.cl_name]
         else:
             return
+
+        # Sort: project-level agents first, then by CL name, then most recent first
+        filtered.sort(
+            key=lambda a: (
+                0 if a.is_project_agent else 1,
+                a.cl_name,
+                float("inf") if a.start_time is None else -a.start_time.timestamp(),
+            )
+        )
 
         # Only show top-level DONE entries (no child steps)
         all_in_scope = list(filtered)

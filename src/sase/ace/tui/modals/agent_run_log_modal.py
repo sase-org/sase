@@ -233,13 +233,13 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
 
         if dismissed:
             text.append(f"[{agent.display_type}] ", style="dim")
-            text.append(f"{agent.start_time_short} ", style="dim")
+            text.append(f"{agent.start_time_compact} ", style="dim")
             text.append("DISMISSED", style="dim italic")
             if agent.agent_name:
                 text.append(f" {agent.agent_name}", style="dim")
         else:
             text.append(f"[{agent.display_type}] ", style="bold #87D7FF")
-            text.append(f"{agent.start_time_short} ", style="dim")
+            text.append(f"{agent.start_time_compact} ", style="dim")
             status_style = {
                 "RUNNING": "bold #FFD700",
                 "DONE": "green",
