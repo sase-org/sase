@@ -80,14 +80,45 @@ class MentorReviewModal(
 
     def _refresh_all(self) -> None:
         self._mark_current_read()
+        self._update_title()
         self._update_side_panel()
         self._update_main_panel()
         self._update_footer()
 
     def _build_title(self) -> Text:
+        """Static placeholder for compose(); replaced by _update_title()."""
         text = Text()
         text.append(" Mentor Review", style="bold white")
         return text
+
+    def _update_title(self) -> None:
+        """Build a rich status header with global position and acceptance."""
+        current, total = self._global_comment_index()
+        accepted = self._data.acceptance.accepted_count
+
+        text = Text()
+        if total == 0:
+            # No comments — simple centered title
+            text.append(" ── ", style="dim #87D7FF")
+            text.append("Mentor Review", style="bold white")
+            text.append(" ──", style="dim #87D7FF")
+        else:
+            text.append(" ── ", style="dim #87D7FF")
+            text.append("Mentor Review", style="bold white")
+            text.append(" ────── ", style="dim #87D7FF")
+            text.append(f"{current} / {total}", style="bold white")
+            text.append(" ────── ", style="dim #87D7FF")
+            if accepted > 0:
+                text.append(f"✓ {accepted} accepted", style="bold #00D7AF")
+            else:
+                text.append(f"✓ {accepted} accepted", style="dim")
+            text.append(" ──", style="dim #87D7FF")
+
+        try:
+            title = self.query_one("#mentor-review-title", Static)
+            title.update(text)
+        except Exception:
+            pass
 
     def _current_mentor(self) -> MentorInfo | None:
         if not self._data.mentors:
@@ -186,10 +217,27 @@ class MentorReviewModal(
         comment = mentor.comments[self._comment_idx]
         total = len(mentor.comments)
 
-        # Header
-        text.append(f" Comment {self._comment_idx + 1}/{total}", style="bold white")
+        # Header: Comment X/Y · mentor_name                [✓ ACCEPTED]
+        is_accepted = self._data.acceptance.is_accepted(
+            mentor.profile_name, mentor.mentor_name, self._comment_idx
+        )
+        header_left = f" Comment {self._comment_idx + 1}/{total}"
+        header_right = "[✓ ACCEPTED]" if is_accepted else "[ ]"
+
+        text.append(header_left, style="bold white")
+        text.append(f" · {mentor.mentor_name}", style="dim")
+
+        # Right-align acceptance indicator: pad to fill ~56 chars total
+        used = len(header_left) + len(f" · {mentor.mentor_name}")
+        pad = max(2, 56 - used - len(header_right))
+        text.append(" " * pad)
+        if is_accepted:
+            text.append(header_right, style="bold green")
+        else:
+            text.append(header_right, style="dim")
+
         text.append("\n")
-        text.append(" " + "\u2500" * 40 + "\n", style="dim #87D7FF")
+        text.append(" " + "\u2500" * 56 + "\n", style="dim #87D7FF")
 
         # Focus and severity
         text.append("  Focus: ", style="dim")
@@ -215,16 +263,6 @@ class MentorReviewModal(
         desc = str(comment["description"])
         for line in desc.split("\n"):
             text.append(f"  {line}\n")
-        text.append("\n")
-
-        # Acceptance state
-        is_accepted = self._data.acceptance.is_accepted(
-            mentor.profile_name, mentor.mentor_name, self._comment_idx
-        )
-        if is_accepted:
-            text.append("  [\u2713 ACCEPTED]", style="bold green")
-        else:
-            text.append("  [ ]", style="dim")
         text.append("\n")
 
         # Code snippet with syntax highlighting
@@ -296,12 +334,23 @@ class MentorReviewModal(
     def _update_footer(self) -> None:
         accepted = self._data.acceptance.accepted_count
         total = self._data.total_comments
-        total_read = sum(self._read_count_for_mentor(m) for m in self._data.mentors)
 
         text = Text()
-        text.append(f" Read: {total_read}/{total}", style="bold #87D7FF")
-        text.append("  Accepted: ", style="bold")
-        text.append(f"{accepted}/{total}", style="bold")
+
+        # Visual progress bar
+        bar_width = min(total, 10) if total > 0 else 0
+        if bar_width > 0:
+            filled = round(accepted / total * bar_width)
+            filled = max(0, min(bar_width, filled))
+            all_done = accepted == total
+            fill_style = "#00D7AF" if all_done else "#87D7FF"
+            text.append(" ")
+            text.append("■" * filled, style=fill_style)
+            text.append("□" * (bar_width - filled), style="dim #4A4A6A")
+            text.append(f" {accepted}/{total} accepted", style="bold")
+        else:
+            text.append(f" {accepted}/{total} accepted", style="bold")
+
         text.append("  \u2502  ", style="dim")
 
         bindings = [
@@ -532,3 +581,21 @@ class MentorReviewModal(
                 mentor.profile_name, mentor.mentor_name, i
             )
         )
+
+    def _global_comment_index(self) -> tuple[int, int]:
+        """Return (current_1based, total) position across all mentors.
+
+        Returns (0, 0) when there are no comments.
+        """
+        total = self._data.total_comments
+        if total == 0:
+            return (0, 0)
+
+        current = 0
+        for i, m in enumerate(self._data.mentors):
+            if i == self._mentor_idx:
+                current += self._comment_idx + 1
+                break
+            current += len(m.comments)
+
+        return (current, total)

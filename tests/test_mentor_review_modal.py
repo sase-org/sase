@@ -441,6 +441,63 @@ def test_kill_result_dataclass() -> None:
     assert result.cl_name == "my-cl"
 
 
+# ── Global comment index ──────────────────────────────────────────────
+
+
+def test_global_comment_index_single_mentor() -> None:
+    """Global index within a single mentor."""
+    data = _make_modal_data([3])
+    modal = MentorReviewModal(data)
+    modal._mentor_idx = 0
+    modal._comment_idx = 0
+    assert modal._global_comment_index() == (1, 3)
+
+    modal._comment_idx = 2
+    assert modal._global_comment_index() == (3, 3)
+
+
+def test_global_comment_index_multiple_mentors() -> None:
+    """Global index spans across multiple mentors."""
+    data = _make_modal_data([2, 3])
+    modal = MentorReviewModal(data)
+
+    # First mentor, first comment
+    modal._mentor_idx = 0
+    modal._comment_idx = 0
+    assert modal._global_comment_index() == (1, 5)
+
+    # First mentor, last comment
+    modal._comment_idx = 1
+    assert modal._global_comment_index() == (2, 5)
+
+    # Second mentor, first comment
+    modal._mentor_idx = 1
+    modal._comment_idx = 0
+    assert modal._global_comment_index() == (3, 5)
+
+    # Second mentor, last comment
+    modal._comment_idx = 2
+    assert modal._global_comment_index() == (5, 5)
+
+
+def test_global_comment_index_with_empty_mentors() -> None:
+    """Global index skips mentors with zero comments."""
+    data = _make_modal_data([2, 0, 3])
+    modal = MentorReviewModal(data)
+
+    # Third mentor (index 2), second comment
+    modal._mentor_idx = 2
+    modal._comment_idx = 1
+    assert modal._global_comment_index() == (4, 5)
+
+
+def test_global_comment_index_no_comments() -> None:
+    """Returns (0, 0) when there are no comments at all."""
+    data = _make_modal_data([0, 0])
+    modal = MentorReviewModal(data)
+    assert modal._global_comment_index() == (0, 0)
+
+
 def test_kill_requires_running_mentor() -> None:
     """action_kill_mentor on a non-running mentor does not produce a kill result."""
     data = _make_modal_data([2])
