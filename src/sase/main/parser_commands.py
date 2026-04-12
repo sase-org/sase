@@ -129,6 +129,32 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def register_init_skills_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register the 'init-skills' subcommand parser."""
+    init_skills_parser = subparsers.add_parser(
+        "init-skills",
+        help="Generate and deploy agent skill files from xprompt sources",
+    )
+    init_skills_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Overwrite existing files without confirmation",
+    )
+    init_skills_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show what would be written without writing",
+    )
+    init_skills_parser.add_argument(
+        "-p",
+        "--provider",
+        choices=["claude", "gemini", "codex"],
+        help="Only deploy for a specific provider (default: all)",
+    )
+
+
 def register_init_git_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'init-git' subcommand parser."""
     init_git_parser = subparsers.add_parser(

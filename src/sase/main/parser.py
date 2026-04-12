@@ -10,6 +10,7 @@ from sase.main.parser_commands import (
     register_commit_parser,
     register_config_parser,
     register_init_git_parser,
+    register_init_skills_parser,
     register_logs_parser,
     register_notify_parser,
     register_path_parser,
@@ -45,6 +46,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_commit_parser(top_level_subparsers)
     register_config_parser(top_level_subparsers)
     register_init_git_parser(top_level_subparsers)
+    register_init_skills_parser(top_level_subparsers)
     register_logs_parser(top_level_subparsers)
     register_memory_parser(top_level_subparsers)
     register_notify_parser(top_level_subparsers)

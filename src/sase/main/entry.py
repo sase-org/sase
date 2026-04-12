@@ -117,6 +117,12 @@ def main() -> NoReturn:
         print(f"Initialized git project: {project_file}")
         sys.exit(0)
 
+    # --- init-skills ---
+    if args.command == "init-skills":
+        from .init_skills_handler import handle_init_skills_command
+
+        handle_init_skills_command(args)
+
     # --- logs ---
     if args.command == "logs":
         from sase.logs.cli import handle_logs_command
