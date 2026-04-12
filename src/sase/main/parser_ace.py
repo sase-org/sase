@@ -102,6 +102,43 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="axe_subcommand", help="Axe subcommands"
     )
 
+    # --- axe start ---
+    axe_start_parser = axe_subparsers.add_parser(
+        "start", help="Start the axe orchestrator (spawns all lumberjacks)"
+    )
+    axe_start_parser.add_argument(
+        "-H",
+        "--max-hook-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent hook runners (default: 3)",
+    )
+    axe_start_parser.add_argument(
+        "-A",
+        "--max-agent-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent agent runners (default: 3)",
+    )
+    axe_start_parser.add_argument(
+        "-q",
+        "--query",
+        default="",
+        help="Query string for filtering ChangeSpecs (empty = all ChangeSpecs). "
+        "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
+    )
+    axe_start_parser.add_argument(
+        "-z",
+        "--zombie-timeout",
+        type=int,
+        default=None,
+        help="Zombie detection timeout in seconds (default: 7200 = 2 hours). "
+        "Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
+    )
+
+    # --- axe stop ---
+    axe_subparsers.add_parser("stop", help="Stop the running axe orchestrator")
+
     # --- axe chop ---
     axe_chop_parser = axe_subparsers.add_parser("chop", help="Chop management commands")
     axe_chop_subparsers = axe_chop_parser.add_subparsers(
@@ -168,40 +205,3 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     axe_lumberjack_subparsers.add_parser(
         "status", help="Show status of all lumberjacks"
     )
-
-    # --- axe start ---
-    axe_start_parser = axe_subparsers.add_parser(
-        "start", help="Start the axe orchestrator (spawns all lumberjacks)"
-    )
-    axe_start_parser.add_argument(
-        "-H",
-        "--max-hook-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent hook runners (default: 3)",
-    )
-    axe_start_parser.add_argument(
-        "-A",
-        "--max-agent-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent agent runners (default: 3)",
-    )
-    axe_start_parser.add_argument(
-        "-q",
-        "--query",
-        default="",
-        help="Query string for filtering ChangeSpecs (empty = all ChangeSpecs). "
-        "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
-    )
-    axe_start_parser.add_argument(
-        "-z",
-        "--zombie-timeout",
-        type=int,
-        default=None,
-        help="Zombie detection timeout in seconds (default: 7200 = 2 hours). "
-        "Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
-    )
-
-    # --- axe stop ---
-    axe_subparsers.add_parser("stop", help="Stop the running axe orchestrator")

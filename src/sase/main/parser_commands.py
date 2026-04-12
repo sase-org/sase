@@ -104,6 +104,16 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="config_subcommand", help="Config subcommands"
     )
 
+    # sase config show
+    config_show_parser = config_subparsers.add_parser(
+        "show", help="Print the final merged config as YAML"
+    )
+    config_show_parser.add_argument(
+        "-k",
+        "--key",
+        help="Extract a specific top-level key (e.g., mentor_profiles)",
+    )
+
     # sase config layers
     config_subparsers.add_parser(
         "layers", help="Show per-layer breakdown of the config merge chain"
@@ -116,16 +126,6 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     config_mentor_match_parser.add_argument(
         "changespec_name", help="NAME of the ChangeSpec to trace matching for"
-    )
-
-    # sase config show
-    config_show_parser = config_subparsers.add_parser(
-        "show", help="Print the final merged config as YAML"
-    )
-    config_show_parser.add_argument(
-        "-k",
-        "--key",
-        help="Extract a specific top-level key (e.g., mentor_profiles)",
     )
 
 
@@ -323,6 +323,49 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="telemetry_subcommand", help="Telemetry subcommands"
     )
 
+    # sase telemetry status
+    tel_subparsers.add_parser("status", help="Quick health check and config display")
+
+    # sase telemetry list
+    list_parser = tel_subparsers.add_parser(
+        "list", help="Show the metric catalog from internal definitions"
+    )
+    list_parser.add_argument(
+        "-s",
+        "--subsystem",
+        help="Filter to a specific subsystem (e.g., 'Agent Lifecycle')",
+    )
+    list_parser.add_argument(
+        "-t",
+        "--type",
+        choices=["counter", "gauge", "histogram"],
+        help="Filter by metric type",
+    )
+
+    # sase telemetry snapshot (Phase 2 stub)
+    snapshot_parser = tel_subparsers.add_parser(
+        "snapshot", help="Fetch and display current metric values"
+    )
+    snapshot_parser.add_argument(
+        "-S",
+        "--source",
+        choices=["auto", "pushgateway", "exposition"],
+        default="auto",
+        help="Where to fetch metrics from (default: auto)",
+    )
+    snapshot_parser.add_argument(
+        "-f",
+        "--format",
+        choices=["rich", "json", "prometheus"],
+        default="rich",
+        help="Output format (default: rich)",
+    )
+    snapshot_parser.add_argument(
+        "-s",
+        "--subsystem",
+        help="Filter by subsystem",
+    )
+
     # sase telemetry dashboard
     dashboard_parser = tel_subparsers.add_parser(
         "dashboard", help="Live auto-refreshing TUI dashboard"
@@ -360,25 +403,7 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Focus on a single subsystem (larger charts, more detail)",
     )
 
-    # sase telemetry export-config
-    export_config_parser = tel_subparsers.add_parser(
-        "export-config",
-        help="Export bundled monitoring config (Prometheus + Grafana + Docker Compose)",
-    )
-    export_config_parser.add_argument(
-        "-o",
-        "--output-dir",
-        default="./sase-monitoring",
-        help="Target directory (default: ./sase-monitoring/)",
-    )
-    export_config_parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Overwrite the target directory if it already exists",
-    )
-
-    # sase telemetry health
+    # sase telemetry health (Phase 3 stub)
     health_parser = tel_subparsers.add_parser(
         "health", help="Traffic-light health assessment"
     )
@@ -396,48 +421,23 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Data source (default: auto)",
     )
 
-    # sase telemetry list
-    list_parser = tel_subparsers.add_parser(
-        "list", help="Show the metric catalog from internal definitions"
+    # sase telemetry export-config
+    export_config_parser = tel_subparsers.add_parser(
+        "export-config",
+        help="Export bundled monitoring config (Prometheus + Grafana + Docker Compose)",
     )
-    list_parser.add_argument(
-        "-s",
-        "--subsystem",
-        help="Filter to a specific subsystem (e.g., 'Agent Lifecycle')",
+    export_config_parser.add_argument(
+        "-o",
+        "--output-dir",
+        default="./sase-monitoring",
+        help="Target directory (default: ./sase-monitoring/)",
     )
-    list_parser.add_argument(
-        "-t",
-        "--type",
-        choices=["counter", "gauge", "histogram"],
-        help="Filter by metric type",
-    )
-
-    # sase telemetry snapshot
-    snapshot_parser = tel_subparsers.add_parser(
-        "snapshot", help="Fetch and display current metric values"
-    )
-    snapshot_parser.add_argument(
-        "-S",
-        "--source",
-        choices=["auto", "pushgateway", "exposition"],
-        default="auto",
-        help="Where to fetch metrics from (default: auto)",
-    )
-    snapshot_parser.add_argument(
+    export_config_parser.add_argument(
         "-f",
-        "--format",
-        choices=["rich", "json", "prometheus"],
-        default="rich",
-        help="Output format (default: rich)",
+        "--force",
+        action="store_true",
+        help="Overwrite the target directory if it already exists",
     )
-    snapshot_parser.add_argument(
-        "-s",
-        "--subsystem",
-        help="Filter by subsystem",
-    )
-
-    # sase telemetry status
-    tel_subparsers.add_parser("status", help="Quick health check and config display")
 
 
 def register_search_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -487,29 +487,6 @@ def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Print expansion trace to stderr showing each resolved reference.",
     )
 
-    # xprompt explain
-    explain_parser = xprompt_subparsers.add_parser(
-        "explain",
-        help="Dry-run: show execution plan without running anything",
-    )
-    explain_parser.add_argument(
-        "workflow_name",
-        help="Workflow name to explain.",
-    )
-    explain_parser.add_argument(
-        "args",
-        nargs="*",
-        help="Positional arguments for the workflow.",
-    )
-    explain_parser.add_argument(
-        "-a",
-        "--arg",
-        action="append",
-        dest="named_args",
-        metavar="KEY=VALUE",
-        help="Named argument (can be repeated).",
-    )
-
     # xprompt graph
     graph_parser = xprompt_subparsers.add_parser(
         "graph",
@@ -532,4 +509,27 @@ def register_xprompt_parser(subparsers: argparse._SubParsersAction) -> None:
     xprompt_subparsers.add_parser(
         "list",
         help="List all available xprompts and workflows as JSON",
+    )
+
+    # xprompt explain
+    explain_parser = xprompt_subparsers.add_parser(
+        "explain",
+        help="Dry-run: show execution plan without running anything",
+    )
+    explain_parser.add_argument(
+        "workflow_name",
+        help="Workflow name to explain.",
+    )
+    explain_parser.add_argument(
+        "args",
+        nargs="*",
+        help="Positional arguments for the workflow.",
+    )
+    explain_parser.add_argument(
+        "-a",
+        "--arg",
+        action="append",
+        dest="named_args",
+        metavar="KEY=VALUE",
+        help="Named argument (can be repeated).",
     )

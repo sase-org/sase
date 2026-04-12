@@ -13,6 +13,11 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="memory_subcommand", help="Memory subcommands"
     )
 
+    # sase memory init
+    memory_subparsers.add_parser(
+        "init", help="Initialize the memory repository at ~/.sase/memory/"
+    )
+
     # sase memory add
     add_parser = memory_subparsers.add_parser("add", help="Create a new memory file")
     add_parser.add_argument("name", help="Name of the memory")
@@ -54,12 +59,59 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Memory category type",
     )
 
+    # sase memory show
+    show_parser = memory_subparsers.add_parser("show", help="Display a memory file")
+    show_parser.add_argument("name", help="Name of the memory to show")
+    show_parser.add_argument(
+        "-p",
+        "--project",
+        help="Project name (default: auto-detect from CWD)",
+    )
+
+    # sase memory list
+    list_parser = memory_subparsers.add_parser("list", help="List memories")
+    list_parser.add_argument(
+        "-p",
+        "--project",
+        help="Filter to a specific project (default: all)",
+    )
+
+    # sase memory rm
+    rm_parser = memory_subparsers.add_parser("rm", help="Remove a memory file")
+    rm_parser.add_argument("name", help="Name of the memory to remove")
+    rm_parser.add_argument(
+        "-p",
+        "--project",
+        help="Project name (default: auto-detect from CWD)",
+    )
+
+    # sase memory inject
+    inject_parser = memory_subparsers.add_parser(
+        "inject", help="Output formatted memory content for prompt injection"
+    )
+    inject_parser.add_argument(
+        "-p",
+        "--project",
+        help="Project name (default: auto-detect from CWD)",
+    )
+
     # sase memory bootstrap
     bootstrap_parser = memory_subparsers.add_parser(
         "bootstrap",
         help="Seed initial memory by exploring the codebase",
     )
     bootstrap_parser.add_argument(
+        "-p",
+        "--project",
+        help="Project name (default: auto-detect from CWD)",
+    )
+
+    # sase memory reflect
+    reflect_parser = memory_subparsers.add_parser(
+        "reflect",
+        help="Distill learnings from a recent session into memory",
+    )
+    reflect_parser.add_argument(
         "-p",
         "--project",
         help="Project name (default: auto-detect from CWD)",
@@ -76,38 +128,15 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Project name (default: auto-detect from CWD)",
     )
 
-    # sase memory init
-    memory_subparsers.add_parser(
-        "init", help="Initialize the memory repository at ~/.sase/memory/"
+    # sase memory sync
+    sync_parser = memory_subparsers.add_parser(
+        "sync", help="Push/pull memory from configured remote"
     )
-
-    # sase memory inject
-    inject_parser = memory_subparsers.add_parser(
-        "inject", help="Output formatted memory content for prompt injection"
-    )
-    inject_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name (default: auto-detect from CWD)",
-    )
-
-    # sase memory list
-    list_parser = memory_subparsers.add_parser("list", help="List memories")
-    list_parser.add_argument(
-        "-p",
-        "--project",
-        help="Filter to a specific project (default: all)",
-    )
-
-    # sase memory reflect
-    reflect_parser = memory_subparsers.add_parser(
-        "reflect",
-        help="Distill learnings from a recent session into memory",
-    )
-    reflect_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name (default: auto-detect from CWD)",
+    sync_parser.add_argument(
+        "-r",
+        "--remote",
+        default="origin",
+        help="Remote name (default: origin)",
     )
 
     # sase memory remote {add,rm}
@@ -137,35 +166,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         "--name",
         default="origin",
         help="Remote name to remove (default: origin)",
-    )
-
-    # sase memory rm
-    rm_parser = memory_subparsers.add_parser("rm", help="Remove a memory file")
-    rm_parser.add_argument("name", help="Name of the memory to remove")
-    rm_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name (default: auto-detect from CWD)",
-    )
-
-    # sase memory show
-    show_parser = memory_subparsers.add_parser("show", help="Display a memory file")
-    show_parser.add_argument("name", help="Name of the memory to show")
-    show_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name (default: auto-detect from CWD)",
-    )
-
-    # sase memory sync
-    sync_parser = memory_subparsers.add_parser(
-        "sync", help="Push/pull memory from configured remote"
-    )
-    sync_parser.add_argument(
-        "-r",
-        "--remote",
-        default="origin",
-        help="Remote name (default: origin)",
     )
 
     # sase memory tree
