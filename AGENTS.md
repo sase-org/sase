@@ -1,7 +1,5 @@
 # Structured Agentic Software Engineering (SASE) - Agent Instructions
 
-The following memory files provide instructions / things to keep in mind while working on this repo:
-
 - @memory/architecture.md
 - @memory/build_and_run.md
 - @memory/code_conventions.md
