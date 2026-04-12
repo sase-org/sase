@@ -67,6 +67,15 @@ Any change to `sase commit` CLI arguments must include same-turn updates to:
 - Relevant skill `SKILL.md` files that document or demonstrate those arguments
 - Tests validating both CLI parsing and skill invocation examples
 
+## Generated Skill Files
+
+Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source templates live in
+`src/sase/xprompts/skills/` and are rendered per-provider by `sase init-skills`.
+
+- Run `sase init-skills --force` after changing any skill source file in `src/sase/xprompts/skills/`
+- Then run `chezmoi apply` to deploy the generated files to their live locations
+- Do NOT edit the chezmoi skill files directly — changes will be overwritten on the next generation
+
 ## Commit Skills per Runtime
 
 The commit stop hook dynamically resolves to `/sase_git_commit` or `/sase_hg_commit` based on the detected VCS provider.

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 21:20:44
-status: wip
+status: done
 ---
 
 # Plan: Bead sase-h.3 — Migration & Cleanup
