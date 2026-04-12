@@ -32,14 +32,14 @@ async def run_agent_mode(
         async with app.run_test(size=size) as pilot:
             if keys:
                 await pilot.press(*keys)
-            screen = _capture_screen(app, size[1])
-            state = _extract_state(app)
+            screen = capture_screen(app, size[1])
+            state = extract_state(app)
             return json.dumps({"screen": screen, "state": state, "error": None})
     except Exception as e:
         return json.dumps({"screen": "", "state": {}, "error": str(e)})
 
 
-def _capture_screen(app: AceApp, height: int) -> str:
+def capture_screen(app: AceApp, height: int) -> str:
     """Capture the current screen content as plain text."""
     lines = [app.screen.render_line(y).text for y in range(height)]
     return "\n".join(lines)
@@ -52,7 +52,7 @@ def _get_modal_name(app: AceApp) -> str | None:
     return None
 
 
-def _extract_state(app: AceApp) -> dict[str, Any]:
+def extract_state(app: AceApp) -> dict[str, Any]:
     """Extract structured state from the app's reactive properties."""
     state: dict[str, Any] = {
         "tab": app.current_tab,
