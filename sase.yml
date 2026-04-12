@@ -23,10 +23,17 @@ xprompts:
     - Review git commits since the last documentation update to identify any important changes worth documenting.
 
     When you have completed the review, please improve the documentation as needed.
-  prompt_research: |
-    Can you help me do some research on the below prompt? Investigate prior art, propose a few alternative solutions, and end your analysis with a recommended solution. #sase/research
   remember: |
     Can you update / create the appropriate AGENTS.md file so you never forget about this again?
+  research/prompt:
+    input:
+      prompt: text
+    content: |
+      Can you help me do some research on the below prompt? Investigate prior art, propose a few alternative solutions,
+      and end your analysis with a recommended solution. #sase/research
+
+      ### THE PROMPT
+      {{ prompt }}
   research: |
     Store your research in a new markdown file in the research/ directory.
   # keep-sorted end
