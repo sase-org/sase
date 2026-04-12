@@ -137,11 +137,13 @@ Hello, {{ user_name }}! Welcome aboard.
 
 ### Front Matter Fields
 
-| Field     | Required | Description                                                                 |
-| --------- | -------- | --------------------------------------------------------------------------- |
-| `name`    | No       | XPrompt name (defaults to filename stem)                                    |
-| `input`   | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))             |
-| `snippet` | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below) |
+| Field         | Required | Description                                                                    |
+| ------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`        | No       | XPrompt name (defaults to filename stem)                                       |
+| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                |
+| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)    |
+| `description` | No       | Human-readable one-line description of what the xprompt does                   |
+| `skill`       | No       | Marks this xprompt as an agent skill source for `sase init-skills` (see below) |
 
 If no front matter is present, the entire file content is the template body and the filename stem is the name.
 
@@ -500,6 +502,34 @@ See [docs/ace.md — Snippets](ace.md#snippets) for snippet usage in the prompt 
 
 Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
 
+## Skill Field
+
+XPrompts can be marked as agent skill sources by setting the `skill` field in their front matter. The `sase init-skills`
+command reads this field to determine which xprompts should be rendered into per-provider SKILL.md files and deployed to
+agent skill directories.
+
+```markdown
+---
+name: sase_git_commit
+skill: true
+description: Commit changes using sase commit for git-based VCS
+---
+
+Commit instructions here...
+```
+
+**Values:**
+
+| Value                  | Behavior                                        |
+| ---------------------- | ----------------------------------------------- |
+| `true`                 | Deploy to all providers (Claude, Gemini, Codex) |
+| `["claude", "gemini"]` | Deploy only to the listed providers             |
+
+The `description` field provides a human-readable summary shown in `sase xprompt list` output.
+
+**Workflow:** Edit skill sources in `src/sase/xprompts/skills/`, run `sase init-skills --force`, then `chezmoi apply` to
+deploy the generated files to their live locations. Do not edit deployed SKILL.md files directly.
+
 ## Config-Based XPrompts
 
 XPrompts can be defined inline in `sase.yml` under the `xprompts:` key.
@@ -557,6 +587,7 @@ the prompt before further processing.
 | `%approve` | `%a`  | Run the agent fully autonomously (skip approval)   |
 | `%plan`    | `%p`  | Enable plan mode (plan first, then execute)        |
 | `%edit`    | `%e`  | Return editor text to the prompt bar for review    |
+| `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)  |
 
 ### Syntax
 
@@ -577,6 +608,10 @@ Directives use the same argument syntax as xprompt references:
 %wait:5m                     # Wait for 5 minutes before starting
 %wait:1h30m                  # Wait for 1 hour 30 minutes
 %wait:90s                    # Wait for 90 seconds
+%wait:1430                   # Wait until 14:30 today (wraps to tomorrow if past)
+%wait:260415/0900            # Wait until 2026-04-15 at 09:00
+%repeat:3                    # Run the prompt 3 times
+%r:5                         # Same, using alias
 %approve                     # Run fully autonomously
 %a                           # Same, using alias
 %edit                        # Return editor text to prompt bar
@@ -596,6 +631,16 @@ The `%wait` directive also accepts duration arguments in `XhYmZs` format (e.g., 
 Duration waits delay the agent's start by the specified amount. When a prompt contains both agent-name waits and
 duration waits, the agent waits for all named agents to complete and then waits for the remaining duration (the maximum
 duration is used if multiple are specified).
+
+The `%wait` directive additionally accepts absolute time arguments:
+
+- **`HHMM`** — wait until that time today (e.g., `%wait:1430` for 14:30). If the time has already passed, it wraps to
+  tomorrow.
+- **`yymmdd/HHMM`** — wait until a specific date and time (e.g., `%wait:260415/0900` for 2026-04-15 at 09:00). Raises an
+  error if the target is in the past.
+
+Absolute time waits cannot be combined with duration waits or with each other. They can, however, be combined with
+agent-name waits.
 
 The `%approve`, `%edit`, and `%plan` directives are boolean flags — they take no arguments and are simply present or
 absent.
@@ -659,6 +704,25 @@ APPROVED once the user approves it:
 %plan
 %name:refactorer
 Refactor the authentication module to use the new middleware.
+```
+
+### Repeat Directive
+
+The `%repeat` directive runs the same prompt multiple times. The argument is a positive integer specifying the repeat
+count:
+
+```
+%repeat:3
+%name:linter
+Run lint checks on the codebase.
+```
+
+This launches 3 separate agent runs with identical prompts. Each iteration exposes a Jinja2 variable `N` containing the
+1-based iteration number (1, 2, 3, ...), which can be used in the prompt body:
+
+```
+%repeat:5
+Run test suite batch {{ N }} of 5.
 ```
 
 ### Multi-Model Directive

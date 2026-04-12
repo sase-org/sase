@@ -230,9 +230,11 @@ mentor ran.
 ### Read Tracking
 
 The Mentor Review modal tracks which comments you have viewed. As you navigate between comments, each one is
-automatically marked as read. The modal header shows a mini progress bar for each mentor (`■` = read, `□` = unread)
-along with an accepted/total count. Read state persists across modal opens and is stored per ChangeSpec and commit
-entry.
+automatically marked as read. The modal header displays the current global comment position (`N / total`) and an
+acceptance count (`✓ N accepted`). The side panel shows a mini progress bar for each mentor (`■` = read, `□` = unread)
+along with an accepted/total count. The side panel also shows a status indicator per mentor: `▸` (selected), `●`
+(running), `✗` (failed/killed), or `✓` (all comments accepted). Read state persists across modal opens and is stored per
+ChangeSpec and commit entry.
 
 Unread comment counts also appear inline in the CLs tab list (see [ACE docs](ace.md#mentor-comment-stats-in-cl-list)).
 

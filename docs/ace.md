@@ -397,6 +397,12 @@ These work on all tabs:
 | `q`                 | Quit                                                                              |
 | `?`                 | Show help modal                                                                   |
 
+### Quit Confirmation
+
+When quitting (`q` or `Q`) while background tasks are still running (task queue workers or background command slots), a
+confirmation dialog appears showing the count of active tasks and asking whether to kill them and quit. Declining the
+dialog cancels the quit and returns to the TUI.
+
 ## Notification Actions
 
 Some notifications carry an `action` field that triggers a handler when the notification is selected. The following

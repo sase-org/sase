@@ -200,6 +200,10 @@ title (GitHub) or CL description (Mercurial). This prefix is only applied to the
 appear in the ChangeSpec DESCRIPTION or git commit message, and is automatically stripped when reading descriptions
 back.
 
+**PR tag inheritance:** When creating a child PR (one whose PARENT is an existing ChangeSpec), PR tags from the parent
+PR's body are automatically inherited. The merge order is: parent PR tags (lowest priority) -> config `pr_tags` -> `BUG`
+tag (highest priority). This ensures child PRs carry forward metadata like team tags without manual re-entry.
+
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as `TAG=VALUE` lines to the commit
 message before building the PR body. This supports provider-specific metadata (e.g., Google CL tags) without manual
 entry. See [configuration.md](configuration.md#vcs_provider) for the config format.

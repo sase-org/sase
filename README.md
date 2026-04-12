@@ -157,6 +157,7 @@ sase
 | `sase config mentor-match`     | Trace mentor profile matching for a specific ChangeSpec                                                        |
 | `sase config show`             | Dump the final merged configuration as YAML (supports `--key` filtering)                                       |
 | `sase init-git`                | Initialize a new bare-repo-backed git project                                                                  |
+| `sase init-skills`             | Generate and deploy agent skill files from xprompt source templates                                            |
 | `sase logs`                    | Collect and package agent run logs for a date range                                                            |
 | `sase notify`                  | Create a notification (reads JSON from stdin or uses flags)                                                    |
 | `sase path`                    | Print well-known sase paths (`xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema`) |
