@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-11 20:48:28
 status: wip
+bead_id: sase-h
 ---
 
 # Plan: `sase init-skills` Command
