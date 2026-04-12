@@ -1,4 +1,4 @@
-## End-to-End Testing w/ `sase ace --agent`
+# End-to-End Testing w/ `sase ace --agent`
 
 The `sase ace --agent` command runs the TUI headlessly and returns structured JSON output. Use `--keys` to send
 keystrokes and `--size` to control terminal dimensions.

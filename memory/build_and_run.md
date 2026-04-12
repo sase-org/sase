@@ -1,4 +1,4 @@
-## Build & Run Commands
+# Build & Run Commands
 
 ```bash
 just install       # Install in editable mode with dev deps

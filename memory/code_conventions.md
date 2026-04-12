@@ -1,4 +1,4 @@
-## Code Conventions and Gotchas
+# Code Conventions and Gotchas
 
 - Use **absolute imports**: `from sase.foo import bar` (not relative)
 - Target **Python 3.12+** — use modern syntax (type unions with `|`, `match`, etc.)

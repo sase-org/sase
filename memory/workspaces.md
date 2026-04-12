@@ -1,4 +1,4 @@
-## Ephemeral `sase_<N>` Workspace Directories
+# Ephemeral `sase_<N>` Workspace Directories
 
 Sase runs agents (like you) are run from ephemeral workspace directories, which are full clones of the sase repo that
 live in the same parent directory as the main repo. These directories are named `sase_<N>` where `<N>` is some integer.

@@ -1,4 +1,4 @@
-## Architecture
+# Architecture
 
 - **Project overview**: sase (Structured Agentic Software Engineering) is a Python toolkit for orchestrating AI agents.
 - **Layout**: `src/sase/` (src layout with hatchling build backend)
@@ -6,7 +6,7 @@
 - **Config**: All tool config in `pyproject.toml` (ruff, mypy, pytest, coverage)
 - **Testing**: `tests/` directory, mirrors `src/sase/` structure
 
-### Glossary
+## Glossary
 
 - **ChangeSpec**: A structured specification that represents a single code change list (CL) or pull request (PR). Stored
   in `.gp` files at `~/.sase/projects/<project>/`, ChangeSpecs track what code changes are being made, why, their
