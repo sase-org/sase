@@ -23,9 +23,6 @@ If no query is provided, the last used query is loaded (falling back to `!!!` fo
 | `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                |
 | `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                 |
 | `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator) |
-| `-a`, `--agent`            | Run in headless agent mode (returns JSON to stdout)            |
-| `-k`, `--keys`             | Key names to press in agent mode (e.g., `j j Enter`)           |
-| `-s`, `--size`             | Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40) |
 
 ### Examples
 
@@ -34,18 +31,6 @@ sase ace                              # Last query or "!!!"
 sase ace '"feature" AND "Drafted"'    # Filter by name and status
 sase ace '+myproject'                 # Filter by project
 sase ace -m small -r 30 '!!! OR @@@' # Small model, 30s refresh
-```
-
-### Agent Mode (Headless)
-
-The `--agent` flag runs ACE headlessly and returns structured JSON output, useful for end-to-end testing and scripting:
-
-```bash
-sase ace --agent                          # See initial TUI state as JSON
-sase ace --agent --keys j j               # Navigate down two items
-sase ace --agent --keys slash             # Open query modal
-sase ace --agent --keys tab               # Switch to agents tab
-sase ace --agent --size 200x50 --keys j   # Custom terminal size
 ```
 
 ## Tab System

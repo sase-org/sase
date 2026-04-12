@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 17:36:32
-status: wip
+status: done
 ---
 
 # Plan: Remove `sase ace --agent` CLI Option

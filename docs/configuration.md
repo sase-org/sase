@@ -649,17 +649,14 @@ These are set automatically by sase when launching agent subprocesses and are no
 
 ### `sase ace`
 
-| Flag                     | Values              | Default                   | Description                                    |
-| ------------------------ | ------------------- | ------------------------- | ---------------------------------------------- |
-| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.        |
-| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations.   |
-| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.           |
-| `-r, --refresh-interval` | int (seconds)       | `8`                       | Auto-refresh interval (0 to disable).          |
-| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.          |
-| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                         |
-| `-a, --agent`            | flag                | -                         | Run in headless agent mode (returns JSON).     |
-| `-k, --keys`             | strings             | -                         | Key names to press in agent mode.              |
-| `-s, --size`             | `WxH`               | `120x40`                  | Terminal size for agent mode (e.g., `200x50`). |
+| Flag                     | Values              | Default                   | Description                                  |
+| ------------------------ | ------------------- | ------------------------- | -------------------------------------------- |
+| `[query]`                | string              | last saved query or `!!!` | Query string for filtering ChangeSpecs.      |
+| `-m, --model-tier`       | `large`, `small`    | -                         | Override model tier for all LLM invocations. |
+| `-M, --model-size`       | `big`, `little`     | -                         | Deprecated alias for `--model-tier`.         |
+| `-r, --refresh-interval` | int (seconds)       | `8`                       | Auto-refresh interval (0 to disable).        |
+| `-x, --no-axe`           | flag                | -                         | Disable auto-starting the axe daemon.        |
+| `-v, --vcs-provider`     | `git`, `hg`, `auto` | -                         | Override VCS provider.                       |
 
 ### `sase axe`
 

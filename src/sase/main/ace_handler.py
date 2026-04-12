@@ -30,26 +30,6 @@ def handle_ace_command(args: argparse.Namespace) -> None:
             if old_size is not None:
                 model_tier_override = {"big": "large", "little": "small"}[old_size]
 
-        if getattr(args, "agent", False):
-            import asyncio
-
-            from sase.ace.agent_runner import run_agent_mode
-
-            w, h = args.size.split("x")
-            result = asyncio.run(
-                run_agent_mode(
-                    query=args.query,
-                    keys=args.keys,
-                    size=(int(w), int(h)),
-                    model_tier_override=cast(
-                        Literal["large", "small"] | None,
-                        model_tier_override,
-                    ),
-                )
-            )
-            print(result)
-            sys.exit(0)
-
         app = AceApp(
             query=args.query,
             model_tier_override=cast(

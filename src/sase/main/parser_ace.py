@@ -50,24 +50,6 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Restart the axe daemon on startup (no-op if axe is not running)",
     )
     ace_parser.add_argument(
-        "-a",
-        "--agent",
-        action="store_true",
-        help="Run in headless agent mode (returns JSON to stdout)",
-    )
-    ace_parser.add_argument(
-        "-k",
-        "--keys",
-        nargs="*",
-        help="Key names to press in agent mode (e.g., j j Enter)",
-    )
-    ace_parser.add_argument(
-        "-s",
-        "--size",
-        default="120x40",
-        help="Terminal size as WIDTHxHEIGHT for agent mode (default: 120x40)",
-    )
-    ace_parser.add_argument(
         "-x",
         "--no-axe",
         action="store_true",

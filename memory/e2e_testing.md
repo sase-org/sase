@@ -54,25 +54,3 @@ async def test_modal_input_widget():
         await page.click("#apply")
         assert page.state["query"] == '"new_query"'
 ```
-
-## `sase ace --agent` CLI (headless JSON)
-
-The `sase ace --agent` command runs the TUI headlessly and returns structured JSON output. Use `--keys` to send
-keystrokes and `--size` to control terminal dimensions. Useful for quick one-shot checks from the shell.
-
-```bash
-# See initial TUI state
-sase ace --agent
-
-# Navigate down two items
-sase ace --agent --keys j j
-
-# Open query modal
-sase ace --agent --keys slash
-
-# Switch to agents tab
-sase ace --agent --keys tab
-
-# Custom terminal size
-sase ace --agent --size 200x50 --keys j
-```
