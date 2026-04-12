@@ -1,7 +1,6 @@
 ---
 create_time: 2026-04-11 18:49:12
 status: wip
-bead_id: sase-g
 ---
 
 # Plan: Git-Versioned Agent Memory System
