@@ -85,16 +85,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Project name (default: auto-detect from CWD)",
     )
 
-    # sase memory inject
-    inject_parser = memory_subparsers.add_parser(
-        "inject", help="Output formatted memory content for prompt injection"
-    )
-    inject_parser.add_argument(
-        "-p",
-        "--project",
-        help="Project name (default: auto-detect from CWD)",
-    )
-
     # sase memory tree
     tree_parser = memory_subparsers.add_parser(
         "tree", help="Show filetree of the memory repository"

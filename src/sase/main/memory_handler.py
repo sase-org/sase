@@ -20,9 +20,6 @@ def handle_memory_command(args: argparse.Namespace) -> None:
     elif memory_sub == "list":
         _handle_list(args)
 
-    elif memory_sub == "inject":
-        _handle_inject(args)
-
     elif memory_sub == "rm":
         _handle_rm(args)
 
@@ -30,35 +27,8 @@ def handle_memory_command(args: argparse.Namespace) -> None:
         _handle_tree(args)
 
     else:
-        print("Usage: sase memory {init,add,show,list,rm,inject,tree}")
+        print("Usage: sase memory {init,add,show,list,rm,tree}")
         sys.exit(1)
-
-
-def _handle_inject(args: argparse.Namespace) -> None:
-    from sase.memory.inject import build_injection
-    from sase.memory.repo import repo_exists
-
-    if not repo_exists():
-        print("Memory repo not initialized. Run: sase memory init", file=sys.stderr)
-        sys.exit(1)
-
-    project = _resolve_project(args)
-
-    max_tokens: int | None = None
-    try:
-        from sase.config import load_merged_config
-
-        cfg = load_merged_config()
-        mem_cfg = cfg.get("memory", {})
-        if isinstance(mem_cfg, dict):
-            max_tokens = mem_cfg.get("max_system_tokens")
-    except Exception:
-        pass
-
-    output = build_injection(project, max_system_tokens=max_tokens)
-    if output:
-        print(output)
-    sys.exit(0)
 
 
 def _handle_init() -> None:

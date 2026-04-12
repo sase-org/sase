@@ -239,10 +239,6 @@ telemetry:
     p95_latency_warn: 300.0
     p95_latency_critical: 600.0
 
-memory:
-  auto_inject: false
-  max_system_tokens: 4000
-
 sdd:
   version_controlled: false
 

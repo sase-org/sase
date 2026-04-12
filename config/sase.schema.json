@@ -304,23 +304,6 @@
         }
       }
     },
-    "memory": {
-      "type": "object",
-      "description": "Configuration for the git-versioned agent memory system",
-      "additionalProperties": false,
-      "properties": {
-        "auto_inject": {
-          "type": "boolean",
-          "description": "Automatically inject memory context into all agent prompts",
-          "default": false
-        },
-        "max_system_tokens": {
-          "type": "integer",
-          "description": "Approximate token budget for system/ file injection (1 token ≈ 4 chars)",
-          "default": 4000
-        }
-      }
-    },
     "llm_provider": {
       "type": "object",
       "description": "Configuration for the LLM provider abstraction layer",
