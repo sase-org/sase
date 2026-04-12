@@ -1,5 +1,7 @@
 """Playwright-inspired testing DSL for the ace TUI."""
 
+import asyncio
+from collections.abc import Callable
 from typing import Any, Literal
 from unittest.mock import patch
 
@@ -133,3 +135,114 @@ class AcePage:
         if widget_type is not None:
             return self._app.query_one(selector, widget_type)
         return self._app.query_one(selector)
+
+    async def expect_state(
+        self,
+        key: str,
+        value: Any,
+        *,
+        timeout: float = 2.0,
+        interval: float = 0.05,
+    ) -> None:
+        """Poll state until state[key] == value, or raise AssertionError.
+
+        Supports dot-notation for nested keys (e.g., "selected.name").
+        """
+        deadline = asyncio.get_event_loop().time() + timeout
+        last_actual: Any = _SENTINEL
+        while True:
+            state = self.state
+            actual = _resolve_key(state, key)
+            last_actual = actual
+            if actual == value:
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"expect_state({key!r}, {value!r}) timed out after"
+                    f" {timeout}s — last value was {last_actual!r}"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
+            await asyncio.sleep(interval)
+
+    async def expect_modal(self, name: str, *, timeout: float = 2.0) -> None:
+        """Assert that the named modal is currently shown."""
+        await self.expect_state("modal", name, timeout=timeout)
+
+    async def expect_no_modal(self, *, timeout: float = 2.0) -> None:
+        """Assert that no modal is currently shown."""
+        await self.expect_state("modal", None, timeout=timeout)
+
+    async def expect_screen_contains(
+        self, text: str, *, timeout: float = 2.0, interval: float = 0.05
+    ) -> None:
+        """Poll screen until text is found, or raise AssertionError."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            screen = self.screen
+            if text in screen:
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"expect_screen_contains({text!r}) timed out after"
+                    f" {timeout}s — text not found in screen"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
+            await asyncio.sleep(interval)
+
+    async def expect_screen_not_contains(
+        self, text: str, *, timeout: float = 2.0, interval: float = 0.05
+    ) -> None:
+        """Poll screen until text is absent, or raise AssertionError."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            screen = self.screen
+            if text not in screen:
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"expect_screen_not_contains({text!r}) timed out after"
+                    f" {timeout}s — text still present in screen"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
+            await asyncio.sleep(interval)
+
+    async def wait_for(
+        self,
+        predicate: Callable[[dict[str, Any]], bool],
+        *,
+        timeout: float = 2.0,
+        interval: float = 0.05,
+    ) -> None:
+        """Poll state until predicate(state) returns True, or raise."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            state = self.state
+            if predicate(state):
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"wait_for() timed out after {timeout}s —"
+                    f" predicate never returned True"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
+            await asyncio.sleep(interval)
+
+
+_SENTINEL = object()
+
+
+def _resolve_key(data: dict[str, Any], key: str) -> Any:
+    """Resolve a dot-notation key like 'selected.name' into nested dicts."""
+    parts = key.split(".")
+    current: Any = data
+    for part in parts:
+        if not isinstance(current, dict):
+            return _SENTINEL
+        current = current.get(part, _SENTINEL)
+        if current is _SENTINEL:
+            return _SENTINEL
+    return current
