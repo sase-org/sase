@@ -1,7 +1,5 @@
 # Structured Agentic Software Engineering (SASE) - Agent Instructions
 
-## Project Overview
-
 **sase** (Structured Agentic Software Engineering) is a Python toolkit for building and orchestrating AI agents.
 
 ## Build & Run Commands
@@ -53,12 +51,6 @@ have changed).
   multiple steps of any (ex: `prompt_part` allows you to expand `#foo` into some pre-defined content, `python` or `bash`
   let you run code, etc.).
 
-## Runtime Parity
-
-All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabilities: they all support hooks, skills,
-and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
-runtime lacks a capability that others have. Treat all runtimes uniformly.
-
 ## Generated Skill Files
 
 Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source templates live in
@@ -89,13 +81,24 @@ However, not every runtime has every skill installed:
 Claude does NOT have the `/sase_hg_commit` skill — it is only relevant for Gemini, which runs on machines using the
 Mercurial VCS provider (sase-google plugin). Do not re-add `/sase_hg_commit` to Claude.
 
-## Code Conventions
+### Plan Mode and Questions
+
+- You should use your `/sase_plan` skill for plan mode (`EnterPlanMode` and `ExitPlanMode` have been disabled).
+- You should use your `/sase_questions` skill if you need to ask the user clarifying questions (`AskUserQuestion` has
+  been disabled).
+
+## Code Conventions and Gotchas
 
 - Use **absolute imports**: `from sase.foo import bar` (not relative)
 - Target **Python 3.12+** — use modern syntax (type unions with `|`, `match`, etc.)
 - Follow **ruff** rules: E, W, F, I, B, C4, UP
 - Type annotations on all public functions (to pass mypy lint)
 - **Always define short options** (e.g., `-m`, `-f`) for every argument on all `sase` CLI subcommands
+- When changing keymaps, leader mode keys, or any configuration values, don't forget to update the keymap configuration
+  in the `src/sase/default_config.yml` file if necessary.
+- All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabilities: they all support hooks, skills,
+  and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
+  runtime lacks a capability that others have. Treat all runtimes uniformly.
 
 ## End-to-End Testing w/ `sase ace --agent`
 
@@ -119,7 +122,9 @@ sase ace --agent --keys tab
 sase ace --agent --size 200x50 --keys j
 ```
 
-## Chezmoi Repo
+## External Repos
+
+### Chezmoi Repo
 
 Some files associated with this project live in the ~/.local/share/chezmoi/ directory. If you modify files in this repo,
 make sure to run `just check` (in the chezmoi repo) before terminating / replying to the user. Chezmoi files related to
@@ -131,7 +136,7 @@ sase that I know about:
 IMPORTANT: After committing to this repo, you MUST run the `chezmoi apply` command. Otherwise, the changes to the
 chezmoi files will not be applied to the system (i.e. copied to their proper locations).
 
-## Plugin Repos
+### Plugin Repos
 
 - The ../sase-github and ../sase-google directories are git repositories that contain plugins for GitHub and Mercurial
   VCS providers, respectively.
@@ -142,14 +147,3 @@ chezmoi files will not be applied to the system (i.e. copied to their proper loc
 
 IMPORTANT: You can edit files in these repos if necessary. Just make sure to run the `just check` command in each plugin
 repo that you've modified before terminating / replying to the user.
-
-## Config Changes
-
-When changing keymaps, leader mode keys, or any configuration values, don't forget to update the keymap configuration in
-the `src/sase/default_config.yml` file if necessary.
-
-## Plan Mode and Questions
-
-- You should use your `/sase_plan` skill for plan mode (`EnterPlanMode` and `ExitPlanMode` have been disabled).
-- You should use your `/sase_questions` skill if you need to ask the user clarifying questions (`AskUserQuestion` has
-  been disabled).
