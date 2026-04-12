@@ -1,5 +1,6 @@
 ## Architecture
 
+- **Project overview**: sase (Structured Agentic Software Engineering) is a Python toolkit for orchestrating AI agents.
 - **Layout**: `src/sase/` (src layout with hatchling build backend)
 - **Entry point**: `sase.main.entry:main` → `sase` CLI command
 - **Config**: All tool config in `pyproject.toml` (ruff, mypy, pytest, coverage)

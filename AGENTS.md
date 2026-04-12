@@ -1,6 +1,11 @@
 # Structured Agentic Software Engineering (SASE) - Agent Instructions
 
-**sase** (Structured Agentic Software Engineering) is a Python toolkit for building and orchestrating AI agents.
+See the following memory files for further instructions / things to keep in mind while working on this repo:
 
-@memory/build_and_run.md @memory/workspaces.md @memory/architecture.md @memory/generated_skills.md
-@memory/code_conventions.md @memory/e2e_testing.md @memory/external_repos.md
+- @memory/architecture.md
+- @memory/build_and_run.md
+- @memory/code_conventions.md
+- @memory/e2e_testing.md
+- @memory/external_repos.md
+- @memory/generated_skills.md
+- @memory/workspaces.md
