@@ -1,9 +1,5 @@
 {
   "issue_prefix": "sase",
-<<<<<<< HEAD
   "next_counter": 18,
-=======
-  "next_counter": 16,
->>>>>>> parent of 21a7d662 (chore: Create beads for git_versioned_memory plan)
   "owner": "bryanbugyi34@gmail.com"
 }
