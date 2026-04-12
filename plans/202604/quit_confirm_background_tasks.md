@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 00:19:11
-status: wip
+status: done
 ---
 
 # Plan: Quit Confirmation When Background Tasks Are Running

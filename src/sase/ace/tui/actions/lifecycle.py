@@ -69,8 +69,51 @@ class LifecycleMixin:
                 self.current_idx = idx
                 return
 
+    def _count_running_tasks(self) -> int:
+        """Return the total count of running tasks across both systems."""
+        from ..bgcmd import MAX_SLOTS, is_slot_running
+
+        count = self._task_queue.running_count  # type: ignore[attr-defined]
+        for slot in range(1, MAX_SLOTS + 1):
+            if is_slot_running(slot):
+                count += 1
+        return count
+
+    def _kill_all_running_tasks(self) -> None:
+        """Kill all running task queue workers and background command slots."""
+        from ..bgcmd import MAX_SLOTS, is_slot_running, stop_background_command
+
+        for task in self._task_queue.get_all():  # type: ignore[attr-defined]
+            if task.status == "running":
+                self._kill_background_task(task.task_id)  # type: ignore[attr-defined]
+        for slot in range(1, MAX_SLOTS + 1):
+            if is_slot_running(slot):
+                stop_background_command(slot)
+
     async def action_quit(self) -> None:
         """Quit the application, saving the current selection."""
+        count = self._count_running_tasks()
+        if count > 0:
+            from ..modals import ConfirmActionModal
+
+            def _on_confirm(confirmed: bool | None) -> None:
+                if not confirmed:
+                    return
+                self._kill_all_running_tasks()
+                self._do_quit()
+
+            self.push_screen(  # type: ignore[attr-defined]
+                ConfirmActionModal(
+                    title="Quit",
+                    message=f"{count} background task(s) still running. Quit and kill them?",
+                ),
+                callback=_on_confirm,
+            )
+            return
+        self._do_quit()
+
+    def _do_quit(self) -> None:
+        """Run the quit cleanup sequence and exit."""
         self._save_current_selection()
         from sase.ace.tui_activity import (
             remove_idle_state,

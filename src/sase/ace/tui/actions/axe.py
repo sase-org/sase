@@ -175,19 +175,8 @@ class AxeMixin(AxeBgCmdMixin, AxeDisplayMixin):
                     os.kill(pid, signal.SIGTERM)
                 except (ProcessLookupError, PermissionError):
                     pass
-        self._save_current_selection()  # type: ignore[attr-defined]
-        from sase.ace.tui_activity import (
-            remove_idle_state,
-            remove_tui_pid,
-            write_activity_timestamp,
-        )
-
-        import time
-
-        write_activity_timestamp(time.time())
-        remove_idle_state()
-        remove_tui_pid()
-        self.exit()  # type: ignore[attr-defined]
+        self._kill_all_running_tasks()  # type: ignore[attr-defined]
+        self._do_quit()  # type: ignore[attr-defined]
 
     def action_clear_axe_output(self) -> None:
         """Clear the output log for the current view."""
