@@ -1,6 +1,4 @@
-# Architecture
-
-## Glossary
+# Glossary
 
 - **ChangeSpec**: Represents a single CL/PR. Stored in `.gp` files at `~/.sase/projects/<project>/`. Sections: NAME,
   DESCRIPTION, PARENT, CL/PR, STATUS, COMMITS, HOOKS, COMMENTS, MENTORS. Active specs in `<project>.gp`; terminal ones

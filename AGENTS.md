@@ -1,6 +1,6 @@
 # Structured Agentic Software Engineering (SASE) - Agent Instructions
 
-- @memory/architecture.md
+- @memory/glossary.md
 - @memory/build_and_run.md
 - @memory/code_conventions.md
 - @memory/external_repos.md
