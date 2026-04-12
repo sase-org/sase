@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 18:21:43
-status: wip
+status: done
 ---
 
 # Plan: Reduce AGENTS.md Token Usage
