@@ -1,42 +1,7 @@
 """Tests for the ace TUI app initialization, navigation, and modals."""
 
-from unittest.mock import patch
-
-from sase.ace.changespec import ChangeSpec, CommentEntry, CommitEntry, HookEntry
-from sase.ace.tui import AceApp
-from sase.ace.tui.modals import QueryEditModal
+from sase.ace.testing import AcePage, make_changespec
 from textual.widgets import Input
-
-
-def _make_changespec(
-    name: str = "test_feature",
-    description: str = "Test description",
-    status: str = "Ready",
-    cl: str | None = None,
-    parent: str | None = None,
-    file_path: str = "/tmp/test.gp",
-    commits: list[CommitEntry] | None = None,
-    hooks: list[HookEntry] | None = None,
-    comments: list[CommentEntry] | None = None,
-) -> ChangeSpec:
-    """Create a mock ChangeSpec for testing."""
-    return ChangeSpec(
-        name=name,
-        description=description,
-        parent=parent,
-        cl=cl,
-        status=status,
-        test_targets=None,
-        kickstart=None,
-        file_path=file_path,
-        line_number=1,
-        commits=commits,
-        hooks=hooks,
-        comments=comments,
-    )
-
-
-# --- Initialization Tests ---
 
 
 # --- Navigation Tests ---
@@ -44,65 +9,43 @@ def _make_changespec(
 
 async def test_navigation_next_key() -> None:
     """Test 'j' key navigates to next changespec."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="feature_b"),
-        _make_changespec(name="feature_c"),
-    ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Initial state
-            assert app.current_idx == 0
+    async with AcePage() as page:
+        assert page.state["idx"] == 0
 
-            # Press 'j' to go to next
-            await pilot.press("j")
-            assert app.current_idx == 1
+        await page.press("j")
+        assert page.state["idx"] == 1
 
-            # Press 'j' again
-            await pilot.press("j")
-            assert app.current_idx == 2
+        await page.press("j")
+        assert page.state["idx"] == 2
 
 
 async def test_navigation_next_at_end() -> None:
     """Test 'j' key at last item cycles to first item."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="feature_b"),
+    changespecs = [
+        make_changespec(name="feature_a"),
+        make_changespec(name="feature_b"),
     ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Go to last item
-            await pilot.press("j")
-            assert app.current_idx == 1
+    async with AcePage(changespecs=changespecs) as page:
+        await page.press("j")
+        assert page.state["idx"] == 1
 
-            # Press 'j' at end should cycle to first item
-            await pilot.press("j")
-            assert app.current_idx == 0
+        # Press 'j' at end should cycle to first item
+        await page.press("j")
+        assert page.state["idx"] == 0
 
 
 async def test_navigation_prev_at_start() -> None:
     """Test 'k' key at first item cycles to last item."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="feature_b"),
+    changespecs = [
+        make_changespec(name="feature_a"),
+        make_changespec(name="feature_b"),
     ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Already at index 0
-            assert app.current_idx == 0
+    async with AcePage(changespecs=changespecs) as page:
+        assert page.state["idx"] == 0
 
-            # Press 'k' at start should cycle to last item
-            await pilot.press("k")
-            assert app.current_idx == 1
+        # Press 'k' at start should cycle to last item
+        await page.press("k")
+        assert page.state["idx"] == 1
 
 
 # --- Query Edit Modal Tests ---
@@ -110,79 +53,67 @@ async def test_navigation_prev_at_start() -> None:
 
 async def test_query_edit_modal_cancel() -> None:
     """Test pressing Escape cancels query edit modal."""
-    mock_changespecs = [_make_changespec()]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"original"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            original_query = app.query_string
+    changespecs = [make_changespec()]
+    async with AcePage(query='"original"', changespecs=changespecs) as page:
+        original_query = page.state["query"]
 
-            # Open modal
-            await pilot.press("slash")
-            assert len(app.screen_stack) > 1
+        # Open modal
+        await page.press("slash")
+        await page.expect_modal("QueryEditModal")
 
-            # Press Escape to cancel
-            await pilot.press("escape")
+        # Press Escape to cancel
+        await page.press("escape")
 
-            # Modal should be closed and query unchanged
-            assert len(app.screen_stack) == 1
-            assert app.query_string == original_query
+        # Modal should be closed and query unchanged
+        await page.expect_no_modal()
+        assert page.state["query"] == original_query
 
 
 async def test_query_edit_modal_apply() -> None:
     """Test applying a new query updates query_string."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="other_b"),
+    changespecs = [
+        make_changespec(name="feature_a"),
+        make_changespec(name="other_b"),
     ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Initial state - should have 1 changespec matching "feature"
-            assert app.query_string == '"feature"'
+    async with AcePage(query='"feature"', changespecs=changespecs) as page:
+        assert page.state["query"] == '"feature"'
 
-            # Open modal
-            await pilot.press("slash")
-            assert isinstance(app.screen_stack[-1], QueryEditModal)
+        # Open modal
+        await page.press("slash")
+        await page.expect_modal("QueryEditModal")
 
-            # Get the input widget and set new query value
-            modal = app.screen_stack[-1]
-            input_widget = modal.query_one("#query-input", Input)
-            input_widget.value = '"other"'
+        # Get the input widget and set new query value
+        modal = page.app.screen_stack[-1]
+        input_widget = modal.query_one("#query-input", Input)
+        input_widget.value = '"other"'
 
-            # Click Apply button
-            await pilot.click("#apply")
+        # Click Apply button
+        await page.click("#apply")
 
-            # Query should be updated
-            assert app.query_string == '"other"'
+        # Query should be updated
+        assert page.state["query"] == '"other"'
 
 
 async def test_query_edit_modal_invalid_query() -> None:
     """Test invalid query shows error notification."""
-    mock_changespecs = [_make_changespec()]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"valid"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            original_query = app.query_string
+    changespecs = [make_changespec()]
+    async with AcePage(query='"valid"', changespecs=changespecs) as page:
+        original_query = page.state["query"]
 
-            # Open modal
-            await pilot.press("slash")
-            modal = app.screen_stack[-1]
+        # Open modal
+        await page.press("slash")
+        await page.expect_modal("QueryEditModal")
 
-            # Set invalid query (unclosed quote)
-            input_widget = modal.query_one("#query-input", Input)
-            input_widget.value = '"unclosed'
+        # Set invalid query (unclosed quote)
+        modal = page.app.screen_stack[-1]
+        input_widget = modal.query_one("#query-input", Input)
+        input_widget.value = '"unclosed'
 
-            # Click Apply
-            await pilot.click("#apply")
+        # Click Apply
+        await page.click("#apply")
 
-            # Query should remain unchanged
-            assert app.query_string == original_query
+        # Query should remain unchanged
+        assert page.state["query"] == original_query
 
 
 # --- Marking Auto-Navigation Tests ---
@@ -190,41 +121,28 @@ async def test_query_edit_modal_invalid_query() -> None:
 
 async def test_unmark_navigates_to_next_spec() -> None:
     """Test un-marking a spec navigates to the next spec."""
-    mock_changespecs = [
-        _make_changespec(name="feature_a"),
-        _make_changespec(name="feature_b"),
-        _make_changespec(name="feature_c"),
-    ]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"feature"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            # Mark first spec (navigates to second)
-            await pilot.press("m")
-            assert app.current_idx == 1
+    async with AcePage() as page:
+        # Mark first spec (navigates to second)
+        await page.press("m")
+        assert page.state["idx"] == 1
 
-            # Navigate back to first spec
-            await pilot.press("k")
-            assert app.current_idx == 0
+        # Navigate back to first spec
+        await page.press("k")
+        assert page.state["idx"] == 0
 
-            # Un-mark first spec - should navigate to next (index 1)
-            await pilot.press("m")
-            assert 0 not in app.marked_indices
-            assert app.current_idx == 1
+        # Un-mark first spec - should navigate to next (index 1)
+        await page.press("m")
+        assert 0 not in page.state["marked"]
+        assert page.state["idx"] == 1
 
 
 async def test_mark_single_spec_stays() -> None:
     """Test marking the only spec stays on it."""
-    mock_changespecs = [_make_changespec(name="only_spec")]
-    with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=mock_changespecs
-    ):
-        app = AceApp(query='"only"', refresh_interval=0)
-        async with app.run_test() as pilot:
-            assert app.current_idx == 0
+    changespecs = [make_changespec(name="only_spec")]
+    async with AcePage(query='"only"', changespecs=changespecs) as page:
+        assert page.state["idx"] == 0
 
-            # Mark the only spec - should stay on it
-            await pilot.press("m")
-            assert 0 in app.marked_indices
-            assert app.current_idx == 0
+        # Mark the only spec - should stay on it
+        await page.press("m")
+        assert 0 in page.state["marked"]
+        assert page.state["idx"] == 0

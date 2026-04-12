@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.ace.changespec import ChangeSpec, CommentEntry, CommitEntry, HookEntry
+from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import ChangeSpecInfoPanel, TabBar
@@ -375,36 +376,26 @@ async def test_update_display_expands_prompt_for_done_workflow_without_diff() ->
 
 async def test_tab_bar_integration_tab_key() -> None:
     """Test that pressing TAB key cycles through all tabs."""
-    mock_changespecs = [_make_changespec()]
+    changespecs = [_make_changespec()]
     with (
-        patch(
-            "sase.ace.changespec.find_all_changespecs",
-            return_value=mock_changespecs,
-        ),
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
     ):
-        app = AceApp(query="test_feature", refresh_interval=0)
-        async with app.run_test() as pilot:
+        async with AcePage(query="test_feature", changespecs=changespecs) as page:
             # Initial state - changespecs tab
-            assert app.current_tab == "changespecs"
-            tab_bar = app.query_one("#tab-bar", TabBar)
-            assert tab_bar._current_tab == "changespecs"
+            await page.expect_state("tab", "changespecs")
 
             # Press TAB to switch to agents
-            await pilot.press("tab")
-            assert app.current_tab == "agents"
-            assert tab_bar._current_tab == "agents"
+            await page.press("tab")
+            await page.expect_state("tab", "agents")
 
             # Press TAB to switch to axe
-            await pilot.press("tab")
-            assert app.current_tab == "axe"
-            assert tab_bar._current_tab == "axe"
+            await page.press("tab")
+            await page.expect_state("tab", "axe")
 
             # Press TAB to cycle back to changespecs
-            await pilot.press("tab")
-            assert app.current_tab == "changespecs"
-            assert tab_bar._current_tab == "changespecs"
+            await page.press("tab")
+            await page.expect_state("tab", "changespecs")
 
 
 # --- Embedded Workflows Tests ---
