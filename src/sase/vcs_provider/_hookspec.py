@@ -202,6 +202,11 @@ class VCSHookSpec:
     @hookspec(firstresult=True)
     def vcs_get_change_url(self, cwd: str) -> tuple[bool, str | None]: ...
 
+    @hookspec(firstresult=True)
+    def vcs_get_change_body(
+        self, change_ref: str, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
     # --- Classification hooks (used by registry, not by VCSProvider instances) ---
 
     @hookspec(firstresult=True)

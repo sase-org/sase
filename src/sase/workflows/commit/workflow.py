@@ -344,10 +344,19 @@ class CommitWorkflow(BaseWorkflow):
             self._payload["_pr_title_prefix"] = f"[{project_name}] "
 
     def _append_pr_tags(self) -> None:
-        """Append configured pr_tags to the commit message."""
+        """Append configured pr_tags to the commit message.
+
+        When there is a parent PR, its tags are inherited and used as the
+        base layer.  Config tags override parent tags, and the BUG tag
+        (from payload or env) overrides everything.
+        """
         from sase.vcs_provider.config import get_pr_tags
 
-        tags = get_pr_tags()
+        parent_tags = self._fetch_parent_pr_tags()
+        config_tags = get_pr_tags()
+
+        # Merge: parent (lowest) → config → BUG (highest)
+        tags = {**parent_tags, **config_tags}
 
         bug_id = self._payload.get("bug_id", "") or os.environ.get("SASE_BUG_ID", "")
         if bug_id and bug_id != "0":
@@ -359,6 +368,43 @@ class CommitWorkflow(BaseWorkflow):
         tag_lines = "\n".join(f"{k}={v}" for k, v in tags.items())
         message = self._payload.get("message", "")
         self._payload["message"] = f"{message}\n\n{tag_lines}"
+
+    def _fetch_parent_pr_tags(self) -> dict[str, str]:
+        """Fetch PR tags from the parent PR's body (best-effort).
+
+        Returns an empty dict if there is no parent, the parent has no CL URL,
+        or the fetch fails for any reason.
+        """
+        if not self._parent_cl_name:
+            return {}
+
+        try:
+            from sase.vcs_provider.config import extract_pr_tags
+            from sase.workflows.utils import (
+                get_changespec_from_file,
+                get_project_file_path,
+                get_project_from_workspace,
+            )
+
+            project_name = get_project_from_workspace()
+            if not project_name:
+                return {}
+
+            project_file = get_project_file_path(project_name)
+            parent_cs = get_changespec_from_file(project_file, self._parent_cl_name)
+            if parent_cs is None or not parent_cs.cl:
+                return {}
+
+            cwd = os.getcwd()
+            provider = get_vcs_provider(cwd)
+            ok, body = provider.get_change_body(parent_cs.cl, cwd)
+            if not ok or not body:
+                return {}
+
+            return extract_pr_tags(body)
+        except Exception as exc:
+            print_status(f"Parent PR tag fetch failed: {exc}", "warning")
+            return {}
 
     def _build_pr_body(self) -> None:
         """Append agent info footer to PR body via _pr_body payload field."""

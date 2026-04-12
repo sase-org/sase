@@ -269,3 +269,8 @@ class VCSPluginManager(VCSProvider):
 
     def get_change_url(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_get_change_url", cwd=cwd)
+
+    def get_change_body(self, change_ref: str, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise(
+            "vcs_get_change_body", change_ref=change_ref, cwd=cwd
+        )

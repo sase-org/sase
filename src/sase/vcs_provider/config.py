@@ -86,6 +86,38 @@ _PREFIX_PATTERN = re.compile(r"^\[.+?\] ")
 _TAG_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*=")
 
 
+def extract_pr_tags(description: str) -> dict[str, str]:
+    """Extract the trailing contiguous block of ``KEY=value`` PR tag lines.
+
+    This is the read counterpart of :func:`strip_pr_tags`.  It scans the
+    trailing contiguous run of lines matching ``^[A-Z][A-Z0-9_]*=`` (skipping
+    blank lines within the block) and returns them as a dict.
+
+    Returns:
+        A dict mapping tag names to values (empty if no tags found).
+    """
+    lines = description.split("\n")
+
+    # Skip trailing blank lines
+    last_non_blank = len(lines) - 1
+    while last_non_blank >= 0 and lines[last_non_blank].strip() == "":
+        last_non_blank -= 1
+
+    # Scan upward to find tag block (skipping blank lines between tags)
+    tags: dict[str, str] = {}
+    for idx in range(last_non_blank, -1, -1):
+        stripped = lines[idx].strip()
+        if _TAG_PATTERN.match(stripped):
+            key, _, value = stripped.partition("=")
+            tags[key] = value
+        elif stripped == "":
+            continue
+        else:
+            break
+
+    return tags
+
+
 def strip_pr_tags(description: str) -> str:
     """Remove the trailing contiguous block of ``KEY=value`` PR tag lines.
 

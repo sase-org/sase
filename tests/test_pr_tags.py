@@ -1,11 +1,11 @@
 """Tests for pr_tags config reading and commit message appending."""
 
 import os
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.vcs_provider.config import get_pr_tags
+from sase.vcs_provider.config import extract_pr_tags, get_pr_tags
 from sase.workflows.commit.workflow import CommitWorkflow
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
@@ -288,3 +288,136 @@ class TestAppendPrTags:
 
         sent_payload = provider.create_pull_request.call_args[0][0]
         assert sent_payload["message"] == "Add feature"
+
+
+class TestExtractPrTags:
+    """Unit tests for extract_pr_tags()."""
+
+    def test_simple_tags(self) -> None:
+        body = "Some description\n\nFOO=bar\nBAZ=qux"
+        assert extract_pr_tags(body) == {"FOO": "bar", "BAZ": "qux"}
+
+    def test_mixed_content(self) -> None:
+        body = "Title\n\nSome body text.\n\nFOO=bar"
+        assert extract_pr_tags(body) == {"FOO": "bar"}
+
+    def test_no_tags(self) -> None:
+        body = "Just a description\nwith no tags"
+        assert extract_pr_tags(body) == {}
+
+    def test_empty_string(self) -> None:
+        assert extract_pr_tags("") == {}
+
+    def test_trailing_blank_lines(self) -> None:
+        body = "Description\n\nFOO=bar\nBAZ=1\n\n"
+        assert extract_pr_tags(body) == {"FOO": "bar", "BAZ": "1"}
+
+    def test_tag_with_equals_in_value(self) -> None:
+        body = "Description\n\nFOO=a=b=c"
+        assert extract_pr_tags(body) == {"FOO": "a=b=c"}
+
+
+_FETCH_PARENT_TARGET = (
+    "sase.workflows.commit.workflow.CommitWorkflow._fetch_parent_pr_tags"
+)
+
+
+class TestInheritParentPrTags:
+    """Integration tests for parent PR tag inheritance."""
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    @patch(_FETCH_PARENT_TARGET, return_value={"TEAM": "infra", "OWNER": "alice"})
+    def test_parent_tags_inherited(
+        self,
+        _mock_fetch: MagicMock,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Child PR"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "TEAM=infra" in sent["message"]
+        assert "OWNER=alice" in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    @patch(_FETCH_PARENT_TARGET, return_value={"TEAM": "infra", "OWNER": "alice"})
+    def test_config_tags_override_parent(
+        self,
+        _mock_fetch: MagicMock,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Child PR"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        config_tags = {"TEAM": "platform"}
+        with patch("sase.vcs_provider.config.get_pr_tags", return_value=config_tags):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "TEAM=platform" in sent["message"]
+        assert "TEAM=infra" not in sent["message"]
+        assert "OWNER=alice" in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    @patch(_FETCH_PARENT_TARGET, return_value={"BUG": "parent-111", "TEAM": "infra"})
+    def test_bug_tag_overrides_parent(
+        self,
+        _mock_fetch: MagicMock,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Child PR"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with (
+            patch("sase.vcs_provider.config.get_pr_tags", return_value={}),
+            patch.dict("os.environ", {"SASE_BUG_ID": "child-222"}),
+        ):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert "BUG=child-222" in sent["message"]
+        assert "BUG=parent-111" not in sent["message"]
+        assert "TEAM=infra" in sent["message"]
+
+    @patch(_PROJECT_NAME_TARGET, return_value=None)
+    @patch(_PROVIDER_TARGET)
+    @patch(_FETCH_PARENT_TARGET, return_value={})
+    def test_graceful_noop_when_no_parent_tags(
+        self,
+        _mock_fetch: MagicMock,
+        mock_get: MagicMock,
+        _mock_proj: MagicMock,
+    ) -> None:
+        provider = MagicMock()
+        provider.create_pull_request.return_value = (True, None)
+        mock_get.return_value = provider
+
+        payload = {"name": "feat-x", "message": "Add feature"}
+        wf = CommitWorkflow(payload, "create_pull_request")
+
+        with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
+            wf.run()
+
+        sent = provider.create_pull_request.call_args[0][0]
+        assert sent["message"] == "Add feature"

@@ -340,3 +340,16 @@ class VCSProvider(ABC):
         raise NotImplementedError(
             "get_change_url is not supported by this VCS provider"
         )
+
+    def get_change_body(self, change_ref: str, cwd: str) -> tuple[bool, str | None]:
+        """Get the body/description of a change (PR body or CL description).
+
+        Args:
+            change_ref: A change identifier (e.g. PR URL or CL number).
+            cwd: Working directory inside the repository.
+
+        Returns ``(True, body_text)`` on success, ``(False, error)`` on failure.
+        """
+        raise NotImplementedError(
+            "get_change_body is not supported by this VCS provider"
+        )
