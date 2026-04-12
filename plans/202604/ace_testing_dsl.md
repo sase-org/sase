@@ -1,6 +1,7 @@
 ---
 create_time: 2026-04-12 16:37:07
 status: wip
+bead_id: sase-i
 ---
 
 # Plan: Implement `sase.ace.testing` — Playwright-Inspired TUI Testing DSL
