@@ -467,6 +467,77 @@
           }
         ]
       }
+    },
+    "telemetry": {
+      "type": "object",
+      "description": "Prometheus telemetry settings",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether telemetry collection is enabled",
+          "default": false
+        },
+        "prometheus": {
+          "type": "object",
+          "description": "Prometheus connection settings",
+          "additionalProperties": false,
+          "properties": {
+            "exposition_port": {
+              "type": "integer",
+              "description": "Port for the Prometheus metrics exposition endpoint",
+              "default": 9464
+            },
+            "pushgateway_url": {
+              "type": "string",
+              "description": "URL of the Prometheus Pushgateway",
+              "default": "localhost:9091"
+            },
+            "url": {
+              "type": "string",
+              "description": "URL of the Prometheus server",
+              "default": "localhost:9090"
+            }
+          }
+        },
+        "health_thresholds": {
+          "type": "object",
+          "description": "Thresholds for the telemetry health traffic-light check",
+          "additionalProperties": false,
+          "properties": {
+            "error_rate_warn": {
+              "type": "number",
+              "description": "Error rate percentage to trigger a warning",
+              "default": 10.0
+            },
+            "error_rate_critical": {
+              "type": "number",
+              "description": "Error rate percentage to trigger a critical alert",
+              "default": 25.0
+            },
+            "retry_rate_warn": {
+              "type": "number",
+              "description": "Retry rate percentage to trigger a warning",
+              "default": 10.0
+            },
+            "retry_rate_critical": {
+              "type": "number",
+              "description": "Retry rate percentage to trigger a critical alert",
+              "default": 25.0
+            },
+            "p95_latency_warn": {
+              "type": "number",
+              "description": "P95 latency in seconds to trigger a warning",
+              "default": 300.0
+            },
+            "p95_latency_critical": {
+              "type": "number",
+              "description": "P95 latency in seconds to trigger a critical alert",
+              "default": 600.0
+            }
+          }
+        }
+      }
     }
   }
 }
