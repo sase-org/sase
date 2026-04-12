@@ -386,6 +386,21 @@ class TestFileCompletionModule:
         assert extract_token_around_cursor("  ", 1) is None
         assert extract_token_around_cursor("~/foo", 5) == (0, 5, "~/foo")
 
+    def test_extract_token_stops_at_special_characters(self) -> None:
+        # Cursor between ~/foo and ? — should extract ~/foo, not ~/foo?
+        assert extract_token_around_cursor("~/foo?", 5) == (0, 5, "~/foo")
+        # Colon delimiter: "check: ~/Downloads" with cursor at end
+        assert extract_token_around_cursor("check: ~/Downloads", 18) == (
+            7,
+            18,
+            "~/Downloads",
+        )
+        # Parentheses: "(~/src/)" with cursor just after the closing /
+        assert extract_token_around_cursor("(~/src/)", 7) == (1, 7, "~/src/")
+        # Pipe delimiter
+        assert extract_token_around_cursor("~/a|~/b", 3) == (0, 3, "~/a")
+        assert extract_token_around_cursor("~/a|~/b", 4) == (4, 7, "~/b")
+
     def test_build_completion_candidates_dotfile_filtering(
         self,
         tmp_path: Path,

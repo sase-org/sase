@@ -19,9 +19,12 @@ class CompletionCandidate:
     name: str
 
 
+_TOKEN_DELIMITERS: frozenset[str] = frozenset("'\"`?!;,()[]{}<>|&=+*^%$:\\")
+
+
 def _is_token_delimiter(char: str) -> bool:
     """Return True when *char* terminates a token."""
-    return char.isspace() or char in {"'", '"', "`"}
+    return char.isspace() or char in _TOKEN_DELIMITERS
 
 
 def is_path_like_token(token: str) -> bool:

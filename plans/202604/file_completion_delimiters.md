@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 18:34:55
-status: wip
+status: done
 ---
 
 # Plan: Fix file completion token extraction near special characters
