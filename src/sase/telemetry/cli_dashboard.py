@@ -246,8 +246,8 @@ def _get_chart_specs(
         (
             "Agent Run Duration",
             [
-                f"histogram_quantile(0.50, rate(sase_agent_run_duration_seconds_bucket[{w}]))",
-                f"histogram_quantile(0.95, rate(sase_agent_run_duration_seconds_bucket[{w}]))",
+                f"histogram_quantile(0.50, sum(rate(sase_agent_run_duration_seconds_bucket[{w}])) by (le))",
+                f"histogram_quantile(0.95, sum(rate(sase_agent_run_duration_seconds_bucket[{w}])) by (le))",
             ],
             "seconds",
             ["p50", "p95"],
@@ -280,8 +280,8 @@ def _get_chart_specs(
         (
             "LLM Latency",
             [
-                f"histogram_quantile(0.50, rate(sase_llm_invocation_duration_seconds_bucket[{w}]))",
-                f"histogram_quantile(0.95, rate(sase_llm_invocation_duration_seconds_bucket[{w}]))",
+                f"histogram_quantile(0.50, sum(rate(sase_llm_invocation_duration_seconds_bucket[{w}])) by (le))",
+                f"histogram_quantile(0.95, sum(rate(sase_llm_invocation_duration_seconds_bucket[{w}])) by (le))",
             ],
             "seconds",
             ["p50", "p95"],

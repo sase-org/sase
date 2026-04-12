@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 22:20:49
-status: wip
+status: done
 ---
 
 # Plan: Fix histogram_quantile PromQL Queries for Duration Charts
