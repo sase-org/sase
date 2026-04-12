@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 00:09:28
-status: wip
+status: done
 ---
 
 # Fix wrong Commit Message in agent details panel for hg-based agents
