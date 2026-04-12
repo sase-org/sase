@@ -23,18 +23,7 @@ Memory files use YAML frontmatter + markdown body.
 
 
 def get_repo_path() -> Path:
-    """Return the memory repo path, checking config override first."""
-    try:
-        from sase.config import load_merged_config
-
-        cfg = load_merged_config()
-        mem_cfg = cfg.get("memory", {})
-        if isinstance(mem_cfg, dict):
-            repo_path = mem_cfg.get("repo_path")
-            if repo_path:
-                return Path(repo_path).expanduser()
-    except Exception:
-        pass
+    """Return the memory repo path."""
     return MEMORY_REPO_PATH
 
 

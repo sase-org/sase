@@ -318,10 +318,6 @@
           "type": "integer",
           "description": "Approximate token budget for system/ file injection (1 token ≈ 4 chars)",
           "default": 4000
-        },
-        "repo_path": {
-          "type": "string",
-          "description": "Override the default memory repo location (~/.sase/memory)"
         }
       }
     },
