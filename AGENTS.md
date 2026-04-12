@@ -15,7 +15,7 @@ If the @memory/dynamic.md file exists, that means it has been dynamically genera
 
 ## Tier 3 (long-term) Memory
 
-The following files contain detailed reference material. Read them when working in their domain.
+The below files contain detailed reference material. Read them when working in their domain.
 
 - **memory/external_repos.md** - Chezmoi repo and plugin repo (sase-github, sase-google, sase-telegram, sase-nvim)
   locations and workflows. Read when cross-repo work is needed.
