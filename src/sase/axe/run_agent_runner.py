@@ -397,7 +397,7 @@ def main() -> None:
         _provider = agent_llm_provider or ""
         AGENT_RUNS.labels(
             llm_provider=_provider,
-            status="success" if success else "failed",
+            status="ok" if success else "error",
             workflow=workflow_name,
         ).inc()
         AGENT_RUN_DURATION.labels(

@@ -6,6 +6,7 @@ Uses ``plotext`` to render terminal charts embedded inside Rich panels.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 import plotext as plt  # type: ignore[import-untyped,import-not-found]
 from rich.panel import Panel
@@ -49,8 +50,10 @@ def render_line_chart(
     if not filtered:
         return _empty_panel(title, width, height)
 
+    plt.date_form("d/m H:M")
+
     for i, (ts, label) in enumerate(filtered):
-        xs = [p[0] for p in ts.points]
+        xs = [datetime.fromtimestamp(p[0]).strftime("%d/%m %H:%M") for p in ts.points]
         ys = [p[1] for p in ts.points]
         color = COLORS[i % len(COLORS)]
         plt.plot(xs, ys, label=label, color=color)
