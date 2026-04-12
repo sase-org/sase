@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 15:28:42
-status: wip
+status: done
 ---
 
 # Plan: Extract AGENTS.md Sections into memory/ Directory
