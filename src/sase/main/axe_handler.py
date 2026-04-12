@@ -25,7 +25,7 @@ def handle_axe_command(args: argparse.Namespace) -> None:
     elif axe_sub == "stop":
         _handle_stop()
     else:
-        print("Usage: sase axe {start,stop,chop,lumberjack}")
+        print("Usage: sase axe {chop,lumberjack,start,stop}")
         sys.exit(1)
 
 

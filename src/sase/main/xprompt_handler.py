@@ -10,14 +10,14 @@ def handle_xprompt_command(args: argparse.Namespace) -> None:
 
     if subcommand == "expand":
         _handle_expand(args)
-    elif subcommand == "list":
-        _handle_list()
-    elif subcommand == "graph":
-        _handle_graph(args)
     elif subcommand == "explain":
         _handle_explain(args)
+    elif subcommand == "graph":
+        _handle_graph(args)
+    elif subcommand == "list":
+        _handle_list()
     else:
-        print("Usage: sase xprompt {expand,list,graph,explain}")
+        print("Usage: sase xprompt {expand,explain,graph,list}")
         sys.exit(1)
 
 

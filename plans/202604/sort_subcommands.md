@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-11 22:39:17
-status: wip
+status: done
 ---
 
 # Plan: Sort Subcommands in --help Output

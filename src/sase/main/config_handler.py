@@ -8,24 +8,7 @@ def handle_config_command(args: argparse.Namespace) -> None:
     """Handle the 'sase config' subcommands."""
     config_sub = getattr(args, "config_subcommand", None)
 
-    if config_sub == "show":
-        from sase.config.core import load_merged_config
-
-        import yaml  # type: ignore[import-untyped]
-
-        merged = load_merged_config()
-        key = getattr(args, "key", None)
-        if key:
-            if key not in merged:
-                print(f"Key not found: {key}")
-                print(f"Available keys: {', '.join(sorted(merged.keys()))}")
-                sys.exit(1)
-            print(yaml.dump({key: merged[key]}, default_flow_style=False), end="")
-        else:
-            print(yaml.dump(merged, default_flow_style=False), end="")
-        sys.exit(0)
-
-    elif config_sub == "layers":
+    if config_sub == "layers":
         from sase.config.core import load_config_layers
 
         layers = load_config_layers()
@@ -75,6 +58,23 @@ def handle_config_command(args: argparse.Namespace) -> None:
             print()
         sys.exit(0)
 
+    elif config_sub == "show":
+        from sase.config.core import load_merged_config
+
+        import yaml  # type: ignore[import-untyped]
+
+        merged = load_merged_config()
+        key = getattr(args, "key", None)
+        if key:
+            if key not in merged:
+                print(f"Key not found: {key}")
+                print(f"Available keys: {', '.join(sorted(merged.keys()))}")
+                sys.exit(1)
+            print(yaml.dump({key: merged[key]}, default_flow_style=False), end="")
+        else:
+            print(yaml.dump(merged, default_flow_style=False), end="")
+        sys.exit(0)
+
     else:
-        print("Usage: sase config {show,layers,mentor-match}")
+        print("Usage: sase config {layers,mentor-match,show}")
         sys.exit(1)
