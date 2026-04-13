@@ -60,6 +60,26 @@ After `process_xprompt_references()` expands `#name` refs and before `run_execut
 point we have the fully expanded prompt and a prepared workspace. This is the right place to scan for memory-tagged
 xprompts, match them against the prompt, and write `memory/dynamic.md`.
 
+### `@` reference resolution chain
+
+The `@file` import syntax is a feature of the agent runtime (Claude Code, Gemini CLI), not sase. When the runtime reads
+CLAUDE.md, it recursively resolves `@` references:
+
+```
+CLAUDE.md
+  └── @AGENTS.md                          (level 1: runtime resolves)
+        ├── @memory/short/build_and_run.md  (level 2: runtime resolves)
+        ├── @memory/short/glossary.md
+        ├── ...
+        └── @memory/dynamic.md              (level 2: runtime resolves, if file exists)
+              ├── @memory/long/external_repos.md    (level 3: runtime resolves)
+              └── @memory/long/generated_skills.md  (level 3: runtime resolves)
+```
+
+The dynamic memory design leverages this: sase writes `@memory/long/foo.md` references into `memory/dynamic.md`, and the
+runtime resolves them to actual file content. This is the same mechanism already used for tier 1 memory files at level
+2, extended one level deeper for tier 3 content.
+
 ### Current tier 3 files (the content pool)
 
 | File                              | ~Lines | Relevant when...                              |
@@ -84,31 +104,34 @@ tagged `memory` with keywords becomes a candidate for dynamic inclusion. Before 
 are loaded via `get_by_tag(XPromptTag.memory)`, their keywords are matched against the expanded prompt, and matching
 content is merged into `memory/dynamic.md`.
 
-**Defining memory xprompts** -- any of these work through existing loading:
-
-As a `.md` file in `src/sase/xprompts/` (or any xprompt directory):
-
-```markdown
----
-tags: memory
-keywords: [chezmoi, plugin, sase-github, sase-google, sase-telegram, sase-nvim, dotfile]
----
-
-# External Repos
-
-Chezmoi repo lives at ~/.local/share/chezmoi ...
-```
-
-As a config entry in `default_config.yml` or `sase.yml`:
+**Defining memory xprompts** -- as config entries in `default_config.yml` (or user's `sase.yml`):
 
 ```yaml
 xprompts:
   memory/external_repos:
     tags: memory
-    keywords: [chezmoi, plugin, sase-github, sase-google]
-    content: |
-      # External Repos
-      ...
+    keywords: [chezmoi, plugin, sase-github, sase-google, sase-telegram, sase-nvim, dotfile, cross-repo]
+    content: "@memory/long/external_repos.md"
+  memory/generated_skills:
+    tags: memory
+    keywords: [skill, SKILL.md, init-skills, sase_commit, sase_git_commit, sase_hg_commit, commit workflow]
+    content: "@memory/long/generated_skills.md"
+```
+
+The key design: `content` uses an `@` reference to the existing tier 3 file rather than embedding the content directly.
+When matched, the literal `@memory/long/...` string is written to `memory/dynamic.md`. The agent runtime (Claude Code,
+Gemini CLI, etc.) then resolves these `@` references when reading the file as part of the CLAUDE.md/AGENTS.md inclusion
+chain, pulling in the actual file content.
+
+This can also be defined as a `.md` file in any xprompt directory:
+
+```markdown
+---
+tags: memory
+keywords: [chezmoi, plugin, sase-github, sase-google, sase-telegram, sase-nvim, dotfile, cross-repo]
+---
+
+@memory/long/external_repos.md
 ```
 
 **Generation logic** (called from `run_agent_runner.py`):
@@ -126,7 +149,8 @@ def generate_dynamic_memory(prompt: str, workspace_dir: str, project: str | None
         if not wf.keywords:
             continue
         if any(kw.lower() in prompt.lower() for kw in wf.keywords):
-            # Extract content from the workflow's prompt_part step
+            # Content is typically an @reference like "@memory/long/foo.md"
+            # The agent runtime resolves it when reading dynamic.md
             matched_content.append(wf.steps[0].prompt_part)
 
     dynamic_path = os.path.join(workspace_dir, "memory", "dynamic.md")
@@ -136,6 +160,18 @@ def generate_dynamic_memory(prompt: str, workspace_dir: str, project: str | None
         os.unlink(dynamic_path)
 ```
 
+The written `memory/dynamic.md` file might look like:
+
+```markdown
+@memory/long/external_repos.md
+
+@memory/long/generated_skills.md
+```
+
+Claude Code resolves these `@` references as part of its CLAUDE.md → AGENTS.md → `@memory/dynamic.md` inclusion chain,
+the same mechanism that already resolves `@memory/short/*.md`. This is not sase-specific `@` handling -- it is the
+runtime's native file inclusion.
+
 **Changes required:**
 
 1. Add `memory` to `XPromptTag` enum (1 line in `tags.py`).
@@ -144,7 +180,7 @@ def generate_dynamic_memory(prompt: str, workspace_dir: str, project: str | None
 4. Parse `keywords` in `_load_xprompt_from_file()` and `parse_xprompt_entries()` (few lines each).
 5. New function `generate_dynamic_memory()` (~30 lines).
 6. Call it from `run_agent_runner.py` after xprompt expansion.
-7. Move existing tier 3 `.md` content into xprompt `.md` files with front matter.
+7. Add memory xprompt entries to `default_config.yml` with `@` references to existing `memory/long/` files.
 
 **Strengths:**
 
@@ -155,6 +191,8 @@ def generate_dynamic_memory(prompt: str, workspace_dir: str, project: str | None
   user override) work automatically.
 - Keywords are co-located with the content they describe.
 - Clean separation: `keywords` = matching mechanism, `memory` tag = routing destination.
+- With `@` references as content, tier 3 files remain the single source of truth -- no content duplication. The tier 3
+  listing in AGENTS.md stays useful as the fallback path for when keywords don't match.
 
 **Weaknesses:**
 
@@ -163,6 +201,8 @@ def generate_dynamic_memory(prompt: str, workspace_dir: str, project: str | None
 - Keyword matching is brittle for novel phrasings (same as any keyword approach).
 - The `memory` tag creates a second "activation path" for xprompts (auto-include vs. explicit `#name`), which is a new
   concept in the system.
+- Relies on the agent runtime resolving nested `@` references inside included files. This works today with Claude Code's
+  CLAUDE.md inclusion chain, but must be verified for other runtimes (Gemini CLI, Codex).
 
 ### Approach B: `keywords` field only (implicit memory behavior)
 
@@ -286,16 +326,22 @@ generation step scans all xprompts whose name starts with `memory/`.
 
 ## Comparison Matrix
 
-| Criterion                  | A: keywords + tag  | B: keywords only | C: memory field   | D: directory convention |
-| -------------------------- | ------------------ | ---------------- | ----------------- | ----------------------- |
-| Model changes              | 2 (field + tag)    | 1 (field)        | 1 (complex field) | 1 (field for keywords)  |
-| Explicit opt-in            | Yes (tag)          | No (implicit)    | Yes (field)       | Partial (convention)    |
-| Leverages tag system       | Yes                | No               | No                | No                      |
-| Works from all sources     | Yes                | Yes              | Yes               | No (needs directory)    |
-| Plugin/user extensible     | Yes                | Yes              | Yes               | Partially               |
-| Future `keywords` reuse    | Clean (tag scopes) | Blocked          | Clean (scoped)    | Blocked                 |
-| Parsing complexity         | Low                | Low              | Medium            | Low                     |
-| Discovery via get_by_tag() | Yes                | No               | No                | No                      |
+| Criterion                    | A: keywords + tag  | B: keywords only | C: memory field   | D: directory convention |
+| ---------------------------- | ------------------ | ---------------- | ----------------- | ----------------------- |
+| Model changes                | 2 (field + tag)    | 1 (field)        | 1 (complex field) | 1 (field for keywords)  |
+| Explicit opt-in              | Yes (tag)          | No (implicit)    | Yes (field)       | Partial (convention)    |
+| Leverages tag system         | Yes                | No               | No                | No                      |
+| Works from all sources       | Yes                | Yes              | Yes               | No (needs directory)    |
+| Plugin/user extensible       | Yes                | Yes              | Yes               | Partially               |
+| Future `keywords` reuse      | Clean (tag scopes) | Blocked          | Clean (scoped)    | Blocked                 |
+| Parsing complexity           | Low                | Low              | Medium            | Low                     |
+| Discovery via get_by_tag()   | Yes                | No               | No                | No                      |
+| Supports `@` ref content [1] | Yes                | Yes              | Yes               | Yes                     |
+
+[1] All approaches can use `@memory/long/foo.md` references as content instead of embedding tier 3 content directly.
+This is orthogonal to the routing/matching mechanism. However, Approach A pairs best with this pattern because the
+`memory` tag makes the routing intent explicit, preventing accidental auto-inclusion of `@` references meant for other
+purposes.
 
 ## Recommendation: Approach A (`keywords` field + `memory` tag)
 
@@ -321,6 +367,12 @@ generation step scans all xprompts whose name starts with `memory/`.
    field (already on `XPrompt`) provides the semantic summary an LLM classifier needs. Swap the matching function from
    keyword search to LLM call -- the tag-based discovery and file assembly stay the same.
 
+6. **`@` references preserve dual-access to tier 3 content.** By using `@memory/long/foo.md` as the xprompt content
+   (rather than embedding the content or moving files), the tier 3 files remain in `memory/long/` where they are already
+   listed in AGENTS.md. This gives two access paths: (a) automatic inclusion via dynamic memory when keywords match, and
+   (b) on-demand agent reading from the AGENTS.md tier 3 listing when keywords don't match but the agent recognizes the
+   task is relevant. No content duplication, single source of truth.
+
 ### Proposed changes
 
 1. `src/sase/xprompt/tags.py` -- Add `memory = "memory"` to `XPromptTag` enum.
@@ -332,17 +384,19 @@ generation step scans all xprompts whose name starts with `memory/`.
 6. `src/sase/memory/dynamic.py` (new) -- `generate_dynamic_memory(prompt, workspace_dir, project)` function.
 7. `src/sase/axe/run_agent_runner.py` -- Call `generate_dynamic_memory()` after xprompt expansion, before execution
    loop.
-8. Convert existing `memory/long/*.md` files into xprompt `.md` files with `tags: memory` and `keywords` front matter
-   (either in-place or by moving them to an xprompt directory).
+8. `src/sase/default_config.yml` -- Add memory xprompt entries under `xprompts:` with `tags: memory`, `keywords`, and
+   `content: "@memory/long/..."` references to the existing tier 3 files.
+
+### Resolved questions
+
+- **Where should memory xprompts live?** Answer: option (c) -- define xprompts in `default_config.yml` (under
+  `xprompts:`) with `content: "@memory/long/foo.md"` references. The `memory/long/` files stay where they are as the
+  single source of truth. AGENTS.md keeps its tier 3 listing so agents can still discover and read the files on demand
+  when keywords don't match. This avoids duplication, avoids polluting the memory files with front matter, and gives
+  dual-access: automatic via dynamic memory + manual via AGENTS.md tier 3 listing. Users can override or extend by
+  adding their own memory-tagged xprompts in `sase.yml` or xprompt directories.
 
 ### Open questions
-
-- **Where should memory xprompts live?** Options: (a) keep them in `memory/long/` and add front matter (simplest, but
-  the agent sees the front matter when reading the file directly), (b) move them to `src/sase/xprompts/memory/` as
-  built-in xprompts (clean separation, but duplicates content that's also in `memory/long/`), (c) keep `memory/long/` as
-  the source of truth and have the xprompt content use `@memory/long/foo.md` references (indirection, but avoids
-  duplication). Recommendation: option (b) -- move the content to xprompt files and remove the `memory/long/` directory.
-  The tier 3 section in AGENTS.md becomes unnecessary since the content is now auto-included.
 
 - **Should keyword matching be case-insensitive substring or whole-word?** Substring (`"skill" in prompt.lower()`) is
   simpler but risks false positives (e.g., "skill" matching "unskilled"). Whole-word matching with word boundaries
@@ -352,3 +406,9 @@ generation step scans all xprompts whose name starts with `memory/`.
 - **Should `memory/dynamic.md` be cleaned up after the agent run?** Not necessary -- workspaces are ephemeral clones
   that get cleaned before each run via `prepare_workspace()`. But adding the file to `.gitignore` is prudent to prevent
   accidental commits.
+
+- **Do all supported runtimes resolve nested `@` references?** The CLAUDE.md → AGENTS.md → `@memory/dynamic.md` chain
+  already works because Claude Code resolves `@` imports recursively. If `memory/dynamic.md` contains
+  `@memory/long/foo.md`, Claude Code should resolve it as a second level of nesting (same as `@memory/short/*.md` in
+  AGENTS.md). This needs to be verified for Gemini CLI and Codex. If a runtime doesn't support nested `@` references,
+  the generation function could fall back to inlining the file content directly.
