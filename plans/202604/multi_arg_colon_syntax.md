@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-13 16:02:09
-status: wip
+status: done
 ---
 
 # Plan: Multi-arg colon syntax for xprompts

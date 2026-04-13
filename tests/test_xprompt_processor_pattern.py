@@ -169,6 +169,25 @@ def test_xprompt_pattern_colon_arg_cmd_sub_with_args() -> None:
     assert match.group(3) == "$(echo hello)"
 
 
+# --- Multi-arg colon syntax ---
+
+
+def test_xprompt_pattern_colon_multi_arg() -> None:
+    """Test that #foo:a,b,c captures the full comma-separated string."""
+    match = re.search(_XPROMPT_PATTERN, "#foo:a,b,c")
+    assert match is not None
+    assert match.group(1) == "foo"
+    assert match.group(3) == "a,b,c"
+
+
+def test_xprompt_pattern_colon_trailing_comma() -> None:
+    """Test that trailing comma is excluded from the match."""
+    match = re.search(_XPROMPT_PATTERN, "#foo:a,")
+    assert match is not None
+    assert match.group(1) == "foo"
+    assert match.group(3) == "a"
+
+
 # --- Double-underscore as slash alias ---
 
 

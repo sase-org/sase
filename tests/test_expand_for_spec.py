@@ -104,6 +104,21 @@ def test_dry_expand_colon_arg() -> None:
     assert result == "Repo: myrepo"
 
 
+def test_dry_expand_colon_multi_arg() -> None:
+    """Colon syntax #wf:a,b passes multiple positional args."""
+    wf = _make_workflow(
+        "deploy",
+        "Deploy {{ app }} to {{ env }}",
+        inputs=[
+            InputArg(name="app", default=UNSET),
+            InputArg(name="env", default=UNSET),
+        ],
+    )
+    with patch(_LOADER_PATH, return_value={"deploy": wf}):
+        result = dry_expand_embedded_workflows("#deploy:myapp,prod")
+    assert result == "Deploy myapp to prod"
+
+
 def test_dry_expand_plus_arg() -> None:
     """Plus syntax #wf+ passes 'true' as first positional arg."""
     wf = _make_workflow(

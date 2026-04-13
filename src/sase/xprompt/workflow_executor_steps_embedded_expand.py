@@ -143,7 +143,9 @@ class EmbeddedWorkflowExpandMixin:
             elif colon_arg is not None:
                 if colon_arg.startswith("`") and colon_arg.endswith("`"):
                     colon_arg = colon_arg[1:-1]
-                positional_args = [colon_arg]
+                    positional_args = [colon_arg]
+                else:
+                    positional_args = colon_arg.split(",")
             elif plus_suffix is not None:
                 positional_args = ["true"]
 

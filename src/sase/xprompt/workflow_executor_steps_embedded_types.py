@@ -19,7 +19,7 @@ _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 _WORKFLOW_REF_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|[a-zA-Z0-9_.~/-]+)|(\+))?"  # Supports backtick-delimited colon args
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Supports backtick-delimited colon args
 )
 
 

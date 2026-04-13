@@ -48,14 +48,14 @@ _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 # Supports:
 #   - #name - simple xprompt (no args)
 #   - #name( - parenthesis syntax start (matching ) found programmatically)
-#   - #name:arg - colon syntax for single arg (word-like chars only)
+#   - #name:arg - colon syntax for args (word-like chars, comma-separated for multiple)
 #   - #name:`arg` - colon syntax with backtick-delimited arg (any content)
 #   - #name:$(cmd) - colon syntax with command substitution
 #   - #name+ - plus syntax, equivalent to #name:true
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: xprompt name with optional namespace
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
 )
 
 
@@ -300,7 +300,9 @@ def process_xprompt_references(
                     # Strip backticks if present (backtick-delimited syntax)
                     if colon_arg.startswith("`") and colon_arg.endswith("`"):
                         colon_arg = colon_arg[1:-1]
-                    positional_args, named_args = [colon_arg], {}
+                        positional_args, named_args = [colon_arg], {}
+                    else:
+                        positional_args, named_args = colon_arg.split(","), {}
                 elif plus_suffix is not None:
                     positional_args, named_args = ["true"], {}
                 else:

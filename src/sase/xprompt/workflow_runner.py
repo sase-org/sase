@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 _REF_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
 )
 
 _WORKFLOW_MODEL_OVERRIDE_ARG = "__sase_workflow_model_override"
@@ -103,7 +103,9 @@ def _find_standalone_workflow_ref(
     elif colon_arg is not None:
         if colon_arg.startswith("`") and colon_arg.endswith("`"):
             colon_arg = colon_arg[1:-1]
-        positional_args = [colon_arg]
+            positional_args = [colon_arg]
+        else:
+            positional_args = colon_arg.split(",")
     elif plus_suffix is not None:
         positional_args = ["true"]
     else:

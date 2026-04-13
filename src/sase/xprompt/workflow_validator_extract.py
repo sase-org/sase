@@ -17,7 +17,7 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|\{\{[^}]*\}\}|[a-zA-Z0-9_.~/-]*[a-zA-Z0-9_~/-])|(\+))?"
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|\{\{[^}]*\}\}|[a-zA-Z0-9_.~,/-]*[a-zA-Z0-9_~/-])|(\+))?"
 )
 
 # Pattern to find {{ ... }} and {% ... %} blocks (variable references)
@@ -127,7 +127,7 @@ def extract_xprompt_calls(content: str) -> list[_XPromptCall]:
                 positional_args, named_args = parse_args(paren_content)
                 raw_match = content[match.start() : paren_end + 1]
         elif colon_arg is not None:
-            positional_args = [colon_arg]
+            positional_args = colon_arg.split(",")
         elif plus_suffix is not None:
             positional_args = ["true"]
 
