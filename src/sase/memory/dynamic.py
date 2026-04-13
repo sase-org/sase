@@ -49,7 +49,7 @@ def format_dynamic_memory_section(result: DynamicMemoryResult) -> str:
     lines = ["### DYNAMIC MEMORY"]
     for path, mem in zip(result.paths, result.matched, strict=True):
         kw_list = ", ".join(f"`{kw}`" for kw in mem.keywords_matched)
-        lines.append(f"- @{path} (_keywords:_ {kw_list})")
+        lines.append(f"- @{path} (matched: {kw_list})")
     return "\n".join(lines)
 
 
