@@ -44,11 +44,12 @@ def _memory_filename(xprompt_name: str) -> str:
     return stem.replace("/", "-").replace("_", "-") + ".md"
 
 
-def format_dynamic_memory_section(paths: list[str]) -> str:
-    """Format the ``### DYNAMIC MEMORY`` markdown section from file paths."""
+def format_dynamic_memory_section(result: DynamicMemoryResult) -> str:
+    """Format the ``### DYNAMIC MEMORY`` markdown section with keyword annotations."""
     lines = ["### DYNAMIC MEMORY"]
-    for p in paths:
-        lines.append(f"- @{p}")
+    for path, mem in zip(result.paths, result.matched, strict=True):
+        kw_list = ", ".join(f"`{kw}`" for kw in mem.keywords_matched)
+        lines.append(f"- @{path} (_keywords:_ {kw_list})")
     return "\n".join(lines)
 
 

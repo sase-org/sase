@@ -441,16 +441,45 @@ def test_memory_filename_underscores_to_hyphens() -> None:
 
 
 def test_format_dynamic_memory_section_single() -> None:
-    result = format_dynamic_memory_section([".sase/memory/long-external-repos.md"])
-    assert result == ("### DYNAMIC MEMORY\n- @.sase/memory/long-external-repos.md")
+    dr = DynamicMemoryResult(
+        matched=[
+            MatchedMemory(
+                name="memory/long/external_repos",
+                keywords_matched=["chezmoi"],
+                content="",
+            )
+        ],
+        paths=[".sase/memory/long-external-repos.md"],
+    )
+    result = format_dynamic_memory_section(dr)
+    assert result == (
+        "### DYNAMIC MEMORY\n"
+        "- @.sase/memory/long-external-repos.md (_keywords:_ `chezmoi`)"
+    )
 
 
 def test_format_dynamic_memory_section_multiple() -> None:
-    result = format_dynamic_memory_section(
-        [".sase/memory/long-external-repos.md", ".sase/memory/long-generated-skills.md"]
+    dr = DynamicMemoryResult(
+        matched=[
+            MatchedMemory(
+                name="memory/long/external_repos",
+                keywords_matched=["chezmoi", "plugin"],
+                content="",
+            ),
+            MatchedMemory(
+                name="memory/long/generated_skills",
+                keywords_matched=["skill", "commit workflow"],
+                content="",
+            ),
+        ],
+        paths=[
+            ".sase/memory/long-external-repos.md",
+            ".sase/memory/long-generated-skills.md",
+        ],
     )
+    result = format_dynamic_memory_section(dr)
     assert result == (
         "### DYNAMIC MEMORY\n"
-        "- @.sase/memory/long-external-repos.md\n"
-        "- @.sase/memory/long-generated-skills.md"
+        "- @.sase/memory/long-external-repos.md (_keywords:_ `chezmoi`, `plugin`)\n"
+        "- @.sase/memory/long-generated-skills.md (_keywords:_ `skill`, `commit workflow`)"
     )
