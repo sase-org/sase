@@ -185,8 +185,10 @@ def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
     be arbitrary text — directives, xprompt references, plain instructions,
     or ``[[text blocks]]``.
 
-    Returns ``None`` if there is no ``%alt`` directive or it has only one
-    argument.
+    Returns ``None`` if there is no ``%alt`` directive or it has zero
+    arguments.  A single-arg ``%alt(foo)`` is treated as ``%alt(foo,)``,
+    producing two prompts: one with the argument text and one with the
+    directive removed (the empty-string variant).
 
     Raises:
         DirectiveError: If more than one ``%alt(...)`` appears in the prompt,
@@ -209,8 +211,12 @@ def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
     inner = prompt[paren_start + 1 : paren_end]
     positional_args, _ = parse_args(inner)
 
-    if len(positional_args) <= 1:
+    if len(positional_args) == 0:
         return None
+
+    # Single arg: treat as "with/without" — append an implicit empty variant.
+    if len(positional_args) == 1:
+        positional_args.append("")
 
     result: list[str] = []
     for arg in positional_args:

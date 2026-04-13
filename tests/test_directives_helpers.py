@@ -215,9 +215,36 @@ def test_split_prompt_for_alternatives_three_args() -> None:
     assert result[2] == "thorough\nAnalyze this"
 
 
-def test_split_prompt_for_alternatives_single_arg_returns_none() -> None:
-    """Single alternative returns None (not a split)."""
-    assert _split_prompt_for_alternatives("%alt(only_one)\nDo work") is None
+def test_split_prompt_for_alternatives_single_arg_splits_with_empty() -> None:
+    """Single arg produces two prompts: one with the arg and one without."""
+    result = _split_prompt_for_alternatives("%alt(only_one)\nDo work")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "only_one\nDo work"
+    assert result[1] == "\nDo work"
+
+
+def test_split_prompt_for_alternatives_single_arg_own_line() -> None:
+    """Single arg on its own line: removal variant has a leading newline."""
+    result = _split_prompt_for_alternatives("Header\n%alt(extra)\nFooter")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "Header\nextra\nFooter"
+    assert result[1] == "Header\n\nFooter"
+
+
+def test_split_prompt_for_alternatives_single_arg_nested_directive() -> None:
+    """Single arg with nested directive preserves the directive in one variant."""
+    result = _split_prompt_for_alternatives("%alt(%m:opus) Review this code")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%m:opus Review this code"
+    assert result[1] == " Review this code"
+
+
+def test_split_prompt_for_alternatives_zero_args_returns_none() -> None:
+    """Zero args returns None."""
+    assert _split_prompt_for_alternatives("%alt()\nDo work") is None
 
 
 def test_split_prompt_for_alternatives_no_alt_returns_none() -> None:
