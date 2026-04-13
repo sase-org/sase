@@ -27,13 +27,13 @@ from sase.xprompt._disabled_regions import (
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
 
-_MEMORY_LINE_RE = re.compile(r"^XPROMPT MEMORY: .+$", re.MULTILINE)
-_MEMORY_PLACEHOLDER_PREFIX = "\x00XPM_"
+_MEMORY_LINE_RE = re.compile(r"^DYNAMIC MEMORY: .+$", re.MULTILINE)
+_MEMORY_PLACEHOLDER_PREFIX = "\x00DM_"
 _MEMORY_PLACEHOLDER_SUFFIX = "\x00"
 
 
 def _protect_memory_lines(text: str, lines: list[str]) -> str:
-    """Replace XPROMPT MEMORY lines with null-byte placeholders."""
+    """Replace DYNAMIC MEMORY lines with null-byte placeholders."""
 
     def _replacer(m: re.Match[str]) -> str:
         idx = len(lines)
@@ -44,7 +44,7 @@ def _protect_memory_lines(text: str, lines: list[str]) -> str:
 
 
 def _unprotect_memory_lines(text: str, lines: list[str]) -> str:
-    """Restore XPROMPT MEMORY placeholders with original content."""
+    """Restore DYNAMIC MEMORY placeholders with original content."""
     for i, line in enumerate(lines):
         text = text.replace(
             f"{_MEMORY_PLACEHOLDER_PREFIX}{i}{_MEMORY_PLACEHOLDER_SUFFIX}", line
@@ -171,7 +171,7 @@ def preprocess_prompt_late(
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
-    # 1b. Protect XPROMPT MEMORY lines from Prettier underscore mangling
+    # 1b. Protect DYNAMIC MEMORY lines from Prettier underscore mangling
     memory_lines: list[str] = []
     prompt = _protect_memory_lines(prompt, memory_lines)
 
@@ -191,7 +191,7 @@ def preprocess_prompt_late(
     # 5. Prettier formatting
     prompt = format_with_prettier(prompt)
 
-    # 5b. Restore XPROMPT MEMORY lines
+    # 5b. Restore DYNAMIC MEMORY lines
     prompt = _unprotect_memory_lines(prompt, memory_lines)
 
     # 6. HTML comment stripping
