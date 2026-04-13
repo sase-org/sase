@@ -11,8 +11,8 @@ The following memory files contain core (always loaded) context:
 
 ## Tier 2 (dynamic) Memory
 
-When your prompt matches keywords from dynamic memories, we append a `### DYNAMIC MEMORY` section at the bottom of your
-prompt listing individual `.sase/memory/` file paths — one per matched memory:
+When a user prompt matches keywords from dynamic memories, we append a `### DYNAMIC MEMORY` section at the bottom of
+that prompt listing individual `.sase/memory/` file paths — one per matched memory:
 
 ```
 ### DYNAMIC MEMORY
