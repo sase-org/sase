@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-13 13:26:51
-status: wip
+status: done
 ---
 
 # Plan: Improve Long-Term Memory Files Based on AGENTS.md Best Practices

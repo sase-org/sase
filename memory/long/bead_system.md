@@ -4,18 +4,10 @@ keywords: [bead, epic, phase, dependency, claim, beads create, beads ready, bead
 
 # Bead System
 
-## Model
+## ID Generation
 
-A bead (Issue) has: `id`, `title`, `status`, `issue_type`, `parent_id`, `owner`, `assignee`, `dependencies`,
-`created_at`, `created_by`, `updated_at`, `closed_at`, `close_reason`, `description`, `notes`, `design`.
-
-**Statuses:** OPEN, IN_PROGRESS, CLOSED.
-
-**Types:** PLAN (epic-level, can be top-level, has optional `design` file path) and PHASE (work item, must have a
-`parent_id` — enforced by DB constraint).
-
-**ID generation:** Top-level IDs use a counter-based scheme (e.g., `beads-03v` in base36). Child IDs are hierarchical:
-`<parent_id>.<N>` where N increments per parent.
+Top-level IDs use a counter-based scheme (e.g., `beads-03v` in base36). Child IDs are hierarchical: `<parent_id>.<N>`
+where N increments per parent.
 
 ## Dependency Semantics
 
@@ -43,18 +35,3 @@ Closing a **PLAN** cascades to all non-CLOSED children (PHASE issues), applying 
 
 Sibling workspace directories (`<basename>_<N>`) are scanned and their beads databases merged. For each issue ID, the
 version with the most recent `updated_at` timestamp wins.
-
-## Key CLI Commands
-
-| Command                                     | Purpose                            |
-| ------------------------------------------- | ---------------------------------- |
-| `sase bead create -t "title" -T plan(file)` | Create a PLAN with optional design |
-| `sase bead create -t "title" -T phase(id)`  | Create a PHASE under a PLAN        |
-| `sase bead ready`                           | List ready (unblocked OPEN) issues |
-| `sase bead dep add <issue> <depends-on>`    | Add a dependency                   |
-| `sase bead close <id> [-r reason]`          | Close issue (cascades for PLANs)   |
-| `sase bead sync [-s]`                       | Sync across workspaces             |
-| `sase bead list [-s status] [-t type]`      | List/filter issues                 |
-| `sase bead show <id>`                       | Show issue details                 |
-| `sase bead blocked`                         | Show blocked issues                |
-| `sase bead rm <id>`                         | Remove issue and children          |

@@ -4,28 +4,6 @@ keywords: [axe, lumberjack, chop, agent runner, scheduler, daemon, runner pool, 
 
 # Axe Agent Runner
 
-## Architecture
-
-**Orchestrator** (parent supervisor) → **Lumberjacks** (schedulers, one subprocess each) → **Runners**
-(agents/mentors/hooks/workflows/CRS).
-
-## Orchestrator
-
-- **Kills existing** on startup: reads PID file → SIGTERM → waits 15s → SIGKILL → waits 5s
-- **Monitors** children every 1 second
-- **Restarts** any child that exits unexpectedly — immediate, no backoff
-
-## Lumberjack Tick Cycle
-
-Each tick follows this sequence:
-
-1. **Refresh changespecs** — `get_all_changespecs()` + `get_filtered_changespecs()`
-2. **Check chop eligibility** — `run_every` threshold + singleton enforcement per agent chop (tracks live PIDs in
-   `_agent_pids`)
-3. **Run eligible chops** — via `ThreadPoolExecutor`, one thread per chop
-4. **Aggregate results** — collect logs, errors, agent PIDs
-5. **Persist timestamps** — atomic file write via rename, only if dirty
-
 ## Agent Runner Phases
 
 1. **Workspace prep + dynamic memory + directives** — prepare workspace (skip for home mode), generate dynamic memory
@@ -47,11 +25,9 @@ Agents with `%wait` don't hold a real workspace during the wait phase. A placeho
 upfront. After dependencies are satisfied, `claim_deferred_workspace()` releases the placeholder and allocates a real
 workspace via `get_first_available_axe_workspace()`.
 
-## Concurrency: SharedRunnerPool
+## SharedRunnerPool Gotcha
 
-- File-based counter at `~/.sase/axe/shared/runner_count`
-- Exclusive locking via `fcntl.flock()` for reserve/release operations
-- **No automatic slot expiration** — runners must explicitly call `release_slot()` to decrement the counter
+**No automatic slot expiration** — runners must explicitly call `release_slot()` to decrement the counter.
 
 ## Zombie Detection
 

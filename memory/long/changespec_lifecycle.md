@@ -4,12 +4,6 @@ keywords: [changespec, status transition, suffix strip, archive, sibling, draft 
 
 # ChangeSpec Lifecycle
 
-## Sections
-
-Every ChangeSpec contains these sections: NAME, DESCRIPTION, PARENT, CL/PR, BUG, STATUS, KICKSTART, TEST_TARGETS,
-COMMITS, HOOKS, COMMENTS, MENTORS, TIMESTAMPS. The `CL:` and `PR:` headers in the raw `.gp` file both map to the same
-`cl` field internally.
-
 ## Status Lifecycle
 
 Valid statuses: WIP, Draft, Ready, Mailed, Submitted, Reverted, Archived.

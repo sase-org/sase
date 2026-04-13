@@ -18,46 +18,11 @@ highest):
 5. **Project config** — `~/.config/sase/xprompts/{project}/*.md`
 6. **File-based** (highest) — `~/xprompts/`, `~/.xprompts/`, `xprompts/`, `.xprompts/`
 
-## Reference Syntax
+## Cartesian Product Behavior
 
-- `#name` — simple expansion
-- `#name(args)` — parenthesis arguments
-- `#name:arg` — colon argument (word-like chars, backtick-delimited, or `$(cmd)` substitution)
-- `#name+` — equivalent to `#name:true`
-- `#name: text` — shorthand for inline content
-- `#project/name` — namespaced access to project-local xprompts
-
-## Directive Syntax
-
-Directives modify agent behavior. Bare, colon, parenthesis, and plus forms are all supported.
-
-| Directive   | Alias | Purpose                      |
-| ----------- | ----- | ---------------------------- |
-| `%approve`  | `%a`  | Require approval             |
-| `%edit`     | `%e`  | Open in editor               |
-| `%hide`     | `%h`  | Hide from display            |
-| `%model:X`  | `%m`  | Set model                    |
-| `%name:X`   | `%n`  | Set name                     |
-| `%plan`     | `%p`  | Enter plan mode              |
-| `%repeat:N` | `%N`  | Repeat N times               |
-| `%wait:X`   | `%w`  | Wait for dependency/time/dur |
-
-**Cartesian product:** Multiple `%alt(...)` or `%(...)` directives produce all combinations via `itertools.product`. A
-single-arg `%alt(foo)` / `%(foo)` gets an implicit empty variant, producing two alternatives. `%model(m1,m2)` is
-internally rewritten to `%alt(%model:m1,%model:m2)` before splitting.
-
-## Workflow Steps
-
-Step types: `agent`, `bash`, `python`, `prompt_part`, `parallel`.
-
-Control flow: `if:` (Jinja2 condition), `for:` (var → expression), `repeat: until:`, `while:`.
-
-Output binding: `{{ step_name }}` for full output, `{{ step_name.field }}` for specific fields (Jinja2 context). Join
-modes: `array`, `text`, `object`, `lastOf`.
-
-## Frontmatter Fields
-
-`name`, `description`, `snippet`, `skill`, `tags`, `keywords`, `input` (shortform preferred).
+Multiple `%alt(...)` or `%(...)` directives produce all combinations via `itertools.product`. A single-arg `%alt(foo)` /
+`%(foo)` gets an implicit empty variant, producing two alternatives. `%model(m1,m2)` is internally rewritten to
+`%alt(%model:m1,%model:m2)` before splitting.
 
 ## Gotchas
 
