@@ -216,6 +216,35 @@ def main() -> None:
             # Change to workspace directory
             os.chdir(workspace_dir)
 
+            # Generate dynamic memory before agent starts
+            from sase.memory.dynamic import generate_dynamic_memory
+
+            dynamic_matches = generate_dynamic_memory(
+                prompt, workspace_dir, project_name
+            )
+            if dynamic_matches:
+                artifact = [
+                    {
+                        "name": m.name,
+                        "keywords_matched": m.keywords_matched,
+                        "content": m.content,
+                    }
+                    for m in dynamic_matches
+                ]
+                with open(
+                    os.path.join(artifacts_dir, "dynamic_memory.json"),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    json.dump(artifact, f, indent=2)
+
+                print("=== Dynamic Memory ===")
+                for m in dynamic_matches:
+                    kws = ", ".join(m.keywords_matched)
+                    print(f"  + {m.name}  (matched: {kws})")
+                print("======================")
+                print()
+
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(
                 prompt, workspace_dir, artifacts_dir

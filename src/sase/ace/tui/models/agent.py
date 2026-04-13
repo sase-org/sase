@@ -421,6 +421,12 @@ class Agent:
 
         return extract_artifacts_timestamp(self)
 
+    def get_dynamic_memory_info(self) -> list[dict[str, object]] | None:
+        """Get dynamic memory match info from artifacts."""
+        from sase.ace.tui.models.agent_artifacts import get_dynamic_memory_info
+
+        return get_dynamic_memory_info(self)
+
     def get_raw_xprompt_content(self) -> str | None:
         """Get the raw xprompt content (before preprocessing/expansion)."""
         from sase.ace.tui.models.agent_artifacts import get_raw_xprompt_content

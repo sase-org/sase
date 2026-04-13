@@ -54,6 +54,7 @@ def test_parse_tags_all_values() -> None:
             "diff_file",
             "append_to_pr",
             "append_to_commit_and_propose",
+            "memory",
         ]
     )
     assert result == frozenset(XPromptTag)

@@ -59,5 +59,8 @@ CLAUDE.local.md
 # Hypothesis
 .hypothesis/
 
+# Generated dynamic memory (written before each agent session)
+memory/dynamic.md
+
 # Override global gitignore rule that ignores 'core'
 !src/sase/core/

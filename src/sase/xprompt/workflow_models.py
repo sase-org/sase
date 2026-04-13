@@ -138,6 +138,7 @@ class Workflow:
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
     wraps_all: bool = False  # Deprecated: use tags: vcs instead
     tags: frozenset[XPromptTag] = field(default_factory=frozenset)
+    keywords: list[str] = field(default_factory=list)
     environment: dict[str, str] = field(default_factory=dict)
 
     def has_tag(self, tag: XPromptTag) -> bool:

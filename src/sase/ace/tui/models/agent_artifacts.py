@@ -236,6 +236,27 @@ def get_response_content(agent: Agent) -> str | None:
         return None
 
 
+def get_dynamic_memory_info(agent: Agent) -> list[dict[str, object]] | None:
+    """Load dynamic memory match info from artifacts.
+
+    Returns:
+        List of dicts with ``name``, ``keywords_matched``, ``content`` keys,
+        or None if no dynamic memory artifact exists.
+    """
+    artifacts_dir = get_artifacts_dir(agent)
+    if artifacts_dir is None:
+        return None
+    path = os.path.join(artifacts_dir, "dynamic_memory.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data  # type: ignore[return-value]
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
 def get_chat_response_content(agent: Agent) -> str | None:
     """Get response content from agent_meta.json chat_path.
 

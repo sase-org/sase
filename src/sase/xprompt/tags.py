@@ -23,6 +23,7 @@ class XPromptTag(Enum):
     diff_file = "diff_file"
     append_to_pr = "append_to_pr"
     append_to_commit_and_propose = "append_to_commit_and_propose"
+    memory = "memory"
 
 
 def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:

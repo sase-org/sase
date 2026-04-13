@@ -54,6 +54,7 @@ def _namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
         snippet=xp.snippet,
         description=xp.description,
         skill=xp.skill,
+        keywords=xp.keywords,
     )
 
 
@@ -113,6 +114,9 @@ def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     description = front_matter.get("description") if front_matter else None
     skill = front_matter.get("skill") if front_matter else None
 
+    # Parse keywords if present
+    keywords = front_matter.get("keywords", []) if front_matter else []
+
     return XPrompt(
         name=name,
         content=body,
@@ -122,6 +126,7 @@ def _load_xprompt_from_file(file_path: Path) -> XPrompt | None:
         snippet=snippet,
         description=description,
         skill=skill,
+        keywords=keywords,
     )
 
 
@@ -290,6 +295,7 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
             snippet = front_matter.get("snippet") if front_matter else None
             description = front_matter.get("description") if front_matter else None
             skill = front_matter.get("skill") if front_matter else None
+            keywords = front_matter.get("keywords", []) if front_matter else []
             source = f"plugin:{module.__name__}/{entry.name}"  # type: ignore[union-attr]
             xprompts[name] = XPrompt(
                 name=name,
@@ -300,6 +306,7 @@ def _load_xprompts_from_plugins() -> dict[str, XPrompt]:
                 snippet=snippet,
                 description=description,
                 skill=skill,
+                keywords=keywords,
             )
 
     return xprompts
