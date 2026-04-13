@@ -2,16 +2,15 @@
 
 Scans the user's expanded prompt against keyword-tagged memory xprompts,
 resolves ``$(cat ...)`` shell substitution in matched content, and writes
-the resolved content to a temp file.  The temp file path is injected into
-the agent prompt as ``DYNAMIC MEMORY: @<path>``.
+each matched memory to its own file under ``.sase/memory/``.  The file
+paths are injected into the agent prompt as a ``### DYNAMIC MEMORY``
+markdown section.
 """
 
 from __future__ import annotations
 
-import tempfile
-from dataclasses import dataclass
-
-from sase.core.paths import get_sase_tmpdir
+from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -28,21 +27,42 @@ class DynamicMemoryResult:
     """Result of dynamic memory generation."""
 
     matched: list[MatchedMemory]
-    path: str | None  # Path to temp file with matched content
+    paths: list[str] = field(default_factory=list)
+
+
+def _memory_filename(xprompt_name: str) -> str:
+    """Derive a ``.sase/memory/`` filename from an xprompt name.
+
+    Example: ``memory/long/external_repos`` -> ``long-external-repos.md``
+
+    The ``long-`` prefix tells agents the file originates from a long-term
+    (tier 3) memory source.  Hyphens avoid Prettier underscore mangling.
+    """
+    # Strip the "memory/" prefix, then convert separators
+    stem = xprompt_name.removeprefix("memory/")
+    return stem.replace("/", "-").replace("_", "-") + ".md"
+
+
+def format_dynamic_memory_section(paths: list[str]) -> str:
+    """Format the ``### DYNAMIC MEMORY`` markdown section from file paths."""
+    lines = ["### DYNAMIC MEMORY"]
+    for p in paths:
+        lines.append(f"- @{p}")
+    return "\n".join(lines)
 
 
 def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryResult:
-    """Match memory-tagged xprompts against the prompt and write a temp file.
+    """Match memory-tagged xprompts against the prompt and write individual files.
 
     Loads all xprompts, filters to those with the ``memory`` tag and
     non-empty ``keywords``, then checks each keyword against the prompt
     (case-insensitive substring).  Matched content uses ``$(cat ...)`` shell
-    substitution which is resolved before writing to a temp file under
-    ``$SASE_TMPDIR`` (or system temp), so the file contains actual content.
+    substitution which is resolved before writing each match to its own file
+    under ``.sase/memory/`` in the current working directory.
 
     Returns:
-        A result containing the list of matched memories and the temp file
-        path (None if no matches).
+        A result containing the list of matched memories and the file paths
+        (empty if no matches).
     """
     from sase.xprompt.loader import get_all_prompts
     from sase.xprompt.tags import XPromptTag
@@ -68,26 +88,19 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
             )
 
     if not matched:
-        return DynamicMemoryResult(matched=[], path=None)
+        return DynamicMemoryResult(matched=[])
 
     from sase.gemini_wrapper.file_references import process_command_substitution
 
-    sections = []
+    memory_dir = Path(".sase/memory")
+    memory_dir.mkdir(parents=True, exist_ok=True)
+
+    paths: list[str] = []
     for m in matched:
-        sections.append(f"---\n## {m.name}\n\n{m.content}")
-    raw_content = "\n\n".join(sections) + "\n"
-    resolved_content = process_command_substitution(raw_content)
+        resolved = process_command_substitution(m.content)
+        filename = _memory_filename(m.name)
+        file_path = memory_dir / filename
+        file_path.write_text(resolved, encoding="utf-8")
+        paths.append(str(file_path))
 
-    tmpdir = get_sase_tmpdir()
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".md",
-        prefix="sase_dynamic_memory_",
-        dir=tmpdir,
-        mode="w",
-        encoding="utf-8",
-    ) as f:
-        f.write(resolved_content)
-        tmp_path = f.name
-
-    return DynamicMemoryResult(matched=matched, path=tmp_path)
+    return DynamicMemoryResult(matched=matched, paths=paths)

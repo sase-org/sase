@@ -17,8 +17,6 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from sase.xprompt._trace import ExpansionTrace
 
-import re
-
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
     strip_disabled_region_markers,
@@ -26,31 +24,6 @@ from sase.xprompt._disabled_regions import (
 )
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
-
-_MEMORY_LINE_RE = re.compile(r"^DYNAMIC MEMORY: .+$", re.MULTILINE)
-_MEMORY_PLACEHOLDER_PREFIX = "\x00DM_"
-_MEMORY_PLACEHOLDER_SUFFIX = "\x00"
-
-
-def _protect_memory_lines(text: str, lines: list[str]) -> str:
-    """Replace DYNAMIC MEMORY lines with null-byte placeholders."""
-
-    def _replacer(m: re.Match[str]) -> str:
-        idx = len(lines)
-        lines.append(m.group(0))
-        return f"{_MEMORY_PLACEHOLDER_PREFIX}{idx}{_MEMORY_PLACEHOLDER_SUFFIX}"
-
-    return _MEMORY_LINE_RE.sub(_replacer, text)
-
-
-def _unprotect_memory_lines(text: str, lines: list[str]) -> str:
-    """Restore DYNAMIC MEMORY placeholders with original content."""
-    for i, line in enumerate(lines):
-        text = text.replace(
-            f"{_MEMORY_PLACEHOLDER_PREFIX}{i}{_MEMORY_PLACEHOLDER_SUFFIX}", line
-        )
-    return text
-
 
 # File reference processing mode:
 #   "process" — expand @path refs (copy files, rewrite paths)
@@ -171,10 +144,6 @@ def preprocess_prompt_late(
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
-    # 1b. Protect DYNAMIC MEMORY lines from Prettier underscore mangling
-    memory_lines: list[str] = []
-    prompt = _protect_memory_lines(prompt, memory_lines)
-
     # 2. Command substitution
     prompt = process_command_substitution(prompt)
 
@@ -190,9 +159,6 @@ def preprocess_prompt_late(
 
     # 5. Prettier formatting
     prompt = format_with_prettier(prompt)
-
-    # 5b. Restore DYNAMIC MEMORY lines
-    prompt = _unprotect_memory_lines(prompt, memory_lines)
 
     # 6. HTML comment stripping
     prompt = strip_html_comments(prompt)

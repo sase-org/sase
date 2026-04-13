@@ -3,9 +3,13 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.memory.dynamic import (
     DynamicMemoryResult,
     MatchedMemory,
+    _memory_filename,
+    format_dynamic_memory_section,
     generate_dynamic_memory,
 )
 from sase.xprompt.loader_parsing import parse_xprompt_entries
@@ -117,11 +121,13 @@ def _make_memory_workflows() -> dict[str, object]:
     return {name: xprompt_to_workflow(xp) for name, xp in xprompts.items()}
 
 
-def test_matching_keywords_writes_temp_file(tmp_path: Path) -> None:
+def test_matching_keywords_writes_individual_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     workflows = _make_memory_workflows()
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
-        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
         patch(
             "sase.gemini_wrapper.file_references.process_command_substitution",
             side_effect=lambda s: s.replace(
@@ -134,28 +140,30 @@ def test_matching_keywords_writes_temp_file(tmp_path: Path) -> None:
     assert len(result.matched) == 1
     assert result.matched[0].name == "memory/long/external_repos"
     assert "chezmoi" in result.matched[0].keywords_matched
-    assert result.path is not None
+    assert len(result.paths) == 1
+    assert result.paths[0] == ".sase/memory/long-external-repos.md"
 
-    content = Path(result.path).read_text()
-    assert "---\n## memory/long/external_repos\n" in content
+    content = Path(result.paths[0]).read_text()
     assert "# External Repos" in content
     assert "$(" not in content
 
 
-def test_no_matches_returns_no_path() -> None:
+def test_no_matches_returns_empty_paths() -> None:
     workflows = _make_memory_workflows()
     with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
         result = generate_dynamic_memory("nothing relevant here", None)
 
     assert result.matched == []
-    assert result.path is None
+    assert result.paths == []
 
 
-def test_multiple_matches_concatenated(tmp_path: Path) -> None:
+def test_multiple_matches_write_separate_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     workflows = _make_memory_workflows()
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
-        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
         patch(
             "sase.gemini_wrapper.file_references.process_command_substitution",
             side_effect=lambda s: s.replace(
@@ -173,19 +181,19 @@ def test_multiple_matches_concatenated(tmp_path: Path) -> None:
     assert "memory/long/external_repos" in names
     assert "memory/long/generated_skills" in names
 
-    assert result.path is not None
-    content = Path(result.path).read_text()
-    assert "---\n## memory/long/external_repos\n" in content
-    assert "---\n## memory/long/generated_skills\n" in content
-    assert "# External Repos" in content
-    assert "# Generated Skills" in content
+    assert len(result.paths) == 2
+    all_content = "".join(Path(p).read_text() for p in result.paths)
+    assert "# External Repos" in all_content
+    assert "# Generated Skills" in all_content
 
 
-def test_case_insensitive_matching(tmp_path: Path) -> None:
+def test_case_insensitive_matching(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     workflows = _make_memory_workflows()
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
-        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
         patch(
             "sase.gemini_wrapper.file_references.process_command_substitution",
             side_effect=lambda s: s,
@@ -197,11 +205,13 @@ def test_case_insensitive_matching(tmp_path: Path) -> None:
     assert result.matched[0].name == "memory/long/external_repos"
 
 
-def test_returns_structured_result(tmp_path: Path) -> None:
+def test_returns_structured_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     workflows = _make_memory_workflows()
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
-        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
         patch(
             "sase.gemini_wrapper.file_references.process_command_substitution",
             side_effect=lambda s: s,
@@ -217,7 +227,7 @@ def test_returns_structured_result(tmp_path: Path) -> None:
     assert "chezmoi" in m.keywords_matched
     assert "plugin" in m.keywords_matched
     assert m.content == "$(cat memory/long/external_repos.md)"
-    assert result.path is not None
+    assert len(result.paths) == 1
 
 
 def test_no_matches_when_no_memory_tag() -> None:
@@ -235,7 +245,7 @@ def test_no_matches_when_no_memory_tag() -> None:
         result = generate_dynamic_memory("chezmoi", None)
 
     assert result.matched == []
-    assert result.path is None
+    assert result.paths == []
 
 
 # ── _load_memory_long_xprompts ────────────────────────────────────────────
@@ -325,14 +335,14 @@ def test_load_memory_long_first_dir_wins(tmp_path: Path) -> None:
     assert result["memory/long/dup"].keywords == ["from_a"]
 
 
-def test_temp_file_uses_sase_tmpdir(tmp_path: Path) -> None:
-    """Temp file is written under $SASE_TMPDIR when set."""
-    sase_tmp = tmp_path / "sase_tmp"
-    sase_tmp.mkdir()
+def test_files_written_under_sase_memory_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Matched memory files are written under .sase/memory/ in CWD."""
+    monkeypatch.chdir(tmp_path)
     workflows = _make_memory_workflows()
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
-        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(sase_tmp)),
         patch(
             "sase.gemini_wrapper.file_references.process_command_substitution",
             side_effect=lambda s: s,
@@ -340,5 +350,38 @@ def test_temp_file_uses_sase_tmpdir(tmp_path: Path) -> None:
     ):
         result = generate_dynamic_memory("chezmoi stuff", None)
 
-    assert result.path is not None
-    assert str(sase_tmp) in result.path
+    assert len(result.paths) == 1
+    assert result.paths[0].startswith(".sase/memory/")
+    assert (tmp_path / result.paths[0]).exists()
+
+
+# ── _memory_filename ─────────────────────────────────────────────────────
+
+
+def test_memory_filename_long_prefix() -> None:
+    assert _memory_filename("memory/long/external_repos") == "long-external-repos.md"
+
+
+def test_memory_filename_underscores_to_hyphens() -> None:
+    assert (
+        _memory_filename("memory/long/generated_skills") == "long-generated-skills.md"
+    )
+
+
+# ── format_dynamic_memory_section ────────────────────────────────────────
+
+
+def test_format_dynamic_memory_section_single() -> None:
+    result = format_dynamic_memory_section([".sase/memory/long-external-repos.md"])
+    assert result == ("### DYNAMIC MEMORY\n- @.sase/memory/long-external-repos.md")
+
+
+def test_format_dynamic_memory_section_multiple() -> None:
+    result = format_dynamic_memory_section(
+        [".sase/memory/long-external-repos.md", ".sase/memory/long-generated-skills.md"]
+    )
+    assert result == (
+        "### DYNAMIC MEMORY\n"
+        "- @.sase/memory/long-external-repos.md\n"
+        "- @.sase/memory/long-generated-skills.md"
+    )

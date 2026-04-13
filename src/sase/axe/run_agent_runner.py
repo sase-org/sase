@@ -243,8 +243,14 @@ def main() -> None:
                 print("======================")
                 print()
 
-                # Inject dynamic memory reference into the prompt
-                prompt = prompt + f"\n\nDYNAMIC MEMORY: @{dynamic_result.path}"
+                # Inject dynamic memory section into the prompt
+                from sase.memory.dynamic import format_dynamic_memory_section
+
+                prompt = (
+                    prompt
+                    + "\n\n"
+                    + format_dynamic_memory_section(dynamic_result.paths)
+                )
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(

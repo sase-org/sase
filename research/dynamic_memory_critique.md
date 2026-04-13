@@ -153,10 +153,18 @@ exercises the system and reveals whether the matching approach holds up under re
 | 10  | Grow the memory pool        | Medium | High    | **Do first**  |
 | 1   | Word-boundary matching      | Low    | Medium  | Do soon       |
 | 2   | Relevance scoring/threshold | Low    | Medium  | Do soon       |
-| 5   | Temp file cleanup           | Low    | Low     | Quick win     |
-| 6   | Injection placement         | Low    | Unknown | Experiment    |
+| 5   | ~~Temp file cleanup~~       | Low    | Low     | **Resolved**  |
+| 6   | ~~Injection placement~~     | Low    | Unknown | **Resolved**  |
 | 3   | Negative keywords           | Low    | Low     | When needed   |
-| 7   | Preprocessing fragility     | Medium | Low     | Watch         |
+| 7   | ~~Preprocessing fragility~~ | Medium | Low     | **Resolved**  |
 | 4   | Targeted xprompt loading    | Medium | Low     | If bottleneck |
 | 8   | Feedback loop               | High   | Medium  | Long-term     |
 | 9   | Eager vs lazy resolution    | N/A    | N/A     | No action     |
+
+---
+
+## Resolved Items
+
+Items #5, #6, and #7 were addressed by replacing the single temp file with individual `.sase/memory/` files and a
+`### DYNAMIC MEMORY` markdown section. This eliminated temp file accumulation, improved injection placement with a
+structured heading, and removed the Prettier protection workaround entirely.

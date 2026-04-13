@@ -11,9 +11,18 @@ The following memory files contain core (always loaded) context:
 
 ## Tier 2 (dynamic) Memory
 
-When your prompt matches keywords from memory-tagged xprompts, we inject a `DYNAMIC MEMORY: @<memory_file_path>` line at
-the bottom of your prompt, where `<memory_file_path>` is the file path of a markdown file that contains some context
-gathered dynamically based on the prompt.
+When your prompt matches keywords from memory-tagged xprompts, we append a `### DYNAMIC MEMORY` section at the bottom of
+your prompt listing individual `.sase/memory/` file paths — one per matched memory xprompt:
+
+```
+### DYNAMIC MEMORY
+- @.sase/memory/long-external-repos.md
+- @.sase/memory/long-generated-skills.md
+```
+
+File names use a prefix that encodes the source tier: `long-` means the file originates from a long-term (tier 3) memory
+source. If a `long-` prefixed file appears in your dynamic memory section, it contains the same content as the
+corresponding tier 3 file below — you do NOT need to separately read the tier 3 file.
 
 ## Tier 3 (long-term) Memory
 
