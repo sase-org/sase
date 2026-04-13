@@ -215,6 +215,7 @@ def handle_plan_marker(
         agent=planner_agent,
         timestamp=ctx.timestamp,
         extra_sections=_planner_extra,
+        branch_or_workspace=ctx.cl_name,
     )
     _planner_suffix = state.current_role_suffix or ".plan"
     state.saved_chat_paths.append((_planner_suffix, _planner_chat))
@@ -458,6 +459,7 @@ def handle_questions_marker(
         agent=_q_agent,
         timestamp=ctx.timestamp,
         extra_sections=_q_extra,
+        branch_or_workspace=ctx.cl_name,
     )
     _q_suffix = state.current_role_suffix or ".q"
     state.saved_chat_paths.append((_q_suffix, _q_chat))
