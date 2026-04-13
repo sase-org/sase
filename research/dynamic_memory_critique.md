@@ -151,7 +151,7 @@ exercises the system and reveals whether the matching approach holds up under re
 | #   | Issue                       | Effort | Impact  | Priority      |
 | --- | --------------------------- | ------ | ------- | ------------- |
 | 10  | Grow the memory pool        | Medium | High    | **Do first**  |
-| 1   | Word-boundary matching      | Low    | Medium  | Do soon       |
+| 1   | ~~Word-boundary matching~~  | Low    | Medium  | **Resolved**  |
 | 2   | Relevance scoring/threshold | Low    | Medium  | Do soon       |
 | 5   | ~~Temp file cleanup~~       | Low    | Low     | **Resolved**  |
 | 6   | ~~Injection placement~~     | Low    | Unknown | **Resolved**  |
@@ -168,3 +168,7 @@ exercises the system and reveals whether the matching approach holds up under re
 Items #5, #6, and #7 were addressed by replacing the single temp file with individual `.sase/memory/` files and a
 `### DYNAMIC MEMORY` markdown section. This eliminated temp file accumulation, improved injection placement with a
 structured heading, and removed the Prettier protection workaround entirely.
+
+Item #1 was addressed by switching from plain substring containment (`kw.lower() in prompt_lower`) to word-boundary
+regex matching (`re.search(rf'\b{re.escape(kw)}\b', prompt, re.IGNORECASE)`). This eliminates false positives like
+"skill" matching "unskilled" while preserving correct behavior for hyphenated, underscored, and dotted keywords.

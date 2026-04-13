@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-13 13:07:37
-status: wip
+status: done
 ---
 
 # Plan: Word-boundary matching for dynamic memory keywords

@@ -9,6 +9,7 @@ markdown section.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -56,7 +57,7 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
 
     Loads all xprompts, filters to those with the ``memory`` tag and
     non-empty ``keywords``, then checks each keyword against the prompt
-    (case-insensitive substring).  Matched content uses ``$(cat ...)`` shell
+    (word-boundary regex, case-insensitive).  Matched content uses ``$(cat ...)`` shell
     substitution which is resolved before writing each match to its own file
     under ``.sase/memory/`` in the current working directory.
 
@@ -68,7 +69,6 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
     from sase.xprompt.tags import XPromptTag
 
     all_prompts = get_all_prompts(project=project)
-    prompt_lower = prompt.lower()
     matched: list[MatchedMemory] = []
 
     for wf in all_prompts.values():
@@ -77,7 +77,11 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
         if not wf.keywords:
             continue
 
-        hits = [kw for kw in wf.keywords if kw.lower() in prompt_lower]
+        hits = [
+            kw
+            for kw in wf.keywords
+            if re.search(rf"\b{re.escape(kw)}\b", prompt, re.IGNORECASE)
+        ]
         if hits:
             matched.append(
                 MatchedMemory(

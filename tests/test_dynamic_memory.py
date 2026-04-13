@@ -248,6 +248,75 @@ def test_no_matches_when_no_memory_tag() -> None:
     assert result.paths == []
 
 
+# ── word-boundary matching ────────────────────────────────────────────────
+
+
+def test_substring_no_longer_matches_mid_word() -> None:
+    """Keyword 'skill' should NOT match 'unskilled'."""
+    workflows = _make_memory_workflows()
+    with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
+        result = generate_dynamic_memory("she is unskilled at this", None)
+
+    assert result.matched == []
+
+
+def test_whole_word_still_matches() -> None:
+    """Keyword 'skill' should match the standalone word 'skill'."""
+    workflows = _make_memory_workflows()
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("update the skill definitions", None)
+
+    assert len(result.matched) == 1
+    assert result.matched[0].name == "memory/long/generated_skills"
+    assert "skill" in result.matched[0].keywords_matched
+
+
+def test_hyphenated_keyword_matches_exact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keyword 'cross-repo' matches 'cross-repo' but not 'across-repository'."""
+    monkeypatch.chdir(tmp_path)
+    workflows = _make_memory_workflows()
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        hit = generate_dynamic_memory("do cross-repo sync", None)
+        miss = generate_dynamic_memory("across-repository changes", None)
+
+    assert len(hit.matched) == 1
+    assert "cross-repo" in hit.matched[0].keywords_matched
+    assert miss.matched == []
+
+
+def test_special_char_keyword_matches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keyword 'SKILL.md' matches 'SKILL.md' in prompt."""
+    monkeypatch.chdir(tmp_path)
+    workflows = _make_memory_workflows()
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
+    ):
+        result = generate_dynamic_memory("edit the SKILL.md file", None)
+
+    assert len(result.matched) == 1
+    assert "SKILL.md" in result.matched[0].keywords_matched
+
+
 # ── _load_memory_long_xprompts ────────────────────────────────────────────
 
 
