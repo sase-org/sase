@@ -137,6 +137,7 @@ def test_matching_keywords_writes_temp_file(tmp_path: Path) -> None:
     assert result.path is not None
 
     content = Path(result.path).read_text()
+    assert "---\n## memory/external_repos\n" in content
     assert "# External Repos" in content
     assert "$(" not in content
 
@@ -174,6 +175,8 @@ def test_multiple_matches_concatenated(tmp_path: Path) -> None:
 
     assert result.path is not None
     content = Path(result.path).read_text()
+    assert "---\n## memory/external_repos\n" in content
+    assert "---\n## memory/generated_skills\n" in content
     assert "# External Repos" in content
     assert "# Generated Skills" in content
 

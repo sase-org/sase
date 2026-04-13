@@ -72,7 +72,10 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
 
     from sase.gemini_wrapper.file_references import process_command_substitution
 
-    raw_content = "\n\n".join(m.content for m in matched) + "\n"
+    sections = []
+    for m in matched:
+        sections.append(f"---\n## {m.name}\n\n{m.content}")
+    raw_content = "\n\n".join(sections) + "\n"
     resolved_content = process_command_substitution(raw_content)
 
     tmpdir = get_sase_tmpdir()
