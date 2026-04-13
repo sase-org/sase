@@ -28,17 +28,17 @@ corresponding tier 3 file below — you do NOT need to separately read the tier 
 
 The below files contain detailed reference material. Read them when working in their domain.
 
+- **memory/long/axe_agent_runner.md** - Orchestrator/lumberjack/runner hierarchy, agent phases, deferred workspaces,
+  runner pool, zombie detection. Read when modifying the axe scheduler or agent runner.
+- **memory/long/bead_system.md** - Bead model, dependency semantics, ready/close behavior, JSONL persistence, workspace
+  merging. Read when modifying the bead/issue tracker.
+- **memory/long/changespec_lifecycle.md** - Status transitions, suffix semantics, parent-child invariants, archive
+  movement, mentor draft flags. Read when modifying ChangeSpec status logic or transitions.
 - **memory/long/external_repos.md** - Chezmoi repo and plugin repo (sase-github, sase-google, sase-telegram, sase-nvim)
   locations and workflows. Read when cross-repo work is needed.
 - **memory/long/generated_skills.md** - Skill file generation pipeline, CLI/skill contract synchronization, commit
   skills per runtime. Read when modifying skill source files or the commit workflow.
-- **memory/long/changespec_lifecycle.md** - Status transitions, suffix semantics, parent-child invariants, archive
-  movement, mentor draft flags. Read when modifying ChangeSpec status logic or transitions.
-- **memory/long/xprompt_system.md** - Loading priority, reference/directive syntax, workflow steps, Cartesian product,
-  Jinja2 gotchas. Read when modifying xprompt processing or adding new directives.
-- **memory/long/bead_system.md** - Bead model, dependency semantics, ready/close behavior, JSONL persistence, workspace
-  merging. Read when modifying the bead/issue tracker.
 - **memory/long/tui_development.md** - AceApp architecture, reactive patterns, prefix-key modes, keymap resolution,
   modal lifecycle, widget messaging. Read when modifying the TUI.
-- **memory/long/axe_agent_runner.md** - Orchestrator/lumberjack/runner hierarchy, agent phases, deferred workspaces,
-  runner pool, zombie detection. Read when modifying the axe scheduler or agent runner.
+- **memory/long/xprompt_system.md** - Loading priority, reference/directive syntax, workflow steps, Cartesian product,
+  Jinja2 gotchas. Read when modifying xprompt processing or adding new directives.
