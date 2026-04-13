@@ -128,23 +128,26 @@ def _finalize_loop(
     diff_path: str | None = None
     step_output: dict[str, Any] | None = None
 
+    # Save chat history for ALL outcomes so the file referenced by
+    # SASE_AGENT_CHAT_PATH always exists (even for killed/plan_rejected).
     if state.loop_outcome == "completed":
         assert result is not None
-        # Extract response text for chat history
         response_content = result.response_text or ""
+    else:
+        response_content = ""
 
-        # Prepare and save chat history
-        extra = format_extra_sections(state.current_artifacts_dir)
-        saved_path = save_chat_history(
-            prompt=state.current_prompt,
-            response=response_content,
-            workflow="ace-run",
-            timestamp=ctx.timestamp,
-            extra_sections=extra,
-            branch_or_workspace=ctx.cl_name,
-        )
-        print(f"\nChat history saved to: {saved_path}")
+    extra = format_extra_sections(state.current_artifacts_dir)
+    saved_path = save_chat_history(
+        prompt=state.current_prompt,
+        response=response_content,
+        workflow="ace-run",
+        timestamp=ctx.timestamp,
+        extra_sections=extra,
+        branch_or_workspace=ctx.cl_name,
+    )
+    print(f"\nChat history saved to: {saved_path}")
 
+    if state.loop_outcome == "completed":
         # Cross-link all chat files in multi-step workflows
         state.saved_chat_paths.append(
             (state.current_role_suffix or ".code", saved_path)
@@ -217,6 +220,7 @@ def _finalize_loop(
             agent_name=_done_agent_name,
             agent_model=ctx.agent_model,
             agent_hidden=ctx.agent_hidden,
+            response_path=saved_path,
             retry_metadata=_retry_meta,
         )
         done_path = os.path.join(state.current_artifacts_dir, "done.json")
