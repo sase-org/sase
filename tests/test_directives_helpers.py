@@ -1,4 +1,4 @@
-"""Tests for directive helper functions (has_wait, has_model, split_prompt, _parse_duration, _parse_absolute_time)."""
+"""Tests for directive helper functions (has_wait, has_model, has_alt, split_prompt, _parse_duration, _parse_absolute_time)."""
 
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -8,6 +8,8 @@ import pytest
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import (
     _parse_absolute_time,
+    _split_prompt_for_alternatives,
+    has_alt_directive,
     has_model_directive,
     has_wait_directive,
     split_prompt_for_models,
@@ -178,6 +180,119 @@ def test_split_prompt_for_models_after_xprompt_expansion() -> None:
         assert len(result) == 2
         assert result[0] == "%model:opus\nReview this code"
         assert result[1] == "%model:sonnet\nReview this code"
+
+
+def test_split_prompt_for_models_direct_alt_same_as_multi_model() -> None:
+    """Direct %alt(%model:...) produces the same output as %m(...)."""
+    via_m = split_prompt_for_models("%m(opus,sonnet)\nReview this code")
+    via_alt = split_prompt_for_models(
+        "%alt(%model:opus,%model:sonnet)\nReview this code"
+    )
+    assert via_m == via_alt
+
+
+# --- split_prompt_for_alternatives tests ---
+
+
+def test_split_prompt_for_alternatives_two_args() -> None:
+    """Two alternatives produce two prompts."""
+    prompt = "%alt(%m:opus,%m:sonnet)\nReview this code"
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%m:opus\nReview this code"
+    assert result[1] == "%m:sonnet\nReview this code"
+
+
+def test_split_prompt_for_alternatives_three_args() -> None:
+    """Three alternatives produce three prompts."""
+    prompt = "%alt(fast,balanced,thorough)\nAnalyze this"
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 3
+    assert result[0] == "fast\nAnalyze this"
+    assert result[1] == "balanced\nAnalyze this"
+    assert result[2] == "thorough\nAnalyze this"
+
+
+def test_split_prompt_for_alternatives_single_arg_returns_none() -> None:
+    """Single alternative returns None (not a split)."""
+    assert _split_prompt_for_alternatives("%alt(only_one)\nDo work") is None
+
+
+def test_split_prompt_for_alternatives_no_alt_returns_none() -> None:
+    """No %alt directive returns None."""
+    assert _split_prompt_for_alternatives("Just a prompt") is None
+
+
+def test_split_prompt_for_alternatives_preserves_other_directives() -> None:
+    """Other directives in the prompt are preserved."""
+    prompt = "%approve\n%alt(%m:opus,%m:sonnet)\nReview this code"
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%approve\n%m:opus\nReview this code"
+    assert result[1] == "%approve\n%m:sonnet\nReview this code"
+
+
+def test_split_prompt_for_alternatives_text_block_args() -> None:
+    """Text block args [[...]] are expanded."""
+    prompt = "%alt([[Focus on security]],[[Focus on performance]])\nReview this code"
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "Focus on security\nReview this code"
+    assert result[1] == "Focus on performance\nReview this code"
+
+
+def test_split_prompt_for_alternatives_nested_directives() -> None:
+    """Nested directives in args (e.g., %m:opus) are preserved."""
+    prompt = "%alt(%m:opus %name:reviewer,%m:sonnet %name:coder)\nDo work"
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "%m:opus %name:reviewer\nDo work"
+    assert result[1] == "%m:sonnet %name:coder\nDo work"
+
+
+def test_split_prompt_for_alternatives_multiple_alt_raises() -> None:
+    """Multiple %alt directives raise DirectiveError."""
+    prompt = "%alt(a,b) %alt(c,d)\nDo work"
+    with pytest.raises(DirectiveError, match="Multiple '%alt'"):
+        _split_prompt_for_alternatives(prompt)
+
+
+# --- has_alt_directive tests ---
+
+
+def test_has_alt_directive_present() -> None:
+    """Detects %alt( syntax."""
+    assert has_alt_directive("%alt(a,b)\nDo something") is True
+
+
+def test_has_alt_directive_start_of_line() -> None:
+    """Detects %alt at start of line."""
+    assert has_alt_directive("Do work\n%alt(a,b)") is True
+
+
+def test_has_alt_directive_after_space() -> None:
+    """Detects %alt after whitespace."""
+    assert has_alt_directive("Do something %alt(a,b)") is True
+
+
+def test_has_alt_directive_absent() -> None:
+    """Returns False when no %alt directive present."""
+    assert has_alt_directive("Do something %model:opus") is False
+
+
+def test_has_alt_directive_no_percent() -> None:
+    """Returns False quickly when no % in prompt."""
+    assert has_alt_directive("Just a plain prompt") is False
+
+
+def test_has_alt_directive_partial_no_paren() -> None:
+    """Returns False for %alt without opening paren."""
+    assert has_alt_directive("%alt:something") is False
 
 
 # --- _parse_duration tests ---

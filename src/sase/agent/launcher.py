@@ -249,6 +249,41 @@ def launch_agent_from_cwd(
         )
         return results[0]
 
+    # --- Alt-split detection ---
+    from sase.xprompt.directives import split_prompt_for_models
+
+    alt_prompts = split_prompt_for_models(query)
+    if alt_prompts is not None:
+        from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+        from sase.workspace_provider import get_ref_patterns
+
+        alt_cl_name = project_name
+        alt_vcs_ref: tuple[str, str] | None = None
+        for wf_name, pattern in get_ref_patterns().items():
+            match = pattern.search(query)
+            if match is not None:
+                ref_value = match.group(1) or match.group(2)
+                if ref_value:
+                    alt_cl_name = ref_value
+                    alt_vcs_ref = (wf_name, ref_value)
+                    break
+
+        add_or_update_prompt(
+            query,
+            project_name=project_name,
+            branch_or_workspace=alt_cl_name if alt_cl_name != project_name else None,
+        )
+        results = launch_multi_prompt_agents(
+            segments=alt_prompts,
+            local_xprompts={},
+            cl_name=alt_cl_name,
+            project_file=project_file,
+            project_name=project_name,
+            is_home_mode=is_home_mode,
+            vcs_ref=alt_vcs_ref,
+        )
+        return results[0]
+
     # --- Detect VCS refs in prompt ---
     from sase.xprompt.directives import has_wait_directive
 

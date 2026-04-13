@@ -169,32 +169,81 @@ _MULTI_MODEL_RE = re.compile(
     re.MULTILINE,
 )
 
+# Pattern to match %alt( at a directive-valid position.
+_ALT_DIRECTIVE_RE = re.compile(
+    r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
+    r"(%alt)\(",
+    re.MULTILINE,
+)
 
-def split_prompt_for_models(prompt: str) -> list[str] | None:
-    """Split a prompt with a multi-model directive into per-model prompts.
 
-    If the prompt contains ``%model(a,b,...)`` or ``%m(a,b,...)`` with
-    multiple comma-separated model names, returns a list of prompts where
-    each has the multi-model directive replaced with a single ``%model:X``
-    directive.
+def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
+    """Split a prompt containing ``%alt(text1,text2,...)`` into per-alternative prompts.
 
-    Returns ``None`` if there is no multi-model directive (single model
-    or no model directive at all).
+    Each ``%alt(...)`` argument becomes a separate prompt with the
+    ``%alt(...)`` span replaced by that argument's text.  Arguments can
+    be arbitrary text — directives, xprompt references, plain instructions,
+    or ``[[text blocks]]``.
+
+    Returns ``None`` if there is no ``%alt`` directive or it has only one
+    argument.
+
+    Raises:
+        DirectiveError: If more than one ``%alt(...)`` appears in the prompt,
+            or if the opening parenthesis has no matching close.
     """
-    match = _MULTI_MODEL_RE.search(prompt)
-    if match is None:
+    matches = list(_ALT_DIRECTIVE_RE.finditer(prompt))
+    if not matches:
         return None
+    if len(matches) > 1:
+        raise DirectiveError(
+            "Multiple '%alt' directives in a single prompt are not supported"
+        )
 
-    inner = match.group(2)
+    match = matches[0]
+    paren_start = match.end() - 1  # position of '('
+    paren_end = find_matching_paren_for_args(prompt, paren_start)
+    if paren_end is None:
+        raise DirectiveError("Unclosed '%alt(' directive — missing closing ')'")
+
+    inner = prompt[paren_start + 1 : paren_end]
     positional_args, _ = parse_args(inner)
+
     if len(positional_args) <= 1:
         return None
 
     result: list[str] = []
-    for model in positional_args:
-        replaced = prompt[: match.start(1)] + f"%model:{model}" + prompt[match.end() :]
+    for arg in positional_args:
+        replaced = prompt[: match.start(1)] + arg + prompt[paren_end + 1 :]
         result.append(replaced)
     return result
+
+
+def split_prompt_for_models(prompt: str) -> list[str] | None:
+    """Split a prompt with a multi-model or ``%alt`` directive into per-variant prompts.
+
+    Handles two cases:
+
+    1. ``%model(a,b,...)`` / ``%m(a,b,...)`` — rewritten internally to
+       ``%alt(%model:a,%model:b,...)`` then split.
+    2. Direct ``%alt(...)`` usage — split as-is.
+
+    Returns ``None`` if there is nothing to split (single model, single
+    alt argument, or no splitting directive at all).
+    """
+    match = _MULTI_MODEL_RE.search(prompt)
+    if match is not None:
+        inner = match.group(2)
+        positional_args, _ = parse_args(inner)
+        if len(positional_args) > 1:
+            alt_args = ",".join(f"%model:{model}" for model in positional_args)
+            rewritten = (
+                prompt[: match.start(1)] + f"%alt({alt_args})" + prompt[match.end() :]
+            )
+            return _split_prompt_for_alternatives(rewritten)
+
+    # No multi-model found; check for direct %alt usage
+    return _split_prompt_for_alternatives(prompt)
 
 
 def has_wait_directive(prompt: str) -> bool:
@@ -217,6 +266,17 @@ def has_model_directive(prompt: str) -> bool:
     if "%" not in prompt:
         return False
     return bool(re.search(r"(?:^|\s)%(?:model|m)(?:[:+(]|\s|$)", prompt, re.MULTILINE))
+
+
+def has_alt_directive(prompt: str) -> bool:
+    """Quick check whether a prompt contains a ``%alt(`` directive.
+
+    This avoids the overhead of full splitting and is suitable for
+    early detection in the CLI auto-daemon routing.
+    """
+    if "%" not in prompt:
+        return False
+    return bool(re.search(r"(?:^|\s)%alt\(", prompt, re.MULTILINE))
 
 
 def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:

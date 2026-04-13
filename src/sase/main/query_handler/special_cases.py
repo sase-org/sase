@@ -43,6 +43,20 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             print(f"Multi-prompt detected — launching {n} agents in daemon mode")
             run_query_daemon(prompt)
             return
+        from sase.xprompt.directives import (
+            has_alt_directive,
+            split_prompt_for_models,
+        )
+
+        alt_prompts = split_prompt_for_models(prompt)
+        if alt_prompts is not None:
+            n = len(alt_prompts)
+            if has_alt_directive(prompt):
+                print(f"Alt-split detected — launching {n} agents in daemon mode")
+            else:
+                print(f"Multi-model detected — launching {n} agents in daemon mode")
+            run_query_daemon(prompt)
+            return
         run_query(prompt)
 
     # Handle -l/--list flag (incompatible with daemon)
