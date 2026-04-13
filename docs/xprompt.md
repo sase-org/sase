@@ -762,8 +762,16 @@ Review this module.
 This launches two agents: one with "Also check for security issues. Review this module." and one with just "Review this
 module."
 
-Only one `%alt`/`%(` directive is allowed per prompt. The multi-model directive (`%m(opus,sonnet)`) is internally
-rewritten as `%alt(%model:opus,%model:sonnet)`.
+Multiple `%alt`/`%(` directives can appear in the same prompt. When they do, a **Cartesian product** of all argument
+lists is computed — one agent is launched per combination:
+
+```
+%(Focus on security, Focus on perf) %m(opus, sonnet)
+Review this code.
+```
+
+This produces 2 × 2 = 4 agents (every focus area paired with every model). The multi-model directive (`%m(opus,sonnet)`)
+is internally rewritten as `%alt(%model:opus,%model:sonnet)`, so it participates in the Cartesian product naturally.
 
 ### Multi-Model Directive
 

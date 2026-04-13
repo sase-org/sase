@@ -282,11 +282,16 @@ def test_split_prompt_for_alternatives_nested_directives() -> None:
     assert result[1] == "%m:sonnet %name:coder\nDo work"
 
 
-def test_split_prompt_for_alternatives_multiple_alt_raises() -> None:
-    """Multiple %alt directives raise DirectiveError."""
+def test_split_prompt_for_alternatives_multiple_alt_cartesian() -> None:
+    """Two %alt directives produce Cartesian product (2x2 = 4 prompts)."""
     prompt = "%alt(a,b) %alt(c,d)\nDo work"
-    with pytest.raises(DirectiveError, match="Multiple"):
-        _split_prompt_for_alternatives(prompt)
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 4
+    assert result[0] == "a c\nDo work"
+    assert result[1] == "a d\nDo work"
+    assert result[2] == "b c\nDo work"
+    assert result[3] == "b d\nDo work"
 
 
 # --- %(...) shorthand tests ---
@@ -310,11 +315,50 @@ def test_split_prompt_for_alternatives_shorthand_single_arg() -> None:
     assert result[1] == "\nDo work"
 
 
-def test_split_prompt_for_alternatives_shorthand_mixed_with_alt_raises() -> None:
-    """%(a,b) combined with %alt(c,d) raises multiple-alt error."""
+def test_split_prompt_for_alternatives_shorthand_mixed_with_alt_cartesian() -> None:
+    """%(a,b) combined with %alt(c,d) produces Cartesian product (4 prompts)."""
     prompt = "%(a,b) %alt(c,d)\nDo work"
-    with pytest.raises(DirectiveError, match="Multiple"):
-        _split_prompt_for_alternatives(prompt)
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 4
+    assert result[0] == "a c\nDo work"
+    assert result[1] == "a d\nDo work"
+    assert result[2] == "b c\nDo work"
+    assert result[3] == "b d\nDo work"
+
+
+def test_split_prompt_for_alternatives_three_directives() -> None:
+    """Three directives produce 2x2x3 = 12 prompts."""
+    prompt = "%alt(a,b) %alt(c,d) %alt(e,f,g)\nDo work"
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 12
+    assert result[0] == "a c e\nDo work"
+    assert result[-1] == "b d g\nDo work"
+
+
+def test_split_prompt_for_alternatives_single_arg_combined() -> None:
+    """Single-arg (implicit empty) combined with another directive (2x2 = 4)."""
+    prompt = "%alt(extra) %alt(c,d)\nDo work"
+    result = _split_prompt_for_alternatives(prompt)
+    assert result is not None
+    assert len(result) == 4
+    assert result[0] == "extra c\nDo work"
+    assert result[1] == "extra d\nDo work"
+    assert result[2] == " c\nDo work"
+    assert result[3] == " d\nDo work"
+
+
+def test_split_prompt_for_models_with_alt_directive() -> None:
+    """%model(opus,sonnet) combined with %(x,y) produces 4 prompts."""
+    prompt = "%m(opus,sonnet) %(x,y)\nReview this code"
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 4
+    assert "%model:opus" in result[0] and "x" in result[0]
+    assert "%model:opus" in result[1] and "y" in result[1]
+    assert "%model:sonnet" in result[2] and "x" in result[2]
+    assert "%model:sonnet" in result[3] and "y" in result[3]
 
 
 # --- has_alt_directive tests ---

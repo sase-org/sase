@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-13 12:22:40
-status: wip
+status: done
 ---
 
 # Plan: Multiple `%alt` / `%(...)` Directives via Cartesian Product

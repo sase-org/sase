@@ -12,6 +12,7 @@ Example::
 The ``%model`` directive overrides the LLM model used for that prompt.
 """
 
+import itertools
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -186,43 +187,57 @@ def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
 
     ``%(...)`` is syntactic sugar for ``%alt(...)``.
 
-    Returns ``None`` if there is no ``%alt``/``%(`` directive or it has zero
-    arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` is treated as having
-    an implicit empty variant, producing two prompts: one with the argument
-    text and one with the directive removed.
+    When multiple ``%alt``/``%(`` directives appear, a Cartesian product of
+    all argument lists is computed — e.g. two directives with 2 and 3
+    arguments produce 2 × 3 = 6 prompts.
+
+    Returns ``None`` if there are no ``%alt``/``%(`` directives or all have
+    zero arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` is treated as
+    having an implicit empty variant, producing two alternatives for that
+    directive.
 
     Raises:
-        DirectiveError: If more than one ``%alt(...)``/``%(...)`` appears in
-            the prompt, or if the opening parenthesis has no matching close.
+        DirectiveError: If an opening parenthesis has no matching close.
     """
     matches = list(_ALT_DIRECTIVE_RE.finditer(prompt))
     if not matches:
         return None
-    if len(matches) > 1:
-        raise DirectiveError(
-            "Multiple '%alt(...)' / '%(...)' directives in a single prompt"
-            " are not supported"
-        )
 
-    match = matches[0]
-    paren_start = match.end() - 1  # position of '('
-    paren_end = find_matching_paren_for_args(prompt, paren_start)
-    if paren_end is None:
-        raise DirectiveError("Unclosed '%alt('/'%(' directive — missing closing ')'")
+    # Collect directive spans and their argument lists.
+    directives: list[tuple[int, int, list[str]]] = []
+    for match in matches:
+        paren_start = match.end() - 1  # position of '('
+        paren_end = find_matching_paren_for_args(prompt, paren_start)
+        if paren_end is None:
+            raise DirectiveError(
+                "Unclosed '%alt('/'%(' directive — missing closing ')'"
+            )
 
-    inner = prompt[paren_start + 1 : paren_end]
-    positional_args, _ = parse_args(inner)
+        inner = prompt[paren_start + 1 : paren_end]
+        positional_args, _ = parse_args(inner)
 
-    if len(positional_args) == 0:
+        if len(positional_args) == 0:
+            continue
+
+        # Single arg: treat as "with/without" — append an implicit empty variant.
+        if len(positional_args) == 1:
+            positional_args.append("")
+
+        directives.append((match.start(1), paren_end + 1, positional_args))
+
+    if not directives:
         return None
 
-    # Single arg: treat as "with/without" — append an implicit empty variant.
-    if len(positional_args) == 1:
-        positional_args.append("")
-
+    # Compute Cartesian product of all argument lists.
+    all_arg_lists = [d[2] for d in directives]
     result: list[str] = []
-    for arg in positional_args:
-        replaced = prompt[: match.start(1)] + arg + prompt[paren_end + 1 :]
+    for combination in itertools.product(*all_arg_lists):
+        # Replace spans right-to-left so earlier positions aren't shifted.
+        replaced = prompt
+        for (span_start, span_end, _), arg in reversed(
+            list(zip(directives, combination, strict=True))
+        ):
+            replaced = replaced[:span_start] + arg + replaced[span_end:]
         result.append(replaced)
     return result
 
