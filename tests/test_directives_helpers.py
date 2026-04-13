@@ -285,7 +285,35 @@ def test_split_prompt_for_alternatives_nested_directives() -> None:
 def test_split_prompt_for_alternatives_multiple_alt_raises() -> None:
     """Multiple %alt directives raise DirectiveError."""
     prompt = "%alt(a,b) %alt(c,d)\nDo work"
-    with pytest.raises(DirectiveError, match="Multiple '%alt'"):
+    with pytest.raises(DirectiveError, match="Multiple"):
+        _split_prompt_for_alternatives(prompt)
+
+
+# --- %(...) shorthand tests ---
+
+
+def test_split_prompt_for_alternatives_shorthand_two_args() -> None:
+    """%(a,b) shorthand produces two prompts like %alt(a,b)."""
+    result = _split_prompt_for_alternatives("%(a,b)\nDo work")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "a\nDo work"
+    assert result[1] == "b\nDo work"
+
+
+def test_split_prompt_for_alternatives_shorthand_single_arg() -> None:
+    """%(only_one) shorthand produces two prompts (implicit empty variant)."""
+    result = _split_prompt_for_alternatives("%(only_one)\nDo work")
+    assert result is not None
+    assert len(result) == 2
+    assert result[0] == "only_one\nDo work"
+    assert result[1] == "\nDo work"
+
+
+def test_split_prompt_for_alternatives_shorthand_mixed_with_alt_raises() -> None:
+    """%(a,b) combined with %alt(c,d) raises multiple-alt error."""
+    prompt = "%(a,b) %alt(c,d)\nDo work"
+    with pytest.raises(DirectiveError, match="Multiple"):
         _split_prompt_for_alternatives(prompt)
 
 
@@ -320,6 +348,18 @@ def test_has_alt_directive_no_percent() -> None:
 def test_has_alt_directive_partial_no_paren() -> None:
     """Returns False for %alt without opening paren."""
     assert has_alt_directive("%alt:something") is False
+
+
+def test_has_alt_directive_shorthand() -> None:
+    """Detects %( shorthand syntax."""
+    assert has_alt_directive("%(a,b)\nDo something") is True
+    assert has_alt_directive("Do something %(a,b)") is True
+
+
+def test_has_alt_directive_bare_percent_no_paren() -> None:
+    """Returns False for % without ( (no regression)."""
+    assert has_alt_directive("50% done") is False
+    assert has_alt_directive("Use 100% of CPU") is False
 
 
 # --- _parse_duration tests ---

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 20:25:23
-status: wip
+status: done
 ---
 
 # Plan: `%(...)` shorthand for `%alt(...)`

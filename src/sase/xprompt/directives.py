@@ -169,44 +169,46 @@ _MULTI_MODEL_RE = re.compile(
     re.MULTILINE,
 )
 
-# Pattern to match %alt( at a directive-valid position.
+# Pattern to match %alt( or %( at a directive-valid position.
 _ALT_DIRECTIVE_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
-    r"(%alt)\(",
+    r"(%(?:alt)?)\(",
     re.MULTILINE,
 )
 
 
 def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
-    """Split a prompt containing ``%alt(text1,text2,...)`` into per-alternative prompts.
+    """Split a prompt containing ``%alt(...)`` or ``%(...)`` into per-alternative prompts.
 
-    Each ``%alt(...)`` argument becomes a separate prompt with the
-    ``%alt(...)`` span replaced by that argument's text.  Arguments can
-    be arbitrary text — directives, xprompt references, plain instructions,
-    or ``[[text blocks]]``.
+    Each argument becomes a separate prompt with the directive span replaced
+    by that argument's text.  Arguments can be arbitrary text — directives,
+    xprompt references, plain instructions, or ``[[text blocks]]``.
 
-    Returns ``None`` if there is no ``%alt`` directive or it has zero
-    arguments.  A single-arg ``%alt(foo)`` is treated as ``%alt(foo,)``,
-    producing two prompts: one with the argument text and one with the
-    directive removed (the empty-string variant).
+    ``%(...)`` is syntactic sugar for ``%alt(...)``.
+
+    Returns ``None`` if there is no ``%alt``/``%(`` directive or it has zero
+    arguments.  A single-arg ``%alt(foo)`` / ``%(foo)`` is treated as having
+    an implicit empty variant, producing two prompts: one with the argument
+    text and one with the directive removed.
 
     Raises:
-        DirectiveError: If more than one ``%alt(...)`` appears in the prompt,
-            or if the opening parenthesis has no matching close.
+        DirectiveError: If more than one ``%alt(...)``/``%(...)`` appears in
+            the prompt, or if the opening parenthesis has no matching close.
     """
     matches = list(_ALT_DIRECTIVE_RE.finditer(prompt))
     if not matches:
         return None
     if len(matches) > 1:
         raise DirectiveError(
-            "Multiple '%alt' directives in a single prompt are not supported"
+            "Multiple '%alt(...)' / '%(...)' directives in a single prompt"
+            " are not supported"
         )
 
     match = matches[0]
     paren_start = match.end() - 1  # position of '('
     paren_end = find_matching_paren_for_args(prompt, paren_start)
     if paren_end is None:
-        raise DirectiveError("Unclosed '%alt(' directive — missing closing ')'")
+        raise DirectiveError("Unclosed '%alt('/'%(' directive — missing closing ')'")
 
     inner = prompt[paren_start + 1 : paren_end]
     positional_args, _ = parse_args(inner)
@@ -226,13 +228,13 @@ def _split_prompt_for_alternatives(prompt: str) -> list[str] | None:
 
 
 def split_prompt_for_models(prompt: str) -> list[str] | None:
-    """Split a prompt with a multi-model or ``%alt`` directive into per-variant prompts.
+    """Split a prompt with a multi-model or ``%alt``/``%(`` directive into per-variant prompts.
 
     Handles two cases:
 
     1. ``%model(a,b,...)`` / ``%m(a,b,...)`` — rewritten internally to
        ``%alt(%model:a,%model:b,...)`` then split.
-    2. Direct ``%alt(...)`` usage — split as-is.
+    2. Direct ``%alt(...)`` or ``%(...)`` usage — split as-is.
 
     Returns ``None`` if there is nothing to split (single model, single
     alt argument, or no splitting directive at all).
@@ -275,14 +277,14 @@ def has_model_directive(prompt: str) -> bool:
 
 
 def has_alt_directive(prompt: str) -> bool:
-    """Quick check whether a prompt contains a ``%alt(`` directive.
+    """Quick check whether a prompt contains a ``%alt(`` or ``%(`` directive.
 
     This avoids the overhead of full splitting and is suitable for
     early detection in the CLI auto-daemon routing.
     """
     if "%" not in prompt:
         return False
-    return bool(re.search(r"(?:^|\s)%alt\(", prompt, re.MULTILINE))
+    return bool(re.search(r"(?:^|\s)%(?:alt)?\(", prompt, re.MULTILINE))
 
 
 def extract_prompt_directives(prompt: str) -> tuple[str, PromptDirectives]:
