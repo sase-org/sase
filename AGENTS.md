@@ -34,6 +34,8 @@ The below files contain detailed reference material. Read them when working in t
   merging. Read when modifying the bead/issue tracker.
 - **memory/long/changespec_lifecycle.md** - Status transitions, suffix semantics, parent-child invariants, archive
   movement, mentor draft flags. Read when modifying ChangeSpec status logic or transitions.
+- **memory/long/config.md** - Merge chain precedence, dual list strategies, schema maintenance, local config disabling,
+  auto-scoping. Read when modifying config loading, adding config fields, or changing merge behavior.
 - **memory/long/external_repos.md** - Chezmoi repo and plugin repo (sase-github, sase-google, sase-telegram, sase-nvim)
   locations and workflows. Read when cross-repo work is needed.
 - **memory/long/generated_skills.md** - Skill file generation pipeline, CLI/skill contract synchronization, commit
