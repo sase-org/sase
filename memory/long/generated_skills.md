@@ -1,5 +1,6 @@
 ---
-keywords: [skill, SKILL.md, init-skills, sase_commit, sase_git_commit, sase_hg_commit, commit workflow, commit skill]
+keywords:
+  [sase commit, SKILL.md, init-skills, sase_commit, sase_git_commit, sase_hg_commit, commit workflow, commit skill]
 ---
 
 # Generated Skill Files
