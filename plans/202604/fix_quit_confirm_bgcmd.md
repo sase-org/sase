@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-13 12:40:39
-status: wip
+status: done
 ---
 
 # Plan: Fix TUI quit confirmation to only trigger for background tasks
