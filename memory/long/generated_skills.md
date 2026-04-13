@@ -1,3 +1,7 @@
+---
+keywords: [skill, SKILL.md, init-skills, sase_commit, sase_git_commit, sase_hg_commit, commit workflow, commit skill]
+---
+
 # Generated Skill Files
 
 Chezmoi skill files (`SKILL.md`) are **generated**, not hand-edited. The source templates live in

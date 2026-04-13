@@ -101,12 +101,12 @@ def test_xprompt_to_workflow_copies_keywords() -> None:
 def _make_memory_workflows() -> dict[str, object]:
     """Create a set of memory-tagged workflows for testing."""
     entries = {
-        "memory/external_repos": {
+        "memory/long/external_repos": {
             "tags": "memory",
             "keywords": ["chezmoi", "plugin", "cross-repo"],
             "content": "$(cat memory/long/external_repos.md)",
         },
-        "memory/generated_skills": {
+        "memory/long/generated_skills": {
             "tags": "memory",
             "keywords": ["skill", "SKILL.md", "commit workflow"],
             "content": "$(cat memory/long/generated_skills.md)",
@@ -132,12 +132,12 @@ def test_matching_keywords_writes_temp_file(tmp_path: Path) -> None:
         result = generate_dynamic_memory("I need to update the chezmoi config", None)
 
     assert len(result.matched) == 1
-    assert result.matched[0].name == "memory/external_repos"
+    assert result.matched[0].name == "memory/long/external_repos"
     assert "chezmoi" in result.matched[0].keywords_matched
     assert result.path is not None
 
     content = Path(result.path).read_text()
-    assert "---\n## memory/external_repos\n" in content
+    assert "---\n## memory/long/external_repos\n" in content
     assert "# External Repos" in content
     assert "$(" not in content
 
@@ -170,13 +170,13 @@ def test_multiple_matches_concatenated(tmp_path: Path) -> None:
 
     assert len(result.matched) == 2
     names = {m.name for m in result.matched}
-    assert "memory/external_repos" in names
-    assert "memory/generated_skills" in names
+    assert "memory/long/external_repos" in names
+    assert "memory/long/generated_skills" in names
 
     assert result.path is not None
     content = Path(result.path).read_text()
-    assert "---\n## memory/external_repos\n" in content
-    assert "---\n## memory/generated_skills\n" in content
+    assert "---\n## memory/long/external_repos\n" in content
+    assert "---\n## memory/long/generated_skills\n" in content
     assert "# External Repos" in content
     assert "# Generated Skills" in content
 
@@ -194,7 +194,7 @@ def test_case_insensitive_matching(tmp_path: Path) -> None:
         result = generate_dynamic_memory("CHEZMOI stuff", None)
 
     assert len(result.matched) == 1
-    assert result.matched[0].name == "memory/external_repos"
+    assert result.matched[0].name == "memory/long/external_repos"
 
 
 def test_returns_structured_result(tmp_path: Path) -> None:
@@ -213,7 +213,7 @@ def test_returns_structured_result(tmp_path: Path) -> None:
     assert len(result.matched) == 1
     m = result.matched[0]
     assert isinstance(m, MatchedMemory)
-    assert m.name == "memory/external_repos"
+    assert m.name == "memory/long/external_repos"
     assert "chezmoi" in m.keywords_matched
     assert "plugin" in m.keywords_matched
     assert m.content == "$(cat memory/long/external_repos.md)"
@@ -236,6 +236,93 @@ def test_no_matches_when_no_memory_tag() -> None:
 
     assert result.matched == []
     assert result.path is None
+
+
+# ── _load_memory_long_xprompts ────────────────────────────────────────────
+
+
+def test_load_memory_long_discovers_frontmatter(tmp_path: Path) -> None:
+    """Files with keywords frontmatter are discovered as memory xprompts."""
+    from sase.xprompt.loader import _load_memory_long_xprompts
+
+    mem_dir = tmp_path / "memory" / "long"
+    mem_dir.mkdir(parents=True)
+    (mem_dir / "foo.md").write_text(
+        "---\nkeywords: [alpha, beta]\n---\n# Foo content\n"
+    )
+
+    with (
+        patch(
+            "sase.xprompt.loader._get_memory_long_search_dirs",
+            return_value=[(mem_dir, True)],
+        ),
+        patch("sase.xprompt.loader.Path.cwd", return_value=tmp_path),
+    ):
+        result = _load_memory_long_xprompts()
+
+    assert "memory/long/foo" in result
+    xp = result["memory/long/foo"]
+    assert xp.keywords == ["alpha", "beta"]
+    assert xp.has_tag(XPromptTag.memory)
+    assert "$(cat " in xp.content
+
+
+def test_load_memory_long_skips_no_keywords(tmp_path: Path) -> None:
+    """Files without keywords frontmatter are ignored."""
+    from sase.xprompt.loader import _load_memory_long_xprompts
+
+    mem_dir = tmp_path / "memory" / "long"
+    mem_dir.mkdir(parents=True)
+    (mem_dir / "no_keywords.md").write_text("# Just a file\nNo frontmatter.\n")
+
+    with patch(
+        "sase.xprompt.loader._get_memory_long_search_dirs",
+        return_value=[(mem_dir, True)],
+    ):
+        result = _load_memory_long_xprompts()
+
+    assert result == {}
+
+
+def test_load_memory_long_uses_absolute_path_for_home(tmp_path: Path) -> None:
+    """Home-based files use absolute paths in $(cat ...)."""
+    from sase.xprompt.loader import _load_memory_long_xprompts
+
+    mem_dir = tmp_path / ".claude" / "memory" / "long"
+    mem_dir.mkdir(parents=True)
+    md_file = mem_dir / "bar.md"
+    md_file.write_text("---\nkeywords: [gamma]\n---\n# Bar\n")
+
+    with patch(
+        "sase.xprompt.loader._get_memory_long_search_dirs",
+        return_value=[(mem_dir, False)],
+    ):
+        result = _load_memory_long_xprompts()
+
+    assert "memory/long/bar" in result
+    assert result["memory/long/bar"].content == f"$(cat {md_file})"
+
+
+def test_load_memory_long_first_dir_wins(tmp_path: Path) -> None:
+    """Higher-priority directory wins on name collision."""
+    from sase.xprompt.loader import _load_memory_long_xprompts
+
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    for d in (dir_a, dir_b):
+        d.mkdir(parents=True)
+        (d / "dup.md").write_text(f"---\nkeywords: [from_{d.name}]\n---\n# {d.name}\n")
+
+    with (
+        patch(
+            "sase.xprompt.loader._get_memory_long_search_dirs",
+            return_value=[(dir_a, True), (dir_b, True)],
+        ),
+        patch("sase.xprompt.loader.Path.cwd", return_value=tmp_path),
+    ):
+        result = _load_memory_long_xprompts()
+
+    assert result["memory/long/dup"].keywords == ["from_a"]
 
 
 def test_temp_file_uses_sase_tmpdir(tmp_path: Path) -> None:

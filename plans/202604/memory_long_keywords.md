@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 23:04:20
-status: wip
+status: done
 ---
 
 # Plan: Auto-discover memory/long/ files with `keywords` frontmatter

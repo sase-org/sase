@@ -1,3 +1,7 @@
+---
+keywords: [chezmoi, plugin, sase-github, sase-google, sase-telegram, sase-nvim, dotfile, cross-repo]
+---
+
 # External Repos
 
 ## Chezmoi Repo
