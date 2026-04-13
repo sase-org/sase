@@ -11,9 +11,9 @@ The following memory files contain core (always loaded) context:
 
 ## Tier 2 (dynamic) Memory
 
-When your prompt matches keywords from memory-tagged xprompts, sase injects a `DYNAMIC MEMORY: @<path>` line at the
-bottom of your prompt. The `@` reference resolves to the matched tier 3 content automatically. You do not need to take
-any action -- the content is included in your context.
+When your prompt matches keywords from memory-tagged xprompts, sase injects a `DYNAMIC MEMORY: @<memory_file_path>` line
+at the bottom of your prompt. `<memory_file_path>` should be the file path of a markdown file that contains some context
+gathered by sase based on the prompt.
 
 ## Tier 3 (long-term) Memory
 
