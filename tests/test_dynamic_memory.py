@@ -49,14 +49,14 @@ def test_parse_xprompt_entries_with_keywords() -> None:
         "memory/foo": {
             "tags": "memory",
             "keywords": ["chezmoi", "plugin"],
-            "content": "@memory/long/foo.md",
+            "content": "$(cat memory/long/foo.md)",
         }
     }
     result = parse_xprompt_entries(entries, "test")
     xp = result["memory/foo"]
     assert xp.keywords == ["chezmoi", "plugin"]
     assert xp.has_tag(XPromptTag.memory)
-    assert xp.content == "@memory/long/foo.md"
+    assert xp.content == "$(cat memory/long/foo.md)"
 
 
 def test_parse_xprompt_entries_simple_string_has_no_keywords() -> None:
@@ -104,12 +104,12 @@ def _make_memory_workflows() -> dict[str, object]:
         "memory/external_repos": {
             "tags": "memory",
             "keywords": ["chezmoi", "plugin", "cross-repo"],
-            "content": "@memory/long/external_repos.md",
+            "content": "$(cat memory/long/external_repos.md)",
         },
         "memory/generated_skills": {
             "tags": "memory",
             "keywords": ["skill", "SKILL.md", "commit workflow"],
-            "content": "@memory/long/generated_skills.md",
+            "content": "$(cat memory/long/generated_skills.md)",
         },
         "regular_xprompt": "Just a regular xprompt with no memory tag",
     }
@@ -122,6 +122,12 @@ def test_matching_keywords_writes_temp_file(tmp_path: Path) -> None:
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s.replace(
+                "$(cat memory/long/external_repos.md)", "# External Repos\nresolved"
+            ),
+        ),
     ):
         result = generate_dynamic_memory("I need to update the chezmoi config", None)
 
@@ -131,7 +137,8 @@ def test_matching_keywords_writes_temp_file(tmp_path: Path) -> None:
     assert result.path is not None
 
     content = Path(result.path).read_text()
-    assert "@memory/long/external_repos.md" in content
+    assert "# External Repos" in content
+    assert "$(" not in content
 
 
 def test_no_matches_returns_no_path() -> None:
@@ -148,6 +155,12 @@ def test_multiple_matches_concatenated(tmp_path: Path) -> None:
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s.replace(
+                "$(cat memory/long/external_repos.md)", "# External Repos"
+            ).replace("$(cat memory/long/generated_skills.md)", "# Generated Skills"),
+        ),
     ):
         result = generate_dynamic_memory(
             "update the chezmoi plugin and the commit skill",
@@ -161,8 +174,8 @@ def test_multiple_matches_concatenated(tmp_path: Path) -> None:
 
     assert result.path is not None
     content = Path(result.path).read_text()
-    assert "@memory/long/external_repos.md" in content
-    assert "@memory/long/generated_skills.md" in content
+    assert "# External Repos" in content
+    assert "# Generated Skills" in content
 
 
 def test_case_insensitive_matching(tmp_path: Path) -> None:
@@ -170,6 +183,10 @@ def test_case_insensitive_matching(tmp_path: Path) -> None:
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
     ):
         result = generate_dynamic_memory("CHEZMOI stuff", None)
 
@@ -182,6 +199,10 @@ def test_returns_structured_result(tmp_path: Path) -> None:
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
     ):
         result = generate_dynamic_memory("chezmoi and plugin work", None)
 
@@ -192,7 +213,7 @@ def test_returns_structured_result(tmp_path: Path) -> None:
     assert m.name == "memory/external_repos"
     assert "chezmoi" in m.keywords_matched
     assert "plugin" in m.keywords_matched
-    assert m.content == "@memory/long/external_repos.md"
+    assert m.content == "$(cat memory/long/external_repos.md)"
     assert result.path is not None
 
 
@@ -222,6 +243,10 @@ def test_temp_file_uses_sase_tmpdir(tmp_path: Path) -> None:
     with (
         patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
         patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(sase_tmp)),
+        patch(
+            "sase.gemini_wrapper.file_references.process_command_substitution",
+            side_effect=lambda s: s,
+        ),
     ):
         result = generate_dynamic_memory("chezmoi stuff", None)
 

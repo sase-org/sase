@@ -1,9 +1,9 @@
 """Dynamic memory generation for agent sessions.
 
-Scans the user's expanded prompt against keyword-tagged memory xprompts
-and writes matched ``@`` references to a temp file.  The temp file path
-is injected into the agent prompt as ``DYNAMIC MEMORY: @<path>``, and
-the agent runtime resolves the ``@`` references automatically.
+Scans the user's expanded prompt against keyword-tagged memory xprompts,
+resolves ``$(cat ...)`` shell substitution in matched content, and writes
+the resolved content to a temp file.  The temp file path is injected into
+the agent prompt as ``DYNAMIC MEMORY: @<path>``.
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
 
     Loads all xprompts, filters to those with the ``memory`` tag and
     non-empty ``keywords``, then checks each keyword against the prompt
-    (case-insensitive substring).  Matched content (typically ``@`` references
-    to ``memory/long/`` files) is written to a temp file under
-    ``$SASE_TMPDIR`` (or system temp).
+    (case-insensitive substring).  Matched content uses ``$(cat ...)`` shell
+    substitution which is resolved before writing to a temp file under
+    ``$SASE_TMPDIR`` (or system temp), so the file contains actual content.
 
     Returns:
         A result containing the list of matched memories and the temp file
@@ -70,6 +70,11 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
     if not matched:
         return DynamicMemoryResult(matched=[], path=None)
 
+    from sase.gemini_wrapper.file_references import process_command_substitution
+
+    raw_content = "\n\n".join(m.content for m in matched) + "\n"
+    resolved_content = process_command_substitution(raw_content)
+
     tmpdir = get_sase_tmpdir()
     with tempfile.NamedTemporaryFile(
         delete=False,
@@ -79,7 +84,7 @@ def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryRe
         mode="w",
         encoding="utf-8",
     ) as f:
-        f.write("\n\n".join(m.content for m in matched) + "\n")
+        f.write(resolved_content)
         tmp_path = f.name
 
     return DynamicMemoryResult(matched=matched, path=tmp_path)

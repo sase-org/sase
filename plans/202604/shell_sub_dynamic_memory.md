@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 22:06:02
-status: wip
+status: done
 ---
 
 # Plan: Use Shell Substitution for Dynamic Memory Content
