@@ -3,7 +3,11 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.memory.dynamic import MatchedMemory, generate_dynamic_memory
+from sase.memory.dynamic import (
+    DynamicMemoryResult,
+    MatchedMemory,
+    generate_dynamic_memory,
+)
 from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.models import XPrompt, xprompt_to_workflow
 from sase.xprompt.tags import XPromptTag, parse_tags
@@ -113,82 +117,86 @@ def _make_memory_workflows() -> dict[str, object]:
     return {name: xprompt_to_workflow(xp) for name, xp in xprompts.items()}
 
 
-def test_matching_keywords_writes_file(tmp_path: Path) -> None:
+def test_matching_keywords_writes_temp_file(tmp_path: Path) -> None:
     workflows = _make_memory_workflows()
-    with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
-        result = generate_dynamic_memory(
-            "I need to update the chezmoi config", str(tmp_path), None
-        )
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+    ):
+        result = generate_dynamic_memory("I need to update the chezmoi config", None)
 
-    assert len(result) == 1
-    assert result[0].name == "memory/external_repos"
-    assert "chezmoi" in result[0].keywords_matched
+    assert len(result.matched) == 1
+    assert result.matched[0].name == "memory/external_repos"
+    assert "chezmoi" in result.matched[0].keywords_matched
+    assert result.path is not None
 
-    dynamic_path = tmp_path / "memory" / "dynamic.md"
-    assert dynamic_path.exists()
-    content = dynamic_path.read_text()
+    content = Path(result.path).read_text()
     assert "@memory/long/external_repos.md" in content
 
 
-def test_no_matches_removes_existing_file(tmp_path: Path) -> None:
-    # Pre-create the file
-    mem_dir = tmp_path / "memory"
-    mem_dir.mkdir()
-    dynamic_path = mem_dir / "dynamic.md"
-    dynamic_path.write_text("old content")
-
+def test_no_matches_returns_no_path() -> None:
     workflows = _make_memory_workflows()
     with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
-        result = generate_dynamic_memory("nothing relevant here", str(tmp_path), None)
+        result = generate_dynamic_memory("nothing relevant here", None)
 
-    assert result == []
-    assert not dynamic_path.exists()
+    assert result.matched == []
+    assert result.path is None
 
 
 def test_multiple_matches_concatenated(tmp_path: Path) -> None:
     workflows = _make_memory_workflows()
-    with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+    ):
         result = generate_dynamic_memory(
             "update the chezmoi plugin and the commit skill",
-            str(tmp_path),
             None,
         )
 
-    assert len(result) == 2
-    names = {m.name for m in result}
+    assert len(result.matched) == 2
+    names = {m.name for m in result.matched}
     assert "memory/external_repos" in names
     assert "memory/generated_skills" in names
 
-    dynamic_path = tmp_path / "memory" / "dynamic.md"
-    content = dynamic_path.read_text()
+    assert result.path is not None
+    content = Path(result.path).read_text()
     assert "@memory/long/external_repos.md" in content
     assert "@memory/long/generated_skills.md" in content
 
 
 def test_case_insensitive_matching(tmp_path: Path) -> None:
     workflows = _make_memory_workflows()
-    with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
-        result = generate_dynamic_memory("CHEZMOI stuff", str(tmp_path), None)
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+    ):
+        result = generate_dynamic_memory("CHEZMOI stuff", None)
 
-    assert len(result) == 1
-    assert result[0].name == "memory/external_repos"
+    assert len(result.matched) == 1
+    assert result.matched[0].name == "memory/external_repos"
 
 
-def test_returns_structured_matched_memory(tmp_path: Path) -> None:
+def test_returns_structured_result(tmp_path: Path) -> None:
     workflows = _make_memory_workflows()
-    with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
-        result = generate_dynamic_memory("chezmoi and plugin work", str(tmp_path), None)
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(tmp_path)),
+    ):
+        result = generate_dynamic_memory("chezmoi and plugin work", None)
 
-    assert len(result) == 1
-    m = result[0]
+    assert isinstance(result, DynamicMemoryResult)
+    assert len(result.matched) == 1
+    m = result.matched[0]
     assert isinstance(m, MatchedMemory)
     assert m.name == "memory/external_repos"
     assert "chezmoi" in m.keywords_matched
     assert "plugin" in m.keywords_matched
     assert m.content == "@memory/long/external_repos.md"
+    assert result.path is not None
 
 
-def test_no_matches_when_no_memory_tag(tmp_path: Path) -> None:
+def test_no_matches_when_no_memory_tag() -> None:
     """Regular xprompts (without memory tag) are never matched."""
     entries = {
         "no_tag": {
@@ -200,6 +208,22 @@ def test_no_matches_when_no_memory_tag(tmp_path: Path) -> None:
     workflows = {name: xprompt_to_workflow(xp) for name, xp in xprompts.items()}
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=workflows):
-        result = generate_dynamic_memory("chezmoi", str(tmp_path), None)
+        result = generate_dynamic_memory("chezmoi", None)
 
-    assert result == []
+    assert result.matched == []
+    assert result.path is None
+
+
+def test_temp_file_uses_sase_tmpdir(tmp_path: Path) -> None:
+    """Temp file is written under $SASE_TMPDIR when set."""
+    sase_tmp = tmp_path / "sase_tmp"
+    sase_tmp.mkdir()
+    workflows = _make_memory_workflows()
+    with (
+        patch("sase.xprompt.loader.get_all_prompts", return_value=workflows),
+        patch("sase.memory.dynamic.get_sase_tmpdir", return_value=str(sase_tmp)),
+    ):
+        result = generate_dynamic_memory("chezmoi stuff", None)
+
+    assert result.path is not None
+    assert str(sase_tmp) in result.path

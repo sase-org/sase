@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-12 21:09:07
-status: wip
+status: done
 ---
 
 # Plan: Dynamic Memory via Prompt Injection

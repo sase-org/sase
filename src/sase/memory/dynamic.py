@@ -1,15 +1,17 @@
 """Dynamic memory generation for agent sessions.
 
 Scans the user's expanded prompt against keyword-tagged memory xprompts
-and writes ``memory/dynamic.md`` containing ``@`` references to matched
-tier 3 files.  The agent runtime resolves those references as part of
-its CLAUDE.md -> AGENTS.md -> ``@memory/dynamic.md`` inclusion chain.
+and writes matched ``@`` references to a temp file.  The temp file path
+is injected into the agent prompt as ``DYNAMIC MEMORY: @<path>``, and
+the agent runtime resolves the ``@`` references automatically.
 """
 
 from __future__ import annotations
 
-import os
+import tempfile
 from dataclasses import dataclass
+
+from sase.core.paths import get_sase_tmpdir
 
 
 @dataclass
@@ -21,18 +23,26 @@ class MatchedMemory:
     content: str
 
 
-def generate_dynamic_memory(
-    prompt: str, workspace_dir: str, project: str | None
-) -> list[MatchedMemory]:
-    """Match memory-tagged xprompts against the prompt and write dynamic.md.
+@dataclass
+class DynamicMemoryResult:
+    """Result of dynamic memory generation."""
+
+    matched: list[MatchedMemory]
+    path: str | None  # Path to temp file with matched content
+
+
+def generate_dynamic_memory(prompt: str, project: str | None) -> DynamicMemoryResult:
+    """Match memory-tagged xprompts against the prompt and write a temp file.
 
     Loads all xprompts, filters to those with the ``memory`` tag and
     non-empty ``keywords``, then checks each keyword against the prompt
     (case-insensitive substring).  Matched content (typically ``@`` references
-    to ``memory/long/`` files) is written to ``{workspace_dir}/memory/dynamic.md``.
+    to ``memory/long/`` files) is written to a temp file under
+    ``$SASE_TMPDIR`` (or system temp).
 
     Returns:
-        List of matched memories for artifact/TUI reporting.
+        A result containing the list of matched memories and the temp file
+        path (None if no matches).
     """
     from sase.xprompt.loader import get_all_prompts
     from sase.xprompt.tags import XPromptTag
@@ -57,13 +67,19 @@ def generate_dynamic_memory(
                 )
             )
 
-    dynamic_path = os.path.join(workspace_dir, "memory", "dynamic.md")
+    if not matched:
+        return DynamicMemoryResult(matched=[], path=None)
 
-    if matched:
-        os.makedirs(os.path.dirname(dynamic_path), exist_ok=True)
-        with open(dynamic_path, "w", encoding="utf-8") as f:
-            f.write("\n\n".join(m.content for m in matched) + "\n")
-    elif os.path.exists(dynamic_path):
-        os.unlink(dynamic_path)
+    tmpdir = get_sase_tmpdir()
+    with tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".md",
+        prefix="sase_dynamic_memory_",
+        dir=tmpdir,
+        mode="w",
+        encoding="utf-8",
+    ) as f:
+        f.write("\n\n".join(m.content for m in matched) + "\n")
+        tmp_path = f.name
 
-    return matched
+    return DynamicMemoryResult(matched=matched, path=tmp_path)

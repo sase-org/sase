@@ -59,33 +59,6 @@ class AgentDisplayMixin:
                 header_text.append("\u2500" * 50 + "\n", style="dim")
                 header_text.append("\n")
 
-        # DYNAMIC MEMORY section (shown while running/waiting, only if matches exist)
-        if agent.status not in ("DONE", "FAILED"):
-            memory_info = agent.get_dynamic_memory_info()
-            if memory_info:
-                header_text.append("DYNAMIC MEMORY\n", style="bold #D7AF5F underline")
-                header_text.append("\n")
-                for entry in memory_info:
-                    name = str(entry.get("name", ""))
-                    # Strip memory/ prefix for cleaner display
-                    display_name = (
-                        name.removeprefix("memory/")
-                        if name.startswith("memory/")
-                        else name
-                    )
-                    keywords = entry.get("keywords_matched", [])
-                    kw_str = (
-                        ", ".join(str(k) for k in keywords)
-                        if isinstance(keywords, list)
-                        else ""
-                    )
-                    header_text.append("  + ", style="#00D7AF")
-                    header_text.append(f"{display_name}", style="bold")
-                    header_text.append(f"  (matched: {kw_str})\n", style="dim")
-                header_text.append("\n")
-                header_text.append("\u2500" * 50 + "\n", style="dim")
-                header_text.append("\n")
-
         # AGENT PROMPT section
         header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
         header_text.append("\n")

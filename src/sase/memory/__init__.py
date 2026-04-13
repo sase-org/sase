@@ -1,3 +1,3 @@
-from sase.memory.dynamic import MatchedMemory
+from sase.memory.dynamic import DynamicMemoryResult, MatchedMemory
 
-__all__ = ["MatchedMemory"]
+__all__ = ["DynamicMemoryResult", "MatchedMemory"]
