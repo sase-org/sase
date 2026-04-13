@@ -185,6 +185,7 @@ comments and lets you accept or reject individual suggestions.
 | ------------------- | -------------------------------------------------------- |
 | `j` / `k`           | Navigate between mentors                                 |
 | `n` / `p`           | Navigate between comments within a mentor                |
+| `N` / `P`           | Navigate between accepted comments only                  |
 | `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up                         |
 | `Space`             | Toggle acceptance of the current comment                 |
 | `Enter`             | Apply all accepted comments (launches agent)             |

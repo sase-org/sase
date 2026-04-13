@@ -588,6 +588,7 @@ the prompt before further processing.
 | `%plan`    | `%p`  | Enable plan mode (plan first, then execute)        |
 | `%edit`    | `%e`  | Return editor text to the prompt bar for review    |
 | `%repeat`  | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)  |
+| `%alt`     | `%(`  | Split prompt into variants with different text     |
 
 ### Syntax
 
@@ -612,6 +613,10 @@ Directives use the same argument syntax as xprompt references:
 %wait:260415/0900            # Wait until 2026-04-15 at 09:00
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
+%alt(#review,#test)          # Split into two prompts: one with #review, one with #test
+%(#review,#test)             # Same, using shorthand syntax
+%alt(extra instructions)     # Single arg: split into with/without variants
+%(extra instructions)        # Same, using shorthand
 %approve                     # Run fully autonomously
 %a                           # Same, using alias
 %edit                        # Return editor text to prompt bar
@@ -724,6 +729,41 @@ This launches 3 separate agent runs with identical prompts. Each iteration expos
 %repeat:5
 Run test suite batch {{ N }} of 5.
 ```
+
+### Alt Directive
+
+The `%alt` directive splits a single prompt into multiple variant prompts, each launched as a separate agent. Each
+comma-separated argument replaces the directive span in the output prompt:
+
+```
+%alt(#review,#test,#docs)
+Analyze the codebase.
+```
+
+This produces three agents, each with "Analyze the codebase." but with `#review`, `#test`, or `#docs` substituted in
+place of the directive. Arguments can be arbitrary text — xprompt references, directives, plain instructions, or
+`[[text blocks]]`.
+
+`%(...)` is syntactic sugar for `%alt(...)`:
+
+```
+%(#review,#test)
+Analyze the codebase.
+```
+
+A single-argument `%alt` is treated as a with/without split — it produces two prompts: one with the argument text and
+one with the directive removed entirely:
+
+```
+%(Also check for security issues.)
+Review this module.
+```
+
+This launches two agents: one with "Also check for security issues. Review this module." and one with just "Review this
+module."
+
+Only one `%alt`/`%(` directive is allowed per prompt. The multi-model directive (`%m(opus,sonnet)`) is internally
+rewritten as `%alt(%model:opus,%model:sonnet)`.
 
 ### Multi-Model Directive
 
