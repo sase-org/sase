@@ -1,6 +1,6 @@
 ---
 create_time: 2026-04-13 11:09:39
-status: wip
+status: done
 ---
 
 # Plan: Migrate Tier 2 Xprompts to Long-Term Memory
