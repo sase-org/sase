@@ -3,7 +3,7 @@
 Scans the user's expanded prompt against keyword-tagged memory xprompts,
 resolves ``$(cat ...)`` shell substitution in matched content, and writes
 the resolved content to a temp file.  The temp file path is injected into
-the agent prompt as ``XPROMPT MEMORY: @<path>``.
+the agent prompt as ``DYNAMIC MEMORY: @<path>``.
 """
 
 from __future__ import annotations

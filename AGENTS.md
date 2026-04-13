@@ -11,7 +11,7 @@ The following memory files contain core (always loaded) context:
 
 ## Tier 2 (dynamic) Memory
 
-When your prompt matches keywords from memory-tagged xprompts, sase injects a `XPROMPT MEMORY: @<memory_file_path>` line
+When your prompt matches keywords from memory-tagged xprompts, sase injects a `DYNAMIC MEMORY: @<memory_file_path>` line
 at the bottom of your prompt. `<memory_file_path>` should be the file path of a markdown file that contains some context
 gathered by sase based on the prompt.
 

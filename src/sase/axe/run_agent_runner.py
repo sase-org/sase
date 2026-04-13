@@ -244,7 +244,7 @@ def main() -> None:
                 print()
 
                 # Inject dynamic memory reference into the prompt
-                prompt = prompt + f"\n\nXPROMPT MEMORY: @{dynamic_result.path}"
+                prompt = prompt + f"\n\nDYNAMIC MEMORY: @{dynamic_result.path}"
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(
